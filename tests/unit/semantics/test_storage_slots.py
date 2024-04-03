@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
 
 code = """
@@ -97,10 +98,17 @@ def test_reentrancy_lock(get_contract):
 
 
 def test_allocator_overflow(get_contract):
-    code = """
-# --> global nonreentrancy slot allocated here <--
+    # cancun allocates reeentrancy slot in transient storage,
+    # so allocate an actual storage variable
+    if version_check(begin="cancun"):
+        slot1 = "x: uint256"
+    else:
+        slot1 = "# --> global nonreentrancy slot allocated here <--"
+    code = f"""
+{slot1}
 y: uint256[max_value(uint256)]
     """
+
     with pytest.raises(
         StorageLayoutException,
         match=f"Invalid storage slot, tried to allocate slots 1 through {2**256}",

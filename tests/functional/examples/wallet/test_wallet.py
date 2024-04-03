@@ -2,17 +2,17 @@ import pytest
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from eth_keys import KeyAPI
-from eth_utils import is_same_address
+from eth_utils import is_same_address, to_bytes, to_checksum_address, to_int
 
 
 @pytest.fixture
-def c(w3, get_contract):
-    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
+def c(revm_env, get_contract):
+    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
     with open("examples/wallet/wallet.vy") as f:
         code = f.read()
     # Sends wei to the contract for future transactions gas costs
     c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
-    w3.eth.send_transaction({"to": c.address, "value": 10**17})
+    revm_env.execute_code(c.address, value=10**17)
     return c
 
 
@@ -29,12 +29,13 @@ def sign(keccak):
     return _sign
 
 
-def test_approve(w3, c, tester, tx_failed, sign):
-    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
-    k0, k1, k2, k3, k4, k5, k6, k7 = tester.backend.account_keys[:8]
+def test_approve(revm_env, c, tx_failed, sign):
+    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
+    k0, k1, k2, k3, k4, k5, k6, k7 = revm_env._keys[:8]
+    revm_env.set_balance(a1, 10**18)
 
     to, value, data = b"\x35" * 20, 10**16, b""
-    to_address = w3.to_checksum_address(to)
+    to_address = to_checksum_address(to)
 
     def pack_and_sign(seq, *args):
         sigs = [sign(seq, to, value, data, k) if k else [0, 0, 0] for k in args]
@@ -67,8 +68,8 @@ def test_approve(w3, c, tester, tx_failed, sign):
     print("Basic tests passed")
 
 
-def test_javascript_signatures(w3, get_contract):
-    a3 = w3.eth.accounts[2]
+def test_javascript_signatures(revm_env, get_contract, keccak):
+    a3 = revm_env.accounts[2]
     # The zero address will cause `approve` to default to valid signatures
     zero_address = "0x0000000000000000000000000000000000000000"
     accounts = [
@@ -85,14 +86,14 @@ def test_javascript_signatures(w3, get_contract):
 
     # Turns the raw sigs into sigs
     sigs = [
-        (w3.to_int(x[64:]), w3.to_int(x[:32]), w3.to_int(x[32:64]))  # v  # r  # s
-        for x in map(lambda z: w3.to_bytes(hexstr=z[2:]), raw_sigs)
+        (to_int(x[64:]), to_int(x[:32]), to_int(x[32:64]))  # v  # r  # s
+        for x in map(lambda z: to_bytes(hexstr=z[2:]), raw_sigs)
     ]
 
-    h = w3.keccak(
+    h = keccak(
         (0).to_bytes(32, "big")
         + b"\x00" * 12
-        + w3.to_bytes(hexstr=recipient[2:])
+        + to_bytes(hexstr=recipient[2:])
         + (25).to_bytes(32, "big")
         + b""
     )  # noqa: E501
@@ -104,15 +105,13 @@ def test_javascript_signatures(w3, get_contract):
 
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
-        owners = [w3.to_checksum_address(x) for x in accounts + [a3, zero_address, zero_address]]
+        owners = [to_checksum_address(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 
-    w3.eth.send_transaction({"to": x2.address, "value": 10**17})
+    revm_env.execute_code(x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures
     x2.approve(
         0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={"to": x2.address, "value": 10**17}
     )
-
-    print("Javascript signature tests passed")

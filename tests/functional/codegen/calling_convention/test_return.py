@@ -6,7 +6,7 @@ from vyper.exceptions import TypeMismatch
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_correct_abi_right_padding(tester, w3, get_contract_with_gas_estimation):
+def test_correct_abi_right_padding(revm_env, get_contract_with_gas_estimation):
     selfcall_code_6 = """
 @external
 def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
@@ -17,16 +17,10 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
 
     assert c.hardtest(b"hello" * 5, b"hello" * 10) == b"hello" * 15
 
-    # Make sure underlying structe is correctly right padded
-    classic_contract = c._classic_contract
-    func = classic_contract.functions.hardtest(b"hello" * 5, b"hello" * 10)
-    tx = func.build_transaction({"gasPrice": 0})
-    del tx["chainId"]
-    del tx["gasPrice"]
-
-    tx["from"] = w3.eth.accounts[0]
-    res = w3.to_bytes(hexstr=tester.call(tx))
-
+    # Make sure underlying struct is correctly right padded
+    res = revm_env.execute_code(
+        to=c.address, data=c.hardtest.prepare_calldata(b"hello" * 5, b"hello" * 10)
+    )
     static_offset = int.from_bytes(res[:32], "big")
     assert static_offset == 32
 
@@ -92,19 +86,19 @@ def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out() == [3333, "0x0000000000000000000000000000000000000001"]
-    assert c.out_literals() == [1, None, b"random"]
-    assert c.out_bytes_first() == [b"test", 1234]
-    assert c.out_bytes_a(5555555, b"test") == [5555555, b"test"]
-    assert c.out_bytes_b(5555555, b"test") == [b"test", 5555555, b"test"]
-    assert c.four() == [1234, b"bytes", b"test", 4321]
-    assert c.out_chunk() == [b"hello", 5678, b"world"]
-    assert c.out_very_long_bytes() == [
+    assert c.out() == (3333, "0x0000000000000000000000000000000000000001")
+    assert c.out_literals() == (1, None, b"random")
+    assert c.out_bytes_first() == (b"test", 1234)
+    assert c.out_bytes_a(5555555, b"test") == (5555555, b"test")
+    assert c.out_bytes_b(5555555, b"test") == (b"test", 5555555, b"test")
+    assert c.four() == (1234, b"bytes", b"test", 4321)
+    assert c.out_chunk() == (b"hello", 5678, b"world")
+    assert c.out_very_long_bytes() == (
         5555,
         long_string.encode(),
         6666,
         "0x0000000000000000000000000000000000001234",
-    ]
+    )
 
 
 def test_return_type_signatures(get_contract_with_gas_estimation):
@@ -115,7 +109,7 @@ def out_literals() -> (int128, address, Bytes[6]):
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c._classic_contract.abi[0]["outputs"] == [
+    assert c.abi[0]["outputs"] == [
         {"type": "int128", "name": ""},
         {"type": "address", "name": ""},
         {"type": "bytes", "name": ""},
@@ -143,7 +137,7 @@ def test() -> (int128, address, Bytes[10]):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out_literals() == c.test() == [1, None, b"random"]
+    assert c.out_literals() == c.test() == (1, None, b"random")
 
 
 def test_return_tuple_assign_storage(get_contract_with_gas_estimation):
@@ -182,10 +176,10 @@ def test3() -> (address, int128):
     c = get_contract_with_gas_estimation(code)
 
     addr = "0x" + "00" * 19 + "23"
-    assert c.out_literals() == [1, b"testtesttest", addr, b"random"]
+    assert c.out_literals() == (1, b"testtesttest", addr, b"random")
     assert c.out_literals() == c.test1()
-    assert c.test2() == [1, c.out_literals()[2]]
-    assert c.test3() == [c.out_literals()[2], 1]
+    assert c.test2() == (1, c.out_literals()[2])
+    assert c.test3() == (c.out_literals()[2], 1)
 
 
 @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -203,11 +197,11 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> (String[6], uint256):
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
-    assert c2.test_values(c1.address) == [string, 42]
+    assert c2.test_values(c1.address) == (string, 42)
 
 
 @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -225,11 +219,11 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> (Bytes[6], uint256):
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
-    assert c2.test_values(c1.address) == [bytes(string, "utf-8"), 42]
+    assert c2.test_values(c1.address) == (bytes(string, "utf-8"), 42)
 
 
 def test_tuple_return_typecheck(tx_failed, get_contract_with_gas_estimation):
@@ -613,7 +607,7 @@ def foo(addr: address) -> Foo:
     return Foo(
         a=1,
         b=2,
-        c=IBar(addr).bar().a,
+        c=(staticcall IBar(addr).bar()).a,
         d=4,
         e=5
     )
@@ -645,9 +639,7 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo(
-        a=IBar(addr).bar().a
-    )
+    return Foo(a=(staticcall IBar(addr).bar()).a)
     """
 
     c = get_contract(code)
@@ -693,9 +685,9 @@ def foo(addr: address) -> Foo:
     return Foo(
         a=1,
         b=2,
-        c=IBar(addr).bar().a,
+        c=(staticcall IBar(addr).bar()).a,
         d=4,
-        e=IBar(addr).baz(IBar(addr).bar().b)
+        e=(staticcall IBar(addr).baz((staticcall IBar(addr).bar()).b))
     )
     """
 
@@ -734,7 +726,7 @@ interface IBar:
 @external
 def foo(addr: address) -> Foo:
     return Foo(
-        a=IBar(addr).baz(IBar(addr).bar().a)
+        a=staticcall IBar(addr).baz((staticcall IBar(addr).bar()).a)
     )
     """
 
@@ -767,7 +759,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> Person:
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
@@ -795,7 +787,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> Person:
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)

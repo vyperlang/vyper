@@ -59,14 +59,14 @@ def foo() -> uint256[2]:
     assert c.foo() == G1_times_two
 
 
-def test_ecadd_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_ecadd_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: uint256[2]) -> uint256[2]: payable
 
 @external
 def foo(a: Foo) -> uint256[2]:
-    return ecadd([1, 2], a.foo([1, 2]))
+    return ecadd([1, 2], extcall a.foo([1, 2]))
     """
     c1 = side_effects_contract("uint256[2]")
     c2 = get_contract(code)
@@ -141,14 +141,14 @@ def foo() -> uint256[2]:
     assert c.foo() == G1_times_three
 
 
-def test_ecmul_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_ecmul_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: uint256) -> uint256: payable
 
 @external
 def foo(a: Foo) -> uint256[2]:
-    return ecmul([1, 2], a.foo(3))
+    return ecmul([1, 2], extcall a.foo(3))
     """
     c1 = side_effects_contract("uint256")
     c2 = get_contract(code)

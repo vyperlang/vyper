@@ -11,11 +11,11 @@ ERC721_SIG = "0x80ac58cd"
 
 
 @pytest.fixture
-def c(get_contract, w3):
+def c(get_contract, revm_env):
     with open("examples/tokens/ERC721.vy") as f:
         code = f.read()
     c = get_contract(code)
-    minter, someone, operator = w3.eth.accounts[:3]
+    minter, someone, operator = revm_env.accounts[:3]
     # someone owns 3 tokens
     for i in SOMEONE_TOKEN_IDS:
         c.mint(someone, i, transact={"from": minter})
@@ -24,7 +24,7 @@ def c(get_contract, w3):
     return c
 
 
-def test_erc165(w3, c):
+def test_erc165(revm_env, c):
     # From EIP-165:
     #   The source contract makes a STATICCALL to the destination address with input data:
     #       0x01ffc9a701ffc9a700000000000000000000000000000000000000000000000000000000
@@ -40,22 +40,22 @@ def test_erc165(w3, c):
     assert c.supportsInterface(ERC721_SIG)
 
 
-def test_balanceOf(c, w3, tx_failed):
-    someone = w3.eth.accounts[1]
+def test_balanceOf(c, revm_env, tx_failed):
+    someone = revm_env.accounts[1]
     assert c.balanceOf(someone) == 3
     with tx_failed():
         c.balanceOf(ZERO_ADDRESS)
 
 
-def test_ownerOf(c, w3, tx_failed):
-    someone = w3.eth.accounts[1]
+def test_ownerOf(c, revm_env, tx_failed):
+    someone = revm_env.accounts[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == someone
     with tx_failed():
         c.ownerOf(INVALID_TOKEN_ID)
 
 
-def test_getApproved(c, w3):
-    someone, operator = w3.eth.accounts[1:3]
+def test_getApproved(c, revm_env):
+    someone, operator = revm_env.accounts[1:3]
 
     assert c.getApproved(SOMEONE_TOKEN_IDS[0]) is None
 
@@ -64,8 +64,8 @@ def test_getApproved(c, w3):
     assert c.getApproved(SOMEONE_TOKEN_IDS[0]) == operator
 
 
-def test_isApprovedForAll(c, w3):
-    someone, operator = w3.eth.accounts[1:3]
+def test_isApprovedForAll(c, revm_env):
+    someone, operator = revm_env.accounts[1:3]
 
     assert c.isApprovedForAll(someone, operator) == 0
 
@@ -74,8 +74,8 @@ def test_isApprovedForAll(c, w3):
     assert c.isApprovedForAll(someone, operator) == 1
 
 
-def test_transferFrom_by_owner(c, w3, tx_failed, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_transferFrom_by_owner(c, revm_env, tx_failed, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer from zero address
     with tx_failed():
@@ -102,14 +102,14 @@ def test_transferFrom_by_owner(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_transferFrom_by_approved(c, w3, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_transferFrom_by_approved(c, revm_env, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer by approved
     c.approve(operator, SOMEONE_TOKEN_IDS[1], transact={"from": someone})
@@ -121,14 +121,14 @@ def test_transferFrom_by_approved(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[1]
+    assert args.token_id == SOMEONE_TOKEN_IDS[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[1]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_transferFrom_by_operator(c, w3, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_transferFrom_by_operator(c, revm_env, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer by operator
     c.setApprovalForAll(operator, True, transact={"from": someone})
@@ -140,14 +140,14 @@ def test_transferFrom_by_operator(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[2]
+    assert args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_safeTransferFrom_by_owner(c, w3, tx_failed, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_safeTransferFrom_by_owner(c, revm_env, tx_failed, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer from zero address
     with tx_failed():
@@ -176,14 +176,14 @@ def test_safeTransferFrom_by_owner(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_safeTransferFrom_by_approved(c, w3, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_safeTransferFrom_by_approved(c, revm_env, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer by approved
     c.approve(operator, SOMEONE_TOKEN_IDS[1], transact={"from": someone})
@@ -197,14 +197,14 @@ def test_safeTransferFrom_by_approved(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[1]
+    assert args.token_id == SOMEONE_TOKEN_IDS[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[1]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_safeTransferFrom_by_operator(c, w3, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_safeTransferFrom_by_operator(c, revm_env, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # transfer by operator
     c.setApprovalForAll(operator, True, transact={"from": someone})
@@ -218,14 +218,14 @@ def test_safeTransferFrom_by_operator(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[2]
+    assert args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
 
 
-def test_safeTransferFrom_to_contract(c, w3, tx_failed, get_logs, get_contract):
-    someone = w3.eth.accounts[1]
+def test_safeTransferFrom_to_contract(c, revm_env, tx_failed, get_logs, get_contract):
+    someone = revm_env.accounts[1]
 
     # Can't transfer to a contract that doesn't implement the receiver code
     with tx_failed():
@@ -254,14 +254,14 @@ def onERC721Received(
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == receiver.address
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == receiver.address
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(receiver.address) == 1
 
 
-def test_approve(c, w3, tx_failed, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_approve(c, revm_env, tx_failed, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # approve myself
     with tx_failed():
@@ -282,11 +282,11 @@ def test_approve(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.owner == someone
     assert args.approved == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
 
 
-def test_setApprovalForAll(c, w3, tx_failed, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_setApprovalForAll(c, revm_env, tx_failed, get_logs):
+    someone, operator = revm_env.accounts[1:3]
     approved = True
 
     # setApprovalForAll myself
@@ -303,8 +303,8 @@ def test_setApprovalForAll(c, w3, tx_failed, get_logs):
     assert args.approved == approved
 
 
-def test_mint(c, w3, tx_failed, get_logs):
-    minter, someone = w3.eth.accounts[:2]
+def test_mint(c, revm_env, tx_failed, get_logs):
+    minter, someone = revm_env.accounts[:2]
 
     # mint by non-minter
     with tx_failed():
@@ -320,15 +320,15 @@ def test_mint(c, w3, tx_failed, get_logs):
 
     assert len(logs) > 0
     args = logs[0].args
-    assert args.sender == ZERO_ADDRESS
+    assert args.sender in (ZERO_ADDRESS, None)
     assert args.receiver == someone
-    assert args.tokenId == NEW_TOKEN_ID
+    assert args.token_id == NEW_TOKEN_ID
     assert c.ownerOf(NEW_TOKEN_ID) == someone
     assert c.balanceOf(someone) == 4
 
 
-def test_burn(c, w3, tx_failed, get_logs):
-    someone, operator = w3.eth.accounts[1:3]
+def test_burn(c, revm_env, tx_failed, get_logs):
+    someone, operator = revm_env.accounts[1:3]
 
     # burn token without ownership
     with tx_failed():
@@ -341,8 +341,8 @@ def test_burn(c, w3, tx_failed, get_logs):
     assert len(logs) > 0
     args = logs[0].args
     assert args.sender == someone
-    assert args.receiver == ZERO_ADDRESS
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.receiver in (ZERO_ADDRESS, None)
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     with tx_failed():
         c.ownerOf(SOMEONE_TOKEN_IDS[0])
     assert c.balanceOf(someone) == 2

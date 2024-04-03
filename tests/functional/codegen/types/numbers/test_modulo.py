@@ -57,7 +57,7 @@ def bar(a: int128) -> bool:
 """
 
     c = get_contract(code)
-    assert c.foo() == [1, 1, -1, -1]
+    assert c.foo() == (1, 1, -1, -1)
     assert c.bar(-5) is True
 
 

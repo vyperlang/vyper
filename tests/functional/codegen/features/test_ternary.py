@@ -188,7 +188,7 @@ def test_ternary_tuple(get_contract, code, test):
     c = get_contract(code)
 
     x, y = 1, 2
-    assert c.foo(test, x, y) == ([x, y] if test else [y, x])
+    assert c.foo(test, x, y) == ((x, y) if test else (y, x))
 
 
 @pytest.mark.parametrize("test", [True, False])

@@ -152,7 +152,7 @@ def binv_arg(a: Roles) -> Roles:
         c.bxor_arg(3, 32)
 
 
-def test_augassign_storage(get_contract, w3, tx_failed):
+def test_augassign_storage(get_contract, revm_env, tx_failed):
     code = """
 flag Roles:
     ADMIN
@@ -186,8 +186,8 @@ def checkMinter(minter: address):
     c = get_contract(code)
 
     # check admin
-    admin_address = w3.eth.accounts[0]
-    minter_address = w3.eth.accounts[1]
+    admin_address = revm_env.deployer
+    minter_address = revm_env.accounts[1]
 
     # add minter
     c.addMinter(minter_address, transact={})

@@ -8,26 +8,27 @@ def _fixup_err_str(s):
     return s.replace("execution reverted: ", "")
 
 
-def test_assert_refund(w3, get_contract_with_gas_estimation, tx_failed):
+def test_assert_refund(revm_env, get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def foo():
     raise
     """
     c = get_contract_with_gas_estimation(code)
-    a0 = w3.eth.accounts[0]
+    revm_env.set_balance(revm_env.deployer, 10**7)
     gas_sent = 10**6
-    tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
-    # More info on receipt status:
-    # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
-    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
-    assert tx_receipt["status"] == 0
-    # Checks for gas refund from revert
-    assert tx_receipt["gasUsed"] < gas_sent
+    with tx_failed():
+        c.foo(transact={"gas": gas_sent, "gasPrice": 10})
+
+    result = revm_env.evm.result
+    assert result.gas_used < gas_sent, "Gas refund not received"
+    assert not result.is_success and not result.is_halt
 
 
-def test_assert_reason(w3, get_contract_with_gas_estimation, tx_failed, memory_mocker):
+def test_assert_reason(revm_env, get_contract_with_gas_estimation, tx_failed, memory_mocker):
     code = """
+err: String[32]
+
 @external
 def test(a: int128) -> int128:
     assert a > 1, "larger than one please"
@@ -43,6 +44,17 @@ def test2(a: int128, b: int128, extra_reason: String[32]) -> int128:
 @external
 def test3(reason_str: String[32]):
     raise reason_str
+
+@external
+def test4(a: int128, reason_str: String[32]) -> int128:
+    self.err = reason_str
+    assert a > 1, self.err
+    return 1 + a
+
+@external
+def test5(reason_str: String[32]):
+    self.err = reason_str
+    raise self.err
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -65,6 +77,15 @@ def test3(reason_str: String[32]):
     with pytest.raises(TransactionFailed) as e_info:
         c.test3("An exception")
     assert _fixup_err_str(e_info.value.args[0]) == "An exception"
+
+    assert c.test4(2, "msg") == 3
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test4(0, "larger than one again please")
+    assert _fixup_err_str(e_info.value.args[0]) == "larger than one again please"
+
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test5("A storage exception")
+    assert _fixup_err_str(e_info.value.args[0]) == "A storage exception"
 
 
 invalid_code = [
@@ -124,7 +145,7 @@ def test_valid_assertions(get_contract, code):
     get_contract(code)
 
 
-def test_assert_staticcall(get_contract, tx_failed, memory_mocker):
+def test_assert_staticcall(get_contract, revm_env, tx_failed, memory_mocker):
     foreign_code = """
 state: uint256
 @external
@@ -137,14 +158,15 @@ interface ForeignContract:
     def not_really_constant() -> uint256: view
 
 @external
-def test():
-    assert ForeignContract(msg.sender).not_really_constant() == 1
+def test(c: ForeignContract):
+    assert staticcall c.not_really_constant() == 1
     """
     c1 = get_contract(foreign_code)
-    c2 = get_contract(code, *[c1.address])
+    c2 = get_contract(code)
+
     # static call prohibits state change
     with tx_failed():
-        c2.test()
+        c2.test(c1.address)
 
 
 def test_assert_in_for_loop(get_contract, tx_failed, memory_mocker):
@@ -187,7 +209,7 @@ def test(x: uint256[3]) -> bool:
         c.test([1, 3, 5])
 
 
-def test_assert_reason_revert_length(w3, get_contract, tx_failed, memory_mocker):
+def test_assert_reason_revert_length(revm_env, get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test() -> int128:

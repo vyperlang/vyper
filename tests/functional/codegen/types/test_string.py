@@ -41,7 +41,7 @@ def testa(inp: String[10]) -> String[160]:
     assert c.testa("foo") == "Funny foo foo<-- return message"
 
 
-def test_basic_long_string_as_keys(get_contract, w3):
+def test_basic_long_string_as_keys(get_contract):
     code = """
 mapped_string: HashMap[String[34], int128]
 
@@ -145,14 +145,14 @@ def test(addr: address) -> (int128, address, String[10]):
     a: int128 = 0
     b: address = empty(address)
     c: String[10] = ""
-    (a, b, c) = Test(addr).out_literals()
+    (a, b, c) = staticcall Test(addr).out_literals()
     return a, b,c
     """
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", "random"]
-    assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", "random"]
+    assert c1.out_literals() == (1, "0x0000000000000000000000000000000000000123", "random")
+    assert c2.test(c1.address) == (1, "0x0000000000000000000000000000000000000123", "random")
 
 
 def test_default_arg_string(get_contract_with_gas_estimation):

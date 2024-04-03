@@ -94,14 +94,14 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
     c = get_contract_with_gas_estimation(code)
 
     val = Decimal("2.1")
-    assert c.test(val) == [
+    assert c.test(val) == (
         val,
         Decimal("1"),
         Decimal("2"),
         Decimal("3"),
         decimal_sqrt(val),
         "hello world",
-    ]
+    )
 
 
 @pytest.mark.parametrize("value", DECIMAL_RANGE)

@@ -14,8 +14,8 @@ def c(get_contract):
 z0 = "0x0000000000000000000000000000000000000000"
 
 
-def test_initial_state(w3, c):
-    a0 = w3.eth.accounts[0]
+def test_initial_state(revm_env, c):
+    a0 = revm_env.accounts[0]
     # Check chairperson is msg.sender
     assert c.chairperson() == a0
     # Check propsal names are correct
@@ -33,8 +33,8 @@ def test_initial_state(w3, c):
     assert c.voters(z0)[0] == 0  # Voter.weight
 
 
-def test_give_the_right_to_vote(w3, c, tx_failed):
-    a0, a1, a2, a3, a4, a5 = w3.eth.accounts[:6]
+def test_give_the_right_to_vote(revm_env, c, tx_failed):
+    a0, a1, a2, a3, a4, a5 = revm_env.accounts[:6]
     c.giveRightToVote(a1, transact={})
     # Check voter given right has weight of 1
     assert c.voters(a1)[0] == 1  # Voter.weight
@@ -62,8 +62,8 @@ def test_give_the_right_to_vote(w3, c, tx_failed):
     assert c.voters(a5)[0] == 1  # Voter.weight
 
 
-def test_forward_weight(w3, c):
-    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = w3.eth.accounts[:10]
+def test_forward_weight(revm_env, c):
+    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = revm_env.accounts[:10]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})
@@ -128,8 +128,8 @@ def test_forward_weight(w3, c):
     assert c.voters(a9)[0] == 10  # Voter.weight
 
 
-def test_block_short_cycle(w3, c, tx_failed):
-    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = w3.eth.accounts[:10]
+def test_block_short_cycle(revm_env, c, tx_failed):
+    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = revm_env.accounts[:10]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})
@@ -152,8 +152,8 @@ def test_block_short_cycle(w3, c, tx_failed):
     # but this is something the frontend should prevent for user friendliness
 
 
-def test_delegate(w3, c, tx_failed):
-    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
+def test_delegate(revm_env, c, tx_failed):
+    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})
@@ -184,8 +184,8 @@ def test_delegate(w3, c, tx_failed):
     assert c.voters(a0)[0] == 3  # Voter.weight
 
 
-def test_vote(w3, c, tx_failed):
-    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = w3.eth.accounts[:10]
+def test_vote(revm_env, c, tx_failed):
+    a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = revm_env.accounts[:10]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})
@@ -217,8 +217,8 @@ def test_vote(w3, c, tx_failed):
         c.vote(2, transact={"from": a7})
 
 
-def test_winning_proposal(w3, c):
-    a0, a1, a2 = w3.eth.accounts[:3]
+def test_winning_proposal(revm_env, c):
+    a0, a1, a2 = revm_env.accounts[:3]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})
@@ -233,8 +233,8 @@ def test_winning_proposal(w3, c):
     assert c.winningProposal() == 1
 
 
-def test_winner_namer(w3, c):
-    a0, a1, a2 = w3.eth.accounts[:3]
+def test_winner_namer(revm_env, c):
+    a0, a1, a2 = revm_env.accounts[:3]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
     c.giveRightToVote(a2, transact={})

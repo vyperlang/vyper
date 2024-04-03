@@ -13,7 +13,7 @@ interface ProtectedContract:
 
 @external
 def do_callback():
-    ProtectedContract(msg.sender).protected_function(self)
+    extcall ProtectedContract(msg.sender).protected_function(self)
     """
 
     protected_code = """
@@ -23,7 +23,7 @@ interface Callbackable:
 @external
 @nonreentrant
 def protected_function(c: Callbackable):
-    c.do_callback()
+    extcall c.do_callback()
 
 # add a default function so we know the callback didn't fail for any reason
 # besides nonreentrancy
@@ -46,7 +46,7 @@ interface ProtectedContract:
 
 @external
 def do_callback() -> uint256:
-    return ProtectedContract(msg.sender).protected_view_fn()
+    return staticcall ProtectedContract(msg.sender).protected_view_fn()
     """
 
     protected_code = """
@@ -56,7 +56,7 @@ interface Callbackable:
 @external
 @nonreentrant
 def protected_function(c: Callbackable):
-    c.do_callback()
+    extcall c.do_callback()
 
 @external
 @nonreentrant
@@ -86,12 +86,12 @@ interface ProtectedContract:
 
 @external
 def updated():
-    ProtectedContract(msg.sender).unprotected_function('surprise!', False)
+    extcall ProtectedContract(msg.sender).unprotected_function('surprise!', False)
 
 @external
 def updated_protected():
     # This should fail.
-    ProtectedContract(msg.sender).protected_function('surprise protected!', False)
+    extcall ProtectedContract(msg.sender).protected_function('surprise protected!', False)
     """
 
     protected_code = """
@@ -117,7 +117,7 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
 
     if do_callback:
-        self.callback.updated_protected()
+        extcall self.callback.updated_protected()
         return 1
     else:
         return 2
@@ -128,7 +128,7 @@ def protected_function2(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     if do_callback:
         # call other function with same nonreentrancy key
-        Self(self).protected_function(val, False)
+        extcall Self(self).protected_function(val, False)
         return 1
     return 2
 
@@ -138,7 +138,7 @@ def protected_function3(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     if do_callback:
         # call other function with same nonreentrancy key
-        assert self.special_value == Self(self).protected_view_fn()
+        assert self.special_value == staticcall Self(self).protected_view_fn()
         return 1
     return 2
 
@@ -154,7 +154,7 @@ def unprotected_function(val: String[100], do_callback: bool):
     self.special_value = val
 
     if do_callback:
-        self.callback.updated()
+        extcall self.callback.updated()
 
 # add a default function so we know the callback didn't fail for any reason
 # besides nonreentrancy
@@ -193,7 +193,7 @@ def __default__():
         contract.protected_function3("zzz value", True, transact={})
 
 
-def test_nonreentrant_decorator_for_default(w3, get_contract, tx_failed):
+def test_nonreentrant_decorator_for_default(revm_env, get_contract, tx_failed):
     calling_contract_code = """
 @external
 def send_funds(_amount: uint256):
@@ -231,7 +231,7 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
     send(self.callback.address, msg.value)
 
     if do_callback:
-        self.callback.send_funds(_amount)
+        extcall self.callback.send_funds(_amount)
         return 1
     else:
         return 2
@@ -244,7 +244,7 @@ def unprotected_function(val: String[100], do_callback: bool):
     send(self.callback.address, msg.value)
 
     if do_callback:
-        self.callback.send_funds(_amount)
+        extcall self.callback.send_funds(_amount)
 
 @external
 @payable
@@ -262,20 +262,20 @@ def __default__():
     # Test unprotected function without callback.
     reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "some value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 0
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert revm_env.get_balance(reentrant_contract.address) == 0
+    assert revm_env.get_balance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
     reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
     assert reentrant_contract.special_value() == "another value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert revm_env.get_balance(reentrant_contract.address) == 1000
+    assert revm_env.get_balance(calling_contract.address) == 1000
 
     # Test protected function without callback.
     reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "surprise!"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 2000
+    assert revm_env.get_balance(reentrant_contract.address) == 1000
+    assert revm_env.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
     with tx_failed():

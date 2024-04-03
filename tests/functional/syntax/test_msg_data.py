@@ -1,5 +1,6 @@
 import pytest
 from eth_tester.exceptions import TransactionFailed
+from eth_utils import to_bytes
 
 from vyper import compiler
 from vyper.exceptions import StructureException, TypeMismatch
@@ -15,7 +16,7 @@ def foo() -> Bytes[4]:
 
     contract = get_contract(code)
 
-    assert contract.foo() == bytes(keccak(text="foo()")[:4])
+    assert contract.foo() == bytes(keccak(b"foo()")[:4])
 
 
 def test_slicing_start_index_other_than_zero(get_contract):
@@ -31,7 +32,7 @@ def foo(_value: uint256) -> uint256:
     assert contract.foo(42) == 42
 
 
-def test_get_full_calldata(get_contract, keccak, w3):
+def test_get_full_calldata(get_contract, keccak):
     code = """
 @external
 def foo(bar: uint256) -> Bytes[36]:
@@ -41,8 +42,8 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    method_id = keccak(text="foo(uint256)").hex()[2:10]  # 2fbebd38
-    encoded_42 = w3.to_bytes(42).hex()  # 2a
+    method_id = keccak(b"foo(uint256)").hex()[:8]  # 2fbebd38
+    encoded_42 = to_bytes(42).hex()  # 2a
     expected_result = method_id + "00" * 31 + encoded_42
 
     assert contract.foo(42).hex() == expected_result
@@ -73,10 +74,10 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == [2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1]
+    assert contract.foo() == (2**256 - 1, bytes(keccak(b"foo()")[:4]), 2**256 - 1)
 
 
-def test_assignment_to_storage(w3, get_contract, keccak):
+def test_assignment_to_storage(revm_env, get_contract, keccak):
     code = """
 cache: public(Bytes[4])
 
@@ -84,11 +85,9 @@ cache: public(Bytes[4])
 def foo():
     self.cache = slice(msg.data, 0, 4)
 """
-    acct = w3.eth.accounts[0]
     contract = get_contract(code)
-
-    contract.foo(transact={"from": acct})
-    assert contract.cache() == bytes(keccak(text="foo()")[:4])
+    contract.foo(transact={})
+    assert contract.cache() == bytes(keccak(b"foo()")[:4])
 
 
 def test_get_len(get_contract):

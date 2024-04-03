@@ -3,6 +3,8 @@ from decimal import Decimal
 import pytest
 from eth.codecs import abi
 
+from vyper.exceptions import StackTooDeep
+
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
 def test_abi_encode(get_contract):
@@ -226,6 +228,7 @@ nested_3d_array_args = [
 
 
 @pytest.mark.parametrize("args", nested_3d_array_args)
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_abi_encode_nested_dynarray_2(get_contract, args):
     code = """
 @external
@@ -281,7 +284,7 @@ interface Foo:
 
 @external
 def foo(addr: address) -> Bytes[164]:
-    return _abi_encode(Foo(addr).get_counter(), method_id=0xdeadbeef)
+    return _abi_encode(extcall Foo(addr).get_counter(), method_id=0xdeadbeef)
     """
 
     c2 = get_contract(contract_2)
@@ -310,7 +313,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = b"\x00" * 32
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(bytes)", (bs,)))
 
 
 def test_abi_encode_private_dynarray(get_contract):
@@ -327,9 +330,10 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[])", (bs,)))
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_abi_encode_private_nested_dynarray(get_contract):
     code = """
 bytez: Bytes[1696]
@@ -349,7 +353,7 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[][][])", (bs,)))
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))

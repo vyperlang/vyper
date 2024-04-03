@@ -251,8 +251,8 @@ def minimum():
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert c.maximum() == []
-    assert c.minimum() == []
+    assert c.maximum() is None
+    assert c.minimum() is None
 
 
 def test_scientific_notation(get_contract_with_gas_estimation):

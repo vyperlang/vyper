@@ -1,5 +1,7 @@
 import pytest
-from web3.exceptions import ValidationError
+from eth.codecs.abi.exceptions import EncodeError
+
+from vyper.exceptions import StackTooDeep
 
 
 def test_init_argument_test(get_contract_with_gas_estimation):
@@ -84,11 +86,11 @@ def foo(x: int128) -> int128:
     c.foo(1274124)
     c.foo(2**120)
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(EncodeError):
         c.foo(2**130)
 
 
-def test_large_input_code_2(w3, get_contract_with_gas_estimation):
+def test_large_input_code_2(revm_env, get_contract_with_gas_estimation):
     large_input_code_2 = """
 @deploy
 def __init__(x: int128):
@@ -101,7 +103,7 @@ def foo() -> int128:
 
     get_contract_with_gas_estimation(large_input_code_2, *[17])
 
-    with pytest.raises(TypeError):
+    with pytest.raises(EncodeError):
         get_contract_with_gas_estimation(large_input_code_2, *[2**130])
 
     print("Passed invalid input tests")
@@ -147,7 +149,7 @@ def check_foo(a: uint64) -> int16:
     assert c.check_foo(3) == -2
 
 
-def test_nested_dynamic_array_constructor_arg(w3, get_contract_with_gas_estimation):
+def test_nested_dynamic_array_constructor_arg(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: uint256
 
@@ -163,7 +165,8 @@ def get_foo() -> uint256:
     assert c.get_foo() == 39
 
 
-def test_nested_dynamic_array_constructor_arg_2(w3, get_contract_with_gas_estimation):
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
+def test_nested_dynamic_array_constructor_arg_2(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: int128
 
@@ -188,7 +191,7 @@ def get_foo() -> int128:
     assert c.get_foo() == 9580
 
 
-def test_initialise_nested_dynamic_array(w3, get_contract_with_gas_estimation):
+def test_initialise_nested_dynamic_array(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[uint256, 3], 3]
 
@@ -208,7 +211,8 @@ def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
     assert c.get_foo() == [[37, 41, 73], [37041, 41073, 73037], [146, 123, 148]]
 
 
-def test_initialise_nested_dynamic_array_2(w3, get_contract_with_gas_estimation):
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
+def test_initialise_nested_dynamic_array_2(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
 

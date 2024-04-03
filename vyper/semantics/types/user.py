@@ -46,6 +46,8 @@ class _UserType(VyperType):
 
 # note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
+    typeclass = "flag"
+
     # this is a carveout because currently we allow dynamic arrays of
     # flags, but not static arrays of flags
     _as_darray = True
@@ -163,6 +165,8 @@ class EventT(_UserType):
         Name of the event.
     """
 
+    typeclass = "event"
+
     _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
     def __init__(
@@ -179,6 +183,10 @@ class EventT(_UserType):
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
         self.decl_node = decl_node
+
+    @property
+    def _id(self):
+        return self.name
 
     # backward compatible
     @property
@@ -239,14 +247,19 @@ class EventT(_UserType):
             return cls(base_node.name, members, indexed, base_node)
 
         for node in base_node.body:
+            # TODO: these syntax checks should be in EventDef.validate()
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException("Events can only contain variable definitions", node)
             if node.value is not None:
-                raise StructureException("Cannot assign a value during event declaration", node)
+                raise StructureException(
+                    "Cannot assign a value during event declaration", node.value
+                )
             if not isinstance(node.target, vy_ast.Name):
                 raise StructureException("Invalid syntax for event member name", node.target)
+
             member_name = node.target.id
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"Event member '{member_name}' has already been declared", node.target
                 )
@@ -287,6 +300,7 @@ class EventT(_UserType):
 
 
 class StructT(_UserType):
+    typeclass = "struct"
     _as_array = True
 
     def __init__(self, _id, members, ast_def=None):
@@ -348,6 +362,7 @@ class StructT(_UserType):
             member_name = node.target.id
 
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"struct member '{member_name}' has already been declared", node.value
                 )

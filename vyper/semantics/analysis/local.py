@@ -38,7 +38,7 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.data_locations import DataLocation
 
 # TODO consolidate some of these imports
-from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
@@ -51,6 +51,7 @@ from vyper.semantics.types import (
     HashMapT,
     IntegerT,
     SArrayT,
+    SelfT,
     StringT,
     StructT,
     TupleT,
@@ -69,6 +70,11 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
         _validate_function_r(vy_module, node, err_list)
+
+    for node in vy_module.get_children(vy_ast.VariableDecl):
+        if not node.is_public:
+            continue
+        _validate_function_r(vy_module, node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
@@ -159,21 +165,32 @@ def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
 
 
-def _validate_pure_access(node: vy_ast.Attribute, typ: VyperType) -> None:
-    env_vars = set(CONSTANT_ENVIRONMENT_VARS.keys()) | set(MUTABLE_ENVIRONMENT_VARS.keys())
-    if isinstance(node.value, vy_ast.Name) and node.value.id in env_vars:
-        if isinstance(typ, ContractFunctionT) and typ.mutability == StateMutability.PURE:
-            return
+def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
+    info = get_expr_info(node)
 
-        raise StateAccessViolation(
-            "not allowed to query contract or environment variables in pure functions", node
-        )
+    env_vars = CONSTANT_ENVIRONMENT_VARS
+    # check env variable access like `block.number`
+    if isinstance(node, vy_ast.Attribute):
+        if node.get("value.id") in env_vars:
+            raise StateAccessViolation(
+                "not allowed to query environment variables in pure functions"
+            )
+        parent_info = get_expr_info(node.value)
+        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
+            raise StateAccessViolation("not allowed to query address members in pure functions")
 
+    if (varinfo := info.var_info) is None:
+        return
+    # self is magic. we only need to check it if it is not the root of an Attribute
+    # node. (i.e. it is bare like `self`, not `self.foo`)
+    is_naked_self = isinstance(varinfo.typ, SelfT) and not isinstance(
+        node.get_ancestor(), vy_ast.Attribute
+    )
+    if is_naked_self:
+        raise StateAccessViolation("not allowed to query `self` in pure functions")
 
-def _validate_self_reference(node: vy_ast.Name) -> None:
-    # CMC 2023-10-19 this detector seems sus, things like `a.b(self)` could slip through
-    if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
-        raise StateAccessViolation("not allowed to query self in pure functions", node)
+    if varinfo.is_state_variable() or is_naked_self:
+        raise StateAccessViolation("not allowed to query state variables in pure functions")
 
 
 # analyse the variable access for the attribute chain for a node
@@ -181,7 +198,7 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
 # `module.foo` will return VarAccess for `module.foo`
 # `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
 def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
-    attrs: list[str] = []
+    path: list[str | object] = []
     info = get_expr_info(node)
 
     while info.var_info is None:
@@ -192,21 +209,21 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         if isinstance(node, vy_ast.Subscript):
             # Subscript is an analysis barrier
             # we cannot analyse if `x.y[ix1].z` overlaps with `x.y[ix2].z`.
-            attrs.clear()
+            path.append(VarAccess.SUBSCRIPT_ACCESS)
 
         if (attr := info.attr) is not None:
-            attrs.append(attr)
+            path.append(attr)
 
         assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
 
     # ignore `self.` as it interferes with VarAccess comparison across modules
-    if len(attrs) > 0 and attrs[-1] == "self":
-        attrs.pop()
-    attrs.reverse()
+    if len(path) > 0 and path[-1] == "self":
+        path.pop()
+    path.reverse()
 
-    return VarAccess(info.var_info, tuple(attrs))
+    return VarAccess(info.var_info, tuple(path))
 
 
 # get the chain of modules, e.g.
@@ -230,6 +247,32 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
 
     ret.reverse()
     return ret
+
+
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """
+    validate module usage, and that if we use lib1.lib2.<state>, that
+    lib1 at least `uses` lib2.
+
+    Returns the left-most module referenced in the expr,
+        e.g. `lib1.lib2.foo` should return module info for `lib1`.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!"
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
+
+    # the leftmost- referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
@@ -397,25 +440,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _check_module_use(self, target: vy_ast.ExprNode):
-        module_infos = _get_module_chain(target)
-
-        if len(module_infos) == 0:
+    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
+        if not var_access.variable.is_state_variable():
             return
 
-        for module_info in module_infos:
-            if module_info.ownership < ModuleOwnership.USES:
-                msg = f"Cannot access `{module_info.alias}` state!"
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-                raise ImmutableViolation(msg, hint=hint)
+        root_module_info = check_module_uses(target)
 
-        # the leftmost- referenced module
-        root_module_info = module_infos[0]
-
-        # log the access
-        self.func.mark_used_module(root_module_info)
+        if root_module_info is not None:
+            # log the access
+            self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -443,10 +476,22 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Expressions without assignment are disallowed", node)
+        # NOTE: standalone staticcalls are banned!
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall)):
+            raise StructureException(
+                "Expressions without assignment are disallowed",
+                node,
+                hint="did you mean to assign the result to a variable?",
+            )
 
-        fn_type = get_exact_type_from_node(node.value.func)
+        if isinstance(node.value, vy_ast.ExtCall):
+            call_node = node.value.value
+        else:
+            call_node = node.value
+
+        func = call_node.func
+
+        fn_type = get_exact_type_from_node(func)
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -455,14 +500,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = map_void(fn_type.fetch_call_return(node.value))
+        return_value = map_void(fn_type.fetch_call_return(call_node))
         if (
             return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
-                f"Function '{fn_type._id}' cannot be called without assigning the result", node
+                f"Function `{fn_type}` cannot be called without assigning the result"
             )
         self.expr_visitor.visit(node.value, return_value)
 
@@ -542,8 +587,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_Log(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Log must call an event", node)
+        # postcondition of Log.validate()
+        assert isinstance(node.value, vy_ast.Call)
+
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
@@ -637,8 +683,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node)
+                    self.function_analyzer._handle_module_access(s, node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -660,9 +705,10 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_msg_value_access(node)
 
         if self.func and self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node, typ)
+            _validate_pure_access(node)
 
         value_type = get_exact_type_from_node(node.value)
+
         _validate_address_code(node, value_type)
 
         self.visit(node.value, value_type)
@@ -691,27 +737,57 @@ class ExprVisitor(VyperNodeVisitorBase):
             msg = f"Cannot call a {call_mutability} function from a {self.func.mutability} function"
             raise StateAccessViolation(msg)
 
+    def visit_ExtCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_StaticCall(self, node, typ):
+        return self.visit(node.value, typ)
+
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         func_info = get_expr_info(node.func, is_callable=True)
         func_type = func_info.typ
 
+        # TODO: unify the APIs for different callable types so that
+        # we don't need so much branching here.
+
+        if not node.is_plain_call and not isinstance(func_type, ContractFunctionT):
+            kind = node.kind_str
+            msg = f"cannot use `{kind}` here!"
+            hint = f"remove the `{kind}` keyword"
+            raise CallViolation(msg, node.parent, hint=hint)
+
         if isinstance(func_type, ContractFunctionT):
             # function calls
+            if func_type.is_external:
+                missing_keyword = node.is_plain_call
+                is_static = func_type.mutability < StateMutability.NONPAYABLE
+
+                if is_static != node.is_staticcall or missing_keyword:
+                    should = "staticcall" if is_static else "extcall"
+                    msg = f"Calls to external {func_type.mutability} functions "
+                    msg += f"must use the `{should}` keyword."
+                    hint = f"try `{should} {node.node_source_code}`"
+                    raise CallViolation(msg, hint=hint)
+            else:
+                if not node.is_plain_call:
+                    kind = node.kind_str
+                    msg = f"Calls to internal functions cannot use the `{kind}` keyword."
+                    hint = f"remove the `{kind}` keyword"
+                    raise CallViolation(msg, node.parent, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._writes.add(s)
                 for s in func_type.get_variable_reads():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._reads.add(s)
 
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
                 for s in func_type.get_variable_accesses():
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node.func)
+                    self.function_analyzer._handle_module_access(s, node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
@@ -809,10 +885,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func:
-            # TODO: refactor to use expr_info mutability
-            if self.func.mutability == StateMutability.PURE:
-                _validate_self_reference(node)
+        if self.func and self.func.mutability == StateMutability.PURE:
+            _validate_pure_access(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

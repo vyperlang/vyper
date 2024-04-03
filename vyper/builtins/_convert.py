@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp,
     clamp_basetype,
+    clamp_le,
     get_bytearray_length,
     int_clamp,
     is_bytes_m_type,
@@ -85,8 +86,8 @@ def _bytes_to_num(arg, out_typ, signed):
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
         num_zero_bits = 8 * (32 - arg.typ.m)
-    else:
-        raise CompilerPanic("unreachable")  # pragma: notest
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
     if signed:
         ret = sar(num_zero_bits, arg)
@@ -110,8 +111,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
         # add an assertion, just in case this assumption ever changes.
         assert out_hi < 2**256 - 1, "bad assumption in numeric convert"
-        CLAMP_OP = "sle" if arg_is_signed else "le"
-        arg = clamp(CLAMP_OP, arg, out_hi)
+        arg = clamp_le(arg, out_hi, arg_is_signed)
 
     return arg
 
@@ -359,8 +359,8 @@ def to_decimal(expr, arg, out_typ):
         # TODO: consider adding is_signed and bits to bool so we can use _int_to_fixed
         arg = ["mul", arg, 10**out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
-    else:
-        raise CompilerPanic("unreachable")  # pragma: notest
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
 
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
@@ -422,23 +422,31 @@ def to_address(expr, arg, out_typ):
     return IRnode.from_list(ret, out_typ)
 
 
+def _cast_bytestring(expr, arg, out_typ):
+    # ban converting Bytes[20] to Bytes[21]
+    if isinstance(arg.typ, out_typ.__class__) and arg.typ.maxlen <= out_typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+    # can't downcast literals with known length (e.g. b"abc" to Bytes[2])
+    if isinstance(expr, vy_ast.Constant) and arg.typ.maxlen > out_typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+
+    ret = ["seq"]
+    if out_typ.maxlen < arg.typ.maxlen:
+        ret.append(["assert", ["le", get_bytearray_length(arg), out_typ.maxlen]])
+    ret.append(arg)
+    # NOTE: this is a pointer cast
+    return IRnode.from_list(ret, typ=out_typ, location=arg.location, encoding=arg.encoding)
+
+
 # question: should we allow bytesM -> String?
-@_input_types(BytesT)
+@_input_types(BytesT, StringT)
 def to_string(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT)
+@_input_types(StringT, BytesT)
 def to_bytes(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # TODO: more casts
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
 @_input_types(IntegerT)

@@ -69,7 +69,7 @@ def foo() -> (uint256, uint256):
     return x, self.counter
     """
     c = get_contract(code)
-    assert c.foo() == [0, 1]
+    assert c.foo() == (0, 1)
 
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
@@ -351,7 +351,7 @@ def bar() -> (int128, decimal):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [66, Decimal("66.77")]
+    assert c.bar() == (66, Decimal("66.77"))
 
 
 def test_internal_function_multiple_lists_as_args(get_contract_with_gas_estimation):
@@ -403,7 +403,7 @@ def bar() -> (Bytes[11], decimal, int128):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [b"hello world", Decimal("66.77"), 44]
+    assert c.bar() == (b"hello world", Decimal("66.77"), 44)
 
 
 FAILING_CONTRACTS_CALL_VIOLATION = [
@@ -436,7 +436,8 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_CALL_VIOLATION)
 def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
-    assert_compile_failed(lambda: compile_code(failing_contract_code), CallViolation)
+    with pytest.raises(CallViolation):
+        _ = compile_code(failing_contract_code)
 
 
 FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
@@ -534,10 +535,9 @@ def bar():
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_TYPE_MISMATCH)
 @pytest.mark.parametrize("decorator", ["external", "internal"])
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
-    assert_compile_failed(
-        lambda: compile_code(failing_contract_code.format(decorator)),
-        ArgumentException if decorator == "internal" else CallViolation,
-    )
+    exc = ArgumentException if decorator == "internal" else CallViolation
+    with pytest.raises(exc):
+        _ = compile_code(failing_contract_code.format(decorator))
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
@@ -560,7 +560,7 @@ def test() -> (int128, String[{ln}], Bytes[{ln}]):
 
     c = get_contract_with_gas_estimation(contract)
 
-    assert c.test() == [i, s, bytes(s, "utf-8")]
+    assert c.test() == (i, s, bytes(s, "utf-8"))
 
 
 def test_dynamically_sized_struct_as_arg(get_contract_with_gas_estimation):
@@ -697,10 +697,10 @@ def test4(x1: {typ1}, x2: {typ2}) -> ({typ1}, {typ2}):
     return self.foo(x1, x2)
         """
         c = get_contract(code)
-        assert c.test0() == [default1, default2]
-        assert c.test1() == [kwarg1, default2]
-        assert c.test2() == [kwarg1, kwarg2]
-        assert c.test3(kwarg1) == [kwarg1, default2]
-        assert c.test4(kwarg1, kwarg2) == [kwarg1, kwarg2]
+        assert c.test0() == (default1, default2)
+        assert c.test1() == (kwarg1, default2)
+        assert c.test2() == (kwarg1, kwarg2)
+        assert c.test3(kwarg1) == (kwarg1, default2)
+        assert c.test4(kwarg1, kwarg2) == (kwarg1, kwarg2)
 
     fuzz()

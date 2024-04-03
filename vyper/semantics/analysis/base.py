@@ -1,15 +1,18 @@
 import enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import InputBundle
+from vyper.compiler.input_bundle import CompilerInput, FileInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
+    from vyper.semantics.types.function import ContractFunctionT
     from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
@@ -121,9 +124,20 @@ class ImportInfo(AnalysisResult):
     typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
-    # source_id: int
-    input_bundle: InputBundle
+    compiler_input: CompilerInput  # to recover file info for ast export
     node: vy_ast.VyperNode
+
+    def to_dict(self):
+        ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
+
+        ret["source_id"] = self.compiler_input.source_id
+        ret["path"] = str(self.compiler_input.path)
+        ret["resolved_path"] = str(self.compiler_input.resolved_path)
+
+        if isinstance(self.compiler_input, FileInput):
+            ret["file_sha256sum"] = self.compiler_input.sha256sum
+
+        return ret
 
 
 # analysis result of InitializesDecl
@@ -139,6 +153,13 @@ class InitializesInfo(AnalysisResult):
 class UsesInfo(AnalysisResult):
     used_modules: list[ModuleInfo]
     node: Optional[vy_ast.VyperNode] = None
+
+
+# analysis result of ExportsDecl
+@dataclass
+class ExportsInfo(AnalysisResult):
+    functions: list["ContractFunctionT"]
+    used_modules: OrderedSet[ModuleInfo]
 
 
 @dataclass
@@ -157,7 +178,7 @@ class VarInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    decl_node: Optional[vy_ast.VyperNode] = None
+    decl_node: Optional[vy_ast.VariableDecl] = None
 
     def __hash__(self):
         return hash(id(self))
@@ -166,14 +187,24 @@ class VarInfo:
         self.position = None
         self._modification_count = 0
 
+    @property
+    def getter_ast(self) -> Optional[vy_ast.VyperNode]:
+        assert self.decl_node is not None  # help mypy
+        ret = self.decl_node._expanded_getter
+        assert (ret is not None) == self.is_public, self
+        return ret
+
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
             raise CompilerPanic("Position was already assigned")
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
-    def is_module_variable(self):
-        return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
+    def is_state_variable(self):
+        non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
+        # `self` gets a VarInfo, but it is not considered a state
+        # variable (it is magic), so we ignore it here.
+        return self.location not in non_state_locations and not isinstance(self.typ, SelfT)
 
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)
@@ -196,12 +227,39 @@ class VarInfo:
 @dataclass(frozen=True)
 class VarAccess:
     variable: VarInfo
-    attrs: tuple[str, ...]
+    path: tuple[str | object, ...]
+
+    # A sentinel indicating a subscript access
+    SUBSCRIPT_ACCESS: ClassVar[Any] = object()
+
+    @cached_property
+    def attrs(self):
+        ret = []
+        for s in self.path:
+            if s is self.SUBSCRIPT_ACCESS:
+                break
+            ret.append(s)
+        return tuple(ret)
 
     def contains(self, other):
         # VarAccess("v", ("a")) `contains` VarAccess("v", ("a", "b", "c"))
         sub_attrs = other.attrs[: len(self.attrs)]
         return self.variable == other.variable and sub_attrs == self.attrs
+
+    def to_dict(self):
+        var = self.variable
+        if var.decl_node is None:
+            # happens for builtins or `self` accesses
+            return None
+
+        # map SUBSCRIPT_ACCESS to `"$subscript_access"` (which is an identifier
+        # which can't be constructed by the user)
+        path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
+        varname = var.decl_node.target.id
+
+        decl_node = var.decl_node.get_id_dict()
+        ret = {"name": varname, "decl_node": decl_node, "access_path": path}
+        return ret
 
 
 @dataclass

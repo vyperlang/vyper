@@ -110,14 +110,14 @@ def floor_param(p: decimal) -> int256:
     assert c.floor_param(Decimal("-0.0000000001")) == -1
 
 
-def test_floor_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_floor_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
-@external
-def foo(a: Foo) -> int256:
-    return floor(a.foo(2.5))
-
 interface Foo:
     def foo(x: decimal) -> decimal: nonpayable
+
+@external
+def foo(a: Foo) -> int256:
+    return floor(extcall a.foo(2.5))
     """
 
     c1 = side_effects_contract("decimal")

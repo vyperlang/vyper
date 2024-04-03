@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 
-def test_call_to_self_struct(w3, get_contract):
+def test_call_to_self_struct(revm_env, get_contract):
     code = """
 struct MyStruct:
     e1: decimal
@@ -26,11 +26,11 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     c = get_contract(code)
     assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (
         Decimal("0.1"),
-        w3.eth.get_block(w3.eth.block_number)["timestamp"],
+        revm_env.get_block().timestamp,
     )
     assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (
         Decimal("0.1"),
-        w3.eth.get_block(w3.eth.block_number)["timestamp"],
+        revm_env.get_block().timestamp,
     )
 
 

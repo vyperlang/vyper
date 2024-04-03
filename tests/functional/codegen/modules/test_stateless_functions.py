@@ -14,7 +14,7 @@ from vyper.exceptions import (
 # test modules which have no variables - "libraries"
 
 
-def test_simple_library(get_contract, make_input_bundle, w3):
+def test_simple_library(get_contract, make_input_bundle, revm_env):
     library_source = """
 @internal
 def foo() -> uint256:
@@ -31,7 +31,7 @@ def bar() -> uint256:
 
     c = get_contract(main, input_bundle=input_bundle)
 
-    assert c.bar() == w3.eth.block_number
+    assert c.bar() == revm_env.block_number
 
 
 # is this the best place for this?
@@ -179,7 +179,7 @@ def qux() -> library.SomeStruct:
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    assert c.bar((1,)) == []
+    assert c.bar((1,)) is None
 
     assert c.baz() == (2,)
     assert c.qux() == (1,)
@@ -188,7 +188,7 @@ def qux() -> library.SomeStruct:
 # test calls to library functions in statement position
 def test_library_statement_calls(get_contract, make_input_bundle, tx_failed):
     library_source = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @internal
 def check_adds_to_ten(x: uint256, y: uint256):
     assert x + y == 10

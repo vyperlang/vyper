@@ -112,6 +112,4 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
-    o.passthrough_metadata["func_t"] = func_t
-    o.passthrough_metadata["args_ir"] = args_ir
     return o

@@ -249,7 +249,7 @@ def get(i: int128) -> int128:
     return self.test_map2[idx].c
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.set(transact={})
+    c.set(transact={})
     assert c.get(1) == 111
 
 
@@ -275,7 +275,7 @@ def get() -> int128:
     return self.test_map2[self.test_map1[1].a].c
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.set(transact={})
+    c.set(transact={})
     assert c.get() == 111
 
 
