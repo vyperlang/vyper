@@ -6,9 +6,16 @@ from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
+from vyper.semantics.types import DecimalT
+
+DECIMAL_T = DecimalT()
 
 st_decimals = st.decimals(
-    min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10
+    min_value=DECIMAL_T.decimal_bounds[0],
+    max_value=DECIMAL_T.decimal_bounds[1],
+    allow_nan=False,
+    allow_infinity=False,
+    places=DECIMAL_T._decimal_places,
 )
 
 
@@ -73,7 +80,8 @@ def foo({input_value}) -> decimal:
         vyper_ast = parse_and_fold(literal_op)
         new_node = vyper_ast.body[0].value.get_folded_value()
         expected = new_node.value
-        is_valid = -(2**127) <= expected < 2**127
+        lo, hi = DecimalT().decimal_bounds
+        is_valid = lo <= expected < hi
     except (OverflowException, ZeroDivisionException):
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False
