@@ -53,17 +53,18 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         if bb.label.value.startswith("internal") and len(bb.cfg_in) == 0
     ]
 
-    SimplifyCFGPass.run_pass(ctx, ctx.basic_blocks[0])
+    SimplifyCFGPass().run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
-        SimplifyCFGPass.run_pass(ctx, entry)
+        SimplifyCFGPass().run_pass(ctx, entry)
 
-    Mem2Stack.run_pass(ctx, ctx.basic_blocks[0])
+    Mem2Stack().run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
-        Mem2Stack.run_pass(ctx, entry)
+        Mem2Stack().run_pass(ctx, entry)
 
-    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
+    make_ssa_pass = MakeSSA()
+    make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
-        MakeSSA.run_pass(ctx, entry)
+        make_ssa_pass.run_pass(ctx, entry)
 
     while True:
         changes = 0
@@ -78,7 +79,7 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         calculate_cfg(ctx)
         calculate_liveness(ctx)
 
-        changes += DFTPass.run_pass(ctx)
+        changes += DFTPass().run_pass(ctx)
 
         calculate_cfg(ctx)
         calculate_liveness(ctx)
