@@ -26,7 +26,14 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div, sha256sum
+from vyper.utils import (
+    MAX_DECIMAL_PLACES,
+    SizeLimits,
+    annotate_source_code,
+    evm_div,
+    quantize,
+    sha256sum,
+)
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -824,6 +831,7 @@ class Decimal(Num):
         return ast_dict
 
     def validate(self):
+        # note: maybe use self.value == quantize(self.value) for this check
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
         if self.value < SizeLimits.MIN_AST_DECIMAL:
@@ -1010,9 +1018,7 @@ class Mult(Operator):
         value = left * right
         if isinstance(left, decimal.Decimal):
             # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return value.quantize(
-                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
-            )
+            return quantize(value)
         else:
             return value
 
@@ -1036,7 +1042,7 @@ class Div(Operator):
             # the EVM always truncates toward zero
             value = -(-left / right)
         # ensure that the result is truncated to MAX_DECIMAL_PLACES
-        return value.quantize(decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN)
+        return quantize(value)
 
 
 class FloorDiv(VyperNode):
