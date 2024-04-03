@@ -1,6 +1,7 @@
 import enum
 import io
 import re
+from collections import defaultdict
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -104,10 +105,18 @@ class ForParser:
 
 # compound statements that are replaced with `class`
 # TODO remove enum in favor of flag
-VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
+VYPER_CLASS_TYPES = {
+    "flag": "FlagDef",
+    "enum": "EnumDef",
+    "event": "EventDef",
+    "interface": "InterfaceDef",
+    "struct": "StructDef",
+}
 
-# simple statements or expressions that are replaced with `yield`
-VYPER_EXPRESSION_TYPES = {"log"}
+# simple statements that are replaced with `yield`
+CUSTOM_STATEMENT_TYPES = {"log": "Log"}
+# expression types that are replaced with `await`
+CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 
 
 def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
@@ -145,6 +154,8 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
     for_parser = ForParser(code)
+
+    _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
     try:
         code_bytes = code.encode("utf-8")
@@ -192,6 +203,12 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException("Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
+                    elif pragma.startswith("experimental-codegen"):
+                        if settings.experimental_codegen is not None:
+                            raise StructureException(
+                                "pragma experimental-codegen specified twice!", start
+                            )
+                        settings.experimental_codegen = True
 
                     else:
                         raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
@@ -204,10 +221,35 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = f"{string.capitalize()}Def"
-                elif string in VYPER_EXPRESSION_TYPES:
-                    toks = [TokenInfo(NAME, "yield", start, end, line)]
-                    modification_offsets[start] = string.capitalize()
+                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                elif string in CUSTOM_STATEMENT_TYPES:
+                    new_keyword = "yield"
+                    adjustment = len(new_keyword) - len(string)
+                    # adjustments for following staticcall/extcall modification_offsets
+                    _col_adjustments[start[0]] += adjustment
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
+                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                elif string in CUSTOM_EXPRESSION_TYPES:
+                    # a bit cursed technique to get untokenize to put
+                    # the new tokens in the right place so that modification_offsets
+                    # will work correctly.
+                    # (recommend comparing the result of pre_parse with the
+                    # source code side by side to visualize the whitespace)
+                    new_keyword = "await"
+                    vyper_type = CUSTOM_EXPRESSION_TYPES[string]
+
+                    lineno, col_offset = start
+
+                    # fixup for when `extcall/staticcall` follows `log`
+                    adjustment = _col_adjustments[lineno]
+                    new_start = (lineno, col_offset + adjustment)
+                    modification_offsets[new_start] = vyper_type
+
+                    # tells untokenize to add whitespace, preserving locations
+                    diff = len(new_keyword) - len(string)
+                    new_end = end[0], end[1] + diff
+
+                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])

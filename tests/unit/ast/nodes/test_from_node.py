@@ -24,13 +24,6 @@ def test_kwargs():
     assert new_node.value == 666
 
 
-def test_compare_nodes():
-    old_node = vy_ast.parse_to_ast("foo = 42")
-    new_node = vy_ast.Int.from_node(old_node, value=666)
-
-    assert not vy_ast.compare_nodes(old_node, new_node)
-
-
 def test_new_node_has_no_parent():
     old_node = vy_ast.parse_to_ast("foo = 42")
     new_node = vy_ast.Int.from_node(old_node, value=666)

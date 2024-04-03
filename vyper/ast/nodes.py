@@ -3,6 +3,7 @@ import contextlib
 import copy
 import decimal
 import functools
+import math
 import operator
 import pickle
 import sys
@@ -13,6 +14,7 @@ from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -24,7 +26,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div, sha256sum
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -108,7 +110,8 @@ def get_node(
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
-    if not vy_class:
+
+    if vy_class is None:
         if ast_struct["ast_type"] == "Delete":
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
@@ -137,49 +140,6 @@ def get_node(
     return node
 
 
-def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
-    """
-    Compare the represented value(s) of two vyper nodes.
-
-    This method evaluates a sort of "loose equality". It recursively compares the
-    values of each field within two different nodes but does not compare the
-    node_id or any members related to source offsets.
-
-    Arguments
-    ---------
-    left_node : VyperNode
-        First node object to compare.
-    right_node : VyperNode
-        Second node object to compare.
-
-    Returns
-    -------
-    bool
-        True if the given nodes represent the same value(s), False otherwise.
-    """
-    if not isinstance(left_node, type(right_node)):
-        return False
-
-    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
-        left_value = getattr(left_node, field_name, None)
-        right_value = getattr(right_node, field_name, None)
-
-        # compare types instead of isinstance() in case one node class inherits the other
-        if type(left_value) is not type(right_value):
-            return False
-
-        if isinstance(left_value, list):
-            if next((i for i in zip(left_value, right_value) if not compare_nodes(*i)), None):
-                return False
-        elif isinstance(left_value, VyperNode):
-            if not compare_nodes(left_value, right_value):
-                return False
-        elif left_value != right_value:
-            return False
-
-    return True
-
-
 def _to_node(obj, parent):
     # if object is a Python node or dict representing a node, convert to a Vyper node
     if isinstance(obj, (dict, python_ast.AST)):
@@ -187,7 +147,7 @@ def _to_node(obj, parent):
     if isinstance(obj, VyperNode):
         # if object is already a vyper node, make sure the parent is set correctly
         # and fix any missing source offsets
-        obj._parent = parent
+        obj.set_parent(parent)
         for field_name in NODE_SRC_ATTRIBUTES:
             if getattr(obj, field_name) is None:
                 setattr(obj, field_name, getattr(parent, field_name, None))
@@ -317,6 +277,10 @@ class VyperNode:
         if parent is not None:
             parent._children.append(self)
 
+    @property
+    def parent(self):
+        return self._parent
+
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
         self._parent = parent
@@ -369,6 +333,8 @@ class VyperNode:
         return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
+        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
+        # nodes, especially if they come from other modules
         if not isinstance(other, type(self)):
             return False
         if getattr(other, "node_id", None) != getattr(self, "node_id", None):
@@ -407,7 +373,15 @@ class VyperNode:
 
     @property
     def module_node(self):
+        if isinstance(self, Module):
+            return self
         return self.get_ancestor(Module)
+
+    def get_id_dict(self):
+        source_id = None
+        if self.module_node is not None:
+            source_id = self.module_node.source_id
+        return {"node_id": self.node_id, "source_id": source_id}
 
     @property
     def is_literal_value(self):
@@ -481,8 +455,9 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
 
+        # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
-            ast_dict["type"] = str(self._metadata["type"])
+            ast_dict["type"] = self._metadata["type"].to_dict()
 
         return ast_dict
 
@@ -653,6 +628,13 @@ class Module(TopLevel):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
 
+    def to_dict(self):
+        return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
+
+    @property
+    def source_sha256sum(self):
+        return sha256sum(self.full_source_code)
+
     @contextlib.contextmanager
     def namespace(self):
         from vyper.semantics.namespace import get_namespace, override_global_namespace
@@ -763,6 +745,23 @@ class ExprNode(VyperNode):
         super().__init__(*args, **kwargs)
         self._expr_info = None
 
+    def to_dict(self):
+        ret = super().to_dict()
+        if self._expr_info is None:
+            return ret
+
+        reads = [s.to_dict() for s in self._expr_info._reads]
+        reads = [s for s in reads if s]
+        if reads:
+            ret["variable_reads"] = reads
+
+        writes = [s.to_dict() for s in self._expr_info._writes]
+        writes = [s for s in writes if s]
+        if writes:
+            ret["variable_writes"] = writes
+
+        return ret
+
 
 class Constant(ExprNode):
     # inherited class for all simple constant node types
@@ -776,7 +775,6 @@ class Constant(ExprNode):
 class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     @property
     def n(self):
@@ -845,7 +843,6 @@ class Hex(Constant):
     """
 
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     def validate(self):
         if "_" in self.value:
@@ -1084,6 +1081,15 @@ class Pow(Operator):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
+        # prevent a compiler hang. we are ok with false positives at this
+        # stage since we are just trying to filter out inputs which can cause
+        # the compiler to hang. the others will get caught during constant
+        # folding or codegen.
+        # l**r > 2**256
+        # r * ln(l) > ln(2 ** 256)
+        # r > ln(2 ** 256) / ln(l)
+        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+            raise InvalidLiteral("Out of bounds", self)
         return int(left**right)
 
 
@@ -1219,6 +1225,26 @@ class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
     @property
+    def is_extcall(self):
+        return isinstance(self._parent, ExtCall)
+
+    @property
+    def is_staticcall(self):
+        return isinstance(self._parent, StaticCall)
+
+    @property
+    def is_plain_call(self):
+        return not (self.is_extcall or self.is_staticcall)
+
+    @property
+    def kind_str(self):
+        if self.is_extcall:
+            return "extcall"
+        if self.is_staticcall:
+            return "staticcall"
+        raise CompilerPanic("unreachable!")  # pragma: nocover
+
+    @property
     def is_terminus(self):
         # cursed import cycle!
         from vyper.builtins.functions import get_builtin_functions
@@ -1232,6 +1258,31 @@ class Call(ExprNode):
             return False
 
         return builtin_t._is_terminus
+
+
+class ExtCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            # TODO: investigate wrong col_offset for `self.value`
+            raise StructureException(
+                "`extcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
+
+
+class StaticCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException(
+                "`staticcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
 
 
 class keyword(VyperNode):
@@ -1269,7 +1320,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+    __slots__ = ("target", "annotation", "value")
 
 
 class VariableDecl(VyperNode):
@@ -1385,6 +1436,13 @@ class Pass(Stmt):
 
 class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
+
+    def to_dict(self):
+        ret = super().to_dict()
+        if (import_info := self._metadata.get("import_info")) is not None:
+            ret["import_info"] = import_info.to_dict()
+
+        return ret
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["names"]) > 1:

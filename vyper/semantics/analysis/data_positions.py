@@ -296,7 +296,8 @@ def _generate_layout_export_r(vyper_module, is_global=True):
 
         assert isinstance(node, vy_ast.VariableDecl)
         varinfo = node.target._metadata["varinfo"]
-        if not varinfo.is_module_variable():
+        # skip non-state variables
+        if not varinfo.is_state_variable():
             continue
 
         location = varinfo.location

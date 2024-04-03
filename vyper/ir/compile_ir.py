@@ -54,8 +54,8 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
-def mkdebug(pc_debugger, source_pos):
-    i = Instruction("DEBUG", source_pos)
+def mkdebug(pc_debugger, ast_source):
+    i = Instruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
     return [i]
 
@@ -133,7 +133,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             # works for both internal and external exit_to
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
-            ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
+            ir_node.args = IRnode.from_list(_t, ast_source=ir_node.ast_source).args
 
     if ir_node.value == "label":
         label_params = set(t.value for t in ir_node.args[1].args)
@@ -187,14 +187,11 @@ class Instruction(str):
     def __new__(cls, sstr, *args, **kwargs):
         return super().__new__(cls, sstr)
 
-    def __init__(self, sstr, source_pos=None, error_msg=None):
+    def __init__(self, sstr, ast_source=None, error_msg=None):
         self.error_msg = error_msg
         self.pc_debugger = False
 
-        if source_pos is not None:
-            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = source_pos
-        else:
-            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = [None] * 4
+        self.ast_source = ast_source
 
 
 def apply_line_numbers(func):
@@ -204,7 +201,7 @@ def apply_line_numbers(func):
         ret = func(*args, **kwargs)
 
         new_ret = [
-            Instruction(i, code.source_pos, code.error_msg)
+            Instruction(i, code.ast_source, code.error_msg)
             if isinstance(i, str) and not isinstance(i, Instruction)
             else i
             for i in ret
@@ -385,8 +382,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) != 5:
-            raise CompilerPanic("bad number of repeat args")  # pragma: notest
+        if len(code.args) != 5:  # pragma: nocover
+            raise CompilerPanic("bad number of repeat args")
 
         i_name = code.args[0]
         start = code.args[1]
@@ -765,37 +762,38 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # inject debug opcode.
     elif code.value == "debugger":
-        return mkdebug(pc_debugger=False, source_pos=code.source_pos)
+        return mkdebug(pc_debugger=False, ast_source=code.ast_source)
     # inject debug opcode.
     elif code.value == "pc_debugger":
-        return mkdebug(pc_debugger=True, source_pos=code.source_pos)
+        return mkdebug(pc_debugger=True, ast_source=code.ast_source)
     else:  # pragma: no cover
         raise ValueError(f"Weird code element: {type(code)} {code}")
 
 
-def note_line_num(line_number_map, item, pos):
-    # Record line number attached to pos.
-    if isinstance(item, Instruction):
-        if item.lineno is not None:
-            offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
-        else:
-            offsets = None
+def getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
-        line_number_map["pc_pos_map"][pos] = offsets
+
+def note_line_num(line_number_map, pc, item):
+    # Record AST attached to pc
+    if isinstance(item, Instruction):
+        if (ast_node := item.ast_source) is not None:
+            ast_node = ast_node.get_original_node()
+            if hasattr(ast_node, "node_id"):
+                line_number_map["pc_raw_ast_map"][pc] = ast_node
 
         if item.error_msg is not None:
-            line_number_map["error_map"][pos] = item.error_msg
+            line_number_map["error_map"][pc] = item.error_msg
 
-    added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
-    return added_line_breakpoint
+    note_breakpoint(line_number_map, pc, item)
 
 
-def note_breakpoint(line_number_map, item, pos):
-    # Record line number attached to pos.
+def note_breakpoint(line_number_map, pc, item):
+    # Record line number attached to pc
     if item == "DEBUG":
         # Is PC debugger, create PC breakpoint.
         if item.pc_debugger:
-            line_number_map["pc_breakpoints"].add(pos)
+            line_number_map["pc_breakpoints"].add(pc)
         # Create line number breakpoint.
         else:
             line_number_map["breakpoints"].add(item.lineno + 1)
@@ -1022,7 +1020,11 @@ def _stack_peephole_opts(assembly):
             changed = True
             del assembly[i]
             continue
-        if assembly[i : i + 2] == ["SWAP1", "SWAP1"]:
+        if (
+            isinstance(assembly[i], str)
+            and assembly[i].startswith("SWAP")
+            and assembly[i] == assembly[i + 1]
+        ):
             changed = True
             del assembly[i : i + 2]
         if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:
@@ -1053,7 +1055,7 @@ def optimize_assembly(assembly):
         if not changed:
             return
 
-    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: nocover
 
 
 def adjust_pc_maps(pc_maps, ofst):
@@ -1064,7 +1066,7 @@ def adjust_pc_maps(pc_maps, ofst):
     ret["breakpoints"] = pc_maps["breakpoints"].copy()
     ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
     ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
-    ret["pc_pos_map"] = {k + ofst: v for (k, v) in pc_maps["pc_pos_map"].items()}
+    ret["pc_raw_ast_map"] = {k + ofst: v for (k, v) in pc_maps["pc_raw_ast_map"].items()}
     ret["error_map"] = {k + ofst: v for (k, v) in pc_maps["error_map"].items()}
 
     return ret
@@ -1171,7 +1173,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
         "breakpoints": set(),
         "pc_breakpoints": set(),
         "pc_jump_map": {0: "-"},
-        "pc_pos_map": {},
+        "pc_raw_ast_map": {},
         "error_map": {},
     }
 
@@ -1213,7 +1215,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, item, pc)
+        note_line_num(line_number_map, pc, item)
         if item == "DEBUG":
             continue  # skip debug
 

@@ -153,7 +153,7 @@ interface Test:
 
 @external
 def foo(x: address) -> Bytes[4]:
-    return slice(Test(x).out_literals().code, 0, 4)
+    return slice((staticcall Test(x).out_literals()).code, 0, 4)
 """,
     ],
 )
@@ -161,7 +161,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, optimize):
+def test_address_code_self_success(get_contract, optimize, experimental_codegen):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -174,7 +174,7 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
-    settings = Settings(optimize=optimize)
+    settings = Settings(optimize=optimize, experimental_codegen=experimental_codegen)
     code_compiled = compiler.compile_code(
         code, output_formats=["bytecode", "bytecode_runtime"], settings=settings
     )

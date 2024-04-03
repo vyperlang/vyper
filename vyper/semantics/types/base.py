@@ -32,6 +32,13 @@ class _GenericTypeAcceptor:
         # type is the same
         return isinstance(other, self.__class__) and other.type_ == self.type_
 
+    def to_dict(self):
+        # this shouldn't really appear in the AST type annotations, but it's
+        # there for certain string literals which don't have a known type. this
+        # should be fixed soon by improving type inference. for now just put
+        # *something* in the AST.
+        return {"generic": self.type_.typeclass}
+
 
 class VyperType:
     """
@@ -58,7 +65,9 @@ class VyperType:
         `InterfaceT`s.
     """
 
-    _id: str
+    typeclass: str = None  # type: ignore
+
+    _id: str  # rename to `_name`
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
@@ -74,6 +83,7 @@ class VyperType:
     _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
+
     decl_node: Optional[vy_ast.VyperNode] = None
 
     def __init__(self, members: Optional[Dict] = None) -> None:
@@ -105,6 +115,31 @@ class VyperType:
 
     def __lt__(self, other):
         return self.abi_type.selector_name() < other.abi_type.selector_name()
+
+    # return a dict suitable for serializing in the AST
+    def to_dict(self):
+        ret = {"name": self._id}
+        if self.decl_node is not None:
+            ret["type_decl_node"] = self.decl_node.get_id_dict()
+        if self.typeclass is not None:
+            ret["typeclass"] = self.typeclass
+
+        # use dict ctor to block duplicates
+        return dict(**self._addl_dict_fields(), **ret)
+
+    # for most types, this is a reasonable implementation, but it can
+    # be overridden as needed.
+    def _addl_dict_fields(self):
+        keys = self._equality_attrs or ()
+        ret = {}
+        for k in keys:
+            if k.startswith("_"):
+                continue
+            v = getattr(self, k)
+            if hasattr(v, "to_dict"):
+                v = v.to_dict()
+            ret[k] = v
+        return ret
 
     @cached_property
     def _as_darray(self):
@@ -368,6 +403,9 @@ class TYPE_T(VyperType):
         super().__init__()
 
         self.typedef = typedef
+
+    def to_dict(self):
+        return {"type_t": self.typedef.to_dict()}
 
     def __repr__(self):
         return f"type({self.typedef})"
