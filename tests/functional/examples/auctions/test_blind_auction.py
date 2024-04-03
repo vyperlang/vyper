@@ -22,7 +22,7 @@ def test_initial_state(env, auction_contract):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == env.deployer
     # Check that bidding end time is correct
-    assert auction_contract.biddingEnd() == env.get_block("latest").timestamp + BIDDING_TIME
+    assert auction_contract.biddingEnd() == env.timestamp + BIDDING_TIME
     # Check that the reveal end time is correct
     assert auction_contract.revealEnd() == auction_contract.biddingEnd() + REVEAL_TIME
     # Check auction has not ended
@@ -37,7 +37,7 @@ def test_late_bid(env, auction_contract, tx_failed, keccak):
     k1 = env.accounts[1]
 
     # Move time forward past bidding end
-    env.mine(BIDDING_TIME + TEST_INCREMENT)
+    env.time_travel(BIDDING_TIME + TEST_INCREMENT)
 
     # Try to bid after bidding has ended
     with tx_failed():
@@ -107,7 +107,7 @@ def test_early_reval(env, auction_contract, tx_failed, keccak):
     )
 
     # Move time slightly forward (still before bidding has ended)
-    env.mine(TEST_INCREMENT)
+    env.time_travel(TEST_INCREMENT)
 
     # Try to reveal early
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -146,7 +146,7 @@ def test_late_reveal(env, auction_contract, tx_failed, keccak):
     )
 
     # Move time forward past bidding _and_ reveal time
-    env.mine(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
+    env.time_travel(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
 
     # Try to reveal late
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -179,7 +179,7 @@ def test_double_end(env, auction_contract, tx_failed):
     k0 = env.deployer
 
     # Move time forward past bidding and reveal end
-    env.mine(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
+    env.time_travel(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
 
     # First auction end should succeed
     auction_contract.auctionEnd(transact={"value": 0, "from": k0})
@@ -281,7 +281,7 @@ def test_blind_auction(env, initial_balance, auction_contract, keccak):
     ###################################################################
 
     # Move time forward past bidding end (still within reveal end)
-    env.mine(BIDDING_TIME + TEST_INCREMENT)
+    env.time_travel(BIDDING_TIME + TEST_INCREMENT)
 
     # Reveal k1 bids
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -347,7 +347,7 @@ def test_blind_auction(env, initial_balance, auction_contract, keccak):
     ###################################################################
 
     # Move time forward past bidding and reveal end
-    env.mine(REVEAL_TIME)
+    env.time_travel(REVEAL_TIME)
 
     # End the auction
     balance_before_end = env.get_balance(k0)

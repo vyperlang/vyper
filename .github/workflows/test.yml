@@ -72,7 +72,7 @@ jobs:
         evm-version: [shanghai]
         experimental-codegen: [false]
         memorymock: [false]
-        evm-backend: [revm]
+        evm-backend: [revm, py-evm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -81,7 +81,7 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
-            evm-backend: revm
+            evm-backend: [revm, py-evm]
 
           - python-version: ["3.11", "311"]
             debug: false

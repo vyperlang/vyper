@@ -11,17 +11,17 @@ def c(env, get_contract):
 def test_crowdfund_example(c, env):
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
     c.participate(transact={"value": 5})
-    env.mine()  # make sure auction has started
+    env.time_travel()  # make sure auction has started
 
     assert c.timelimit() == 60
-    assert c.deadline() - env.get_block("latest").timestamp == 59
-    assert env.get_block("latest").timestamp < c.deadline()  # expired
+    assert c.deadline() - env.timestamp == 59
+    assert env.timestamp < c.deadline()  # expired
     assert env.get_balance(c.address) < c.goal()  # not reached
     c.participate(transact={"value": 49})
     # assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.mine(100)
-    assert env.get_block("latest").timestamp > c.deadline()  # expired
+    env.time_travel(100)
+    assert env.timestamp > c.deadline()  # expired
     c.finalize(transact={})
     post_bal = env.get_balance(a1)
     assert post_bal - pre_bal == 54
@@ -38,7 +38,7 @@ def test_crowdfund_example2(c, env, tx_failed):
     c.participate(transact={"value": 4, "from": a6})
 
     assert c.timelimit() == 60
-    env.mine(100)
+    env.time_travel(100)
     # assert c.expired()
     # assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]

@@ -7,6 +7,7 @@ import hypothesis
 import pytest
 import web3.exceptions
 from eth_tester import EthereumTester, PyEVMBackend
+from eth_tester.backends.pyevm.main import get_default_account_keys
 from eth_tester.exceptions import TransactionFailed
 from eth_utils import setup_DEBUG2_logging
 from eth_utils.toolz import compose
@@ -17,6 +18,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.abi_contract import ABIContract
+from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
@@ -131,7 +133,7 @@ def venom_xfail(request, experimental_codegen):
 @pytest.fixture(scope="session", autouse=True)
 def evm_version(pytestconfig, evm_backend):
     evm_version_str = pytestconfig.getoption("evm_version")
-    if evm_backend != "PyevmEnv":
+    if evm_backend != PyEvmEnv:
         # revm uses this fixture to set the evm version
         return evm_version_str
 
@@ -148,7 +150,7 @@ def evm_version(pytestconfig, evm_backend):
 @pytest.fixture(scope="session", autouse=True)
 def evm_backend(pytestconfig):
     backend_str = pytestconfig.getoption("evm_backend")
-    return {"py-evm": "PyevmEnv", "revm": RevmEnv}[backend_str]
+    return {"py-evm": PyEvmEnv, "revm": RevmEnv}[backend_str]
 
 
 @pytest.fixture
@@ -227,7 +229,12 @@ def gas_limit():
 
 @pytest.fixture(scope="module")
 def initial_balance():
-    return 0
+    return 0  # default balance for the deployer account
+
+
+@pytest.fixture(scope="module")
+def get_initial_accounts():
+    return
 
 
 @pytest.fixture(scope="module")
@@ -240,7 +247,13 @@ def tester(gas_limit):
 
 @pytest.fixture(scope="module")
 def env(gas_limit, initial_balance, evm_version, evm_backend):
-    env = evm_backend(gas_limit, tracing=False, block_number=1, evm_version=evm_version)
+    env = evm_backend(
+        gas_limit=gas_limit,
+        tracing=False,
+        block_number=1,
+        evm_version=evm_version,
+        account_keys=get_default_account_keys(),
+    )
     env.set_balance(env.deployer, initial_balance)
     return env
 

@@ -24,14 +24,8 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     return self.get_my_struct(_e1, block.timestamp)
     """
     c = get_contract(code)
-    assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (
-        Decimal("0.1"),
-        env.get_block().timestamp,
-    )
-    assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (
-        Decimal("0.1"),
-        env.get_block().timestamp,
-    )
+    assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (Decimal("0.1"), env.timestamp)
+    assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (Decimal("0.1"), env.timestamp)
 
 
 def test_call_to_self_struct_2(get_contract):

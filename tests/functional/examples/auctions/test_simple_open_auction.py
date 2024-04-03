@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_start(env):
-    return env.get_block("latest").timestamp + 1
+    return env.timestamp + 1
 
 
 @pytest.fixture
@@ -33,12 +33,12 @@ def test_initial_state(env, auction_contract, auction_start):
     # Check highest bid is 0
     assert auction_contract.highestBid() == 0
     # Check end time is more than current block timestamp
-    assert auction_contract.auctionEnd() >= env.get_block("latest").timestamp
+    assert auction_contract.auctionEnd() >= env.timestamp
 
 
 def test_bid(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
-    env.mine()  # make sure auction has started
+    env.time_travel()  # make sure auction has started
 
     # Bidder cannot bid 0
     with tx_failed():
@@ -83,7 +83,7 @@ def test_bid(env, auction_contract, tx_failed):
 def test_end_auction(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
 
-    env.mine()  # make sure auction has started
+    env.time_travel()  # make sure auction has started
 
     # Fails if auction end time has not been reached
     with tx_failed():
@@ -92,7 +92,7 @@ def test_end_auction(env, auction_contract, tx_failed):
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
     # Move block timestamp forward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
-    env.mine(EXPIRY)
+    env.time_travel(EXPIRY)
     balance_before_end = env.get_balance(k1)
     auction_contract.endAuction(transact={"from": k2})
     balance_after_end = env.get_balance(k1)

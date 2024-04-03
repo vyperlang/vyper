@@ -272,7 +272,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = env.get_block(env.block_number).timestamp
+    timestamp = env.timestamp
     logs = get_logs(tx_hash, c, "MyLog")
 
     assert logs[0].args.arg1 == [1, 2]
@@ -417,7 +417,6 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = env.get_block(env.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
     args = logs[0].args
     assert args.arg1 == 123
@@ -425,7 +424,7 @@ def foo():
     assert args.arg3 == b"bar"
     assert args.arg4 == "0xc305c901078781C232A2a521C2aF7980f8385ee9"
     assert args.arg5 == c.address
-    assert args.arg6 == timestamp
+    assert args.arg6 == env.timestamp
 
 
 def test_event_logging_with_topics_and_data_1(

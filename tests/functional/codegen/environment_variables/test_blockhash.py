@@ -22,7 +22,7 @@ def foo() -> bytes32:
 
 
 def test_too_old_blockhash(tx_failed, get_contract_with_gas_estimation, env):
-    env.mine(257)
+    env.time_travel(257)
     code = """
 @external
 def get_50_blockhash() -> bytes32:

@@ -1,11 +1,10 @@
 import pytest
-from eth_tester.exceptions import TransactionFailed
 
 
 # web3 returns f"execution reverted: {err_str}"
 # TODO move exception string parsing logic into tx_failed
-def _fixup_err_str(s):
-    return s.replace("execution reverted: ", "")
+def _fixup_err_str(e_info):
+    return e_info.value.args[0].replace("execution reverted: ", "")
 
 
 def test_assert_refund(env, get_contract_with_gas_estimation, tx_failed):
@@ -21,7 +20,7 @@ def foo():
         c.foo(transact={"gas": gas_sent, "gasPrice": 10})
 
     assert env.last_result["gas_used"] < gas_sent, "Gas refund not received"
-    assert not env.last_result["is_success"] and not env.last_result["is_halt"]
+    assert env.last_result["is_success"] is False
 
 
 def test_assert_reason(env, get_contract_with_gas_estimation, tx_failed, memory_mocker):
@@ -58,33 +57,30 @@ def test5(reason_str: String[32]):
     c = get_contract_with_gas_estimation(code)
 
     assert c.test(2) == 3
-    with pytest.raises(TransactionFailed) as e_info:
+    with tx_failed(exc_text="larger than one please"):
         c.test(0)
 
-    assert _fixup_err_str(e_info.value.args[0]) == "larger than one please"
     # a = 0, b = 1
-    with pytest.raises(TransactionFailed) as e_info:
+    with tx_failed(exc_text="a is not large enough"):
         c.test2(0, 1, "")
-    assert _fixup_err_str(e_info.value.args[0]) == "a is not large enough"
+
     # a = 1, b = 0
-    with pytest.raises(TransactionFailed) as e_info:
+    with tx_failed(exc_text="b may only be 1 because I said so"):
         c.test2(2, 2, " because I said so")
-    assert _fixup_err_str(e_info.value.args[0]) == "b may only be 1" + " because I said so"
+
     # return correct value
     assert c.test2(5, 1, "") == 17
 
-    with pytest.raises(TransactionFailed) as e_info:
+    with tx_failed(exc_text="An exception"):
         c.test3("An exception")
-    assert _fixup_err_str(e_info.value.args[0]) == "An exception"
 
     assert c.test4(2, "msg") == 3
-    with pytest.raises(TransactionFailed) as e_info:
-        c.test4(0, "larger than one again please")
-    assert _fixup_err_str(e_info.value.args[0]) == "larger than one again please"
 
-    with pytest.raises(TransactionFailed) as e_info:
+    with tx_failed(exc_text="larger than one again please"):
+        c.test4(0, "larger than one again please")
+
+    with tx_failed(exc_text="A storage exception"):
         c.test5("A storage exception")
-    assert _fixup_err_str(e_info.value.args[0]) == "A storage exception"
 
 
 invalid_code = [

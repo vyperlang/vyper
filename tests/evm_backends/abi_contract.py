@@ -26,7 +26,7 @@ class ABILog:
     address: ChecksumAddress
     args: tuple
     event: str
-    topics: list[str]
+    topics: list[bytes]
     raw_data: bytes
 
 
@@ -208,7 +208,6 @@ class ABIFunction:
             value=value,
             gas=gas,
             is_modifying=self.is_mutable,
-            contract=self.contract,
             transact={**(transact or {}), **(call or {})},
         )
 
@@ -406,7 +405,7 @@ class ABIContractFactory:
         """
         Create an ABI contract object for a deployed contract at `address`.
         """
-        contract = ABIContract(
+        return ABIContract(
             env,
             self._name,
             self._abi,
@@ -416,8 +415,6 @@ class ABIContractFactory:
             address,
             self._filename,
         )
-        env.register_contract(address, contract)
-        return contract
 
 
 def _abi_from_json(abi: dict) -> str:

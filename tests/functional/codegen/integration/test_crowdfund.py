@@ -1,5 +1,5 @@
 # TODO: check, this is probably redundant with examples/test_crowdfund.py
-def test_crowdfund(env, tester, get_contract):
+def test_crowdfund(env, get_contract):
     crowdfund = """
 
 struct Funder:
@@ -67,7 +67,7 @@ def refund():
         env.set_balance(a, 10**10)
 
     c = get_contract(crowdfund, *[a1, 50, 60])
-    start_timestamp = env.get_block(env.block_number).timestamp
+    start_timestamp = env.timestamp
 
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
@@ -77,7 +77,7 @@ def refund():
     c.participate(transact={"value": 49})
     assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.mine(100)
+    env.time_travel(100)
     assert c.expired()
     c.finalize(transact={})
     post_bal = env.get_balance(a1)
@@ -88,7 +88,7 @@ def refund():
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
     c.participate(transact={"value": 4, "from": a6})
-    env.mine(100)
+    env.time_travel(100)
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
@@ -97,7 +97,7 @@ def refund():
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
 
-def test_crowdfund2(env, tester, get_contract):
+def test_crowdfund2(env, get_contract):
     crowdfund2 = """
 struct Funder:
     sender: address
@@ -162,7 +162,7 @@ def refund():
     c = get_contract(crowdfund2, *[a1, 50, 60])
 
     c.participate(transact={"value": 5})
-    env.mine()  # make sure auction has started
+    env.time_travel()  # make sure auction has started
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
@@ -170,7 +170,7 @@ def refund():
     c.participate(transact={"value": 49})
     assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.mine(100)
+    env.time_travel(100)
     assert c.expired()
     c.finalize(transact={})
     post_bal = env.get_balance(a1)
@@ -181,7 +181,7 @@ def refund():
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
     c.participate(transact={"value": 4, "from": a6})
-    env.mine(100)
+    env.time_travel(100)
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
