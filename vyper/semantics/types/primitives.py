@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
@@ -363,6 +363,11 @@ class DecimalT(NumericT):
         lo, hi = int_bounds(signed=self.is_signed, bits=self.bits)
         DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
+
+    def to_abi_arg(self, name: str = "") -> dict[str, Any]:
+        ret = super().to_abi_arg(name)
+        ret["internalType"] = repr(self)
+        return ret
 
 
 # maybe this even deserves its own module, address.py
