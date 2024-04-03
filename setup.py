@@ -11,7 +11,7 @@ extras_require = {
         "pytest>=8.0,<9.0",
         "pytest-cov>=4.1,<5.0",
         "pytest-instafail>=0.4,<1.0",
-        "pytest-xdist>=3.5,<4.0",
+        "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
         "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
@@ -21,6 +21,7 @@ extras_require = {
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
+        "hexbytes<1.0",
         "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [

@@ -38,6 +38,7 @@ jobs:
           # venom: venom changes
           scopes: |
             ci
+            build
             docs
             test
             lang

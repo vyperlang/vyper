@@ -26,6 +26,8 @@ OUTPUT_FORMATS = {
     "interface": output.build_interface_output,
     "bb": output.build_bb_output,
     "bb_runtime": output.build_bb_runtime_output,
+    "cfg": output.build_cfg_output,
+    "cfg_runtime": output.build_cfg_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
