@@ -233,20 +233,6 @@ def pop_source_on_return(func):
     return pop_source
 
 
-@contextlib.contextmanager
-def pushvar(map_, key, value):
-    SENTINEL = object()
-    old = map_.get(key, SENTINEL)
-    map_[key] = value
-    try:
-        yield
-    finally:
-        if old is not SENTINEL:
-            map_[key] = old
-        else:
-            del map_[key]
-
-
 @pop_source_on_return
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
@@ -362,8 +348,10 @@ def _convert_ir_bb(ctx, ir, symbols):
         ret = ctx.get_basic_block().append_instruction("store", ret)
 
         sym = ir.args[0]
-        with pushvar(symbols, sym.value, ret):
-            return _convert_ir_bb(ctx, ir.args[2], symbols)  # body
+        with_symbols = symbols.copy()
+        with_symbols[sym.value] = ret
+
+        return _convert_ir_bb(ctx, ir.args[2], with_symbols)  # body
 
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
