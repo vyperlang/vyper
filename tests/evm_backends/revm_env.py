@@ -11,8 +11,8 @@ from eth_utils import to_checksum_address
 from hexbytes import HexBytes
 from pyrevm import EVM, BlockEnv, Env
 
-from tests.revm.abi import abi_decode, abi_encode
-from tests.revm.abi_contract import ABIContract, ABIContractFactory, ABIFunction
+from tests.evm_backends.abi import abi_decode, abi_encode
+from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.compiler.settings import OptimizationLevel

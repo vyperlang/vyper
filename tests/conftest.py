@@ -16,8 +16,8 @@ from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
 import vyper.evm.opcodes as evm_opcodes
-from tests.revm.abi_contract import ABIContract
-from tests.revm.revm_env import RevmEnv
+from tests.evm_backends.abi_contract import ABIContract
+from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source

@@ -16,7 +16,7 @@ from vyper.utils import keccak256, method_id
 from .abi import abi_decode, abi_encode, is_abi_encodable
 
 if TYPE_CHECKING:
-    from tests.revm.revm_env import RevmEnv
+    from tests.evm_backends.revm_env import RevmEnv
 
 
 @dataclass
