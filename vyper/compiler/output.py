@@ -2,6 +2,7 @@ import base64
 import importlib
 import io
 import json
+import os
 import warnings
 import zipfile
 from collections import deque
@@ -59,6 +60,21 @@ def _get_compression_method():
     return zipfile.ZIP_STORED
 
 
+def _anonymize(p: str):
+    segments = []
+    # replace ../../../a/b with 0/1/2/a/b
+    # note that items which "escape" their current package might end up
+    # being invalid paths in the final artifact (they will not resolve
+    # properly during path resolution). TODO sanity check for these
+    # and reject them.
+    for i, s in enumerate(PurePath(p).parts):
+        if s == "..":
+            segments.append(str(i))
+        else:
+            segments.append(s)
+    return str(PurePath(*segments))
+
+
 def build_archive(compiler_data: CompilerData) -> str:
     compilation_target = compiler_data.compilation_target._metadata["type"]
     imports = compilation_target.reachable_imports
@@ -78,14 +94,14 @@ def build_archive(compiler_data: CompilerData) -> str:
     method = _get_compression_method()
     with zipfile.ZipFile(buf, mode="w", compression=method, compresslevel=9) as archive:
         for c in compiler_inputs:
-            path = str(c.resolved_path)
+            path = os.path.relpath(str(c.resolved_path))
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to zipfile semantics.
             if path in seen_paths:
                 continue
             seen_paths.add(path)
-            archive.writestr(str(path), c.contents)
+            archive.writestr(_anonymize(path), c.contents)
 
             # recover the search path that was used for this CompilerInput.
             # note that it is not sufficient to thread the "search path that
@@ -95,12 +111,13 @@ def build_archive(compiler_data: CompilerData) -> str:
             for sp in reversed(compiler_data.input_bundle.search_paths):
                 if c.resolved_path.is_relative_to(sp):
                     used_search_paths[sp] += 1
-                    break
 
         # construct the manifest file
         archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
 
-        sps = [sp for sp, count in used_search_paths.items() if count > 0]
+        sps = [
+            _anonymize(os.path.relpath(sp)) for sp, count in used_search_paths.items() if count > 0
+        ]
         archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
 
         archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
