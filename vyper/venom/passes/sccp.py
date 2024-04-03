@@ -51,7 +51,7 @@ class SCCP(IRPass):
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
         print("SCCP done", self.lattice)
-        self._propagate_constants(entry, self.uses, self.defs, self.lattice)
+        self._propagate_constants(entry)
 
     def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
@@ -93,9 +93,6 @@ class SCCP(IRPass):
     def _propagate_constants(
         self,
         entry: IRBasicBlock,
-        uses: dict[IRVariable, IRBasicBlock],
-        defs: dict[IRVariable, IRInstruction],
-        lattice: dict[IRVariable, LatticeItem],
     ):
         for bb in self.dom.dfs_walk:
             pass
