@@ -25,7 +25,7 @@ class Mem2Stack(IRPass):
         for var, inst in dfg.outputs.items():
             if inst.opcode != "alloca":
                 continue
-            print(var, inst)
+            self._process_alloca_var(dfg, var)
         
         self._compute_stores()
 
@@ -34,6 +34,20 @@ class Mem2Stack(IRPass):
         self._rename_vars(entry)
         
         return 0
+
+    def _process_alloca_var(self, dfg: DFG, var: IRVariable):
+        uses = dfg.get_uses(var)
+        if not all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):
+            return
+        var_name = f"addr{var.name}"
+        for inst in uses:
+            if inst.opcode == "mstore":
+                inst.opcode = "store"
+                inst.output = IRVariable(var_name)
+                inst.operands = [inst.operands[0]]
+            elif inst.opcode == "mload":
+                inst.opcode = "store"
+                inst.operands = [IRVariable(var_name)]
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         outs = []
