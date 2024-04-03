@@ -1,4 +1,3 @@
-import contextlib
 import functools
 import re
 from typing import Optional

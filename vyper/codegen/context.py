@@ -214,7 +214,12 @@ class Context:
         del self.vars[var.name]
 
     def _new_variable(
-        self, name: str, typ: VyperType, is_internal: bool, is_mutable: bool = True
+        self,
+        name: str,
+        typ: VyperType,
+        is_internal: bool,
+        is_mutable: bool = True,
+        internal_function=False,
     ) -> IRnode:
         size = typ.memory_bytes_required
 
@@ -225,7 +230,10 @@ class Context:
         alloca = None
         if self.settings.experimental_codegen:
             # convert it into an abstract pointer
-            pos = f"$alloca_{ofst}_{size}"
+            if internal_function:
+                pos = f"$palloca_{ofst}_{size}"
+            else:
+                pos = f"$alloca_{ofst}_{size}"
             alloca = Alloca(name=name, offset=ofst, typ=typ, size=size)
 
         var = VariableRecord(
@@ -241,7 +249,9 @@ class Context:
         self.vars[name] = var
         return var.as_ir_node()
 
-    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> IRnode:
+    def new_variable(
+        self, name: str, typ: VyperType, is_mutable: bool = True, internal_function=False
+    ) -> IRnode:
         """
         Allocate memory for a user-defined variable and return an IR node referencing it.
 
@@ -258,7 +268,9 @@ class Context:
             Memory offset for the variable
         """
 
-        return self._new_variable(name, typ, is_internal=False, is_mutable=is_mutable)
+        return self._new_variable(
+            name, typ, is_internal=False, is_mutable=is_mutable, internal_function=internal_function
+        )
 
     def fresh_varname(self, name: str) -> str:
         """
