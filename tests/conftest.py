@@ -20,7 +20,7 @@ from tests.revm.abi_contract import ABIContract
 from tests.revm.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
-from vyper.ast.grammar import parse_vyper_source, vyper_grammar
+from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
@@ -381,7 +381,6 @@ def _get_contract(
     optimize,
     experimental_codegen,
     output_formats,
-    grammar,
     *args,
     override_opt_level=None,
     input_bundle=None,
@@ -398,7 +397,7 @@ def _get_contract(
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
-    grammar.parse(source_code + "\n")  # Test grammar.
+    parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
     abi = out["abi"]
     bytecode = out["bytecode"]
@@ -410,11 +409,6 @@ def _get_contract(
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
-
-
-@pytest.fixture(scope="session")
-def grammar():
-    return vyper_grammar()
 
 
 @pytest.fixture(scope="module")
@@ -433,29 +427,18 @@ def get_contract(get_contract_pyevm):
 
 
 @pytest.fixture(scope="module")
-def get_revm_contract(revm_env, optimize, output_formats, grammar):
+def get_revm_contract(revm_env, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
-        return revm_env.deploy_source(
-            source_code, optimize, output_formats, grammar, *args, **kwargs
-        )
+        return revm_env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(
-    tester, w3, optimize, experimental_codegen, output_formats, grammar
-):
+def get_contract_with_gas_estimation(tester, w3, optimize, experimental_codegen, output_formats):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
         contract = _get_contract(
-            w3,
-            source_code,
-            optimize,
-            experimental_codegen,
-            output_formats,
-            grammar,
-            *args,
-            **kwargs,
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
@@ -467,25 +450,18 @@ def get_contract_with_gas_estimation(
 
 @pytest.fixture
 def get_contract_with_gas_estimation_for_constants(
-    w3, optimize, experimental_codegen, output_formats, grammar
+    w3, optimize, experimental_codegen, output_formats
 ):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
         return _get_contract(
-            w3,
-            source_code,
-            optimize,
-            experimental_codegen,
-            output_formats,
-            grammar,
-            *args,
-            **kwargs,
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize, experimental_codegen, output_formats, grammar):
+def get_contract_module(optimize, experimental_codegen, output_formats):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -499,14 +475,7 @@ def get_contract_module(optimize, experimental_codegen, output_formats, grammar)
 
     def get_contract_module(source_code, *args, **kwargs):
         return _get_contract(
-            w3,
-            source_code,
-            optimize,
-            experimental_codegen,
-            output_formats,
-            grammar,
-            *args,
-            **kwargs,
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return get_contract_module
