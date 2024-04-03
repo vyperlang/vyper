@@ -168,7 +168,7 @@ jobs:
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
-          --profile-svg
+          --profile-svg \
           --cov-branch \
           --cov-report xml:coverage.xml \
           --cov=vyper \
