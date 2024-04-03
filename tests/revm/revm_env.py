@@ -9,11 +9,11 @@ from eth_tester.exceptions import TransactionFailed
 from eth_typing import HexAddress
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
+from lark import Lark
 from pyrevm import EVM, BlockEnv, Env
 
 from tests.revm.abi import abi_decode, abi_encode
 from tests.revm.abi_contract import ABIContract, ABIContractFactory, ABIFunction
-from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import ERC5202_PREFIX, method_id
@@ -117,6 +117,7 @@ class RevmEnv:
         source_code: str,
         optimize: OptimizationLevel,
         output_formats: dict[str, Callable[[CompilerData], str]],
+        grammar: Lark,
         *args,
         override_opt_level=None,
         input_bundle=None,
@@ -124,7 +125,13 @@ class RevmEnv:
         **kwargs,
     ) -> ABIContract:
         abi, bytecode = self._compile(
-            source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+            source_code,
+            optimize,
+            output_formats,
+            grammar,
+            override_opt_level,
+            input_bundle,
+            evm_version,
         )
         value = (
             kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
@@ -133,7 +140,14 @@ class RevmEnv:
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def _compile(
-        self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+        self,
+        source_code,
+        optimize,
+        output_formats,
+        grammar,
+        override_opt_level,
+        input_bundle,
+        evm_version,
     ) -> Tuple[list[dict], HexBytes]:
         out = compile_code(
             source_code,
@@ -143,7 +157,7 @@ class RevmEnv:
             input_bundle=input_bundle,
             show_gas_estimates=True,  # Enable gas estimates for testing
         )
-        parse_vyper_source(source_code)  # Test grammar.
+        grammar.parse(source_code)  # Test grammar.
         json.dumps(out["metadata"])  # test metadata is json serializable
         return out["abi"], HexBytes(out["bytecode"])
 

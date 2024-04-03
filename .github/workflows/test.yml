@@ -108,6 +108,7 @@ jobs:
             debug: false
             evm-version: shanghai
             experimental-codegen: true
+            evm-backend: revm
           # TODO: test experimental_codegen + -Ocodesize
 
           # run with `--memorymock`, but only need to do it one configuration
@@ -167,6 +168,7 @@ jobs:
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
+          --profile-svg
           --cov-branch \
           --cov-report xml:coverage.xml \
           --cov=vyper \
