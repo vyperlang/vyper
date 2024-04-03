@@ -77,9 +77,7 @@ def ir_for_self_call(stmt_expr, context):
     if args_as_tuple.contains_self_call:
         copy_args = ["seq"]
         # TODO deallocate me
-        tmp_args_buf = IRnode(
-            context.new_internal_variable(dst_tuple_t), typ=dst_tuple_t, location=MEMORY
-        )
+        tmp_args_buf = context.new_internal_variable(dst_tuple_t)
         copy_args.append(
             # --> args evaluate here <--
             make_setter(tmp_args_buf, args_as_tuple)
