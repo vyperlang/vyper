@@ -42,6 +42,7 @@ class InsertableOnceDict(Generic[_T, _K], dict[_T, _K]):
 
 # some name that the user cannot assign to a variable
 GLOBAL_NONREENTRANT_KEY = "$.nonreentrant_key"
+NONREENTRANT_KEY_SIZE = 1
 
 
 class SimpleAllocator:
@@ -64,7 +65,7 @@ class SimpleAllocator:
         return ret
 
     def allocate_global_nonreentrancy_slot(self):
-        slot = self.allocate_slot(1, GLOBAL_NONREENTRANT_KEY)
+        slot = self.allocate_slot(NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY)
         assert slot == self._starting_slot
         return slot
 
@@ -164,9 +165,10 @@ def set_storage_slots_with_overrides(
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
             # Ensure that this slot has not been used, and prevents other storage variables
             # from using the same slot
-            reserved_slots.reserve_slot_range(reentrant_slot, 1, variable_name)
+            reserved_slots.reserve_slot_range(reentrant_slot, NONREENTRANT_KEY_SIZE, variable_name)
 
             type_.set_reentrancy_key_position(VarOffset(reentrant_slot))
+            break
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
@@ -279,13 +281,21 @@ def _allocate_layout_r(
 # get the layout for export
 def generate_layout_export(vyper_module: vy_ast.Module):
     ret = _generate_layout_export_r(vyper_module)
-    location = get_reentrancy_key_location()
-    layout_key = _LAYOUT_KEYS[location]
-    ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {
-        "type": "nonreentrant lock",
-        "slot": 0,
-        "n_slots": 1,
-    }
+
+    for fn in vyper_module.get_children(vy_ast.FunctionDef):
+        fn_t = fn._metadata["func_type"]
+        if not fn_t.nonreentrant:
+            continue
+
+        slot = fn_t.reentrancy_key_position.position
+        location = get_reentrancy_key_location()
+        layout_key = _LAYOUT_KEYS[location]
+        ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {
+            "type": "nonreentrant lock",
+            "slot": slot,
+            "n_slots": NONREENTRANT_KEY_SIZE,
+        }
+        break
 
     return ret
 

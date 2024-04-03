@@ -12,9 +12,9 @@ def _adjust_storage_layout_for_cancun(layout):
                 _go(item)
 
     if version_check(begin="cancun"):
-        layout["transient_storage_layout"] = {
-            "$.nonreentrant_key": layout["storage_layout"].pop("$.nonreentrant_key")
-        }
+        nonreentrant = layout["storage_layout"].pop("$.nonreentrant_key")
+        if nonreentrant is not None:
+            layout["transient_storage_layout"] = {"$.nonreentrant_key": nonreentrant}
         _go(layout["storage_layout"])
 
 
@@ -87,10 +87,7 @@ def __init__():
             "SYMBOL": {"length": 64, "offset": 0, "type": "String[32]"},
             "DECIMALS": {"length": 32, "offset": 64, "type": "uint8"},
         },
-        "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
-            "name": {"slot": 1, "type": "String[32]", "n_slots": 2},
-        },
+        "storage_layout": {"name": {"slot": 1, "type": "String[32]", "n_slots": 2}},
     }
     _adjust_storage_layout_for_cancun(expected_layout)
 
@@ -136,7 +133,6 @@ def __init__():
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
             "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
             "counter2": {"slot": 2, "type": "uint256", "n_slots": 1},
             "a_library": {"supply": {"slot": 3, "type": "uint256", "n_slots": 1}},
@@ -186,7 +182,6 @@ def __init__():
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
             "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
             "a_library": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},
             "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
@@ -350,7 +345,6 @@ def foo() -> uint256:
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
             "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
             "lib2": {
                 "lib1": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},

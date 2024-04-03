@@ -12,11 +12,11 @@ a: uint256
 b: uint256"""
 
     storage_layout_overrides = {
-        "a": {"type": "uint256", "slot": 1},
-        "b": {"type": "uint256", "slot": 0},
+        "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+        "b": {"type": "uint256", "slot": 0, "n_slots": 1},
     }
 
-    expected_output = {"storage_layout": storage_layout_overrides, "code_layout": {}}
+    expected_output = {"storage_layout": storage_layout_overrides}
 
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
@@ -61,13 +61,13 @@ def public_foo3():
     """
 
     storage_layout_override = {
-        "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 8},
-        "foo": {"type": "HashMap[address, uint256]", "slot": 1},
-        "baz": {"type": "Bytes[65]", "slot": 2},
-        "bar": {"type": "uint256", "slot": 6},
+        "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 8, "n_slots": 1},
+        "foo": {"type": "HashMap[address, uint256]", "slot": 1, "n_slots": 1},
+        "baz": {"type": "Bytes[65]", "slot": 2, "n_slots": 4},
+        "bar": {"type": "uint256", "slot": 6, "n_slots": 1},
     }
 
-    expected_output = {"storage_layout": storage_layout_override, "code_layout": {}}
+    expected_output = {"storage_layout": storage_layout_override}
 
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_override
