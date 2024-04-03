@@ -9,19 +9,20 @@ from setuptools import setup
 extras_require = {
     "test": [
         "pytest>=8.0,<9.0",
-        "pytest-cov>=2.10,<3.0",
+        "pytest-cov>=4.1,<5.0",
         "pytest-instafail>=0.4,<1.0",
-        "pytest-xdist>=2.5,<3.0",
+        "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
-        "eth-tester[py-evm]>=0.9.0b1,<0.10",
+        "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
-        "py-evm>=0.7.0a1,<0.8",
+        "py-evm>=0.10.0b4,<0.11",
         "web3==6.0.0",
-        "tox>=3.15,<4.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
+        "hexbytes<1.0",
+        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [
         "black==23.12.0",
@@ -31,13 +32,10 @@ extras_require = {
         "isort==5.13.2",
         "mypy==1.5",
     ],
-    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
-extras_require["dev"] = (
-    extras_require["test"] + extras_require["lint"] + extras_require["docs"] + extras_require["dev"]
-)
+extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
 with open("README.md", "r") as f:
     long_description = f.read()

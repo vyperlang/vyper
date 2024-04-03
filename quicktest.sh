@@ -4,6 +4,6 @@
 # ./quicktest.sh
 # ./quicktest.sh tests/.../mytest.py
 
-# run pytest but bail out on first error and suppress coverage.
+# run pytest but bail out on first error
 # useful for dev workflow
-pytest -q --no-cov -s --instafail -x --disable-warnings "$@"
+pytest -q -s --instafail -x --disable-warnings "$@"
