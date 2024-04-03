@@ -1,4 +1,3 @@
-from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
@@ -128,16 +127,13 @@ class IRLiteral(IRValue):
     def __hash__(self) -> int:
         return self.value.__hash__()
 
-    def __eq__(self, v: object) -> bool:
-        return self.value == v
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
 
     def __repr__(self) -> str:
         return str(self.value)
-
-
-class MemType(Enum):
-    OPERAND_STACK = auto()
-    MEMORY = auto()
 
 
 class IRVariable(IRValue):
@@ -148,17 +144,7 @@ class IRVariable(IRValue):
     value: str
     offset: int = 0
 
-    # some variables can be in memory for conversion from legacy IR to venom
-    mem_type: MemType = MemType.OPERAND_STACK
-    mem_addr: Optional[int] = None
-
-    def __init__(
-        self,
-        value: str,
-        mem_type: MemType = MemType.OPERAND_STACK,
-        mem_addr: int = None,
-        version: Optional[str | int] = None,
-    ) -> None:
+    def __init__(self, value: str, version: Optional[str | int] = None) -> None:
         assert isinstance(value, str)
         assert ":" not in value, "Variable name cannot contain ':'"
         if version:
@@ -168,8 +154,24 @@ class IRVariable(IRValue):
             value = f"%{value}"
         self.value = value
         self.offset = 0
-        self.mem_type = mem_type
-        self.mem_addr = mem_addr
+
+    @property
+    def name(self) -> str:
+        return self.value.split(":")[0]
+
+    @property
+    def version(self) -> int:
+        if ":" not in self.value:
+            return 0
+        return int(self.value.split(":")[1])
+
+    def __hash__(self) -> int:
+        return self.value.__hash__()
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
 
     @property
     def name(self) -> str:
@@ -209,8 +211,10 @@ class IRLabel(IROperand):
     def __hash__(self) -> int:
         return hash(self.value)
 
-    def __eq__(self, v: object) -> bool:
-        return self.value == v
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
 
     def __repr__(self) -> str:
         return self.value

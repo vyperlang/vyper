@@ -78,7 +78,6 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         calculate_cfg(ctx)
         calculate_liveness(ctx)
 
-        changes += ir_pass_constant_propagation(ctx)
         changes += DFTPass().run_pass(ctx)
 
         calculate_cfg(ctx)

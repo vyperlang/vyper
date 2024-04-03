@@ -9,7 +9,6 @@ from vyper.venom.basicblock import (
     IRLabel,
     IROperand,
     IRVariable,
-    MemType,
 )
 
 GLOBAL_LABEL = IRLabel("__global")
@@ -129,11 +128,9 @@ class IRFunction:
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
 
-    def get_next_variable(
-        self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: Optional[int] = None
-    ) -> IRVariable:
+    def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
-        return IRVariable(f"%{self.last_variable}", mem_type, mem_addr)
+        return IRVariable(f"%{self.last_variable}")
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
