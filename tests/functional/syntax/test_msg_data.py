@@ -16,7 +16,7 @@ def foo() -> Bytes[4]:
 
     contract = get_contract(code)
 
-    assert contract.foo() == bytes(keccak(text="foo()")[:4])
+    assert contract.foo() == bytes(keccak(b"foo()")[:4])
 
 
 def test_slicing_start_index_other_than_zero(get_contract):
@@ -42,7 +42,7 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    method_id = keccak(text="foo(uint256)").hex()[2:10]  # 2fbebd38
+    method_id = keccak(b"foo(uint256)").hex()[:8]  # 2fbebd38
     encoded_42 = to_bytes(42).hex()  # 2a
     expected_result = method_id + "00" * 31 + encoded_42
 
@@ -74,7 +74,7 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == (2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1)
+    assert contract.foo() == (2**256 - 1, bytes(keccak(b"foo()")[:4]), 2**256 - 1)
 
 
 def test_assignment_to_storage(revm_env, get_contract, keccak):
@@ -87,7 +87,7 @@ def foo():
 """
     contract = get_contract(code)
     contract.foo(transact={})
-    assert contract.cache() == bytes(keccak(text="foo()")[:4])
+    assert contract.cache() == bytes(keccak(b"foo()")[:4])
 
 
 def test_get_len(get_contract):

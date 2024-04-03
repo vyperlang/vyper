@@ -1,21 +1,22 @@
+import pytest
+
+from vyper.compiler import compile_code
 from vyper.exceptions import FunctionDeclarationException, StateAccessViolation
 
 
-def test_pure_operation(get_contract_with_gas_estimation_for_constants):
-    c = get_contract_with_gas_estimation_for_constants(
-        """
+def test_pure_operation(get_contract):
+    code = """
 @pure
 @external
 def foo() -> int128:
     return 5
     """
-    )
+    c = get_contract(code)
     assert c.foo() == 5
 
 
-def test_pure_call(get_contract_with_gas_estimation_for_constants):
-    c = get_contract_with_gas_estimation_for_constants(
-        """
+def test_pure_call(get_contract):
+    code = """
 @pure
 @internal
 def _foo() -> int128:
@@ -26,21 +27,18 @@ def _foo() -> int128:
 def foo() -> int128:
     return self._foo()
     """
-    )
+    c = get_contract(code)
     assert c.foo() == 5
 
 
-def test_pure_interface(get_contract_with_gas_estimation_for_constants):
-    c1 = get_contract_with_gas_estimation_for_constants(
-        """
+def test_pure_interface(get_contract):
+    code1 = """
 @pure
 @external
 def foo() -> int128:
     return 5
     """
-    )
-    c2 = get_contract_with_gas_estimation_for_constants(
-        """
+    code2 = """
 interface Foo:
     def foo() -> int128: pure
 
@@ -49,28 +47,35 @@ interface Foo:
 def foo(a: address) -> int128:
     return staticcall Foo(a).foo()
     """
-    )
+    c1 = get_contract(code1)
+    c2 = get_contract(code2)
     assert c2.foo(c1.address) == 5
 
 
-def test_invalid_envar_access(get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(
-            """
+def test_invalid_envar_access(get_contract):
+    code = """
 @pure
 @external
 def foo() -> uint256:
     return chain.id
     """
-        ),
-        StateAccessViolation,
-    )
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
+def test_invalid_codesize_access(get_contract):
+    code = """
+@pure
+@external
+def foo(s: address) -> uint256:
+    return s.codesize
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
 
 
 def test_invalid_state_access(get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(
-            """
+    code = """
 x: uint256
 
 @pure
@@ -78,29 +83,84 @@ x: uint256
 def foo() -> uint256:
     return self.x
     """
-        ),
-        StateAccessViolation,
-    )
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
 
 
-def test_invalid_self_access(get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(
-            """
+def test_invalid_immutable_access():
+    code = """
+COUNTER: immutable(uint256)
+
+@deploy
+def __init__():
+    COUNTER = 1234
+
+@pure
+@external
+def foo() -> uint256:
+    return COUNTER
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
+def test_invalid_self_access():
+    code = """
 @pure
 @external
 def foo() -> address:
     return self
     """
-        ),
-        StateAccessViolation,
-    )
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
 
 
-def test_invalid_call(get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(
-            """
+def test_invalid_module_variable_access(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    code = """
+import lib1
+initializes: lib1
+
+@pure
+@external
+def foo() -> uint256:
+    return lib1.counter
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StateAccessViolation):
+        compile_code(code, input_bundle=input_bundle)
+
+
+def test_invalid_module_immutable_access(make_input_bundle):
+    lib1 = """
+COUNTER: immutable(uint256)
+
+@deploy
+def __init__():
+    COUNTER = 123
+    """
+    code = """
+import lib1
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+
+@pure
+@external
+def foo() -> uint256:
+    return lib1.COUNTER
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StateAccessViolation):
+        compile_code(code, input_bundle=input_bundle)
+
+
+def test_invalid_call():
+    code = """
 @view
 @internal
 def _foo() -> uint256:
@@ -111,21 +171,17 @@ def _foo() -> uint256:
 def foo() -> uint256:
     return self._foo()  # Fails because of calling non-pure fn
     """
-        ),
-        StateAccessViolation,
-    )
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
 
 
-def test_invalid_conflicting_decorators(get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(
-            """
+def test_invalid_conflicting_decorators():
+    code = """
 @pure
 @external
 @payable
 def foo() -> uint256:
     return 5
     """
-        ),
-        FunctionDeclarationException,
-    )
+    with pytest.raises(FunctionDeclarationException):
+        compile_code(code)

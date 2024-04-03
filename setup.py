@@ -21,6 +21,7 @@ extras_require = {
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
+        "hexbytes>=1.2",
         "pyrevm @ git+https://github.com/DanielSchiavini/pyrevm.git@revm",
         "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],

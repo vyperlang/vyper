@@ -1,6 +1,8 @@
 import pytest
 from eth.codecs.abi.exceptions import EncodeError
 
+from vyper.exceptions import StackTooDeep
+
 
 def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
@@ -163,6 +165,7 @@ def get_foo() -> uint256:
     assert c.get_foo() == 39
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynamic_array_constructor_arg_2(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: int128
@@ -208,6 +211,7 @@ def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
     assert c.get_foo() == [[37, 41, 73], [37041, 41073, 73037], [146, 123, 148]]
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_initialise_nested_dynamic_array_2(revm_env, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]

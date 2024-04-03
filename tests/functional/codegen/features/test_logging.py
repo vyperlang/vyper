@@ -35,7 +35,7 @@ def foo():
 
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {"name": "MyLog", "inputs": [], "anonymous": False, "type": "event"}
     # Event is decoded correctly
@@ -62,7 +62,7 @@ def foo():
 
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -92,7 +92,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128,bool,address)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -169,8 +169,8 @@ def bar():
 
     event_id = keccak(bytes("MyLog(int128,address)", "utf-8"))
     # Event id is always the first topic
-    assert log1.topics[0] == event_id.hex()
-    assert log2.topics[0] == event_id.hex()
+    assert log1.topics[0] == "0x" + event_id.hex()
+    assert log2.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -221,7 +221,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -257,7 +257,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128[2],uint256[3],int128[2][2])", "utf-8"))
     # Event id is always the first topic
     log, _ = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
 
     assert c.abi[0] == {
@@ -300,7 +300,7 @@ def foo(arg1: Bytes[29], arg2: Bytes[31]):
     event_id = keccak(bytes("MyLog(bytes,bytes,bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -338,7 +338,7 @@ def foo(_arg1: Bytes[20]):
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -366,7 +366,7 @@ def foo(_arg1: Bytes[5]):
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -402,7 +402,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128,bytes,bytes,address,address,uint256)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -449,7 +449,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -500,8 +500,8 @@ def foo():
     event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
 
     # Event id is always the first topic
-    assert log1.topics[0] == event_id1.hex()
-    assert log2.topics[0] == event_id2.hex()
+    assert log1.topics[0] == "0x" + event_id1.hex()
+    assert log2.topics[0] == "0x" + event_id2.hex()
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -1071,7 +1071,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
 
     topic1 = f"0x{keccak256(b'bar').hex()}"
     (log,) = revm_env.evm.result.logs
@@ -1119,7 +1119,7 @@ def foo():
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
 
     topic1 = f"0x{keccak256(b'potato').hex()}"
     (log,) = revm_env.evm.result.logs
@@ -1176,7 +1176,7 @@ def foo():
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
 
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     (log,) = revm_env.evm.result.logs
@@ -1221,7 +1221,7 @@ def foo():
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
     (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == event_id.hex()
+    assert log.topics[0] == "0x" + event_id.hex()
 
     topic1 = f"0x{keccak256(b'wow').hex()}"
     (log,) = revm_env.evm.result.logs
