@@ -31,7 +31,7 @@ def test_phi_case():
     bb.append_instruction("jmp", bb_cont.label)
 
     calculate_cfg(ctx)
-    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
+    MakeSSA().run_pass(ctx, ctx.basic_blocks[0])
     calculate_liveness(ctx)
 
     condition_block = ctx.get_basic_block("condition")
