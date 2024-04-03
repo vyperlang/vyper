@@ -278,16 +278,25 @@ def _allocate_layout_r(
 
 # get the layout for export
 def generate_layout_export(vyper_module: vy_ast.Module):
-    return _generate_layout_export_r(vyper_module, is_global=True)
+    ret = _generate_layout_export_r(vyper_module)
+    location = get_reentrancy_key_location()
+    layout_key = _LAYOUT_KEYS[location]
+    ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {
+        "type": "nonreentrant lock",
+        "slot": 0,
+        "n_slots": 1,
+    }
+
+    return ret
 
 
-def _generate_layout_export_r(vyper_module, is_global=True):
+def _generate_layout_export_r(vyper_module):
     ret: defaultdict[str, InsertableOnceDict[str, dict]] = defaultdict(InsertableOnceDict)
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
             module_info = node._metadata["initializes_info"].module_info
-            module_layout = _generate_layout_export_r(module_info.module_node, is_global=False)
+            module_layout = _generate_layout_export_r(module_info.module_node)
             module_alias = module_info.alias
             for layout_key in module_layout.keys():
                 assert layout_key in _LAYOUT_KEYS.values()
