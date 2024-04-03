@@ -57,14 +57,16 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     for entry in internals:
         SimplifyCFGPass().run_pass(ctx, entry)
 
-    Mem2Stack().run_pass(ctx, ctx.basic_blocks[0])
-    for entry in internals:
-        Mem2Stack().run_pass(ctx, entry)
-
     make_ssa_pass = MakeSSA()
     make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
         make_ssa_pass.run_pass(ctx, entry)
+
+    dfg = DFG.build_dfg(ctx)
+
+    Mem2Stack().run_pass(ctx, ctx.basic_blocks[0], dfg)
+    for entry in internals:
+        Mem2Stack().run_pass(ctx, entry, dfg)
 
     while True:
         changes = 0

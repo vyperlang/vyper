@@ -1,9 +1,10 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import calculate_cfg, calculate_liveness
+from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.dft import DFTPass
 
 
 class Mem2Stack(IRPass):
@@ -13,13 +14,18 @@ class Mem2Stack(IRPass):
     dom: DominatorTree
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
-    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
+    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock, dfg: DFG) -> int:
         self.ctx = ctx
 
         calculate_cfg(ctx)
         self.dom = DominatorTree.build_dominator_tree(ctx, entry)
 
         calculate_liveness(ctx)
+
+        for var, inst in dfg.outputs.items():
+            if inst.opcode != "alloca":
+                continue
+            print(var, inst)
         
         self._compute_stores()
 
