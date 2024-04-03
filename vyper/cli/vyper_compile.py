@@ -65,6 +65,7 @@ def _parse_cli_args():
 
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
+        compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
         return
 
