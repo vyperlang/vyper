@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
+from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.types import DecimalT
 
 DECIMAL_T = DecimalT()
@@ -37,8 +38,9 @@ def foo(a: decimal, b: decimal) -> decimal:
 
     try:
         vyper_ast = parse_and_fold(f"{left} {op} {right}")
-        old_node = vyper_ast.body[0].value
-        new_node = old_node.get_folded_value()
+        expr = vyper_ast.body[0].value
+        ExprVisitor().visit(expr, DecimalT())
+        new_node = expr.get_folded_value()
         is_valid = True
     except ZeroDivisionException:
         is_valid = False
@@ -78,7 +80,9 @@ def foo({input_value}) -> decimal:
     literal_op = literal_op.rsplit(maxsplit=1)[0]
     try:
         vyper_ast = parse_and_fold(literal_op)
-        new_node = vyper_ast.body[0].value.get_folded_value()
+        expr = vyper_ast.body[0].value
+        ExprVisitor().visit(expr, DecimalT())
+        new_node = expr.get_folded_value()
         expected = new_node.value
         lo, hi = DecimalT().decimal_bounds
         is_valid = lo <= expected < hi
