@@ -42,9 +42,9 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    foo_method_id = method_id("foo(uint256)").hex()  # 2fbebd38
-    encoded_42 = to_bytes(42).hex()  # 2a
-    expected_result = foo_method_id + "00" * 31 + encoded_42
+    foo_method_id = method_id("foo(uint256)")  # 2fbebd38
+    encoded_42 = to_bytes(42)  # 2a
+    expected_result = foo_method_id + b"\0" * 31 + encoded_42
 
     assert contract.foo(42) == expected_result
 

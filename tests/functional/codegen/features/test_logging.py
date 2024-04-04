@@ -62,7 +62,7 @@ def foo():
 
     # Event id is always the first topic
     (log,) = get_logs(tx_hash, c)
-    assert log.topics[0] == "0x" + event_id
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -92,7 +92,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128,bool,address)", "utf-8"))
     # Event id is always the first topic
     (log,) = get_logs(tx_hash, c)
-    assert log.topics[0] == "0x" + event_id
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -169,8 +169,8 @@ def bar():
 
     event_id = keccak(bytes("MyLog(int128,address)", "utf-8"))
     # Event id is always the first topic
-    assert log1.topics[0] == "0x" + event_id
-    assert log2.topics[0] == "0x" + event_id
+    assert log1.topics[0] == event_id
+    assert log2.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -298,7 +298,7 @@ def foo(arg1: Bytes[29], arg2: Bytes[31]):
     event_id = keccak(bytes("MyLog(bytes,bytes,bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = get_logs(tx_hash, c)
-    assert log.topics[0] == "0x" + event_id
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -334,7 +334,7 @@ def foo(_arg1: Bytes[20]):
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = get_logs(tx_hash, c)
-    assert log.topics[0] == "0x" + event_id
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -444,7 +444,7 @@ def foo():
     event_id = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
     # Event id is always the first topic
     (log,) = get_logs(tx_hash, c)
-    assert log.topics[0] == "0x" + event_id
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -495,8 +495,8 @@ def foo():
     event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
 
     # Event id is always the first topic
-    assert log1.topics[0] == "0x" + event_id1
-    assert log2.topics[0] == "0x" + event_id2
+    assert log1.topics[0] == event_id1
+    assert log2.topics[0] == event_id2
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",

@@ -107,10 +107,7 @@ class RevmEnv(BaseEnv):
                 self._parse_revert(output_bytes, e, int(gas_used))
             raise TransactionFailed(*e.args) from e
         finally:
-            self.reset_transient_storage()
-
-    def reset_transient_storage(self):
-        self._evm.reset_transient_storage()
+            self._evm.reset_transient_storage()
 
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
@@ -139,4 +136,4 @@ class RevmEnv(BaseEnv):
         try:
             return self._evm.deploy(self.deployer, code, value, gas)
         finally:
-            self.reset_transient_storage()
+            self._evm.reset_transient_storage()

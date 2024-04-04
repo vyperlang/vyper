@@ -81,25 +81,24 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
+            evm-backend: [revm, py-evm]
 
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: paris
-            evm-backend: revm
 
           # redundant rule, for clarity
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: shanghai
-            evm-backend: revm
 
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: cancun
-            evm-backend: revm
+            evm-backend: [revm, py-evm]
 
           # test experimental pipeline
           - python-version: ["3.11", "311"]
@@ -107,7 +106,6 @@ jobs:
             debug: false
             evm-version: shanghai
             experimental-codegen: true
-            evm-backend: revm
           # TODO: test experimental_codegen + -Ocodesize
 
           # run with `--memorymock`, but only need to do it one configuration
@@ -117,7 +115,6 @@ jobs:
             debug: false
             evm-version: shanghai
             memorymock: true
-            evm-backend: revm
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
@@ -125,13 +122,11 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
-            evm-backend: revm
 
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
-            evm-backend: revm
 
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}${{ matrix.experimental-codegen && '-experimental' || '' }}-${{ matrix.evm-version }}-${{ matrix.evm-backend }}
@@ -160,7 +155,7 @@ jobs:
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
-          --evm-backend ${{ matrix.evm-backend }} \
+          ${{ matrix.evm-backend && '--evm-backend ${{ matrix.evm-backend }}' || '' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \

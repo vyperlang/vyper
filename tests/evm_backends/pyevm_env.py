@@ -145,6 +145,8 @@ class PyEvmEnv(BaseEnv):
             )
         except VMError as e:
             raise TransactionFailed(*e.args) from e
+        finally:
+            self._state.clear_transient_storage()
 
         self._check_computation(computation)
         return computation.output
@@ -190,6 +192,8 @@ class PyEvmEnv(BaseEnv):
             )
         except VMError as e:
             raise TransactionFailed(*e.args) from e
+        finally:
+            self._state.clear_transient_storage()
         self._check_computation(computation)
         return "0x" + target_address.hex()
 
