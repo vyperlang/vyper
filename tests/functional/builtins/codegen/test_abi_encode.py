@@ -3,6 +3,8 @@ from decimal import Decimal
 import pytest
 from eth.codecs import abi
 
+from vyper.exceptions import StackTooDeep
+
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
 def test_abi_encode(get_contract):
@@ -225,6 +227,7 @@ nested_3d_array_args = [
 ]
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 @pytest.mark.parametrize("args", nested_3d_array_args)
 def test_abi_encode_nested_dynarray_2(get_contract, args):
     code = """

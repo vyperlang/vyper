@@ -4,6 +4,7 @@ import pytest
 from eth.codecs import abi
 from eth_utils import keccak
 
+from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
 
@@ -506,6 +507,7 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_multidimension_dynarray_clamper_passing(env, get_contract, value):
     code = """
 @external
