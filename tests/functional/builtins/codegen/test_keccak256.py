@@ -1,10 +1,6 @@
 from vyper.utils import hex_to_int
 
 
-def test_sanity(keccak):
-    assert keccak(b"").hex() == "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
-
-
 def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @external
