@@ -34,7 +34,7 @@ def test_multi_entry_block_1():
     calculate_cfg(ctx)
     assert not ctx.normalized, "CFG should not be normalized"
 
-    NormalizationPass.run_pass(ctx)
+    NormalizationPass().run_pass(ctx)
 
     assert ctx.normalized, "CFG should be normalized"
 
@@ -86,7 +86,7 @@ def test_multi_entry_block_2():
     calculate_cfg(ctx)
     assert not ctx.normalized, "CFG should not be normalized"
 
-    NormalizationPass.run_pass(ctx)
+    NormalizationPass().run_pass(ctx)
 
     assert ctx.normalized, "CFG should be normalized"
 
@@ -128,7 +128,7 @@ def test_multi_entry_block_with_dynamic_jump():
     calculate_cfg(ctx)
     assert not ctx.normalized, "CFG should not be normalized"
 
-    NormalizationPass.run_pass(ctx)
+    NormalizationPass().run_pass(ctx)
     assert ctx.normalized, "CFG should be normalized"
 
     finish_bb = ctx.get_basic_block(finish_label.value)
