@@ -217,8 +217,10 @@ def test_slice_private(get_contract, location):
     # test there are no buffer overruns in the slice function
     if location == "storage":
         decl = "bytez: public(String[12])"
-    else:
+    elif location == "transient":
         decl = "bytez: public(transient(String[12]))"
+    else:
+        raise Exception("unreachable")
 
     code = f"""
 {decl}
