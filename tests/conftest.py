@@ -15,7 +15,6 @@ from vyper import compiler
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
@@ -363,7 +362,7 @@ def pytest_runtest_call(item):
     if marker:
         assert len(marker.args) == 1
         version = marker.args[0]
-        if not version_check(begin=version):
+        if not evm_opcodes.version_check(begin=version):
             item.add_marker(
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )

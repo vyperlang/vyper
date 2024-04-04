@@ -124,11 +124,11 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
 
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code)
-    assert c.foo(*values) == list(values)
+    assert c.foo(*values) == values
     assert c.a() == 0
     assert c.b() is None
     assert c.c() == ""
-    assert c.foo(*values) == list(values)
+    assert c.foo(*values) == values
 
 
 def test_struct_transient(get_contract):
@@ -496,7 +496,7 @@ def foo() -> (uint256, uint256):
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     c = get_contract(main, input_bundle=input_bundle)
-    assert c.foo() == [3, 10]
+    assert c.foo() == (3, 10)
 
 
 def test_complex_modules_transient(get_contract, make_input_bundle):
@@ -537,4 +537,4 @@ def foo() -> (uint256[3], uint256, uint256, uint256):
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     c = get_contract(main, input_bundle=input_bundle)
-    assert c.foo() == [[1, 2, 3], 1, 2, 42]
+    assert c.foo() == ([1, 2, 3], 1, 2, 42)
