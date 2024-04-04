@@ -1,8 +1,10 @@
 import contextlib
+import decimal
 import os
 
 from vyper import ast as vy_ast
 from vyper.semantics.analysis.constant_folding import constant_fold
+from vyper.utils import DECIMAL_EPSILON
 
 
 @contextlib.contextmanager
@@ -19,3 +21,8 @@ def parse_and_fold(source_code):
     ast = vy_ast.parse_to_ast(source_code)
     constant_fold(ast)
     return ast
+
+
+def decimal_to_int(*args):
+    s = decimal.Decimal(*args)
+    return int(s / DECIMAL_EPSILON)
