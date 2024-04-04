@@ -81,7 +81,6 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
-            evm-backend: [revm, py-evm]
 
           - python-version: ["3.11", "311"]
             debug: false
@@ -98,7 +97,6 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: cancun
-            evm-backend: [revm, py-evm]
 
           # test experimental pipeline
           - python-version: ["3.11", "311"]
@@ -128,8 +126,14 @@ jobs:
             debug: false
             evm-version: shanghai
 
-
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}${{ matrix.experimental-codegen && '-experimental' || '' }}-${{ matrix.evm-version }}-${{ matrix.evm-backend }}
+    name: >-
+      py${{ matrix.python-version[1] }}
+      -opt-${{ matrix.opt-mode }}
+      ${{ matrix.debug && '-debug' || '' }}
+      ${{ matrix.memorymock && '-memorymock' || '' }}
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}
+      -${{ matrix.evm-version }}
+      ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -155,7 +159,7 @@ jobs:
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
-          ${{ matrix.evm-backend && '--evm-backend ${{ matrix.evm-backend }}' || '' }} \
+          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
