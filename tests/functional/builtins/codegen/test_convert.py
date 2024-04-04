@@ -1,9 +1,9 @@
 import enum
 import itertools
+import math
 
 # import random
 from decimal import Decimal
-import math
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions

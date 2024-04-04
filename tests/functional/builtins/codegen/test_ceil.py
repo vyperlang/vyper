@@ -102,8 +102,8 @@ def ceil_param(p: decimal) -> int256:
     assert c.fos() == -5472
     assert c.fot() == math.ceil(-(Decimal(2**167 - 1)) / 10**10)
     assert c.fou() == -3
-    assert c.ceil_param(Decimal("-0.5")) == 0
-    assert c.ceil_param(Decimal("-7777777.7777777")) == -7777777
+    assert c.ceil_param(decimal_to_int("-0.5")) == 0
+    assert c.ceil_param(decimal_to_int("-7777777.7777777")) == -7777777
 
 
 def test_ceil_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):

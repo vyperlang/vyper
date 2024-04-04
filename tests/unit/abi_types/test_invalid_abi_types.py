@@ -1,12 +1,6 @@
 import pytest
 
-from vyper.abi_types import (
-    ABI_Bytes,
-    ABI_BytesM,
-    ABI_DynamicArray,
-    ABI_GIntM,
-    ABI_String,
-)
+from vyper.abi_types import ABI_Bytes, ABI_BytesM, ABI_DynamicArray, ABI_GIntM, ABI_String
 from vyper.exceptions import InvalidABIType
 
 cases_invalid_types = [
