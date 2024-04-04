@@ -42,7 +42,7 @@ def foo(a: decimal, b: decimal) -> decimal:
         ExprVisitor().visit(expr, DecimalT())
         new_node = expr.get_folded_value()
         is_valid = True
-    except ZeroDivisionException:
+    except (OverflowException, ZeroDivisionException):
         is_valid = False
 
     if is_valid:
