@@ -881,7 +881,7 @@ class Extract32(BuiltinFunctionT):
         with bytez.cache_when_complex("_sub") as (b1, bytez):
             # merge
             length = get_bytearray_length(bytez)
-            index = clamp("lt", index, ["sub", length, 32])
+            index = clamp2(0, index, ["sub", length, 32], signed=True)
             with index.cache_when_complex("_index") as (b2, index):
                 assert not index.typ.is_signed
 
