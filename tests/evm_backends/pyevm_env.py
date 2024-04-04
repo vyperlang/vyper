@@ -25,7 +25,8 @@ from tests.evm_backends.base_env import BaseEnv
 
 
 class PyEvmEnv(BaseEnv):
-    default_chain_id = 1
+    """EVM backend environment using the Py-EVM library."""
+
     INVALID_OPCODE_ERROR = "Invalid opcode"
 
     def __init__(
@@ -153,9 +154,8 @@ class PyEvmEnv(BaseEnv):
         if computation.is_error:
             if isinstance(computation.error, Revert):
                 (output,) = computation.error.args
-                self._parse_revert(
-                    output, computation.error, gas_used=self._last_computation.get_gas_used()
-                )
+                gas_used = computation.get_gas_used()
+                self._parse_revert(output, computation.error, gas_used)
 
             raise TransactionFailed(*computation.error.args) from computation.error
 
@@ -163,15 +163,16 @@ class PyEvmEnv(BaseEnv):
         return self._state.get_code(_addr(address))
 
     def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
-        if time_delta is None:
-            time_delta = num_blocks
+        """
+        Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
+        """
         context = cast(ExecutionContext, self._state.execution_context)
         context._block_number += num_blocks
-        context._timestamp += time_delta
+        context._timestamp += num_blocks if time_delta is None else time_delta
 
-    def _deploy(self, initcode: bytes, value: int, gas: int = None) -> str:
+    def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         sender = _addr(self.deployer)
-        target_address = self._generate_address(sender)
+        target_address = self._generate_contract_address(sender)
 
         try:
             computation = self._state.computation_class.apply_create_message(
@@ -180,7 +181,7 @@ class PyEvmEnv(BaseEnv):
                     to=CREATE_CONTRACT_ADDRESS,  # i.e., b""
                     sender=sender,
                     value=value,
-                    code=initcode,
+                    code=code,
                     data=b"",
                     gas=gas or self.gas_limit,
                     create_address=target_address,
@@ -192,20 +193,26 @@ class PyEvmEnv(BaseEnv):
         self._check_computation(computation)
         return "0x" + target_address.hex()
 
-    def _generate_address(self, sender: Address) -> bytes:
+    def _generate_contract_address(self, sender: Address) -> Address:
         nonce = self._state.get_nonce(sender)
         self._state.increment_nonce(sender)
         return generate_contract_address(sender, nonce)
 
 
+# a very simple log representation for the raw log entries
 Log = namedtuple("Log", ["address", "topics", "data"])
 
 
-def _parse_log_entries(result):
+def _parse_log_entries(result: ComputationAPI):
+    """
+    Parses the raw log entries from a computation result into a more
+    usable format similar to the revm backend.
+    """
     for address, topics, data in result.get_log_entries():
         topics = [t.to_bytes(32, "big") for t in topics]
         yield Log(to_checksum_address(address), topics, (topics, data))
 
 
 def _addr(address: str) -> Address:
+    """Convert an address string to an Address object."""
     return Address(bytes.fromhex(address.removeprefix("0x")))

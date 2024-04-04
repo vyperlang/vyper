@@ -7,7 +7,6 @@ from warnings import warn
 
 from eth_typing import ChecksumAddress, HexAddress
 from eth_utils import to_checksum_address
-from hexbytes import HexBytes
 from pyrevm import Log
 
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
@@ -86,12 +85,15 @@ class ABILogTopic:
 
     @cached_property
     def data_type(self) -> type:
-        names = [
-            (item["name"], item["type"]) for item in self.indexed_inputs + self.unindexed_inputs
-        ]
-        return make_dataclass(self.name, names)
+        """
+        Create a dataclass for the log event data.
+        """
+        inputs = self.indexed_inputs + self.unindexed_inputs
+        fields = [(item["name"], item["type"]) for item in inputs]
+        return make_dataclass(self.name, fields)
 
-    def _parse_args(self, log: Log) -> tuple:
+    def _parse_args(self, log: Log) -> Any:
+        """Convert the log data into a dataclass instance."""
         topics, data = log.data
         assert len(topics) == 1 + len(self.indexed_inputs), "Invalid log topic count"
         indexed = [
@@ -103,6 +105,7 @@ class ABILogTopic:
 
     @staticmethod
     def _is_hashed(typ):
+        """Check if a type is hashed when included in a log topic."""
         return typ in ("bytes", "string", "tuple") or typ.endswith("[]")
 
 
@@ -366,10 +369,12 @@ class ABIContract:
         Parse a log entry into an ABILog object.
         :param log: the log entry to parse
         """
+        topic_id_str = log.topics[0]
+        topic_id = bytes.fromhex(topic_id_str.removeprefix("0x"))
         for topic in self.log_topics:
-            if any(topic.topic_id == HexBytes(t) for t in log.topics):
+            if topic.topic_id == topic_id:
                 return topic.parse(log)
-        raise KeyError(f"Could not find event for log {log.topics}. Found {self.log_topics}")
+        raise KeyError(f"Could not find event for log {topic_id_str}. Found {self.log_topics}")
 
 
 class ABIContractFactory:

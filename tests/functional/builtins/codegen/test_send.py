@@ -43,7 +43,7 @@ def __default__():
     self.last_sender = msg.sender
     """
 
-    env.set_balance(env.deployer, 100000 * 3)
+    env.set_balance(env.deployer, 300000)
     sender = get_contract(sender_code, value=1)
     receiver = get_contract(receiver_code)
 
@@ -86,7 +86,7 @@ def __default__():
     self.last_sender = msg.sender
     """
 
-    env.set_balance(env.deployer, 100000 * 3)
+    env.set_balance(env.deployer, 300000)
     sender = get_contract(sender_code, value=1)
     receiver = get_contract(receiver_code)
 

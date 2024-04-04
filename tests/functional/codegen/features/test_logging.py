@@ -541,7 +541,7 @@ def foo():
     logs = get_logs(tx_hash, c, "YourLog")
     args = logs[0].args
     assert args.arg1 == c.address
-    assert args.arg2 == (1, b"abc", ("house", Decimal("13.5000000000")))
+    assert args.arg2 == (1, b"abc", ("house", Decimal("13.5")))
 
 
 def test_fails_when_input_is_the_wrong_type(tx_failed, get_contract_with_gas_estimation):

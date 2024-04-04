@@ -104,13 +104,16 @@ class RevmEnv(BaseEnv):
             if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]+) }", e.args[0]):
                 gas_used, output_str = match.groups()
                 output_bytes = bytes.fromhex(output_str)
-                self._parse_revert(output_bytes, e, gas_used)
+                self._parse_revert(output_bytes, e, int(gas_used))
             raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
 
     def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
+        """
+        Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
+        """
         if time_delta is None:
             time_delta = num_blocks
         block = self._evm.env.block
@@ -127,5 +130,5 @@ class RevmEnv(BaseEnv):
             )
         )
 
-    def _deploy(self, initcode: bytes, value: int, gas: int = None) -> str:
-        return self._evm.deploy(deployer=self.deployer, code=initcode, value=value, gas=gas)
+    def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
+        return self._evm.deploy(self.deployer, code, value, gas)

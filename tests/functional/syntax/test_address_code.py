@@ -3,7 +3,6 @@ from typing import Type
 
 import pytest
 from eth_tester.exceptions import TransactionFailed
-from hexbytes import HexBytes
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
@@ -17,15 +16,16 @@ PRECOMPILED = bytes.fromhex(PRECOMPILED_BYTECODE_RUNTIME[2:])
 
 
 @pytest.fixture
-def deploy_precompiled_contract(env):
-    return lambda: env.deploy(json.loads(PRECOMPILED_ABI), HexBytes(PRECOMPILED_BYTECODE))
+def precompiled_contract(env):
+    bytecode = bytes.fromhex(PRECOMPILED_BYTECODE.removeprefix("0x"))
+    return env.deploy(json.loads(PRECOMPILED_ABI), bytecode)
 
 
 @pytest.mark.parametrize(
     ("start", "length", "expected"), [(0, 5, PRECOMPILED[:5]), (5, 10, PRECOMPILED[5:][:10])]
 )
 def test_address_code_slice(
-    start: int, length: int, expected: bytes, deploy_precompiled_contract, get_contract
+    start: int, length: int, expected: bytes, precompiled_contract, get_contract
 ):
     code = f"""
 @external
@@ -33,12 +33,11 @@ def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = deploy_precompiled_contract()
     actual = contract.code_slice(precompiled_contract.address)
     assert actual == expected
 
 
-def test_address_code_runtime_error_slice_too_long(deploy_precompiled_contract, get_contract):
+def test_address_code_runtime_error_slice_too_long(precompiled_contract, get_contract):
     start = len(PRECOMPILED) - 5
     length = 10
     code = f"""
@@ -47,7 +46,6 @@ def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = deploy_precompiled_contract()
     with pytest.raises(TransactionFailed):
         contract.code_slice(precompiled_contract.address)
 

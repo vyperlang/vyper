@@ -89,4 +89,4 @@ def get_chain_id() -> uint256:
     return chain.id
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.get_chain_id() == env.default_chain_id
+    assert c.get_chain_id() == env.DEFAULT_CHAIN_ID

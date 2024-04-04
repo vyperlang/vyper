@@ -35,11 +35,11 @@ def foo(val: int128) -> bool:
 
     assert c.foo(2) is True
 
-    with tx_failed(exc_text=(env.INVALID_OPCODE_ERROR)):
+    with tx_failed(exc_text=env.INVALID_OPCODE_ERROR):
         c.foo(1)
-    with tx_failed(exc_text=(env.INVALID_OPCODE_ERROR)):
+    with tx_failed(exc_text=env.INVALID_OPCODE_ERROR):
         c.foo(-1)
-    with tx_failed(exc_text=(env.INVALID_OPCODE_ERROR)):
+    with tx_failed(exc_text=env.INVALID_OPCODE_ERROR):
         c.foo(-2)
 
 

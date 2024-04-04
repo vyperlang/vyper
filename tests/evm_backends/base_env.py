@@ -14,17 +14,20 @@ from vyper.utils import ERC5202_PREFIX, method_id
 
 
 class BaseEnv:
-    default_chain_id = 1
+    """
+    Base class for EVM backends.
+    It provides a common interface for deploying contracts and interacting with them.
+    """
+
+    DEFAULT_CHAIN_ID = 1
 
     def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
-    def _deploy(self, initcode: bytes, value: int, gas: int = None) -> str:
-        raise NotImplementedError
-
     def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
+        """Deploy a contract with the given ABI and bytecode."""
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
@@ -52,6 +55,7 @@ class BaseEnv:
         evm_version=None,
         **kwargs,
     ) -> ABIContract:
+        """Compile and deploy a contract from source code."""
         abi, bytecode = self._compile(
             source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
         )
@@ -60,21 +64,6 @@ class BaseEnv:
         )  # Handle deploying with an eth value.
 
         return self.deploy(abi, bytecode, value, *args, **kwargs)
-
-    def _compile(
-        self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
-    ) -> Tuple[list[dict], bytes]:
-        out = compile_code(
-            source_code,
-            # test that all output formats can get generated
-            output_formats=output_formats,
-            settings=Settings(evm_version=evm_version, optimize=override_opt_level or optimize),
-            input_bundle=input_bundle,
-            show_gas_estimates=True,  # Enable gas estimates for testing
-        )
-        parse_vyper_source(source_code)  # Test grammar.
-        json.dumps(out["metadata"])  # test metadata is json serializable
-        return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     def deploy_blueprint(
         self,
@@ -87,6 +76,7 @@ class BaseEnv:
         evm_version=None,
         initcode_prefix=ERC5202_PREFIX,
     ):
+        """Deploy a contract with a blueprint pattern."""
         abi, bytecode = self._compile(
             source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
         )
@@ -106,8 +96,29 @@ class BaseEnv:
 
         return deployer, factory
 
-    def _parse_revert(self, output_bytes, error, gas_used):
-        # Check EIP838 error, with ABI Error(string)
+    def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def _compile(
+        self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+    ) -> Tuple[list[dict], bytes]:
+        out = compile_code(
+            source_code,
+            # test that all output formats can get generated
+            output_formats=output_formats,
+            settings=Settings(evm_version=evm_version, optimize=override_opt_level or optimize),
+            input_bundle=input_bundle,
+            show_gas_estimates=True,  # Enable gas estimates for testing
+        )
+        parse_vyper_source(source_code)  # Test grammar.
+        json.dumps(out["metadata"])  # test metadata is json serializable
+        return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    @staticmethod
+    def _parse_revert(output_bytes: bytes, error: Exception, gas_used: int):
+        """
+        Tries to parse the EIP-838 revert reason from the output bytes.
+        """
         prefix = "execution reverted"
         if output_bytes[:4] == method_id("Error(string)"):
             (msg,) = abi_decode("(string)", output_bytes[4:])
