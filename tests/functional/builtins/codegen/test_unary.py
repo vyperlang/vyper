@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.exceptions import InvalidOperation
+from tests.utils import decimal_to_int
 
 
 def test_unary_sub_uint256_fail(assert_compile_failed, get_contract):
@@ -63,8 +64,8 @@ def bar() -> decimal:
     """
 
     c = get_contract(code)
-    assert c.foo() == Decimal("-18707220957835557353007165858768422651595.9365500927")
-    assert c.bar() == Decimal("18707220957835557353007165858768422651595.9365500927")
+    assert c.foo() == decimal_to_int("-18707220957835557353007165858768422651595.9365500927")
+    assert c.bar() == decimal_to_int("18707220957835557353007165858768422651595.9365500927")
 
 
 def test_negation_int128(get_contract):
