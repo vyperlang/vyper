@@ -41,11 +41,11 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    method_id = keccak(b"foo(uint256)").hex()[:8]  # 2fbebd38
-    encoded_42 = w3.to_bytes(42).hex()  # 2a
-    expected_result = method_id + "00" * 31 + encoded_42
+    selector_hex = method_id("foo(uint256)")  # 2fbebd38
+    encoded_42 = (42).to_bytes(32, "big")
+    expected_result = selector_hex + encoded_42
 
-    assert contract.foo(42).hex() == expected_result
+    assert contract.foo(42) == expected_result
 
 
 @pytest.mark.parametrize("bar", [0, 1, 42, 2**256 - 1])
