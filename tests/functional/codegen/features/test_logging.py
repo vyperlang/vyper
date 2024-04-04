@@ -280,9 +280,7 @@ def foo():
     assert logs[0].args.arg3 == [[1, 2], [1, 2]]
 
 
-def test_logging_with_input_bytes_1(
-    env, keccak, get_logs, bytes_helper, get_contract_with_gas_estimation
-):
+def test_logging_with_input_bytes_1(env, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: Bytes[4]
@@ -833,7 +831,7 @@ def foo():
     assert logs[0].args._value == [1, 2, 3, 4]
 
 
-def test_storage_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
+def test_storage_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
 event Bar:
     _value: int128[4]
@@ -896,7 +894,7 @@ def foo():
     ]
 
 
-def test_storage_byte_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
+def test_storage_byte_packing(get_logs, get_contract_with_gas_estimation):
     code = """
 event MyLog:
     arg1: Bytes[29]
@@ -922,7 +920,7 @@ def setbytez():
     assert logs[0].args.arg1 == b"hello"
 
 
-def test_storage_decimal_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
+def test_storage_decimal_list_packing(get_logs, get_contract_with_gas_estimation):
     code = """
 event Bar:
     _value: decimal[4]

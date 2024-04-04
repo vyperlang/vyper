@@ -33,7 +33,12 @@ class RevmEnv(BaseEnv):
         try:
             yield
         finally:
-            self._evm.revert(snapshot_id)
+            try:
+                self._evm.revert(snapshot_id)
+            except OverflowError:
+                # snapshot_id is reverted by the transaction already.
+                # revm updates are needed to make the journal more robust.
+                pass
 
     @contextmanager
     def sender(self, address: str):

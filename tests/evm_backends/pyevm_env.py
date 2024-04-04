@@ -1,3 +1,4 @@
+import logging
 from collections import namedtuple
 from contextlib import contextmanager
 from typing import cast
@@ -17,8 +18,9 @@ from eth_keys.datatypes import PrivateKey
 from eth_tester.exceptions import TransactionFailed
 from eth_tester.utils.address import generate_contract_address
 from eth_typing import Address
-from eth_utils import to_checksum_address
+from eth_utils import setup_DEBUG2_logging, to_checksum_address
 
+import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv
 
 
@@ -35,6 +37,20 @@ class PyEvmEnv(BaseEnv):
         evm_version="mainnet",
     ) -> None:
         super().__init__(gas_limit, account_keys)
+
+        # note: we configure the evm version that we emit code for,
+        # but eth-tester is only configured with the latest mainnet
+        # version.
+        evm_opcodes.DEFAULT_EVM_VERSION = evm_version
+        # this should get overridden by anchor_evm_version, but set it anyway
+        evm_opcodes.active_evm_version = evm_opcodes.EVM_VERSIONS[evm_version]
+
+        if tracing:
+            logger = logging.getLogger("eth.vm.computation.BaseComputation")
+            setup_DEBUG2_logging()
+            logger.setLevel("DEBUG2")
+            # from vdb import vdb
+            # vdb.set_evm_opcode_debugger()
 
         spec = getattr(chain_builder, evm_version + "_at")(block_number)
         self._chain: ChainAPI = chain_builder.build(MainnetChain, spec).from_genesis(
