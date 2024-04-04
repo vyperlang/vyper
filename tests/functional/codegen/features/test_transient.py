@@ -119,6 +119,7 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
         compile_code(code)
     except VyperException as e:
         assert e.message.count("EvmVersionException") == 3
+        # raise EvmVersionException to satisfy `requires_evm_version` behavior
         raise EvmVersionException()
 
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
@@ -357,7 +358,6 @@ def get_idx_two(x: int128, y: int128, z: int128) -> int128:
 @external
 def get_idx_two_using_getter(x: int128, y: int128, z: int128) -> int128:
     {set_list}
-    #return self.my_list[2][2][2]
     return staticcall Iface(self).my_list(2, 2, 2)
     """
     values = (37, 41, 73)
