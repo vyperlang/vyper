@@ -1,6 +1,22 @@
-def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation):
-    extract32_code = """
-y: Bytes[100]
+import pytest
+
+from vyper.evm.opcodes import version_check
+
+
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
+    if location == "storage":
+        decl = "y: Bytes[100]"
+    elif location == "transient":
+        decl = "y: transient(Bytes[100])"
+    else:
+        raise Exception("unreachable")
+    extract32_code = f"""
+{decl}
 @external
 def extrakt32(inp: Bytes[100], index: uint256) -> bytes32:
     return extract32(inp, index)
@@ -43,8 +59,6 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
             with tx_failed():
                 c.extrakt32(S, i)
 
-    print("Passed bytes32 extraction test")
-
 
 def test_extract32_code(tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
@@ -84,5 +98,3 @@ def foq(inp: Bytes[32]) -> address:
 
     with tx_failed():
         c.foq(b"crow" * 8)
-
-    print("Passed extract32 test")
