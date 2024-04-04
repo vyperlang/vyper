@@ -9,7 +9,6 @@ from vyper.exceptions import (
     ArrayIndexException,
     ImmutableViolation,
     OverflowException,
-    StackTooDeep,
     StateAccessViolation,
     TypeMismatch,
 )
@@ -62,7 +61,6 @@ def loo(x: DynArray[DynArray[int128, 2], 2]) -> int128:
     print("Passed list tests")
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_string_list(get_contract):
     code = """
 @external
@@ -735,7 +733,6 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0]]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_mult_list(get_contract_with_gas_estimation):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1482,7 +1479,6 @@ def foo(x: int128) -> int128:
     assert c.foo(7) == 392
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_struct_of_lists(get_contract):
     code = """
 struct Foo:
@@ -1571,7 +1567,6 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_struct_of_lists(get_contract, assert_compile_failed, optimize):
     code = """
 struct nestedFoo:
@@ -1702,8 +1697,6 @@ def __init__():
     ],
 )
 def test_empty_nested_dynarray(get_contract, typ, val, venom_xfail):
-    if val == [[[], []], []]:
-        venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
     code = f"""
 @external
 def foo() -> {typ}:

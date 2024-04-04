@@ -1,8 +1,8 @@
 import pytest
-from eth_utils import keccak
 
 import vyper
 from vyper.compiler.settings import Settings
+from vyper.utils import keccak256
 
 
 @pytest.fixture
@@ -23,6 +23,7 @@ def create_exchange(env, get_contract):
 
     def create_exchange(token, factory):
         exchange = get_contract(code, *[token.address, factory.address])
+        assert keccak256(env.get_code(exchange.address)).hex() == factory.exchange_codehash().hex()
         # NOTE: Must initialize exchange to register it with factory
         exchange.initialize(transact={"from": env.accounts[0]})
         return exchange
@@ -40,13 +41,15 @@ def factory(get_contract, optimize, experimental_codegen):
         output_formats=["bytecode_runtime"],
         settings=Settings(optimize=optimize, experimental_codegen=experimental_codegen),
     )
-    exchange_deployed_bytecode = exchange_interface["bytecode_runtime"]
+    bytecode_runtime = exchange_interface["bytecode_runtime"]
+    exchange_deployed_bytecode = bytes.fromhex(bytecode_runtime.removeprefix("0x"))
 
     with open("examples/factory/Factory.vy") as f:
         code = f.read()
 
     # NOTE: We deploy the factory with the hash of the exchange's expected deployment bytecode
-    return get_contract(code, keccak(hexstr=exchange_deployed_bytecode))
+    deployed = keccak256(exchange_deployed_bytecode)
+    return get_contract(code, deployed)
 
 
 def test_exchange(env, factory, create_token, create_exchange):

@@ -81,6 +81,7 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
+            evm-backend: revm
 
           - python-version: ["3.11", "311"]
             debug: false
