@@ -207,9 +207,7 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
 
 
-@pytest.mark.parametrize(
-    "location", ["storage", "transient"]
-)
+@pytest.mark.parametrize("location", ["storage", "transient"])
 def test_slice_private(get_contract, location):
     if location == "transient" and not version_check(begin="cancun"):
         pytest.skip(
