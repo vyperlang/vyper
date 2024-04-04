@@ -90,7 +90,7 @@ class BaseEnv:
         abi, bytecode = self._compile(
             source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
         )
-        bytecode = bytes.fromhex(initcode_prefix + bytecode)
+        bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
         # prepend a quick deploy preamble

@@ -7,7 +7,7 @@ from eth.abc import ChainAPI, ComputationAPI
 from eth.chains.mainnet import MainnetChain
 from eth.constants import CREATE_CONTRACT_ADDRESS, GENESIS_DIFFICULTY
 from eth.db.atomic import AtomicDB
-from eth.exceptions import Revert
+from eth.exceptions import Revert, VMError
 from eth.tools.builder import chain as chain_builder
 from eth.vm.base import StateAPI
 from eth.vm.execution_context import ExecutionContext
@@ -110,21 +110,25 @@ class PyEvmEnv(BaseEnv):
         transact = transact or {}
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         sender = _addr(transact.get("from", sender) or self.deployer)
-        computation = self._state.computation_class.apply_message(
-            state=self._state,
-            message=Message(
-                to=_addr(to),
-                sender=sender,
-                data=data,
-                code=self.get_code(to),
-                value=transact.get("value", value) or 0,
-                gas=transact.get("gas", gas) or self.gas_limit,
-                is_static=not is_modifying,
-            ),
-            transaction_context=BaseTransactionContext(
-                origin=sender, gas_price=transact.get("gasPrice", 0)
-            ),
-        )
+        try:
+            computation = self._state.computation_class.apply_message(
+                state=self._state,
+                message=Message(
+                    to=_addr(to),
+                    sender=sender,
+                    data=data,
+                    code=self.get_code(to),
+                    value=transact.get("value", value) or 0,
+                    gas=transact.get("gas", gas) or self.gas_limit,
+                    is_static=not is_modifying,
+                ),
+                transaction_context=BaseTransactionContext(
+                    origin=sender, gas_price=transact.get("gasPrice", 0)
+                ),
+            )
+        except VMError as e:
+            raise TransactionFailed(*e.args) from e
+
         self._check_computation(computation)
         return computation.output
 
@@ -153,19 +157,22 @@ class PyEvmEnv(BaseEnv):
         sender = _addr(self.deployer)
         target_address = self._generate_address(sender)
 
-        computation = self._state.computation_class.apply_create_message(
-            state=self._state,
-            message=Message(
-                to=CREATE_CONTRACT_ADDRESS,  # i.e., b""
-                sender=sender,
-                value=value,
-                code=initcode,
-                data=b"",
-                gas=gas or self.gas_limit,
-                create_address=target_address,
-            ),
-            transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
-        )
+        try:
+            computation = self._state.computation_class.apply_create_message(
+                state=self._state,
+                message=Message(
+                    to=CREATE_CONTRACT_ADDRESS,  # i.e., b""
+                    sender=sender,
+                    value=value,
+                    code=initcode,
+                    data=b"",
+                    gas=gas or self.gas_limit,
+                    create_address=target_address,
+                ),
+                transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
+            )
+        except VMError as e:
+            raise TransactionFailed(*e.args) from e
         self._check_computation(computation)
         return "0x" + target_address.hex()
 
