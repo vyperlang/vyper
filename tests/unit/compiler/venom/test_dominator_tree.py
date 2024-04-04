@@ -70,4 +70,4 @@ def test_phi_placement():
     bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], x), 0)
     bb7.insert_instruction(IRInstruction("mstore", [x, IRLiteral(0)]), 0)
 
-    MakeSSA.run_pass(ctx, bb1)
+    MakeSSA().run_pass(ctx, bb1)
