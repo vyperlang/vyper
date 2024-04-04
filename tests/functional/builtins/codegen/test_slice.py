@@ -2,7 +2,6 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from tests.utils import wrap_typ_with_storage_loc
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
@@ -124,15 +123,15 @@ def test_slice_bytes_fuzz(
     if location == "memory":
         spliced_code = f"foo: Bytes[{length_bound}] = inp"
         foo = "foo"
-    elif location == "transient" or location == "storage":
-        preamble = f"""
-foo: {wrap_typ_with_storage_loc(f"Bytes[{length_bound}]", location)}
-         """
-        spliced_code = "self.foo = inp"
-        foo = "self.foo"
     elif location == "storage":
         preamble = f"""
 foo: Bytes[{length_bound}]
+         """
+        spliced_code = "self.foo = inp"
+        foo = "self.foo"
+    elif location == "transient":
+        preamble = f"""
+foo: transient(Bytes[{length_bound}])
         """
         spliced_code = "self.foo = inp"
         foo = "self.foo"
@@ -209,12 +208,22 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
 
 
 @pytest.mark.parametrize(
-    "location", ["storage"] if not version_check(begin="cancun") else ["storage", "transient"]
+    "location", ["storage", "transient"]
 )
 def test_slice_private(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
+
     # test there are no buffer overruns in the slice function
+    if location == "storage":
+        decl = "bytez: public(String[12])"
+    else:
+        decl = "bytez: public(transient(String[12]))"
+
     code = f"""
-bytez: public({wrap_typ_with_storage_loc("String[12]", location)})
+{decl}
 
 @internal
 def _slice(start: uint256, length: uint256):
