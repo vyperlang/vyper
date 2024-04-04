@@ -126,14 +126,13 @@ jobs:
             debug: false
             evm-version: shanghai
 
-    name: >-
-      py${{ matrix.python-version[1] }}
-      -opt-${{ matrix.opt-mode }}
-      ${{ matrix.debug && '-debug' || '' }}
-      ${{ matrix.memorymock && '-memorymock' || '' }}
-      ${{ matrix.experimental-codegen && '-experimental' || '' }}
-      -${{ matrix.evm-version }}
-      ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}
+    name: "py${{ matrix.python-version[1] }}\
+      -opt-${{ matrix.opt-mode }}\
+      ${{ matrix.debug && '-debug' || '' }}\
+      ${{ matrix.memorymock && '-memorymock' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      -${{ matrix.evm-version }}\
+      ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}"
 
     steps:
     - uses: actions/checkout@v4

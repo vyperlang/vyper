@@ -146,10 +146,16 @@ class PyEvmEnv(BaseEnv):
         except VMError as e:
             raise TransactionFailed(*e.args) from e
         finally:
-            self._state.clear_transient_storage()
+            self._clear_transient_storage()
 
         self._check_computation(computation)
         return computation.output
+
+    def _clear_transient_storage(self):
+        try:
+            self._state.clear_transient_storage()
+        except AttributeError as e:
+            assert e.args == ("No transient_storage has been set for this State",)
 
     def _check_computation(self, computation):
         self._last_computation = computation
@@ -193,7 +199,7 @@ class PyEvmEnv(BaseEnv):
         except VMError as e:
             raise TransactionFailed(*e.args) from e
         finally:
-            self._state.clear_transient_storage()
+            self._clear_transient_storage()
         self._check_computation(computation)
         return "0x" + target_address.hex()
 
