@@ -1018,7 +1018,15 @@ class Mult(Operator):
         value = left * right
         if isinstance(left, decimal.Decimal):
             # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return quantize(value)
+            try:
+                # if the intermediate result requires too many decimal places,
+                # decimal will puke - catch the error and raise an
+                # OverflowException
+                return quantize(value)
+            except decimal.InvalidOperation:
+                msg = f"{self._description} requires too many decimal places:"
+                msg += f"\n  {left} * {right} => {value}"
+                raise OverflowException(msg, self) from None
         else:
             return value
 
@@ -1042,7 +1050,12 @@ class Div(Operator):
             # the EVM always truncates toward zero
             value = -(-left / right)
         # ensure that the result is truncated to MAX_DECIMAL_PLACES
-        return quantize(value)
+        try:
+            return quantize(value)
+        except decimal.InvalidOperation:
+            msg = f"{self._description} requires too many decimal places:"
+            msg += f"\n  {left} {self._pretty} {right} => {value}"
+            raise OverflowException(msg, self) from None
 
 
 class FloorDiv(VyperNode):
