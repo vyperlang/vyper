@@ -175,6 +175,19 @@ def foo() -> uint256:
         compile_code(code)
 
 
+def test_type_in_pure(get_contract):
+    code = """
+@pure
+@external
+def _convert(x: bytes32) -> uint256:
+    return convert(x, uint256)
+    """
+    c = get_contract(code)
+    x = 123456
+    bs = x.to_bytes(32, "big")
+    assert x == c._convert(bs)
+
+
 def test_invalid_conflicting_decorators():
     code = """
 @pure

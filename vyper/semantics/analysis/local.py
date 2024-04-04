@@ -165,7 +165,10 @@ def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
 
 
-def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
+def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) -> None:
+    if isinstance(typ, TYPE_T):
+        return
+
     info = get_expr_info(node)
 
     env_vars = CONSTANT_ENVIRONMENT_VARS
@@ -705,7 +708,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_msg_value_access(node)
 
         if self.func and self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node)
+            _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
 
@@ -886,7 +889,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
         if self.func and self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node)
+            _validate_pure_access(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
