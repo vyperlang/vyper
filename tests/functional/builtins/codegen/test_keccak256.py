@@ -1,6 +1,10 @@
 from vyper.utils import hex_to_int
 
 
+def test_sanity(keccak):
+    assert keccak(b"").hex() == "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+
+
 def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @external
@@ -18,10 +22,10 @@ def bar() -> bytes32:
 
     c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert c.foo(inp).hex() == keccak(inp).hex()
+        assert c.foo(inp) == keccak(inp)
 
-    assert c.bar().hex() == keccak(b"inp").hex()
-    assert c.foob().hex() == keccak(b"inp").hex()
+    assert c.bar() == keccak(b"inp")
+    assert c.foob() == keccak(b"inp")
 
 
 def test_hash_code2(get_contract_with_gas_estimation):
@@ -96,7 +100,7 @@ def foo() -> bytes32:
     return x
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo().hex() == keccak(hex_to_int(hex_val).to_bytes(32, "big")).hex()
+    assert c.foo() == keccak(hex_to_int(hex_val).to_bytes(32, "big"))
 
 
 def test_hash_constant_string(get_contract_with_gas_estimation, keccak):
@@ -110,4 +114,4 @@ def foo() -> bytes32:
     return x
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo().hex() == keccak(str_val.encode()).hex()
+    assert c.foo() == keccak(str_val.encode())

@@ -22,7 +22,6 @@ extras_require = {
         "eth-stdlib==0.2.7",
         "setuptools",
         "hexbytes>=1.2",
-        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [
         "black==23.12.0",
