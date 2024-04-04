@@ -16,7 +16,6 @@ def foo() -> Bytes[4]:
 """
 
     contract = get_contract(code)
-
     assert contract.foo() == method_id("foo()")
 
 
@@ -47,7 +46,7 @@ def foo(bar: uint256) -> Bytes[36]:
     encoded_42 = to_bytes(42).hex()  # 2a
     expected_result = foo_method_id + "00" * 31 + encoded_42
 
-    assert contract.foo(42).hex() == expected_result
+    assert contract.foo(42) == expected_result
 
 
 @pytest.mark.parametrize("bar", [0, 1, 42, 2**256 - 1])

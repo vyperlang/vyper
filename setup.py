@@ -23,7 +23,6 @@ extras_require = {
         "setuptools",
         "hexbytes>=1.2",
         "pyrevm @ git+https://github.com/DanielSchiavini/pyrevm.git@revm",
-        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [
         "black==23.12.0",

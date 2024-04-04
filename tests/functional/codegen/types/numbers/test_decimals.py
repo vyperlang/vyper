@@ -1,5 +1,5 @@
 import warnings
-from decimal import ROUND_DOWN, Decimal, getcontext
+from decimal import Decimal, getcontext
 
 import pytest
 
@@ -10,7 +10,7 @@ from vyper.exceptions import (
     OverflowException,
     TypeMismatch,
 )
-from vyper.utils import DECIMAL_EPSILON, SizeLimits
+from vyper.utils import DECIMAL_EPSILON, SizeLimits, quantize
 
 
 def test_decimal_override():
@@ -49,10 +49,6 @@ def foo(x: decimal) -> decimal:
     """
     with pytest.raises(InvalidOperation):
         compile_code(code)
-
-
-def quantize(x: Decimal) -> Decimal:
-    return x.quantize(DECIMAL_EPSILON, rounding=ROUND_DOWN)
 
 
 def test_decimal_test(get_contract_with_gas_estimation):
