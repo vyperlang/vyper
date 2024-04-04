@@ -1,5 +1,4 @@
 import pytest
-from eth_tester.exceptions import TransactionFailed
 
 from vyper.compiler import compile_code
 from vyper.exceptions import EvmVersionException, VyperException
@@ -276,7 +275,7 @@ def do_side_effects():
             assert c.my_map(i)[1] == []
 
 
-def test_dynarray_transient(get_contract):
+def test_dynarray_transient(get_contract, tx_failed):
     code = """
 my_list: public(transient(DynArray[uint256, 3]))
 
@@ -294,10 +293,10 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == list(values)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.my_list(0)
     assert c.get_idx_two(*values) == values[2]
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.my_list(0)
 
 
@@ -323,7 +322,7 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     assert c.get_idx_two(*values) == expected_values[2][2]
 
 
-def test_nested_dynarray_transient(get_contract):
+def test_nested_dynarray_transient(get_contract, tx_failed):
     set_list = """
     self.my_list = [
         [[x, y, z], [y, z, x], [z, y, x]],
@@ -370,13 +369,13 @@ def get_idx_two_using_getter(x: int128, y: int128, z: int128) -> int128:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == expected_values
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two(*values) == expected_values[2][2][2]
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two_using_getter(*values) == expected_values[2][2][2]
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.my_list(0, 0, 0)
 
 
