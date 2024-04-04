@@ -14,7 +14,7 @@ from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
+from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
 
@@ -218,9 +218,21 @@ def get_contract_from_ir(env, optimize):
 
 
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats):
+def compiler_settings(optimize, experimental_codegen, evm_version):
+    return Settings(
+        optimize=optimize, evm_version=evm_version, experimental_codegen=experimental_codegen
+    )
+
+
+@pytest.fixture(scope="module")
+def get_contract(env, optimize, output_formats, compiler_settings):
     def fn(source_code, *args, **kwargs):
-        return env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
+        settings = kwargs.pop("compiler_settings", compiler_settings)
+        if "override_opt_level" in kwargs:
+            settings = Settings(
+                **dict(settings.__dict__, optimize=kwargs.pop("override_opt_level"))
+            )
+        return env.deploy_source(source_code, output_formats, settings, *args, **kwargs)
 
     return fn
 
@@ -244,9 +256,14 @@ def get_contract_with_gas_estimation_for_constants(get_contract):
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(env, optimize, output_formats):
+def deploy_blueprint_for(env, compiler_settings, output_formats):
     def fn(source_code, *args, **kwargs):
-        return env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
+        settings = kwargs.pop("compiler_settings", compiler_settings)
+        if "override_opt_level" in kwargs:
+            settings = Settings(
+                **dict(settings.__dict__, optimize=kwargs.pop("override_opt_level"))
+            )
+        return env.deploy_blueprint(source_code, output_formats, settings, *args, **kwargs)
 
     return fn
 

@@ -9,7 +9,6 @@ from tests.evm_backends.abi import abi_decode, abi_encode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
-from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import ERC5202_PREFIX, method_id
 
 
@@ -47,18 +46,14 @@ class BaseEnv:
     def deploy_source(
         self,
         source_code: str,
-        optimize: OptimizationLevel,
         output_formats: dict[str, Callable[[CompilerData], str]],
+        compiler_settings: Settings,
         *args,
-        override_opt_level=None,
         input_bundle=None,
-        evm_version=None,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = self._compile(
-            source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
-        )
+        abi, bytecode = self._compile(source_code, output_formats, compiler_settings, input_bundle)
         value = (
             kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
         )  # Handle deploying with an eth value.
@@ -68,18 +63,14 @@ class BaseEnv:
     def deploy_blueprint(
         self,
         source_code,
-        optimize,
         output_formats,
+        compiler_settings: Settings,
         *args,
-        override_opt_level=None,
         input_bundle=None,
-        evm_version=None,
         initcode_prefix=ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = self._compile(
-            source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
-        )
+        abi, bytecode = self._compile(source_code, output_formats, compiler_settings, input_bundle)
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -100,13 +91,13 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def _compile(
-        self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+        self, source_code, output_formats, settings, input_bundle
     ) -> Tuple[list[dict], bytes]:
         out = compile_code(
             source_code,
             # test that all output formats can get generated
             output_formats=output_formats,
-            settings=Settings(evm_version=evm_version, optimize=override_opt_level or optimize),
+            settings=settings,
             input_bundle=input_bundle,
             show_gas_estimates=True,  # Enable gas estimates for testing
         )
