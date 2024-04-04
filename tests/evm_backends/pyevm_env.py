@@ -209,8 +209,9 @@ def _parse_log_entries(result: ComputationAPI):
     usable format similar to the revm backend.
     """
     for address, topics, data in result.get_log_entries():
-        topics = [t.to_bytes(32, "big") for t in topics]
-        yield Log(to_checksum_address(address), topics, (topics, data))
+        topic_bytes = [t.to_bytes(32, "big") for t in topics]
+        topic_ids = ["0x" + t.hex() for t in topic_bytes]
+        yield Log(to_checksum_address(address), topic_ids, (topic_bytes, data))
 
 
 def _addr(address: str) -> Address:
