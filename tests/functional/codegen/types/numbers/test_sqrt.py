@@ -5,6 +5,7 @@ import pytest
 from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import SizeLimits
+from tests.utils import decimal_to_int
 
 DECIMAL_PLACES = 10
 DECIMAL_RANGE = [Decimal("0." + "0" * d + "2") for d in range(0, DECIMAL_PLACES)]
@@ -19,7 +20,7 @@ def decimal_truncate(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
 
 
 def decimal_sqrt(val):
-    return decimal_truncate(val.sqrt())
+    return decimal_to_int(decimal_truncate(val.sqrt()))
 
 
 def test_sqrt_literal(get_contract_with_gas_estimation):
@@ -46,13 +47,13 @@ def test2() -> decimal:
 
     c = get_contract_with_gas_estimation(code)
 
-    val = Decimal("33.33")
+    val = decimal_to_int("33.33")
     assert c.test(val) == decimal_sqrt(val)
 
-    val = Decimal("0.1")
+    val = decimal_to_int("0.1")
     assert c.test(val) == decimal_sqrt(val)
 
-    assert c.test(Decimal("0.0")) == Decimal("0.0")
+    assert c.test(decimal_to_int("0.0")) == decimal_to_int("0.0")
     assert c.test2() == decimal_sqrt(Decimal("44.001"))
 
 
@@ -72,9 +73,9 @@ def test2() -> decimal:
     """
 
     c = get_contract_with_gas_estimation(code)
-    val = Decimal("12.21")
+    val = decimal_to_int("12.21")
     assert c.test(val) == decimal_sqrt(val + 1)
-    val = Decimal("100.01")
+    val = decimal_to_int("100.01")
     assert c.test(val) == decimal_sqrt(val + 1)
     assert c.test2() == decimal_sqrt(Decimal("444.44"))
 
@@ -96,9 +97,9 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
     val = Decimal("2.1")
     assert c.test(val) == [
         val,
-        Decimal("1"),
-        Decimal("2"),
-        Decimal("3"),
+        dceimal_to_int("1"),
+        decimal_to_int("2"),
+        decimal_to_int("3"),
         decimal_sqrt(val),
         "hello world",
     ]
