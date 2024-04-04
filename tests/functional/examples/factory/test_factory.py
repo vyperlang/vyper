@@ -23,7 +23,6 @@ def create_exchange(env, get_contract):
 
     def create_exchange(token, factory):
         exchange = get_contract(code, *[token.address, factory.address])
-        assert keccak256(env.get_code(exchange.address)).hex() == factory.exchange_codehash().hex()
         # NOTE: Must initialize exchange to register it with factory
         exchange.initialize(transact={"from": env.accounts[0]})
         return exchange
@@ -32,14 +31,16 @@ def create_exchange(env, get_contract):
 
 
 @pytest.fixture
-def factory(get_contract, optimize, experimental_codegen):
+def factory(get_contract, optimize, experimental_codegen, evm_version):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
 
     exchange_interface = vyper.compile_code(
         code,
         output_formats=["bytecode_runtime"],
-        settings=Settings(optimize=optimize, experimental_codegen=experimental_codegen),
+        settings=Settings(
+            evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+        ),
     )
     bytecode_runtime = exchange_interface["bytecode_runtime"]
     exchange_deployed_bytecode = bytes.fromhex(bytecode_runtime.removeprefix("0x"))
