@@ -11,8 +11,10 @@ def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation, locat
         )
     if location == "storage":
         decl = "y: Bytes[100]"
-    else:
+    elif location == "transient":
         decl = "y: transient(Bytes[100])"
+    else:
+        raise Exception("unreachable")
     extract32_code = f"""
 {decl}
 @external
