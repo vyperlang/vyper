@@ -14,6 +14,7 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, I
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
+    quantize,
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
@@ -414,7 +415,7 @@ def _vyper_literal(val, typ):
         return "0x" + val.hex()
     if isinstance(typ, DecimalT):
         tmp = val
-        val = val.quantize(DECIMAL_EPSILON)
+        val = quantize(val)
         assert tmp == val
     return str(val)
 
