@@ -22,8 +22,10 @@ from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, keccak256
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -144,7 +146,7 @@ def chdir_tmp_path(tmp_path):
 # CMC 2024-03-01 this doesn't need to be a fixture
 @pytest.fixture
 def keccak():
-    return Web3.keccak
+    return keccak256
 
 
 @pytest.fixture
@@ -580,3 +582,14 @@ def tx_failed(tester):
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return fn
+
+
+def pytest_runtest_call(item):
+    marker = item.get_closest_marker("requires_evm_version")
+    if marker:
+        assert len(marker.args) == 1
+        version = marker.args[0]
+        if not version_check(begin=version):
+            item.add_marker(
+                pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
+            )

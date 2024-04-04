@@ -18,6 +18,7 @@ from vyper.utils import (
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
+    quantize,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -420,7 +421,7 @@ def _vyper_literal(val, typ):
         return "0x" + val.hex()
     if isinstance(typ, DecimalT):
         tmp = val
-        val = val.quantize(DECIMAL_EPSILON)
+        val = quantize(val)
         assert tmp == val
     return str(val)
 
