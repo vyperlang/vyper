@@ -1,8 +1,22 @@
+from collections import Counter
 from typing import Any
 
-from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
+from vyper.exceptions import CompilerPanic, StackTooDeep
+from vyper.ir.compile_ir import (
+    PUSH,
+    DataHeader,
+    Instruction,
+    RuntimeHeader,
+    mksymbol,
+    optimize_assembly,
+)
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
+from vyper.venom.analysis import (
+    calculate_cfg,
+    calculate_dup_requirements,
+    calculate_liveness,
+    input_vars_from,
+)
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -10,7 +24,6 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
-    MemType,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.normalization import NormalizationPass
@@ -23,15 +36,18 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "coinbase",
         "calldatasize",
         "calldatacopy",
+        "mcopy",
         "calldataload",
         "gas",
         "gasprice",
         "gaslimit",
+        "chainid",
         "address",
         "origin",
         "number",
         "extcodesize",
         "extcodehash",
+        "extcodecopy",
         "returndatasize",
         "returndatacopy",
         "callvalue",
@@ -40,13 +56,17 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sstore",
         "mload",
         "mstore",
+        "tload",
+        "tstore",
         "timestamp",
         "caller",
+        "blockhash",
         "selfdestruct",
         "signextend",
         "stop",
         "shr",
         "shl",
+        "sar",
         "and",
         "xor",
         "or",
@@ -54,8 +74,13 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sub",
         "mul",
         "div",
+        "smul",
+        "sdiv",
         "mod",
+        "smod",
         "exp",
+        "addmod",
+        "mulmod",
         "eq",
         "iszero",
         "not",
@@ -63,10 +88,32 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "lt",
         "slt",
         "sgt",
+        "create",
+        "create2",
+        "msize",
+        "balance",
+        "call",
+        "staticcall",
+        "delegatecall",
+        "codesize",
+        "basefee",
+        "prevrandao",
+        "difficulty",
+        "invalid",
     ]
 )
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+
+
+def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
+    ret = []
+    for op in asm:
+        if isinstance(op, str) and not isinstance(op, Instruction):
+            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
+        else:
+            ret.append(op)
+    return ret  # type: ignore
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -99,24 +146,24 @@ class VenomCompiler:
 
         # Before emitting the assembly, we need to make sure that the
         # CFG is normalized. Calling calculate_cfg() will denormalize IR (reset)
-        # so it should not be called after calling NormalizationPass.run_pass().
+        # so it should not be called after calling NormalizationPass().run_pass().
         # Liveness is then computed for the normalized IR, and we can proceed to
         # assembly generation.
         # This is a side-effect of how dynamic jumps are temporarily being used
         # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
+            NormalizationPass().run_pass(ctx)
             calculate_cfg(ctx)
-            NormalizationPass.run_pass(ctx)
             calculate_liveness(ctx)
+            calculate_dup_requirements(ctx)
 
             assert ctx.normalized, "Non-normalized CFG!"
 
             self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
 
             # TODO make this property on IRFunction
+            asm.extend(["_sym__ctor_exit", "JUMPDEST"])
             if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
-                while asm[-1] != "JUMPDEST":
-                    asm.pop()
                 asm.extend(
                     ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
                 )
@@ -139,7 +186,11 @@ class VenomCompiler:
                     label = inst.operands[0].value
                     data_segments[label] = [DataHeader(f"_sym_{label}")]
                 elif inst.opcode == "db":
-                    data_segments[label].append(f"_sym_{inst.operands[0].value}")
+                    data = inst.operands[0]
+                    if isinstance(data, IRLabel):
+                        data_segments[label].append(f"_sym_{data.value}")
+                    else:
+                        data_segments[label].append(data)
 
             asm.extend(list(data_segments.values()))
 
@@ -149,18 +200,25 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, _stack_ops: OrderedSet[IRVariable]
+        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable]
     ) -> None:
-        # make a list so we can index it
-        stack_ops = [x for x in _stack_ops.keys()]
-        stack_ops_count = len(_stack_ops)
+        stack_ops_count = len(stack_ops)
+
+        counts = Counter(stack_ops)
 
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op)  # type: ignore
+            depth = stack.get_depth(op, counts[op])  # type: ignore
+            counts[op] -= 1
+
+            if depth == StackModel.NOT_IN_STACK:
+                raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth == final_stack_depth:
+                continue
+
+            if op == stack.peek(final_stack_depth):
                 continue
 
             self.swap(assembly, stack, depth)
@@ -192,22 +250,19 @@ class VenomCompiler:
                 continue
 
             if isinstance(op, IRLiteral):
-                assembly.extend([*PUSH(op.value)])
+                if op.value < -(2**255):
+                    raise Exception(f"Value too low: {op.value}")
+                elif op.value >= 2**256:
+                    raise Exception(f"Value too high: {op.value}")
+                assembly.extend(PUSH(op.value % 2**256))
                 stack.push(op)
                 continue
 
-            if op in inst.dup_requirements:
+            if op in inst.dup_requirements and op not in emitted_ops:
                 self.dup_op(assembly, stack, op)
 
             if op in emitted_ops:
                 self.dup_op(assembly, stack, op)
-
-            # REVIEW: this seems like it can be reordered across volatile
-            # boundaries (which includes memory fences). maybe just
-            # remove it entirely at this point
-            if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
-                assembly.extend([*PUSH(op.mem_addr)])
-                assembly.append("MLOAD")
 
             emitted_ops.add(op)
 
@@ -224,11 +279,33 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        for inst in basicblock.instructions:
-            asm = self._generate_evm_for_instruction(asm, inst, stack)
+        param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
+        main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
-        for bb in basicblock.cfg_out:
+        for inst in param_insts:
+            asm.extend(self._generate_evm_for_instruction(inst, stack))
+
+        self._clean_unused_params(asm, basicblock, stack)
+
+        for i, inst in enumerate(main_insts):
+            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
+
+            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+
+        for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+
+    def _clean_unused_params(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
+        for i, inst in enumerate(bb.instructions):
+            if inst.opcode != "param":
+                break
+            if inst.volatile and i + 1 < len(bb.instructions):
+                liveness = bb.instructions[i + 1].liveness
+                if inst.output is not None and inst.output not in liveness:
+                    depth = stack.get_depth(inst.output)
+                    if depth != 0:
+                        self.swap(asm, stack, depth)
+                    self.pop(asm, stack)
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -258,12 +335,14 @@ class VenomCompiler:
                 continue
 
             if depth != 0:
-                stack.swap(depth)
+                self.swap(asm, stack, depth)
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self, assembly: list, inst: IRInstruction, stack: StackModel
+        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
+        assembly: list[str | int] = []
+        next_liveness = next_liveness or OrderedSet()
         opcode = inst.opcode
 
         #
@@ -276,10 +355,22 @@ class VenomCompiler:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
+
+        # iload and istore are special cases because they can take a literal
+        # that is handled specialy with the _OFST macro. Look below, after the
+        # stack reordering.
         elif opcode == "iload":
-            operands = []
+            addr = inst.operands[0]
+            if isinstance(addr, IRLiteral):
+                operands = []
+            else:
+                operands = inst.operands
         elif opcode == "istore":
-            operands = inst.operands[0:1]
+            addr = inst.operands[1]
+            if isinstance(addr, IRLiteral):
+                operands = inst.operands[:1]
+            else:
+                operands = inst.operands
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
@@ -289,8 +380,8 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phi1, phi2 = inst.get_inputs()
-            depth = stack.get_phi_depth(phi1, phi2)
+            phis = inst.get_inputs()
+            depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
@@ -301,7 +392,7 @@ class VenomCompiler:
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
-            return assembly
+            return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack)
@@ -313,11 +404,15 @@ class VenomCompiler:
             b = next(iter(inst.parent.cfg_out))
             target_stack = input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
-            self._stack_reorder(assembly, stack, target_stack)
+            # NOTE: stack in general can contain multiple copies of the same variable,
+            # however we are safe in the case of jmp/djmp/jnz as it's not going to
+            # have multiples.
+            target_stack_list = list(target_stack)
+            self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, OrderedSet(operands))
+        self._stack_reorder(assembly, stack, operands)  # type: ignore
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
@@ -359,7 +454,9 @@ class VenomCompiler:
             assembly.append(f"_sym_{inst.operands[0].value}")
             assembly.append("JUMP")
         elif opcode == "djmp":
-            assert isinstance(inst.operands[0], IRVariable)
+            assert isinstance(
+                inst.operands[0], IRVariable
+            ), f"Expected IRVariable, got {inst.operands[0]}"
             assembly.append("JUMP")
         elif opcode == "gt":
             assembly.append("GT")
@@ -367,7 +464,9 @@ class VenomCompiler:
             assembly.append("LT")
         elif opcode == "invoke":
             target = inst.operands[0]
-            assert isinstance(target, IRLabel), "invoke target must be a label"
+            assert isinstance(
+                target, IRLabel
+            ), f"invoke target must be a label (is ${type(target)} ${target})"
             assembly.extend(
                 [
                     f"_sym_label_ret_{self.label_counter}",
@@ -378,16 +477,12 @@ class VenomCompiler:
                 ]
             )
             self.label_counter += 1
-            if stack.height > 0 and stack.peek(0) in inst.dup_requirements:
-                self.pop(assembly, stack)
-        elif opcode == "call":
-            assembly.append("CALL")
-        elif opcode == "staticcall":
-            assembly.append("STATICCALL")
         elif opcode == "ret":
             assembly.append("JUMP")
         elif opcode == "return":
             assembly.append("RETURN")
+        elif opcode == "exit":
+            assembly.extend(["_sym__ctor_exit", "JUMP"])
         elif opcode == "phi":
             pass
         elif opcode == "sha3":
@@ -395,9 +490,9 @@ class VenomCompiler:
         elif opcode == "sha3_64":
             assembly.extend(
                 [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "MSTORE",
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
                     "MSTORE",
                     *PUSH(64),
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
@@ -408,12 +503,23 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+        elif opcode == "assert_unreachable":
+            end_symbol = mksymbol("reachable")
+            assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
         elif opcode == "iload":
-            loc = inst.operands[0].value
-            assembly.extend(["_OFST", "_mem_deploy_end", loc, "MLOAD"])
+            addr = inst.operands[0]
+            if isinstance(addr, IRLiteral):
+                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+            else:
+                assembly.extend(["_mem_deploy_end", "ADD"])
+            assembly.append("MLOAD")
         elif opcode == "istore":
-            loc = inst.operands[1].value
-            assembly.extend(["_OFST", "_mem_deploy_end", loc, "MSTORE"])
+            addr = inst.operands[1]
+            if isinstance(addr, IRLiteral):
+                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+            else:
+                assembly.extend(["_mem_deploy_end", "ADD"])
+            assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         else:
@@ -421,19 +527,20 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            assert isinstance(inst.output, IRVariable), "Return value must be a variable"
-            if inst.output.mem_type == MemType.MEMORY:
-                assembly.extend([*PUSH(inst.output.mem_addr)])
+            if "call" in inst.opcode and inst.output not in next_liveness:
+                self.pop(assembly, stack)
 
-        return assembly
+        return apply_line_numbers(inst, assembly)
 
     def pop(self, assembly, stack, num=1):
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
     def swap(self, assembly, stack, depth):
+        # Swaps of the top is no op
         if depth == 0:
             return
+
         stack.swap(depth)
         assembly.append(_evm_swap_for(depth))
 
@@ -450,11 +557,13 @@ class VenomCompiler:
 
 def _evm_swap_for(depth: int) -> str:
     swap_idx = -depth
-    assert 1 <= swap_idx <= 16, "Unsupported swap depth"
+    if not (1 <= swap_idx <= 16):
+        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
     return f"SWAP{swap_idx}"
 
 
 def _evm_dup_for(depth: int) -> str:
     dup_idx = 1 - depth
-    assert 1 <= dup_idx <= 16, "Unsupported dup depth"
+    if not (1 <= dup_idx <= 16):
+        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
     return f"DUP{dup_idx}"
