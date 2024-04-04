@@ -12,7 +12,7 @@ def _adjust_storage_layout_for_cancun(layout):
                 _go(item)
 
     if version_check(begin="cancun"):
-        nonreentrant = layout["storage_layout"].pop("$.nonreentrant_key")
+        nonreentrant = layout["storage_layout"].pop("$.nonreentrant_key", None)
         if nonreentrant is not None:
             layout["transient_storage_layout"] = {"$.nonreentrant_key": nonreentrant}
         _go(layout["storage_layout"])
