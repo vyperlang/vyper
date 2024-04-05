@@ -75,6 +75,8 @@ def public_foo3():
         code, output_formats=["layout"], storage_layout_override=storage_layout_override
     )
 
+    adjust_storage_layout_for_cancun(expected_output, do_adjust_slots=False)
+
     assert out["layout"] == expected_output
 
 
