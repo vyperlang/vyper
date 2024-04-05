@@ -50,7 +50,7 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        print("SCCP done", self.lattice)
+        # print("SCCP done", self.lattice)
         self._propagate_constants(entry)
 
     def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
