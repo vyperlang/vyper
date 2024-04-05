@@ -7,35 +7,35 @@ from vyper.utils import SizeLimits
 
 
 @pytest.fixture(scope="module")
-def isqrt_contract(get_contract_module):
+def isqrt_contract(get_contract):
     code = """
 @external
 def test(a: uint256) -> uint256:
     return isqrt(a)
     """
-    c = get_contract_module(code)
+    c = get_contract(code)
     return c
 
 
-def test_isqrt_literal(get_contract_with_gas_estimation):
+def test_isqrt_literal(get_contract):
     val = 2
     code = f"""
 @external
 def test() -> uint256:
     return isqrt({val})
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test() == math.isqrt(val)
 
 
-def test_isqrt_variable(get_contract_with_gas_estimation):
+def test_isqrt_variable(get_contract):
     code = """
 @external
 def test(a: uint256) -> uint256:
     return isqrt(a)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = 3333
     assert c.test(val) == math.isqrt(val)
@@ -45,7 +45,7 @@ def test(a: uint256) -> uint256:
     assert c.test(0) == 0
 
 
-def test_isqrt_internal_variable(get_contract_with_gas_estimation):
+def test_isqrt_internal_variable(get_contract):
     val = 44001
     code = f"""
 @external
@@ -53,11 +53,11 @@ def test2() -> uint256:
     a: uint256 = {val}
     return isqrt(a)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test2() == math.isqrt(val)
 
 
-def test_isqrt_storage(get_contract_with_gas_estimation):
+def test_isqrt_storage(get_contract):
     code = """
 s_var: uint256
 
@@ -67,14 +67,14 @@ def test(a: uint256) -> uint256:
     return isqrt(self.s_var)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     val = 1221
     assert c.test(val) == math.isqrt(val + 1)
     val = 10001
     assert c.test(val) == math.isqrt(val + 1)
 
 
-def test_isqrt_storage_internal_variable(get_contract_with_gas_estimation):
+def test_isqrt_storage_internal_variable(get_contract):
     val = 44444
     code = f"""
 s_var: uint256
@@ -84,11 +84,11 @@ def test2() -> uint256:
     self.s_var = {val}
     return isqrt(self.s_var)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test2() == math.isqrt(val)
 
 
-def test_isqrt_inline_memory_correct(get_contract_with_gas_estimation):
+def test_isqrt_inline_memory_correct(get_contract):
     code = """
 @external
 def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100]):
@@ -100,7 +100,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
     return a, x, y, z, e, f
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = 21
     assert c.test(val) == (val, 1, 2, 3, math.isqrt(val), "hello world")

@@ -109,7 +109,7 @@ def venom_xfail(request, experimental_codegen):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def evm_version(pytestconfig, evm_backend):
+def evm_version(pytestconfig):
     version = pytestconfig.getoption("evm_version")
     # note: configure the evm version that we emit code for.
     # The env will read this fixture and apply the evm version there.
@@ -185,21 +185,14 @@ def gas_limit():
 
 
 @pytest.fixture(scope="module")
-def initial_balance():
-    return 0  # default balance for the deployer account
-
-
-@pytest.fixture(scope="module")
-def env(gas_limit, initial_balance, evm_version, evm_backend, tracing):
-    env = evm_backend(
+def env(gas_limit, evm_version, evm_backend, tracing) -> PyEvmEnv | RevmEnv:
+    return evm_backend(
         gas_limit=gas_limit,
         tracing=tracing,
         block_number=1,
         evm_version=evm_version,
         account_keys=get_default_account_keys(),
     )
-    env.set_balance(env.deployer, initial_balance)
-    return env
 
 
 @pytest.fixture
@@ -236,24 +229,6 @@ def get_contract(env, optimize, output_formats, compiler_settings):
         return env.deploy_source(source_code, output_formats, settings, *args, **kwargs)
 
     return fn
-
-
-# todo: this should be removed and replaced with get_contract
-@pytest.fixture(scope="module")
-def get_contract_with_gas_estimation(get_contract):
-    return get_contract
-
-
-# todo: this should be removed and replaced with get_contract
-@pytest.fixture(scope="module")
-def get_contract_module(get_contract):
-    return get_contract
-
-
-# todo: this should be removed and replaced with get_contract
-@pytest.fixture
-def get_contract_with_gas_estimation_for_constants(get_contract):
-    return get_contract
 
 
 @pytest.fixture(scope="module")

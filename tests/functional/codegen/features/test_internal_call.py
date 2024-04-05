@@ -11,7 +11,7 @@ from vyper.exceptions import ArgumentException, CallViolation
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_selfcall_code(get_contract_with_gas_estimation):
+def test_selfcall_code(get_contract):
     selfcall_code = """
 @internal
 def _foo() -> int128:
@@ -22,13 +22,13 @@ def bar() -> int128:
     return self._foo()
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code)
+    c = get_contract(selfcall_code)
     assert c.bar() == 3
 
     print("Passed no-argument self-call test")
 
 
-def test_selfcall_code_2(get_contract_with_gas_estimation, keccak):
+def test_selfcall_code_2(get_contract, keccak):
     selfcall_code_2 = """
 @internal
 def _double(x: int128) -> int128:
@@ -47,7 +47,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     return self._hashy(0x636f770000000000000000000000000000000000000000000000000000000000)
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code_2)
+    c = get_contract(selfcall_code_2)
     assert c.returnten() == 10
     assert c.return_hash_of_rzpadded_cow() == keccak(b"cow" + b"\x00" * 29)
 
@@ -72,7 +72,7 @@ def foo() -> (uint256, uint256):
     assert c.foo() == (0, 1)
 
 
-def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
+def test_selfcall_code_3(get_contract, keccak):
     selfcall_code_3 = """
 @internal
 def _hashy2(x: Bytes[100]) -> bytes32:
@@ -91,14 +91,14 @@ def returnten() -> uint256:
     return self._len(b"badminton!")
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code_3)
+    c = get_contract(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == keccak(b"cow" * 30)
     assert c.returnten() == 10
 
     print("Passed single variable-size argument self-call test")
 
 
-def test_selfcall_code_4(get_contract_with_gas_estimation):
+def test_selfcall_code_4(get_contract):
     selfcall_code_4 = """
 @internal
 def _summy(x: int128, y: int128) -> int128:
@@ -133,7 +133,7 @@ def return_goose2() -> Bytes[10]:
     return self._slicey2(5, b"goosedog")
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code_4)
+    c = get_contract(selfcall_code_4)
     assert c.returnten() == 10
     assert c.return_mongoose() == b"mongoose"
     assert c.return_goose() == b"goose"
@@ -142,7 +142,7 @@ def return_goose2() -> Bytes[10]:
     print("Passed multi-argument self-call test")
 
 
-def test_selfcall_code_5(get_contract_with_gas_estimation):
+def test_selfcall_code_5(get_contract):
     selfcall_code_5 = """
 counter: int128
 
@@ -156,13 +156,13 @@ def returnten() -> int128:
         self._increment()
     return self.counter
     """
-    c = get_contract_with_gas_estimation(selfcall_code_5)
+    c = get_contract(selfcall_code_5)
     assert c.returnten() == 10
 
     print("Passed self-call statement test")
 
 
-def test_selfcall_code_6(get_contract_with_gas_estimation):
+def test_selfcall_code_6(get_contract):
     selfcall_code_6 = """
 excls: Bytes[32]
 
@@ -184,13 +184,13 @@ def return_mongoose_revolution_32_excls() -> Bytes[201]:
     return self._hardtest(b"megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code_6)
+    c = get_contract(selfcall_code_6)
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
 
     print("Passed composite self-call test")
 
 
-def test_list_call(get_contract_with_gas_estimation):
+def test_list_call(get_contract):
     code = """
 @internal
 def _foo0(x: int128[2]) -> int128:
@@ -221,14 +221,14 @@ def bar3() -> int128:
     return self._foo1(x)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bar() == 0
     assert c.foo1([0, 0]) == 0
     assert c.bar2() == 55
     assert c.bar3() == 66
 
 
-def test_list_storage_call(get_contract_with_gas_estimation):
+def test_list_storage_call(get_contract):
     code = """
 y: int128[2]
 
@@ -253,13 +253,13 @@ def bar1() -> int128:
     return self._foo1(self.y)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.set(transact={})
     assert c.bar0() == 88
     assert c.bar1() == 99
 
 
-def test_multi_arg_list_call(get_contract_with_gas_estimation):
+def test_multi_arg_list_call(get_contract):
     code = """
 @internal
 def _foo0(y: decimal, x: int128[2]) -> int128:
@@ -322,7 +322,7 @@ def bar6() -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bar() == 0
     assert c.foo1([0, 0], Decimal("0")) == 0
     assert c.bar2() == 55
@@ -331,7 +331,7 @@ def bar6() -> int128:
     assert c.bar5() == 88
 
 
-def test_multi_mixed_arg_list_call(get_contract_with_gas_estimation):
+def test_multi_mixed_arg_list_call(get_contract):
     code = """
 @internal
 def _fooz(x: int128[2], y: decimal, z: int128[2], a: decimal) -> int128:
@@ -350,11 +350,11 @@ def bar() -> (int128, decimal):
 
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bar() == (66, Decimal("66.77"))
 
 
-def test_internal_function_multiple_lists_as_args(get_contract_with_gas_estimation):
+def test_internal_function_multiple_lists_as_args(get_contract):
     code = """
 @internal
 def _foo(y: int128[2], x: Bytes[5]) -> int128:
@@ -373,12 +373,12 @@ def bar2() -> int128:
     return self._foo2(b"hello", [1, 2])
 """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bar() == 1
     assert c.bar2() == 1
 
 
-def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
+def test_multi_mixed_arg_list_bytes_call(get_contract):
     code = """
 @internal
 def _fooz(x: int128[2], y: decimal, z: Bytes[11], a: decimal) -> Bytes[11]:
@@ -402,7 +402,7 @@ def bar() -> (Bytes[11], decimal, int128):
 
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bar() == (b"hello world", Decimal("66.77"), 44)
 
 
@@ -541,7 +541,7 @@ def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_struct_return_1(get_contract_with_gas_estimation, i, ln, s):
+def test_struct_return_1(get_contract, i, ln, s):
     contract = f"""
 struct X:
     x: int128
@@ -558,12 +558,12 @@ def test() -> (int128, String[{ln}], Bytes[{ln}]):
     return ret.x, ret.y, ret.z
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
 
     assert c.test() == (i, s, bytes(s, "utf-8"))
 
 
-def test_dynamically_sized_struct_as_arg(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_as_arg(get_contract):
     contract = """
 struct X:
     x: uint256
@@ -579,12 +579,12 @@ def bar() -> Bytes[6]:
     return self._foo(_X)
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
 
     assert c.bar() == b"hello"
 
 
-def test_dynamically_sized_struct_as_arg_2(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_as_arg_2(get_contract):
     contract = """
 struct X:
     x: uint256
@@ -600,12 +600,12 @@ def bar() -> String[6]:
     return self._foo(_X)
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
 
     assert c.bar() == "hello"
 
 
-def test_dynamically_sized_struct_member_as_arg(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_member_as_arg(get_contract):
     contract = """
 struct X:
     x: uint256
@@ -621,12 +621,12 @@ def bar() -> Bytes[6]:
     return self._foo(_X.y)
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
 
     assert c.bar() == b"hello"
 
 
-def test_dynamically_sized_struct_member_as_arg_2(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_member_as_arg_2(get_contract):
     contract = """
 struct X:
     x: uint256
@@ -642,7 +642,7 @@ def bar() -> String[6]:
     return self._foo(_X.y)
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
 
     assert c.bar() == "hello"
 

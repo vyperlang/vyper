@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_wei
 
 
-def test_private_test(get_contract_with_gas_estimation):
+def test_private_test(get_contract):
     private_test_code = """
 @internal
 def a() -> int128:
@@ -13,7 +13,7 @@ def returnten() -> int128:
     return self.a() * 2
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.returnten() == 10
 
 
@@ -42,7 +42,7 @@ def return_it() -> int128:
     assert c.return_it() == 777
 
 
-def test_private_with_more_vars_nested(get_contract_with_gas_estimation):
+def test_private_with_more_vars_nested(get_contract):
     private_test_code = """
 @internal
 def more() -> int128:
@@ -68,11 +68,11 @@ def return_it() -> int128:
     return a + b + c
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.return_it() == 999
 
 
-def test_private_with_args(get_contract_with_gas_estimation):
+def test_private_with_args(get_contract):
     private_test_code = """
 @internal
 def add_times2(a: uint256, b: uint256) -> uint256:
@@ -88,11 +88,11 @@ def return_it() -> uint256:
     return a + b + c
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.return_it() == 555
 
 
-def test_private_with_args_nested(get_contract_with_gas_estimation):
+def test_private_with_args_nested(get_contract):
     private_test_code = """
 @internal
 def multiply(a: uint256, b: uint256) -> uint256:
@@ -113,11 +113,11 @@ def return_it() -> uint256:
     return a + b + c
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.return_it() == 666
 
 
-def test_private_bytes(get_contract_with_gas_estimation):
+def test_private_bytes(get_contract):
     private_test_code = """
 greeting: public(Bytes[100])
 
@@ -135,12 +135,12 @@ def hithere(name: Bytes[100]) -> Bytes[200]:
     return d
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.hithere(b"bob") == b"Hello bob"
     assert c.hithere(b"alice") == b"Hello alice"
 
 
-def test_private_statement(get_contract_with_gas_estimation):
+def test_private_statement(get_contract):
     private_test_code = """
 greeting: public(Bytes[20])
 
@@ -176,14 +176,14 @@ def hithere(name: Bytes[20]) -> Bytes[40]:
     return d
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.greeting() == b"Hello "
     assert c.hithere(b"Bob") == b"Hello Bob"
     c.iprefer(b"Hi there, ", transact={})
     assert c.hithere(b"Alice") == b"Hi there, Alice"
 
 
-def test_private_default_parameter(get_contract_with_gas_estimation):
+def test_private_default_parameter(get_contract):
     private_test_code = """
 @internal
 def addition(a: uint256, b: uint256 = 1) -> uint256:
@@ -207,13 +207,13 @@ def added(a: uint256, b: uint256) -> uint256:
     return d
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
 
     assert c.add_one(20) == 21
     assert c.added(10, 20) == 30
 
 
-def test_private_return_bytes(get_contract_with_gas_estimation):
+def test_private_return_bytes(get_contract):
     code = """
 a_message: Bytes[50]
 
@@ -260,7 +260,7 @@ def test4() -> (Bytes[100]):
     return self.get_msg()
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     test_str = b"                   1           2"
     assert c.test() == b"hello" + test_str
     assert c.test2() == b"hello" + test_str
@@ -269,7 +269,7 @@ def test4() -> (Bytes[100]):
     assert c.test4() == b"hello daar"
 
 
-def test_private_bytes_as_args(get_contract_with_gas_estimation):
+def test_private_bytes_as_args(get_contract):
     code = """
 @internal
 def _test(a: Bytes[40]) -> (Bytes[100]):
@@ -288,12 +288,12 @@ def test2() -> Bytes[100]:
     return self._test(c)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test(b"bob") == b"hello bob, jack attack"
     assert c.test2() == b"hello alice"
 
 
-def test_private_return_tuple_base_types(get_contract_with_gas_estimation):
+def test_private_return_tuple_base_types(get_contract):
     code = """
 @internal
 def _test(a: bytes32) -> (bytes32, uint256, int128):
@@ -315,13 +315,13 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
     return self._test(a)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test(b"test" + b"\x00" * 28) == (b"test" + 28 * b"\x00", 1000, -1200)
     assert c.test2(b"test" + b"\x00" * 28) == (b"test" + 28 * b"\x00", 1000, -1200)
 
 
-def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
+def test_private_return_tuple_bytes(get_contract):
     code = """
 @internal
 def _test(a: int128, b: Bytes[50]) -> (int128, Bytes[100]):
@@ -362,7 +362,7 @@ def test4(a: Bytes[40]) -> (int128, Bytes[100], Bytes[100]):
     return self._test_combined(a, 8, b)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test(11, b"jill") == (14, b"badabing:jill_one", b"jill_one")
     assert c.test2(b"jack") == (6, b"badabing:jack_one")
@@ -370,7 +370,7 @@ def test4(a: Bytes[40]) -> (int128, Bytes[100], Bytes[100]):
     assert c.test4(b"bucket") == (10, b"bucket", b"bucket_one_two")
 
 
-def test_private_return_list_types(get_contract_with_gas_estimation):
+def test_private_return_list_types(get_contract):
     code = """
 @internal
 def _test(b: int128[4]) -> int128[4]:
@@ -385,12 +385,12 @@ def test() -> int128[4]:
     c: int128[2] = [11, 22]
     return self._test(b)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test() == [0, 1, 0, 1]
 
 
-def test_private_payable(env, get_contract_with_gas_estimation):
+def test_private_payable(env, get_contract):
     code = """
 @internal
 def _send_it(a: address, _value: uint256):
@@ -407,7 +407,7 @@ def __default__():
     pass
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     env.execute_code(c.address, value=to_wei(1, "ether"))
     assert env.get_balance(c.address) == to_wei(1, "ether")

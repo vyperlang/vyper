@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 
+from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
 from vyper.utils import MemoryPositions
@@ -15,7 +16,7 @@ def search_for_sublist(ir, sublist):
     return isinstance(_list, list) and any(search_for_sublist(i, sublist) for i in _list)
 
 
-def test_builtin_constants(get_contract_with_gas_estimation):
+def test_builtin_constants(get_contract):
     code = """
 @external
 def test_zaddress(a: address) -> bool:
@@ -47,12 +48,12 @@ def test_arithmetic(a: int128) -> int128:
     return max_value(int128) - a
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test_empty_bytes32(b"\x00" * 32) is True
     assert c.test_empty_bytes32(b"\x0F" * 32) is False
 
-    assert c.test_zaddress("0x0000000000000000000000000000000000000000") is True
+    assert c.test_zaddress(ZERO_ADDRESS) is True
     assert c.test_zaddress("0x0000000000000000000000000000000000000012") is False
 
     assert c.test_int128(2**127 - 1) == (True, False)
@@ -74,7 +75,7 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_arithmetic(5000) == 2**127 - 1 - 5000
 
 
-def test_builtin_constants_assignment(get_contract_with_gas_estimation):
+def test_builtin_constants_assignment(get_contract):
     code = """
 @external
 def foo() -> int128:
@@ -112,14 +113,14 @@ def zoo() -> uint256:
     return bar
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == 2**127 - 1
     assert c.goo() == -(2**127)
 
     assert c.hoo() == b"\x00" * 32
 
-    assert c.joo() is None
+    assert c.joo() == ZERO_ADDRESS
 
     assert c.koo() == Decimal(2**167 - 1) / 10**10
     assert c.loo() == Decimal(-(2**167)) / 10**10

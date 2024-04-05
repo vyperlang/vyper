@@ -15,14 +15,14 @@ from vyper.exceptions import (
 from vyper.utils import method_id
 
 
-def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
+def test_external_contract_calls(get_contract):
     contract_1 = """
 @external
 def foo(arg1: int128) -> int128:
     return arg1
     """
 
-    c = get_contract_with_gas_estimation(contract_1)
+    c = get_contract(contract_1)
 
     contract_2 = """
 interface Foo:
@@ -38,7 +38,7 @@ def bar(arg1: address, arg2: int128) -> int128:
     print("Successfully executed an external contract call")
 
 
-def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
+def test_complicated_external_contract_calls(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -56,7 +56,7 @@ def array() -> Bytes[3]:
     """
 
     lucky_number = 7
-    c = get_contract_with_gas_estimation(contract_1, *[lucky_number])
+    c = get_contract(contract_1, *[lucky_number])
 
     contract_2 = """
 interface Foo:
@@ -1251,7 +1251,7 @@ def get_lucky(contract_address: address) -> int128:
     assert c2.get_lucky(c1.address) == 1
 
 
-def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
+def test_complex_external_contract_call_declaration(get_contract):
     contract_1 = """
 @external
 def get_lucky() -> int128:
@@ -1280,9 +1280,9 @@ def get_lucky() -> int128:
     return staticcall self.bar_contract.get_lucky()
 """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
-    c3 = get_contract_with_gas_estimation(contract_3)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+    c3 = get_contract(contract_3)
     assert c1.get_lucky() == 1
     assert c2.get_lucky() == 2
     c3.set_contract(c1.address, transact={})
@@ -1352,7 +1352,7 @@ def foo(contract_address: address) -> int128:
         get_contract(contract_1)
 
 
-def test_external_with_payable_value(env, get_contract_with_gas_estimation):
+def test_external_with_payable_value(env, get_contract):
     contract_1 = """
 @payable
 @external
@@ -1383,8 +1383,8 @@ def get_lucky(amount_to_send: uint256) -> int128:
         return extcall self.bar_contract.get_lucky(value=msg.value)
 """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     # Set address.
     assert c1.get_lucky() == 1
@@ -1415,7 +1415,7 @@ def get_lucky(amount_to_send: uint256) -> int128:
     assert env.get_balance(env.deployer) == 9000
 
 
-def test_external_call_with_gas(tx_failed, get_contract_with_gas_estimation):
+def test_external_call_with_gas(tx_failed, get_contract):
     contract_1 = """
 @external
 def get_lucky() -> int128:
@@ -1438,8 +1438,8 @@ def get_lucky(gas_amount: uint256) -> int128:
     return staticcall self.bar_contract.get_lucky(gas=gas_amount)
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
     c2.set_contract(c1.address, transact={})
 
     assert c2.get_lucky(1000) == 656598
@@ -1447,7 +1447,7 @@ def get_lucky(gas_amount: uint256) -> int128:
         c2.get_lucky(50)  # too little gas.
 
 
-def test_skip_contract_check(get_contract_with_gas_estimation):
+def test_skip_contract_check(get_contract):
     contract_2 = """
 @external
 @view
@@ -1470,13 +1470,13 @@ def call_baz():
     # would fail if extcodesize check were on
     extcall Bar(addr).baz(skip_contract_check=True)
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
     c1.call_bar(c2.address)
     c1.call_baz()
 
 
-def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_keyword_on_call(assert_compile_failed, get_contract):
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1489,10 +1489,10 @@ def get_lucky(amount_to_send: int128) -> int128:
     return staticcall self.bar_contract.get_lucky(gass=1)
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), ArgumentException)
+    assert_compile_failed(lambda: get_contract(contract_1), ArgumentException)
 
 
-def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_contract_declaration(assert_compile_failed, get_contract):
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1500,7 +1500,7 @@ interface Bar:
 bar_contract: Barr
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), UnknownType)
+    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
 FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
@@ -1543,11 +1543,11 @@ def foo(a: address, x: uint256, y: uint256):
 
 
 @pytest.mark.parametrize("bad_code", FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
-def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
+def test_bad_code_struct_exc(assert_compile_failed, get_contract, bad_code):
+    assert_compile_failed(lambda: get_contract(bad_code), ArgumentException)
 
 
-def test_bad_skip_contract_check(assert_compile_failed, get_contract_with_gas_estimation):
+def test_bad_skip_contract_check(assert_compile_failed, get_contract):
     code = """
 # variable value for skip_contract_check
 interface Bar:
@@ -1589,7 +1589,7 @@ def test(addr: address) -> (int128, address, Bytes[10]):
     assert c2.test(c1.address) == (1, "0x0000000000000000000000000000000000000123", b"random")
 
 
-def test_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+def test_struct_return_external_contract_call_1(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1612,15 +1612,15 @@ def test(addr: address) -> (int128, address):
     return ret.x, ret.y
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
     assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_struct_return_external_contract_call_2(get_contract_with_gas_estimation, i, ln, s):
+def test_struct_return_external_contract_call_2(get_contract, i, ln, s):
     contract_1 = f"""
 struct X:
     x: int128
@@ -1645,14 +1645,14 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     return ret.x, ret.y, ret.z
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
     assert c2.test(c1.address) == c1.get_struct_x()
 
 
-def test_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+def test_struct_return_external_contract_call_3(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1673,14 +1673,14 @@ def test(addr: address) -> int128:
     return ret.x
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == (1,)
     assert [c2.test(c1.address)] == list(c1.out_literals())
 
 
-def test_constant_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+def test_constant_struct_return_external_contract_call_1(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1706,17 +1706,15 @@ def test(addr: address) -> (int128, address):
     return ret.x, ret.y
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
     assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_constant_struct_return_external_contract_call_2(
-    get_contract_with_gas_estimation, i, ln, s
-):
+def test_constant_struct_return_external_contract_call_2(get_contract, i, ln, s):
     contract_1 = f"""
 struct X:
     x: int128
@@ -1744,14 +1742,14 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     return ret.x, ret.y, ret.z
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
     assert c2.test(c1.address) == c1.get_struct_x()
 
 
-def test_constant_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+def test_constant_struct_return_external_contract_call_3(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1775,14 +1773,14 @@ def test(addr: address) -> int128:
     return ret.x
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == (1,)
     assert [c2.test(c1.address)] == list(c1.out_literals())
 
 
-def test_constant_struct_member_return_external_contract_call_1(get_contract_with_gas_estimation):
+def test_constant_struct_member_return_external_contract_call_1(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1804,17 +1802,15 @@ def test(addr: address) -> address:
     ret: address = staticcall Test(addr).get_y()
     return ret
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_y() == "0x0000000000000000000000000000000000012345"
     assert c2.test(c1.address) == "0x0000000000000000000000000000000000012345"
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_constant_struct_member_return_external_contract_call_2(
-    get_contract_with_gas_estimation, i, ln, s
-):
+def test_constant_struct_member_return_external_contract_call_2(get_contract, i, ln, s):
     contract_1 = f"""
 struct X:
     x: int128
@@ -1838,14 +1834,14 @@ def test(addr: address) -> String[{ln}]:
     return ret
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_y() == s
     assert c2.test(c1.address) == s
 
 
-def test_constant_struct_member_return_external_contract_call_3(get_contract_with_gas_estimation):
+def test_constant_struct_member_return_external_contract_call_3(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1867,14 +1863,14 @@ def test(addr: address) -> int128:
     return ret
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_x() == 1
     assert c2.test(c1.address) == 1
 
 
-def test_constant_nested_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+def test_constant_nested_struct_return_external_contract_call_1(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -1908,17 +1904,15 @@ def test(addr: address) -> (X, uint256):
     ret: A = staticcall Test(addr).out_literals()
     return ret.a, ret.b
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == ((1, "0x0000000000000000000000000000000000012345"), 777)
     assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_constant_nested_struct_return_external_contract_call_2(
-    get_contract_with_gas_estimation, i, ln, s
-):
+def test_constant_nested_struct_return_external_contract_call_2(get_contract, i, ln, s):
     contract_1 = f"""
 struct X:
     x: int128
@@ -1955,14 +1949,14 @@ def test(addr: address) -> (X, uint256):
     return ret.a, ret.b
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_struct_a() == ((i, s, bytes(s, "utf-8")), 777)
     assert c2.test(c1.address) == c1.get_struct_a()
 
 
-def test_constant_nested_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+def test_constant_nested_struct_return_external_contract_call_3(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -2004,16 +1998,14 @@ def test(addr: address) -> (A, bool):
     ret: C = staticcall Test(addr).out_literals()
     return ret.c, ret.d
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == ((((1, -1), 777)), True)
     assert c2.test(c1.address) == c1.out_literals()
 
 
-def test_constant_nested_struct_member_return_external_contract_call_1(
-    get_contract_with_gas_estimation,
-):
+def test_constant_nested_struct_member_return_external_contract_call_1(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -2039,17 +2031,15 @@ def test(addr: address) -> address:
     ret: address = staticcall Test(addr).get_y()
     return ret
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_y() == "0x0000000000000000000000000000000000012345"
     assert c2.test(c1.address) == "0x0000000000000000000000000000000000012345"
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
-def test_constant_nested_struct_member_return_external_contract_call_2(
-    get_contract_with_gas_estimation, i, ln, s
-):
+def test_constant_nested_struct_member_return_external_contract_call_2(get_contract, i, ln, s):
     contract_1 = f"""
 struct X:
     x: int128
@@ -2078,16 +2068,14 @@ def test(addr: address) -> String[{ln}]:
     return ret
 
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_y() == s
     assert c2.test(c1.address) == s
 
 
-def test_constant_nested_struct_member_return_external_contract_call_3(
-    get_contract_with_gas_estimation,
-):
+def test_constant_nested_struct_member_return_external_contract_call_3(get_contract):
     contract_1 = """
 struct X:
     x: int128
@@ -2127,8 +2115,8 @@ def test2(addr: address) -> uint256:
     ret: uint256 = staticcall Test(addr).get_b()
     return ret
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.get_y() == -1
     assert c2.test(c1.address) == -1
@@ -2137,7 +2125,7 @@ def test2(addr: address) -> uint256:
     assert c2.test2(c1.address) == 777
 
 
-def test_dynamically_sized_struct_external_contract_call(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_external_contract_call(get_contract):
     contract_1 = """
 struct X:
     x: uint256
@@ -2162,14 +2150,14 @@ def bar(addr: address) -> Bytes[6]:
     return extcall Foo(addr).foo(_X)
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.foo((1, b"hello")) == b"hello"
     assert c2.bar(c1.address) == b"hello"
 
 
-def test_dynamically_sized_struct_external_contract_call_2(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_external_contract_call_2(get_contract):
     contract_1 = """
 struct X:
     x: uint256
@@ -2194,14 +2182,14 @@ def bar(addr: address) -> String[6]:
     return extcall Foo(addr).foo(_X)
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.foo((1, "hello")) == "hello"
     assert c2.bar(c1.address) == "hello"
 
 
-def test_dynamically_sized_struct_member_external_contract_call(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_member_external_contract_call(get_contract):
     contract_1 = """
 @external
 def foo(b: Bytes[6]) -> Bytes[6]:
@@ -2222,14 +2210,14 @@ def bar(addr: address) -> Bytes[6]:
     return extcall Foo(addr).foo(_X.y)
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.foo(b"hello") == b"hello"
     assert c2.bar(c1.address) == b"hello"
 
 
-def test_dynamically_sized_struct_member_external_contract_call_2(get_contract_with_gas_estimation):
+def test_dynamically_sized_struct_member_external_contract_call_2(get_contract):
     contract_1 = """
 @external
 def foo(s: String[6]) -> String[6]:
@@ -2250,21 +2238,21 @@ def bar(addr: address) -> String[6]:
     return extcall Foo(addr).foo(_X.y)
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.foo("hello") == "hello"
     assert c2.bar(c1.address) == "hello"
 
 
-def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
+def test_list_external_contract_call(get_contract):
     contract_1 = """
 @external
 def array() -> int128[3]:
     return [0, 0, 0]
     """
 
-    c = get_contract_with_gas_estimation(contract_1)
+    c = get_contract(contract_1)
 
     contract_2 = """
 interface Foo:

@@ -22,17 +22,17 @@ def decimal_sqrt(val):
     return decimal_truncate(val.sqrt())
 
 
-def test_sqrt_literal(get_contract_with_gas_estimation):
+def test_sqrt_literal(get_contract):
     code = """
 @external
 def test() -> decimal:
     return sqrt(2.0)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test() == decimal_sqrt(Decimal("2"))
 
 
-def test_sqrt_variable(get_contract_with_gas_estimation):
+def test_sqrt_variable(get_contract):
     code = """
 @external
 def test(a: decimal) -> decimal:
@@ -44,7 +44,7 @@ def test2() -> decimal:
     return sqrt(a)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = Decimal("33.33")
     assert c.test(val) == decimal_sqrt(val)
@@ -56,7 +56,7 @@ def test2() -> decimal:
     assert c.test2() == decimal_sqrt(Decimal("44.001"))
 
 
-def test_sqrt_storage(get_contract_with_gas_estimation):
+def test_sqrt_storage(get_contract):
     code = """
 s_var: decimal
 
@@ -71,7 +71,7 @@ def test2() -> decimal:
     return sqrt(self.s_var)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     val = Decimal("12.21")
     assert c.test(val) == decimal_sqrt(val + 1)
     val = Decimal("100.01")
@@ -79,7 +79,7 @@ def test2() -> decimal:
     assert c.test2() == decimal_sqrt(Decimal("444.44"))
 
 
-def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
+def test_sqrt_inline_memory_correct(get_contract):
     code = """
 @external
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100]):
@@ -91,7 +91,7 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
     return a, x, y, z, e, f
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = Decimal("2.1")
     assert c.test(val) == (
@@ -120,13 +120,13 @@ def test(a: decimal) -> decimal:
 
 
 @pytest.fixture(scope="module")
-def sqrt_contract(get_contract_module):
+def sqrt_contract(get_contract):
     code = """
 @external
 def test(a: decimal) -> decimal:
     return sqrt(a)
     """
-    c = get_contract_module(code)
+    c = get_contract(code)
     return c
 
 

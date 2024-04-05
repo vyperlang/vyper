@@ -1,7 +1,7 @@
 from vyper.exceptions import TypeMismatch
 
 
-def test_basic_in_list(get_contract_with_gas_estimation):
+def test_basic_in_list(get_contract):
     code = """
 @external
 def testin(x: int128) -> bool:
@@ -12,7 +12,7 @@ def testin(x: int128) -> bool:
     return False
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.testin(0) is True
     assert c.testin(1) is True
@@ -23,7 +23,7 @@ def testin(x: int128) -> bool:
     assert c.testin(-1) is False
 
 
-def test_in_storage_list(get_contract_with_gas_estimation):
+def test_in_storage_list(get_contract):
     code = """
 allowed: int128[10]
 
@@ -35,7 +35,7 @@ def in_test(x: int128) -> bool:
     return False
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.in_test(1) is True
     assert c.in_test(9) is True
@@ -44,7 +44,7 @@ def in_test(x: int128) -> bool:
     assert c.in_test(32000) is False
 
 
-def test_in_calldata_list(get_contract_with_gas_estimation):
+def test_in_calldata_list(get_contract):
     code = """
 @external
 def in_test(x: int128, y: int128[10]) -> bool:
@@ -53,7 +53,7 @@ def in_test(x: int128, y: int128[10]) -> bool:
     return False
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.in_test(1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is True
     assert c.in_test(9, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is True
@@ -62,7 +62,7 @@ def in_test(x: int128, y: int128[10]) -> bool:
     assert c.in_test(32000, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is False
 
 
-def test_cmp_in_list(get_contract_with_gas_estimation):
+def test_cmp_in_list(get_contract):
     code = """
 @external
 def in_test(x: int128) -> bool:
@@ -71,7 +71,7 @@ def in_test(x: int128) -> bool:
     return False
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.in_test(1) is False
     assert c.in_test(-7) is False
@@ -80,7 +80,7 @@ def in_test(x: int128) -> bool:
     assert c.in_test(7) is True
 
 
-def test_cmp_not_in_list(get_contract_with_gas_estimation):
+def test_cmp_not_in_list(get_contract):
     code = """
 @external
 def in_test(x: int128) -> bool:
@@ -89,7 +89,7 @@ def in_test(x: int128) -> bool:
     return False
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.in_test(1) is True
     assert c.in_test(-7) is True
@@ -98,7 +98,7 @@ def in_test(x: int128) -> bool:
     assert c.in_test(7) is False
 
 
-def test_mixed_in_list(assert_compile_failed, get_contract_with_gas_estimation):
+def test_mixed_in_list(assert_compile_failed, get_contract):
     code = """
 @external
 def testin() -> bool:
@@ -107,10 +107,10 @@ def testin() -> bool:
         return True
     return False
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_ownership(env, tx_failed, get_contract_with_gas_estimation):
+def test_ownership(env, tx_failed, get_contract):
     code = """
 
 owners: address[2]
@@ -129,7 +129,7 @@ def is_owner() -> bool:
     return msg.sender in self.owners
     """
     a1 = env.accounts[1]
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.is_owner() is True  # contract creator is owner.
     assert c.is_owner(call={"from": a1}) is False  # no one else is.
@@ -146,7 +146,7 @@ def is_owner() -> bool:
     assert c.is_owner() is False
 
 
-def test_in_fails_when_types_dont_match(get_contract_with_gas_estimation, tx_failed):
+def test_in_fails_when_types_dont_match(get_contract, tx_failed):
     code = """
 @external
 def testin(x: address) -> bool:
@@ -156,4 +156,4 @@ def testin(x: address) -> bool:
     return False
 """
     with tx_failed(TypeMismatch):
-        get_contract_with_gas_estimation(code)
+        get_contract(code)

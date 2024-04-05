@@ -1,6 +1,6 @@
 import pytest
 
 
-@pytest.fixture(scope="module")
-def initial_balance():
-    return 10**20
+@pytest.fixture(autouse=True)
+def set_initial_balance(env):
+    env.set_balance(env.deployer, 10**20)

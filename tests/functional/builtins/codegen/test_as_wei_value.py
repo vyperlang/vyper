@@ -113,7 +113,7 @@ def foo(a: Foo) -> uint256:
     assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
-def test_internal_call(get_contract_with_gas_estimation):
+def test_internal_call(get_contract):
     code = """
 @external
 def foo() -> uint256:
@@ -123,5 +123,5 @@ def foo() -> uint256:
 def bar() -> uint8:
     return 7
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == to_wei(7, "ether")

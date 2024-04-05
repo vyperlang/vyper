@@ -1,17 +1,10 @@
-import pytest
-
-
-@pytest.fixture(scope="module")
-def initial_balance():
-    return 10**20
-
-
 def test_unreachable_refund(env, get_contract, tx_failed):
     code = """
 @external
 def foo():
     assert msg.sender != msg.sender, UNREACHABLE
     """
+    env.set_balance(env.deployer, 10**20)
 
     c = get_contract(code)
     gas_sent = 10**6

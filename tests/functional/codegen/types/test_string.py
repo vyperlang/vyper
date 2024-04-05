@@ -3,7 +3,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_string_return(get_contract_with_gas_estimation):
+def test_string_return(get_contract):
     code = """
 @external
 def testb() -> String[100]:
@@ -15,13 +15,13 @@ def testa(inp: String[100]) -> String[100]:
     return inp
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.testa("meh") == "meh"
     assert c.testb() == "test return"
 
 
-def test_string_concat(get_contract_with_gas_estimation):
+def test_string_concat(get_contract):
     code = """
 @external
 def testb(inp: String[10]) -> String[128]:
@@ -35,7 +35,7 @@ def testa(inp: String[10]) -> String[160]:
     return concat("Funny ", inp, " ", inp, a)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.testb("bob") == "return message: bob"
     assert c.testa("foo") == "Funny foo foo<-- return message"
@@ -61,14 +61,14 @@ def get(k: String[34]) -> int128:
     assert c.get("a" * 34) == 6789
 
 
-def test_string_slice(get_contract_with_gas_estimation, tx_failed):
+def test_string_slice(get_contract, tx_failed):
     test_slice4 = """
 @external
 def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
     return slice(inp, start, _len)
     """
 
-    c = get_contract_with_gas_estimation(test_slice4)
+    c = get_contract(test_slice4)
     assert c.foo("badminton", 3, 3) == "min"
     assert c.foo("badminton", 0, 9) == "badminton"
     assert c.foo("badminton", 1, 8) == "adminton"
@@ -86,7 +86,7 @@ def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
         c.foo("badminton", 10, 0)
 
 
-def test_private_string(get_contract_with_gas_estimation):
+def test_private_string(get_contract):
     private_test_code = """
 greeting: public(String[100])
 
@@ -104,12 +104,12 @@ def hithere(name: String[100]) -> String[200]:
     return d
     """
 
-    c = get_contract_with_gas_estimation(private_test_code)
+    c = get_contract(private_test_code)
     assert c.hithere("bob") == "Hello bob"
     assert c.hithere("alice") == "Hello alice"
 
 
-def test_logging_extended_string(get_contract_with_gas_estimation, get_logs):
+def test_logging_extended_string(get_contract, get_logs):
     code = """
 event MyLog:
     arg1: int128
@@ -121,7 +121,7 @@ def foo():
     log MyLog(667788, 'hellohellohellohellohellohellohellohellohello', 334455)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     log = get_logs(c.foo(transact={}), c, "MyLog")
 
     assert log[0].args.arg1 == 667788
@@ -129,7 +129,7 @@ def foo():
     assert log[0].args.arg3 == 334455
 
 
-def test_tuple_return_external_contract_call_string(get_contract_with_gas_estimation):
+def test_tuple_return_external_contract_call_string(get_contract):
     contract_1 = """
 @external
 def out_literals() -> (int128, address, String[10]):
@@ -148,14 +148,14 @@ def test(addr: address) -> (int128, address, String[10]):
     (a, b, c) = staticcall Test(addr).out_literals()
     return a, b,c
     """
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000000123", "random")
     assert c2.test(c1.address) == (1, "0x0000000000000000000000000000000000000123", "random")
 
 
-def test_default_arg_string(get_contract_with_gas_estimation):
+def test_default_arg_string(get_contract):
     code = """
 @external
 def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
@@ -165,7 +165,7 @@ def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
     )
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test(12345)[-3:] == b"foo"
     assert c.test(12345, "bar")[-3:] == b"bar"
@@ -189,7 +189,7 @@ string_equality_tests = [
 
 
 @pytest.mark.parametrize("len_,a,b", string_equality_tests)
-def test_string_equality(get_contract_with_gas_estimation, len_, a, b):
+def test_string_equality(get_contract, len_, a, b):
     # fixtures to initialize strings with dirty bytes
     a_init = "\\1" * len_
     b_init = "\\2" * len_
@@ -332,7 +332,7 @@ def compare_var_storage_not_equal_false() -> bool:
     return self.a != b
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.equal_true() is True
     assert c.equal_false() is False
     assert c.not_equal_true() is True

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
+
 EXPIRY = 16
 
 
@@ -9,12 +11,12 @@ def auction_start(env):
 
 
 @pytest.fixture
-def auction_contract(env, get_contract, auction_start, initial_balance):
+def auction_contract(env, get_contract, auction_start):
     with open("examples/auctions/simple_open_auction.vy") as f:
         contract_code = f.read()
 
-    for acc in env.accounts[1:5]:
-        env.set_balance(acc, initial_balance)
+    for acc in env.accounts[:5]:
+        env.set_balance(acc, 10**20)
 
     return get_contract(contract_code, *[env.accounts[0], auction_start, EXPIRY])
 
@@ -29,7 +31,7 @@ def test_initial_state(env, auction_contract, auction_start):
     # Check auction has not ended
     assert auction_contract.ended() is False
     # Check highest bidder is empty
-    assert auction_contract.highestBidder() is None
+    assert auction_contract.highestBidder() == ZERO_ADDRESS
     # Check highest bid is 0
     assert auction_contract.highestBid() == 0
     # Check end time is more than current block timestamp

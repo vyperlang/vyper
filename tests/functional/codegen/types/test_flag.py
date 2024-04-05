@@ -224,7 +224,7 @@ def checkMinter(minter: address):
         c.checkMinter(admin_address)
 
 
-def test_in_flag(get_contract_with_gas_estimation):
+def test_in_flag(get_contract):
     code = """
 flag Roles:
     USER
@@ -252,7 +252,7 @@ def baz(a: Roles) -> bool:
     return a in (x & y)
 
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True
 
     # CEO MANAGER ADMIN STAFF USER
@@ -269,7 +269,7 @@ def baz(a: Roles) -> bool:
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
 
 
-def test_struct_with_flag(get_contract_with_gas_estimation):
+def test_struct_with_flag(get_contract):
     code = """
 flag Foobar:
     FOO
@@ -284,11 +284,11 @@ def get_flag_from_struct() -> Foobar:
     f: Foo = Foo(a=1, b=Foobar.BAR)
     return f.b
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_flag_from_struct() == 2
 
 
-def test_mapping_with_flag(get_contract_with_gas_estimation):
+def test_mapping_with_flag(get_contract):
     code = """
 flag Foobar:
     FOO
@@ -301,5 +301,5 @@ def get_key(f: Foobar, i: uint256) -> uint256:
     self.fb[f] = i
     return self.fb[f]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_key(1, 777) == 777

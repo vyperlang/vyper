@@ -4,7 +4,7 @@ from eth_utils import to_int
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_log_dynamic_static_combo(get_logs, get_contract_with_gas_estimation):
+def test_log_dynamic_static_combo(get_logs, get_contract):
     code = """
 event TestLog:
     testData1: bytes32
@@ -31,7 +31,7 @@ def test_func(_value: uint256):
     log TestLog(loggedValue, data2, loggedValue2)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     tx_hash = c.test_func(123, transact={})
 

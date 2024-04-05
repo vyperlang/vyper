@@ -14,7 +14,7 @@ def _generate_bytes(length):
     return bytes(list(range(length)))
 
 
-def test_basic_slice(get_contract_with_gas_estimation):
+def test_basic_slice(get_contract):
     code = """
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
@@ -23,7 +23,7 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
@@ -261,7 +261,7 @@ def dice() -> Bytes[1]:
     assert c.dice() == b"A"
 
 
-def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
+def test_slice_immutable_length_arg(get_contract):
     code = """
 LENGTH: immutable(uint256)
 
@@ -273,7 +273,7 @@ def __init__():
 def do_slice(inp: Bytes[50]) -> Bytes[50]:
     return slice(inp, 0, LENGTH)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"abcde", x
 

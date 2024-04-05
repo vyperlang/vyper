@@ -2,12 +2,12 @@ import pytest
 
 
 @pytest.fixture
-def c(env, initial_balance, get_contract):
+def c(env, get_contract):
     with open("examples/stock/company.vy") as f:
         contract_code = f.read()
 
-    for acc in env.accounts[1:5]:
-        env.set_balance(acc, initial_balance)
+    for acc in env.accounts[:5]:
+        env.set_balance(acc, 10**20)
 
     return get_contract(contract_code, *[env.accounts[0], 1000, 10**6])
 

@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import ImmutableViolation, InvalidType, TypeMismatch
 
 
-def test_augassign(get_contract_with_gas_estimation):
+def test_augassign(get_contract):
     augassign_test = """
 @external
 def augadd(x: int128, y: int128) -> int128:
@@ -30,7 +30,7 @@ def augmod(x: int128, y: int128) -> int128:
     return z
     """
 
-    c = get_contract_with_gas_estimation(augassign_test)
+    c = get_contract(augassign_test)
 
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60
@@ -48,7 +48,7 @@ def augmod(x: int128, y: int128) -> int128:
         ("Bytes[5]", b"vyper", b"conda"),
     ],
 )
-def test_internal_assign(get_contract_with_gas_estimation, typ, in_val, out_val):
+def test_internal_assign(get_contract, typ, in_val, out_val):
     code = f"""
 @internal
 def foo(x: {typ}) -> {typ}:
@@ -59,12 +59,12 @@ def foo(x: {typ}) -> {typ}:
 def bar(x: {typ}) -> {typ}:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar(in_val) == out_val
 
 
-def test_internal_assign_struct(get_contract_with_gas_estimation):
+def test_internal_assign_struct(get_contract):
     code = """
 flag Bar:
     BAD
@@ -85,12 +85,12 @@ def foo(x: Foo) -> Foo:
 def bar(x: Foo) -> Foo:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar((123, [1, 2, 4], "vyper")) == (789, [4, 2, 1], "conda")
 
 
-def test_internal_assign_struct_member(get_contract_with_gas_estimation):
+def test_internal_assign_struct_member(get_contract):
     code = """
 flag Bar:
     BAD
@@ -112,12 +112,12 @@ def foo(x: Foo) -> Foo:
 def bar(x: Foo) -> Foo:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar((123, [1, 2, 4], "vyper")) == (789, [1, 2], "vyper")
 
 
-def test_internal_augassign(get_contract_with_gas_estimation):
+def test_internal_augassign(get_contract):
     code = """
 @internal
 def foo(x: int128) -> int128:
@@ -128,13 +128,13 @@ def foo(x: int128) -> int128:
 def bar(x: int128) -> int128:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar(123) == 200
 
 
 @pytest.mark.parametrize("typ", ["DynArray[uint256, 3]", "uint256[3]"])
-def test_internal_augassign_arrays(get_contract_with_gas_estimation, typ):
+def test_internal_augassign_arrays(get_contract, typ):
     code = f"""
 @internal
 def foo(x: {typ}) -> {typ}:
@@ -145,30 +145,30 @@ def foo(x: {typ}) -> {typ}:
 def bar(x: {typ}) -> {typ}:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar([1, 2, 3]) == [1, 79, 3]
 
 
-def test_invalid_external_assign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_assign(assert_compile_failed, get_contract):
     code = """
 @external
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
+    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
-def test_invalid_external_augassign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_augassign(assert_compile_failed, get_contract):
     code = """
 @external
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
+    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
-def test_valid_literal_increment(get_contract_with_gas_estimation):
+def test_valid_literal_increment(get_contract):
     code = """
 storx: uint256
 
@@ -190,14 +190,14 @@ def foo3(y: uint256) -> uint256:
     self.storx += 1
     return self.storx
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo1() == 123
     assert c.foo2() == 123
     assert c.foo3(11) == 12
 
 
-def test_invalid_uint256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment(assert_compile_failed, get_contract):
     code = """
 storx: uint256
 
@@ -207,10 +207,10 @@ def foo2() -> uint256:
     x += 1
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_invalid_uint256_assignment_calculate_literals(get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment_calculate_literals(get_contract):
     code = """
 storx: uint256
 
@@ -220,13 +220,13 @@ def foo2() -> uint256:
     x = 3 * 4 // 2 + 1 - 2
     return x
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo2() == 5
 
 
 # See #838. Confirm that nested keys and structs work properly.
-def test_nested_map_key_works(get_contract_with_gas_estimation):
+def test_nested_map_key_works(get_contract):
     code = """
 struct X:
     a: int128
@@ -248,12 +248,12 @@ def get(i: int128) -> int128:
     idx: int128 = self.test_map1[i].a
     return self.test_map2[idx].c
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.set(transact={})
     assert c.get(1) == 111
 
 
-def test_nested_map_key_problem(get_contract_with_gas_estimation):
+def test_nested_map_key_problem(get_contract):
     code = """
 struct X:
     a: int128
@@ -274,7 +274,7 @@ def set():
 def get() -> int128:
     return self.test_map2[self.test_map1[1].a].c
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.set(transact={})
     assert c.get() == 111
 
@@ -349,13 +349,11 @@ def foo():
     """,
     ],
 )
-def test_invalid_implicit_conversions(
-    contract, assert_compile_failed, get_contract_with_gas_estimation
-):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+def test_invalid_implicit_conversions(contract, assert_compile_failed, get_contract):
+    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
-def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_nonetype_assignment(assert_compile_failed, get_contract):
     code = """
 @internal
 def bar():
@@ -365,7 +363,7 @@ def bar():
 def foo():
     ret : bool = self.bar()
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
 
     # GH issue 2418
 

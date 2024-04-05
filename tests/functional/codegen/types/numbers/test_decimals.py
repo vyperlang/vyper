@@ -51,7 +51,7 @@ def foo(x: decimal) -> decimal:
         compile_code(code)
 
 
-def test_decimal_test(get_contract_with_gas_estimation):
+def test_decimal_test(get_contract):
     decimal_test = """
 @external
 def foo() -> int256:
@@ -99,7 +99,7 @@ def foop() -> int256:
     return(floor(1999.0 % 1000.0))
     """
 
-    c = get_contract_with_gas_estimation(decimal_test)
+    c = get_contract(decimal_test)
 
     assert c.foo() == 999
     assert c.fop() == 999
@@ -116,7 +116,7 @@ def foop() -> int256:
     print("Passed basic addition, subtraction and multiplication tests")
 
 
-def test_harder_decimal_test(get_contract_with_gas_estimation):
+def test_harder_decimal_test(get_contract):
     harder_decimal_test = """
 @external
 def phooey(inp: decimal) -> decimal:
@@ -148,7 +148,7 @@ def iarg() -> uint256:
     return x
     """
 
-    c = get_contract_with_gas_estimation(harder_decimal_test)
+    c = get_contract(harder_decimal_test)
     assert c.phooey(Decimal("1.2")) == Decimal("20736.0")
     assert c.phooey(Decimal("-1.2")) == Decimal("20736.0")
     assert c.arg(Decimal("-3.7")) == Decimal("-3.7")
@@ -160,7 +160,7 @@ def iarg() -> uint256:
     print("Passed fractional multiplication test")
 
 
-def test_mul_overflow(tx_failed, get_contract_with_gas_estimation):
+def test_mul_overflow(tx_failed, get_contract):
     mul_code = """
 
 @external
@@ -169,7 +169,7 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
     """
 
-    c = get_contract_with_gas_estimation(mul_code)
+    c = get_contract(mul_code)
 
     x = Decimal("85070591730234615865843651857942052864")
     y = Decimal("136112946768375385385349842973")
@@ -236,7 +236,7 @@ def foo(x: decimal, y: decimal) -> decimal:
     assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
 
-def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):
+def test_decimal_min_max_literals(tx_failed, get_contract):
     code = """
 @external
 def maximum():
@@ -245,13 +245,13 @@ def maximum():
 def minimum():
     a: decimal = -18707220957835557353007165858768422651595.9365500928
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.maximum() is None
     assert c.minimum() is None
 
 
-def test_scientific_notation(get_contract_with_gas_estimation):
+def test_scientific_notation(get_contract):
     code = """
 @external
 def foo() -> decimal:
@@ -261,7 +261,7 @@ def foo() -> decimal:
 def bar(num: decimal) -> decimal:
     return num + -1e38
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == Decimal("1e-10")  # Smallest possible decimal
     assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up

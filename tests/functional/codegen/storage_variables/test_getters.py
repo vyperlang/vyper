@@ -1,4 +1,4 @@
-def test_state_accessor(get_contract_with_gas_estimation_for_constants):
+def test_state_accessor(get_contract):
     state_accessor = """
 y: HashMap[int128, int128]
 
@@ -12,12 +12,12 @@ def foo() -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation_for_constants(state_accessor)
+    c = get_contract(state_accessor)
     c.oo(transact={})
     assert c.foo() == 5
 
 
-def test_getter_code(get_contract_with_gas_estimation_for_constants):
+def test_getter_code(get_contract):
     getter_code = """
 interface V:
     def foo(): nonpayable
@@ -58,7 +58,7 @@ def __init__():
     e = [2, 3]
     """
 
-    c = get_contract_with_gas_estimation_for_constants(getter_code)
+    c = get_contract(getter_code)
     assert c.x() == 7
     assert c.y(1) == 9
     assert c.z() == b"cow"

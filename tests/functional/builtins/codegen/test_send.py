@@ -1,3 +1,6 @@
+from tests.utils import ZERO_ADDRESS
+
+
 def test_send(tx_failed, get_contract, env):
     send_test = """
 @external
@@ -51,7 +54,7 @@ def __default__():
         sender.test_send(receiver.address, transact={"gas": 100000})
 
     # no value transfer happened, variable was not changed
-    assert receiver.last_sender() is None
+    assert receiver.last_sender() == ZERO_ADDRESS
     assert env.get_balance(sender.address) == 1
     assert env.get_balance(receiver.address) == 0
 

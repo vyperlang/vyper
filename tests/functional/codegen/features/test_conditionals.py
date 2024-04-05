@@ -1,4 +1,4 @@
-def test_conditional_return_code(get_contract_with_gas_estimation):
+def test_conditional_return_code(get_contract):
     conditional_return_code = """
 @external
 def foo(i: bool) -> int128:
@@ -9,25 +9,25 @@ def foo(i: bool) -> int128:
         return 7
     """
 
-    c = get_contract_with_gas_estimation(conditional_return_code)
+    c = get_contract(conditional_return_code)
     assert c.foo(True) == 5
     assert c.foo(False) == 7
 
     print("Passed conditional return tests")
 
 
-def test_single_branch_underflow_public(get_contract_with_gas_estimation):
+def test_single_branch_underflow_public(get_contract):
     code = """
 @external
 def doit():
     if False:
         raw_call(msg.sender, b"", max_outsize=0, value=0, gas=msg.gas)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.doit()
 
 
-def test_single_branch_underflow_private(get_contract_with_gas_estimation):
+def test_single_branch_underflow_private(get_contract):
     code = """
 @internal
 def priv() -> uint256:
@@ -38,5 +38,5 @@ def dont_doit():
     if False:
         self.priv()
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.dont_doit()

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
+
 PROPOSAL_1_NAME = b"Clinton" + b"\x00" * 25
 PROPOSAL_2_NAME = b"Trump" + b"\x00" * 27
 
@@ -11,7 +13,7 @@ def c(get_contract):
     return get_contract(contract_code, *[[PROPOSAL_1_NAME, PROPOSAL_2_NAME]])
 
 
-z0 = "0x0000000000000000000000000000000000000000"
+z0 = ZERO_ADDRESS
 
 
 def test_initial_state(env, c):
@@ -27,10 +29,7 @@ def test_initial_state(env, c):
     # Check voterCount is 0
     assert c.voterCount() == 0
     # Check voter starts empty
-    assert c.voters(z0)[2] is None  # Voter.delegate
-    assert c.voters(z0)[3] == 0  # Voter.vote
-    assert c.voters(z0)[1] is False  # Voter.voted
-    assert c.voters(z0)[0] == 0  # Voter.weight
+    assert c.voters(z0) == (0, False, ZERO_ADDRESS, 0)
 
 
 def test_give_the_right_to_vote(env, c, tx_failed):
@@ -39,7 +38,7 @@ def test_give_the_right_to_vote(env, c, tx_failed):
     # Check voter given right has weight of 1
     assert c.voters(a1)[0] == 1  # Voter.weight
     # Check no other voter attributes have changed
-    assert c.voters(a1)[2] is None  # Voter.delegate
+    assert c.voters(a1)[2] == ZERO_ADDRESS  # Voter.delegate
     assert c.voters(a1)[3] == 0  # Voter.vote
     assert c.voters(a1)[1] is False  # Voter.voted
     # Chairperson can give themselves the right to vote

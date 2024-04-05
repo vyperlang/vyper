@@ -5,7 +5,7 @@ import pytest
 from vyper.semantics.types import IntegerT
 
 
-def test_minmax(get_contract_with_gas_estimation):
+def test_minmax(get_contract):
     minmax_test = """
 @external
 def foo() -> decimal:
@@ -16,7 +16,7 @@ def goo() -> uint256:
     return min(3, 5) + max(40, 80)
     """
 
-    c = get_contract_with_gas_estimation(minmax_test)
+    c = get_contract(minmax_test)
     assert c.foo() == Decimal("58223.123")
     assert c.goo() == 83
 
@@ -24,7 +24,7 @@ def goo() -> uint256:
 
 
 @pytest.mark.parametrize("return_type", sorted(IntegerT.all()))
-def test_minmax_var_and_literal_and_bultin(get_contract_with_gas_estimation, return_type):
+def test_minmax_var_and_literal_and_bultin(get_contract, return_type):
     """
     Tests to verify that min and max work as expected when a variable/literal
     and a literal are passed for all integer types.
@@ -60,7 +60,7 @@ def both_builtins_max() -> {return_type}:
 def both_builtins_min() -> {return_type}:
     return min(min_value({return_type}), max_value({return_type}))
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == hi
     assert c.bar() == lo
     assert c.both_literals_max() == hi
@@ -69,7 +69,7 @@ def both_builtins_min() -> {return_type}:
     assert c.both_builtins_min() == lo
 
 
-def test_max_var_uint256_literal_int128(get_contract_with_gas_estimation):
+def test_max_var_uint256_literal_int128(get_contract):
     """
     Tests to verify that max works as expected when a variable/literal uint256
     and a literal int128 are passed.
@@ -103,7 +103,7 @@ def baz() -> uint256:
 def both_literals() -> uint256:
     return max(2 ** 200, 2)
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == 2**200 + 5
     assert c.goo() == 2**200 + 5
     assert c.bar() == 5 + 5
@@ -111,7 +111,7 @@ def both_literals() -> uint256:
     assert c.both_literals() == 2**200
 
 
-def test_min_var_uint256_literal_int128(get_contract_with_gas_estimation):
+def test_min_var_uint256_literal_int128(get_contract):
     """
     Tests to verify that max works as expected when a variable/literal uint256
     and a literal int128 are passed.
@@ -145,7 +145,7 @@ def baz() -> uint256:
 def both_literals() -> uint256:
     return min(2 ** 200, 2)
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == 5 + 5
     assert c.goo() == 5 + 5
     assert c.bar() == 2 + 5
@@ -153,7 +153,7 @@ def both_literals() -> uint256:
     assert c.both_literals() == 2
 
 
-def test_minmax_var_uint256_var_int128(get_contract_with_gas_estimation, assert_compile_failed):
+def test_minmax_var_uint256_var_int128(get_contract, assert_compile_failed):
     """
     Tests to verify that max throws an error if a variable uint256 and a
     variable int128 are passed.
@@ -167,7 +167,7 @@ def foo() -> uint256:
     b: int128 = 3
     return max(a, b)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_1), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_1), TypeMismatch)
 
     code_2 = """
 @external
@@ -176,7 +176,7 @@ def foo() -> uint256:
     b: int128 = 3
     return max(b, a)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_2), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_2), TypeMismatch)
 
     code_3 = """
 @external
@@ -185,7 +185,7 @@ def foo() -> uint256:
     b: int128 = 3
     return min(a, b)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_3), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_3), TypeMismatch)
 
     code_4 = """
 @external
@@ -194,12 +194,10 @@ def foo() -> uint256:
     b: int128 = 3
     return min(b, a)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_4), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_4), TypeMismatch)
 
 
-def test_minmax_var_uint256_negative_int128(
-    get_contract_with_gas_estimation, tx_failed, assert_compile_failed
-):
+def test_minmax_var_uint256_negative_int128(get_contract, tx_failed, assert_compile_failed):
     from vyper.exceptions import TypeMismatch
 
     code_1 = """
@@ -208,7 +206,7 @@ def foo() -> uint256:
     a: uint256 = 2 ** 200
     return max(a, -1)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_1), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_1), TypeMismatch)
 
     code_2 = """
 @external
@@ -216,10 +214,10 @@ def foo() -> uint256:
     a: uint256 = 2 ** 200
     return min(a, -1)
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code_2), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code_2), TypeMismatch)
 
 
-def test_unsigned(get_contract_with_gas_estimation):
+def test_unsigned(get_contract):
     code = """
 @external
 def foo1() -> uint256:
@@ -238,14 +236,14 @@ def foo4() -> uint256:
     return max(2**255, 0)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo1() == 0
     assert c.foo2() == 0
     assert c.foo3() == 2**255
     assert c.foo4() == 2**255
 
 
-def test_signed(get_contract_with_gas_estimation):
+def test_signed(get_contract):
     code = """
 @external
 def foo1() -> int128:
@@ -264,7 +262,7 @@ def foo4() -> int128:
     return max(max_value(int128), min_value(int128))
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo1() == -(2**127)
     assert c.foo2() == -(2**127)
     assert c.foo3() == 2**127 - 1

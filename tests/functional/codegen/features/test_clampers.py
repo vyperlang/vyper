@@ -4,6 +4,7 @@ import pytest
 from eth.codecs import abi
 from eth_utils import keccak
 
+from tests.utils import ZERO_ADDRESS
 from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
@@ -33,21 +34,21 @@ def _make_invalid_dynarray_tx(revm_env, address, signature, data):
     revm_env.execute_code(address, data=f"0x{sig}{data}")
 
 
-def test_bytes_clamper(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper(tx_failed, get_contract):
     clamper_test_code = """
 @external
 def foo(s: Bytes[3]) -> Bytes[3]:
     return s
     """
 
-    c = get_contract_with_gas_estimation(clamper_test_code)
+    c = get_contract(clamper_test_code)
     assert c.foo(b"ca") == b"ca"
     assert c.foo(b"cat") == b"cat"
     with tx_failed():
         c.foo(b"cate")
 
 
-def test_bytes_clamper_multiple_slots(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper_multiple_slots(tx_failed, get_contract):
     clamper_test_code = """
 @external
 def foo(s: Bytes[40]) -> Bytes[40]:
@@ -55,7 +56,7 @@ def foo(s: Bytes[40]) -> Bytes[40]:
     """
 
     data = b"this is exactly forty characters long!!!"
-    c = get_contract_with_gas_estimation(clamper_test_code)
+    c = get_contract(clamper_test_code)
 
     assert c.foo(data[:30]) == data[:30]
     assert c.foo(data) == data
@@ -63,7 +64,7 @@ def foo(s: Bytes[40]) -> Bytes[40]:
         c.foo(data + b"!")
 
 
-def test_bytes_clamper_on_init(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper_on_init(tx_failed, get_contract):
     clamper_test_code = """
 foo: Bytes[3]
 
@@ -76,11 +77,11 @@ def get_foo() -> Bytes[3]:
     return self.foo
     """
 
-    c = get_contract_with_gas_estimation(clamper_test_code, *[b"cat"])
+    c = get_contract(clamper_test_code, *[b"cat"])
     assert c.get_foo() == b"cat"
 
     with tx_failed():
-        get_contract_with_gas_estimation(clamper_test_code, *[b"cats"])
+        get_contract(clamper_test_code, *[b"cats"])
 
 
 @pytest.mark.parametrize("n", list(range(1, 33)))
@@ -252,20 +253,14 @@ def foo(s: uint{bits}) -> uint{bits}:
 
 
 @pytest.mark.parametrize(
-    "value,expected",
+    "address",
     [
-        ("0x0000000000000000000000000000000000000000", None),
-        (
-            "0x0000000000000000000000000000000000000001",
-            "0x0000000000000000000000000000000000000001",
-        ),
-        (
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-        ),
+        ZERO_ADDRESS,
+        "0x0000000000000000000000000000000000000001",
+        "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
     ],
 )
-def test_address_clamper_passing(env, get_contract, value, expected):
+def test_address_clamper_passing(env, get_contract, address):
     code = """
 @external
 def foo(s: address) -> address:
@@ -273,7 +268,7 @@ def foo(s: address) -> address:
     """
 
     c = get_contract(code)
-    assert c.foo(value) == expected
+    assert c.foo(address) == address
 
 
 @pytest.mark.parametrize("value", [2**160, 2**256 - 1])

@@ -4,6 +4,8 @@ import os
 from vyper import ast as vy_ast
 from vyper.semantics.analysis.constant_folding import constant_fold
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
 
 @contextlib.contextmanager
 def working_directory(directory):

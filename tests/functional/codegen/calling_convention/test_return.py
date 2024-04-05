@@ -1,19 +1,20 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.exceptions import TypeMismatch
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_correct_abi_right_padding(env, get_contract_with_gas_estimation):
+def test_correct_abi_right_padding(env, get_contract):
     selfcall_code_6 = """
 @external
 def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     return concat(arg1, arg2)
     """
 
-    c = get_contract_with_gas_estimation(selfcall_code_6)
+    c = get_contract(selfcall_code_6)
 
     assert c.hardtest(b"hello" * 5, b"hello" * 10) == b"hello" * 15
 
@@ -35,7 +36,7 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     assert dyn_section[32 + len_value :] == b"\x00" * (len(dyn_section) - 32 - len_value)
 
 
-def test_return_type(get_contract_with_gas_estimation):
+def test_return_type(get_contract):
     long_string = 35 * "test"
 
     code = """
@@ -84,10 +85,10 @@ def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
     return 5555, b"testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.out() == (3333, "0x0000000000000000000000000000000000000001")
-    assert c.out_literals() == (1, None, b"random")
+    assert c.out_literals() == (1, ZERO_ADDRESS, b"random")
     assert c.out_bytes_first() == (b"test", 1234)
     assert c.out_bytes_a(5555555, b"test") == (5555555, b"test")
     assert c.out_bytes_b(5555555, b"test") == (b"test", 5555555, b"test")
@@ -101,14 +102,14 @@ def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
     )
 
 
-def test_return_type_signatures(get_contract_with_gas_estimation):
+def test_return_type_signatures(get_contract):
     code = """
 @external
 def out_literals() -> (int128, address, Bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.abi[0]["outputs"] == [
         {"type": "int128", "name": ""},
         {"type": "address", "name": ""},
@@ -116,7 +117,7 @@ def out_literals() -> (int128, address, Bytes[6]):
     ]
 
 
-def test_return_tuple_assign(get_contract_with_gas_estimation):
+def test_return_tuple_assign(get_contract):
     code = """
 @internal
 def _out_literals() -> (int128, address, Bytes[10]):
@@ -135,12 +136,12 @@ def test() -> (int128, address, Bytes[10]):
     return a, b, c
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
-    assert c.out_literals() == c.test() == (1, None, b"random")
+    assert c.out_literals() == c.test() == (1, ZERO_ADDRESS, b"random")
 
 
-def test_return_tuple_assign_storage(get_contract_with_gas_estimation):
+def test_return_tuple_assign_storage(get_contract):
     code = """
 a: int128
 b: address
@@ -173,7 +174,7 @@ def test3() -> (address, int128):
     return x, self.a
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     addr = "0x" + "00" * 19 + "23"
     assert c.out_literals() == (1, b"testtesttest", addr, b"random")
@@ -226,7 +227,7 @@ def test_values(a: address) -> (Bytes[6], uint256):
     assert c2.test_values(c1.address) == (bytes(string, "utf-8"), 42)
 
 
-def test_tuple_return_typecheck(tx_failed, get_contract_with_gas_estimation):
+def test_tuple_return_typecheck(tx_failed, get_contract):
     code = """
 @external
 def getTimeAndBalance() -> (bool, address):
@@ -236,7 +237,7 @@ def getTimeAndBalance() -> (bool, address):
         compile_code(code)
 
 
-def test_struct_return_abi(get_contract_with_gas_estimation):
+def test_struct_return_abi(get_contract):
     code = """
 struct Voter:
     weight: int128
@@ -253,12 +254,12 @@ def test() -> Voter:
 
     assert abi["name"] == "test"
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test() == (123, True)
 
 
-def test_single_struct_return_abi(get_contract_with_gas_estimation):
+def test_single_struct_return_abi(get_contract):
     code = """
 struct Voter:
     voted: bool
@@ -275,12 +276,12 @@ def test() -> Voter:
     assert abi["name"] == "test"
     assert abi["outputs"][0]["type"] == "tuple"
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test() == (True,)
 
 
-def test_struct_return(get_contract_with_gas_estimation):
+def test_struct_return(get_contract):
     code = """
 struct Foo:
   x: int128
@@ -329,7 +330,7 @@ def pub6() -> Foo:
     """
     foo = (123, 456)
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.pub1() == (1, 2)
     assert c.pub2() == (3, 4)
@@ -339,7 +340,7 @@ def pub6() -> Foo:
     assert c.pub6() == foo
 
 
-def test_single_struct_return(get_contract_with_gas_estimation):
+def test_single_struct_return(get_contract):
     code = """
 struct Foo:
   x: int128
@@ -386,7 +387,7 @@ def pub6() -> Foo:
     """
     foo = (123,)
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.pub1() == (1,)
     assert c.pub2() == (3,)

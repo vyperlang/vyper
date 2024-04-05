@@ -1,10 +1,11 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
+
 SOMEONE_TOKEN_IDS = [1, 2, 3]
 OPERATOR_TOKEN_ID = 10
 NEW_TOKEN_ID = 20
 INVALID_TOKEN_ID = 99
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 ERC165_SIG = "0x01ffc9a7"
 ERC165_INVALID_SIG = "0xffffffff"
 ERC721_SIG = "0x80ac58cd"
@@ -57,7 +58,7 @@ def test_ownerOf(c, env, tx_failed):
 def test_getApproved(c, env):
     someone, operator = env.accounts[1:3]
 
-    assert c.getApproved(SOMEONE_TOKEN_IDS[0]) is None
+    assert c.getApproved(SOMEONE_TOKEN_IDS[0]) == ZERO_ADDRESS
 
     c.approve(operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
 

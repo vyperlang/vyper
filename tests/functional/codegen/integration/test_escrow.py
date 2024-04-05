@@ -1,12 +1,12 @@
 import pytest
 
 
-@pytest.fixture(scope="module")
-def initial_balance():
-    return 10**20
+@pytest.fixture(autouse=True)
+def set_initial_balance(env):
+    env.set_balance(env.deployer, 10**20)
 
 
-def test_arbitration_code(env, get_contract_with_gas_estimation, tx_failed):
+def test_arbitration_code(env, get_contract, tx_failed):
     arbitration_code = """
 buyer: address
 seller: address
@@ -31,7 +31,7 @@ def refund():
 
     """
     a0, a1, a2 = env.accounts[:3]
-    c = get_contract_with_gas_estimation(arbitration_code, value=1)
+    c = get_contract(arbitration_code, value=1)
     c.setup(a1, a2, transact={})
     with tx_failed():
         c.finalize(transact={"from": a1})
@@ -40,7 +40,7 @@ def refund():
     print("Passed escrow test")
 
 
-def test_arbitration_code_with_init(env, tx_failed, get_contract_with_gas_estimation):
+def test_arbitration_code_with_init(env, tx_failed, get_contract):
     arbitration_code_with_init = """
 buyer: address
 seller: address
@@ -65,7 +65,7 @@ def refund():
     send(self.buyer, self.balance)
     """
     a0, a1, a2 = env.accounts[:3]
-    c = get_contract_with_gas_estimation(arbitration_code_with_init, *[a1, a2], value=1)
+    c = get_contract(arbitration_code_with_init, *[a1, a2], value=1)
     with tx_failed():
         c.finalize(transact={"from": a1})
     c.finalize(transact={"from": a0})

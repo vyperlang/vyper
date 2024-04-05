@@ -1,7 +1,7 @@
 from eth_utils import to_wei
 
 
-def test_throw_on_sending(env, tx_failed, get_contract_with_gas_estimation):
+def test_throw_on_sending(env, tx_failed, get_contract):
     code = """
 x: public(int128)
 
@@ -9,7 +9,7 @@ x: public(int128)
 def __init__():
     self.x = 123
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.x() == 123
     assert env.get_balance(c.address) == 0
@@ -18,7 +18,7 @@ def __init__():
     assert env.get_balance(c.address) == 0
 
 
-def test_basic_default(env, get_logs, get_contract_with_gas_estimation):
+def test_basic_default(env, get_logs, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -28,14 +28,14 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
     (log,) = get_logs(env.execute_code(c.address, value=10**17), c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
 
-def test_basic_default_default_param_function(env, get_logs, get_contract_with_gas_estimation):
+def test_basic_default_default_param_function(env, get_logs, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -51,14 +51,14 @@ def fooBar(a: int128 = 12345) -> int128:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     (log,) = get_logs(env.execute_code(c.address, value=10**17), c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
 
-def test_basic_default_not_payable(env, tx_failed, get_contract_with_gas_estimation):
+def test_basic_default_not_payable(env, tx_failed, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -67,32 +67,32 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     with tx_failed():
         env.execute_code(c.address, value=10**17)
 
 
-def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
+def test_multi_arg_default(assert_compile_failed, get_contract):
     code = """
 @payable
 @external
 def __default__(arg1: int128):
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
-def test_always_public(assert_compile_failed, get_contract_with_gas_estimation):
+def test_always_public(assert_compile_failed, get_contract):
     code = """
 @internal
 def __default__():
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
-def test_always_public_2(assert_compile_failed, get_contract_with_gas_estimation):
+def test_always_public_2(assert_compile_failed, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -100,7 +100,7 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
 def test_zero_method_id(env, get_logs, get_contract, tx_failed):

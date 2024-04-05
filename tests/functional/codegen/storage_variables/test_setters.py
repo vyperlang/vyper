@@ -1,7 +1,7 @@
 from vyper.exceptions import InvalidAttribute
 
 
-def test_multi_setter_test(get_contract_with_gas_estimation):
+def test_multi_setter_test(get_contract):
     multi_setter_test = """
 dog: int128[3]
 bar: int128[3][3]
@@ -54,7 +54,7 @@ def jop() -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation(multi_setter_test)
+    c = get_contract(multi_setter_test)
     assert c.foo() == 321
     c.foo(transact={})
     assert c.fop() == 654321
@@ -68,7 +68,7 @@ def jop() -> int128:
     print("Passed multi-setter literal test")
 
 
-def test_multi_setter_struct_test(get_contract_with_gas_estimation):
+def test_multi_setter_struct_test(get_contract):
     multi_setter_struct_test = """
 struct Dog:
     foo: int128
@@ -141,7 +141,7 @@ def gop() -> int128:
         zed[1].bar[1].b * 10000000000000
     """
 
-    c = get_contract_with_gas_estimation(multi_setter_struct_test)
+    c = get_contract(multi_setter_struct_test)
     assert c.foo() == 654321
     assert c.fop() == 87198763254321
     assert c.goo() == 654321
@@ -163,7 +163,7 @@ def test2() -> uint256:
     assert_compile_failed(lambda: get_contract(code), InvalidAttribute)
 
 
-def test_type_converter_setter_test(get_contract_with_gas_estimation):
+def test_type_converter_setter_test(get_contract):
     type_converter_setter_test = """
 pap: decimal[2][2]
 
@@ -177,11 +177,11 @@ def goo() -> int256:
         self.pap[1][1] * 1000.0)
     """
 
-    c = get_contract_with_gas_estimation(type_converter_setter_test)
+    c = get_contract(type_converter_setter_test)
     assert c.goo() == 4321
 
 
-def test_composite_setter_test(get_contract_with_gas_estimation):
+def test_composite_setter_test(get_contract):
     composite_setter_test = """
 struct C:
     c: int128
@@ -217,7 +217,7 @@ def foq() -> int128:
     return popp.a[0].c + popp.a[1].c * 10 + popp.a[2].c * 100 + popp.b * 1000
     """
 
-    c = get_contract_with_gas_estimation(composite_setter_test)
+    c = get_contract(composite_setter_test)
     assert c.foo() == 4625
     assert c.fop() == 4625
     assert c.foq() == 4020

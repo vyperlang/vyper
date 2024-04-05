@@ -152,13 +152,13 @@ def test_bool_success(good_code):
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_string_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_string_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: String[{length}]) -> bool:
     return xs {op} ""
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":
@@ -179,13 +179,13 @@ def foo(xs: String[{length}]) -> bool:
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_bytes_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_bytes_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: Bytes[{length}]) -> bool:
     return b"" {op} xs
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":

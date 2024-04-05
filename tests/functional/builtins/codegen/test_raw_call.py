@@ -1,6 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
+from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
@@ -50,14 +51,14 @@ def foo() -> Bytes[5]:
     assert c.foo() == b"moose"
 
 
-def test_multiple_levels(env, get_contract_with_gas_estimation):
+def test_multiple_levels(env, get_contract):
     inner_code = """
 @external
 def returnten() -> int128:
     return 10
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = get_contract(inner_code)
 
     outer_code = """
 @external
@@ -72,7 +73,7 @@ def create_and_return_proxy(inp: address) -> address:
     return x
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
 
@@ -91,14 +92,14 @@ def create_and_return_proxy(inp: address) -> address:
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
 
-def test_multiple_levels2(tx_failed, get_contract_with_gas_estimation):
+def test_multiple_levels2(tx_failed, get_contract):
     inner_code = """
 @external
 def returnten() -> int128:
     raise
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = get_contract(inner_code)
 
     outer_code = """
 @external
@@ -112,7 +113,7 @@ def create_and_return_proxy(inp: address) -> address:
     return create_minimal_proxy_to(inp)
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = get_contract(outer_code)
 
     with tx_failed():
         c2.create_and_call_returnten(c.address)
@@ -164,7 +165,7 @@ def set(i: int128, owner: address):
 
     # Confirm outer contract's state is empty and contract to call has been set.
     assert outer_contract.owner_setter_contract() == inner_contract.address
-    assert outer_contract.owners(1) is None
+    assert outer_contract.owners(1) == ZERO_ADDRESS
 
     # Call outer contract, that make a delegate call to inner_contract.
     outer_contract.set(1, a1)
@@ -635,7 +636,5 @@ def foo(_addr: address):
 
 
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
-def test_invalid_type_exception(
-    assert_compile_failed, get_contract_with_gas_estimation, source_code, exc
-):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(source_code), exc)
+def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
+    assert_compile_failed(lambda: get_contract(source_code), exc)

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
+
 # ERC1155 ownable, opensea compatible tests
 # @author Dr. Pixel (github: @Doc-Pixel)
 
@@ -18,7 +20,6 @@ CONTRACT_DYNURI = "https://mydomain.io/NFTdata/"
 ERC165_INTERFACE_ID = "0x01ffc9a7"
 ERC1155_INTERFACE_ID = "0xd9b67a26"
 ERC1155_INTERFACE_ID_METADATA = "0x0e89341c"
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 DUMMY_BYTES32_DATA = "0x0101010101010101010101010101010101010101010101010101010101010101"
 
 # minting test lists
@@ -397,7 +398,7 @@ def test_ownership_functions(erc1155, env, tx_failed):
         erc1155.transferOwnership(owner)
     # try to transfer ownership to ZERO ADDRESS
     with tx_failed():
-        erc1155.transferOwnership("0x0000000000000000000000000000000000000000")
+        erc1155.transferOwnership(ZERO_ADDRESS)
 
     # Transfer ownership to account 1
     erc1155.transferOwnership(a1, transact={"from": owner})

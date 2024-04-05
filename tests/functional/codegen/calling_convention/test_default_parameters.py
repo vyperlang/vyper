@@ -1,6 +1,7 @@
 import pytest
 from eth.codecs.abi.exceptions import EncodeError
 
+from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     InvalidLiteral,
@@ -138,8 +139,8 @@ def faz(a: uint256, b: Foo = FOO) -> Foo:
 
     assert c.bar(1) == addr2
     assert c.bar(1, addr1) == addr1
-    assert c.baz(1) is None
-    assert c.baz(1, "0x0000000000000000000000000000000000000000") is None
+    assert c.baz(1) == ZERO_ADDRESS
+    assert c.baz(1, ZERO_ADDRESS) == ZERO_ADDRESS
     assert c.faz(1) == addr1
     assert c.faz(1, addr1) == addr1
 

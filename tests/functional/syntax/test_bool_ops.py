@@ -1,4 +1,4 @@
-def test_convert_from_bool(get_contract_with_gas_estimation):
+def test_convert_from_bool(get_contract):
     code = """
 @external
 def foo() -> bool:
@@ -31,7 +31,7 @@ def oofrab() -> bool:
     return val
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is False
     assert c.bar() is True
     assert c.foobar() is False

@@ -1,6 +1,8 @@
 import pytest
 from eth_utils import to_wei
 
+from tests.utils import ZERO_ADDRESS
+
 
 @pytest.fixture
 def market_maker(get_contract):
@@ -29,7 +31,7 @@ def test_initial_state(market_maker):
     assert market_maker.totalEthQty() == 0
     assert market_maker.totalTokenQty() == 0
     assert market_maker.invariant() == 0
-    assert market_maker.owner() is None
+    assert market_maker.owner() == ZERO_ADDRESS
 
 
 def test_initiate(env, market_maker, erc20, tx_failed):

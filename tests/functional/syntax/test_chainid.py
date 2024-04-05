@@ -81,12 +81,12 @@ def test_chain_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
 
-def test_chainid_operation(get_contract_with_gas_estimation, env):
+def test_chainid_operation(get_contract, env):
     code = """
 @external
 @view
 def get_chain_id() -> uint256:
     return chain.id
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_chain_id() == env.DEFAULT_CHAIN_ID

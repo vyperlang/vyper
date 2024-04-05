@@ -12,15 +12,6 @@ from hexbytes import HexBytes
 _parsers: dict[str, ABITypeNode] = {}
 
 
-class _Decoder(Decoder):
-    @classmethod
-    def visit_AddressNode(
-        cls, node: AddressNode, value: bytes, checksum: bool = True, **kwargs: Any
-    ) -> str | None:
-        address = super().visit_AddressNode(node, value, checksum, **kwargs)
-        return address if address != "0x0000000000000000000000000000000000000000" else None
-
-
 class _Encoder(Encoder):
     """
     Custom encoder that converts some types to the expected format.
@@ -61,7 +52,7 @@ def abi_encode(schema: str, data: Any) -> bytes:
 
 
 def abi_decode(schema: str, data: bytes) -> Any:
-    return _Decoder.decode(_get_parser(schema), data)
+    return Decoder.decode(_get_parser(schema), data)
 
 
 def is_abi_encodable(abi_type: str, data: Any) -> bool:

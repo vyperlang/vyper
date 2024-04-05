@@ -1,7 +1,7 @@
 from vyper.exceptions import InvalidLiteral, SyntaxException
 
 
-def test_no_none_assign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_no_none_assign(assert_compile_failed, get_contract):
     contracts = [  # noqa: E122
         """
 @external
@@ -72,12 +72,10 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
-        )
+        assert_compile_failed(lambda c=contract: get_contract(c), InvalidLiteral)
 
 
-def test_no_is_none(assert_compile_failed, get_contract_with_gas_estimation):
+def test_no_is_none(assert_compile_failed, get_contract):
     contracts = [  # noqa: E122
         """
 @external
@@ -118,12 +116,10 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda c=contract: get_contract_with_gas_estimation(c), SyntaxException
-        )
+        assert_compile_failed(lambda c=contract: get_contract(c), SyntaxException)
 
 
-def test_no_eq_none(assert_compile_failed, get_contract_with_gas_estimation):
+def test_no_eq_none(assert_compile_failed, get_contract):
     contracts = [  # noqa: E122
         """
 @external
@@ -164,12 +160,10 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
-        )
+        assert_compile_failed(lambda c=contract: get_contract(c), InvalidLiteral)
 
 
-def test_struct_none(assert_compile_failed, get_contract_with_gas_estimation):
+def test_struct_none(assert_compile_failed, get_contract):
     contracts = [  # noqa: E122
         """
 struct Mom:
@@ -201,6 +195,4 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(
-            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
-        )
+        assert_compile_failed(lambda c=contract: get_contract(c), InvalidLiteral)

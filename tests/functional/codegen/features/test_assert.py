@@ -7,13 +7,13 @@ def _fixup_err_str(e_info):
     return e_info.value.args[0].replace("execution reverted: ", "")
 
 
-def test_assert_refund(env, get_contract_with_gas_estimation, tx_failed):
+def test_assert_refund(env, get_contract, tx_failed):
     code = """
 @external
 def foo():
     raise
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     env.set_balance(env.deployer, 10**7)
     gas_sent = 10**6
     with tx_failed():
@@ -23,7 +23,7 @@ def foo():
     assert env.last_result["is_success"] is False
 
 
-def test_assert_reason(env, get_contract_with_gas_estimation, tx_failed, memory_mocker):
+def test_assert_reason(env, get_contract, tx_failed, memory_mocker):
     code = """
 err: String[32]
 
@@ -54,7 +54,7 @@ def test5(reason_str: String[32]):
     self.err = reason_str
     raise self.err
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test(2) == 3
     with tx_failed(exc_text="larger than one please"):

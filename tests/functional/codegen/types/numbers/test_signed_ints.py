@@ -134,7 +134,7 @@ def foo(x: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_negative_nums(get_contract_with_gas_estimation, typ):
+def test_negative_nums(get_contract, typ):
     negative_nums_code = f"""
 @external
 def negative_one() -> {typ}:
@@ -150,14 +150,14 @@ def negative_four() -> {typ}:
     return -(a+2)
     """
 
-    c = get_contract_with_gas_estimation(negative_nums_code)
+    c = get_contract(negative_nums_code)
     assert c.negative_one() == -1
     assert c.negative_three() == -3
     assert c.negative_four() == -4
 
 
 @pytest.mark.parametrize("typ", types)
-def test_num_bound(tx_failed, get_contract_with_gas_estimation, typ):
+def test_num_bound(tx_failed, get_contract, typ):
     lo, hi = typ.ast_bounds
 
     num_bound_code = f"""
@@ -186,7 +186,7 @@ def _num_min() -> {typ}:
     return {lo}
     """
 
-    c = get_contract_with_gas_estimation(num_bound_code)
+    c = get_contract(num_bound_code)
 
     assert c._num_add(hi, 0) == hi
     assert c._num_sub(lo, 0) == lo

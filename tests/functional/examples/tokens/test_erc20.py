@@ -4,7 +4,8 @@
 import pytest
 from eth.codecs.abi.exceptions import EncodeError
 
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+from tests.utils import ZERO_ADDRESS
+
 MAX_UINT256 = (2**256) - 1  # Max uint256 value
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
@@ -20,7 +21,7 @@ def c(get_contract, env):
 
 
 @pytest.fixture
-def c_bad(get_contract, env):
+def c_bad(get_contract):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()

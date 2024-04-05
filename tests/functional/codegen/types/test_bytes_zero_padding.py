@@ -3,7 +3,7 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def little_endian_contract(get_contract_module):
+def little_endian_contract(get_contract):
     code = """
 @internal
 @view
@@ -20,7 +20,7 @@ def to_little_endian_64(_value: uint256) -> Bytes[8]:
 def get_count(counter: uint256) -> Bytes[24]:
     return self.to_little_endian_64(counter)
     """
-    return get_contract_module(code)
+    return get_contract(code)
 
 
 @pytest.mark.fuzzing

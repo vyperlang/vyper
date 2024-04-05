@@ -4,6 +4,8 @@ from eth_account.messages import encode_defunct
 from eth_keys import KeyAPI
 from eth_utils import is_same_address, to_bytes, to_checksum_address, to_int
 
+from tests.utils import ZERO_ADDRESS
+
 
 @pytest.fixture
 def c(env, get_contract):
@@ -71,7 +73,6 @@ def test_approve(env, c, tx_failed, sign):
 def test_javascript_signatures(env, get_contract, keccak):
     a3 = env.accounts[2]
     # The zero address will cause `approve` to default to valid signatures
-    zero_address = "0x0000000000000000000000000000000000000000"
     accounts = [
         "0x776ba14735ff84789320718cf0aa43e91f7a8ce1",
         "0x095ce4e4240fa66ff90282c26847456e3f3b5002",
@@ -105,7 +106,7 @@ def test_javascript_signatures(env, get_contract, keccak):
 
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
-        owners = [to_checksum_address(x) for x in accounts + [a3, zero_address, zero_address]]
+        owners = [to_checksum_address(x) for x in accounts + [a3, (ZERO_ADDRESS), (ZERO_ADDRESS)]]
         x2 = get_contract(f.read(), *[owners, 2])
 
     env.execute_code(x2.address, value=10**17)

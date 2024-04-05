@@ -1,5 +1,7 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
+
 MAX_BIDS = 128
 
 BIDDING_TIME = 150
@@ -8,12 +10,12 @@ TEST_INCREMENT = 1
 
 
 @pytest.fixture
-def auction_contract(env, get_contract, initial_balance):
+def auction_contract(env, get_contract):
     with open("examples/auctions/blind_auction.vy") as f:
         contract_code = f.read()
 
     for acc in env.accounts[1:4]:
-        env.set_balance(acc, initial_balance)
+        env.set_balance(acc, 10**20)
 
     return get_contract(contract_code, *[env.deployer, BIDDING_TIME, REVEAL_TIME])
 
@@ -30,7 +32,7 @@ def test_initial_state(env, auction_contract):
     # Check highest bid is 0
     assert auction_contract.highestBid() == 0
     # Check highest bidder is empty
-    assert auction_contract.highestBidder() is None
+    assert auction_contract.highestBidder() == ZERO_ADDRESS
 
 
 def test_late_bid(env, auction_contract, tx_failed, keccak):
@@ -123,7 +125,7 @@ def test_early_reval(env, auction_contract, tx_failed, keccak):
         )
 
     # Check highest bidder is still empty
-    assert auction_contract.highestBidder() is None
+    assert auction_contract.highestBidder() == ZERO_ADDRESS
     # Check highest bid is still 0
     assert auction_contract.highestBid() == 0
 
@@ -162,7 +164,7 @@ def test_late_reveal(env, auction_contract, tx_failed, keccak):
         )
 
     # Check highest bidder is still empty
-    assert auction_contract.highestBidder() is None
+    assert auction_contract.highestBidder() == ZERO_ADDRESS
     # Check highest bid is still 0
     assert auction_contract.highestBid() == 0
 
@@ -189,10 +191,10 @@ def test_double_end(env, auction_contract, tx_failed):
         auction_contract.auctionEnd(transact={"value": 0, "from": k0})
 
 
-def test_blind_auction(env, initial_balance, auction_contract, keccak):
+def test_blind_auction(env, auction_contract, keccak):
     k0, k1, k2, k3 = env.accounts[0:4]
     for acc in env.accounts[1:4]:
-        env.set_balance(acc, initial_balance)
+        env.set_balance(acc, 10**20)
 
     ###################################################################
     #                         Place bids                              #

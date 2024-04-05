@@ -15,7 +15,7 @@ negative_G1 = [1, 21888242871839275222246405745257275088696311157297823662689037
 curve_order = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 
-def test_ecadd(get_contract_with_gas_estimation):
+def test_ecadd(get_contract):
     ecadder = """
 x3: uint256[2]
 y3: uint256[2]
@@ -37,7 +37,7 @@ def _ecadd3(x: uint256[2], y: uint256[2]) -> uint256[2]:
     return ecadd(self.x3, self.y3)
 
     """
-    c = get_contract_with_gas_estimation(ecadder)
+    c = get_contract(ecadder)
 
     assert c._ecadd(G1, G1) == G1_times_two
     assert c._ecadd2(G1, G1_times_two) == G1_times_three
@@ -45,7 +45,7 @@ def _ecadd3(x: uint256[2], y: uint256[2]) -> uint256[2]:
     assert c._ecadd3(G1, negative_G1) == [0, 0]
 
 
-def test_ecadd_internal_call(get_contract_with_gas_estimation):
+def test_ecadd_internal_call(get_contract):
     code = """
 @internal
 def a() -> uint256[2]:
@@ -55,7 +55,7 @@ def a() -> uint256[2]:
 def foo() -> uint256[2]:
     return ecadd([1, 2], self.a())
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == G1_times_two
 
 
@@ -76,7 +76,7 @@ def foo(a: Foo) -> uint256[2]:
     assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
 
 
-def test_ecadd_evaluation_order(get_contract_with_gas_estimation):
+def test_ecadd_evaluation_order(get_contract):
     code = """
 x: uint256[2]
 
@@ -92,11 +92,11 @@ def foo() -> bool:
     b: uint256[2] = ecadd(self.x, self.bar())
     return a[0] == b[0] and a[1] == b[1]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True
 
 
-def test_ecmul(get_contract_with_gas_estimation):
+def test_ecmul(get_contract):
     ecmuller = """
 x3: uint256[2]
 y3: uint256
@@ -118,7 +118,7 @@ def _ecmul3(x: uint256[2], y: uint256) -> uint256[2]:
     return ecmul(self.x3, self.y3)
 
 """
-    c = get_contract_with_gas_estimation(ecmuller)
+    c = get_contract(ecmuller)
 
     assert c._ecmul(G1, 0) == [0, 0]
     assert c._ecmul(G1, 1) == G1
@@ -127,7 +127,7 @@ def _ecmul3(x: uint256[2], y: uint256) -> uint256[2]:
     assert c._ecmul(G1, curve_order) == [0, 0]
 
 
-def test_ecmul_internal_call(get_contract_with_gas_estimation):
+def test_ecmul_internal_call(get_contract):
     code = """
 @internal
 def a() -> uint256:
@@ -137,7 +137,7 @@ def a() -> uint256:
 def foo() -> uint256[2]:
     return ecmul([1, 2], self.a())
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == G1_times_three
 
 
@@ -158,7 +158,7 @@ def foo(a: Foo) -> uint256[2]:
     assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
 
 
-def test_ecmul_evaluation_order(get_contract_with_gas_estimation):
+def test_ecmul_evaluation_order(get_contract):
     code = """
 x: uint256[2]
 
@@ -174,5 +174,5 @@ def foo() -> bool:
     b: uint256[2] = ecmul(self.x, self.bar())
     return a[0] == b[0] and a[1] == b[1]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True

@@ -26,8 +26,6 @@ BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT()
 
 TEST_TYPES = BASE_TYPES | {BytesT(32)} | {StringT(32)}
 
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
 
@@ -422,9 +420,7 @@ def _vyper_literal(val, typ):
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
-def test_convert_passing(
-    get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val
-):
+def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
     expected_val = _py_convert(val, i_typ, o_typ)
     if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
@@ -449,9 +445,9 @@ def test_convert() -> {o_typ}:
         skip_c1 = True
 
     if c1_exception is not None:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
+        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
     elif not skip_c1:
-        c1 = get_contract_with_gas_estimation(contract_1)
+        c1 = get_contract(contract_1)
         assert c1.test_convert() == expected_val
 
     contract_2 = f"""
@@ -460,7 +456,7 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     return convert(x, {o_typ})
     """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
     assert c2.test_input_convert(val) == expected_val
 
     contract_3 = f"""
@@ -472,7 +468,7 @@ def test_state_variable_convert() -> {o_typ}:
     return convert(self.bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
+    c3 = get_contract(contract_3)
     assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
@@ -482,13 +478,13 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
     return convert(y, {o_typ})
     """
 
-    c4 = get_contract_with_gas_estimation(contract_4)
+    c4 = get_contract(contract_4)
     assert c4.test_memory_variable_convert(val) == expected_val
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
 @pytest.mark.parametrize("val", [1, 2, 2**128, 2**256 - 1, 2**256 - 2])
-def test_flag_conversion(get_contract_with_gas_estimation, assert_compile_failed, val, typ):
+def test_flag_conversion(get_contract, assert_compile_failed, val, typ):
     roles = "\n    ".join([f"ROLE_{i}" for i in range(256)])
     contract = f"""
 flag Roles:
@@ -503,18 +499,16 @@ def bar(a: uint256) -> Roles:
     return convert(a, Roles)
     """
     if typ == "uint256":
-        c = get_contract_with_gas_estimation(contract)
+        c = get_contract(contract)
         assert c.foo(val) == val
         assert c.bar(val) == val
     else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+        assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
 @pytest.mark.parametrize("val", [1, 2, 3, 4, 2**128, 2**256 - 1, 2**256 - 2])
-def test_flag_conversion_2(
-    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, val, typ
-):
+def test_flag_conversion_2(get_contract, assert_compile_failed, tx_failed, val, typ):
     contract = f"""
 flag Status:
     STARTED
@@ -526,7 +520,7 @@ def foo(a: {typ}) -> Status:
     return convert(a, Status)
     """
     if typ == "uint256":
-        c = get_contract_with_gas_estimation(contract)
+        c = get_contract(contract)
         lo, hi = int_bounds(signed=False, bits=3)
         if lo <= val <= hi:
             assert c.foo(val) == val
@@ -534,7 +528,7 @@ def foo(a: {typ}) -> Status:
             with tx_failed():
                 c.foo(val)
     else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+        assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
 # uint256 conversion is currently valid due to type inference on literals
@@ -662,9 +656,7 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(
-    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, i_typ, o_typ, val
-):
+def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -695,7 +687,7 @@ def foo() -> {o_typ}:
     #    skip_c1 = True
 
     if not skip_c1:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
+        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
 
     contract_2 = f"""
 @external
@@ -704,7 +696,7 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
     with tx_failed():
         c2.foo()
 
@@ -714,6 +706,6 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
+    c3 = get_contract(contract_3)
     with tx_failed():
         c3.foo(val)
