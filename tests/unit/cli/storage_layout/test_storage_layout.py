@@ -1,8 +1,7 @@
 from vyper.compiler import compile_code
-from vyper.evm.opcodes import version_check
-
 
 from .utils import adjust_storage_layout_for_cancun
+
 
 def test_storage_layout():
     code = """
