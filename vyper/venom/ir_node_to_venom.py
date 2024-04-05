@@ -460,11 +460,13 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value == "repeat":
 
         def emit_body_blocks():
-            global _break_target, _continue_target
+            global _break_target, _continue_target, _global_symbols
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
+            saved_global_symbols = _global_symbols.copy()
             _convert_ir_bb(ctx, body, symbols.copy())
             _break_target, _continue_target = old_targets
+            _global_symbols = saved_global_symbols
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(ctx, ir.args[1:4], symbols)
@@ -548,7 +550,18 @@ def _convert_ir_bb(ctx, ir, symbols):
             ptr = ctx.get_basic_block().append_instruction("store", alloca.offset)
             _global_symbols[ir.value] = ptr
 
-        return _global_symbols.get(ir.value) or symbols[ir.value]
+        return _global_symbols.get(ir.value) or symbols.get(ir.value)
+    # elif isinstance(ir.value, str):
+    #     if ir.value.startswith("$alloca") and ir.value not in symbols:
+    #         alloca = ir.passthrough_metadata["alloca"]
+    #         ptr = ctx.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
+    #         symbols[ir.value] = ptr
+    #     elif ir.value.startswith("$palloca") and ir.value not in symbols:
+    #         alloca = ir.passthrough_metadata["alloca"]
+    #         ptr = ctx.get_basic_block().append_instruction("store", alloca.offset)
+    #         symbols[ir.value] = ptr
+
+    #     return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
