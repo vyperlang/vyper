@@ -11,15 +11,15 @@ jobs:
   publish-pypi:
     runs-on: ubuntu-latest
 
-    steps:
-    - uses: actions/checkout@v4
-
-    # Specifying a GitHub environment is optional, but strongly encouraged
-    environment: release
-
+    # https://docs.pypi.org/trusted-publishers/using-a-publisher/
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
+    # Specifying a GitHub environment is optional, but strongly encouraged
+    environment: release
+
+    steps:
+    - uses: actions/checkout@v4
 
     - name: Python
       uses: actions/setup-python@v5
