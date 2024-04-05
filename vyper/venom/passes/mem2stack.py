@@ -45,8 +45,8 @@ class Mem2Stack(IRPass):
         elif all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):    
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
-            print(f"Processing alloca var {var_name}")
-            print(uses)
+            # print(f"Processing alloca var {var_name}")
+            # print(uses)
             for inst in uses:
                 if inst.opcode == "mstore":
                     inst.opcode = "store"

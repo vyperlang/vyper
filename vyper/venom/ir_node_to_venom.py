@@ -105,10 +105,13 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-
+_global_symbols: SymbolTable = {}
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRFunction:
+    global _global_symbols
+    _global_symbols = {}
+
     ctx = IRFunction()
     _convert_ir_bb(ctx, ir, {})
 
@@ -219,7 +222,6 @@ def _convert_ir_bb_list(ctx, ir, symbols):
 
 current_func = None
 var_list: list[str] = []
-_global_symbols = {}
 
 def pop_source_on_return(func):
     @functools.wraps(func)
@@ -276,6 +278,7 @@ def _convert_ir_bb(ctx, ir, symbols):
 
                 return ret
             elif is_external:
+                _global_symbols = {}
                 ret = _convert_ir_bb(ctx, ir.args[0], symbols)
                 _append_return_args(ctx)
         else:
@@ -297,6 +300,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         cond_block = ctx.get_basic_block()
 
         cond_symbols = symbols.copy()
+        saved_global_symbols = _global_symbols.copy()
 
         else_block = IRBasicBlock(ctx.get_next_label("else"), ctx)
         ctx.append_basic_block(else_block)
@@ -339,6 +343,8 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
+
+        _global_symbols = saved_global_symbols
 
         return if_ret
 

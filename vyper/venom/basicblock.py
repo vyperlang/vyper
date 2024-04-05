@@ -8,7 +8,6 @@ BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "st
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
-        "alloca",
         "call",
         "staticcall",
         "delegatecall",
@@ -231,7 +230,6 @@ class IRInstruction:
     """
 
     opcode: str
-    volatile: bool
     operands: list[IROperand]
     output: Optional[IROperand]
     # set of live variables at this instruction
@@ -252,7 +250,6 @@ class IRInstruction:
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
-        self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
@@ -262,6 +259,10 @@ class IRInstruction:
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
+
+    @property
+    def volatile(self) -> bool:
+        return self.opcode in VOLATILE_INSTRUCTIONS
 
     def get_label_operands(self) -> list[IRLabel]:
         """
