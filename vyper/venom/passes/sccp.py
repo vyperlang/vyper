@@ -109,7 +109,7 @@ class SCCP(IRPass):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         vars = []
         for bb, var in inst.phi_operands:
-            assert inst.parent is not None and inst.parent == bb, "Phi from different basic block"
+            assert inst.parent is not None, "Instruction with no parent"
             if bb not in inst.parent.cfg_in_exec:
                 continue
             vars.append(self.lattice[var])
