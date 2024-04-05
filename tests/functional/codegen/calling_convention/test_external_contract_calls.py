@@ -895,7 +895,7 @@ def set_lucky(arg1: address, arg2: int128):
     c2 = get_contract(contract_2)
 
     assert c.lucky() == 0
-    c2.set_lucky(c.address, lucky_number, transact={})
+    c2.set_lucky(c.address, lucky_number)
     assert c.lucky() == lucky_number
     print("Successfully executed an external contract call state change")
 
@@ -961,8 +961,8 @@ def set_lucky(arg1: address, arg2: int128):
     """
     c3 = get_contract(contract_3)
 
-    c3.set_lucky(c.address, lucky_number_1, transact={})
-    c3.set_lucky(c2.address, lucky_number_2, transact={})
+    c3.set_lucky(c.address, lucky_number_1)
+    c3.set_lucky(c2.address, lucky_number_2)
     assert c.lucky() == lucky_number_1
     assert c2.lucky() == lucky_number_2
     print(
@@ -1243,10 +1243,10 @@ def get_lucky(contract_address: address) -> int128:
     c2 = get_contract(contract_2)
     assert c1.get_lucky() == 0
     assert c2.get_lucky(c1.address) == 0
-    c1.set_lucky(6, transact={})
+    c1.set_lucky(6)
     assert c1.get_lucky() == 6
     assert c2.get_lucky(c1.address) == 6
-    c2.set_lucky(c1.address, transact={})
+    c2.set_lucky(c1.address)
     assert c1.get_lucky() == 1
     assert c2.get_lucky(c1.address) == 1
 
@@ -1285,9 +1285,9 @@ def get_lucky() -> int128:
     c3 = get_contract(contract_3)
     assert c1.get_lucky() == 1
     assert c2.get_lucky() == 2
-    c3.set_contract(c1.address, transact={})
+    c3.set_contract(c1.address)
     assert c3.get_lucky() == 1
-    c3.set_contract(c2.address, transact={})
+    c3.set_contract(c2.address)
     assert c3.get_lucky() == 2
 
 
@@ -1313,7 +1313,7 @@ def get_bar() -> int128:
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c2.foo(c1.address, transact={})
+    c2.foo(c1.address)
     assert c2.bar_contract() == c1.address
     assert c2.get_bar() == 1
 
@@ -1390,7 +1390,7 @@ def get_lucky(amount_to_send: uint256) -> int128:
     assert c1.get_lucky() == 1
     assert c1.get_balance() == 0
 
-    c2.set_contract(c1.address, transact={})
+    c2.set_contract(c1.address)
 
     # Send some eth
     env.set_balance(env.deployer, 10000)
@@ -1440,7 +1440,7 @@ def get_lucky(gas_amount: uint256) -> int128:
 
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c2.set_contract(c1.address, transact={})
+    c2.set_contract(c1.address)
 
     assert c2.get_lucky(1000) == 656598
     with tx_failed():

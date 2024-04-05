@@ -26,7 +26,7 @@ def get_counter() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.get_counter() == 0
-    c.increment_counter(transact={})
+    c.increment_counter()
     assert c.get_counter() == 1
 
 
@@ -75,15 +75,15 @@ def get_lib_counter() -> uint256:
 
     assert c.get_counter() == c.get_lib_counter() == 0
 
-    c.increment_counter(transact={})
+    c.increment_counter()
     assert c.get_counter() == 1
     assert c.get_lib_counter() == 0
 
-    c.increment_lib_counter(transact={})
+    c.increment_lib_counter()
     assert c.get_lib_counter() == 1
     assert c.get_counter() == 1
 
-    c.increment_lib_counter2(transact={})
+    c.increment_lib_counter2()
     assert c.get_lib_counter() == 6
     assert c.get_counter() == 1
 
@@ -310,7 +310,7 @@ def get_hashmap_value(ix: uint256) -> uint256:
 
     assert c.get_array_value(0) == 0
     assert c.get_hashmap_value(0) == 0
-    c.do_things(transact={})
+    c.do_things()
 
     assert c.get_array_value(0) == 0
     assert c.get_hashmap_value(0) == 0

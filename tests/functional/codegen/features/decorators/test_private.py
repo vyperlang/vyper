@@ -179,7 +179,7 @@ def hithere(name: Bytes[20]) -> Bytes[40]:
     c = get_contract(private_test_code)
     assert c.greeting() == b"Hello "
     assert c.hithere(b"Bob") == b"Hello Bob"
-    c.iprefer(b"Hi there, ", transact={})
+    c.iprefer(b"Hi there, ")
     assert c.hithere(b"Alice") == b"Hi there, Alice"
 
 
@@ -265,7 +265,7 @@ def test4() -> (Bytes[100]):
     assert c.test() == b"hello" + test_str
     assert c.test2() == b"hello" + test_str
     assert c.test3(b"alice") == b"alice"
-    c.set(b"hello daar", transact={})
+    c.set(b"hello daar")
     assert c.test4() == b"hello daar"
 
 
@@ -413,7 +413,7 @@ def __default__():
     assert env.get_balance(c.address) == to_wei(1, "ether")
     a3 = env.accounts[2]
     env.set_balance(a3, to_wei(1000000, "ether"))
-    c.test(True, a3, to_wei(0.05, "ether"), transact={})
+    c.test(True, a3, to_wei(0.05, "ether"))
     assert env.get_balance(a3) == to_wei(1000000.05, "ether")
     assert env.get_balance(c.address) == to_wei(0.95, "ether")
 
@@ -444,8 +444,8 @@ def whoami() -> address:
     assert c.i_am_me()
 
     addr = env.accounts[1]
-    result = c.whoami(transact={"from": addr})
-    (log,) = get_logs(result, c)
+    c.whoami(transact={"from": addr})
+    (log,) = get_logs(c)
     assert log.args.addr == addr
 
 
@@ -537,7 +537,7 @@ def start():
     c = get_contract(code)
 
     assert c.test() is False
-    c.start(transact={})
+    c.start()
     assert c.test() is True
 
 

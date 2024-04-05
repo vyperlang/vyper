@@ -165,32 +165,32 @@ def __default__():
     contract = get_contract(protected_code)
     malicious = get_contract(malicious_code)
 
-    contract.set_callback(malicious.address, transact={})
+    contract.set_callback(malicious.address)
     assert contract.callback() == malicious.address
 
     # Test unprotected function.
-    contract.unprotected_function("some value", True, transact={})
+    contract.unprotected_function("some value", True)
     assert contract.special_value() == "surprise!"
 
     # Test protected function.
-    contract.protected_function("some value", False, transact={})
+    contract.protected_function("some value", False)
     assert contract.special_value() == "some value"
     assert contract.protected_view_fn() == "some value"
 
     with tx_failed():
-        contract.protected_function("zzz value", True, transact={})
+        contract.protected_function("zzz value", True)
 
-    contract.protected_function2("another value", False, transact={})
+    contract.protected_function2("another value", False)
     assert contract.special_value() == "another value"
 
     with tx_failed():
-        contract.protected_function2("zzz value", True, transact={})
+        contract.protected_function2("zzz value", True)
 
-    contract.protected_function3("another value", False, transact={})
+    contract.protected_function3("another value", False)
     assert contract.special_value() == "another value"
 
     with tx_failed():
-        contract.protected_function3("zzz value", True, transact={})
+        contract.protected_function3("zzz value", True)
 
 
 def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
@@ -256,7 +256,7 @@ def __default__():
     reentrant_contract = get_contract(reentrant_code)
     calling_contract = get_contract(calling_contract_code)
 
-    reentrant_contract.set_callback(calling_contract.address, transact={})
+    reentrant_contract.set_callback(calling_contract.address)
     assert reentrant_contract.callback() == calling_contract.address
 
     # Test unprotected function without callback.

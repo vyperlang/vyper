@@ -80,16 +80,16 @@ def get_xy() -> int128:
     """
 
     c = get_contract(test_bytes3)
-    c.set_maa(b"pig", transact={})
+    c.set_maa(b"pig")
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
-    c.set_maa2(b"", transact={})
+    c.set_maa2(b"")
     assert c.get_maa() == b""
     assert c.get_maa2() == b""
-    c.set_maa(b"\x44" * 60, transact={})
+    c.set_maa(b"\x44" * 60)
     assert c.get_maa() == b"\x44" * 60
     assert c.get_maa2() == b"\x44" * 60
-    c.set_maa2(b"mongoose", transact={})
+    c.set_maa2(b"mongoose")
     assert c.get_maa() == b"mongoose"
     assert c.get_xy() == 999
 
@@ -160,12 +160,12 @@ def quz(inp1: Bytes[40], inp2: Bytes[45]):
     """
 
     c = get_contract(test_bytes5)
-    c.foo(b"cow", b"horse", transact={})
+    c.foo(b"cow", b"horse")
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
     assert c.bar(b"pig", b"moose") == b"pig"
     assert c.bat(b"pig", b"moose") == b"moose"
-    c.quz(b"badminton", b"fluffysheep", transact={})
+    c.quz(b"badminton", b"fluffysheep")
     assert c.check1() == b"badminton"
     assert c.check2() == b"fluffysheep"
 
@@ -286,11 +286,11 @@ def get_count() -> Bytes[24]:
     c = get_contract(code)
 
     assert c.get_count() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
-    c.set_count(1, transact={})
+    c.set_count(1)
     assert c.get_count() == b"\x01\x00\x00\x00\x00\x00\x00\x00"
-    c.set_count(0xF0F0F0, transact={})
+    c.set_count(0xF0F0F0)
     assert c.get_count() == b"\xf0\xf0\xf0\x00\x00\x00\x00\x00"
-    c.set_count(0x0101010101010101, transact={})
+    c.set_count(0x0101010101010101)
     assert c.get_count() == b"\x01\x01\x01\x01\x01\x01\x01\x01"
 
 

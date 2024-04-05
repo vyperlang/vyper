@@ -62,21 +62,21 @@ def try32(inp: bytes32) -> bool:
 
     """
     c = get_contract(hash_code3)
-    c.set_test(b"", transact={})
+    c.set_test(b"")
     assert c.tryy(b"") is True
     assert c.tryy_str("") is True
     assert c.trymem(b"") is True
     assert c.tryy(b"cow") is False
-    c.set_test(b"cow", transact={})
+    c.set_test(b"cow")
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True
     assert c.tryy_str("cow") is True
-    c.set_test(b"\x35" * 32, transact={})
+    c.set_test(b"\x35" * 32)
     assert c.tryy(b"\x35" * 32) is True
     assert c.trymem(b"\x35" * 32) is True
     assert c.try32(b"\x35" * 32) is True
     assert c.tryy(b"\x35" * 33) is False
-    c.set_test(b"\x35" * 33, transact={})
+    c.set_test(b"\x35" * 33)
     assert c.tryy(b"\x35" * 32) is False
     assert c.trymem(b"\x35" * 32) is False
     assert c.try32(b"\x35" * 32) is False

@@ -395,11 +395,11 @@ def fix():
     assert c.x() == 2
     assert c.d() == 2
 
-    c.thrash(transact={})
+    c.thrash()
 
     assert c.x() == 2
     assert c.d() == 2 + 5
 
-    c.fix(transact={})
+    c.fix()
     assert c.x() == 2
     assert c.d() == 2

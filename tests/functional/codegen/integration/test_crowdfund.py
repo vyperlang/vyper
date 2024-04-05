@@ -79,7 +79,7 @@ def refund():
     pre_bal = env.get_balance(a1)
     env.time_travel(100)
     assert c.expired()
-    c.finalize(transact={})
+    c.finalize()
     post_bal = env.get_balance(a1)
     assert post_bal - pre_bal == 54
 
@@ -92,7 +92,7 @@ def refund():
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
-    c.refund(transact={})
+    c.refund()
     post_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
@@ -172,7 +172,7 @@ def refund():
     pre_bal = env.get_balance(a1)
     env.time_travel(100)
     assert c.expired()
-    c.finalize(transact={})
+    c.finalize()
     post_bal = env.get_balance(a1)
     assert post_bal - pre_bal == 54
 
@@ -185,6 +185,6 @@ def refund():
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
-    c.refund(transact={})
+    c.refund()
     post_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]

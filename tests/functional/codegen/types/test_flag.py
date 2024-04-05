@@ -43,7 +43,7 @@ def set_and_get(a: Actions) -> Actions:
     c = get_contract(code)
     for i in range(5):
         assert c.set_and_get(i) == i
-        c.set_and_get(i, transact={})
+        c.set_and_get(i)
         assert c.action() == i
 
 
@@ -190,7 +190,7 @@ def checkMinter(minter: address):
     minter_address = env.accounts[1]
 
     # add minter
-    c.addMinter(minter_address, transact={})
+    c.addMinter(minter_address)
     c.checkMinter(minter_address)
 
     assert c.roles(admin_address) == 0b01
@@ -200,25 +200,25 @@ def checkMinter(minter: address):
     with tx_failed():
         c.checkMinter(admin_address)
 
-    c.addMinter(admin_address, transact={})
+    c.addMinter(admin_address)
 
     # now, admin is a minter
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # revoke minter
-    c.revokeMinter(admin_address, transact={})
+    c.revokeMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     with tx_failed():
         c.checkMinter(admin_address)
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     with tx_failed():
         c.checkMinter(admin_address)

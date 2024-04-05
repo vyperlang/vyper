@@ -13,7 +13,7 @@ def foo() -> int128:
     """
 
     c = get_contract(state_accessor)
-    c.oo(transact={})
+    c.oo()
     assert c.foo() == 5
 
 

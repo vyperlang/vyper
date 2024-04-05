@@ -76,7 +76,7 @@ def bar() -> bytes32:
     c = get_contract(code)
 
     test_val = b"test me! test me!"
-    c.set(test_val, transact={})
+    c.set(test_val)
     assert c.a() == test_val
     assert c.bar() == hashlib.sha256(test_val).digest()
 

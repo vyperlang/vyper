@@ -22,7 +22,7 @@ def test_crowdfund_example(c, env):
     pre_bal = env.get_balance(a1)
     env.time_travel(100)
     assert env.timestamp > c.deadline()  # expired
-    c.finalize(transact={})
+    c.finalize()
     post_bal = env.get_balance(a1)
     assert post_bal - pre_bal == 54
 

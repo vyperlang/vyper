@@ -47,7 +47,7 @@ def foo(f: Foo) -> uint256:
 
     assert c2.foo(c1.address) == 600
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
 def test_uint256_mulmod_internal_call(get_contract):

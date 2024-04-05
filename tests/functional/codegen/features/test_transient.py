@@ -1,5 +1,6 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
 from vyper.exceptions import EvmVersionException, VyperException
 
@@ -52,7 +53,7 @@ def setter(k: address, v: uint256):
         ("uint256", 42, 0),
         ("int256", -(2**200), 0),
         ("int128", -(2**126), 0),
-        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", None),
+        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", ZERO_ADDRESS),
         ("bytes32", b"deadbeef" * 4, b"\x00" * 32),
         ("bool", True, False),
         ("String[10]", "Vyper hiss", ""),
@@ -126,7 +127,7 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
     c = get_contract(code)
     assert c.foo(*values) == values
     assert c.a() == 0
-    assert c.b() is None
+    assert c.b() == ZERO_ADDRESS
     assert c.c() == ""
     assert c.foo(*values) == values
 
@@ -155,7 +156,7 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
 
     c = get_contract(code)
     assert c.foo(*values) == values
-    assert c.my_struct() == (0, 0, None, 0)
+    assert c.my_struct() == (0, 0, ZERO_ADDRESS, 0)
     assert c.foo(*values) == values
 
 
@@ -184,7 +185,7 @@ def foo(_a: address, _b: MyStruct2, _c: DynArray[DynArray[uint256, 3], 3]) -> My
 
     c = get_contract(code)
     assert c.foo(*values) == values
-    assert c.my_struct() == (None, ([],), [])
+    assert c.my_struct() == (ZERO_ADDRESS, ([],), [])
     assert c.foo(*values) == values
 
 
@@ -266,7 +267,7 @@ def do_side_effects():
         self.my_res[i] = self.my_map[i]
     """
     c = get_contract(code)
-    c.do_side_effects(transact={})
+    c.do_side_effects()
     for i in range(2):
         assert c.my_res(i)[0] == i
         assert c.my_map(i)[0] == 0

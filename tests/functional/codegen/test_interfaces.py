@@ -236,7 +236,7 @@ def test():
     sender = env.deployer
     assert token.balanceOf(sender) == 0
 
-    test_c.test(transact={})
+    test_c.test()
     assert token.balanceOf(sender) == 1000
 
 
@@ -315,7 +315,7 @@ def test():
     sender = env.deployer
     assert erc20.balanceOf(sender) == 0
 
-    test_c.test(transact={})
+    test_c.test()
     assert erc20.balanceOf(sender) == 1000
 
 

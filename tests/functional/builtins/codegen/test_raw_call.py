@@ -75,12 +75,12 @@ def create_and_return_proxy(inp: address) -> address:
 
     c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
-    c2.create_and_call_returnten(c.address, transact={})
+    c2.create_and_call_returnten(c.address)
 
     _, preamble, callcode = eip1167_bytecode()
 
     c3 = c2.create_and_return_proxy(c.address)
-    c2.create_and_return_proxy(c.address, transact={})
+    c2.create_and_return_proxy(c.address)
 
     c3_contract_code = env.get_code(c3)
 
@@ -256,7 +256,7 @@ def __default__():
     target = get_contract(target_source)
 
     caller = get_contract(caller_source)
-    caller.set_target(target.address, transact={})
+    caller.set_target(target.address)
 
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]

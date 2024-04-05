@@ -246,7 +246,7 @@ def deploy_blueprint_for(env, compiler_settings, output_formats):
 
 @pytest.fixture(scope="module")
 def get_logs(env):
-    def fn(tx_result, c: ABIContract, event_name: str = None, raw=False):
+    def fn(c: ABIContract, event_name: str = None, raw=False):
         logs = [log for log in env.last_result["logs"] if c.address == log.address]
         if raw:
             return [log.data for log in logs]

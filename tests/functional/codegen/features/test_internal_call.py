@@ -254,7 +254,7 @@ def bar1() -> int128:
     """
 
     c = get_contract(code)
-    c.set(transact={})
+    c.set()
     assert c.bar0() == 88
     assert c.bar1() == 99
 

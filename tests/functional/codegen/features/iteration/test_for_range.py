@@ -376,7 +376,7 @@ def foo(a: {typ}):
     self.result = 31337
     """
     c = get_contract(code)
-    c.foo(val, transact={})
+    c.foo(val)
     if val + 1 >= 19:
         assert c.result() == 31337
     else:

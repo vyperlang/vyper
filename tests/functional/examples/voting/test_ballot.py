@@ -34,7 +34,7 @@ def test_initial_state(env, c):
 
 def test_give_the_right_to_vote(env, c, tx_failed):
     a0, a1, a2, a3, a4, a5 = env.accounts[:6]
-    c.giveRightToVote(a1, transact={})
+    c.giveRightToVote(a1)
     # Check voter given right has weight of 1
     assert c.voters(a1)[0] == 1  # Voter.weight
     # Check no other voter attributes have changed
@@ -42,37 +42,37 @@ def test_give_the_right_to_vote(env, c, tx_failed):
     assert c.voters(a1)[3] == 0  # Voter.vote
     assert c.voters(a1)[1] is False  # Voter.voted
     # Chairperson can give themselves the right to vote
-    c.giveRightToVote(a0, transact={})
+    c.giveRightToVote(a0)
     # Check chairperson has weight of 1
     assert c.voters(a0)[0] == 1  # Voter.weight
     # Check voter_acount is 2
     assert c.voterCount() == 2
     # Check several giving rights to vote
-    c.giveRightToVote(a2, transact={})
-    c.giveRightToVote(a3, transact={})
-    c.giveRightToVote(a4, transact={})
-    c.giveRightToVote(a5, transact={})
+    c.giveRightToVote(a2)
+    c.giveRightToVote(a3)
+    c.giveRightToVote(a4)
+    c.giveRightToVote(a5)
     # Check voter_acount is now 6
     assert c.voterCount() == 6
     # Check chairperson cannot give the right to vote twice to the same voter
     with tx_failed():
-        c.giveRightToVote(a5, transact={})
+        c.giveRightToVote(a5)
     # Check voters weight didn't change
     assert c.voters(a5)[0] == 1  # Voter.weight
 
 
 def test_forward_weight(env, c):
     a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = env.accounts[:10]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
-    c.giveRightToVote(a3, transact={})
-    c.giveRightToVote(a4, transact={})
-    c.giveRightToVote(a5, transact={})
-    c.giveRightToVote(a6, transact={})
-    c.giveRightToVote(a7, transact={})
-    c.giveRightToVote(a8, transact={})
-    c.giveRightToVote(a9, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
+    c.giveRightToVote(a3)
+    c.giveRightToVote(a4)
+    c.giveRightToVote(a5)
+    c.giveRightToVote(a6)
+    c.giveRightToVote(a7)
+    c.giveRightToVote(a8)
+    c.giveRightToVote(a9)
 
     # aN(V) in these comments means address aN has vote weight V
 
@@ -107,7 +107,7 @@ def test_forward_weight(env, c):
 
     # call forward_weight again to move the vote weight the
     # rest of the way:
-    c.forwardWeight(a8, transact={})
+    c.forwardWeight(a8)
     # a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
     assert c.voters(a8)[0] == 0  # Voter.weight
     assert c.voters(a9)[0] == 9  # Voter.weight
@@ -121,7 +121,7 @@ def test_forward_weight(env, c):
 
     # once again call forward_weight to move the vote weight the
     # rest of the way:
-    c.forwardWeight(a5, transact={})
+    c.forwardWeight(a5)
     # a0(0) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(10)
     assert c.voters(a5)[0] == 0  # Voter.weight
     assert c.voters(a9)[0] == 10  # Voter.weight
@@ -129,12 +129,12 @@ def test_forward_weight(env, c):
 
 def test_block_short_cycle(env, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = env.accounts[:10]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
-    c.giveRightToVote(a3, transact={})
-    c.giveRightToVote(a4, transact={})
-    c.giveRightToVote(a5, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
+    c.giveRightToVote(a3)
+    c.giveRightToVote(a4)
+    c.giveRightToVote(a5)
 
     c.delegate(a1, transact={"from": a0})
     c.delegate(a2, transact={"from": a1})
@@ -153,10 +153,10 @@ def test_block_short_cycle(env, c, tx_failed):
 
 def test_delegate(env, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
-    c.giveRightToVote(a3, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
+    c.giveRightToVote(a3)
     # Voter's weight is 1
     assert c.voters(a1)[0] == 1  # Voter.weight
     # Voter can delegate: a1 -> a0
@@ -185,18 +185,18 @@ def test_delegate(env, c, tx_failed):
 
 def test_vote(env, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = env.accounts[:10]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
-    c.giveRightToVote(a3, transact={})
-    c.giveRightToVote(a4, transact={})
-    c.giveRightToVote(a5, transact={})
-    c.giveRightToVote(a6, transact={})
-    c.giveRightToVote(a7, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
+    c.giveRightToVote(a3)
+    c.giveRightToVote(a4)
+    c.giveRightToVote(a5)
+    c.giveRightToVote(a6)
+    c.giveRightToVote(a7)
     c.delegate(a0, transact={"from": a1})
     c.delegate(a1, transact={"from": a3})
     # Voter can vote
-    c.vote(0, transact={})
+    c.vote(0)
     # Vote count changes based on voters weight
     assert c.proposals(0)[1] == 3  # Proposal.voteCount
     # Voter cannot vote twice
@@ -218,10 +218,10 @@ def test_vote(env, c, tx_failed):
 
 def test_winning_proposal(env, c):
     a0, a1, a2 = env.accounts[:3]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
-    c.vote(0, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
+    c.vote(0)
     # Proposal 0 is now winning
     assert c.winningProposal() == 0
     c.vote(1, transact={"from": a1})
@@ -234,11 +234,11 @@ def test_winning_proposal(env, c):
 
 def test_winner_namer(env, c):
     a0, a1, a2 = env.accounts[:3]
-    c.giveRightToVote(a0, transact={})
-    c.giveRightToVote(a1, transact={})
-    c.giveRightToVote(a2, transact={})
+    c.giveRightToVote(a0)
+    c.giveRightToVote(a1)
+    c.giveRightToVote(a2)
     c.delegate(a1, transact={"from": a2})
-    c.vote(0, transact={})
+    c.vote(0)
     # Proposal 0 is now winning
     assert c.winnerName()[:7] == b"Clinton"
     c.vote(1, transact={"from": a1})

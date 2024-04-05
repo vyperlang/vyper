@@ -207,7 +207,7 @@ def foo(x: uint256):
 
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    c.foo(7, transact={})
+    c.foo(7)
 
     assert c.counter() == 7
 

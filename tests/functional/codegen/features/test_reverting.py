@@ -18,7 +18,7 @@ def foo():
     revert_bytes = method_id("NoFives()")
 
     with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
-        get_contract(reverty_code).foo(transact={})
+        get_contract(reverty_code).foo()
 
 
 def test_revert_reason_typed(env, tx_failed, get_contract):
@@ -33,7 +33,7 @@ def foo():
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
     with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
-        get_contract(reverty_code).foo(transact={})
+        get_contract(reverty_code).foo()
 
 
 def test_revert_reason_typed_no_variable(env, tx_failed, get_contract):
@@ -47,4 +47,4 @@ def foo():
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
     with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
-        get_contract(reverty_code).foo(transact={})
+        get_contract(reverty_code).foo()

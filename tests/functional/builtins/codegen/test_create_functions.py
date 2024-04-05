@@ -66,7 +66,7 @@ def test2() -> Bytes[100]:
     c = get_contract(code)
 
     assert c.hello() == b"hello world!"
-    c.test(transact={})
+    c.test()
     assert c.test2() == b"hello world!"
 
 
@@ -95,7 +95,7 @@ def test2(a: uint256) -> Bytes[100]:
     c = get_contract(code)
 
     assert c.hello(1) == b"hello world!"
-    c.test(transact={})
+    c.test()
     assert c.test2(1) == b"hello world!"
 
     with tx_failed():
@@ -174,7 +174,7 @@ def test2(target: address, salt: bytes32):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, salt, transact={})
+    d.test2(f.address, salt)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == env.get_code(foo_contract.address)
@@ -221,7 +221,7 @@ def test2(target: address, salt: bytes32):
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -234,7 +234,7 @@ def test2(target: address, salt: bytes32):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, salt, transact={})
+    d.test2(f.address, salt)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -359,7 +359,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     initcode = env.get_code(f.address)[3:]
 
-    d.test(f.address, FOO, BAR, transact={})
+    d.test(f.address, FOO, BAR)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -372,7 +372,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, FOO, BAR, salt, transact={})
+    d.test2(f.address, FOO, BAR, salt)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -382,13 +382,13 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     encoded_args = abi.encode("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
-    d.test3(f.address, encoded_args, transact={})
+    d.test3(f.address, encoded_args)
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    d.test4(f.address, encoded_args, keccak(b"test4"), transact={})
+    d.test4(f.address, encoded_args, keccak(b"test4"))
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
@@ -403,7 +403,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     # but creating a contract with different args is ok
     FOO = "bar"
-    d.test2(f.address, FOO, BAR, salt, transact={})
+    d.test2(f.address, FOO, BAR, salt)
     # just for kicks
     assert FooContract(d.created_address()).foo() == FOO
     assert FooContract(d.created_address()).bar() == BAR
@@ -446,7 +446,7 @@ def test2(target: address, salt: bytes32) -> address:
     c = get_contract(code)
     bytecode = env.get_code(c.address)
 
-    c.test(c.address, transact={})
+    c.test(c.address)
     test1 = c.created_address()
     assert env.get_code(test1) == bytecode
 
@@ -458,7 +458,7 @@ def test2(target: address, salt: bytes32) -> address:
     # assert revm_env.get_code(test1) == b"\x01"
 
     salt = keccak(b"vyper")
-    c.test2(c.address, salt, transact={})
+    c.test2(c.address, salt)
     test2 = c.created_address()
     assert env.get_code(test2) == bytecode
 
@@ -466,7 +466,7 @@ def test2(target: address, salt: bytes32) -> address:
 
     # can't create2 where contract already exists
     with tx_failed():
-        c.test2(c.address, salt, transact={})
+        c.test2(c.address, salt)
 
     # test single byte contract
     # test2 = c.test2(b"\x01", salt)
@@ -588,7 +588,7 @@ def test(target: address):
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -636,7 +636,7 @@ def test(target: address):
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
     assert env.get_code(test.address) == expected_runtime_code
@@ -660,7 +660,7 @@ def test(target: address) -> address:
 
     c = get_contract(complex_salt)
     bytecode = env.get_code(c.address)
-    c.test(c.address, transact={})
+    c.test(c.address)
     test1 = c.address
     assert bytecode and env.get_code(test1) == bytecode
 

@@ -73,7 +73,7 @@ def foo(a: Foo) -> uint256[2]:
 
     assert c2.foo(c1.address) == G1_times_two
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
 def test_ecadd_evaluation_order(get_contract):
@@ -155,7 +155,7 @@ def foo(a: Foo) -> uint256[2]:
 
     assert c2.foo(c1.address) == G1_times_three
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
 def test_ecmul_evaluation_order(get_contract):

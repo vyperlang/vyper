@@ -26,7 +26,7 @@ def foo() -> bool:
     c = get_contract(code)
     assert not c.foo()
 
-    c.foo(transact={})
+    c.foo()
     assert c.called_left()
     assert not c.called_right()
 
@@ -54,7 +54,7 @@ def foo() -> bool:
     c = get_contract(code)
     assert c.foo()
 
-    c.foo(transact={})
+    c.foo()
     assert c.called_left()
     assert c.called_right()
 
@@ -82,7 +82,7 @@ def foo() -> bool:
     c = get_contract(code)
     assert c.foo()
 
-    c.foo(transact={})
+    c.foo()
     assert c.called_left()
     assert not c.called_right()
 
@@ -110,7 +110,7 @@ def foo() -> bool:
     c = get_contract(code)
     assert not c.foo()
 
-    c.foo(transact={})
+    c.foo()
     assert c.called_left()
     assert c.called_right()
 

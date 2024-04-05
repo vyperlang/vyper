@@ -138,11 +138,11 @@ def is_owner() -> bool:
     with tx_failed():
         c.set_owner(1, a1, call={"from": a1})
 
-    c.set_owner(1, a1, transact={})
+    c.set_owner(1, a1)
     assert c.is_owner(call={"from": a1}) is True
 
     # Owner in place 0 can be replaced.
-    c.set_owner(0, a1, transact={})
+    c.set_owner(0, a1)
     assert c.is_owner() is False
 
 

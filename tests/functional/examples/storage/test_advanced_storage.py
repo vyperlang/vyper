@@ -48,18 +48,14 @@ def test_failed_transactions(env, adv_storage_contract, tx_failed):
 def test_events(env, adv_storage_contract, get_logs):
     k1, k2 = env.accounts[:2]
 
-    tx1 = adv_storage_contract.set(10, transact={"from": k1})
-    logs1 = get_logs(tx1, adv_storage_contract, "DataChange")
-    tx2 = adv_storage_contract.set(20, transact={"from": k2})
-    logs2 = get_logs(tx2, adv_storage_contract, "DataChange")
-    tx3 = adv_storage_contract.reset(transact={"from": k1})
-    logs3 = get_logs(tx3, adv_storage_contract, "DataChange")
+    adv_storage_contract.set(10, transact={"from": k1})
+    (log1,) = get_logs(adv_storage_contract, "DataChange")
+    adv_storage_contract.set(20, transact={"from": k2})
+    (log2,) = get_logs(adv_storage_contract, "DataChange")
+    adv_storage_contract.reset(transact={"from": k1})
+    logs3 = get_logs(adv_storage_contract, "DataChange")
 
     # Check log contents
-    assert len(logs1) == 1
-    assert logs1[0].args.value == 10
-
-    assert len(logs2) == 1
-    assert logs2[0].args.setter == k2
-
-    assert not logs3  # tx3 does not generate a log
+    assert log1.args.value == 10
+    assert log2.args.setter == k2
+    assert logs3 == []  # tx3 does not generate a log

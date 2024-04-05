@@ -107,23 +107,23 @@ def test_valuation(env, c):
 def test_logs(env, c, get_logs):
     a0, a1, a2, a3 = env.accounts[:4]
     # Buy is logged
-    logs = get_logs(c.buyStock(transact={"from": a1, "value": 7 * c.price()}), c, "Buy")
-    assert len(logs) == 1
-    assert logs[0].args.buy_order == 7
+    c.buyStock(transact={"from": a1, "value": 7 * c.price()})
+    (log,) = get_logs(c, "Buy")
+    assert log.args.buy_order == 7
 
     # Sell is logged
-    logs = get_logs(c.sellStock(3, transact={"from": a1}), c, "Sell")
-    assert len(logs) == 1
-    assert logs[0].args.sell_order == 3
+    c.sellStock(3, transact={"from": a1})
+    (log,) = get_logs(c, "Sell")
+    assert log.args.sell_order == 3
 
     # Transfer is logged
-    logs = get_logs(c.transferStock(a2, 4, transact={"from": a1}), c, "Transfer")
-    assert len(logs) == 1
-    assert logs[0].event == "Transfer"
-    assert logs[0].args.value == 4
+    c.transferStock(a2, 4, transact={"from": a1})
+    (log,) = get_logs(c, "Transfer")
+    assert log.event == "Transfer"
+    assert log.args.value == 4
 
     # Pay is logged
     amount = 10**4
-    logs = get_logs(c.payBill(a3, amount, transact={}), c, "Pay")
-    assert len(logs) == 1
-    assert logs[0].args.amount == amount
+    c.payBill(a3, amount)
+    (log,) = get_logs(c, "Pay")
+    assert log.args.amount == amount

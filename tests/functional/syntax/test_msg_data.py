@@ -86,7 +86,7 @@ def foo():
     self.cache = slice(msg.data, 0, 4)
 """
     contract = get_contract(code)
-    contract.foo(transact={})
+    contract.foo()
     assert contract.cache() == method_id("foo()")
 
 

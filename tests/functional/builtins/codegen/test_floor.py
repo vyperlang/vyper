@@ -125,7 +125,7 @@ def foo(a: Foo) -> int256:
 
     assert c2.foo(c1.address) == 2
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
 def test_floor_internal_call(get_contract):

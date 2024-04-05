@@ -422,9 +422,6 @@ def _vyper_literal(val, typ):
 @pytest.mark.fuzzing
 def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
     expected_val = _py_convert(val, i_typ, o_typ)
-    if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
-        # web3 has special formatter for zero address
-        expected_val = None
 
     contract_1 = f"""
 @external
@@ -432,7 +429,6 @@ def test_convert() -> {o_typ}:
     return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
-    c1_exception = None
     skip_c1 = False
 
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
@@ -444,9 +440,7 @@ def test_convert() -> {o_typ}:
     if isinstance(i_typ, AddressT) and o_typ == BYTES20_T and val == val.lower():
         skip_c1 = True
 
-    if c1_exception is not None:
-        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
-    elif not skip_c1:
+    if not skip_c1:
         c1 = get_contract(contract_1)
         assert c1.test_convert() == expected_val
 
@@ -628,7 +622,7 @@ def foo() -> {typ}:
 
 
 @pytest.mark.parametrize("n", range(1, 33))
-def test_Bytes_to_bytes(get_contract, n):
+def test_Bytes_to_bytes(get_contract, n: int):
     t_bytes = f"bytes{n}"
     t_Bytes = f"Bytes[{n}]"
 

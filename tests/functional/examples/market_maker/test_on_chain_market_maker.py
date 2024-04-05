@@ -37,7 +37,7 @@ def test_initial_state(market_maker):
 def test_initiate(env, market_maker, erc20, tx_failed):
     a0 = env.accounts[0]
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
-    erc20.approve(market_maker.address, ethers, transact={})
+    erc20.approve(market_maker.address, ethers)
     market_maker.initiate(erc20.address, ether, transact={"value": ethers})
     assert market_maker.totalEthQty() == ethers
     assert market_maker.totalTokenQty() == ether
@@ -53,7 +53,7 @@ def test_initiate(env, market_maker, erc20, tx_failed):
 
 def test_eth_to_tokens(env, market_maker, erc20):
     a1 = env.accounts[1]
-    erc20.approve(market_maker.address, to_wei(2, "ether"), transact={})
+    erc20.approve(market_maker.address, to_wei(2, "ether"))
     market_maker.initiate(erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether")})
     assert erc20.balanceOf(market_maker.address) == to_wei(1, "ether")
     assert erc20.balanceOf(a1) == 0
@@ -73,7 +73,7 @@ def test_tokens_to_eth(env, market_maker, erc20):
     a1_balance_before = to_wei(2, "ether")
     env.set_balance(a1, a1_balance_before)
 
-    erc20.transfer(a1, to_wei(2, "ether"), transact={})
+    erc20.transfer(a1, to_wei(2, "ether"))
     erc20.approve(market_maker.address, to_wei(2, "ether"), transact={"from": a1})
     market_maker.initiate(
         erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether"), "from": a1}
@@ -98,7 +98,7 @@ def test_owner_withdraw(env, market_maker, erc20, tx_failed):
     a0, a1 = env.accounts[:2]
     a0_balance_before = env.get_balance(a0)
     # Approve 2 eth transfers.
-    erc20.approve(market_maker.address, to_wei(2, "ether"), transact={})
+    erc20.approve(market_maker.address, to_wei(2, "ether"))
     # Initiate market with 2 eth value.
     market_maker.initiate(erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether")})
     # 2 eth was sent to market_maker contract.
@@ -109,6 +109,6 @@ def test_owner_withdraw(env, market_maker, erc20, tx_failed):
     # Only owner can call ownerWithdraw
     with tx_failed():
         market_maker.ownerWithdraw(transact={"from": a1})
-    market_maker.ownerWithdraw(transact={})
+    market_maker.ownerWithdraw()
     assert env.get_balance(a0) == a0_balance_before  # Eth balance restored.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY  # Tokens returned to a0.

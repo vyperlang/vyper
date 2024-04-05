@@ -11,11 +11,12 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
 
-    assert log[0].args.arg1 == 667788
-    assert log[0].args.arg2 == b"hello" * 9
-    assert log[0].args.arg3 == 334455
+    assert log.args.arg1 == 667788
+    assert log.args.arg2 == b"hello" * 9
+    assert log.args.arg3 == 334455
 
 
 def test_bytes_logging_extended_variables(get_contract, get_logs):
@@ -34,11 +35,11 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")
-
-    assert log[0].args.arg1 == b"hello" * 9
-    assert log[0].args.arg2 == b"hello" * 8
-    assert log[0].args.arg3 == b"hello" * 1
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
+    assert log.args.arg1 == b"hello" * 9
+    assert log.args.arg2 == b"hello" * 8
+    assert log.args.arg3 == b"hello" * 1
 
 
 def test_bytes_logging_extended_passthrough(get_contract, get_logs):
@@ -55,7 +56,8 @@ def foo(a: int128, b: Bytes[64], c: int128):
 
     c = get_contract(code)
 
-    log = get_logs(c.foo(333, b"flower" * 8, 444, transact={}), c, "MyLog")
+    c.foo(333, b"flower" * 8, 444)
+    log = get_logs(c, "MyLog")
 
     assert log[0].args.arg1 == 333
     assert log[0].args.arg2 == b"flower" * 8
@@ -86,16 +88,16 @@ def set(x: int128, y: Bytes[64], z: int128):
 
     c = get_contract(code)
     c.foo()
-    log = get_logs(c.foo(transact={}), c, "MyLog")
+    log = get_logs(c, "MyLog")
 
     assert log[0].args.arg1 == 0
     assert log[0].args.arg2 == b""
     assert log[0].args.arg3 == 0
 
-    c.set(333, b"flower" * 8, 444, transact={})
+    c.set(333, b"flower" * 8, 444)
+    c.foo()
 
-    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
-
+    (log,) = get_logs(c, "MyLog")
     assert log.args.arg1 == 333
     assert log.args.arg2 == b"flower" * 8
     assert log.args.arg3 == 444
@@ -120,7 +122,8 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
 
     assert log.args.arg1 == [[24, 26], [12, 10]]
     assert log.args.arg2 == b"hello" * 9

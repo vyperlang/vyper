@@ -122,11 +122,12 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
 
-    assert log[0].args.arg1 == 667788
-    assert log[0].args.arg2 == "hello" * 9
-    assert log[0].args.arg3 == 334455
+    assert log.args.arg1 == 667788
+    assert log.args.arg2 == "hello" * 9
+    assert log.args.arg3 == 334455
 
 
 def test_tuple_return_external_contract_call_string(get_contract):

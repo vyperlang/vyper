@@ -56,8 +56,8 @@ def set2(idx: uint256):
     c = get_contract(code)
 
     with pytest.raises(TransactionFailed):
-        c.set2(2**256 - 1, transact={})
-        c.set2(2**256 - 2, transact={})
+        c.set2(2**256 - 1)
+        c.set2(2**256 - 2)
 
 
 def test_boundary_access_to_arr(get_contract):
@@ -79,14 +79,14 @@ def set2(idx: uint256):
     """
     c1 = get_contract(code)
 
-    c1.set1(2**255 - 2, transact={})
+    c1.set1(2**255 - 2)
     assert c1.arr1(2**255 - 2) == 3
-    c1.set1(0, transact={})
+    c1.set1(0)
     assert c1.arr1(0) == 3
 
     c2 = get_contract(code2)
 
-    c2.set2(2**256 - 3, transact={})
+    c2.set2(2**256 - 3)
     assert c2.arr2(2**256 - 3) == 3
 
 
@@ -106,9 +106,9 @@ def bar(i: uint256):
 
     c = get_contract(code)
     for i in range(3):
-        c.foo(i, transact={})
+        c.foo(i)
         assert c.arr(i) == 1
-        c.bar(i, transact={})
+        c.bar(i)
         assert c.arr(i) == 2
 
 
@@ -124,6 +124,6 @@ def foo():
     """
 
     c = get_contract(code)
-    c.foo(transact={})
+    c.foo()
     for i in range(10):
         assert c.arr(i) == i

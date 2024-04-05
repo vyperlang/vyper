@@ -529,9 +529,9 @@ def delete(key: bytes32):
     val = b"value".ljust(32)
 
     assert c.get(key) == b"\x00" * 32
-    c.set(key, val, transact={})
+    c.set(key, val)
     assert c.get(key)[:5] == b"value"
-    c.delete(key, transact={})
+    c.delete(key)
     assert c.get(key) == b"\x00" * 32
 
 
@@ -559,9 +559,9 @@ def delete(key1: bytes32, key2: bytes32):
     val = b"value".ljust(32)
 
     assert c.get(key1, key2) == b"\x00" * 32
-    c.set(key1, key2, val, transact={})
+    c.set(key1, key2, val)
     assert c.get(key1, key2)[:5] == b"value"
-    c.delete(key1, key2, transact={})
+    c.delete(key1, key2)
     assert c.get(key1, key2) == b"\x00" * 32
 
 
@@ -589,9 +589,9 @@ def delete():
     c = get_contract(code)
 
     assert c.get() == (0, 0)
-    c.set(transact={})
+    c.set()
     assert c.get() == (333, 444)
-    c.delete(transact={})
+    c.delete()
     assert c.get() == (0, 0)
 
 
@@ -688,7 +688,8 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
 
     assert log.args.arg1 == b"hello" * 9
     assert log.args.arg2 == [[0, 0], [0, 0], [0, 0]]

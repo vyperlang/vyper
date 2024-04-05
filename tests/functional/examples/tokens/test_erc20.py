@@ -33,11 +33,8 @@ def c_bad(get_contract):
 
 @pytest.fixture
 def get_log_args(get_logs):
-    def get_log_args(tx_hash, c, event_name):
-        logs = get_logs(tx_hash, c, event_name)
-        assert len(logs) > 0
-        args = logs[0].args
-        return args
+    def get_log_args(_, c, event_name):
+        return get_logs(c, event_name)[0].args
 
     return get_log_args
 

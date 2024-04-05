@@ -83,9 +83,9 @@ def test_initial_state(env, erc20_caller):
 
 def test_call_transfer(env, erc20, erc20_caller, tx_failed):
     # Basic transfer.
-    erc20.transfer(erc20_caller.address, 10, transact={})
+    erc20.transfer(erc20_caller.address, 10)
     assert erc20.balanceOf(erc20_caller.address) == 10
-    erc20_caller.transfer(env.accounts[1], 10, transact={})
+    erc20_caller.transfer(env.accounts[1], 10)
     assert erc20.balanceOf(erc20_caller.address) == 0
     assert erc20.balanceOf(env.accounts[1]) == 10
 
@@ -100,7 +100,7 @@ def test_call_transfer(env, erc20, erc20_caller, tx_failed):
 
 def test_caller_approve_allowance(env, erc20, erc20_caller):
     assert erc20_caller.allowance(erc20.address, erc20_caller.address) == 0
-    assert erc20.approve(erc20_caller.address, 10, transact={})
+    assert erc20.approve(erc20_caller.address, 10)
     assert erc20_caller.allowance(env.deployer, erc20_caller.address) == 10
 
 
@@ -109,10 +109,10 @@ def test_caller_tranfer_from(env, erc20, erc20_caller, tx_failed):
     with tx_failed():
         erc20_caller.transferFrom(env.deployer, erc20_caller.address, 10)
     assert erc20.balanceOf(erc20_caller.address) == 0
-    assert erc20.approve(erc20_caller.address, 10, transact={})
-    erc20_caller.transferFrom(env.deployer, erc20_caller.address, 5, transact={})
+    assert erc20.approve(erc20_caller.address, 10)
+    erc20_caller.transferFrom(env.deployer, erc20_caller.address, 5)
     assert erc20.balanceOf(erc20_caller.address) == 5
     assert erc20_caller.allowance(env.deployer, erc20_caller.address) == 5
-    erc20_caller.transferFrom(env.deployer, erc20_caller.address, 3, transact={})
+    erc20_caller.transferFrom(env.deployer, erc20_caller.address, 3)
     assert erc20.balanceOf(erc20_caller.address) == 8
     assert erc20_caller.allowance(env.deployer, erc20_caller.address) == 2

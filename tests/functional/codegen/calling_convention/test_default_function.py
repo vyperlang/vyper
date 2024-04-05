@@ -30,7 +30,8 @@ def __default__():
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
-    (log,) = get_logs(env.execute_code(c.address, value=10**17), c, "Sent")
+    env.execute_code(c.address, value=10**17)
+    (log,) = get_logs(c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
@@ -53,7 +54,8 @@ def __default__():
     """
     c = get_contract(code)
 
-    (log,) = get_logs(env.execute_code(c.address, value=10**17), c, "Sent")
+    env.execute_code(c.address, value=10**17)
+    (log,) = get_logs(c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
@@ -128,8 +130,8 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        result = env.execute_code(c.address, value=0, data=data)
-        (log,) = get_logs(result, c, "Sent")
+        env.execute_code(c.address, value=0, data=data)
+        (log,) = get_logs(c, "Sent")
         return log.args.sig
 
     assert 1 == _call_with_bytes("0x")
@@ -174,8 +176,8 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        result = env.execute_code(c.address, value=0, data=data, gas=10**6)
-        (log,) = get_logs(result, c, "Sent")
+        env.execute_code(c.address, value=0, data=data, gas=10**6)
+        (log,) = get_logs(c, "Sent")
         return log.args.sig
 
     assert 1 == _call_with_bytes("0x")
@@ -215,8 +217,8 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        result = env.execute_code(c.address, value=0, data=data)
-        (log,) = get_logs(result, c, "Sent")
+        env.execute_code(c.address, value=0, data=data)
+        (log,) = get_logs(c, "Sent")
         return log.args.sig
 
     # check we can call default function

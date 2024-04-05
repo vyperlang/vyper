@@ -269,7 +269,7 @@ def foo(t: bool):
     """
     c = get_contract(code)
 
-    c.foo(test, transact={})
+    c.foo(test)
     assert c.foo_retval() == (5 if test else 7)
 
     if test:

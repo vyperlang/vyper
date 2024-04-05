@@ -95,15 +95,12 @@ def test_transferFrom_by_owner(c, env, tx_failed, get_logs):
         c.transferFrom(someone, operator, INVALID_TOKEN_ID, transact={"from": someone})
 
     # transfer by owner
-    tx_hash = c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
+    c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[0]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -114,15 +111,12 @@ def test_transferFrom_by_approved(c, env, get_logs):
 
     # transfer by approved
     c.approve(operator, SOMEONE_TOKEN_IDS[1], transact={"from": someone})
-    tx_hash = c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[1], transact={"from": operator})
+    c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[1], transact={"from": operator})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[1]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[1]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -133,15 +127,12 @@ def test_transferFrom_by_operator(c, env, get_logs):
 
     # transfer by operator
     c.setApprovalForAll(operator, True, transact={"from": someone})
-    tx_hash = c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[2], transact={"from": operator})
+    c.transferFrom(someone, operator, SOMEONE_TOKEN_IDS[2], transact={"from": operator})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[2]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -167,17 +158,12 @@ def test_safeTransferFrom_by_owner(c, env, tx_failed, get_logs):
         c.safeTransferFrom(someone, operator, INVALID_TOKEN_ID, transact={"from": someone})
 
     # transfer by owner
-    tx_hash = c.safeTransferFrom(
-        someone, operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone}
-    )
+    c.safeTransferFrom(someone, operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[0]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -188,14 +174,10 @@ def test_safeTransferFrom_by_approved(c, env, get_logs):
 
     # transfer by approved
     c.approve(operator, SOMEONE_TOKEN_IDS[1], transact={"from": someone})
-    tx_hash = c.safeTransferFrom(
-        someone, operator, SOMEONE_TOKEN_IDS[1], transact={"from": operator}
-    )
+    c.safeTransferFrom(someone, operator, SOMEONE_TOKEN_IDS[1], transact={"from": operator})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
+    (log,) = get_logs(c, "Transfer")
+    args = log.args
     assert args.sender == someone
     assert args.receiver == operator
     assert args.token_id == SOMEONE_TOKEN_IDS[1]
@@ -209,17 +191,12 @@ def test_safeTransferFrom_by_operator(c, env, get_logs):
 
     # transfer by operator
     c.setApprovalForAll(operator, True, transact={"from": someone})
-    tx_hash = c.safeTransferFrom(
-        someone, operator, SOMEONE_TOKEN_IDS[2], transact={"from": operator}
-    )
+    c.safeTransferFrom(someone, operator, SOMEONE_TOKEN_IDS[2], transact={"from": operator})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[2]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -245,17 +222,12 @@ def onERC721Received(
     return method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes4)
     """
     )
-    tx_hash = c.safeTransferFrom(
-        someone, receiver.address, SOMEONE_TOKEN_IDS[0], transact={"from": someone}
-    )
+    c.safeTransferFrom(someone, receiver.address, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
 
-    logs = get_logs(tx_hash, c, "Transfer")
-
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.sender == someone
-    assert args.receiver == receiver.address
-    assert args.token_id == SOMEONE_TOKEN_IDS[0]
+    (log,) = get_logs(c, "Transfer")
+    assert log.args.sender == someone
+    assert log.args.receiver == receiver.address
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == receiver.address
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(receiver.address) == 1
@@ -276,14 +248,12 @@ def test_approve(c, env, tx_failed, get_logs):
     with tx_failed():
         c.approve(operator, INVALID_TOKEN_ID, transact={"from": someone})
 
-    tx_hash = c.approve(operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
-    logs = get_logs(tx_hash, c, "Approval")
+    c.approve(operator, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
+    (log,) = get_logs(c, "Approval")
 
-    assert len(logs) > 0
-    args = logs[0].args
-    assert args.owner == someone
-    assert args.approved == operator
-    assert args.token_id == SOMEONE_TOKEN_IDS[0]
+    assert log.args.owner == someone
+    assert log.args.approved == operator
+    assert log.args.token_id == SOMEONE_TOKEN_IDS[0]
 
 
 def test_setApprovalForAll(c, env, tx_failed, get_logs):
@@ -294,11 +264,9 @@ def test_setApprovalForAll(c, env, tx_failed, get_logs):
     with tx_failed():
         c.setApprovalForAll(someone, approved, transact={"from": someone})
 
-    tx_hash = c.setApprovalForAll(operator, approved, transact={"from": someone})
-    logs = get_logs(tx_hash, c, "ApprovalForAll")
-
-    assert len(logs) > 0
-    args = logs[0].args
+    c.setApprovalForAll(operator, approved, transact={"from": someone})
+    (log,) = get_logs(c, "ApprovalForAll")
+    args = log.args
     assert args.owner == someone
     assert args.operator == operator
     assert args.approved == approved
@@ -316,8 +284,8 @@ def test_mint(c, env, tx_failed, get_logs):
         c.mint(ZERO_ADDRESS, SOMEONE_TOKEN_IDS[0], transact={"from": minter})
 
     # mint by minter
-    tx_hash = c.mint(someone, NEW_TOKEN_ID, transact={"from": minter})
-    logs = get_logs(tx_hash, c, "Transfer")
+    c.mint(someone, NEW_TOKEN_ID, transact={"from": minter})
+    logs = get_logs(c, "Transfer")
 
     assert len(logs) > 0
     args = logs[0].args
@@ -336,8 +304,8 @@ def test_burn(c, env, tx_failed, get_logs):
         c.burn(SOMEONE_TOKEN_IDS[0], transact={"from": operator})
 
     # burn token by owner
-    tx_hash = c.burn(SOMEONE_TOKEN_IDS[0], transact={"from": someone})
-    logs = get_logs(tx_hash, c, "Transfer")
+    c.burn(SOMEONE_TOKEN_IDS[0], transact={"from": someone})
+    logs = get_logs(c, "Transfer")
 
     assert len(logs) > 0
     args = logs[0].args

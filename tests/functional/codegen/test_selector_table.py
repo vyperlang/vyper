@@ -593,8 +593,8 @@ event _Return:
 
                 # do payable check
                 if mutability == "@payable":
-                    tx = func(*args, transact={"value": 1})
-                    (event,) = get_logs(tx, c, "_Return")
+                    func(*args, transact={"value": 1})
+                    (event,) = get_logs(c, "_Return")
                     assert event.args.val == func_id
                 else:
                     hexstr = (method_id + argsdata).hex()
@@ -618,12 +618,12 @@ event _Return:
                         logs = get_logs(tx, c, "CalledDefault")
                         assert len(logs) == 1
                     else:
-                        tx = env.execute_code(**tx_params)
+                        env.execute_code(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
                         # so the logging is not tested.
                         if default_fn_mutability == "@nonpayable":
-                            logs = get_logs(tx, c, "CalledDefault")
+                            logs = get_logs(c, "CalledDefault")
                             assert len(logs) == 1
 
                         # check default function reverts

@@ -14,10 +14,10 @@ def fop():
     env.set_balance(env.deployer, 1000)
     c = get_contract(send_test, value=10)
     with tx_failed():
-        c.foo(transact={})
-    c.fop(transact={})
+        c.foo()
+    c.fop()
     with tx_failed():
-        c.fop(transact={})
+        c.fop()
 
 
 def test_default_gas(get_contract, env, tx_failed):

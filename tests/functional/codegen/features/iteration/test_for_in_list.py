@@ -185,7 +185,7 @@ def data() -> int128:
     c = get_contract(code)
 
     assert c.data() == -1
-    c.set(transact={})
+    c.set()
     assert c.data() == 7
 
 
@@ -210,7 +210,7 @@ def data() -> int128:
     assert c.data() == 0
     # test all sorts of lists
     for xs in [[3, 5, 7, 9], [4, 6, 8], [1, 2], [5], []]:
-        c.set(xs, transact={})
+        c.set(xs)
         assert c.data() == sum(xs)
 
 
@@ -238,9 +238,9 @@ def iterate_return_second() -> address:
 
     c = get_contract(code)
 
-    c.set(0, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1", transact={})
-    c.set(1, "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e", transact={})
-    c.set(2, "0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D", transact={})
+    c.set(0, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1")
+    c.set(1, "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e")
+    c.set(2, "0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D")
 
     assert c.ret(1) == c.iterate_return_second() == "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e"
 
@@ -269,9 +269,9 @@ def i_return(break_count: int128) -> decimal:
 
     c = get_contract(code)
 
-    c.set(0, Decimal("0.0001"), transact={})
-    c.set(1, Decimal("1.1"), transact={})
-    c.set(2, Decimal("2.2"), transact={})
+    c.set(0, Decimal("0.0001"))
+    c.set(1, Decimal("1.1"))
+    c.set(2, Decimal("2.2"))
 
     assert c.ret(2) == c.i_return(2) == Decimal("2.2")
     assert c.ret(1) == c.i_return(1) == Decimal("1.1")
