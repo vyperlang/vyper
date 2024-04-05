@@ -1,10 +1,7 @@
-import pytest
-from eth_tester.exceptions import TransactionFailed
-
 # TODO: rewrite the tests in type-centric way, parametrize array and indices types
 
 
-def test_negative_ix_access(get_contract):
+def test_negative_ix_access(get_contract, tx_failed):
     # Arrays can't be accessed with negative indices
     code = """
 arr: uint256[3]
@@ -16,13 +13,15 @@ def foo(i: int128):
 
     c = get_contract(code)
 
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.foo(-1)
+    with tx_failed():
         c.foo(-3)
+    with tx_failed():
         c.foo(-(2**127) + 1)
 
 
-def test_negative_ix_access_to_large_arr(get_contract):
+def test_negative_ix_access_to_large_arr(get_contract, tx_failed):
     # Arrays can't be accessed with negative indices
     code = """
 arr: public(uint256[max_value(uint256)-1])
@@ -33,14 +32,17 @@ def set(idx: int256):
     """
 
     c = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.set(-(2**255))
+    with tx_failed():
         c.set(-(2**255) + 5)
+    with tx_failed():
         c.set(-(2**128))
+    with tx_failed():
         c.set(-1)
 
 
-def test_oob_access_to_large_arr(get_contract):
+def test_oob_access_to_large_arr(get_contract, tx_failed):
     # Test OOB access to large array
     code = """
 arr: public(uint256[max_value(uint256)-1])
@@ -55,8 +57,9 @@ def set2(idx: uint256):
     """
     c = get_contract(code)
 
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         c.set2(2**256 - 1)
+    with tx_failed():
         c.set2(2**256 - 2)
 
 

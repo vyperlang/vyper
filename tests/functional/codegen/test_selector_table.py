@@ -614,8 +614,8 @@ event _Return:
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        tx = env.execute_code(**tx_params)
-                        logs = get_logs(tx, c, "CalledDefault")
+                        env.execute_code(**tx_params)
+                        logs = get_logs(c, "CalledDefault")
                         assert len(logs) == 1
                     else:
                         env.execute_code(**tx_params)

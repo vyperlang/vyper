@@ -2,10 +2,8 @@ import json
 from typing import Type
 
 import pytest
-from eth_tester.exceptions import TransactionFailed
 
 from vyper import compiler
-from vyper.compiler.settings import Settings
 from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
@@ -37,7 +35,7 @@ def code_slice(x: address) -> Bytes[{length}]:
     assert actual == expected
 
 
-def test_address_code_runtime_error_slice_too_long(precompiled_contract, get_contract):
+def test_address_code_runtime_error_slice_too_long(precompiled_contract, get_contract, tx_failed):
     start = len(PRECOMPILED) - 5
     length = 10
     code = f"""
@@ -46,18 +44,18 @@ def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_slice(precompiled_contract.address)
 
 
-def test_address_code_runtime_error_no_code(get_contract):
+def test_address_code_runtime_error_no_code(get_contract, tx_failed):
     code = """
 @external
 def code_slice(x: address) -> Bytes[4]:
     return slice(x.code, 0, 4)
 """
     contract = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_slice(b"\x00" * 20)
 
 
@@ -159,7 +157,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, optimize, experimental_codegen, evm_version):
+def test_address_code_self_success(get_contract, compiler_settings):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -173,17 +171,13 @@ def code_runtime() -> Bytes[32]:
 """
     contract = get_contract(code)
     code_compiled = compiler.compile_code(
-        code,
-        output_formats=["bytecode", "bytecode_runtime"],
-        settings=Settings(
-            evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
-        ),
+        code, output_formats=["bytecode", "bytecode_runtime"], settings=compiler_settings
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]
 
 
-def test_address_code_self_runtime_error_deployment(get_contract):
+def test_address_code_self_runtime_error_deployment(get_contract, tx_failed):
     code = """
 dummy: public(Bytes[1000000])
 
@@ -191,16 +185,16 @@ dummy: public(Bytes[1000000])
 def __init__():
     self.dummy = slice(self.code, 0, 1000000)
 """
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         get_contract(code)
 
 
-def test_address_code_self_runtime_error_runtime(get_contract):
+def test_address_code_self_runtime_error_runtime(get_contract, tx_failed):
     code = """
 @external
 def code_runtime() -> Bytes[1000000]:
     return slice(self.code, 0, 1000000)
 """
     contract = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_runtime()

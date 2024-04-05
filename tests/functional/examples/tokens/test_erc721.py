@@ -289,7 +289,7 @@ def test_mint(c, env, tx_failed, get_logs):
 
     assert len(logs) > 0
     args = logs[0].args
-    assert args.sender in (ZERO_ADDRESS, None)
+    assert args.sender == ZERO_ADDRESS
     assert args.receiver == someone
     assert args.token_id == NEW_TOKEN_ID
     assert c.ownerOf(NEW_TOKEN_ID) == someone
@@ -310,7 +310,7 @@ def test_burn(c, env, tx_failed, get_logs):
     assert len(logs) > 0
     args = logs[0].args
     assert args.sender == someone
-    assert args.receiver in (ZERO_ADDRESS, None)
+    assert args.receiver == ZERO_ADDRESS
     assert args.token_id == SOMEONE_TOKEN_IDS[0]
     with tx_failed():
         c.ownerOf(SOMEONE_TOKEN_IDS[0])

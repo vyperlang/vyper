@@ -2,7 +2,6 @@ import pytest
 from eth_utils import keccak
 
 import vyper
-from vyper.compiler.settings import Settings
 
 
 @pytest.fixture
@@ -31,16 +30,12 @@ def create_exchange(env, get_contract):
 
 
 @pytest.fixture
-def factory(get_contract, optimize, experimental_codegen, evm_version):
+def factory(get_contract, compiler_settings):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
 
     exchange_interface = vyper.compile_code(
-        code,
-        output_formats=["bytecode_runtime"],
-        settings=Settings(
-            evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
-        ),
+        code, output_formats=["bytecode_runtime"], settings=compiler_settings
     )
     exchange_deployed_bytecode = exchange_interface["bytecode_runtime"]
 

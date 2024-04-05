@@ -172,7 +172,7 @@ def set(i: int128, owner: address):
     assert outer_contract.owners(1) == a1
 
 
-def test_gas(get_contract, tx_failed, env):
+def test_gas(get_contract, tx_failed):
     inner_code = """
 bar: bytes32
 

@@ -19,7 +19,7 @@ def __default__():
 
     c = get_contract(code)
     env.set_balance(env.deployer, 1337)
-    env.execute_code(**{"to": c.address, "value": 1337})
+    env.execute_code(c.address, value=1337)
 
     assert c.get_balance() == 1337
     assert env.get_balance(c.address) == 1337

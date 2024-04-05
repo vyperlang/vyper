@@ -2,7 +2,6 @@ import json
 from typing import Callable, Tuple
 
 from eth_keys.datatypes import PrivateKey
-from eth_tester.exceptions import TransactionFailed
 from eth_utils import to_checksum_address
 
 from tests.evm_backends.abi import abi_decode, abi_encode
@@ -38,7 +37,7 @@ class BaseEnv:
         try:
             deployed_at = self._deploy(initcode, value)
         except RuntimeError as e:
-            raise TransactionFailed(*e.args) from e
+            raise EvmError(*e.args) from e
 
         address = to_checksum_address(deployed_at)
         return factory.at(self, address)
@@ -113,6 +112,10 @@ class BaseEnv:
         prefix = "execution reverted"
         if output_bytes[:4] == method_id("Error(string)"):
             (msg,) = abi_decode("(string)", output_bytes[4:])
-            raise TransactionFailed(f"{prefix}: {msg}", gas_used) from error
+            raise EvmError(f"{prefix}: {msg}", gas_used) from error
 
-        raise TransactionFailed(f"{prefix}: 0x{output_bytes.hex()}", gas_used) from error
+        raise EvmError(f"{prefix}: 0x{output_bytes.hex()}", gas_used) from error
+
+
+class EvmError(RuntimeError):
+    """Exception raised when a transaction reverts."""

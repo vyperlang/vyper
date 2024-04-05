@@ -3,11 +3,11 @@ from contextlib import contextmanager
 import hypothesis
 import pytest
 from eth_tester.backends.pyevm.main import get_default_account_keys
-from eth_tester.exceptions import TransactionFailed
 from hexbytes import HexBytes
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.abi_contract import ABIContract
+from tests.evm_backends.base_env import EvmError
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
@@ -321,7 +321,7 @@ def assert_side_effects_invoked():
 def tx_failed(env):
     # todo: use custom exception, we don't use eth_tester anymore
     @contextmanager
-    def fn(exception=TransactionFailed, exc_text=None):
+    def fn(exception=EvmError, exc_text=None):
         with env.anchor(), pytest.raises(exception) as excinfo:
             yield excinfo
 

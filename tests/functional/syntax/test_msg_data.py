@@ -1,5 +1,4 @@
 import pytest
-from eth_tester.exceptions import TransactionFailed
 from eth_utils import to_bytes
 
 from vyper import compiler
@@ -77,7 +76,7 @@ def foo() -> (uint256, Bytes[4], uint256):
     assert contract.foo() == (2**256 - 1, method_id("foo()"), 2**256 - 1)
 
 
-def test_assignment_to_storage(env, get_contract, keccak):
+def test_assignment_to_storage(get_contract, keccak):
     code = """
 cache: public(Bytes[4])
 
@@ -157,7 +156,7 @@ def test_invalid_usages_compile_error(bad_code):
         compiler.compile_code(bad_code[0])
 
 
-def test_runtime_failure_bounds_check(get_contract):
+def test_runtime_failure_bounds_check(get_contract, tx_failed):
     code = """
 @external
 def foo(_value: uint256) -> uint256:
@@ -166,6 +165,5 @@ def foo(_value: uint256) -> uint256:
 """
 
     contract = get_contract(code)
-
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.foo(42)

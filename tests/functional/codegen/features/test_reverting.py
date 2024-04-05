@@ -1,6 +1,5 @@
 import pytest
 from eth.codecs import abi
-from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import method_id
 
@@ -17,7 +16,7 @@ def foo():
 
     revert_bytes = method_id("NoFives()")
 
-    with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
+    with tx_failed(exc_text=revert_bytes.hex()):
         get_contract(reverty_code).foo()
 
 
@@ -32,7 +31,7 @@ def foo():
 
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
-    with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
+    with tx_failed(exc_text=revert_bytes.hex()):
         get_contract(reverty_code).foo()
 
 
@@ -46,5 +45,5 @@ def foo():
 
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
-    with tx_failed(TransactionFailed, exc_text=revert_bytes.hex()):
+    with tx_failed(exc_text=revert_bytes.hex()):
         get_contract(reverty_code).foo()

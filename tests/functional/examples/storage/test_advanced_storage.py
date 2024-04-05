@@ -5,7 +5,7 @@ INITIAL_VALUE = 4
 
 
 @pytest.fixture
-def adv_storage_contract(env, get_contract):
+def adv_storage_contract(get_contract):
     with open("examples/storage/advanced_storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract

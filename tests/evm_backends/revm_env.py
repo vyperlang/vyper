@@ -2,10 +2,9 @@ import re
 from contextlib import contextmanager
 
 from eth_keys.datatypes import PrivateKey
-from eth_tester.exceptions import TransactionFailed
 from pyrevm import EVM, BlockEnv, Env
 
-from tests.evm_backends.base_env import BaseEnv
+from tests.evm_backends.base_env import BaseEnv, EvmError
 
 
 class RevmEnv(BaseEnv):
@@ -105,7 +104,7 @@ class RevmEnv(BaseEnv):
                 gas_used, output_str = match.groups()
                 output_bytes = bytes.fromhex(output_str)
                 self._parse_revert(output_bytes, e, int(gas_used))
-            raise TransactionFailed(*e.args) from e
+            raise EvmError(*e.args) from e
         finally:
             self._evm.reset_transient_storage()
 

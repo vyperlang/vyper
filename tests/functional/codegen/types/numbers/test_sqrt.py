@@ -2,7 +2,6 @@ from decimal import ROUND_FLOOR, Decimal
 
 import hypothesis
 import pytest
-from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import SizeLimits
 
@@ -159,6 +158,6 @@ def test_sqrt_valid_range(sqrt_contract, value):
 )
 @hypothesis.example(value=Decimal(SizeLimits.MIN_INT128))
 @hypothesis.example(value=Decimal("-1E10"))
-def test_sqrt_invalid_range(sqrt_contract, value):
-    with pytest.raises(TransactionFailed):
+def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
+    with tx_failed():
         sqrt_contract.test(value)

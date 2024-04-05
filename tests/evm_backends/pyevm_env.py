@@ -15,13 +15,12 @@ from eth.vm.execution_context import ExecutionContext
 from eth.vm.message import Message
 from eth.vm.transaction_context import BaseTransactionContext
 from eth_keys.datatypes import PrivateKey
-from eth_tester.exceptions import TransactionFailed
 from eth_tester.utils.address import generate_contract_address
 from eth_typing import Address
 from eth_utils import setup_DEBUG2_logging, to_checksum_address
 
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv
+from tests.evm_backends.base_env import BaseEnv, EvmError
 
 
 class PyEvmEnv(BaseEnv):
@@ -144,7 +143,7 @@ class PyEvmEnv(BaseEnv):
                 ),
             )
         except VMError as e:
-            raise TransactionFailed(*e.args) from e
+            raise EvmError(*e.args) from e
         finally:
             self._clear_transient_storage()
 
@@ -165,7 +164,7 @@ class PyEvmEnv(BaseEnv):
                 gas_used = computation.get_gas_used()
                 self._parse_revert(output, computation.error, gas_used)
 
-            raise TransactionFailed(*computation.error.args) from computation.error
+            raise EvmError(*computation.error.args) from computation.error
 
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
@@ -197,7 +196,7 @@ class PyEvmEnv(BaseEnv):
                 transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
             )
         except VMError as e:
-            raise TransactionFailed(*e.args) from e
+            raise EvmError(*e.args) from e
         finally:
             self._clear_transient_storage()
         self._check_computation(computation)

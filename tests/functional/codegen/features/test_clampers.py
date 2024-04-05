@@ -260,7 +260,7 @@ def foo(s: uint{bits}) -> uint{bits}:
         "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
     ],
 )
-def test_address_clamper_passing(env, get_contract, address):
+def test_address_clamper_passing(get_contract, address):
     code = """
 @external
 def foo(s: address) -> address:
@@ -338,7 +338,7 @@ def foo(s: decimal) -> decimal:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_array_clamper_passing(env, get_contract, value):
+def test_int128_array_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
@@ -371,7 +371,7 @@ def foo(b: int128[5]) -> int128[5]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_array_looped_clamper_passing(env, get_contract, value):
+def test_int128_array_looped_clamper_passing(get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
@@ -402,7 +402,7 @@ def foo(b: int128[10]) -> int128[10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_multidimension_array_clamper_passing(env, get_contract, value):
+def test_multidimension_array_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
@@ -433,7 +433,7 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_dynarray_clamper_passing(env, get_contract, value):
+def test_int128_dynarray_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
@@ -469,7 +469,7 @@ def foo(b: int128[5]) -> int128[5]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_dynarray_looped_clamper_passing(env, get_contract, value):
+def test_int128_dynarray_looped_clamper_passing(get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
@@ -503,7 +503,7 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
 @pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
-def test_multidimension_dynarray_clamper_passing(env, get_contract, value):
+def test_multidimension_dynarray_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(
@@ -546,7 +546,7 @@ def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_dynarray_list_clamper_passing(env, get_contract, value):
+def test_dynarray_list_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(

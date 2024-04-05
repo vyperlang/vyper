@@ -276,24 +276,24 @@ def test_raw_logs(c, env, get_log_args):
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, transact={"from": minter}), c, "Transfer")
-    assert args.sender in (ZERO_ADDRESS, None)
+    assert args.sender == ZERO_ADDRESS
     assert args.receiver == a1
     assert args.value == 2
 
     args = get_log_args(c.mint(a1, 0, transact={"from": minter}), c, "Transfer")
-    assert args.sender in (ZERO_ADDRESS, None)
+    assert args.sender == ZERO_ADDRESS
     assert args.receiver == a1
     assert args.value == 0
 
     # Check that burn appropriately emits Transfer event
     args = get_log_args(c.burn(1, transact={"from": a1}), c, "Transfer")
     assert args.sender == a1
-    assert args.receiver in (ZERO_ADDRESS, None)
+    assert args.receiver == ZERO_ADDRESS
     assert args.value == 1
 
     args = get_log_args(c.burn(0, transact={"from": a1}), c, "Transfer")
     assert args.sender == a1
-    assert args.receiver in (ZERO_ADDRESS, None)
+    assert args.receiver == ZERO_ADDRESS
     assert args.value == 0
 
     # Check that transfer appropriately emits Transfer event

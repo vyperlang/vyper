@@ -106,7 +106,7 @@ def test_javascript_signatures(env, get_contract, keccak):
 
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
-        owners = [to_checksum_address(x) for x in accounts + [a3, (ZERO_ADDRESS), (ZERO_ADDRESS)]]
+        owners = [to_checksum_address(x) for x in accounts + [a3, ZERO_ADDRESS, ZERO_ADDRESS]]
         x2 = get_contract(f.read(), *[owners, 2])
 
     env.execute_code(x2.address, value=10**17)
