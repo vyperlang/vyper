@@ -190,7 +190,7 @@ class PyEvmEnv(BaseEnv):
                     gas=gas or self.gas_limit,
                     create_address=target_address,
                 ),
-                transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
+                transaction_context=BaseTransactionContext(origin=sender),
             )
         except VMError as e:
             raise EvmError(*e.args) from e

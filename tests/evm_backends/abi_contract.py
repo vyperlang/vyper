@@ -196,7 +196,7 @@ class ABIFunction:
             error = f"Missing keyword argument {e} for `{self.signature}`. Passed {args} {kwargs}"
             raise TypeError(error)
 
-    def __call__(self, *args, value=0, gas=None, sender=None, **kwargs):
+    def __call__(self, *args, value=0, gas=None, gas_price=0, sender=None, **kwargs):
         """Calls the function with the given arguments based on the ABI contract."""
         if not self.contract or not self.contract.env:
             raise Exception(f"Cannot call {self} without deploying contract.")
@@ -210,6 +210,7 @@ class ABIFunction:
             data=self.prepare_calldata(*args, **kwargs),
             value=value,
             gas=gas,
+            gas_price=gas_price,
             is_modifying=self.is_mutable,
         )
 
@@ -252,13 +253,7 @@ class ABIOverload:
         return self.functions[0].name
 
     def __call__(
-        self,
-        *args,
-        value=0,
-        gas=None,
-        sender=None,
-        disambiguate_signature=None,
-        **kwargs,
+        self, *args, value=0, gas=None, sender=None, disambiguate_signature=None, **kwargs
     ):
         """
         Call the function that matches the given arguments.
