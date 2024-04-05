@@ -76,30 +76,30 @@ def test_forward_weight(env, c):
 
     # aN(V) in these comments means address aN has vote weight V
 
-    c.delegate(a2, transact={"from": a1})
+    c.delegate(a2, sender=a1)
     # a1(0) -> a2(2)    a3(1)
-    c.delegate(a3, transact={"from": a2})
+    c.delegate(a3, sender=a2)
     # a1(0) -> a2(0) -> a3(3)
     assert c.voters(a1)[0] == 0  # Voter.weight
     assert c.voters(a2)[0] == 0  # Voter.weight
     assert c.voters(a3)[0] == 3  # Voter.weight
 
-    c.delegate(a9, transact={"from": a8})
+    c.delegate(a9, sender=a8)
     # a7(1)    a8(0) -> a9(2)
-    c.delegate(a8, transact={"from": a7})
+    c.delegate(a8, sender=a7)
     # a7(0) -> a8(0) -> a9(3)
     assert c.voters(a7)[0] == 0  # Voter.weight
     assert c.voters(a8)[0] == 0  # Voter.weight
     assert c.voters(a9)[0] == 3  # Voter.weight
-    c.delegate(a7, transact={"from": a6})
-    c.delegate(a6, transact={"from": a5})
-    c.delegate(a5, transact={"from": a4})
+    c.delegate(a7, sender=a6)
+    c.delegate(a6, sender=a5)
+    c.delegate(a5, sender=a4)
     # a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(6)
     assert c.voters(a9)[0] == 6  # Voter.weight
     assert c.voters(a8)[0] == 0  # Voter.weight
 
     # a3(3)    a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(6)
-    c.delegate(a4, transact={"from": a3})
+    c.delegate(a4, sender=a3)
     # a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(3) -> a9(6)
     # a3's vote weight of 3 only makes it to a8 in the delegation chain:
     assert c.voters(a8)[0] == 3  # Voter.weight
@@ -113,7 +113,7 @@ def test_forward_weight(env, c):
     assert c.voters(a9)[0] == 9  # Voter.weight
 
     # a0(1) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
-    c.delegate(a1, transact={"from": a0})
+    c.delegate(a1, sender=a0)
     # a0's vote weight of 1 only makes it to a5 in the delegation chain:
     # a0(0) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(1) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
     assert c.voters(a5)[0] == 1  # Voter.weight
@@ -136,17 +136,17 @@ def test_block_short_cycle(env, c, tx_failed):
     c.giveRightToVote(a4)
     c.giveRightToVote(a5)
 
-    c.delegate(a1, transact={"from": a0})
-    c.delegate(a2, transact={"from": a1})
-    c.delegate(a3, transact={"from": a2})
-    c.delegate(a4, transact={"from": a3})
+    c.delegate(a1, sender=a0)
+    c.delegate(a2, sender=a1)
+    c.delegate(a3, sender=a2)
+    c.delegate(a4, sender=a3)
     # would create a length 5 cycle:
     with tx_failed():
-        c.delegate(a0, transact={"from": a4})
+        c.delegate(a0, sender=a4)
 
-    c.delegate(a5, transact={"from": a4})
+    c.delegate(a5, sender=a4)
     # can't detect length 6 cycle, so this works:
-    c.delegate(a0, transact={"from": a5})
+    c.delegate(a0, sender=a5)
     # which is fine for the contract; those votes are simply spoiled.
     # but this is something the frontend should prevent for user friendliness
 
@@ -160,7 +160,7 @@ def test_delegate(env, c, tx_failed):
     # Voter's weight is 1
     assert c.voters(a1)[0] == 1  # Voter.weight
     # Voter can delegate: a1 -> a0
-    c.delegate(a0, transact={"from": a1})
+    c.delegate(a0, sender=a1)
     # Voter's weight is now 0
     assert c.voters(a1)[0] == 0  # Voter.weight
     # Voter has voted
@@ -169,16 +169,16 @@ def test_delegate(env, c, tx_failed):
     assert c.voters(a0)[0] == 2  # Voter.weight
     # Voter cannot delegate twice
     with tx_failed():
-        c.delegate(a2, transact={"from": a1})
+        c.delegate(a2, sender=a1)
     # Voter cannot delegate to themselves
     with tx_failed():
-        c.delegate(a2, transact={"from": a2})
+        c.delegate(a2, sender=a2)
     # Voter CAN delegate to someone who hasn't been granted right to vote
     # Exercise: prevent that
-    c.delegate(a6, transact={"from": a2})
+    c.delegate(a6, sender=a2)
     # Voter's delegatation is passed up to final delegate, yielding:
     # a3 -> a1 -> a0
-    c.delegate(a1, transact={"from": a3})
+    c.delegate(a1, sender=a3)
     # Delegate's weight is 3
     assert c.voters(a0)[0] == 3  # Voter.weight
 
@@ -193,8 +193,8 @@ def test_vote(env, c, tx_failed):
     c.giveRightToVote(a5)
     c.giveRightToVote(a6)
     c.giveRightToVote(a7)
-    c.delegate(a0, transact={"from": a1})
-    c.delegate(a1, transact={"from": a3})
+    c.delegate(a0, sender=a1)
+    c.delegate(a1, sender=a3)
     # Voter can vote
     c.vote(0)
     # Vote count changes based on voters weight
@@ -204,16 +204,16 @@ def test_vote(env, c, tx_failed):
         c.vote(0)
     # Voter cannot vote if they've delegated
     with tx_failed():
-        c.vote(0, transact={"from": a1})
+        c.vote(0, sender=a1)
     # Several voters can vote
-    c.vote(1, transact={"from": a4})
-    c.vote(1, transact={"from": a2})
-    c.vote(1, transact={"from": a5})
-    c.vote(1, transact={"from": a6})
+    c.vote(1, sender=a4)
+    c.vote(1, sender=a2)
+    c.vote(1, sender=a5)
+    c.vote(1, sender=a6)
     assert c.proposals(1)[1] == 4  # Proposal.voteCount
     # Can't vote on a non-proposal
     with tx_failed():
-        c.vote(2, transact={"from": a7})
+        c.vote(2, sender=a7)
 
 
 def test_winning_proposal(env, c):
@@ -224,10 +224,10 @@ def test_winning_proposal(env, c):
     c.vote(0)
     # Proposal 0 is now winning
     assert c.winningProposal() == 0
-    c.vote(1, transact={"from": a1})
+    c.vote(1, sender=a1)
     # Proposal 0 is still winning (the proposals are tied)
     assert c.winningProposal() == 0
-    c.vote(1, transact={"from": a2})
+    c.vote(1, sender=a2)
     # Proposal 2 is now winning
     assert c.winningProposal() == 1
 
@@ -237,10 +237,10 @@ def test_winner_namer(env, c):
     c.giveRightToVote(a0)
     c.giveRightToVote(a1)
     c.giveRightToVote(a2)
-    c.delegate(a1, transact={"from": a2})
+    c.delegate(a1, sender=a2)
     c.vote(0)
     # Proposal 0 is now winning
     assert c.winnerName()[:7] == b"Clinton"
-    c.vote(1, transact={"from": a1})
+    c.vote(1, sender=a1)
     # Proposal 2 is now winning
     assert c.winnerName()[:5] == b"Trump"

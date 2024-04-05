@@ -15,8 +15,7 @@ from vyper.utils import keccak256, method_id
 from .abi import abi_decode, abi_encode, is_abi_encodable
 
 if TYPE_CHECKING:
-    # REVIEW: bad import -- see below comment about BaseEnv
-    from tests.evm_backends.revm_env import RevmEnv
+    from tests.evm_backends.base_env import BaseEnv
 
 
 @dataclass
@@ -40,9 +39,7 @@ class ABILogTopic:
     @cached_property
     def topic_id(self) -> bytes:
         """The keccak256 hash of the event signature."""
-        # REVIEW: what does truthy represent here? i would prefer an `is not None`
-        # or more explicit `if "anonymous" in self._abi`.
-        if self._abi.get("anonymous"):
+        if self._abi.get("anonymous") is True:
             return b""
         return keccak256((self.name + self.signature).encode())
 
@@ -199,7 +196,7 @@ class ABIFunction:
             error = f"Missing keyword argument {e} for `{self.signature}`. Passed {args} {kwargs}"
             raise TypeError(error)
 
-    def __call__(self, *args, value=0, gas=None, sender=None, transact=None, call=None, **kwargs):
+    def __call__(self, *args, value=0, gas=None, sender=None, **kwargs):
         """Calls the function with the given arguments based on the ABI contract."""
         if not self.contract or not self.contract.env:
             raise Exception(f"Cannot call {self} without deploying contract.")
@@ -214,8 +211,6 @@ class ABIFunction:
             value=value,
             gas=gas,
             is_modifying=self.is_mutable,
-            # REVIEW: let's kill the transact and call dicts
-            transact={**(transact or {}), **(call or {})},
         )
 
         match self.contract.marshal_to_python(computation, self.return_type):
@@ -309,7 +304,7 @@ class ABIContract:
 
     def __init__(
         self,
-        env: "RevmEnv",  # REVIEW: should be "BaseEnv"
+        env: "BaseEnv",
         name: str,
         abi: dict,
         functions: list[ABIFunction],

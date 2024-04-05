@@ -7,7 +7,7 @@ from hexbytes import HexBytes
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.abi_contract import ABIContract
-from tests.evm_backends.base_env import EvmError
+from tests.evm_backends.base_env import BaseEnv, EvmError
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
@@ -185,8 +185,7 @@ def gas_limit():
 
 
 @pytest.fixture(scope="module")
-# REVIEW: just return type BaseEnv?
-def env(gas_limit, evm_version, evm_backend, tracing) -> PyEvmEnv | RevmEnv:
+def env(gas_limit, evm_version, evm_backend, tracing) -> BaseEnv:
     return evm_backend(
         gas_limit=gas_limit,
         tracing=tracing,

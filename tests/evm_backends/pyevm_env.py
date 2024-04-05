@@ -118,14 +118,13 @@ class PyEvmEnv(BaseEnv):
         to: str,
         sender: str | None = None,
         data: bytes | str = b"",
-        value: int | None = None,
+        value: int = 0,
         gas: int | None = None,
+        gas_price: int = 0,
         is_modifying: bool = True,
-        transact: dict | None = None,
     ):
-        transact = transact or {}
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
-        sender = _addr(transact.get("from", sender) or self.deployer)
+        sender = _addr(sender or self.deployer)
         try:
             computation = self._state.computation_class.apply_message(
                 state=self._state,
@@ -134,13 +133,11 @@ class PyEvmEnv(BaseEnv):
                     sender=sender,
                     data=data,
                     code=self.get_code(to),
-                    value=transact.get("value", value) or 0,
-                    gas=transact.get("gas", gas) or self.gas_limit,
+                    value=value,
+                    gas=self.gas_limit if gas is None else gas,
                     is_static=not is_modifying,
                 ),
-                transaction_context=BaseTransactionContext(
-                    origin=sender, gas_price=transact.get("gasPrice", 0)
-                ),
+                transaction_context=BaseTransactionContext(origin=sender, gas_price=gas_price),
             )
         except VMError as e:
             raise EvmError(*e.args) from e

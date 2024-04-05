@@ -412,7 +412,7 @@ def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
     # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
     d = [[[[value] * 6] * 3] * 1] * 8
     c = get_contract(code)
-    assert c.foo(2**127, d, 2**127, call={"gasPrice": 0}) == d
+    assert c.foo(2**127, d, 2**127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
@@ -516,7 +516,7 @@ def foo(
     # Out of gas exception if outermost length is 6 and greater
     d = [[[[value] * 5] * 6] * 7] * 8
     c = get_contract(code)
-    assert c.foo(2**127, d, 2**127, call={"gasPrice": 0}) == d
+    assert c.foo(2**127, d, 2**127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])

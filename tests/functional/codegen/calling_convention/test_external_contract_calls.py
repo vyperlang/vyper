@@ -1396,9 +1396,9 @@ def get_lucky(amount_to_send: uint256) -> int128:
     env.set_balance(env.deployer, 10000)
     # REVIEW: why is anchor needed here?
     with env.anchor():
-        assert c2.get_lucky(0, transact={"value": 500}) == 1
+        assert c2.get_lucky(0, value=500) == 1
 
-    c2.get_lucky(0, transact={"value": 500})
+    c2.get_lucky(0, value=500)
     # Contract 1 received money.
     assert c1.get_balance() == 500
     assert env.get_balance(c1.address) == 500
@@ -1407,8 +1407,8 @@ def get_lucky(amount_to_send: uint256) -> int128:
     # Send subset of amount
     # REVIEW: why is anchor needed here?
     with env.anchor():
-        assert c2.get_lucky(250, transact={"value": 500}) == 1
-    c2.get_lucky(250, transact={"value": 500})
+        assert c2.get_lucky(250, value=500) == 1
+    c2.get_lucky(250, value=500)
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750

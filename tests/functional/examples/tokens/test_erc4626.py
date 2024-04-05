@@ -45,9 +45,9 @@ def test_preview_methods(env, token, vault):
     assert vault.previewWithdraw(AMOUNT) == 0  # but no assets
     assert vault.previewRedeem(AMOUNT) == 0  # but no assets
 
-    token.mint(a, AMOUNT, transact={"from": a})
-    token.approve(vault.address, AMOUNT, transact={"from": a})
-    vault.deposit(AMOUNT, transact={"from": a})
+    token.mint(a, AMOUNT, sender=a)
+    token.approve(vault.address, AMOUNT, sender=a)
+    vault.deposit(AMOUNT, sender=a)
 
     assert vault.totalAssets() == AMOUNT
     assert vault.convertToAssets(10**18) == 10**18  # 1:1 price
@@ -57,7 +57,7 @@ def test_preview_methods(env, token, vault):
     assert vault.previewWithdraw(AMOUNT) == AMOUNT  # 1:1 price
     assert vault.previewRedeem(AMOUNT) == AMOUNT  # 1:1 price
 
-    token.mint(vault.address, AMOUNT, transact={"from": a})
+    token.mint(vault.address, AMOUNT, sender=a)
 
     assert vault.totalAssets() == 2 * AMOUNT
     assert vault.convertToAssets(10**18) == 2 * 10**18  # 2:1 price
@@ -67,7 +67,7 @@ def test_preview_methods(env, token, vault):
     assert vault.previewWithdraw(AMOUNT) == AMOUNT // 2  # 2:1 price
     assert vault.previewRedeem(AMOUNT // 2) == AMOUNT  # 2:1 price
 
-    vault.DEBUG_steal_tokens(AMOUNT, transact={"from": a})
+    vault.DEBUG_steal_tokens(AMOUNT, sender=a)
 
     assert vault.totalAssets() == AMOUNT
     assert vault.convertToAssets(10**18) == 10**18  # 1:1 price
@@ -77,7 +77,7 @@ def test_preview_methods(env, token, vault):
     assert vault.previewWithdraw(AMOUNT) == AMOUNT  # 1:1 price
     assert vault.previewRedeem(AMOUNT) == AMOUNT  # 1:1 price
 
-    vault.DEBUG_steal_tokens(AMOUNT // 2, transact={"from": a})
+    vault.DEBUG_steal_tokens(AMOUNT // 2, sender=a)
 
     assert vault.totalAssets() == AMOUNT // 2
     assert vault.convertToAssets(10**18) == 10**18 // 2  # 1:2 price

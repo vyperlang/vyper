@@ -81,21 +81,20 @@ class RevmEnv(BaseEnv):
         to: str,
         sender: str | None = None,
         data: bytes | str = b"",
-        value: int | None = None,
+        value: int = 0,
         gas: int | None = None,
+        gas_price: int = 0,
         is_modifying: bool = True,
-        transact: dict | None = None,
     ):
-        transact = transact or {}
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         try:
             output = self._evm.message_call(
                 to=to,
-                caller=transact.get("from", sender) or self.deployer,
+                caller=sender or self.deployer,
                 calldata=data,
-                value=transact.get("value", value),
-                gas=transact.get("gas", gas) or self.gas_limit,
-                gas_price=transact.get("gasPrice"),
+                value=value,
+                gas=self.gas_limit if gas is None else gas,
+                gas_price=gas_price,
                 is_static=not is_modifying,
             )
             return bytes(output)

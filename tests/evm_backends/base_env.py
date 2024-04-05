@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 from typing import Callable, Tuple
 
 from eth_keys.datatypes import PrivateKey
@@ -77,7 +78,7 @@ class BaseEnv:
         deploy_preamble = bytes.fromhex("61" + bytecode_len_hex + "3d81600a3d39f3")
         deploy_bytecode = deploy_preamble + bytecode
 
-        deployer_abi = []  # just a constructor
+        deployer_abi: list[dict] = []  # just a constructor
         value = 0
         deployer = self.deploy(deployer_abi, deploy_bytecode, value, *args)
 
@@ -85,6 +86,54 @@ class BaseEnv:
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
 
         return deployer, factory
+
+    @contextmanager
+    def anchor(self):
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @contextmanager
+    def sender(self, address: str):
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def get_balance(self, address: str) -> int:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def set_balance(self, address: str, value: int):
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def accounts(self) -> list[str]:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def block_number(self) -> int:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def timestamp(self) -> int | None:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def last_result(self) -> dict | None:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def execute_code(
+        self,
+        to: str,
+        sender: str | None = None,
+        data: bytes | str = b"",
+        value: int = 0,
+        gas: int | None = None,
+        gas_price: int = 0,
+        is_modifying: bool = True,
+    ) -> bytes:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def get_code(self, address: str) -> bytes:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
+        raise NotImplementedError  # must be implemented by subclasses
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses

@@ -7,5 +7,5 @@ def foo() -> uint256:
 
     c = get_contract(gas_call)
 
-    assert c.foo(call={"gas": 50000}) < 50000
-    assert c.foo(call={"gas": 50000}) > 25000
+    assert c.foo(gas=50000) < 50000
+    assert c.foo(gas=50000) > 25000

@@ -103,7 +103,7 @@ def test2(a: uint256) -> Bytes[100]:
 
     GAS_SENT = 30000
     with tx_failed():
-        c.test2(0, transact={"gas": GAS_SENT})
+        c.test2(0, gas=GAS_SENT)
 
     assert env.last_result["is_success"] is False
     assert env.last_result["gas_used"] < GAS_SENT

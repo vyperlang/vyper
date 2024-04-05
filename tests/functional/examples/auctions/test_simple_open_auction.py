@@ -44,37 +44,37 @@ def test_bid(env, auction_contract, tx_failed):
 
     # Bidder cannot bid 0
     with tx_failed():
-        auction_contract.bid(transact={"value": 0, "from": k1})
+        auction_contract.bid(value=0, sender=k1)
 
     # Bidder can bid
-    auction_contract.bid(transact={"value": 1, "from": k1})
+    auction_contract.bid(value=1, sender=k1)
     # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k1
     assert auction_contract.highestBid() == 1
     # Bidder bid cannot equal current highest bid
     with tx_failed():
-        auction_contract.bid(transact={"value": 1, "from": k1})
+        auction_contract.bid(value=1, sender=k1)
     # Higher bid can replace current highest bid
-    auction_contract.bid(transact={"value": 2, "from": k2})
+    auction_contract.bid(value=2, sender=k2)
     # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k2
     assert auction_contract.highestBid() == 2
     # Multiple bidders can bid
-    auction_contract.bid(transact={"value": 3, "from": k3})
-    auction_contract.bid(transact={"value": 4, "from": k4})
-    auction_contract.bid(transact={"value": 5, "from": k5})
+    auction_contract.bid(value=3, sender=k3)
+    auction_contract.bid(value=4, sender=k4)
+    auction_contract.bid(value=5, sender=k5)
     # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k5
     assert auction_contract.highestBid() == 5
-    auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
+    auction_contract.bid(value=1 * 10**10, sender=k1)
     pending_return_before_outbid = auction_contract.pendingReturns(k1)
-    auction_contract.bid(transact={"value": 2 * 10**10, "from": k2})
+    auction_contract.bid(value=2 * 10**10, sender=k2)
     pending_return_after_outbid = auction_contract.pendingReturns(k1)
     # Account has a greater pending return balance after being outbid
     assert pending_return_after_outbid > pending_return_before_outbid
 
     balance_before_withdrawal = env.get_balance(k1)
-    auction_contract.withdraw(transact={"from": k1})
+    auction_contract.withdraw(sender=k1)
     balance_after_withdrawal = env.get_balance(k1)
     # Balance increases after withdrawal
     assert balance_after_withdrawal > balance_before_withdrawal
@@ -91,18 +91,18 @@ def test_end_auction(env, auction_contract, tx_failed):
     with tx_failed():
         auction_contract.endAuction()
 
-    auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
+    auction_contract.bid(value=1 * 10**10, sender=k2)
     # Move block timestamp forward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
     env.time_travel(EXPIRY)
     balance_before_end = env.get_balance(k1)
-    auction_contract.endAuction(transact={"from": k2})
+    auction_contract.endAuction(sender=k2)
     balance_after_end = env.get_balance(k1)
     # Beneficiary receives the highest bid
     assert balance_after_end == balance_before_end + 1 * 10**10
     # Bidder cannot bid after auction end time has been reached
     with tx_failed():
-        auction_contract.bid(transact={"value": 10, "from": k1})
+        auction_contract.bid(value=10, sender=k1)
     # Auction cannot be ended twice
     with tx_failed():
         auction_contract.endAuction()

@@ -9,7 +9,7 @@ def foo():
     c = get_contract(code)
     gas_sent = 10**6
     with tx_failed():
-        c.foo(transact={"gas": gas_sent, "gasPrice": 10})
+        c.foo(gas=gas_sent, gas_price=10)
 
     assert env.last_result["gas_used"] == gas_sent  # Drains all gains sent
     assert env.last_result["is_success"] is False

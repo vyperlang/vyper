@@ -183,7 +183,7 @@ def baz() -> bool:
 def test_nonpayable_runtime_assertion(env, keccak, tx_failed, get_contract, code):
     c = get_contract(code)
 
-    c.foo(transact={"value": 0})
+    c.foo(value=0)
     sig = keccak("foo()".encode()).hex()[:10]
     with tx_failed():
         env.execute_code(c.address, data=sig, value=10**18)
@@ -337,8 +337,8 @@ def bar() -> bool:
 def test_payable_runtime_assertion(get_contract, code):
     c = get_contract(code)
 
-    c.foo(transact={"value": 10**18})
-    c.foo(transact={"value": 0})
+    c.foo(value=10**18)
+    c.foo(value=0)
 
 
 def test_payable_default_func_invalid_calldata(get_contract, env):

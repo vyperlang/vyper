@@ -35,7 +35,7 @@ def refund():
     c = get_contract(arbitration_code, value=1)
     c.setup(a1, a2)
     with tx_failed():
-        c.finalize(transact={"from": a1})
+        c.finalize(sender=a1)
     c.finalize()
 
     print("Passed escrow test")
@@ -68,7 +68,7 @@ def refund():
     a0, a1, a2 = env.accounts[:3]
     c = get_contract(arbitration_code_with_init, *[a1, a2], value=1)
     with tx_failed():
-        c.finalize(transact={"from": a1})
-    c.finalize(transact={"from": a0})
+        c.finalize(sender=a1)
+    c.finalize(sender=a0)
 
     print("Passed escrow test with initializer")

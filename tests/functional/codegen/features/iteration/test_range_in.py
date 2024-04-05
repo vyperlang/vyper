@@ -132,14 +132,14 @@ def is_owner() -> bool:
     c = get_contract(code)
 
     assert c.is_owner() is True  # contract creator is owner.
-    assert c.is_owner(call={"from": a1}) is False  # no one else is.
+    assert c.is_owner(sender=a1) is False  # no one else is.
 
     # only an owner may set another owner.
     with tx_failed():
-        c.set_owner(1, a1, call={"from": a1})
+        c.set_owner(1, a1, sender=a1)
 
     c.set_owner(1, a1)
-    assert c.is_owner(call={"from": a1}) is True
+    assert c.is_owner(sender=a1) is True
 
     # Owner in place 0 can be replaced.
     c.set_owner(0, a1)

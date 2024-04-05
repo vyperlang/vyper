@@ -56,7 +56,7 @@ def get(k: String[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set("a" * 34, 6789, transact={"gas": 10**6})
+    c.set("a" * 34, 6789, gas=10**6)
 
     assert c.get("a" * 34) == 6789
 

@@ -45,27 +45,27 @@ def test_approve(env, c, tx_failed, sign):
 
     # Legitimate approval
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    c.approve(0, "0x" + to.hex(), value, data, sigs, transact={"value": value, "from": a1})
+    c.approve(0, "0x" + to.hex(), value, data, sigs, value=value, sender=a1)
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
     with tx_failed():
-        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
+        c.approve(1, to_address, value, data, sigs, value=value, sender=a1)
     # Approve fails if an invalid signature is given
     sigs = pack_and_sign(1, k1, 0, k7, 0, k5)
     with tx_failed():
-        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
+        c.approve(1, to_address, value, data, sigs, value=value, sender=a1)
     # Approve fails if transaction number is incorrect (the first argument should be 1)
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
     with tx_failed():
-        c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
+        c.approve(0, to_address, value, data, sigs, value=value, sender=a1)
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
     with tx_failed():
-        c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
+        c.approve(1, to_address, value, data, sigs, value=0, sender=a1)
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
 
     # this call should succeed
-    c.approve(1, to_address, value, data, sigs, call={"value": value, "from": a1})
+    c.approve(1, to_address, value, data, sigs, value=value, sender=a1)
 
     print("Basic tests passed")
 
@@ -113,6 +113,4 @@ def test_javascript_signatures(env, get_contract, keccak):
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures
-    x2.approve(
-        0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={"to": x2.address, "value": 10**17}
-    )
+    x2.approve(0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, value=10**17)

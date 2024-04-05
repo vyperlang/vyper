@@ -51,14 +51,14 @@ def __default__():
     receiver = get_contract(receiver_code)
 
     with tx_failed():
-        sender.test_send(receiver.address, transact={"gas": 100000})
+        sender.test_send(receiver.address, gas=100000)
 
     # no value transfer happened, variable was not changed
     assert receiver.last_sender() == ZERO_ADDRESS
     assert env.get_balance(sender.address) == 1
     assert env.get_balance(receiver.address) == 0
 
-    sender.test_call(receiver.address, transact={"gas": 100000})
+    sender.test_call(receiver.address, gas=100000)
 
     # value transfer happened, variable was changed
     assert receiver.last_sender() == sender.address
@@ -93,7 +93,7 @@ def __default__():
     sender = get_contract(sender_code, value=1)
     receiver = get_contract(receiver_code)
 
-    sender.test_send_stipend(receiver.address, transact={"gas": 100000})
+    sender.test_send_stipend(receiver.address, gas=100000)
 
     # value transfer happened, variable was changed
     assert receiver.last_sender() == sender.address

@@ -260,26 +260,26 @@ def __default__():
     assert reentrant_contract.callback() == calling_contract.address
 
     # Test unprotected function without callback.
-    reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
+    reentrant_contract.unprotected_function("some value", False, value=1000)
     assert reentrant_contract.special_value() == "some value"
     assert env.get_balance(reentrant_contract.address) == 0
     assert env.get_balance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
-    reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
+    reentrant_contract.unprotected_function("another value", True, value=1000)
     assert reentrant_contract.special_value() == "another value"
     assert env.get_balance(reentrant_contract.address) == 1000
     assert env.get_balance(calling_contract.address) == 1000
 
     # Test protected function without callback.
-    reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
+    reentrant_contract.protected_function("surprise!", False, value=1000)
     assert reentrant_contract.special_value() == "surprise!"
     assert env.get_balance(reentrant_contract.address) == 1000
     assert env.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
     with tx_failed():
-        reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
+        reentrant_contract.protected_function("zzz value", True, value=1000)
 
 
 def test_disallow_on_init_function(get_contract):

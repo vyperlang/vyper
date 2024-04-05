@@ -74,7 +74,7 @@ def test_func(_value: uint256,input: Bytes[133]):
 
     c = get_contract(code)
 
-    # assert c.test_func(2**255, b'x' * 129, call={}) == b'x' * 129
+    # assert c.test_func(2**255, b'x' * 129) == b'x' * 129
     c.test_func(1234444, b"x" * 129)
     logs = get_logs(c, "TestLog")
 

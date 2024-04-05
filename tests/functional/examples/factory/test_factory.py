@@ -23,7 +23,7 @@ def create_exchange(env, get_contract):
     def create_exchange(token, factory):
         exchange = get_contract(code, *[token.address, factory.address])
         # NOTE: Must initialize exchange to register it with factory
-        exchange.initialize(transact={"from": env.accounts[0]})
+        exchange.initialize(sender=env.accounts[0])
         return exchange
 
     return create_exchange
@@ -54,15 +54,15 @@ def test_exchange(env, factory, create_token, create_exchange):
     exchange2 = create_exchange(token2, factory)
 
     # user has token 1
-    token1.mint(a, 1, transact={"from": a})
+    token1.mint(a, 1, sender=a)
     # exchange has token 2
-    token2.mint(exchange2.address, 1, transact={"from": a})
+    token2.mint(exchange2.address, 1, sender=a)
     # So approval doesn't fail for transferFrom
-    token1.approve(exchange1.address, 1, transact={"from": a})
+    token1.approve(exchange1.address, 1, sender=a)
 
     # trade token 1 for token 2
     assert token1.balanceOf(a) == 1
     assert token2.balanceOf(a) == 0
-    factory.trade(token1.address, token2.address, 1, transact={"from": a})
+    factory.trade(token1.address, token2.address, 1, sender=a)
     assert token1.balanceOf(a) == 0
     assert token2.balanceOf(a) == 1

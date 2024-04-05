@@ -59,15 +59,15 @@ def test_abort(env, tx_failed, get_balance, get_contract, contract_code):
     assert c.value() == to_wei(1, "ether")
     # Only sender can trigger refund
     with tx_failed():
-        c.abort(transact={"from": a2})
+        c.abort(sender=a2)
     # Refund works correctly
-    c.abort(transact={"from": a0})
+    c.abort(sender=a0)
     assert get_balance() == (a0_pre_bal, a1_pre_bal)
     # Purchase in process, no refund possible
     c = get_contract(contract_code, value=2)
-    c.purchase(transact={"value": 2, "from": a1})
+    c.purchase(value=2, sender=a1)
     with tx_failed():
-        c.abort(transact={"from": a0})
+        c.abort(sender=a0)
 
 
 def test_purchase(env, get_contract, tx_failed, get_balance, contract_code):
@@ -79,11 +79,11 @@ def test_purchase(env, get_contract, tx_failed, get_balance, contract_code):
     c = get_contract(contract_code, value=2)
     # Purchase for too low/high price
     with tx_failed():
-        c.purchase(transact={"value": 1, "from": a1})
+        c.purchase(value=1, sender=a1)
     with tx_failed():
-        c.purchase(transact={"value": 3, "from": a1})
+        c.purchase(value=3, sender=a1)
     # Purchase for the correct price
-    c.purchase(transact={"value": 2, "from": a1})
+    c.purchase(value=2, sender=a1)
     # Check if buyer is set correctly
     assert c.buyer() == a1
     # Check if contract is locked correctly
@@ -92,7 +92,7 @@ def test_purchase(env, get_contract, tx_failed, get_balance, contract_code):
     assert get_balance() == (init_bal_a0 - 2, init_bal_a1 - 2)
     # Allow nobody else to purchase
     with tx_failed():
-        c.purchase(transact={"value": 2, "from": a3})
+        c.purchase(value=2, sender=a3)
 
 
 def test_received(env, get_contract, tx_failed, get_balance, contract_code):
@@ -103,14 +103,14 @@ def test_received(env, get_contract, tx_failed, get_balance, contract_code):
     c = get_contract(contract_code, value=2)
     # Can only be called after purchase
     with tx_failed():
-        c.received(transact={"from": a1})
+        c.received(sender=a1)
     # Purchase completed
-    c.purchase(transact={"value": 2, "from": a1})
+    c.purchase(value=2, sender=a1)
     # Check that e.g. sender cannot trigger received
     with tx_failed():
-        c.received(transact={"from": a0})
+        c.received(sender=a0)
     # Check if buyer can call receive
-    c.received(transact={"from": a1})
+    c.received(sender=a1)
     # Final check if everything worked. 1 value has been transferred
     assert get_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
 
@@ -161,13 +161,13 @@ def __default__():
         env.get_balance(buyer_contract_address),
     )
     # Start purchase
-    buyer_contract.start_purchase(transact={"value": 4, "from": a1, "gas": 100000})
+    buyer_contract.start_purchase(value=4, sender=a1, gas=100000)
     assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"
     with tx_failed():
-        buyer_contract.start_received(transact={"from": a1, "gas": 100000})
+        buyer_contract.start_received(sender=a1, gas=100000)
 
     # Final check if everything worked. 1 value has been transferred
     assert env.get_balance(a0), env.get_balance(buyer_contract_address) == (

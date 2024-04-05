@@ -593,7 +593,7 @@ event _Return:
 
                 # do payable check
                 if mutability == "@payable":
-                    func(*args, transact={"value": 1})
+                    func(*args, value=1)
                     (event,) = get_logs(c, "_Return")
                     assert event.args.val == func_id
                 else:

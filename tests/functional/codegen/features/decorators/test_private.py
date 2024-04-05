@@ -444,7 +444,7 @@ def whoami() -> address:
     assert c.i_am_me()
 
     addr = env.accounts[1]
-    c.whoami(transact={"from": addr})
+    c.whoami(sender=addr)
     (log,) = get_logs(c)
     assert log.args.addr == addr
 

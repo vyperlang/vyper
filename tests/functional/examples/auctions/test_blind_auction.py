@@ -53,7 +53,8 @@ def test_late_bid(env, auction_contract, tx_failed, keccak):
                     ]
                 )
             ),
-            transact={"value": 200, "from": k1},
+            value=200,
+            sender=k1,
         )
 
 
@@ -72,7 +73,8 @@ def test_too_many_bids(env, auction_contract, tx_failed, keccak):
                     ]
                 )
             ),
-            transact={"value": i, "from": k1},
+            value=i,
+            sender=k1,
         )
 
     # 129th bid should fail
@@ -87,7 +89,8 @@ def test_too_many_bids(env, auction_contract, tx_failed, keccak):
                     ]
                 )
             ),
-            transact={"value": 128, "from": k1},
+            value=128,
+            sender=k1,
         )
 
 
@@ -105,7 +108,8 @@ def test_early_reval(env, auction_contract, tx_failed, keccak):
                 ]
             )
         ),
-        transact={"value": 100, "from": k1},
+        value=100,
+        sender=k1,
     )
 
     # Move time slightly forward (still before bidding has ended)
@@ -120,9 +124,7 @@ def test_early_reval(env, auction_contract, tx_failed, keccak):
     _fakes[0] = False
     _secrets[0] = (8675309).to_bytes(32, byteorder="big")
     with tx_failed():
-        auction_contract.reveal(
-            _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
-        )
+        auction_contract.reveal(_numBids, _values, _fakes, _secrets, value=0, sender=k1)
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() == ZERO_ADDRESS
@@ -144,7 +146,8 @@ def test_late_reveal(env, auction_contract, tx_failed, keccak):
                 ]
             )
         ),
-        transact={"value": 100, "from": k1},
+        value=100,
+        sender=k1,
     )
 
     # Move time forward past bidding _and_ reveal time
@@ -159,9 +162,7 @@ def test_late_reveal(env, auction_contract, tx_failed, keccak):
     _fakes[0] = False
     _secrets[0] = (8675309).to_bytes(32, byteorder="big")
     with tx_failed():
-        auction_contract.reveal(
-            _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
-        )
+        auction_contract.reveal(_numBids, _values, _fakes, _secrets, value=0, sender=k1)
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() == ZERO_ADDRESS
@@ -174,7 +175,7 @@ def test_early_end(env, auction_contract, tx_failed):
 
     # Should not be able to end auction before reveal time has ended
     with tx_failed():
-        auction_contract.auctionEnd(transact={"value": 0, "from": k0})
+        auction_contract.auctionEnd(value=0, sender=k0)
 
 
 def test_double_end(env, auction_contract, tx_failed):
@@ -184,11 +185,11 @@ def test_double_end(env, auction_contract, tx_failed):
     env.time_travel(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
 
     # First auction end should succeed
-    auction_contract.auctionEnd(transact={"value": 0, "from": k0})
+    auction_contract.auctionEnd(value=0, sender=k0)
 
     # Should not be able to end auction twice
     with tx_failed():
-        auction_contract.auctionEnd(transact={"value": 0, "from": k0})
+        auction_contract.auctionEnd(value=0, sender=k0)
 
 
 def test_blind_auction(env, auction_contract, keccak):
@@ -211,7 +212,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 100, "from": k1},
+        value=100,
+        sender=k1,
     )
 
     # k2 places 1 real bid (highest) and 2 fake
@@ -225,7 +227,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 150, "from": k2},
+        value=150,
+        sender=k2,
     )
     auction_contract.bid(
         keccak(
@@ -237,7 +240,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 250, "from": k2},
+        value=250,
+        sender=k2,
     )
     auction_contract.bid(
         keccak(
@@ -249,7 +253,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 300, "from": k2},
+        value=300,
+        sender=k2,
     )
 
     # k3 places 2 fake bids
@@ -263,7 +268,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 175, "from": k3},
+        value=175,
+        sender=k3,
     )
     auction_contract.bid(
         keccak(
@@ -275,7 +281,8 @@ def test_blind_auction(env, auction_contract, keccak):
                 ]
             )
         ),
-        transact={"value": 275, "from": k3},
+        value=275,
+        sender=k3,
     )
 
     ###################################################################
@@ -293,7 +300,7 @@ def test_blind_auction(env, auction_contract, keccak):
     _values[0] = 100
     _fakes[0] = False
     _secrets[0] = (8675309).to_bytes(32, byteorder="big")
-    auction_contract.reveal(_numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1})
+    auction_contract.reveal(_numBids, _values, _fakes, _secrets, value=0, sender=k1)
 
     #: Check that highest bidder and highest bid have updated
     assert auction_contract.highestBid() == 100
@@ -313,7 +320,7 @@ def test_blind_auction(env, auction_contract, keccak):
     _fakes[2] = True
     _secrets[2] = (1234567).to_bytes(32, byteorder="big")
     balance_before_reveal = env.get_balance(k2)
-    auction_contract.reveal(3, _values, _fakes, _secrets, transact={"value": 0, "from": k2})
+    auction_contract.reveal(3, _values, _fakes, _secrets, value=0, sender=k2)
     balance_after_reveal = env.get_balance(k2)
 
     #: Check that highest bidder and highest bid have updated
@@ -334,7 +341,7 @@ def test_blind_auction(env, auction_contract, keccak):
     _fakes[1] = True
     _secrets[1] = (9876543).to_bytes(32, byteorder="big")
     balance_before_reveal = env.get_balance(k3)
-    auction_contract.reveal(2, _values, _fakes, _secrets, transact={"value": 0, "from": k3})
+    auction_contract.reveal(2, _values, _fakes, _secrets, value=0, sender=k3)
     balance_after_reveal = env.get_balance(k3)
 
     #: Check that highest bidder and highest bid have NOT updated
@@ -353,7 +360,7 @@ def test_blind_auction(env, auction_contract, keccak):
 
     # End the auction
     balance_before_end = env.get_balance(k0)
-    auction_contract.auctionEnd(transact={"value": 0, "from": k0})
+    auction_contract.auctionEnd(value=0, sender=k0)
     balance_after_end = env.get_balance(k0)
 
     # Check that auction indeed ended
@@ -364,6 +371,6 @@ def test_blind_auction(env, auction_contract, keccak):
 
     # Check that k1 is able to withdraw their outbid bid
     balance_before_withdraw = env.get_balance(k1)
-    auction_contract.withdraw(transact={"value": 0, "from": k1})
+    auction_contract.withdraw(value=0, sender=k1)
     balance_after_withdraw = env.get_balance(k1)
     assert balance_after_withdraw == (balance_before_withdraw + 100)

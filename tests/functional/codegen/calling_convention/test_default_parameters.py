@@ -252,9 +252,9 @@ def get_balance() -> uint256:
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 31337 + 9001)
-    c.foo(transact={"value": 31337})
+    c.foo(value=31337)
     assert c.bar() == 31337
-    c.foo(666, transact={"value": 9001})
+    c.foo(666, value=9001)
     assert c.bar() == 31337 + 666
     assert c.get_balance() == 31337 + 9001
     assert env.get_balance(env.deployer) == 0

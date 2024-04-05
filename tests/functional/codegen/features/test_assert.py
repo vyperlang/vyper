@@ -17,7 +17,7 @@ def foo():
     env.set_balance(env.deployer, 10**7)
     gas_sent = 10**6
     with tx_failed():
-        c.foo(transact={"gas": gas_sent, "gasPrice": 10})
+        c.foo(gas=gas_sent, gas_price=10)
 
     assert env.last_result["gas_used"] < gas_sent, "Gas refund not received"
     assert env.last_result["is_success"] is False
