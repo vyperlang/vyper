@@ -185,6 +185,7 @@ def gas_limit():
 
 
 @pytest.fixture(scope="module")
+# REVIEW: just return type BaseEnv?
 def env(gas_limit, evm_version, evm_backend, tracing) -> PyEvmEnv | RevmEnv:
     return evm_backend(
         gas_limit=gas_limit,

@@ -15,6 +15,7 @@ from vyper.utils import keccak256, method_id
 from .abi import abi_decode, abi_encode, is_abi_encodable
 
 if TYPE_CHECKING:
+    # REVIEW: bad import -- see below comment about BaseEnv
     from tests.evm_backends.revm_env import RevmEnv
 
 
@@ -39,6 +40,8 @@ class ABILogTopic:
     @cached_property
     def topic_id(self) -> bytes:
         """The keccak256 hash of the event signature."""
+        # REVIEW: what does truthy represent here? i would prefer an `is not None`
+        # or more explicit `if "anonymous" in self._abi`.
         if self._abi.get("anonymous"):
             return b""
         return keccak256((self.name + self.signature).encode())
@@ -211,6 +214,7 @@ class ABIFunction:
             value=value,
             gas=gas,
             is_modifying=self.is_mutable,
+            # REVIEW: let's kill the transact and call dicts
             transact={**(transact or {}), **(call or {})},
         )
 
@@ -305,7 +309,7 @@ class ABIContract:
 
     def __init__(
         self,
-        env: "RevmEnv",
+        env: "RevmEnv",  # REVIEW: should be "BaseEnv"
         name: str,
         abi: dict,
         functions: list[ABIFunction],
