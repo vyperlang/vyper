@@ -5,6 +5,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import StorageLayoutException
 
+from .utils import adjust_storage_layout_for_cancun
+
 
 def test_storage_layout_overrides():
     code = """

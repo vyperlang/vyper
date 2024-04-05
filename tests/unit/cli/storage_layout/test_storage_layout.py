@@ -2,21 +2,7 @@ from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
 
 
-def _adjust_storage_layout_for_cancun(layout):
-    def _go(layout):
-        for _varname, item in layout.items():
-            if "slot" in item and isinstance(item["slot"], int):
-                item["slot"] -= 1
-            else:
-                # recurse to submodule
-                _go(item)
-
-    if version_check(begin="cancun"):
-        nonreentrant = layout["storage_layout"].pop("$.nonreentrant_key", None)
-        if nonreentrant is not None:
-            layout["transient_storage_layout"] = {"$.nonreentrant_key": nonreentrant}
-        _go(layout["storage_layout"])
-
+from .utils import adjust_storage_layout_for_cancun
 
 def test_storage_layout():
     code = """
@@ -64,7 +50,7 @@ def public_foo3():
             "bar": {"slot": 10, "type": "uint256", "n_slots": 1},
         }
     }
-    _adjust_storage_layout_for_cancun(expected)
+    adjust_storage_layout_for_cancun(expected)
 
     out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected
@@ -89,7 +75,7 @@ def __init__():
         },
         "storage_layout": {"name": {"slot": 1, "type": "String[32]", "n_slots": 2}},
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -138,7 +124,7 @@ def __init__():
             "a_library": {"supply": {"slot": 3, "type": "uint256", "n_slots": 1}},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -187,7 +173,7 @@ def __init__():
             "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -272,7 +258,7 @@ def bar():
             "a_library": {"supply": {"slot": 4, "type": "uint256", "n_slots": 1}},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -353,7 +339,7 @@ def foo() -> uint256:
             "counter2": {"slot": 4, "type": "uint256", "n_slots": 1},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
