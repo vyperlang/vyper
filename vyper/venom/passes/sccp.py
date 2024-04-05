@@ -36,7 +36,7 @@ type Lattice = dict[IRVariable, LatticeItem]
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
-    uses: dict[IRVariable, IRBasicBlock]
+    uses: dict[IRVariable, OrderedSet[IRInstruction]]
     defs: dict[IRVariable, IRInstruction]
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -52,8 +52,9 @@ class SCCP(IRPass):
         self._calculate_sccp(entry)
         print("SCCP done", self.lattice)
         # self._propagate_constants()
+        return 0
 
-    def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
+    def _calculate_sccp(self, entry: IRBasicBlock):
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
         self.work_list.append(FlowWorkItem(dummy, entry))
 
@@ -108,6 +109,7 @@ class SCCP(IRPass):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         vars = []
         for bb, var in inst.phi_operands:
+            assert inst.parent is not None and inst.parent == bb, "Phi from different basic block"
             if bb not in inst.parent.cfg_in_exec:
                 continue
             vars.append(self.lattice[var])
