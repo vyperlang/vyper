@@ -168,7 +168,7 @@ class IRVariable(IRValue):
         return self.value.__hash__()
 
     def __eq__(self, v: object) -> bool:
-        return self.value == v.value
+        return self.value == v.value # type: ignore
 
     def __repr__(self) -> str:
         return self.value
@@ -478,8 +478,8 @@ class IRBasicBlock:
         """
         return [inst.output for inst in self.instructions if inst.output]
 
-    def get_uses(self) -> dict[IRVariable, IRInstruction]:
-        uses = {}
+    def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
+        uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
         for inst in self.instructions:
             ops = inst.get_non_label_operands()
             for op in ops:
