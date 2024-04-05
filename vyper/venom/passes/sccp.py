@@ -50,8 +50,8 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        # print("SCCP done", self.lattice)
-        self._propagate_constants(entry)
+        print("SCCP done", self.lattice)
+        # self._propagate_constants(entry)
 
     def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
@@ -95,7 +95,17 @@ class SCCP(IRPass):
         entry: IRBasicBlock,
     ):
         for bb in self.dom.dfs_walk:
-            pass
+            for inst in bb.instructions:
+                self._replace_constants(inst, self.lattice)    
+
+    def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
+        if inst.opcode == "phi":
+            return # TODO
+        for i, op in enumerate(inst.operands):
+            if isinstance(op, IRVariable):
+                lat = lattice[op]
+                if isinstance(lat, IRLiteral):
+                    inst.operands[i] = lat
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
@@ -113,7 +123,7 @@ class SCCP(IRPass):
     def _visitExpr(self, inst: IRInstruction):
         # print("Visit: ", inst.opcode)
         opcode = inst.opcode
-        if opcode in ["push", "store"]:
+        if opcode in ["push", "store", "alloca"]:
             if isinstance(inst.operands[0], IRLiteral):
                 self.lattice[inst.output] = inst.operands[0]
             else:
