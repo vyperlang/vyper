@@ -30,8 +30,6 @@ class Mem2Stack(IRPass):
         
         self._compute_stores()
 
-        self.var_name_counters = {var: 0 for var in self.defs.keys()}
-        self.var_name_stacks = {var: [0] for var in self.defs.keys()}
         # self._rename_vars(entry)
         
         return 0
@@ -55,47 +53,7 @@ class Mem2Stack(IRPass):
                 elif inst.opcode == "mload":
                     inst.opcode = "store"
                     inst.operands = [IRVariable(var_name)]
-        
-
-
-    def _rename_vars(self, basic_block: IRBasicBlock):
-        outs = []
-
-        # Pre-action
-        for inst in basic_block.instructions:
-            if self._is_store(inst):
-                v_name = f"addr{inst.operands[1]}"
-                i = self.var_name_counters[v_name]
-
-                self.var_name_stacks[v_name].append(i)
-                self.var_name_counters[v_name] = i + 1
-
-                outs.append(inst.operands[1])
-                inst.opcode = "store"
-                inst.output = IRVariable(v_name, version=i)
-                inst.operands = [inst.operands[0]]
-
-        # for bb in basic_block.cfg_out:
-        #     for inst in bb.instructions:
-        #         if inst.opcode != "phi":
-        #             continue
-        #         assert inst.output is not None, "Phi instruction without output"
-        #         for i, op in enumerate(inst.operands):
-        #             if op == basic_block.label:
-        #                 inst.operands[i + 1] = IRVariable(
-        #                     inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
-        #                 )
-
-        for bb in self.dom.dominated[basic_block]:
-            if bb == basic_block:
-                continue
-            self._rename_vars(bb)
-
-        # Post-action
-        for op_name in outs:
-            # NOTE: each pop corresponds to an append in the pre-action above
-            self.var_name_stacks[f"addr{op_name}"].pop()
-
+    
     def _compute_stores(self):
         self.defs = {}
         for bb in self.dom.dfs_walk:
