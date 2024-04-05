@@ -258,7 +258,6 @@ class ABIOverload:
         gas=None,
         sender=None,
         disambiguate_signature=None,
-        transact=None,
         **kwargs,
     ):
         """
@@ -268,7 +267,7 @@ class ABIOverload:
         function = self._pick_overload(
             *args, disambiguate_signature=disambiguate_signature, **kwargs
         )
-        return function(*args, value=value, gas=gas, sender=sender, transact=transact, **kwargs)
+        return function(*args, value=value, gas=gas, sender=sender, **kwargs)
 
     def _pick_overload(self, *args, disambiguate_signature=None, **kwargs) -> ABIFunction:
         """Pick the function that matches the given arguments."""
