@@ -299,13 +299,24 @@ def _convert_ir_bb(ctx, ir, symbols):
         cont_ret = _convert_ir_bb(ctx, cond, symbols)
         cond_block = ctx.get_basic_block()
 
-        cond_symbols = symbols.copy()
         saved_global_symbols = _global_symbols.copy()
 
+        then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
         else_block = IRBasicBlock(ctx.get_next_label("else"), ctx)
-        ctx.append_basic_block(else_block)
 
+        # convert "then"
+        cond_symbols = symbols.copy()
+        ctx.append_basic_block(then_block)
+        then_ret_val = _convert_ir_bb(ctx, ir.args[1], cond_symbols)
+        if isinstance(then_ret_val, IRLiteral):
+            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
+
+        then_block_finish = ctx.get_basic_block()
+        
         # convert "else"
+        cond_symbols = symbols.copy()
+        _global_symbols = saved_global_symbols.copy()
+        ctx.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
             else_ret_val = _convert_ir_bb(ctx, ir.args[2], cond_symbols)
@@ -315,19 +326,8 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         else_block_finish = ctx.get_basic_block()
 
-        # convert "then"
-        cond_symbols = symbols.copy()
-
-        then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
-        ctx.append_basic_block(then_block)
-
-        then_ret_val = _convert_ir_bb(ctx, ir.args[1], cond_symbols)
-        if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
-
+        # finish the condition block
         cond_block.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
-
-        then_block_finish = ctx.get_basic_block()
 
         # exit bb
         exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), ctx)
