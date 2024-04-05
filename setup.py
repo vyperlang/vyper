@@ -21,6 +21,7 @@ extras_require = {
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
+        "typing-extensions<4.11.0", # pin due to regression
         "hexbytes>=1.2",
     ],
     "lint": [
