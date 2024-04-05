@@ -22,6 +22,7 @@ class Mem2Stack(IRPass):
 
         calculate_liveness(ctx)
 
+        self.var_name_count = 0
         for var, inst in dfg.outputs.items():
             if inst.opcode != "alloca":
                 continue
@@ -31,25 +32,31 @@ class Mem2Stack(IRPass):
 
         self.var_name_counters = {var: 0 for var in self.defs.keys()}
         self.var_name_stacks = {var: [0] for var in self.defs.keys()}
-        self._rename_vars(entry)
+        # self._rename_vars(entry)
         
         return 0
 
     def _process_alloca_var(self, dfg: DFG, var: IRVariable, alloca_inst: IRInstruction):
         uses = dfg.get_uses(var)
-        if not all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):
+        if all([inst.opcode == "mload" for inst in uses]):
             return
-        var_name = f"addr{var.name}"
-        print(f"Processing alloca var {var_name}")
-        print(uses)
-        for inst in uses:
-            if inst.opcode == "mstore":
-                inst.opcode = "store"
-                inst.output = IRVariable(var_name)
-                inst.operands = [inst.operands[0]]
-            elif inst.opcode == "mload":
-                inst.opcode = "store"
-                inst.operands = [IRVariable(var_name)]
+        elif all([inst.opcode == "mstore" for inst in uses]):
+            return
+        elif all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):    
+            var_name = f"addr{var.name}_{self.var_name_count}"
+            self.var_name_count += 1
+            print(f"Processing alloca var {var_name}")
+            print(uses)
+            for inst in uses:
+                if inst.opcode == "mstore":
+                    inst.opcode = "store"
+                    inst.output = IRVariable(var_name)
+                    inst.operands = [inst.operands[0]]
+                elif inst.opcode == "mload":
+                    inst.opcode = "store"
+                    inst.operands = [IRVariable(var_name)]
+        
+
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         outs = []
