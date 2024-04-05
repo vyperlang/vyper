@@ -219,7 +219,7 @@ def _convert_ir_bb_list(ctx, ir, symbols):
 
 current_func = None
 var_list: list[str] = []
-
+_global_symbols = {}
 
 def pop_source_on_return(func):
     @functools.wraps(func)
@@ -235,7 +235,7 @@ def pop_source_on_return(func):
 @pop_source_on_return
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list
+    global _break_target, _continue_target, current_func, var_list, _global_symbols
 
     ctx.push_source(ir)
 
@@ -268,6 +268,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 # Internal definition
                 var_list = ir.args[0].args[1]
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+                _global_symbols = {}
                 symbols = {}
                 _handle_internal_func(ctx, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
@@ -532,15 +533,16 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols)
     elif isinstance(ir.value, str):
-        if ir.value.startswith("$alloca") and ir.value not in symbols:
+        if ir.value.startswith("$alloca") and ir.value not in _global_symbols:
             alloca = ir.passthrough_metadata["alloca"]
             ptr = ctx.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-            symbols[ir.value] = ptr
-        elif ir.value.startswith("$palloca") and ir.value not in symbols:
+            _global_symbols[ir.value] = ptr
+        elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
             alloca = ir.passthrough_metadata["alloca"]
             ptr = ctx.get_basic_block().append_instruction("store", alloca.offset)
-            symbols[ir.value] = ptr
-        return symbols[ir.value]
+            _global_symbols[ir.value] = ptr
+
+        return _global_symbols.get(ir.value) or symbols[ir.value]
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
