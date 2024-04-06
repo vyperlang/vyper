@@ -207,6 +207,9 @@ jobs:
     - name: Fetch test-durations
       run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
+    - name: debug
+      run: xxd < /opt/hostedtoolcache/Python/3.11.8/x64/lib/python3.11/site-packages/web3/__init__.py
+
     - name: Run tests
       run: |
         pytest \
