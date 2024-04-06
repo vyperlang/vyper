@@ -201,6 +201,9 @@ jobs:
     - name: Install dependencies
       run: pip install .[test]
 
+    - name: debug dependencies
+      run: pip freeze
+
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `pytest -m "fuzzing" --store-durations -r aR tests/`
