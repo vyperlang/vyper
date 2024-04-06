@@ -90,11 +90,10 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-class IRValue:
+class IROperand:
     """
-    IRValue represents a value in IR. A value is anything that can be
-    operated by non-control flow instructions. That is, IRValues can be
-    IRVariables or IRLiterals.
+    IROperand represents an IR operand. An operand is anything that can be
+    operated by instructions. It can be a literal, a variable, or a label.
     """
 
     value: Any
@@ -103,20 +102,8 @@ class IRValue:
     def name(self) -> str:
         return self.value
 
-
-class IRLiteral(IRValue):
-    """
-    IRLiteral represents a literal in IR
-    """
-
-    value: int
-
-    def __init__(self, value: int) -> None:
-        assert isinstance(value, int), "value must be an int"
-        self.value = value
-
     def __hash__(self) -> int:
-        return self.value.__hash__()
+        return hash(self.value)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
@@ -127,7 +114,19 @@ class IRLiteral(IRValue):
         return str(self.value)
 
 
-class IRVariable(IRValue):
+class IRLiteral(IROperand):
+    """
+    IRLiteral represents a literal in IR
+    """
+
+    value: int
+
+    def __init__(self, value: int) -> None:
+        assert isinstance(value, int), "value must be an int"
+        self.value = value
+
+
+class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
@@ -156,19 +155,8 @@ class IRVariable(IRValue):
             return 0
         return int(self.value.split(":")[1])
 
-    def __hash__(self) -> int:
-        return self.value.__hash__()
 
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return self.value == other.value
-
-    def __repr__(self) -> str:
-        return self.value
-
-
-class IRLabel(IRValue):
+class IRLabel(IROperand):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -182,20 +170,6 @@ class IRLabel(IRValue):
         assert isinstance(value, str), "value must be an str"
         self.value = value
         self.is_symbol = is_symbol
-
-    def __hash__(self) -> int:
-        return hash(self.value)
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return self.value == other.value
-
-    def __repr__(self) -> str:
-        return self.value
-
-
-IROperand = Union[IRVariable, IRLiteral, IRLabel]
 
 
 def is_literal(op: IROperand) -> bool:
@@ -211,7 +185,7 @@ def is_label(op: IROperand) -> bool:
 
 
 def is_operand(op: IROperand) -> bool:
-    return isinstance(op, (IRVariable, IRLiteral, IRLabel))
+    return isinstance(op, IROperand)
 
 
 class IRInstruction:
