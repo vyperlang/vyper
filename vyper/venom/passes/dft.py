@@ -1,6 +1,12 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFG
-from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import (
+    BB_TERMINATORS,
+    IRBasicBlock,
+    IRInstruction,
+    IRVariable,
+    is_variable,
+)
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
