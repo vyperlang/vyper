@@ -174,8 +174,8 @@ class IRLabel(IROperand):
         return super().__eq__(other)
 
     def __hash__(self):
+        # __hash__ is required when __eq__ is overridden --
         # https://docs.python.org/3/reference/datamodel.html#object.__hash__
-        # https://cdn3.emoji.gg/emojis/2845-ptsd.png
         return super().__hash__()
 
 
