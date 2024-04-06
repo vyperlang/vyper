@@ -90,10 +90,11 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-class IROperand:
+class IRValue:
     """
-    IROperand represents an operand in IR. An operand is anything that can
-    be an argument to an IRInstruction
+    IRValue represents a value in IR. A value is anything that can be
+    operated by non-control flow instructions. That is, IRValues can be
+    IRVariables or IRLiterals.
     """
 
     value: Any
@@ -101,16 +102,6 @@ class IROperand:
     @property
     def name(self) -> str:
         return self.value
-
-
-class IRValue(IROperand):
-    """
-    IRValue represents a value in IR. A value is anything that can be
-    operated by non-control flow instructions. That is, IRValues can be
-    IRVariables or IRLiterals.
-    """
-
-    pass
 
 
 class IRLiteral(IRValue):
@@ -177,7 +168,7 @@ class IRVariable(IRValue):
         return self.value
 
 
-class IRLabel(IROperand):
+class IRLabel(IRValue):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -202,6 +193,25 @@ class IRLabel(IROperand):
 
     def __repr__(self) -> str:
         return self.value
+
+
+IROperand = Union[IRVariable, IRLiteral, IRLabel]
+
+
+def is_literal(op: IROperand) -> bool:
+    return isinstance(op, IRLiteral)
+
+
+def is_variable(op: IROperand) -> bool:
+    return isinstance(op, IRVariable)
+
+
+def is_label(op: IROperand) -> bool:
+    return isinstance(op, IRLabel)
+
+
+def is_operand(op: IROperand) -> bool:
+    return isinstance(op, (IRVariable, IRLiteral, IRLabel))
 
 
 class IRInstruction:
@@ -328,7 +338,7 @@ class IRInstruction:
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
-    if isinstance(val, IROperand):
+    if is_operand(val):
         return val
 
     assert isinstance(val, int), val
