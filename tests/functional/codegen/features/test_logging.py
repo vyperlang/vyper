@@ -502,7 +502,7 @@ def foo():
     logs1 = receipt["logs"][0]
     logs2 = receipt["logs"][1]
     event_id1 = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
-    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
+    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,int168)))", "utf-8"))
 
     # Event id is always the first topic
     assert logs1["topics"][0] == "0x" + event_id1.hex()
@@ -532,7 +532,7 @@ def foo():
                         "type": "tuple",
                         "components": [
                             {"name": "t", "type": "string"},
-                            {"name": "w", "type": "fixed168x10"},
+                            {"name": "w", "type": "int168", "internalType": "decimal"},
                         ],
                     },
                 ],

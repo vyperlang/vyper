@@ -1,7 +1,13 @@
 import pytest
 
 from vyper.semantics.types.user import EventT
+from vyper.utils import keccak256
 
+def keccak256_int(signature_str):
+    return int.from_bytes(keccak256(signature_str.encode()), "big")
+
+
+# TODO: refactor these to all use keccak256_int util instead of hardcoded constants
 EVENT_ID_TESTS = [
     (
         "event MyLog: pass",
@@ -72,8 +78,7 @@ EVENT_ID_TESTS = [
     (
         """event Bar:
     a: decimal[4]""",
-        # Bar(fixed168x10[4])
-        0x7F5D3D77DC11EED2D256D513EF1916FBA342AD13DD629E3C2FF3BD1BAEADF932,
+        keccak256_int("Bar(int168[4])"),
     ),
     (
         """event Rtadr:
@@ -81,8 +86,7 @@ EVENT_ID_TESTS = [
     b: decimal[2][5]
     c: Bytes[4]
     d: decimal[666]""",
-        # Rtadr(fixed168x10,fixed168x10[2][5],bytes,fixed168x10[666])
-        0x20B4E04949A8E3B03C8DECC09D8B18B271D42E66F83B9FAA7B75EA7E22E27177,
+        keccak256_int("Rtadr(int168,int168[2][5],bytes,int168[666])"),
     ),
 ]
 
