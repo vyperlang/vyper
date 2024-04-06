@@ -170,22 +170,6 @@ class IRLabel(IROperand):
         self.is_symbol = is_symbol
 
 
-def is_literal(op: IROperand) -> bool:
-    return isinstance(op, IRLiteral)
-
-
-def is_variable(op: IROperand) -> bool:
-    return isinstance(op, IRVariable)
-
-
-def is_label(op: IROperand) -> bool:
-    return isinstance(op, IRLabel)
-
-
-def is_operand(op: IROperand) -> bool:
-    return isinstance(op, IROperand)
-
-
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -310,7 +294,7 @@ class IRInstruction:
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
-    if is_operand(val):
+    if isinstance(val, IROperand):
         return val
 
     assert isinstance(val, int), val

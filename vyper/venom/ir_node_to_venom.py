@@ -12,7 +12,6 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
-    is_variable,
 )
 from vyper.venom.function import IRFunction
 
@@ -427,7 +426,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value == "mload":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
         bb = ctx.get_basic_block()
-        if is_variable(arg_0):
+        if isinstance(arg_0, IRVariable):
             return bb.append_instruction("mload", arg_0)
 
         if isinstance(arg_0, IRLiteral):
@@ -441,7 +440,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         # to fix upstream.
         arg_1, arg_0 = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
 
-        if is_variable(arg_1):
+        if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
 
         ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
