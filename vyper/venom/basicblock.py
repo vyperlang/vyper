@@ -91,8 +91,8 @@ class IRDebugInfo:
 
 class IROperand:
     """
-    IROperand represents an operand in IR. An operand is anything that can
-    be an argument to an IRInstruction
+    IROperand represents an IR operand. An operand is anything that can be
+    operated by instructions. It can be a literal, a variable, or a label.
     """
 
     value: Any
@@ -101,30 +101,8 @@ class IROperand:
     def name(self) -> str:
         return self.value
 
-
-class IRValue(IROperand):
-    """
-    IRValue represents a value in IR. A value is anything that can be
-    operated by non-control flow instructions. That is, IRValues can be
-    IRVariables or IRLiterals.
-    """
-
-    pass
-
-
-class IRLiteral(IRValue):
-    """
-    IRLiteral represents a literal in IR
-    """
-
-    value: int
-
-    def __init__(self, value: int) -> None:
-        assert isinstance(value, int), "value must be an int"
-        self.value = value
-
     def __hash__(self) -> int:
-        return self.value.__hash__()
+        return hash(self.value)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
@@ -135,13 +113,24 @@ class IRLiteral(IRValue):
         return str(self.value)
 
 
-class IRVariable(IRValue):
+class IRLiteral(IROperand):
+    """
+    IRLiteral represents a literal in IR
+    """
+
+    value: int
+
+    def __init__(self, value: int) -> None:
+        assert isinstance(value, int), "value must be an int"
+        self.value = value
+
+
+class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
     value: str
-    offset: int = 0
 
     def __init__(self, value: str, version: Optional[str | int] = None) -> None:
         assert isinstance(value, str)
@@ -152,7 +141,6 @@ class IRVariable(IRValue):
         if value[0] != "%":
             value = f"%{value}"
         self.value = value
-        self.offset = 0
 
     @property
     def name(self) -> str:
@@ -163,15 +151,6 @@ class IRVariable(IRValue):
         if ":" not in self.value:
             return 0
         return int(self.value.split(":")[1])
-
-    def __hash__(self) -> int:
-        return self.value.__hash__()
-
-    def __eq__(self, v: object) -> bool:
-        return self.value == v.value # type: ignore
-
-    def __repr__(self) -> str:
-        return self.value
 
 
 class IRLabel(IROperand):
@@ -189,16 +168,21 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
-    def __hash__(self) -> int:
-        return hash(self.value)
 
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return self.value == other.value
+def is_literal(op: IROperand) -> bool:
+    return isinstance(op, IRLiteral)
 
-    def __repr__(self) -> str:
-        return self.value
+
+def is_variable(op: IROperand) -> bool:
+    return isinstance(op, IRVariable)
+
+
+def is_label(op: IROperand) -> bool:
+    return isinstance(op, IRLabel)
+
+
+def is_operand(op: IROperand) -> bool:
+    return isinstance(op, IROperand)
 
 
 class IRInstruction:
@@ -327,7 +311,7 @@ class IRInstruction:
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
-    if isinstance(val, IROperand):
+    if is_operand(val):
         return val
 
     assert isinstance(val, int), val

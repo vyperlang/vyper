@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable, is_variable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -95,10 +95,10 @@ class MakeSSA(IRPass):
 
         # Pre-action
         for inst in basic_block.instructions:
-            new_ops = []
+            new_ops: list[IROperand] = []
             if inst.opcode != "phi":
                 for op in inst.operands:
-                    if not isinstance(op, IRVariable):
+                    if not is_variable(op):
                         new_ops.append(op)
                         continue
 
@@ -143,7 +143,7 @@ class MakeSSA(IRPass):
             if inst.opcode != "phi":
                 continue
 
-            new_ops = []
+            new_ops: list[IROperand] = []
             for label, op in inst.phi_operands:
                 if op == inst.output:
                     continue

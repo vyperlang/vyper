@@ -8,6 +8,7 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRVariable,
+    is_variable,
 )
 from vyper.venom.function import IRFunction
 
@@ -188,7 +189,7 @@ class DFG:
         for var, inputs in self._dfg_inputs.items():
             for input in inputs:
                 for op in input.get_outputs():
-                    if isinstance(op, IRVariable):
+                    if is_variable(op):
                         lines.append(f'    " {var.name} " -> " {op.name} "')
 
         lines.append("}")

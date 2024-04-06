@@ -12,6 +12,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    is_variable,
 )
 from vyper.venom.function import IRFunction
 

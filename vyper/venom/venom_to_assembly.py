@@ -24,6 +24,8 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    is_label,
+    is_variable,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.normalization import NormalizationPass
@@ -235,13 +237,13 @@ class VenomCompiler:
         # it with something that is wanted
         if ops and stack.height > 0 and stack.peek(0) not in ops:
             for op in ops:
-                if isinstance(op, IRVariable) and op not in inst.dup_requirements:
+                if is_variable(op) and op not in inst.dup_requirements:
                     self.swap_op(assembly, stack, op)
                     break
 
         emitted_ops = OrderedSet[IROperand]()
         for op in ops:
-            if isinstance(op, IRLabel):
+            if is_label(op):
                 # invoke emits the actual instruction itself so we don't need to emit it here
                 # but we need to add it to the stack map
                 if inst.opcode != "invoke":
