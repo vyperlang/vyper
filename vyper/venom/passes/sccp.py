@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from typing import Union
 from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
@@ -27,10 +28,9 @@ class FlowWorkItem:
     end: IRBasicBlock
 
 
-type WorkListItem = FlowWorkItem | SSAWorkListItem
-
-type LatticeItem = LatticeEnum | IRLiteral
-type Lattice = dict[IRVariable, LatticeItem]
+WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
+LatticeItem = Union[LatticeEnum, IRLiteral]
+Lattice = dict[IRVariable | None, LatticeItem]
 
 
 class SCCP(IRPass):
@@ -208,7 +208,7 @@ class SCCP(IRPass):
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         if inst.output not in self.uses:
-            self.uses[inst.output] = []
+            self.uses[inst.output] = OrderedSet()
         for use in self.uses[inst.output]:
             self.work_list.append(SSAWorkListItem(use, use.parent))
 
