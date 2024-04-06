@@ -5,7 +5,7 @@ from typing import Union
 from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable, is_label, is_literal, is_variable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -174,9 +174,9 @@ class SCCP(IRPass):
 
         ops = []
         for op in inst.operands:
-            if is_variable(op):
+            if isinstance(op, IRVariable):
                 ops.append(self.lattice[op])
-            elif is_label(op):
+            elif isinstance(op, IRLabel):
                 return LatticeEnum.BOTTOM
             else:
                 ops.append(op)
