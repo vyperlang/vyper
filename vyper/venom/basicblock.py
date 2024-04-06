@@ -169,6 +169,13 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
+    def __eq__(self, other):
+        # is_symbol does not participate in equality
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return super().__hash__()
+
 
 class IRInstruction:
     """
