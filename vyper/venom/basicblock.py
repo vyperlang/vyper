@@ -201,7 +201,7 @@ class IRInstruction:
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
-    parent: Optional["IRBasicBlock"]
+    parent: "IRBasicBlock"
     fence_id: int
     annotation: Optional[str]
     ast_source: Optional[int]
@@ -220,7 +220,6 @@ class IRInstruction:
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
-        self.parent = None
         self.fence_id = -1
         self.annotation = None
         self.ast_source = None

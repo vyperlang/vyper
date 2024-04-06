@@ -5,7 +5,7 @@ from typing import Union
 from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable, is_label, is_literal, is_variable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -30,13 +30,13 @@ class FlowWorkItem:
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
-Lattice = dict[IRVariable | None, LatticeItem]
+Lattice = dict[IRVariable, LatticeItem]
 
 
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
-    uses: dict[IRVariable, OrderedSet[IRInstruction]]
+    uses: dict[IRVariable, IRBasicBlock]
     defs: dict[IRVariable, IRInstruction]
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -109,7 +109,6 @@ class SCCP(IRPass):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         vars = []
         for bb, var in inst.phi_operands:
-            assert inst.parent is not None, "Instruction with no parent"
             if bb not in inst.parent.cfg_in_exec:
                 continue
             vars.append(self.lattice[var])
@@ -175,9 +174,9 @@ class SCCP(IRPass):
 
         ops = []
         for op in inst.operands:
-            if isinstance(op, IRVariable):
+            if is_variable(op):
                 ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
+            elif is_label(op):
                 return LatticeEnum.BOTTOM
             else:
                 ops.append(op)
