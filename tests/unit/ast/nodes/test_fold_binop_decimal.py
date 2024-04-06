@@ -4,7 +4,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from tests.utils import parse_and_fold
+from tests.utils import decimal_to_int, parse_and_fold
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.types import DecimalT
@@ -45,8 +45,10 @@ def foo(a: decimal, b: decimal) -> decimal:
     except (OverflowException, ZeroDivisionException):
         is_valid = False
 
+    left = decimal_to_int(left)
+    right = decimal_to_int(right)
     if is_valid:
-        assert contract.foo(left, right) == new_node.value
+        assert contract.foo(left, right) == decimal_to_int(new_node.value)
     else:
         with tx_failed():
             contract.foo(left, right)
@@ -90,8 +92,9 @@ def foo({input_value}) -> decimal:
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False
 
+    values = [decimal_to_int(v) for v in values]
     if is_valid:
-        assert contract.foo(*values) == expected
+        assert contract.foo(*values) == decimal_to_int(expected)
     else:
         with tx_failed():
             contract.foo(*values)

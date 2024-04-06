@@ -1,6 +1,6 @@
-from decimal import Decimal
-
 import pytest
+
+from tests.utils import decimal_to_int
 
 wei_denoms = {
     "femtoether": 3,
@@ -63,7 +63,7 @@ def foo(a: decimal) -> uint256:
     """
 
     c = get_contract(code)
-    value = Decimal((2**127 - 1) / (10**multiplier))
+    value = decimal_to_int((2**127 - 1) / (10**multiplier))
 
     assert c.foo(value) == value * (10**multiplier)
 
