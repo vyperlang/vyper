@@ -139,7 +139,9 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: |
+        pip install .[test]
+        pip install --upgrade --force setuptools
 
     - name: Debug dependencies
       run: pip freeze
@@ -199,7 +201,9 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: |
+        pip install .[test]
+        pip install --upgrade --force setuptools
 
     - name: debug dependencies
       run: pip freeze
