@@ -132,7 +132,6 @@ class IRVariable(IROperand):
     """
 
     value: str
-    offset: int = 0
 
     def __init__(self, value: str, version: Optional[str | int] = None) -> None:
         assert isinstance(value, str)
@@ -143,7 +142,6 @@ class IRVariable(IROperand):
         if value[0] != "%":
             value = f"%{value}"
         self.value = value
-        self.offset = 0
 
     @property
     def name(self) -> str:
