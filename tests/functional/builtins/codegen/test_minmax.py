@@ -1,9 +1,6 @@
-from decimal import Decimal
-
-from tests.utils import decimal_to_int
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.semantics.types import IntegerT
 
 

@@ -1,14 +1,13 @@
 import enum
 import itertools
 import math
-
-# import random
 from decimal import Decimal
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -142,7 +141,7 @@ def _cases_for_decimal(typ):
     # DIVISOR = info.divisor
     # ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
 
-    return ret
+    return [decimal_to_int(x) for x in ret]
 
 
 def _cases_for_address(_typ):

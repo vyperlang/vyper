@@ -1,6 +1,7 @@
 import pytest
 from eth.codecs import abi
 
+from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -10,7 +11,6 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
 )
-from tests.utils import decimal_to_int
 from vyper.utils import method_id
 
 

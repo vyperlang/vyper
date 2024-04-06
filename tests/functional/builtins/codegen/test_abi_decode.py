@@ -1,8 +1,8 @@
 import pytest
 from eth.codecs import abi
 
-from vyper.exceptions import ArgumentException, StackTooDeep, StructureException
 from tests.utils import decimal_to_int
+from vyper.exceptions import ArgumentException, StackTooDeep, StructureException
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
@@ -56,7 +56,13 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     args = (TEST_ADDR, -1, True, decimal_to_int("-123.4"), test_bytes32)
     encoding = "(address,int128,bool,int168,bytes32)"
     encoded = abi.encode(encoding, args)
-    assert tuple(c.abi_decode(encoded)) == (TEST_ADDR, -1, True, decimal_to_int("-123.4"), test_bytes32)
+    assert tuple(c.abi_decode(encoded)) == (
+        TEST_ADDR,
+        -1,
+        True,
+        decimal_to_int("-123.4"),
+        test_bytes32,
+    )
 
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (

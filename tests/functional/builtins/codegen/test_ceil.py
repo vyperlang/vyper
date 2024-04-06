@@ -1,6 +1,8 @@
 import math
 from decimal import Decimal
 
+from tests.utils import decimal_to_int
+
 
 def test_ceil(get_contract_with_gas_estimation):
     code = """

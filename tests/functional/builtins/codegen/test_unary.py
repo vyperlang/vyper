@@ -1,9 +1,7 @@
-from decimal import Decimal
-
 import pytest
 
-from vyper.exceptions import InvalidOperation
 from tests.utils import decimal_to_int
+from vyper.exceptions import InvalidOperation
 
 
 def test_unary_sub_uint256_fail(assert_compile_failed, get_contract):

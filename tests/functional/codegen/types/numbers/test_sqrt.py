@@ -4,8 +4,8 @@ import hypothesis
 import pytest
 from eth_tester.exceptions import TransactionFailed
 
-from vyper.utils import SizeLimits
 from tests.utils import decimal_to_int
+from vyper.utils import SizeLimits
 
 DECIMAL_PLACES = 10
 DECIMAL_RANGE = [Decimal("0." + "0" * d + "2") for d in range(0, DECIMAL_PLACES)]
@@ -97,7 +97,7 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
     val = Decimal("2.1")
     assert c.test(val) == [
         val,
-        dceimal_to_int("1"),
+        decimal_to_int("1"),
         decimal_to_int("2"),
         decimal_to_int("3"),
         decimal_sqrt(val),

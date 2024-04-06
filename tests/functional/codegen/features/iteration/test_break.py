@@ -1,7 +1,6 @@
-from tests.utils import decimal_to_int
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.exceptions import StructureException
 
 

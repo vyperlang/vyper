@@ -1,9 +1,8 @@
 import re
 
-from tests.utils import decimal_to_int
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,

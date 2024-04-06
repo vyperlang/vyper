@@ -4,7 +4,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from tests.utils import parse_and_fold
+from tests.utils import decimal_to_int, parse_and_fold
 
 st_decimals = st.decimals(
     min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10
