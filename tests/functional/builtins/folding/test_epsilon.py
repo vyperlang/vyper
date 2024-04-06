@@ -1,6 +1,6 @@
 import pytest
 
-from tests.utils import parse_and_fold
+from tests.utils import parse_and_fold, decimal_to_int
 
 
 @pytest.mark.parametrize("typ_name", ["decimal"])
@@ -16,4 +16,4 @@ def foo() -> {typ_name}:
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
-    assert contract.foo() == new_node.value
+    assert contract.foo() == decimal_to_int(new_node.value)
