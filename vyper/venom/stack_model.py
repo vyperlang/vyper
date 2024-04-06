@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IROperand, IRVariable, is_operand
+from vyper.venom.basicblock import IROperand, IRVariable
 
 
 class StackModel:
@@ -24,7 +24,7 @@ class StackModel:
         """
         Pushes an operand onto the stack map.
         """
-        assert is_operand(op), f"{type(op)}: {op}"
+        assert isinstance(op, IROperand), f"{type(op)}: {op}"
         self._stack.append(op)
 
     def pop(self, num: int = 1) -> None:
@@ -35,7 +35,7 @@ class StackModel:
         Returns the depth of the n-th matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
-        assert is_operand(op), f"{type(op)}: {op}"
+        assert isinstance(op, IROperand), f"{type(op)}: {op}"
 
         for i, stack_op in enumerate(reversed(self._stack)):
             if stack_op.value == op.value:
@@ -77,7 +77,7 @@ class StackModel:
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot poke non-in-stack depth"
         assert depth <= 0, "Bad depth"
-        assert is_operand(op), f"{type(op)}: {op}"
+        assert isinstance(op, IROperand), f"{type(op)}: {op}"
         self._stack[depth - 1] = op
 
     def dup(self, depth: int) -> None:
