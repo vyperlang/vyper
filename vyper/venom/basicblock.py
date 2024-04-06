@@ -170,7 +170,7 @@ class IRLabel(IROperand):
         self.is_symbol = is_symbol
 
     def __eq__(self, other):
-        # is_symbol does not participate in equality
+        # no need for is_symbol to participate in equality
         return super().__eq__(other)
 
     def __hash__(self):
