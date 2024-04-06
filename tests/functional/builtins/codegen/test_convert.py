@@ -285,7 +285,7 @@ def _convert_decimal_to_int(val, o_typ):
     if not lo <= val <= hi:
         return None
 
-    return round_towards_zero(val)
+    return val
 
 
 def _convert_int_to_decimal(val, o_typ):
@@ -295,7 +295,7 @@ def _convert_int_to_decimal(val, o_typ):
     if not lo <= ret <= hi:
         return None
 
-    return ret
+    return decimal_to_int(ret)
 
 
 def _py_convert(val, i_typ, o_typ):
