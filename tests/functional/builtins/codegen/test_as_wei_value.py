@@ -1,4 +1,5 @@
 from decimal import Decimal
+import math
 
 import pytest
 
@@ -63,15 +64,13 @@ def test_wei_decimal(get_contract, tx_failed, denom, multiplier):
 def foo(a: decimal) -> uint256:
     return as_wei_value(a, "{denom}")
     """
-
     c = get_contract(code)
 
     # TODO: test this with values closer to decimal bounds
+    denom_int = 10**multiplier
+    value = Decimal((2**127 - 1) / denom_int)
 
-    denom = 10**multiplier
-    value = Decimal((2**127 - 1) / denom)
-
-    assert c.foo(decimal_to_int(value)) == int(value * denom)
+    assert c.foo(decimal_to_int(value)) == math.floor(value * denom_int)
 
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
