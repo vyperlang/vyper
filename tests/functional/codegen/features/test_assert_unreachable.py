@@ -12,6 +12,7 @@ def foo():
         c.foo(gas=gas_sent, gas_price=10)
 
     assert env.last_result["gas_used"] == gas_sent  # Drains all gains sent
+    # REVIEW: i think this is implied by tx_failed()?
     assert env.last_result["is_success"] is False
 
 

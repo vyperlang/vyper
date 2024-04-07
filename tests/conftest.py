@@ -2,6 +2,20 @@ from contextlib import contextmanager
 
 import hypothesis
 import pytest
+
+# REVIEW: let's get rid of get_default_account_keys and have our own keys generator.
+# for reference, eth-tester implementation is just
+#@to_tuple
+#def get_default_account_keys(quantity=None):
+#    keys = KeyAPI()
+#    quantity = quantity or 10
+#    for i in range(1, quantity + 1):
+#        pk_bytes = int_to_big_endian(i).rjust(32, b"\x00")
+#        private_key = keys.PrivateKey(pk_bytes)
+#        yield private_key
+# we could do something like `(random.nextbytes() for _ in range(10))` (with a
+# pre-defined seed like b"vyper").
+
 from eth_tester.backends.pyevm.main import get_default_account_keys
 from hexbytes import HexBytes
 
@@ -199,6 +213,7 @@ def env(gas_limit, evm_version, evm_backend, tracing) -> BaseEnv:
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
+        # REVIEW: does kwargs.pop("optimize", optimize) match the previous behavior?
         if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
 
@@ -247,6 +262,8 @@ def deploy_blueprint_for(env, compiler_settings, output_formats):
 @pytest.fixture(scope="module")
 def get_logs(env):
     def fn(c: ABIContract, event_name: str = None, raw=False):
+        # REVIEW: maybe it would be slicker to have something like
+        # `env.get_logs()`?
         logs = [log for log in env.last_result["logs"] if c.address == log.address]
         if raw:
             return [log.data for log in logs]
@@ -265,6 +282,7 @@ def get_logs(env):
 @pytest.fixture
 def assert_compile_failed():
     def assert_compile_failed(function_to_test, exception=Exception):
+        # REVIEW: should isolate the call to get_contract
         with pytest.raises(exception):
             function_to_test()
 

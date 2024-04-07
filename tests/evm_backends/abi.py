@@ -26,6 +26,7 @@ class _Encoder(Encoder):
 
     @classmethod
     def visit_FixedNode(cls, node: FixedNode, value: Decimal | int) -> bytes:
+        # REVIEW: note coming changes to decimal (PR #3696)
         if isinstance(value, int):
             value = Decimal(value)
         return super().visit_FixedNode(node, value)

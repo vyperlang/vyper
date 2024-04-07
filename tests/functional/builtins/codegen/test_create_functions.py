@@ -105,7 +105,10 @@ def test2(a: uint256) -> Bytes[100]:
     with tx_failed():
         c.test2(0, gas=GAS_SENT)
 
+    # REVIEW: implied by tx_failed
     assert env.last_result["is_success"] is False
+    # REVIEW: add a comment maybe like "check the staticcall performed
+    # no sstore" (or reason string)
     assert env.last_result["gas_used"] < GAS_SENT
 
 
@@ -414,6 +417,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     with tx_failed():
+        # REVIEW: why is HexBytes needed here?
         env.execute_code(d.address, env.deployer, HexBytes(f"{sig}{encoded}"))
 
 

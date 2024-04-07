@@ -76,6 +76,8 @@ class PyEvmEnv(BaseEnv):
         finally:
             self._state.revert(snapshot_id)
 
+    # REVIEW: this can be a method on super since it is the same in
+    # all environments
     @contextmanager
     def sender(self, address: str):
         original_deployer = self.deployer
@@ -139,9 +141,12 @@ class PyEvmEnv(BaseEnv):
                 ),
                 transaction_context=BaseTransactionContext(origin=sender, gas_price=gas_price),
             )
+        # REVIEW: why is VMError caught here, but check_computation is also
+        # required below?
         except VMError as e:
             raise EvmError(*e.args) from e
         finally:
+            # REVIEW: not sure why transient storage needs to be cleared here
             self._clear_transient_storage()
 
         self._check_computation(computation)
@@ -170,6 +175,7 @@ class PyEvmEnv(BaseEnv):
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
+        # REVIEW: is cast necessary?
         context = cast(ExecutionContext, self._state.execution_context)
         context._block_number += num_blocks
         context._timestamp += num_blocks if time_delta is None else time_delta
@@ -192,9 +198,12 @@ class PyEvmEnv(BaseEnv):
                 ),
                 transaction_context=BaseTransactionContext(origin=sender),
             )
+        # REVIEW: why is VMError caught here, but check_computation is also
+        # required below?
         except VMError as e:
             raise EvmError(*e.args) from e
         finally:
+            # REVIEW: not sure why transient storage needs to be cleared here
             self._clear_transient_storage()
         self._check_computation(computation)
         return "0x" + target_address.hex()
@@ -206,6 +215,7 @@ class PyEvmEnv(BaseEnv):
 
 
 # a very simple log representation for the raw log entries
+# REVIEW: maybe "LogEntry" is a better name
 Log = namedtuple("Log", ["address", "topics", "data"])
 
 

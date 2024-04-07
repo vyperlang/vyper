@@ -204,7 +204,10 @@ def get_contract(optimize, experimental_codegen, output_formats):
 
     return get_contract_module
 
-
+# REVIEW: there is a lot in this module for just the single test. should we just
+# delete it and re-add integration tests as a follow up? also, if we are going
+# to keep it then maybe move it to
+# tests/functional/integration/test_eth_tester.py
 def test_slice_storage_bytes32(get_contract):
     code = """
 bytez: bytes32

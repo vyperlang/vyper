@@ -138,9 +138,10 @@ class BaseEnv:
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
 
+    # REVIEW: is there a reason this needs to be a method?
     def _compile(
         self, source_code, output_formats, settings, input_bundle
-    ) -> Tuple[list[dict], bytes]:
+    ) -> Tuple[list[dict], bytes]: # REVIEW: tuple can be used in the signature
         out = compile_code(
             source_code,
             # test that all output formats can get generated
@@ -158,6 +159,7 @@ class BaseEnv:
         """
         Tries to parse the EIP-838 revert reason from the output bytes.
         """
+        #REVIEW: not sure the prefix is needed
         prefix = "execution reverted"
         if output_bytes[:4] == method_id("Error(string)"):
             (msg,) = abi_decode("(string)", output_bytes[4:])

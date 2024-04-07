@@ -34,6 +34,7 @@ class RevmEnv(BaseEnv):
         finally:
             try:
                 self._evm.revert(snapshot_id)
+            # REVIEW: why does this happen?
             except OverflowError:
                 # snapshot_id is reverted by the transaction already.
                 # revm updates are needed to make the journal more robust.
