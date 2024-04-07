@@ -141,6 +141,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[test]
+        # fix flaky python installation on github actions:
         pip install --upgrade --force setuptools
 
     - name: Debug dependencies
@@ -203,6 +204,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[test]
+        # fix flaky python installation on github actions:
         pip install --upgrade --force setuptools
 
     - name: debug dependencies
