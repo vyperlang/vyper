@@ -2,8 +2,8 @@ import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 from tests.utils import decimal_to_int
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def _map_nested(f, xs):
@@ -129,8 +129,9 @@ def roo(inp: decimal[2]) -> decimal[2][2]:
     assert c.noo([3, 5]) == [3, 5]
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
-    assert c.roo(_map_nested(decimal_to_int, [1.0, 2.0])) == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
-
+    assert c.roo(_map_nested(decimal_to_int, [1.0, 2.0])) == _map_nested(
+        decimal_to_int, [[1.0, 2.0], [3.0, 4.0]]
+    )
 
 
 def test_array_accessor(get_contract_with_gas_estimation):
@@ -335,7 +336,7 @@ def test_array_decimal_return3() -> decimal[2][2]:
 
     c = get_contract_with_gas_estimation(code)
     assert c.test_array_num_return() == [[1, 2], [3, 4]]
-    assert c.test_array_decimal_return1() == _map_nested(decimal_to_int,[[1.0, 2.0], [3.0, 4.0]])
+    assert c.test_array_decimal_return1() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
     assert c.test_array_decimal_return2() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
     assert c.test_array_decimal_return3() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
 

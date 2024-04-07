@@ -1,8 +1,7 @@
 import pytest
-from decimal import Decimal
 
-from vyper.semantics.types.primitives import DecimalT
 from tests.utils import decimal_to_int
+from vyper.semantics.types.primitives import DecimalT
 
 wei_denoms = {
     "femtoether": 3,
@@ -71,7 +70,7 @@ def foo(a: decimal) -> uint256:
     denom = 10**multiplier
     value = Decimal((2**127 - 1) / denom)
 
-    assert c.foo(decimal_to_int(value)) == decimal_to_int(value * denom)
+    assert c.foo(decimal_to_int(value)) == int(value * denom)
 
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
