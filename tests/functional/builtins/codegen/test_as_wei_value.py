@@ -1,11 +1,8 @@
-from decimal import Decimal
-import math
-
 import pytest
 
 from tests.utils import decimal_to_int
-from vyper.utils import quantize
 from vyper.semantics.types import DecimalT
+from vyper.utils import quantize, round_towards_zero
 
 wei_denoms = {
     "femtoether": 3,

@@ -249,14 +249,17 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        ret = abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        if isinstance(o_typ, DecimalT):
+            return Decimal(ret) / DECIMAL_DIVISOR
+        return ret
     except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    if isinstance(val, Decimal):
+    if isinstance(i_typ, DecimalT):
         val = val * i_typ.divisor
         assert math.ceil(val) == math.floor(val)
         val = int(val)
@@ -433,10 +436,13 @@ def test_convert_passing(
     if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
         expected_val = None
-    if isinstance(expected_val, Decimal):
+
+    if isinstance(o_typ, DecimalT):
         expected_val = decimal_to_int(expected_val)
 
-    input_val = decimal_to_int(val) if isinstance(val, Decimal) else val
+    input_val = val
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(val)
 
     contract_1 = f"""
 @external
@@ -723,6 +729,8 @@ def foo(bar: {i_typ}) -> {o_typ}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    input_val = decimal_to_int(val) if isinstance(val, Decimal) else val
+    input_val = val
+    if isinstance(val, DecimalT):
+        input_val = decimal_to_int(val)
     with tx_failed():
         c3.foo(input_val)
