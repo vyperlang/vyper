@@ -407,6 +407,11 @@ class SizeLimits:
     MAX_UINT256 = 2**256 - 1
 
 
+def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
+    quantizer = decimal.Decimal(f"{1:0.{places}f}")
+    return d.quantize(quantizer, rounding_mode)
+
+
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
 VALID_IR_MACROS = {
