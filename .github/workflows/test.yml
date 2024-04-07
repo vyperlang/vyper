@@ -148,6 +148,7 @@ jobs:
       run: |
         pytest \
           -m "not fuzzing" \
+          -x \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
