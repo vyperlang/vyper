@@ -1,5 +1,3 @@
-from typing import Dict
-
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
@@ -18,13 +16,13 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 # TODO maybe this should be merged with .types/base.py
 
 
-def type_from_abi(abi_type: Dict) -> VyperType:
+def type_from_abi(abi_type: dict) -> VyperType:
     """
     Return a type object from an ABI type definition.
 
     Arguments
     ---------
-    abi_type : Dict
+    abi_type : dict
        A type definition taken from the `input` or `output` field of an ABI.
 
     Returns
@@ -33,7 +31,7 @@ def type_from_abi(abi_type: Dict) -> VyperType:
         Type definition object.
     """
     type_string = abi_type["type"]
-    if type_string == "fixed168x10":
+    if type_string == "int168" and abi_type.get("internalType") == "decimal":
         type_string = "decimal"
     if type_string in ("string", "bytes"):
         type_string = type_string.capitalize()
