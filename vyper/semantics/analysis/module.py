@@ -436,8 +436,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node._metadata["uses_info"] = UsesInfo(used_modules, node)
 
     def visit_InitializesDecl(self, node):
-        module_ref = node.annotation
+        annotation = node.annotation
+
         dependencies_ast = ()
+        module_ref = annotation
         if isinstance(module_ref, vy_ast.Subscript):
             dependencies_ast = vy_ast.as_tuple(module_ref.slice)
             module_ref = module_ref.value
@@ -507,7 +509,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             if rhs is None:
                 hint = f"try importing {item.alias} first"
-            elif not isinstance(module_ref.parent, vy_ast.Subscript):
+            elif not isinstance(annotation, vy_ast.Subscript):
+                # it's `initializes: foo` instead of `initializes: foo[...]`
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
             else:
                 hint = f"add `{lhs} := {rhs}` to its initializer list"
