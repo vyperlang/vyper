@@ -506,43 +506,49 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_ExportsDecl(self, node):
         items = vy_ast.as_tuple(node.annotation)
-        funcs = []
+        exported_funcs = []
         used_modules = OrderedSet()
 
         for item in items:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
             info = get_expr_info(item, is_callable=True)
+
             if info.var_info is not None:
-                decl_node = info.var_info.decl_node
+                decl = info.var_info.decl_node
                 if not info.var_info.is_public:
-                    raise StructureException("not a public variable!", decl_node, item)
-                func_t = decl_node._expanded_getter._metadata["func_type"]
-
-            else:
+                    raise StructureException("not a public variable!", decl, item)
+                funcs = [decl._expanded_getter._metadata["func_type"]]
+            elif isinstance(info.typ, ContractFunctionT):
                 # regular function
-                func_t = info.typ
-                decl_node = func_t.decl_node
+                funcs = [info.typ]
+            elif isinstance(info.typ, InterfaceT):
+                # TODO: disambiguate the module parent of expr and check that
+                # the interface is actually implemented by the module. (as
+                # written, i can `export: IERC20` even though those are just
+                # signatures).
+                funcs = [f for f in info.typ.functions.values() if f.is_external]
+            else:
+                raise StructureException(f"not a function or interface: `{info.typ}`", info.typ.decl_node, item)
 
-            if not isinstance(func_t, ContractFunctionT):
-                raise StructureException(f"not a function: `{func_t}`", decl_node, item)
-            if not func_t.is_external:
-                raise StructureException("can't export non-external functions!", decl_node, item)
+            for func_t in funcs:
+                if not func_t.is_external:
+                    raise StructureException("can't export non-external functions!", func_t.decl_node, item)
 
-            self._add_exposed_function(func_t, item, relax=False)
-            with tag_exceptions(item):  # tag with specific item
-                self._self_t.typ.add_member(func_t.name, func_t)
+                self._add_exposed_function(func_t, item, relax=False)
+                with tag_exceptions(item):  # tag exceptions with specific item
+                    self._self_t.typ.add_member(func_t.name, func_t)
 
-            funcs.append(func_t)
+                exported_funcs.append(func_t)
 
-            # check module uses
-            var_accesses = func_t.get_variable_accesses()
-            if any(s.variable.is_state_variable() for s in var_accesses):
-                module_info = check_module_uses(item)
-                assert module_info is not None  # guaranteed by above checks
-                used_modules.add(module_info)
+                # check module uses
+                var_accesses = func_t.get_variable_accesses()
+                if any(s.variable.is_state_variable() for s in var_accesses):
+                    module_info = check_module_uses(item)
+                    assert module_info is not None  # guaranteed by above checks
+                    used_modules.add(module_info)
 
-        node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
+        node._metadata["exports_info"] = ExportsInfo(exported_funcs, used_modules)
 
     @property
     def _self_t(self):
@@ -551,7 +557,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_exposed_function(self, func_t, node, relax=True):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
-        if (prev_decl := self._exposed_functions.get(func_t)) is not None:
+        if not relax and (prev_decl := self._exposed_functions.get(func_t)) is not None:
             raise StructureException("already exported!", node, prev_decl=prev_decl)
 
         self._exposed_functions[func_t] = node
