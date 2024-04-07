@@ -432,15 +432,6 @@ def pop_dyn_array(darray_node, return_popped_item):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
-def getpos(node):
-    return (
-        node.lineno,
-        node.col_offset,
-        getattr(node, "end_lineno", None),
-        getattr(node, "end_col_offset", None),
-    )
-
-
 # add an offset to a pointer, keeping location and encoding info
 def add_ofst(ptr, ofst):
     ret = ["add", ptr, ofst]
@@ -653,6 +644,10 @@ def eval_once_check(name):
     return IRnode.from_list(["unique_symbol", name])
 
 
+def ensure_eval_once(name, irnode):
+    return ["seq", eval_once_check(_freshname(name)), irnode]
+
+
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location is None:  # pragma: nocover
         raise CompilerPanic("cannot dereference non-pointer type")
@@ -660,15 +655,13 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if op is None:  # pragma: nocover
         raise CompilerPanic(f"unreachable {ptr.location}")
 
-    _check = _freshname(f"{op}_")
-
     store = [op, ptr, val]
     # don't use eval_once_check for memory, immutables because it interferes
     # with optimizer
     if ptr.location in (MEMORY, IMMUTABLES):
         return IRnode.from_list(store)
 
-    return IRnode.from_list(["seq", eval_once_check(_check), store])
+    return IRnode.from_list(ensure_eval_once(f"{op}_", store))
 
 
 # Unwrap location

@@ -8,9 +8,9 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
+    LOAD,
     STORE,
     IRnode,
-    _freshname,
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
@@ -21,8 +21,8 @@ from vyper.codegen.core import (
     clamp_nonzero,
     copy_bytes,
     dummy_node_for_type,
+    ensure_eval_once,
     ensure_in_memory,
-    eval_once_check,
     eval_seq,
     get_bytearray_length,
     get_type_for_exact_size,
@@ -37,7 +37,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import MEMORY, STORAGE
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -230,6 +230,18 @@ class Convert(BuiltinFunctionT):
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
+# make sure we don't overrun the source buffer, checking for overflow:
+# valid inputs satisfy:
+#   `assert !(start+length > src_len || start+length < start`
+def _make_slice_bounds_check(start, length, src_len):
+    with start.cache_when_complex("start") as (b1, start):
+        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
+            arithmetic_overflow = ["lt", end, start]
+            buffer_oob = ["gt", end, src_len]
+            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            return b1.resolve(b2.resolve(["assert", ok]))
+
+
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
@@ -242,7 +254,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     if sub.value == "~calldata":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "calldatasize"),
             ["mstore", np, length],
             ["calldatacopy", np + 32, start, length],
             np,
@@ -252,7 +264,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     elif sub.value == "~selfcode":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "codesize"),
             ["mstore", np, length],
             ["codecopy", np + 32, start, length],
             np,
@@ -267,8 +279,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             sub.args[0],
             [
                 "seq",
-                # runtime bounds check
-                ["assert", ["le", ["add", start, length], ["extcodesize", "_extcode_address"]]],
+                _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -368,7 +379,7 @@ class Slice(BuiltinFunctionT):
 
             # add 32 bytes to the buffer size bc word access might
             # be unaligned (see below)
-            if src.location == STORAGE:
+            if src.location.word_addressable:
                 buflen += 32
 
             # Get returntype string or bytes
@@ -395,8 +406,8 @@ class Slice(BuiltinFunctionT):
                 src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
-            if src.location == STORAGE:
-                # because slice uses byte-addressing but storage
+            if src.location.word_addressable:
+                # because slice uses byte-addressing but storage/tstorage
                 # is word-aligned, this algorithm starts at some number
                 # of bytes before the data section starts, and might copy
                 # an extra word. the pseudocode is:
@@ -441,8 +452,7 @@ class Slice(BuiltinFunctionT):
 
             ret = [
                 "seq",
-                # make sure we don't overrun the source buffer
-                ["assert", ["le", ["add", start, length], src_len]],  # bounds check
+                _make_slice_bounds_check(start, length, src_len),
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
@@ -829,19 +839,6 @@ class ECMul(_ECArith):
     _precompile = 0x7
 
 
-def _generic_element_getter(op):
-    def f(index):
-        return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=INT128_T
-        )
-
-    return f
-
-
-def _storage_element_getter(index):
-    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=INT128_T)
-
-
 class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
@@ -873,81 +870,47 @@ class Extract32(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        sub, index = args
+        bytez, index = args
         ret_type = kwargs["output_type"]
 
-        # Get length and specific element
-        if sub.location == STORAGE:
-            lengetter = IRnode.from_list(["sload", "_sub"], typ=INT128_T)
-            elementgetter = _storage_element_getter
+        def finalize(ret):
+            annotation = "extract32"
+            ret = IRnode.from_list(ret, typ=ret_type, annotation=annotation)
+            return clamp_basetype(ret)
 
-        else:
-            op = sub.location.load_op
-            lengetter = IRnode.from_list([op, "_sub"], typ=INT128_T)
-            elementgetter = _generic_element_getter(op)
+        with bytez.cache_when_complex("_sub") as (b1, bytez):
+            # merge
+            length = get_bytearray_length(bytez)
+            index = clamp2(0, index, ["sub", length, 32], signed=True)
+            with index.cache_when_complex("_index") as (b2, index):
+                assert not index.typ.is_signed
 
-        # TODO rewrite all this with cache_when_complex and bitshifts
+                # "easy" case, byte- addressed locations:
+                if bytez.location.word_scale == 32:
+                    word = LOAD(add_ofst(bytes_data_ptr(bytez), index))
+                    return finalize(b1.resolve(b2.resolve(word)))
 
-        # Special case: index known to be a multiple of 32
-        if isinstance(index.value, int) and not index.value % 32:
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    elementgetter(
-                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
-                    ),
-                ],
-                typ=ret_type,
-                annotation="extracting 32 bytes",
-            )
-        # General case
-        else:
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "with",
-                        "_len",
-                        lengetter,
-                        [
-                            "with",
-                            "_index",
-                            clamp2(0, index, ["sub", "_len", 32], signed=True),
-                            [
-                                "with",
-                                "_mi32",
-                                ["mod", "_index", 32],
-                                [
-                                    "with",
-                                    "_di32",
-                                    ["div", "_index", 32],
-                                    [
-                                        "if",
-                                        "_mi32",
-                                        [
-                                            "add",
-                                            ["mul", elementgetter("_di32"), ["exp", 256, "_mi32"]],
-                                            [
-                                                "div",
-                                                elementgetter(["add", "_di32", 1]),
-                                                ["exp", 256, ["sub", 32, "_mi32"]],
-                                            ],
-                                        ],
-                                        elementgetter("_di32"),
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                typ=ret_type,
-                annotation="extract32",
-            )
-        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
+                # storage and transient storage, word-addressed
+                assert bytez.location.word_scale == 1
+
+                slot = IRnode.from_list(["div", index, 32])
+                # byte offset within the slot
+                byte_ofst = IRnode.from_list(["mod", index, 32])
+
+                with byte_ofst.cache_when_complex("byte_ofst") as (
+                    b3,
+                    byte_ofst,
+                ), slot.cache_when_complex("slot") as (b4, slot):
+                    # perform two loads and merge
+                    w1 = LOAD(add_ofst(bytes_data_ptr(bytez), slot))
+                    w2 = LOAD(add_ofst(bytes_data_ptr(bytez), ["add", slot, 1]))
+
+                    left_bytes = shl(["mul", 8, byte_ofst], w1)
+                    right_bytes = shr(["mul", 8, ["sub", 32, byte_ofst]], w2)
+                    merged = ["or", left_bytes, right_bytes]
+
+                    ret = ["if", byte_ofst, merged, left_bytes]
+                    return finalize(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))))
 
 
 class AsWeiValue(BuiltinFunctionT):
@@ -1164,6 +1127,7 @@ class RawCall(BuiltinFunctionT):
             else:
                 call_op = ["call", gas, to, value, *common_call_args]
 
+            call_op = ensure_eval_once("raw_call_builtin", call_op)
             call_ir += [call_op]
             call_ir = b1.resolve(call_ir)
 
@@ -1220,9 +1184,8 @@ class Send(BuiltinFunctionT):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(
-            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
-        )
+        send_op = ensure_eval_once("send_builtin", ["call", gas, to, value, 0, 0, 0, 0])
+        return IRnode.from_list(["assert", send_op], error_msg="send failed")
 
 
 class SelfDestruct(BuiltinFunctionT):
@@ -1240,9 +1203,7 @@ class SelfDestruct(BuiltinFunctionT):
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
-        return IRnode.from_list(
-            ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
-        )
+        return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
 
 class BlockHash(BuiltinFunctionT):
@@ -1308,27 +1269,24 @@ class RawLog(BuiltinFunctionT):
 
         data = args[1]
 
+        log_op = "log" + str(topics_length)
+
         if data.typ == BYTES32_T:
             placeholder = context.new_internal_variable(BYTES32_T)
+            log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(topics_length), placeholder, 32] + topics,
+                    ensure_eval_once("raw_log", log_ir),
                 ]
             )
 
         input_buf = ensure_in_memory(data, context)
 
-        return IRnode.from_list(
-            [
-                "with",
-                "_sub",
-                input_buf,
-                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ]
-        )
+        log_ir = [log_op, ["add", "_sub", 32], ["mload", "_sub"], *topics]
+        return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
 class BitwiseAnd(BuiltinFunctionT):
@@ -1591,9 +1549,7 @@ def _create_ir(value, buf, length, salt, checked=True):
         create_op = "create2"
         args.append(salt)
 
-    ret = IRnode.from_list(
-        ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
-    )
+    ret = IRnode.from_list(ensure_eval_once("create_builtin", [create_op, *args]))
 
     if not checked:
         return ret

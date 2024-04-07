@@ -1,6 +1,4 @@
-**Vyper compiler security audit competition starts 14th September with $150k worth of bounties.** [See the competition on CodeHawks](https://www.codehawks.com/contests/cll5rujmw0001js08menkj7hc) and find [more details in this blog post](https://mirror.xyz/0xBA41A04A14aeaEec79e2D694B21ba5Ab610982f1/WTZ3l3MLhTz9P4avq6JqipN5d4HJNiUY-d8zT0pfmXg).
-
-<img src="https://raw.githubusercontent.com/vyperlang/vyper/master/logo/vyper-logo-transparent.svg?sanitize=true" alt="" width="110">
+<img src="https://raw.githubusercontent.com/vyperlang/vyper/master/docs/logo.svg?sanitize=true" alt="" width="110">
 
 [![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://docs.vyperlang.org/en/latest/?badge=latest "ReadTheDocs")
@@ -17,7 +15,7 @@ See [Installing Vyper](http://docs.vyperlang.org/en/latest/installing-vyper.html
 See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
 See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
-See [Learn.Vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
+See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
 See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
 **Note: Vyper is beta software, use with care**

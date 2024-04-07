@@ -2,6 +2,8 @@ import binascii
 import contextlib
 import decimal
 import enum
+import functools
+import hashlib
 import sys
 import time
 import traceback
@@ -13,7 +15,7 @@ from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLit
 _T = TypeVar("_T")
 
 
-class OrderedSet(Generic[_T], dict[_T, None]):
+class OrderedSet(Generic[_T]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -23,57 +25,82 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     """
 
     def __init__(self, iterable=None):
-        super().__init__()
+        self._data = dict()
         if iterable is not None:
-            for item in iterable:
-                self.add(item)
+            self.update(iterable)
 
     def __repr__(self):
-        keys = ", ".join(repr(k) for k in self.keys())
+        keys = ", ".join(repr(k) for k in self)
         return f"{{{keys}}}"
 
-    def get(self, *args, **kwargs):
-        raise RuntimeError("can't call get() on OrderedSet!")
+    def __iter__(self):
+        return iter(self._data)
+
+    def __contains__(self, item):
+        return self._data.__contains__(item)
+
+    def __len__(self):
+        return len(self._data)
 
     def first(self):
         return next(iter(self))
 
     def add(self, item: _T) -> None:
-        self[item] = None
+        self._data[item] = None
 
     def remove(self, item: _T) -> None:
-        del self[item]
+        del self._data[item]
+
+    def drop(self, item: _T):
+        # friendly version of remove
+        self._data.pop(item, None)
+
+    def dropmany(self, iterable):
+        for item in iterable:
+            self._data.pop(item, None)
 
     def difference(self, other):
         ret = self.copy()
-        for k in other.keys():
-            if k in ret:
-                ret.remove(k)
+        ret.dropmany(other)
         return ret
+
+    def update(self, other):
+        # CMC 2024-03-22 for some reason, this is faster than dict.update?
+        # (maybe size dependent)
+        for item in other:
+            self._data[item] = None
 
     def union(self, other):
         return self | other
 
-    def update(self, other):
-        super().update(self.__class__.fromkeys(other))
+    def __ior__(self, other):
+        self.update(other)
+        return self
 
     def __or__(self, other):
-        return self.__class__(super().__or__(other))
+        ret = self.copy()
+        ret.update(other)
+        return ret
+
+    def __eq__(self, other):
+        return self._data == other._data
 
     def copy(self):
-        return self.__class__(super().copy())
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret._data = self._data.copy()
+        return ret
 
     @classmethod
     def intersection(cls, *sets):
-        res = OrderedSet()
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
-        if len(sets) == 1:
-            return sets[0].copy()
-        for e in sets[0].keys():
-            if all(e in s for s in sets[1:]):
-                res.add(e)
-        return res
+
+        ret = sets[0].copy()
+        for e in sets[0]:
+            if any(e not in s for s in sets[1:]):
+                ret.remove(e)
+        return ret
 
 
 class StringEnum(enum.Enum):
@@ -157,6 +184,11 @@ except ImportError:
     import sha3 as _sha3
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+
+
+@functools.lru_cache(maxsize=512)
+def sha256sum(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
 
 # Converts four bytes to an integer
@@ -373,6 +405,11 @@ class SizeLimits:
     MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
+
+
+def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
+    quantizer = decimal.Decimal(f"{1:0.{places}f}")
+    return d.quantize(quantizer, rounding_mode)
 
 
 # List of valid IR macros.

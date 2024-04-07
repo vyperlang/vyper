@@ -42,6 +42,9 @@ class _BytestringT(VyperType):
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
+    def _addl_dict_fields(self):
+        return {"length": self.length}
+
     @property
     def length(self):
         """
@@ -153,6 +156,8 @@ class _BytestringT(VyperType):
 
 
 class BytesT(_BytestringT):
+    typeclass = "bytes"
+
     _id = "Bytes"
     _valid_literal = (vy_ast.Bytes,)
 
@@ -162,6 +167,8 @@ class BytesT(_BytestringT):
 
 
 class StringT(_BytestringT):
+    typeclass = "string"
+
     _id = "String"
     _valid_literal = (vy_ast.Str,)
 

@@ -12,6 +12,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
 )
+from vyper.utils import method_id
 
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
@@ -2496,16 +2497,16 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 @pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
-def test_calldata_clamp(w3, get_contract, tx_failed, keccak, typ, val):
+def test_calldata_clamp(w3, get_contract, tx_failed, typ, val):
     code = f"""
 @external
 def foo(a: {typ}):
     pass
     """
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ})".encode()).hex()[:10]
+    sig = method_id(f"foo({typ})").hex()
     encoded = abi.encode(f"({typ})", (val,)).hex()
-    data = f"{sig}{encoded}"
+    data = f"0x{sig}{encoded}"
 
     # Static size is short by 1 byte
     malformed = data[:-2]
@@ -2520,7 +2521,7 @@ def foo(a: {typ}):
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
-def test_dynamic_calldata_clamp(w3, get_contract, tx_failed, keccak, typ, val):
+def test_dynamic_calldata_clamp(w3, get_contract, tx_failed, typ, val):
     code = f"""
 @external
 def foo(a: DynArray[{typ}, 3], b: String[5]):
@@ -2528,9 +2529,9 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     """
 
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
+    sig = method_id(f"foo({typ}[],string)").hex()
     encoded = abi.encode(f"({typ}[],string)", val).hex()
-    data = f"{sig}{encoded}"
+    data = f"0x{sig}{encoded}"
 
     # Dynamic size is short by 1 byte
     malformed = data[:264]

@@ -8,6 +8,7 @@ import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
@@ -16,6 +17,7 @@ from vyper.utils import (
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
+    quantize,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -224,7 +226,7 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
     """
     Takes the ABI representation of a value, and convert the padding if needed.
     If fill_zeroes is false, the two halves of the bytestring are just swapped
-    and the dirty bytes remain dirty. If fill_zeroes is true, the the padding
+    and the dirty bytes remain dirty. If fill_zeroes is true, the padding
     bytes get set to 0
     """
     assert len(val_bits) == 32
@@ -413,7 +415,7 @@ def _vyper_literal(val, typ):
         return "0x" + val.hex()
     if isinstance(typ, DecimalT):
         tmp = val
-        val = val.quantize(DECIMAL_EPSILON)
+        val = quantize(val)
         assert tmp == val
     return str(val)
 
@@ -560,14 +562,15 @@ def foo(x: {i_typ}) -> {o_typ}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.parametrize("typ", sorted(TEST_TYPES))
-def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
+@pytest.mark.parametrize("typ", sorted(BASE_TYPES))
+def test_bytes_too_large_cases(typ):
     code_1 = f"""
 @external
 def foo(x: Bytes[33]) -> {typ}:
     return convert(x, {typ})
     """
-    assert_compile_failed(lambda: get_contract(code_1), TypeMismatch)
+    with pytest.raises(TypeMismatch):
+        compile_code(code_1)
 
     bytes_33 = b"1" * 33
     code_2 = f"""
@@ -575,8 +578,59 @@ def foo(x: Bytes[33]) -> {typ}:
 def foo() -> {typ}:
     return convert({bytes_33}, {typ})
     """
+    with pytest.raises(TypeMismatch):
+        compile_code(code_2)
 
-    assert_compile_failed(lambda: get_contract(code_2, TypeMismatch))
+
+@pytest.mark.parametrize("cls1,cls2", itertools.product((StringT, BytesT), (StringT, BytesT)))
+def test_bytestring_conversions(cls1, cls2, get_contract, tx_failed):
+    typ1 = cls1(33)
+    typ2 = cls2(32)
+
+    def bytestring(cls, string):
+        if cls == BytesT:
+            return string.encode("utf-8")
+        return string
+
+    code_1 = f"""
+@external
+def foo(x: {typ1}) -> {typ2}:
+    return convert(x, {typ2})
+    """
+    c = get_contract(code_1)
+
+    for i in range(33):  # inclusive 32
+        s = "1" * i
+        arg = bytestring(cls1, s)
+        out = bytestring(cls2, s)
+        assert c.foo(arg) == out
+
+    with tx_failed():
+        # TODO: sanity check it is convert which is reverting, not arg clamping
+        c.foo(bytestring(cls1, "1" * 33))
+
+    code_2_template = """
+@external
+def foo() -> {typ}:
+    return convert({arg}, {typ})
+    """
+
+    # test literals
+    for i in range(33):  # inclusive 32
+        s = "1" * i
+        arg = bytestring(cls1, s)
+        out = bytestring(cls2, s)
+        code = code_2_template.format(typ=typ2, arg=repr(arg))
+        if cls1 == cls2:  # ex.: can't convert "" to String[32]
+            with pytest.raises(InvalidType):
+                compile_code(code)
+        else:
+            c = get_contract(code)
+            assert c.foo() == out
+
+    failing_code = code_2_template.format(typ=typ2, arg=bytestring(cls1, "1" * 33))
+    with pytest.raises(TypeMismatch):
+        compile_code(failing_code)
 
 
 @pytest.mark.parametrize("n", range(1, 33))

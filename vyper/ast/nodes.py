@@ -3,6 +3,7 @@ import contextlib
 import copy
 import decimal
 import functools
+import math
 import operator
 import pickle
 import sys
@@ -25,7 +26,14 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div
+from vyper.utils import (
+    MAX_DECIMAL_PLACES,
+    SizeLimits,
+    annotate_source_code,
+    evm_div,
+    quantize,
+    sha256sum,
+)
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -139,49 +147,6 @@ def get_node(
     return node
 
 
-def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
-    """
-    Compare the represented value(s) of two vyper nodes.
-
-    This method evaluates a sort of "loose equality". It recursively compares the
-    values of each field within two different nodes but does not compare the
-    node_id or any members related to source offsets.
-
-    Arguments
-    ---------
-    left_node : VyperNode
-        First node object to compare.
-    right_node : VyperNode
-        Second node object to compare.
-
-    Returns
-    -------
-    bool
-        True if the given nodes represent the same value(s), False otherwise.
-    """
-    if not isinstance(left_node, type(right_node)):
-        return False
-
-    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
-        left_value = getattr(left_node, field_name, None)
-        right_value = getattr(right_node, field_name, None)
-
-        # compare types instead of isinstance() in case one node class inherits the other
-        if type(left_value) is not type(right_value):
-            return False
-
-        if isinstance(left_value, list):
-            if next((i for i in zip(left_value, right_value) if not compare_nodes(*i)), None):
-                return False
-        elif isinstance(left_value, VyperNode):
-            if not compare_nodes(left_value, right_value):
-                return False
-        elif left_value != right_value:
-            return False
-
-    return True
-
-
 def _to_node(obj, parent):
     # if object is a Python node or dict representing a node, convert to a Vyper node
     if isinstance(obj, (dict, python_ast.AST)):
@@ -189,7 +154,7 @@ def _to_node(obj, parent):
     if isinstance(obj, VyperNode):
         # if object is already a vyper node, make sure the parent is set correctly
         # and fix any missing source offsets
-        obj._parent = parent
+        obj.set_parent(parent)
         for field_name in NODE_SRC_ATTRIBUTES:
             if getattr(obj, field_name) is None:
                 setattr(obj, field_name, getattr(parent, field_name, None))
@@ -375,6 +340,8 @@ class VyperNode:
         return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
+        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
+        # nodes, especially if they come from other modules
         if not isinstance(other, type(self)):
             return False
         if getattr(other, "node_id", None) != getattr(self, "node_id", None):
@@ -413,7 +380,15 @@ class VyperNode:
 
     @property
     def module_node(self):
+        if isinstance(self, Module):
+            return self
         return self.get_ancestor(Module)
+
+    def get_id_dict(self):
+        source_id = None
+        if self.module_node is not None:
+            source_id = self.module_node.source_id
+        return {"node_id": self.node_id, "source_id": source_id}
 
     @property
     def is_literal_value(self):
@@ -487,8 +462,9 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
 
+        # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
-            ast_dict["type"] = str(self._metadata["type"])
+            ast_dict["type"] = self._metadata["type"].to_dict()
 
         return ast_dict
 
@@ -659,6 +635,13 @@ class Module(TopLevel):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
 
+    def to_dict(self):
+        return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
+
+    @property
+    def source_sha256sum(self):
+        return sha256sum(self.full_source_code)
+
     @contextlib.contextmanager
     def namespace(self):
         from vyper.semantics.namespace import get_namespace, override_global_namespace
@@ -799,7 +782,6 @@ class Constant(ExprNode):
 class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     @property
     def n(self):
@@ -849,6 +831,7 @@ class Decimal(Num):
         return ast_dict
 
     def validate(self):
+        # note: maybe use self.value == quantize(self.value) for this check
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
         if self.value < SizeLimits.MIN_AST_DECIMAL:
@@ -868,7 +851,6 @@ class Hex(Constant):
     """
 
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     def validate(self):
         if "_" in self.value:
@@ -1036,9 +1018,15 @@ class Mult(Operator):
         value = left * right
         if isinstance(left, decimal.Decimal):
             # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return value.quantize(
-                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
-            )
+            try:
+                # if the intermediate result requires too many decimal places,
+                # decimal will puke - catch the error and raise an
+                # OverflowException
+                return quantize(value)
+            except decimal.InvalidOperation:
+                msg = f"{self._description} requires too many decimal places:"
+                msg += f"\n  {left} * {right} => {value}"
+                raise OverflowException(msg, self) from None
         else:
             return value
 
@@ -1062,7 +1050,12 @@ class Div(Operator):
             # the EVM always truncates toward zero
             value = -(-left / right)
         # ensure that the result is truncated to MAX_DECIMAL_PLACES
-        return value.quantize(decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN)
+        try:
+            return quantize(value)
+        except decimal.InvalidOperation:
+            msg = f"{self._description} requires too many decimal places:"
+            msg += f"\n  {left} {self._pretty} {right} => {value}"
+            raise OverflowException(msg, self) from None
 
 
 class FloorDiv(VyperNode):
@@ -1107,6 +1100,15 @@ class Pow(Operator):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
+        # prevent a compiler hang. we are ok with false positives at this
+        # stage since we are just trying to filter out inputs which can cause
+        # the compiler to hang. the others will get caught during constant
+        # folding or codegen.
+        # l**r > 2**256
+        # r * ln(l) > ln(2 ** 256)
+        # r > ln(2 ** 256) / ln(l)
+        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+            raise InvalidLiteral("Out of bounds", self)
         return int(left**right)
 
 
@@ -1453,6 +1455,13 @@ class Pass(Stmt):
 
 class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
+
+    def to_dict(self):
+        ret = super().to_dict()
+        if (import_info := self._metadata.get("import_info")) is not None:
+            ret["import_info"] = import_info.to_dict()
+
+        return ret
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["names"]) > 1:

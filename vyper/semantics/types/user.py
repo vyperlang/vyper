@@ -46,6 +46,8 @@ class _UserType(VyperType):
 
 # note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
+    typeclass = "flag"
+
     # this is a carveout because currently we allow dynamic arrays of
     # flags, but not static arrays of flags
     _as_darray = True
@@ -163,6 +165,8 @@ class EventT(_UserType):
         Name of the event.
     """
 
+    typeclass = "event"
+
     _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
     def __init__(
@@ -179,6 +183,10 @@ class EventT(_UserType):
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
         self.decl_node = decl_node
+
+    @property
+    def _id(self):
+        return self.name
 
     # backward compatible
     @property
@@ -292,6 +300,7 @@ class EventT(_UserType):
 
 
 class StructT(_UserType):
+    typeclass = "struct"
     _as_array = True
 
     def __init__(self, _id, members, ast_def=None):

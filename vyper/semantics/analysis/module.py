@@ -4,12 +4,19 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import (
+    ABIInput,
+    CompilerInput,
+    FileInput,
+    FilesystemInputBundle,
+    InputBundle,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
     DuplicateImport,
+    EvmVersionException,
     ExceptionList,
     ImmutableViolation,
     InitializerException,
@@ -542,7 +549,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 decl_node = func_t.decl_node
 
             if not isinstance(func_t, ContractFunctionT):
-                raise StructureException("not a function!", decl_node, item)
+                raise StructureException(f"not a function: `{func_t}`", decl_node, item)
             if not func_t.is_external:
                 raise StructureException("can't export non-external functions!", decl_node, item)
 
@@ -554,7 +561,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # check module uses
             var_accesses = func_t.get_variable_accesses()
-            if any(s.variable.is_module_variable() for s in var_accesses):
+            if any(s.variable.is_state_variable() for s in var_accesses):
                 module_info = check_module_uses(item)
                 assert module_info is not None  # guaranteed by above checks
                 used_modules.add(module_info)
@@ -626,7 +633,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_ = type_from_annotation(node.annotation, data_loc)
 
         if node.is_transient and not version_check(begin="cancun"):
-            raise StructureException("`transient` is not available pre-cancun", node.annotation)
+            raise EvmVersionException("`transient` is not available pre-cancun", node.annotation)
 
         var_info = VarInfo(
             type_,
@@ -675,6 +682,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_FlagDef(self, node):
         obj = FlagT.from_FlagDef(node)
+        node._metadata["flag_type"] = obj
         self.namespace[node.name] = obj
 
     def visit_EventDef(self, node):
@@ -739,9 +747,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        module_info = self._load_import(node, level, qualified_module_name, alias)
+        compiler_input, module_info = self._load_import(node, level, qualified_module_name, alias)
         node._metadata["import_info"] = ImportInfo(
-            module_info, alias, qualified_module_name, self.input_bundle, node
+            module_info, alias, qualified_module_name, compiler_input, node
         )
         self.namespace[alias] = module_info
 
@@ -756,7 +764,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> Any:
+    ) -> tuple[CompilerInput, Any]:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -786,7 +794,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t, alias)
+                return file, ModuleInfo(module_t, alias)
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things
@@ -807,7 +815,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 module_t = module_ast._metadata["type"]
 
-                return module_t.interface
+                return file, module_t.interface
 
         except FileNotFoundError:
             pass
@@ -815,7 +823,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
-            return InterfaceT.from_json_abi(str(file.path), file.abi)
+            return file, InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
             pass
 
@@ -868,7 +876,7 @@ def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
 
-def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
+def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
     if not _is_builtin(module_str):
         raise ModuleNotFound(module_str)
 
@@ -909,4 +917,4 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
 
     with override_global_namespace(Namespace()):
         module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
-    return module_t.interface
+    return file, module_t.interface

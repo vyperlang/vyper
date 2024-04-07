@@ -1,6 +1,6 @@
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
-from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
+from vyper.codegen.core import get_element_ptr, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.common import (
     EntryPointInfo,
@@ -39,7 +39,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
 
             copy_arg = make_setter(dst, arg_ir)
-            copy_arg.source_pos = getpos(arg.ast_source)
+            copy_arg.ast_source = arg.ast_source
             ret.append(copy_arg)
         else:
             assert abi_encoding_matches_vyper(arg.typ)
@@ -101,18 +101,18 @@ def _generate_kwarg_handlers(
             rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(arg_meta.ast_source)
+            copy_arg.ast_source = arg_meta.ast_source
             ret.append(copy_arg)
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
-            lhs.source_pos = getpos(x.ast_source)
+            lhs.ast_source = x.ast_source
             kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(x.ast_source)
+            copy_arg.ast_source = x.ast_source
             ret.append(copy_arg)
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
@@ -153,10 +153,6 @@ def _adjust_gas_estimate(func_t, common_ir):
     mem_expansion_cost = calc_mem_gas(frame_info.mem_used)
     common_ir.add_gas_estimate += mem_expansion_cost
     func_t._ir_info.gas_estimate = common_ir.gas
-
-    # pass metadata through for venom pipeline:
-    common_ir.passthrough_metadata["func_t"] = func_t
-    common_ir.passthrough_metadata["frame_info"] = frame_info
 
 
 def generate_ir_for_external_function(code, compilation_target):
@@ -210,7 +206,7 @@ def generate_ir_for_external_function(code, compilation_target):
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_ir = IRnode.from_list(["seq", body, exit_], source_pos=getpos(code))
+    func_common_ir = IRnode.from_list(["seq", body, exit_], ast_source=code)
 
     tag_frame_info(func_t, context)
 
