@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests.utils import parse_and_fold
+from tests.utils import parse_and_fold, decimal_to_int
 from vyper.builtins import functions as vy_fn
 from vyper.utils import SizeLimits
 
@@ -34,7 +34,7 @@ def foo(a: decimal) -> uint256:
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
-    assert contract.foo(value) == new_node.value
+    assert contract.foo(decimal_to_int(value)) == new_node.value
 
 
 @pytest.mark.fuzzing
