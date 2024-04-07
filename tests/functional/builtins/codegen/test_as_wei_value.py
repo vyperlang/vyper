@@ -1,7 +1,8 @@
+from decimal import Decimal
+
 import pytest
 
 from tests.utils import decimal_to_int
-from vyper.semantics.types.primitives import DecimalT
 
 wei_denoms = {
     "femtoether": 3,
