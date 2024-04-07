@@ -95,7 +95,7 @@ class MakeSSA(IRPass):
 
         # Pre-action
         for inst in basic_block.instructions:
-            new_ops: list[IROperand] = []
+            new_ops = []
             if inst.opcode != "phi":
                 for op in inst.operands:
                     if not isinstance(op, IRVariable):
@@ -143,7 +143,7 @@ class MakeSSA(IRPass):
             if inst.opcode != "phi":
                 continue
 
-            new_ops: list[IROperand] = []
+            new_ops = []
             for label, op in inst.phi_operands:
                 if op == inst.output:
                     continue
