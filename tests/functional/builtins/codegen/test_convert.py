@@ -730,7 +730,7 @@ def foo(bar: {i_typ}) -> {o_typ}:
 
     c3 = get_contract_with_gas_estimation(contract_3)
     input_val = val
-    if isinstance(val, DecimalT):
-        input_val = decimal_to_int(val)
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(input_val)
     with tx_failed():
         c3.foo(input_val)
