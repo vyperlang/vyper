@@ -18,7 +18,6 @@ from vyper.utils import (
     int_bounds,
     is_checksum_encoded,
     quantize,
-    round_towards_zero,
     unsigned_to_signed,
 )
 
