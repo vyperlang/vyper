@@ -168,6 +168,15 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
+    def __eq__(self, other):
+        # no need for is_symbol to participate in equality
+        return super().__eq__(other)
+
+    def __hash__(self):
+        # __hash__ is required when __eq__ is overridden --
+        # https://docs.python.org/3/reference/datamodel.html#object.__hash__
+        return super().__hash__()
+
 
 class IRInstruction:
     """
