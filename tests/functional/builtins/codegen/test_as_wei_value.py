@@ -4,6 +4,8 @@ import math
 import pytest
 
 from tests.utils import decimal_to_int
+from vyper.utils import quantize
+from vyper.semantics.types import DecimalT
 
 wei_denoms = {
     "femtoether": 3,
@@ -66,9 +68,10 @@ def foo(a: decimal) -> uint256:
     """
     c = get_contract(code)
 
-    # TODO: test this with values closer to decimal bounds
     denom_int = 10**multiplier
-    value = Decimal((2**127 - 1) / denom_int)
+    # TODO: test with more values
+    _, hi = DecimalT().ast_bounds
+    value = quantize(hi / denom_int)
 
     assert c.foo(decimal_to_int(value)) == math.floor(value * denom_int)
 
