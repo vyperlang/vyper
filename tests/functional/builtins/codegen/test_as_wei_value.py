@@ -73,7 +73,7 @@ def foo(a: decimal) -> uint256:
     _, hi = DecimalT().ast_bounds
     value = quantize(hi / denom_int)
 
-    assert c.foo(decimal_to_int(value)) == math.floor(value * denom_int)
+    assert c.foo(decimal_to_int(value)) == round_towards_zero(value * denom_int)
 
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
