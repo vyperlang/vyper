@@ -1,6 +1,6 @@
 import pytest
 
-from tests.utils import parse_and_fold, decimal_to_int
+from tests.utils import decimal_to_int, parse_and_fold
 
 
 @pytest.mark.parametrize("typ_name", ["decimal"])

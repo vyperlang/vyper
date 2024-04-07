@@ -3,6 +3,7 @@ import pytest
 from vyper.semantics.types.user import EventT
 from vyper.utils import keccak256
 
+
 def keccak256_int(signature_str):
     return int.from_bytes(keccak256(signature_str.encode()), "big")
 

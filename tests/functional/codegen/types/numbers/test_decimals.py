@@ -156,7 +156,7 @@ def iarg() -> uint256:
     assert c.arg(decimal_to_int("3.7")) == decimal_to_int("3.7")
     assert c.garg() == decimal_to_int("6.75")
     assert c.harg() == decimal_to_int("9.0")
-    assert c.iarg() == decimal_to_int("14")
+    assert c.iarg() == 14
 
     print("Passed fractional multiplication test")
 
@@ -182,14 +182,18 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
     y = 1 + DECIMAL_EPSILON
 
     with tx_failed():
-        c._num_mul(x, y)
+        c._num_mul(decimal_to_int(x), decimal_to_int(y))
 
-    assert c._num_mul(x, decimal_to_int(1)) == x
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
 
-    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1 - DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x * (1 - DECIMAL_EPSILON))
+    )
 
     x = SizeLimits.MIN_AST_DECIMAL
-    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1 - DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x * (1 - DECIMAL_EPSILON))
+    )
 
 
 # division failure modes(!)
@@ -206,35 +210,39 @@ def foo(x: decimal, y: decimal) -> decimal:
     y = -DECIMAL_EPSILON
 
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
     with tx_failed():
-        c.foo(x, decimal_to_int(0))
+        c.foo(decimal_to_int(x), 0)
     with tx_failed():
-        c.foo(y, decimal_to_int(0))
+        c.foo(decimal_to_int(y), 0)
 
-    y = decimal_to_int(1) - DECIMAL_EPSILON  # 0.999999999
+    y = 1 - DECIMAL_EPSILON  # 0.999999999
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    y = decimal_to_int(-1)
+    y = -1
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    assert c.foo(x, decimal_to_int(1)) == x
-    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
+    assert c.foo(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
+    assert c.foo(decimal_to_int(x), decimal_to_int(1 + DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x / (1 + DECIMAL_EPSILON))
+    )
 
     x = SizeLimits.MAX_AST_DECIMAL
 
     with tx_failed():
-        c.foo(x, DECIMAL_EPSILON)
+        c.foo(decimal_to_int(x), decimal_to_int(DECIMAL_EPSILON))
 
-    y = decimal_to_int(1) - DECIMAL_EPSILON
+    y = 1 - DECIMAL_EPSILON
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    assert c.foo(x, decimal_to_int(1)) == x
+    assert c.foo(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
 
-    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
+    assert c.foo(decimal_to_int(x), decimal_to_int(1 + DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x / (1 + DECIMAL_EPSILON))
+    )
 
 
 def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):

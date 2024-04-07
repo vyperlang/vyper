@@ -141,7 +141,7 @@ def _cases_for_decimal(typ):
     # DIVISOR = info.divisor
     # ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
 
-    return [decimal_to_int(x) for x in ret]
+    return ret
 
 
 def _cases_for_address(_typ):
@@ -256,11 +256,10 @@ def _from_bits(val_bits, o_typ):
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    if isinstance(i_typ, DecimalT):
+    if isinstance(val, Decimal):
         val = val * i_typ.divisor
         assert math.ceil(val) == math.floor(val)
         val = int(val)
-
     return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
@@ -285,7 +284,7 @@ def _convert_decimal_to_int(val, o_typ):
     if not lo <= val <= hi:
         return None
 
-    return val
+    return round_towards_zero(val)
 
 
 def _convert_int_to_decimal(val, o_typ):
@@ -295,7 +294,7 @@ def _convert_int_to_decimal(val, o_typ):
     if not lo <= ret <= hi:
         return None
 
-    return decimal_to_int(ret)
+    return ret
 
 
 def _py_convert(val, i_typ, o_typ):
@@ -434,6 +433,10 @@ def test_convert_passing(
     if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
         expected_val = None
+    if isinstance(expected_val, Decimal):
+        expected_val = decimal_to_int(expected_val)
+
+    input_val = decimal_to_int(val) if isinstance(val, Decimal) else val
 
     contract_1 = f"""
 @external
@@ -466,7 +469,7 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    assert c2.test_input_convert(val) == expected_val
+    assert c2.test_input_convert(input_val) == expected_val
 
     contract_3 = f"""
 bar: {i_typ}
@@ -488,7 +491,7 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c4 = get_contract_with_gas_estimation(contract_4)
-    assert c4.test_memory_variable_convert(val) == expected_val
+    assert c4.test_memory_variable_convert(input_val) == expected_val
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
@@ -720,5 +723,6 @@ def foo(bar: {i_typ}) -> {o_typ}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
+    input_val = decimal_to_int(val) if isinstance(val, Decimal) else val
     with tx_failed():
-        c3.foo(val)
+        c3.foo(input_val)
