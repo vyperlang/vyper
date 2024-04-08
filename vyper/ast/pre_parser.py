@@ -11,18 +11,19 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 # seems a bit early to be importing this but we want it to validate the
 # evm-version pragma
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import StructureException, SyntaxException, VersionException, VyperException
+from vyper.exceptions import StructureException, SyntaxException, VersionException
 from vyper.typing import ModificationOffsets, ParserPosition
 
 
-def _validate_version_pragma(version_str: str) -> None:
+def validate_version_pragma(version_str: str, code: str, start: ParserPosition) -> None:
     """
     Validates a version pragma directive against the current compiler version.
     """
     from vyper import __version__
 
+    lineno, col_offset = start
     if len(version_str) == 0:
-        raise VyperException("Version specification cannot be empty")
+        raise VersionException("Version specification cannot be empty", code, lineno, col_offset)
 
     # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
     if re.match("[v0-9]", version_str):
@@ -33,22 +34,21 @@ def _validate_version_pragma(version_str: str) -> None:
     try:
         spec = SpecifierSet(version_str)
     except InvalidSpecifier:
-        raise VyperException(
-            f'Version specification "{version_str}" is not a valid PEP440 specifier'
+        raise VersionException(
+            f'Version specification "{version_str}" is not a valid PEP440 specifier',
+            code,
+            lineno,
+            col_offset,
         )
 
     if not spec.contains(__version__, prereleases=True):
-        raise VyperException(
+        raise VersionException(
             f'Version specification "{version_str}" is not compatible '
-            f'with compiler version "{__version__}"'
+            f'with compiler version "{__version__}"',
+            code,
+            lineno,
+            col_offset,
         )
-
-
-def validate_version(version_str: str, code: str, start: ParserPosition) -> None:
-    try:
-        _validate_version_pragma(version_str)
-    except VyperException as e:
-        raise VersionException(e.message, code, *start)
 
 
 class ForParserState(enum.Enum):
@@ -182,7 +182,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                     if settings.compiler_version is not None:
                         raise StructureException("compiler version specified twice!", start)
                     compiler_version = contents.removeprefix("@version ").strip()
-                    validate_version(compiler_version, line, start)
+                    validate_version_pragma(compiler_version, line, start)
                     settings.compiler_version = compiler_version
 
                 if contents.startswith("pragma "):
@@ -191,7 +191,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         if settings.compiler_version is not None:
                             raise StructureException("pragma version specified twice!", start)
                         compiler_version = pragma.removeprefix("version ").strip()
-                        validate_version(compiler_version, line, start)
+                        validate_version_pragma(compiler_version, line, start)
                         settings.compiler_version = compiler_version
 
                     elif pragma.startswith("optimize "):
