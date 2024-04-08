@@ -22,8 +22,10 @@ from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, keccak256
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -59,6 +61,7 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
+    parser.addoption("--experimental-codegen", action="store_true")
 
     parser.addoption(
         "--evm-version",
@@ -73,6 +76,8 @@ def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
     del output_formats["bb"]
     del output_formats["bb_runtime"]
+    del output_formats["cfg"]
+    del output_formats["cfg_runtime"]
     return output_formats
 
 
@@ -87,6 +92,36 @@ def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
     _set_debug_mode(debug)
+
+
+@pytest.fixture(scope="session")
+def experimental_codegen(pytestconfig):
+    ret = pytestconfig.getoption("experimental_codegen")
+    assert isinstance(ret, bool)
+    return ret
+
+
+@pytest.fixture(autouse=True)
+def check_venom_xfail(request, experimental_codegen):
+    if not experimental_codegen:
+        return
+
+    marker = request.node.get_closest_marker("venom_xfail")
+    if marker is None:
+        return
+
+    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
+    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
+
+
+@pytest.fixture
+def venom_xfail(request, experimental_codegen):
+    def _xfail(*args, **kwargs):
+        if not experimental_codegen:
+            return
+        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
+
+    return _xfail
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -108,9 +143,10 @@ def chdir_tmp_path(tmp_path):
         yield
 
 
+# CMC 2024-03-01 this doesn't need to be a fixture
 @pytest.fixture
 def keccak():
-    return Web3.keccak
+    return keccak256
 
 
 @pytest.fixture
@@ -321,6 +357,7 @@ def _get_contract(
     w3,
     source_code,
     optimize,
+    experimental_codegen,
     output_formats,
     *args,
     override_opt_level=None,
@@ -329,6 +366,7 @@ def _get_contract(
 ):
     settings = Settings()
     settings.optimize = override_opt_level or optimize
+    settings.experimental_codegen = experimental_codegen
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
@@ -352,17 +390,21 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize, output_formats):
+def get_contract(w3, optimize, experimental_codegen, output_formats):
     def fn(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
+        )
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
+def get_contract_with_gas_estimation(tester, w3, optimize, experimental_codegen, output_formats):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        contract = _get_contract(
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
+        )
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -372,15 +414,19 @@ def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats):
+def get_contract_with_gas_estimation_for_constants(
+    w3, optimize, experimental_codegen, output_formats
+):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
+        )
 
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize, output_formats):
+def get_contract_module(optimize, experimental_codegen, output_formats):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -393,16 +439,25 @@ def get_contract_module(optimize, output_formats):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
+        )
 
     return get_contract_module
 
 
 def _deploy_blueprint_for(
-    w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
+    w3,
+    source_code,
+    optimize,
+    experimental_codegen,
+    output_formats,
+    initcode_prefix=ERC5202_PREFIX,
+    **kwargs,
 ):
     settings = Settings()
     settings.optimize = optimize
+    settings.experimental_codegen = experimental_codegen
     out = compiler.compile_code(
         source_code,
         output_formats=output_formats,
@@ -438,9 +493,11 @@ def _deploy_blueprint_for(
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, optimize, output_formats):
+def deploy_blueprint_for(w3, optimize, experimental_codegen, output_formats):
     def deploy_blueprint_for(source_code, *args, **kwargs):
-        return _deploy_blueprint_for(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _deploy_blueprint_for(
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
+        )
 
     return deploy_blueprint_for
 
@@ -525,3 +582,14 @@ def tx_failed(tester):
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return fn
+
+
+def pytest_runtest_call(item):
+    marker = item.get_closest_marker("requires_evm_version")
+    if marker:
+        assert len(marker.args) == 1
+        version = marker.args[0]
+        if not version_check(begin=version):
+            item.add_marker(
+                pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
+            )

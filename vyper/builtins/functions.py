@@ -8,6 +8,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
+    LOAD,
     STORE,
     IRnode,
     add_ofst,
@@ -36,7 +37,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import MEMORY, STORAGE
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -378,7 +379,7 @@ class Slice(BuiltinFunctionT):
 
             # add 32 bytes to the buffer size bc word access might
             # be unaligned (see below)
-            if src.location == STORAGE:
+            if src.location.word_addressable:
                 buflen += 32
 
             # Get returntype string or bytes
@@ -405,8 +406,8 @@ class Slice(BuiltinFunctionT):
                 src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
-            if src.location == STORAGE:
-                # because slice uses byte-addressing but storage
+            if src.location.word_addressable:
+                # because slice uses byte-addressing but storage/tstorage
                 # is word-aligned, this algorithm starts at some number
                 # of bytes before the data section starts, and might copy
                 # an extra word. the pseudocode is:
@@ -838,19 +839,6 @@ class ECMul(_ECArith):
     _precompile = 0x7
 
 
-def _generic_element_getter(op):
-    def f(index):
-        return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=INT128_T
-        )
-
-    return f
-
-
-def _storage_element_getter(index):
-    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=INT128_T)
-
-
 class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
@@ -882,81 +870,47 @@ class Extract32(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        sub, index = args
+        bytez, index = args
         ret_type = kwargs["output_type"]
 
-        # Get length and specific element
-        if sub.location == STORAGE:
-            lengetter = IRnode.from_list(["sload", "_sub"], typ=INT128_T)
-            elementgetter = _storage_element_getter
+        def finalize(ret):
+            annotation = "extract32"
+            ret = IRnode.from_list(ret, typ=ret_type, annotation=annotation)
+            return clamp_basetype(ret)
 
-        else:
-            op = sub.location.load_op
-            lengetter = IRnode.from_list([op, "_sub"], typ=INT128_T)
-            elementgetter = _generic_element_getter(op)
+        with bytez.cache_when_complex("_sub") as (b1, bytez):
+            # merge
+            length = get_bytearray_length(bytez)
+            index = clamp2(0, index, ["sub", length, 32], signed=True)
+            with index.cache_when_complex("_index") as (b2, index):
+                assert not index.typ.is_signed
 
-        # TODO rewrite all this with cache_when_complex and bitshifts
+                # "easy" case, byte- addressed locations:
+                if bytez.location.word_scale == 32:
+                    word = LOAD(add_ofst(bytes_data_ptr(bytez), index))
+                    return finalize(b1.resolve(b2.resolve(word)))
 
-        # Special case: index known to be a multiple of 32
-        if isinstance(index.value, int) and not index.value % 32:
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    elementgetter(
-                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
-                    ),
-                ],
-                typ=ret_type,
-                annotation="extracting 32 bytes",
-            )
-        # General case
-        else:
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "with",
-                        "_len",
-                        lengetter,
-                        [
-                            "with",
-                            "_index",
-                            clamp2(0, index, ["sub", "_len", 32], signed=True),
-                            [
-                                "with",
-                                "_mi32",
-                                ["mod", "_index", 32],
-                                [
-                                    "with",
-                                    "_di32",
-                                    ["div", "_index", 32],
-                                    [
-                                        "if",
-                                        "_mi32",
-                                        [
-                                            "add",
-                                            ["mul", elementgetter("_di32"), ["exp", 256, "_mi32"]],
-                                            [
-                                                "div",
-                                                elementgetter(["add", "_di32", 1]),
-                                                ["exp", 256, ["sub", 32, "_mi32"]],
-                                            ],
-                                        ],
-                                        elementgetter("_di32"),
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                typ=ret_type,
-                annotation="extract32",
-            )
-        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
+                # storage and transient storage, word-addressed
+                assert bytez.location.word_scale == 1
+
+                slot = IRnode.from_list(["div", index, 32])
+                # byte offset within the slot
+                byte_ofst = IRnode.from_list(["mod", index, 32])
+
+                with byte_ofst.cache_when_complex("byte_ofst") as (
+                    b3,
+                    byte_ofst,
+                ), slot.cache_when_complex("slot") as (b4, slot):
+                    # perform two loads and merge
+                    w1 = LOAD(add_ofst(bytes_data_ptr(bytez), slot))
+                    w2 = LOAD(add_ofst(bytes_data_ptr(bytez), ["add", slot, 1]))
+
+                    left_bytes = shl(["mul", 8, byte_ofst], w1)
+                    right_bytes = shr(["mul", 8, ["sub", 32, byte_ofst]], w2)
+                    merged = ["or", left_bytes, right_bytes]
+
+                    ret = ["if", byte_ofst, merged, left_bytes]
+                    return finalize(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))))
 
 
 class AsWeiValue(BuiltinFunctionT):
@@ -1588,7 +1542,7 @@ CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
-def _create_ir(value, buf, length, salt, checked=True):
+def _create_ir(value, buf, length, salt, revert_on_failure=True):
     args = [value, buf, length]
     create_op = "create"
     if salt is not CREATE2_SENTINEL:
@@ -1597,7 +1551,7 @@ def _create_ir(value, buf, length, salt, checked=True):
 
     ret = IRnode.from_list(ensure_eval_once("create_builtin", [create_op, *args]))
 
-    if not checked:
+    if not revert_on_failure:
         return ret
 
     ret = clamp_nonzero(ret)
@@ -1698,6 +1652,7 @@ class _CreateBase(BuiltinFunctionT):
     _kwargs = {
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
+        "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _return_type = AddressT()
 
@@ -1731,7 +1686,7 @@ class CreateMinimalProxyTo(_CreateBase):
         bytecode_len = 20 + len(b) + len(c)
         return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt):
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         target_address = args[0]
 
         buf = context.new_internal_variable(BytesT(96))
@@ -1759,7 +1714,7 @@ class CreateMinimalProxyTo(_CreateBase):
             ["mstore", buf, forwarder_preamble],
             ["mstore", ["add", buf, preamble_length], aligned_target],
             ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
-            _create_ir(value, buf, buf_len, salt=salt),
+            _create_ir(value, buf, buf_len, salt, revert_on_failure),
         ]
 
 
@@ -1788,7 +1743,7 @@ class CreateCopyOf(_CreateBase):
         # max possible runtime length + preamble length
         return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt):
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         target = args[0]
 
         # something we can pass to scope_multi
@@ -1822,7 +1777,7 @@ class CreateCopyOf(_CreateBase):
                 buf = add_ofst(mem_ofst, 32 - preamble_len)
                 buf_len = ["add", codesize, preamble_len]
 
-                ir.append(_create_ir(value, buf, buf_len, salt))
+                ir.append(_create_ir(value, buf, buf_len, salt, revert_on_failure))
 
                 return b1.resolve(b2.resolve(ir))
 
@@ -1835,6 +1790,7 @@ class CreateFromBlueprint(_CreateBase):
         "salt": KwargSettings(BYTES32_T, empty_value),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
         "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
+        "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
 
@@ -1844,7 +1800,9 @@ class CreateFromBlueprint(_CreateBase):
         maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
         return _create_addl_gas_estimate(maxlen, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt, code_offset, raw_args):
+    def _build_create_IR(
+        self, expr, args, context, value, salt, code_offset, raw_args, revert_on_failure
+    ):
         target = args[0]
         ctor_args = args[1:]
 
@@ -1920,7 +1878,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 length = ["add", codesize, encoded_args_len]
 
-                ir.append(_create_ir(value, mem_ofst, length, salt))
+                ir.append(_create_ir(value, mem_ofst, length, salt, revert_on_failure))
 
                 return b1.resolve(b2.resolve(ir))
 

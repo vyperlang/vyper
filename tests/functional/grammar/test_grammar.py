@@ -44,7 +44,7 @@ def fix_terminal(terminal: str) -> bool:
     return terminal
 
 
-ALLOWED_CHARS = st.characters(codec="utf-8", min_codepoint=1)
+ALLOWED_CHARS = st.characters(codec="ascii", min_codepoint=1)
 
 
 # With help from hyposmith
