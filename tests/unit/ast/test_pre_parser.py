@@ -258,4 +258,4 @@ def bar():
     annotation = excinfo.value.annotations[0]
     assert annotation.lineno == 2
     assert annotation.col_offset == 0
-    assert annotation.full_source_code == lib_pragma
+    assert annotation.full_source_code == lib
