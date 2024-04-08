@@ -13,7 +13,9 @@ def _optimize_unused_variables(ctx: IRFunction) -> set[IRInstruction]:
         for i, inst in enumerate(bb.instructions[:-1]):
             if inst.volatile:
                 continue
-            if inst.output and inst.output not in bb.instructions[i + 1].liveness:
+            if (
+                inst.output and inst.output not in bb.instructions[i + 1].liveness
+            ) or inst.opcode == "nop":
                 removeList.add(inst)
 
         bb.instructions = [inst for inst in bb.instructions if inst not in removeList]

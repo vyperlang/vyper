@@ -523,6 +523,8 @@ class VenomCompiler:
             assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
+        elif opcode == "nop":
+            pass
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
