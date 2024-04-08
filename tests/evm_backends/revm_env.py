@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from eth_keys.datatypes import PrivateKey
 from pyrevm import EVM, BlockEnv, Env
 
-from tests.evm_backends.base_env import BaseEnv, EvmError
+from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
 
 
 class RevmEnv(BaseEnv):
@@ -34,20 +34,10 @@ class RevmEnv(BaseEnv):
         finally:
             try:
                 self._evm.revert(snapshot_id)
-            # REVIEW: why does this happen?
             except OverflowError:
                 # snapshot_id is reverted by the transaction already.
                 # revm updates are needed to make the journal more robust.
                 pass
-
-    @contextmanager
-    def sender(self, address: str):
-        original_deployer = self.deployer
-        self.deployer = address
-        try:
-            yield
-        finally:
-            self.deployer = original_deployer
 
     def get_balance(self, address: str) -> int:
         return self._evm.get_balance(address)
@@ -68,14 +58,14 @@ class RevmEnv(BaseEnv):
         return self._evm.env.block.timestamp
 
     @property
-    def last_result(self) -> dict | None:
+    def last_result(self) -> ExecutionResult:
         result = self._evm.result
-        return result and {
-            "gas_refunded": result.gas_refunded,
-            "gas_used": result.gas_used,
-            "is_success": result.is_success,
-            "logs": result.logs,
-        }
+        return ExecutionResult(
+            gas_refunded=result.gas_refunded,
+            gas_used=result.gas_used,
+            is_success=result.is_success,
+            logs=result.logs,
+        )
 
     def execute_code(
         self,
@@ -106,6 +96,7 @@ class RevmEnv(BaseEnv):
                 self._parse_revert(output_bytes, e, int(gas_used))
             raise EvmError(*e.args) from e
         finally:
+            # clear transient storage after every call, since we are not committing anything
             self._evm.reset_transient_storage()
 
     def get_code(self, address: str):
@@ -135,4 +126,5 @@ class RevmEnv(BaseEnv):
         try:
             return self._evm.deploy(self.deployer, code, value, gas)
         finally:
+            # clear transient storage after every call, since we are not committing anything
             self._evm.reset_transient_storage()

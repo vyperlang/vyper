@@ -98,18 +98,14 @@ def test2(a: uint256) -> Bytes[100]:
     c.test()
     assert c.test2(1) == b"hello world!"
 
-    with tx_failed():
+    with tx_failed(exc_text="invaliddddd"):
         c.test2(0)
 
-    GAS_SENT = 30000
-    with tx_failed():
-        c.test2(0, gas=GAS_SENT)
+    gas_sent = 30000
+    with tx_failed(exc_text="invaliddddd"):
+        c.test2(0, gas=gas_sent)
 
-    # REVIEW: implied by tx_failed
-    assert env.last_result["is_success"] is False
-    # REVIEW: add a comment maybe like "check the staticcall performed
-    # no sstore" (or reason string)
-    assert env.last_result["gas_used"] < GAS_SENT
+    assert env.last_result.gas_used < gas_sent
 
 
 def test_create_minimal_proxy_to_create2(get_contract, create2_address_of, keccak, tx_failed):
@@ -417,8 +413,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     with tx_failed():
-        # REVIEW: why is HexBytes needed here?
-        env.execute_code(d.address, env.deployer, HexBytes(f"{sig}{encoded}"))
+        env.execute_code(d.address, env.deployer, f"{sig}{encoded}")
 
 
 def test_create_copy_of(get_contract, env, keccak, create2_address_of, tx_failed):

@@ -7,7 +7,6 @@ from warnings import warn
 
 from eth_typing import ChecksumAddress, HexAddress
 from eth_utils import to_checksum_address
-from pyrevm import Log  # REVIEW: this leaks from pyrevm
 
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
 from vyper.utils import keccak256, method_id
@@ -15,7 +14,7 @@ from vyper.utils import keccak256, method_id
 from .abi import abi_decode, abi_encode, is_abi_encodable
 
 if TYPE_CHECKING:
-    from tests.evm_backends.base_env import BaseEnv
+    from tests.evm_backends.base_env import BaseEnv, LogEntry
 
 
 @dataclass
@@ -70,14 +69,7 @@ class ABILogTopic:
     def __repr__(self) -> str:
         return f"ABITopic {self._contract_name}.{self.signature} (0x{self.topic_id.hex()})"
 
-    # REVIEW: can be removed, repr is the default implementation for str
-    def __str__(self) -> str:
-        return repr(self)
-
-    # REVIEW: Log leaks information from pyrevm, i'd prefer this to be generic.
-    # can we have a LogEntry which both pyevmenv and revmenv need to parse
-    # log entries into.
-    def parse(self, log: Log) -> ABILog:
+    def parse(self, log: "LogEntry") -> ABILog:
         topics, raw_data = log.data
         return ABILog(
             address=to_checksum_address(log.address),
@@ -96,7 +88,7 @@ class ABILogTopic:
         fields = [(item["name"], item["type"]) for item in inputs]
         return make_dataclass(self.name, fields)
 
-    def _parse_args(self, log: Log) -> Any:
+    def _parse_args(self, log: "LogEntry") -> Any:
         """Convert the log data into a dataclass instance."""
         topics, data = log.data
         assert len(topics) == 1 + len(self.indexed_inputs), "Invalid log topic count"
@@ -140,7 +132,6 @@ class ABIFunction:
     def argument_count(self) -> int:
         return len(self.argument_types)
 
-    # REVIEW: why not `_signature`?
     @property
     def signature(self) -> str:
         return f"({_format_abi_type(self.argument_types)})"
@@ -362,7 +353,7 @@ class ABIContract:
         warn_str = "" if self._deployed_bytecode else " (WARNING: no bytecode at this address!)"
         return f"<{self._name} interface at {self.address}{warn_str}>{file_str}"
 
-    def parse_log(self, log: Log) -> ABILog:
+    def parse_log(self, log: "LogEntry") -> ABILog:
         """
         Parse a log entry into an ABILog object.
         :param log: the log entry to parse

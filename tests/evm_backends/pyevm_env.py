@@ -1,8 +1,8 @@
 import logging
-from collections import namedtuple
 from contextlib import contextmanager
 from typing import cast
 
+import rlp
 from cached_property import cached_property
 from eth.abc import ChainAPI, ComputationAPI
 from eth.chains.mainnet import MainnetChain
@@ -15,12 +15,12 @@ from eth.vm.execution_context import ExecutionContext
 from eth.vm.message import Message
 from eth.vm.transaction_context import BaseTransactionContext
 from eth_keys.datatypes import PrivateKey
-from eth_tester.utils.address import generate_contract_address
 from eth_typing import Address
-from eth_utils import setup_DEBUG2_logging, to_checksum_address
+from eth_utils import setup_DEBUG2_logging, to_canonical_address, to_checksum_address
 
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv, EvmError
+from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult, LogEntry
+from vyper.utils import keccak256
 
 
 class PyEvmEnv(BaseEnv):
@@ -58,7 +58,7 @@ class PyEvmEnv(BaseEnv):
             genesis_params={"difficulty": GENESIS_DIFFICULTY, "gas_limit": gas_limit},
         )
 
-        self._last_computation: ComputationAPI | None = None
+        self._last_computation: ComputationAPI = None
 
     @cached_property
     def _state(self) -> StateAPI:
@@ -75,17 +75,6 @@ class PyEvmEnv(BaseEnv):
             yield
         finally:
             self._state.revert(snapshot_id)
-
-    # REVIEW: this can be a method on super since it is the same in
-    # all environments
-    @contextmanager
-    def sender(self, address: str):
-        original_deployer = self.deployer
-        self.deployer = address
-        try:
-            yield
-        finally:
-            self.deployer = original_deployer
 
     def get_balance(self, address: str) -> int:
         return self._state.get_balance(_addr(address))
@@ -106,14 +95,14 @@ class PyEvmEnv(BaseEnv):
         return self._state.timestamp
 
     @property
-    def last_result(self) -> dict | None:
+    def last_result(self) -> ExecutionResult:
         result = self._last_computation
-        return result and {
-            "is_success": not result.is_error,
-            "logs": list(_parse_log_entries(result)),
-            "gas_refunded": result.get_gas_refund(),
-            "gas_used": result.get_gas_used(),
-        }
+        return ExecutionResult(
+            is_success=not result.is_error,
+            logs=list(_parse_log_entries(result)),
+            gas_refunded=result.get_gas_refund(),
+            gas_used=result.get_gas_used(),
+        )
 
     def execute_code(
         self,
@@ -141,12 +130,11 @@ class PyEvmEnv(BaseEnv):
                 ),
                 transaction_context=BaseTransactionContext(origin=sender, gas_price=gas_price),
             )
-        # REVIEW: why is VMError caught here, but check_computation is also
-        # required below?
         except VMError as e:
+            # py-evm raises when user is out-of-funds instead of returning a failed computation
             raise EvmError(*e.args) from e
         finally:
-            # REVIEW: not sure why transient storage needs to be cleared here
+            # clear transient storage after every call, since we are not committing anything
             self._clear_transient_storage()
 
         self._check_computation(computation)
@@ -175,7 +163,8 @@ class PyEvmEnv(BaseEnv):
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
-        # REVIEW: is cast necessary?
+
+        # Cast since ExecutionContextAPI does not have the properties we need to change
         context = cast(ExecutionContext, self._state.execution_context)
         context._block_number += num_blocks
         context._timestamp += num_blocks if time_delta is None else time_delta
@@ -196,14 +185,13 @@ class PyEvmEnv(BaseEnv):
                     gas=gas or self.gas_limit,
                     create_address=target_address,
                 ),
-                transaction_context=BaseTransactionContext(origin=sender),
+                transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
             )
-        # REVIEW: why is VMError caught here, but check_computation is also
-        # required below?
         except VMError as e:
+            # py-evm raises when user is out-of-funds instead of returning a failed computation
             raise EvmError(*e.args) from e
         finally:
-            # REVIEW: not sure why transient storage needs to be cleared here
+            # clear transient storage after every call, since we are not committing anything
             self._clear_transient_storage()
         self._check_computation(computation)
         return "0x" + target_address.hex()
@@ -211,12 +199,8 @@ class PyEvmEnv(BaseEnv):
     def _generate_contract_address(self, sender: Address) -> Address:
         nonce = self._state.get_nonce(sender)
         self._state.increment_nonce(sender)
-        return generate_contract_address(sender, nonce)
-
-
-# a very simple log representation for the raw log entries
-# REVIEW: maybe "LogEntry" is a better name
-Log = namedtuple("Log", ["address", "topics", "data"])
+        next_account_hash = keccak256(rlp.encode([sender, nonce]))
+        return to_canonical_address(next_account_hash[-20:])
 
 
 def _parse_log_entries(result: ComputationAPI):
@@ -227,7 +211,7 @@ def _parse_log_entries(result: ComputationAPI):
     for address, topics, data in result.get_log_entries():
         topic_bytes = [t.to_bytes(32, "big") for t in topics]
         topic_ids = ["0x" + t.hex() for t in topic_bytes]
-        yield Log(to_checksum_address(address), topic_ids, (topic_bytes, data))
+        yield LogEntry(to_checksum_address(address), topic_ids, (topic_bytes, data))
 
 
 def _addr(address: str) -> Address:

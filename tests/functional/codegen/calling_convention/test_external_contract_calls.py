@@ -1394,7 +1394,6 @@ def get_lucky(amount_to_send: uint256) -> int128:
 
     # Send some eth
     env.set_balance(env.deployer, 10000)
-    # REVIEW: why is anchor needed here?
     with env.anchor():  # anchor to check if the transaction is cancelled
         assert c2.get_lucky(0, value=500) == 1
 
