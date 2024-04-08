@@ -35,7 +35,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     new_node = old_node.get_folded_value()
 
     l, r = [decimal_to_int(t) for t in (left, right)]
-    assert Decimal(contract.foo(l, r)) == new_node.value
+    assert contract.foo(l, r) == decimal_to_int(new_node.value)
 
 
 @pytest.mark.fuzzing
