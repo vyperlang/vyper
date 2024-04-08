@@ -5,7 +5,14 @@ from typing import Union
 from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -32,6 +39,8 @@ WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
 
+evm_ops = ["iszero", "signextend", "store"]
+
 
 class SCCP(IRPass):
     ctx: IRFunction
@@ -40,18 +49,20 @@ class SCCP(IRPass):
     defs: dict[IRVariable, IRInstruction]
     lattice: Lattice
     work_list: list[WorkListItem]
+    cfg_dirty: bool
 
     def __init__(self, dom: DominatorTree):
         self.dom = dom
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
+        self.cfg_dirty = False
 
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
         print("SCCP done", self.lattice)
-        # self._propagate_constants()
+        self._propagate_constants()
         return 0
 
     def _calculate_sccp(self, entry: IRBasicBlock):
@@ -94,11 +105,29 @@ class SCCP(IRPass):
     def _propagate_constants(self):
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
-                self._replace_constants(inst, self.lattice)    
+                self._replace_constants(inst, self.lattice)
 
     def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
         if inst.opcode == "phi":
-            return # TODO
+            return  # TODO
+        elif inst.opcode == "jnz":
+            lat = lattice[inst.operands[0]]
+            if isinstance(lat, IRLiteral):
+                if lat.value == 0:
+                    target = inst.operands[2]
+                else:
+                    target = inst.operands[1]
+                inst.opcode = "jmp"
+                inst.operands = [target]
+                self.cfg_dirty = True
+        elif inst.opcode == "assert":
+            lat = lattice[inst.operands[0]]
+            if isinstance(lat, IRLiteral):
+                if lat.value == 0:
+                    inst.opcode = "nop"
+                    inst.operands = []
+                    self.cfg_dirty = True
+
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
                 lat = lattice[op]
@@ -121,7 +150,7 @@ class SCCP(IRPass):
     def _visitExpr(self, inst: IRInstruction):
         # print("Visit: ", inst.opcode)
         opcode = inst.opcode
-        if opcode in ["push", "store", "alloca"]:
+        if opcode in ["store", "alloca"]:
             if isinstance(inst.operands[0], IRLiteral):
                 self.lattice[inst.output] = inst.operands[0]
             else:
@@ -164,7 +193,7 @@ class SCCP(IRPass):
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
-        elif opcode in arith:
+        elif opcode in arith or opcode in evm_ops:
             self._eval(inst)
         else:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
@@ -190,6 +219,8 @@ class SCCP(IRPass):
             ret = ops[0]
         elif opcode == "iszero":
             ret = IRLiteral(1 if ops[0].value == 0 else 0)
+        elif opcode == "signextend":
+            ret = IRLiteral(_evm_signextend(ops))
         elif opcode in arith:
             fn = arith[opcode][0]
             ret = IRLiteral(fn(ops[0].value, ops[1].value) & SizeLimits.MAX_UINT256)
@@ -226,3 +257,20 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP or x == y:
         return x
     return LatticeEnum.BOTTOM
+
+
+def _evm_signextend(ops: list[IROperand]) -> int:
+    bits = ops[0].value
+    value = ops[1].value
+
+    if bits > 31:
+        return value
+
+    bits = bits * 8 + 7
+    sign_bit = 1 << bits
+    if value & sign_bit:
+        value |= SizeLimits.MAX_UINT256 - sign_bit
+    else:
+        value &= sign_bit - 1
+
+    return value
