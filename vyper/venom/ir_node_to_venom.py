@@ -107,6 +107,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, Optional[IROperand]]
 _global_symbols: SymbolTable = {}
 
+
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRFunction:
     global _global_symbols
@@ -223,6 +224,7 @@ def _convert_ir_bb_list(ctx, ir, symbols):
 current_func = None
 var_list: list[str] = []
 
+
 def pop_source_on_return(func):
     @functools.wraps(func)
     def pop_source(*args, **kwargs):
@@ -312,7 +314,7 @@ def _convert_ir_bb(ctx, ir, symbols):
             then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
 
         then_block_finish = ctx.get_basic_block()
-        
+
         # convert "else"
         cond_symbols = symbols.copy()
         _global_symbols = saved_global_symbols.copy()

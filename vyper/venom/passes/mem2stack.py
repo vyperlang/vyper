@@ -8,8 +8,7 @@ from vyper.venom.passes.dft import DFTPass
 
 
 class Mem2Stack(IRPass):
-    """
-    """
+    """ """
 
     dom: DominatorTree
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
@@ -27,11 +26,11 @@ class Mem2Stack(IRPass):
             if inst.opcode != "alloca":
                 continue
             self._process_alloca_var(dfg, var, inst)
-        
+
         self._compute_stores()
 
         # self._rename_vars(entry)
-        
+
         return 0
 
     def _process_alloca_var(self, dfg: DFG, var: IRVariable, alloca_inst: IRInstruction):
@@ -40,7 +39,7 @@ class Mem2Stack(IRPass):
             return
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
-        elif all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):    
+        elif all([inst.opcode == "mstore" or inst.opcode == "mload" for inst in uses]):
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
             # print(f"Processing alloca var {var_name}")
@@ -53,19 +52,19 @@ class Mem2Stack(IRPass):
                 elif inst.opcode == "mload":
                     inst.opcode = "store"
                     inst.operands = [IRVariable(var_name)]
-    
+
     def _compute_stores(self):
         self.defs = {}
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 if self._is_store(inst):
-                  var = f"addr{inst.operands[1]}"
-                  if var not in self.defs:
-                      self.defs[var] = OrderedSet()
-                  self.defs[var].add(bb)
+                    var = f"addr{inst.operands[1]}"
+                    if var not in self.defs:
+                        self.defs[var] = OrderedSet()
+                    self.defs[var].add(bb)
 
     def _is_store(self, inst: IRInstruction) -> bool:
         return inst.opcode == "mstore" and isinstance(inst.operands[1], IRLiteral)
-    
+
     def _is_load(self, inst: IRInstruction) -> bool:
         return inst.opcode == "mload" and isinstance(inst.operands[0], IRLiteral)
