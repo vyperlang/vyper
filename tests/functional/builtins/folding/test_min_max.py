@@ -32,7 +32,8 @@ def foo(a: decimal, b: decimal) -> decimal:
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
-    assert contract.foo(left, right) == new_node.value
+    l, r = [decimal_to_int(t) for t in (left, right)]
+    assert Decimal(contract.foo(l, r)) == new_node.value
 
 
 @pytest.mark.fuzzing
