@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests.utils import parse_and_fold
+from tests.utils import parse_and_fold, decimal_to_int
 from vyper.utils import SizeLimits
 
 st_decimals = st.decimals(
