@@ -138,7 +138,8 @@ class SCCP(IRPass):
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         vars = []
-        for bb, var in inst.phi_operands:
+        for bb_label, var in inst.phi_operands:
+            bb = self.ctx.get_basic_block(bb_label.name)
             if bb not in inst.parent.cfg_in_exec:
                 continue
             vars.append(self.lattice[var])
@@ -146,7 +147,7 @@ class SCCP(IRPass):
         if value != self.lattice[inst.output]:
             self.lattice[inst.output] = value
             for use in self.uses[inst.output]:
-                self.work_list.append(use)
+                self.work_list.append(SSAWorkListItem(use, use.parent))
 
     def _visitExpr(self, inst: IRInstruction):
         # print("Visit: ", inst.opcode)
