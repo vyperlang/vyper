@@ -148,7 +148,6 @@ jobs:
       run: |
         pytest \
           -m "not fuzzing" \
-          -x \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
@@ -185,6 +184,7 @@ jobs:
 
     strategy:
       matrix:
+        fail-fast: false
         # note that every time this is updated, `--splits` needs to be
         # updated below as well.
         # python -c "print(list(range(1, 121)))"
