@@ -4,7 +4,7 @@ import os
 
 from vyper import ast as vy_ast
 from vyper.semantics.analysis.constant_folding import constant_fold
-from vyper.utils import DECIMAL_EPSILON
+from vyper.utils import DECIMAL_EPSILON, round_towards_zero
 
 
 @contextlib.contextmanager
@@ -25,4 +25,4 @@ def parse_and_fold(source_code):
 
 def decimal_to_int(*args):
     s = decimal.Decimal(*args)
-    return int(s / DECIMAL_EPSILON)
+    return round_towards_zero(s / DECIMAL_EPSILON)
