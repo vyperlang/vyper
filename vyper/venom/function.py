@@ -158,6 +158,12 @@ class IRFunction:
                         continue
                     in_labels = inst.get_label_operands()
                     if bb.label in in_labels:
+                        inst.remove_phi_operand(bb.label)
+                    op_len = len(inst.operands)
+                    if op_len == 2:
+                        inst.opcode = "store"
+                        inst.operands = [inst.operands[1]]
+                    elif op_len == 0:
                         out_bb.remove_instruction(inst)
 
         return len(removed)
