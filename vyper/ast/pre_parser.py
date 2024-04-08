@@ -21,9 +21,8 @@ def validate_version_pragma(version_str: str, code: str, start: ParserPosition) 
     """
     from vyper import __version__
 
-    lineno, col_offset = start
     if len(version_str) == 0:
-        raise VersionException("Version specification cannot be empty", code, lineno, col_offset)
+        raise VersionException("Version specification cannot be empty", code, *start)
 
     # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
     if re.match("[v0-9]", version_str):
@@ -37,8 +36,7 @@ def validate_version_pragma(version_str: str, code: str, start: ParserPosition) 
         raise VersionException(
             f'Version specification "{version_str}" is not a valid PEP440 specifier',
             code,
-            lineno,
-            col_offset,
+            *start
         )
 
     if not spec.contains(__version__, prereleases=True):
@@ -46,8 +44,7 @@ def validate_version_pragma(version_str: str, code: str, start: ParserPosition) 
             f'Version specification "{version_str}" is not compatible '
             f'with compiler version "{__version__}"',
             code,
-            lineno,
-            col_offset,
+            *start
         )
 
 
