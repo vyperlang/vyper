@@ -62,7 +62,7 @@ class SCCP(IRPass):
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
         print("SCCP :", self.lattice)
-        #self._propagate_constants()
+        self._propagate_constants()
         return 0
 
     def _calculate_sccp(self, entry: IRBasicBlock):
@@ -164,15 +164,15 @@ class SCCP(IRPass):
             lat = self.lattice[inst.operands[0]]
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
-                for op in inst.operands[1:]:
-                    target = self.ctx.get_basic_block(op.name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                for out_bb in inst.parent.cfg_out:
+                    self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
                 if lat.value == 0:
-                    target = self.ctx.get_basic_block(inst.operands[1].name)
-                else:
                     target = self.ctx.get_basic_block(inst.operands[2].name)
+                else:
+                    target = self.ctx.get_basic_block(inst.operands[1].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
+            
             # if _meet(lat, 0) == LatticeEnum.BOTTOM:
             #     target = self.ctx.get_basic_block(inst.operands[2].value)
             #     self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -241,22 +241,8 @@ class SCCP(IRPass):
         if inst.output not in self.uses:
             self.uses[inst.output] = OrderedSet()
 
-        if inst.opcode == "jnz":
-            lat = self.lattice[inst.output]
-            if lat == LatticeEnum.BOTTOM:
-                for end in inst.parent.cfg_out:
-                    self.work_list.append(FlowWorkItem(inst.parent, end))
-            elif isinstance(lat, IRLiteral):
-                if lat.value == 0:
-                    end = self.ctx.get_basic_block(inst.operands[2].value)
-                else:
-                    end = self.ctx.get_basic_block(inst.operands[1].value)
-                self.work_list.append(FlowWorkItem(inst.parent, end))
-            else:
-                assert False, "Can't be TOP at this point"
-        else:
-            for target_inst in self.uses[inst.output]:
-                self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
+        for target_inst in self.uses[inst.output]:
+            self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
 
     def _compute_uses(self, dom: DominatorTree):
         self.uses = {}
