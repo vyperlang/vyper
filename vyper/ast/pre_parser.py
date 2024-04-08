@@ -15,14 +15,15 @@ from vyper.exceptions import StructureException, SyntaxException, VersionExcepti
 from vyper.typing import ModificationOffsets, ParserPosition
 
 
-def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
+def validate_version_pragma(version_str: str, code: str, start: ParserPosition) -> None:
     """
     Validates a version pragma directive against the current compiler version.
     """
     from vyper import __version__
 
+    lineno, col_offset = start
     if len(version_str) == 0:
-        raise VersionException("Version specification cannot be empty", start)
+        raise VersionException("Version specification cannot be empty", code, lineno, col_offset)
 
     # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
     if re.match("[v0-9]", version_str):
@@ -34,14 +35,19 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
         spec = SpecifierSet(version_str)
     except InvalidSpecifier:
         raise VersionException(
-            f'Version specification "{version_str}" is not a valid PEP440 specifier', start
+            f'Version specification "{version_str}" is not a valid PEP440 specifier',
+            code,
+            lineno,
+            col_offset,
         )
 
     if not spec.contains(__version__, prereleases=True):
         raise VersionException(
             f'Version specification "{version_str}" is not compatible '
             f'with compiler version "{__version__}"',
-            start,
+            code,
+            lineno,
+            col_offset,
         )
 
 
@@ -176,7 +182,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                     if settings.compiler_version is not None:
                         raise StructureException("compiler version specified twice!", start)
                     compiler_version = contents.removeprefix("@version ").strip()
-                    validate_version_pragma(compiler_version, start)
+                    validate_version_pragma(compiler_version, line, start)
                     settings.compiler_version = compiler_version
 
                 if contents.startswith("pragma "):
@@ -185,7 +191,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         if settings.compiler_version is not None:
                             raise StructureException("pragma version specified twice!", start)
                         compiler_version = pragma.removeprefix("version ").strip()
-                        validate_version_pragma(compiler_version, start)
+                        validate_version_pragma(compiler_version, line, start)
                         settings.compiler_version = compiler_version
 
                     elif pragma.startswith("optimize "):
