@@ -251,7 +251,7 @@ def _from_bits(val_bits, o_typ):
     try:
         ret = abi.decode(o_typ.abi_type.selector_name(), val_bits)
         if isinstance(o_typ, DecimalT):
-            return Decimal(ret) / DECIMAL_DIVISOR
+            return Decimal(ret) / o_typ.divisor
         return ret
     except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
