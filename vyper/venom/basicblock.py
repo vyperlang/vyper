@@ -280,6 +280,16 @@ class IRInstruction:
             assert isinstance(var, IRVariable) or isinstance(var, IRLiteral), "phi operand must be a variable or literal"
             yield label, var
 
+    def remove_phi_operand(self, label: IRLabel) -> None:
+        """
+        Remove a phi operand from the instruction.
+        """
+        assert self.opcode == "phi", "instruction must be a phi"
+        for i in range(0, len(self.operands), 2):
+            if self.operands[i] == label:
+                del self.operands[i : i + 2]
+                return
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
