@@ -123,9 +123,9 @@ class SCCP(IRPass):
             lat = lattice[inst.operands[0]]
             if isinstance(lat, IRLiteral):
                 if lat.value == 0:
-                    target = inst.operands[2]
-                else:
                     target = inst.operands[1]
+                else:
+                    target = inst.operands[2]
                 inst.opcode = "jmp"
                 inst.operands = [target]
                 self.cfg_dirty = True
@@ -176,9 +176,9 @@ class SCCP(IRPass):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
                 if lat.value == 0:
-                    target = self.ctx.get_basic_block(inst.operands[2].name)
-                else:
                     target = self.ctx.get_basic_block(inst.operands[1].name)
+                else:
+                    target = self.ctx.get_basic_block(inst.operands[2].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self.lattice[inst.operands[0]]
