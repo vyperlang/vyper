@@ -45,8 +45,7 @@ evm_ops = ["iszero", "signextend", "store"]
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
-    uses: dict[IRVariable, IRBasicBlock]
-    defs: dict[IRVariable, IRInstruction]
+    uses: dict[IRVariable, IRInstruction]
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_dirty: bool
@@ -63,7 +62,21 @@ class SCCP(IRPass):
         self._calculate_sccp(entry)
         print("SCCP :", self.lattice)
         self._propagate_constants()
+        self._propagate_variables()
         return 0
+    
+    def _propagate_variables(self):
+        for bb in self.ctx.basic_blocks:
+            for inst in bb.instructions:
+                if inst.opcode == "store":
+                    uses = self.uses.get(inst.output, [])
+                    for usage_inst in uses:
+                        for i, op in enumerate(usage_inst.operands):
+                            if op == inst.output:
+                                usage_inst.operands[i] = inst.operands[0]
+                    inst.opcode = "nop"
+                    inst.operands = []
+            
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         for bb in self.ctx.basic_blocks:
@@ -106,11 +119,6 @@ class SCCP(IRPass):
                 self._replace_constants(inst, self.lattice)
 
     def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
-        # if inst.opcode == "phi":
-        #     for phi_ops in inst.phi_operands:
-        #         lat = lattice[phi_ops[0]]
-        #         if isinstance(lat, IRLiteral):
-            
         if inst.opcode == "jnz":
             lat = lattice[inst.operands[0]]
             if isinstance(lat, IRLiteral):
@@ -150,7 +158,6 @@ class SCCP(IRPass):
                 self.work_list.append(SSAWorkListItem(use, use.parent))
 
     def _visitExpr(self, inst: IRInstruction):
-        # print("Visit: ", inst.opcode)
         opcode = inst.opcode
         if opcode in ["store", "alloca"]:
             if isinstance(inst.operands[0], IRLiteral):
@@ -173,13 +180,6 @@ class SCCP(IRPass):
                 else:
                     target = self.ctx.get_basic_block(inst.operands[1].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
-            
-            # if _meet(lat, 0) == LatticeEnum.BOTTOM:
-            #     target = self.ctx.get_basic_block(inst.operands[2].value)
-            #     self.work_list.append(FlowWorkItem(inst.parent, target))
-            # if _meet(lat, 1) == LatticeEnum.BOTTOM:
-            #     target = self.ctx.get_basic_block(inst.operands[1].value)
-            #     self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self.lattice[inst.operands[0]]
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
