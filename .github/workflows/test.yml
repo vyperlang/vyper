@@ -183,8 +183,8 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        fail-fast: false
         # note that every time this is updated, `--splits` needs to be
         # updated below as well.
         # python -c "print(list(range(1, 121)))"
