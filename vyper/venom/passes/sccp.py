@@ -61,7 +61,6 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        print("SCCP done", self.lattice)
         self._propagate_constants()
         return 0
 
@@ -108,9 +107,12 @@ class SCCP(IRPass):
                 self._replace_constants(inst, self.lattice)
 
     def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
-        if inst.opcode == "phi":
-            return  # TODO
-        elif inst.opcode == "jnz":
+        # if inst.opcode == "phi":
+        #     for phi_ops in inst.phi_operands:
+        #         lat = lattice[phi_ops[0]]
+        #         if isinstance(lat, IRLiteral):
+            
+        if inst.opcode == "jnz":
             lat = lattice[inst.operands[0]]
             if isinstance(lat, IRLiteral):
                 if lat.value == 0:

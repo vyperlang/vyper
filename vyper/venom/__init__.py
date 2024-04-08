@@ -80,7 +80,6 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     calculate_cfg(ctx)
     calculate_liveness(ctx)
     ir_pass_optimize_unused_variables(ctx)
-
     return
 
     while True:
