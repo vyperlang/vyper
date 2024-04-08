@@ -31,4 +31,5 @@ def foo(a: decimal) -> int256:
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
-    assert contract.foo(decimal_to_int(value)) == decimal_to_int(new_node.value)
+    assert isinstance(new_node.value, int)
+    assert contract.foo(decimal_to_int(value)) == new_node.value
