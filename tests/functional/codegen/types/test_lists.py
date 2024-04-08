@@ -686,7 +686,7 @@ def ix(i: uint256) -> {type}:
     c = get_contract(code)
     for i, p in enumerate(value):
         if type == "decimal":
-            # special case to transform floats for ABI
+            # special case to transform for decimal ABI
             p = decimal_to_int(p)
         assert c.ix(i) == p
     # assert oob
