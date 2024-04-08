@@ -34,9 +34,7 @@ def validate_version_pragma(version_str: str, code: str, start: ParserPosition) 
         spec = SpecifierSet(version_str)
     except InvalidSpecifier:
         raise VersionException(
-            f'Version specification "{version_str}" is not a valid PEP440 specifier',
-            code,
-            *start
+            f'Version specification "{version_str}" is not a valid PEP440 specifier', code, *start
         )
 
     if not spec.contains(__version__, prereleases=True):
@@ -44,7 +42,7 @@ def validate_version_pragma(version_str: str, code: str, start: ParserPosition) 
             f'Version specification "{version_str}" is not compatible '
             f'with compiler version "{__version__}"',
             code,
-            *start
+            *start,
         )
 
 
