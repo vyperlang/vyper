@@ -1292,3 +1292,53 @@ initializes: lib2
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
     assert e.value._hint == "try importing lib1 first"
+
+
+def test_nonreentrant_exports(make_input_bundle):
+    lib1 = """
+# lib1.vy
+@external
+@nonreentrant
+def bar():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.bar  # line 4
+
+@external
+def foo():
+    pass
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "Cannot access `lib1` state!"
+    hint = "add `uses: lib1` or `initializes: lib1` as a top-level statement to your contract"
+    assert e.value._hint == hint
+    assert e.value.annotations[0].lineno == 4
+
+
+def test_internal_nonreentrant_import(make_input_bundle):
+    lib1 = """
+# lib1.vy
+@internal
+@nonreentrant
+def bar():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def foo():
+    lib1.bar()  # line 6
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "Cannot access `lib1` state!"
+    hint = "add `uses: lib1` or `initializes: lib1` as a top-level statement to your contract"
+    assert e.value._hint == hint
+    assert e.value.annotations[0].lineno == 6
