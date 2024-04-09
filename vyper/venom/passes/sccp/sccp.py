@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from typing import Union
-from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
 from vyper.venom.basicblock import (
@@ -10,12 +9,12 @@ from vyper.venom.basicblock import (
     IRInstruction,
     IRLabel,
     IRLiteral,
-    IROperand,
     IRVariable,
 )
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
 
 
 class LatticeEnum(Enum):
@@ -60,7 +59,7 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        print("SCCP :", self.lattice)
+        #print("SCCP :", self.lattice)
         self._propagate_constants()
         self._propagate_variables()
         return 0
@@ -195,7 +194,7 @@ class SCCP(IRPass):
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
-        elif opcode in arith or opcode in evm_ops:
+        elif opcode in ARITHMETIC_OPS or opcode in evm_ops:
             self._eval(inst)
         else:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
@@ -221,11 +220,9 @@ class SCCP(IRPass):
             ret = ops[0]
         elif opcode == "iszero":
             ret = IRLiteral(1 if ops[0].value == 0 else 0)
-        elif opcode == "signextend":
-            ret = IRLiteral(_evm_signextend(ops))
-        elif opcode in arith:
-            fn = arith[opcode][0]
-            ret = IRLiteral(fn(ops[0].value, ops[1].value) & SizeLimits.MAX_UINT256)
+        elif opcode in ARITHMETIC_OPS:
+            fn = ARITHMETIC_OPS[opcode]
+            ret = IRLiteral(fn(ops))
         elif len(ops) > 0:
             ret = ops[0]
         else:
@@ -262,18 +259,4 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     return LatticeEnum.BOTTOM
 
 
-def _evm_signextend(ops: list[IROperand]) -> int:
-    bits = ops[0].value
-    value = ops[1].value
 
-    if bits > 31:
-        return value
-
-    bits = bits * 8 + 7
-    sign_bit = 1 << bits
-    if value & sign_bit:
-        value |= SizeLimits.MAX_UINT256 - sign_bit
-    else:
-        value &= sign_bit - 1
-
-    return value
