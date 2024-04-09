@@ -282,6 +282,7 @@ def _allocate_layout_r(
 def generate_layout_export(vyper_module: vy_ast.Module):
     return _generate_layout_export_r(vyper_module)
 
+
 def _generate_layout_export_r(vyper_module):
     ret: defaultdict[str, InsertableOnceDict[str, dict]] = defaultdict(InsertableOnceDict)
 
@@ -293,13 +294,17 @@ def _generate_layout_export_r(vyper_module):
             for layout_key in module_layout.keys():
                 assert layout_key in _LAYOUT_KEYS.values()
 
-                # add the module as a nested dict
-                ret[layout_key][module_alias] = module_layout[layout_key]
-
-                # lift the nonreentranty key (if any) into the outer dict
+                # lift the nonreentrancy key (if any) into the outer dict
+                # note that lifting can leave the inner dict empty, which
+                # should be filtered (below) for cleanliness
                 nonreentrant = module_layout[layout_key].pop(GLOBAL_NONREENTRANT_KEY, None)
                 if nonreentrant is not None and GLOBAL_NONREENTRANT_KEY not in ret[layout_key]:
                     ret[layout_key][GLOBAL_NONREENTRANT_KEY] = nonreentrant
+
+                # add the module as a nested dict, but only if it is non-empty
+                if len(module_layout[layout_key]) != 0:
+                    ret[layout_key][module_alias] = module_layout[layout_key]
+
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
