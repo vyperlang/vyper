@@ -157,6 +157,9 @@ class BaseEnv:
     ) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 
+    def clear_transient_storage(self) -> None:
+        raise NotImplementedError  # must be implemented by subclasses
+
     def get_code(self, address: str) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 

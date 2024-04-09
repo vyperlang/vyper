@@ -133,14 +133,11 @@ class PyEvmEnv(BaseEnv):
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation
             raise EvmError(*e.args) from e
-        finally:
-            # clear transient storage after every call, since we are not committing anything
-            self._clear_transient_storage()
 
         self._check_computation(computation)
         return computation.output
 
-    def _clear_transient_storage(self):
+    def clear_transient_storage(self) -> None:
         try:
             self._state.clear_transient_storage()
         except AttributeError as e:
@@ -190,9 +187,7 @@ class PyEvmEnv(BaseEnv):
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation
             raise EvmError(*e.args) from e
-        finally:
-            # clear transient storage after every call, since we are not committing anything
-            self._clear_transient_storage()
+
         self._check_computation(computation)
         return "0x" + target_address.hex()
 

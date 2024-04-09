@@ -95,9 +95,9 @@ class RevmEnv(BaseEnv):
                 output_bytes = bytes.fromhex(output_str)
                 self._parse_revert(output_bytes, e, int(gas_used))
             raise EvmError(*e.args) from e
-        finally:
-            # clear transient storage after every call, since we are not committing anything
-            self._evm.reset_transient_storage()
+
+    def clear_transient_storage(self) -> None:
+        self._evm.reset_transient_storage()
 
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
@@ -123,8 +123,4 @@ class RevmEnv(BaseEnv):
         )
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
-        try:
-            return self._evm.deploy(self.deployer, code, value, gas)
-        finally:
-            # clear transient storage after every call, since we are not committing anything
-            self._evm.reset_transient_storage()
+        return self._evm.deploy(self.deployer, code, value, gas)
