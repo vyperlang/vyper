@@ -280,25 +280,7 @@ def _allocate_layout_r(
 
 # get the layout for export
 def generate_layout_export(vyper_module: vy_ast.Module):
-    ret = _generate_layout_export_r(vyper_module)
-
-    for fn in vyper_module.get_children(vy_ast.FunctionDef):
-        fn_t = fn._metadata["func_type"]
-        if not fn_t.nonreentrant:
-            continue
-
-        slot = fn_t.reentrancy_key_position.position
-        location = get_reentrancy_key_location()
-        layout_key = _LAYOUT_KEYS[location]
-        ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {
-            "type": "nonreentrant lock",
-            "slot": slot,
-            "n_slots": NONREENTRANT_KEY_SIZE,
-        }
-        break
-
-    return ret
-
+    return _generate_layout_export_r(vyper_module)
 
 def _generate_layout_export_r(vyper_module):
     ret: defaultdict[str, InsertableOnceDict[str, dict]] = defaultdict(InsertableOnceDict)
@@ -310,7 +292,14 @@ def _generate_layout_export_r(vyper_module):
             module_alias = module_info.alias
             for layout_key in module_layout.keys():
                 assert layout_key in _LAYOUT_KEYS.values()
+
+                # add the module as a nested dict
                 ret[layout_key][module_alias] = module_layout[layout_key]
+
+                # lift the nonreentranty key (if any) into the outer dict
+                nonreentrant = module_layout[layout_key].pop(GLOBAL_NONREENTRANT_KEY, None)
+                if nonreentrant is not None and GLOBAL_NONREENTRANT_KEY not in ret[layout_key]:
+                    ret[layout_key][GLOBAL_NONREENTRANT_KEY] = nonreentrant
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
@@ -334,5 +323,24 @@ def _generate_layout_export_r(vyper_module):
         else:  # pragma: nocover
             raise CompilerPanic("unreachable")
         ret[layout_key][node.target.id] = item
+
+    for fn in vyper_module.get_children(vy_ast.FunctionDef):
+        fn_t = fn._metadata["func_type"]
+        if not fn_t.nonreentrant:
+            continue
+
+        location = get_reentrancy_key_location()
+        layout_key = _LAYOUT_KEYS[location]
+
+        if GLOBAL_NONREENTRANT_KEY in ret[layout_key]:
+            break
+
+        slot = fn_t.reentrancy_key_position.position
+        ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {
+            "type": "nonreentrant lock",
+            "slot": slot,
+            "n_slots": NONREENTRANT_KEY_SIZE,
+        }
+        break
 
     return ret
