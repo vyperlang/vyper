@@ -39,7 +39,10 @@ def foo(a: decimal, b: decimal) -> decimal:
     try:
         vyper_ast = parse_and_fold(f"{left} {op} {right}")
         expr = vyper_ast.body[0].value
+
+        # check invalid values
         ExprVisitor().visit(expr, DecimalT())
+
         new_node = expr.get_folded_value()
         is_valid = True
     except (OverflowException, ZeroDivisionException):
@@ -83,11 +86,13 @@ def foo({input_value}) -> decimal:
     try:
         vyper_ast = parse_and_fold(literal_op)
         expr = vyper_ast.body[0].value
+
+        # check invalid intermediate values
         ExprVisitor().visit(expr, DecimalT())
+
         new_node = expr.get_folded_value()
         expected = new_node.value
-        lo, hi = DecimalT().decimal_bounds
-        is_valid = lo <= expected < hi
+        is_valid = True
     except (OverflowException, ZeroDivisionException):
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False
