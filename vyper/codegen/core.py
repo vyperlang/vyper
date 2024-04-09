@@ -445,8 +445,9 @@ def _mul(x, y):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
+def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
     member_abi_t = member_t.abi_type
+    parent_abi_t = parent.typ.abi_type
 
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
@@ -457,10 +458,16 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
     ofst_ir = add_ofst(parent, ofst)
 
     if member_abi_t.is_dynamic():
+        abi_ofst = unwrap_location(ofst_ir)
         # double dereference, according to ABI spec
         # TODO optimize special case: first dynamic item
         # offset is statically known.
         ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
+
+        if parent.location == MEMORY:  # TODO: replace with utility function
+            bound = parent_abi_t.size_bound()
+            abi_ofst = clamp("le", abi_ofst, bound)
+            ofst_ir = add_ofst(parent, abi_ofst)
 
     return IRnode.from_list(
         ofst_ir,
