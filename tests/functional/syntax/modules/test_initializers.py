@@ -915,7 +915,9 @@ initializes: lib1
 
     with pytest.raises(BorrowException) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "`lib1` is declared as used, but it is not actually used in lib2.vy!"
+    expected = "`lib1` is declared as used, but its state is not"
+    expected += " actually used in lib2.vy!"
+    assert e.value._message == expected
     assert e.value._hint == "delete `uses: lib1`"
 
 
@@ -956,7 +958,9 @@ def foo():
 
     with pytest.raises(BorrowException) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "`lib1` is declared as used, but it is not actually used in lib2.vy!"
+    expected = "`lib1` is declared as used, but its state is not "
+    expected += "actually used in lib2.vy!"
+    assert e.value._message == expected
     assert e.value._hint == "delete `uses: lib1`"
 
 
