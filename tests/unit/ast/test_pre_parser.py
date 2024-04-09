@@ -231,7 +231,7 @@ def test_version_exception_in_import(make_input_bundle):
     lib_version = "~=0.3.10"
 
     lib_pragma = f"#pragma version {lib_version}\n"
-    lib = f"""
+    lib = """
 {lib_pragma}
 @external
 def foo():
