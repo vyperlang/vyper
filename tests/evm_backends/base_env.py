@@ -6,7 +6,7 @@ from typing import Callable
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
-from tests.evm_backends.abi import abi_decode, abi_encode
+from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
@@ -54,7 +54,7 @@ class BaseEnv:
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
-            initcode += abi_encode(ctor.signature, ctor._merge_kwargs(*args, **kwargs))
+            initcode += ctor.prepare_calldata(*args, **kwargs)
 
         try:
             deployed_at = self._deploy(initcode, value)
@@ -74,7 +74,7 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = self._compile(source_code, output_formats, compiler_settings, input_bundle)
+        abi, bytecode = _compile(source_code, output_formats, compiler_settings, input_bundle)
         value = (
             kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
         )  # Handle deploying with an eth value.
@@ -91,7 +91,7 @@ class BaseEnv:
         initcode_prefix=ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = self._compile(source_code, output_formats, compiler_settings, input_bundle)
+        abi, bytecode = _compile(source_code, output_formats, compiler_settings, input_bundle)
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -166,25 +166,6 @@ class BaseEnv:
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
 
-    def _compile(
-        self,
-        source_code: str,
-        output_formats: dict[str, Callable[[CompilerData], str]],
-        settings: Settings,
-        input_bundle=None,
-    ) -> tuple[list[dict], bytes]:
-        out = compile_code(
-            source_code,
-            # test that all output formats can get generated
-            output_formats=output_formats,
-            settings=settings,
-            input_bundle=input_bundle,
-            show_gas_estimates=True,  # Enable gas estimates for testing
-        )
-        parse_vyper_source(source_code)  # Test grammar.
-        json.dumps(out["metadata"])  # test metadata is json serializable
-        return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
-
     @staticmethod
     def _parse_revert(output_bytes: bytes, error: Exception, gas_used: int):
         """
@@ -197,3 +178,22 @@ class BaseEnv:
             raise EvmError(f"{prefix}: {msg}", gas_used) from error
 
         raise EvmError(f"{prefix}: 0x{output_bytes.hex()}", gas_used) from error
+
+
+def _compile(
+    source_code: str,
+    output_formats: dict[str, Callable[[CompilerData], str]],
+    settings: Settings,
+    input_bundle=None,
+) -> tuple[list[dict], bytes]:
+    out = compile_code(
+        source_code,
+        # test that all output formats can get generated
+        output_formats=output_formats,
+        settings=settings,
+        input_bundle=input_bundle,
+        show_gas_estimates=True,  # Enable gas estimates for testing
+    )
+    parse_vyper_source(source_code)  # Test grammar.
+    json.dumps(out["metadata"])  # test metadata is json serializable
+    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))

@@ -133,7 +133,7 @@ class ABIFunction:
         return len(self.argument_types)
 
     @property
-    def signature(self) -> str:
+    def _args_signature(self) -> str:
         return f"({_format_abi_type(self.argument_types)})"
 
     @cached_property
@@ -142,15 +142,17 @@ class ABIFunction:
 
     @property
     def full_signature(self) -> str:
-        return f"{self.name}{self.signature}"
+        return f"{self.name}{self._args_signature}"
 
     @property
     def pretty_signature(self) -> str:
-        return f"{self.name}{self.signature} -> {self.return_type}"
+        return f"{self.name}{self._args_signature} -> {self.return_type}"
 
     @cached_property
     def method_id(self) -> bytes:
-        return method_id(self.name + self.signature)
+        if self._abi["type"] == "constructor":
+            return b""  # constructors don't have method IDs
+        return method_id(self.name + self._args_signature)
 
     def __repr__(self) -> str:
         return f"ABI {self._contract_name}.{self.pretty_signature}"
@@ -175,7 +177,7 @@ class ABIFunction:
     def prepare_calldata(self, *args, **kwargs) -> bytes:
         """Prepare the call data for the function call."""
         abi_args = self._merge_kwargs(*args, **kwargs)
-        return self.method_id + abi_encode(self.signature, abi_args)
+        return self.method_id + abi_encode(self._args_signature, abi_args)
 
     def _merge_kwargs(self, *args, **kwargs) -> list:
         """Merge positional and keyword arguments into a single list."""
@@ -189,7 +191,9 @@ class ABIFunction:
             kwarg_inputs = self._abi["inputs"][len(args) :]
             return list(args) + [kwargs.pop(i["name"]) for i in kwarg_inputs]
         except KeyError as e:
-            error = f"Missing keyword argument {e} for `{self.signature}`. Passed {args} {kwargs}"
+            error = (
+                f"Missing keyword argument {e} for `{self._args_signature}`. Passed {args} {kwargs}"
+            )
             raise TypeError(error)
 
     def __call__(self, *args, value=0, gas=None, gas_price=0, sender=None, **kwargs):
@@ -279,7 +283,7 @@ class ABIOverload:
                 raise Exception(
                     f"Ambiguous call to {self.name}. "
                     f"Arguments can be encoded to multiple overloads: "
-                    f"{', '.join(self.name + f.signature for f in multiple)}. "
+                    f"{', '.join(self.name + f._args_signature for f in multiple)}. "
                     f"(Hint: try using `disambiguate_signature=` to disambiguate)."
                 )
 

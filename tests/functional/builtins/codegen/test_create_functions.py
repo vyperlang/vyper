@@ -4,6 +4,7 @@ from eth.codecs import abi
 from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
+from tests.utils import ZERO_ADDRESS
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
@@ -130,7 +131,7 @@ def test(_salt: bytes32) -> address:
 
     # revert on collision
     if revert_on_failure is False:
-        assert not c.test(salt)
+        assert c.test(salt) == ZERO_ADDRESS
     else:
         with tx_failed():
             c.test(salt)
@@ -490,7 +491,7 @@ def test2(target: address, salt: bytes32) -> address:
 
     # can't create2 where contract already exists
     if revert_on_failure is False:
-        assert not c.test2(c.address, salt)
+        assert c.test2(c.address, salt) == ZERO_ADDRESS
     else:
         with tx_failed():
             c.test2(c.address, salt)
