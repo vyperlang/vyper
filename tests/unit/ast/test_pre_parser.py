@@ -229,16 +229,15 @@ def test_invalid_pragma(code):
 
 def test_version_exception_in_import(make_input_bundle):
     lib_version = "~=0.3.10"
+    lib = f"""
+#pragma version {lib_version}
 
-    lib_pragma = f"#pragma version {lib_version}\n"
-    lib = """
-{lib_pragma}
 @external
 def foo():
     pass
     """
 
-    code = f"""
+    code = """
 import lib
 
 uses: lib
