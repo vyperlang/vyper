@@ -9,7 +9,7 @@ from .user import EventT, FlagT, StructT
 
 
 def _get_primitive_types():
-    res = [BoolT(), DecimalT()]
+    res = [BoolT()]
 
     res.extend(IntegerT.all())
     res.extend(BytesM_T.all())
@@ -21,6 +21,8 @@ def _get_primitive_types():
     # note: since bytestrings are parametrizable, the *class* objects
     # are in the namespace instead of concrete type objects.
     res.extend([BytesT, StringT])
+    # ditto for Decimals
+    res.append(DecimalT)
 
     ret = {t._id: t for t in res}
     ret.update(_get_sequence_types())

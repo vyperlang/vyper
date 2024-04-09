@@ -10,6 +10,7 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
+    InvalidType, UnimplementedException,
     OverflowException,
     VyperException,
 )
@@ -313,9 +314,7 @@ def SINT(bits):
 class DecimalT(NumericT):
     typeclass = "decimal"
 
-    _bits = 168  # TODO generalize
-    _decimal_places = 10  # TODO generalize
-    _id = "decimal"
+    _id = "Decimal"
     _is_signed = True
     _invalid_ops = (
         vy_ast.Pow,
@@ -330,6 +329,43 @@ class DecimalT(NumericT):
     _equality_attrs = ("_bits", "_decimal_places")
 
     ast_type = Decimal
+
+    def __init__(self, bits=168, decimal_places=10):
+        self._bits = bits
+        self._decimal_places = decimal_places
+
+        if bits != 168 or decimal_places != 10:
+            raise UnimplementedException("Not implemented: {repr(self)}", hint="only Decimal[168, 10] is currently available")
+
+    def __repr__(self):
+        return f"Decimal[{self._bits}, {self._decimal_places}]"
+
+    @classmethod
+    def from_annotation(cls, node):
+        def _fail():
+            raise InvalidType("not a valid Decimal", hint="expected: Decimal[<bits>, <places}")
+
+        if not isinstance(node, vy_ast.Subscript):
+            _fail()
+        if not isinstance(node.slice, vy_ast.Tuple):
+            _fail()
+        if len(node.slice.elements) != 2:
+            _fail()
+        bits = node.slice.elements[0].get_folded_value().value
+        places = node.slice.elements[1].get_folded_value().value
+        if not isinstance(bits, int) or not isinstance(places, int):
+            _fail()
+
+        return cls(bits, places)
+
+    def validate_literal(self, node) -> None:
+        if not isinstance(node, vy_ast.Decimal):
+            # TODO: check bits, places
+            raise TypeMismatch("Not a decimal")
+
+    @classmethod
+    def from_literal(cls, node):
+        return DecimalT(168, 10)
 
     def validate_numeric_op(self, node) -> None:
         try:
