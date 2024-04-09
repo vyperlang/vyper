@@ -37,6 +37,7 @@ def _merge_settings(cli: Settings, pragma: Settings):
     ret.experimental_codegen = _merge_one(
         cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
     )
+    ret.enable_decimals = _merge_one(cli.enable_decimals, pragma.enable_decimals, "enable-decimals")
 
     return ret
 

@@ -45,6 +45,7 @@ class Settings:
     evm_version: Optional[str] = None
     experimental_codegen: Optional[bool] = None
     debug: Optional[bool] = None
+    enable_decimals: Optional[bool] = None
 
 
 # CMC 2024-04-10 do we need it to be Optional?

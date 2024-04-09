@@ -875,7 +875,10 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        pass
+        if isinstance(typ, DecimalT):
+            settings = get_global_settings()
+            if not settings.enable_decimals:
+                raise VyperException("Decimals are not allowed unless `--enable-decimals` is set")
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
         self.visit(node.test, BoolT())

@@ -147,6 +147,7 @@ def _parse_args(argv):
         action="store_true",
         dest="experimental_codegen",
     )
+    parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -185,6 +186,9 @@ def _parse_args(argv):
 
     if args.debug:
         settings.debug = args.debug
+
+    if args.enable_decimals:
+        settings.enable_decimals = args.enable_decimals
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
