@@ -66,12 +66,17 @@ class SCCP(IRPass):
             for inst in bb.instructions:
                 if inst.opcode == "store":
                     uses = self.uses.get(inst.output, [])
+                    remove_inst = True
                     for usage_inst in uses:
+                        if usage_inst.opcode == "phi":
+                            remove_inst = False
+                            continue
                         for i, op in enumerate(usage_inst.operands):
                             if op == inst.output:
                                 usage_inst.operands[i] = inst.operands[0]
-                    inst.opcode = "nop"
-                    inst.operands = []
+                    if remove_inst:
+                        inst.opcode = "nop"
+                        inst.operands = []
             
 
     def _calculate_sccp(self, entry: IRBasicBlock):
@@ -99,6 +104,8 @@ class SCCP(IRPass):
 
                 if len(end.cfg_in_exec) == 1:
                     for inst in end.instructions:
+                        if inst.opcode == "phi":
+                            continue
                         self._visitExpr(inst)
 
                 if len(end.cfg_out) == 1:
@@ -132,6 +139,8 @@ class SCCP(IRPass):
                     inst.opcode = "nop"
                     inst.operands = []
                     self.cfg_dirty = True
+        elif inst.opcode == "phi":
+            return
 
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
