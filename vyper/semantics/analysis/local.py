@@ -1,7 +1,7 @@
-# CMC 2024-02-03 TODO: split me into function.py and expr.py
+# CMC 2024-02-03 TODO: rename me to function.py
 
 import contextlib
-from typing import Iterable, Optional
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -33,6 +33,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -64,22 +65,22 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_functions(vy_module: vy_ast.Module) -> None:
+def analyze_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        _validate_function_r(vy_module, node, err_list)
+        _analyze_function_r(vy_module, node, err_list)
 
     for node in vy_module.get_children(vy_ast.VariableDecl):
         if not node.is_public:
             continue
-        _validate_function_r(vy_module, node._expanded_getter, err_list)
+        _analyze_function_r(vy_module, node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
 
-def _validate_function_r(
+def _analyze_function_r(
     vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
 ):
     func_t = node._metadata["func_type"]
@@ -87,7 +88,7 @@ def _validate_function_r(
     for call_t in func_t.called_functions:
         if isinstance(call_t, ContractFunctionT):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
-            _validate_function_r(vy_module, call_t.ast_def, err_list)
+            _analyze_function_r(vy_module, call_t.ast_def, err_list)
 
     namespace = get_namespace()
 
@@ -227,10 +228,6 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     path.reverse()
 
     return VarAccess(info.var_info, tuple(path))
-
-
-def _uses_state(var_accesses: Iterable[VarAccess]) -> bool:
-    return any(s.variable.is_state_variable() for s in var_accesses)
 
 
 # get the chain of modules, e.g.
@@ -686,7 +683,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         raise ImmutableViolation(msg, var.decl_node, node)
 
                 var_accesses = info._writes | info._reads
-                if _uses_state(var_accesses):
+                if uses_state(var_accesses):
                     self.function_analyzer._handle_module_access(node)
 
                 self.func.mark_variable_writes(info._writes)
@@ -790,7 +787,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
-                if func_type.nonreentrant or _uses_state(func_type.get_variable_accesses()):
+                if func_type.uses_state():
                     self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
