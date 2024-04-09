@@ -227,7 +227,7 @@ def test_invalid_pragma(code):
         pre_parse(code)
 
 
-def test_version_conflict_with_imports(make_input_bundle, mock_version):
+def test_version_exception_in_import(make_input_bundle):
     lib_version = "~=0.3.10"
 
     lib_pragma = f"#pragma version {lib_version}\n"
