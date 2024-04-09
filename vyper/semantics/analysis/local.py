@@ -1,7 +1,7 @@
 # CMC 2024-02-03 TODO: split me into function.py and expr.py
 
 import contextlib
-from typing import Optional
+from typing import Iterable, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -229,6 +229,10 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     return VarAccess(info.var_info, tuple(path))
 
 
+def _uses_state(var_accesses: Iterable[VarAccess]) -> bool:
+    return any(s.variable.is_state_variable() for s in var_accesses)
+
+
 # get the chain of modules, e.g.
 # mod1.mod2.x.y -> [ModuleInfo(mod1), ModuleInfo(mod2)]
 # CMC 2024-02-12 note that the Attribute/Subscript traversal in this and
@@ -443,10 +447,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
-        if not var_access.variable.is_state_variable():
-            return
-
+    def _handle_module_access(self, target: vy_ast.ExprNode):
         root_module_info = check_module_uses(target)
 
         if root_module_info is not None:
@@ -684,9 +685,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                             msg += f" `{var.decl_node.target.id}`"
                         raise ImmutableViolation(msg, var.decl_node, node)
 
-                variable_accesses = info._writes | info._reads
-                for s in variable_accesses:
-                    self.function_analyzer._handle_module_access(s, node)
+                var_accesses = info._writes | info._reads
+                if _uses_state(var_accesses):
+                    self.function_analyzer._handle_module_access(node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -789,8 +790,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
-                for s in func_type.get_variable_accesses():
-                    self.function_analyzer._handle_module_access(s, node.func)
+                if func_type.nonreentrant or _uses_state(func_type.get_variable_accesses()):
+                    self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
