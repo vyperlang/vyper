@@ -38,9 +38,6 @@ WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
 
-evm_ops = ["iszero", "signextend", "store"]
-
-
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
@@ -194,7 +191,7 @@ class SCCP(IRPass):
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
-        elif opcode in ARITHMETIC_OPS or opcode in evm_ops:
+        elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
@@ -216,11 +213,7 @@ class SCCP(IRPass):
             return LatticeEnum.BOTTOM
 
         ret = None
-        if opcode == "store":
-            ret = ops[0]
-        elif opcode == "iszero":
-            ret = IRLiteral(1 if ops[0].value == 0 else 0)
-        elif opcode in ARITHMETIC_OPS:
+        if opcode in ARITHMETIC_OPS:
             fn = ARITHMETIC_OPS[opcode]
             ret = IRLiteral(fn(ops))
         elif len(ops) > 0:
