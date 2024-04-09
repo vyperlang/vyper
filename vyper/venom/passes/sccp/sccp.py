@@ -4,13 +4,7 @@ from functools import reduce
 from typing import Union
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IRLiteral,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -38,6 +32,7 @@ WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
 
+
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
@@ -56,13 +51,13 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        #print("SCCP :", self.lattice)
+        # print("SCCP :", self.lattice)
         self._propagate_constants()
         self._propagate_variables()
         return 0
-    
+
     def _propagate_variables(self):
-        for bb in self.ctx.basic_blocks:
+        for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 if inst.opcode == "store":
                     uses = self.uses.get(inst.output, [])
@@ -77,7 +72,6 @@ class SCCP(IRPass):
                     if remove_inst:
                         inst.opcode = "nop"
                         inst.operands = []
-            
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         for bb in self.ctx.basic_blocks:
@@ -259,6 +253,3 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP or x == y:
         return x
     return LatticeEnum.BOTTOM
-
-
-
