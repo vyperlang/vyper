@@ -229,7 +229,6 @@ def test_invalid_pragma(code):
 
 def test_version_conflict_with_imports(make_input_bundle, mock_version):
     lib_version = "~=0.3.10"
-    contract_version = "0.4.0"
 
     lib_pragma = f"#pragma version {lib_version}\n"
     lib = f"""
@@ -239,9 +238,7 @@ def foo():
     pass
     """
 
-    contract_pragma = f"#pragma version {contract_version}\n"
     code = f"""
-{contract_pragma}
 import lib
 
 uses: lib
@@ -252,7 +249,6 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
 
-    mock_version(contract_version)
     with pytest.raises(VersionException) as excinfo:
         compile_code(code, input_bundle=input_bundle)
     annotation = excinfo.value.annotations[0]
