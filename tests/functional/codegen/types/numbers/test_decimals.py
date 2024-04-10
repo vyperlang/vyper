@@ -3,9 +3,9 @@ from decimal import getcontext
 
 import pytest
 
+import vyper.compiler.settings as compiler_settings
 from tests.utils import decimal_to_int
 from vyper import compile_code
-import vyper.compiler.settings as compiler_settings
 from vyper.exceptions import (
     DecimalOverrideException,
     FeatureException,

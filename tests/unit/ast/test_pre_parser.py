@@ -1,6 +1,5 @@
 import pytest
 
-import vyper.compiler.settings as compiler_settings
 from vyper import compile_code
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
 from vyper.compiler.phases import CompilerData
