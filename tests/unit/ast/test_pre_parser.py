@@ -185,7 +185,7 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
         # None is sentinel here meaning that nothing changed
         compiler_data_settings = pre_parse_settings
 
-    # cannot be set via pragma, don't check
+    # experimental_codegen is False by default
     compiler_data_settings.experimental_codegen = False
 
     assert compiler_data.settings == compiler_data_settings
