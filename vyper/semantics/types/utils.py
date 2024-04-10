@@ -97,7 +97,7 @@ def type_from_annotation(
     if isinstance(typ, DecimalT):
         # is there a better place to put this check?
         settings = get_global_settings()
-        if settings and not settings.enable_decimals:
+        if settings and not settings.get_enable_decimals():
             raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
 
     return typ

@@ -50,6 +50,12 @@ class Settings:
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
 
+    # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
+    def get_enable_decimals(self) -> bool:
+        if self.enable_decimals is None:
+            return DEFAULT_ENABLE_DECIMALS
+        return self.enable_decimals
+
 
 # CMC 2024-04-10 do we need it to be Optional?
 _settings = None
