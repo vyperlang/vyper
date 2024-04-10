@@ -64,22 +64,22 @@ def _evm_iszero(ops: list[IROperand]) -> int:
     return 1 if ops[0].value == 0 else 0
 
 def _evm_shr(ops: list[IROperand]) -> int:
-    shift_len = ops[0].value
-    value = ops[1].value
+    value = ops[0].value
+    shift_len = ops[1].value
     if shift_len >= 256:
         return 0
     return (value >> shift_len) & SizeLimits.MAX_UINT256
 
 def _evm_shl(ops: list[IROperand]) -> int:
-    shift_len = ops[0].value
-    value = ops[1].value
+    value = ops[0].value
+    shift_len = ops[1].value
     if shift_len >= 256:
         return 0
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
 def _evm_sar(ops: list[IROperand]) -> int:
-    shift_len = ops[0].value
-    value = _unsigned_to_signed(ops[1].value)
+    value = _unsigned_to_signed(ops[0].value)
+    shift_len = ops[1].value
     if shift_len >= 256:
         return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
     return (value << shift_len) & SizeLimits.MAX_UINT256
