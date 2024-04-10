@@ -21,7 +21,7 @@ from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
+from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings, get_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -373,7 +373,7 @@ def _get_contract(
     input_bundle=None,
     **kwargs,
 ):
-    settings = Settings()
+    settings = get_global_settings()
     settings.optimize = override_opt_level or optimize
     settings.experimental_codegen = experimental_codegen
     out = compiler.compile_code(
