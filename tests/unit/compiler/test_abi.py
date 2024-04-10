@@ -58,6 +58,39 @@ def foo(y: uint256) -> Bytes[100]:
     assert out["method_identifiers"] == {"foo(uint256)": "0x2fbebd38", "x()": "0xc55699c"}
 
 
+def test_decimal_abi():
+    code = """
+x: public(decimal)
+
+@external
+@view
+def foo(s: decimal) -> decimal:
+    return s
+    """
+
+    out = compile_code(code, output_formats=["method_identifiers", "abi"])
+
+    assert out["method_identifiers"] == {"foo(int168)": "0x929893b6", "x()": "0xc55699c"}
+
+    expected_abi = [
+        {
+            "stateMutability": "view",
+            "type": "function",
+            "name": "foo",
+            "inputs": [{"name": "s", "type": "int168", "internalType": "decimal"}],
+            "outputs": [{"name": "", "type": "int168", "internalType": "decimal"}],
+        },
+        {
+            "stateMutability": "view",
+            "type": "function",
+            "name": "x",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "int168", "internalType": "decimal"}],
+        },
+    ]
+    assert out["abi"] == expected_abi
+
+
 def test_struct_abi():
     code = """
 struct MyStruct:
