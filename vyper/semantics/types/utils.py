@@ -3,12 +3,12 @@ from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
+    FeatureException,
     InstantiationException,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
     UnknownType,
-    VyperException,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
@@ -98,7 +98,7 @@ def type_from_annotation(
         # is there a better place to put this check?
         settings = get_global_settings()
         if settings and not settings.enable_decimals:
-            raise VyperException("decimals are not allowed unless `--enable-decimals` is set")
+            raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
 
     return typ
 
