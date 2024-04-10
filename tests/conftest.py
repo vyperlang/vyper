@@ -15,7 +15,6 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
-import vyper.evm.opcodes as evm
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -27,7 +26,7 @@ from vyper.compiler.settings import (
     get_global_settings,
     set_global_settings,
 )
-from vyper.evm.opcodes import version_check
+from vyper.evm.opcodes import EVM_VERSIONS, version_check
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import ERC5202_PREFIX, keccak256
@@ -70,7 +69,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--evm-version",
-        choices=list(evm.EVM_VERSIONS.keys()),
+        choices=list(EVM_VERSIONS.keys()),
         default="shanghai",
         help="set evm version",
     )
