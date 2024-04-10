@@ -20,6 +20,8 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+
+# TODO consolidate some of these imports
 from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
@@ -36,8 +38,6 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
-
-# TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
@@ -875,10 +875,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        if isinstance(typ, DecimalT):
-            settings = get_global_settings()
-            if not settings.enable_decimals:
-                raise VyperException("Decimals are not allowed unless `--enable-decimals` is set")
+        pass
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
         self.visit(node.test, BoolT())

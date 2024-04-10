@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
@@ -7,6 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
     UnknownType,
+    VyperException,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
@@ -83,13 +85,22 @@ def type_from_annotation(
     VyperType
         Type definition object.
     """
-    typ_ = _type_from_annotation(node)
+    typ = _type_from_annotation(node)
 
-    if location in typ_._invalid_locations:
+    if location in typ._invalid_locations:
         location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
-        raise InstantiationException(f"{typ_} is not instantiable {location_str}", node)
+        raise InstantiationException(f"{typ} is not instantiable {location_str}", node)
 
-    return typ_
+    # TODO: cursed import cycle!
+    from vyper.semantics.types.primitives import DecimalT
+
+    if isinstance(typ, DecimalT):
+        # is there a better place to put this check?
+        settings = get_global_settings()
+        if settings and not settings.enable_decimals:
+            raise VyperException("decimals are not allowed unless `--enable-decimals` is set")
+
+    return typ
 
 
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
