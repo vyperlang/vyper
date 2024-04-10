@@ -95,9 +95,7 @@ def compile_from_file_input(
     Dict
         Compiler output as `{'output key': "output data"}`
     """
-
-    # global settings can be set in test suite
-    settings = settings or get_global_settings() or Settings()
+    settings = settings or Settings()
 
     if output_formats is None:
         output_formats = ("bytecode",)
