@@ -20,6 +20,8 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+
+# TODO consolidate some of these imports
 from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
@@ -36,8 +38,6 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
-
-# TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
