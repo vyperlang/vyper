@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+import vyper.evm.opcodes as evm
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -117,6 +118,7 @@ def evm_version(pytestconfig):
 
 @pytest.fixture(scope="session", autouse=True)
 def global_settings(evm_version, experimental_codegen, optimize, debug):
+    evm.DEFAULT_EVM_VERSION = evm_version
     settings = Settings(
         optimize=optimize,
         evm_version=evm_version,
