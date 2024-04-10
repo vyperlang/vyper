@@ -73,15 +73,16 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
 
     for entry in internals:
         make_ssa_pass.run_pass(ctx, entry)
-        sccp_pass = SCCP(make_ssa_pass.dom)
-        sccp_pass.run_pass(ctx, entry)
-        cfg_dirty |= sccp_pass.cfg_dirty
+        # sccp_pass = SCCP(make_ssa_pass.dom)
+        # sccp_pass.run_pass(ctx, entry)
+        # cfg_dirty |= sccp_pass.cfg_dirty
 
     calculate_cfg(ctx)
-    calculate_liveness(ctx)
-
+    
     SimplifyCFGPass().run_pass(ctx, ctx.basic_blocks[0])
 
+    calculate_liveness(ctx)
+    
     while True:
         changes = 0
 
