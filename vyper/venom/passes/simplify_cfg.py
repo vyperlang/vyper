@@ -1,5 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.bb_optimizer import ir_pass_remove_unreachable_blocks
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -79,4 +80,7 @@ class SimplifyCFGPass(IRPass):
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> None:
         self.ctx = ctx
 
-        self._collapse_chained_blocks(entry)
+        while True:
+            self._collapse_chained_blocks(entry)
+            if ir_pass_remove_unreachable_blocks(ctx) == 0:
+                break
