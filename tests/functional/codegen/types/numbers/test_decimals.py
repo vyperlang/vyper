@@ -5,7 +5,7 @@ import pytest
 
 from tests.utils import decimal_to_int
 from vyper import compile_code
-from vyper.compiler.settings import Settings
+import vyper.compiler.settings as compiler_settings
 from vyper.exceptions import (
     DecimalOverrideException,
     FeatureException,
@@ -327,6 +327,14 @@ def test_decimals_blocked():
 def foo(x: decimal):
     pass
     """
-    with pytest.raises(FeatureException) as e:
-        compile_code(code, settings=Settings(enable_decimals=False))
-    assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    # enable_decimals default to False normally, but defaults to True in the
+    # test suite. this test manually overrides the default value to test the
+    # "normal" behavior of enable_decimals outside of the test suite.
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
