@@ -354,6 +354,10 @@ class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
 
 
+class FeatureException(VyperException):
+    """Some feature flag is not enabled"""
+
+
 class StaticAssertionException(VyperException):
     """An assertion is proven to fail at compile-time."""
 
