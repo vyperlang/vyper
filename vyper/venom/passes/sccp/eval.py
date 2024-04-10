@@ -27,18 +27,18 @@ def _wrap_uint_unaop(operation) -> int:
 
 def _wrap_int_binop(operation) -> int:
     def wrapper(ops: list[IROperand]):
-        first = _unsigned_to_signed(ops[0].value)
-        second = _unsigned_to_signed(ops[1].value)
-        return _signed_to_unsigned(operation(first, second))
+        first = _unsigned_to_signed(ops[1].value)
+        second = _unsigned_to_signed(ops[0].value)
+        return _signed_to_unsigned(int(operation(first, second)))
 
     return wrapper
 
 
 def _wrap_uint_binop(operation) -> int:
     def wrapper(ops: list[IROperand]):
-        first = ops[0].value
-        second = ops[1].value
-        return (operation(first, second)) & SizeLimits.MAX_UINT256
+        first = ops[1].value
+        second = ops[0].value
+        return (int(operation(first, second))) & SizeLimits.MAX_UINT256
 
     return wrapper
 
@@ -63,6 +63,26 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 def _evm_iszero(ops: list[IROperand]) -> int:
     return 1 if ops[0].value == 0 else 0
 
+def _evm_shr(ops: list[IROperand]) -> int:
+    shift_len = ops[0].value
+    value = ops[1].value
+    if shift_len >= 256:
+        return 0
+    return (value >> shift_len) & SizeLimits.MAX_UINT256
+
+def _evm_shl(ops: list[IROperand]) -> int:
+    shift_len = ops[0].value
+    value = ops[1].value
+    if shift_len >= 256:
+        return 0
+    return (value << shift_len) & SizeLimits.MAX_UINT256
+
+def _evm_sar(ops: list[IROperand]) -> int:
+    shift_len = ops[0].value
+    value = _unsigned_to_signed(ops[1].value)
+    if shift_len >= 256:
+        return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
+    return (value << shift_len) & SizeLimits.MAX_UINT256
 
 ARITHMETIC_OPS = {
     "add": _wrap_uint_binop(operator.add),
@@ -89,5 +109,9 @@ ARITHMETIC_OPS = {
     "not": _wrap_uint_unaop(operator.not_),
     "signextend": _evm_signextend,
     "iszero": _evm_iszero,
+    "shr": _evm_shr,
+    "shl": _evm_shl,
+    "sar": _evm_sar,
+
     "store": lambda ops: ops[0],
 }
