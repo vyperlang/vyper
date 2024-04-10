@@ -1,7 +1,9 @@
-from decimal import Decimal
-
 import pytest
 from eth_utils import to_wei
+
+from tests.utils import decimal_to_int
+from vyper.semantics.types import DecimalT
+from vyper.utils import quantize, round_towards_zero
 
 wei_denoms = {
     "femtoether": 3,
@@ -62,11 +64,14 @@ def test_wei_decimal(get_contract, tx_failed, denom, multiplier):
 def foo(a: decimal) -> uint256:
     return as_wei_value(a, "{denom}")
     """
-
     c = get_contract(code)
-    value = Decimal((2**127 - 1) / (10**multiplier))
 
-    assert c.foo(value) == value * (10**multiplier)
+    denom_int = 10**multiplier
+    # TODO: test with more values
+    _, hi = DecimalT().ast_bounds
+    value = quantize(hi / denom_int)
+
+    assert c.foo(decimal_to_int(value)) == round_towards_zero(value * denom_int)
 
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))

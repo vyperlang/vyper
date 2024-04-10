@@ -1,9 +1,9 @@
 import json
-from decimal import Decimal
 
 import pytest
 from eth_utils import to_wei
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -247,7 +247,7 @@ def test():
         ("min_value(int128)", "int128", -(2**127)),
         ("empty(uint8[2])", "uint8[2]", [0, 0]),
         ('method_id("vyper()", output_type=bytes4)', "bytes4", b"\x82\xcbE\xfb"),
-        ("epsilon(decimal)", "decimal", Decimal("1E-10")),
+        ("epsilon(decimal)", "decimal", decimal_to_int("1E-10")),
     ],
 )
 def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected, make_input_bundle):
@@ -615,7 +615,7 @@ type_str_params = [
     ("bool", True),
     ("address", "0x1234567890123456789012345678901234567890"),
     ("bytes32", b"bytes32bytes32bytes32bytes32poop"),
-    ("decimal", Decimal("3.1337")),
+    ("decimal", decimal_to_int("3.1337")),
     ("Bytes[4]", b"newp"),
     ("String[6]", "potato"),
 ]

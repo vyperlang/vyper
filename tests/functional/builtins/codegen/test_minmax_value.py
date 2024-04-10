@@ -15,7 +15,7 @@ def foo() -> {typ}:
     """
     c = get_contract(code)
 
-    lo, hi = typ.ast_bounds
+    lo, hi = typ.int_bounds
     if op == "min_value":
         assert c.foo() == lo
     elif op == "max_value":

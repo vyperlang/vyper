@@ -1,9 +1,8 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
 from eth_utils import to_text
 
+from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -469,7 +468,7 @@ def foo():
 
     log1, log2 = get_logs(c)
     event_id1 = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
-    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
+    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,int168)))", "utf-8"))
 
     # Event id is always the first topic
     assert log1.topics[0] == event_id1
@@ -499,7 +498,7 @@ def foo():
                         "type": "tuple",
                         "components": [
                             {"name": "t", "type": "string"},
-                            {"name": "w", "type": "fixed168x10"},
+                            {"name": "w", "type": "int168", "internalType": "decimal"},
                         ],
                     },
                 ],
@@ -517,7 +516,7 @@ def foo():
 
     (your_log,) = get_logs(c, "YourLog")
     assert your_log.args.arg1 == c.address
-    assert your_log.args.arg2 == (1, b"abc", ("house", Decimal("13.5")))
+    assert your_log.args.arg2 == (1, b"abc", ("house", decimal_to_int("13.5")))
 
 
 def test_fails_when_input_is_the_wrong_type(tx_failed, get_contract):
@@ -860,7 +859,12 @@ def foo():
 
     c.foo()
     (log,) = get_logs(c, "Bar")
-    assert log.args._value == [Decimal("1.11"), Decimal("2.22"), Decimal("3.33"), Decimal("4.44")]
+    assert log.args._value == [
+        decimal_to_int("1.11"),
+        decimal_to_int("2.22"),
+        decimal_to_int("3.33"),
+        decimal_to_int("4.44"),
+    ]
 
 
 def test_storage_byte_packing(get_logs, get_contract):
@@ -908,11 +912,16 @@ def set_list():
 
     c.foo()
     (log,) = get_logs(c, "Bar")
-    assert log.args._value == [Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")]
+    assert log.args._value == [decimal_to_int("0")] * 4
     c.set_list()
     c.foo()
     (log,) = get_logs(c, "Bar")
-    assert log.args._value == [Decimal("1.33"), Decimal("2.33"), Decimal("3.33"), Decimal("4.33")]
+    assert log.args._value == [
+        decimal_to_int("1.33"),
+        decimal_to_int("2.33"),
+        decimal_to_int("3.33"),
+        decimal_to_int("4.33"),
+    ]
 
 
 def test_logging_fails_when_input_is_too_big(tx_failed, get_contract):

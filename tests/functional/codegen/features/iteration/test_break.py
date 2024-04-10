@@ -1,7 +1,6 @@
-from decimal import Decimal
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.exceptions import StructureException
 
 
@@ -21,10 +20,10 @@ def foo(n: decimal) -> int128:
 
     c = get_contract(break_test)
 
-    assert c.foo(Decimal("1")) == 0
-    assert c.foo(Decimal("2")) == 3
-    assert c.foo(Decimal("10")) == 10
-    assert c.foo(Decimal("200")) == 23
+    assert c.foo(decimal_to_int("1")) == 0
+    assert c.foo(decimal_to_int("2")) == 3
+    assert c.foo(decimal_to_int("10")) == 10
+    assert c.foo(decimal_to_int("200")) == 23
 
     print("Passed for-loop break test")
 
@@ -49,11 +48,11 @@ def foo(n: decimal) -> int128:
     """
 
     c = get_contract(break_test_2)
-    assert c.foo(Decimal("1")) == 0
-    assert c.foo(Decimal("2")) == 3
-    assert c.foo(Decimal("10")) == 10
-    assert c.foo(Decimal("200")) == 23
-    assert c.foo(Decimal("4000000")) == 66
+    assert c.foo(decimal_to_int("1")) == 0
+    assert c.foo(decimal_to_int("2")) == 3
+    assert c.foo(decimal_to_int("10")) == 10
+    assert c.foo(decimal_to_int("200")) == 23
+    assert c.foo(decimal_to_int("4000000")) == 66
     print("Passed for-loop break test 2")
 
 

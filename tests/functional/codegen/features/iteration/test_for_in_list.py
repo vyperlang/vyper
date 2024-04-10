@@ -1,8 +1,8 @@
 import re
-from decimal import Decimal
 
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -269,13 +269,13 @@ def i_return(break_count: int128) -> decimal:
 
     c = get_contract(code)
 
-    c.set(0, Decimal("0.0001"))
-    c.set(1, Decimal("1.1"))
-    c.set(2, Decimal("2.2"))
+    c.set(0, decimal_to_int("0.0001"))
+    c.set(1, decimal_to_int("1.1"))
+    c.set(2, decimal_to_int("2.2"))
 
-    assert c.ret(2) == c.i_return(2) == Decimal("2.2")
-    assert c.ret(1) == c.i_return(1) == Decimal("1.1")
-    assert c.ret(0) == c.i_return(0) == Decimal("0.0001")
+    assert c.ret(2) == c.i_return(2) == decimal_to_int("2.2")
+    assert c.ret(1) == c.i_return(1) == decimal_to_int("1.1")
+    assert c.ret(0) == c.i_return(0) == decimal_to_int("0.0001")
 
 
 def test_for_in_list_iter_type(get_contract):

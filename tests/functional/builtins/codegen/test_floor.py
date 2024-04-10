@@ -1,6 +1,8 @@
 import math
 from decimal import Decimal
 
+from tests.utils import decimal_to_int
+
 
 def test_floor(get_contract):
     code = """
@@ -106,8 +108,8 @@ def floor_param(p: decimal) -> int256:
     assert c.fos() == -1
     assert c.fot() == math.floor(-Decimal(2**167) / 10**10)
     assert c.fou() == -4
-    assert c.floor_param(Decimal("-5.6")) == -6
-    assert c.floor_param(Decimal("-0.0000000001")) == -1
+    assert c.floor_param(decimal_to_int("-5.6")) == -6
+    assert c.floor_param(decimal_to_int("-0.0000000001")) == -1
 
 
 def test_floor_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):

@@ -1,8 +1,7 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
 
+from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -516,7 +515,7 @@ def bar(arg1: address) -> decimal:
 """
 
     c2 = get_contract(contract_2)
-    assert c2.bar(c.address) == Decimal("1e-10")
+    assert c2.bar(c.address) == decimal_to_int("1e-10")
 
 
 def test_decimal_too_long(get_contract, tx_failed):
@@ -569,7 +568,7 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
     c2 = get_contract(contract_2)
     assert c.foo() == (0, b"dog", 1)
     result = c2.bar(c.address)
-    assert result == (Decimal("0.0"), b"dog", Decimal("1e-10"))
+    assert result == (decimal_to_int("0.0"), b"dog", decimal_to_int("1e-10"))
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])

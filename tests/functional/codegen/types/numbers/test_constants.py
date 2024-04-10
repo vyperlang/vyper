@@ -1,9 +1,8 @@
 import itertools
-from decimal import Decimal
 
 import pytest
 
-from tests.utils import ZERO_ADDRESS
+from tests.utils import ZERO_ADDRESS, decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
 from vyper.utils import MemoryPositions
@@ -60,15 +59,13 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_int128(-(2**127)) == (False, True)
     assert c.test_int128(0) == (False, False)
 
-    assert c.test_decimal(Decimal("18707220957835557353007165858768422651595.9365500927")) == (
-        True,
-        False,
-    )
-    assert c.test_decimal(Decimal("-18707220957835557353007165858768422651595.9365500928")) == (
-        False,
-        True,
-    )
-    assert c.test_decimal(Decimal("0.1")) == (False, False)
+    assert c.test_decimal(
+        decimal_to_int("18707220957835557353007165858768422651595.9365500927")
+    ) == (True, False)
+    assert c.test_decimal(
+        decimal_to_int("-18707220957835557353007165858768422651595.9365500928")
+    ) == (False, True)
+    assert c.test_decimal(decimal_to_int("0.1")) == (False, False)
 
     assert c.test_uint256(2**256 - 1) is True
 
@@ -122,8 +119,8 @@ def zoo() -> uint256:
 
     assert c.joo() == ZERO_ADDRESS
 
-    assert c.koo() == Decimal(2**167 - 1) / 10**10
-    assert c.loo() == Decimal(-(2**167)) / 10**10
+    assert c.koo() == (2**167 - 1)
+    assert c.loo() == -(2**167)
 
     assert c.zoo() == 2**256 - 1
 

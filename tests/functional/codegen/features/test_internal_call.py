@@ -1,10 +1,10 @@
 import string
-from decimal import Decimal
 
 import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, CallViolation
 
@@ -324,9 +324,9 @@ def bar6() -> int128:
 
     c = get_contract(code)
     assert c.bar() == 0
-    assert c.foo1([0, 0], Decimal("0")) == 0
+    assert c.foo1([0, 0], decimal_to_int("0")) == 0
     assert c.bar2() == 55
-    assert c.bar3() == Decimal("1.33")
+    assert c.bar3() == decimal_to_int("1.33")
     assert c.bar4() == 77
     assert c.bar5() == 88
 
@@ -351,7 +351,7 @@ def bar() -> (int128, decimal):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
     c = get_contract(code)
-    assert c.bar() == (66, Decimal("66.77"))
+    assert c.bar() == (66, decimal_to_int("66.77"))
 
 
 def test_internal_function_multiple_lists_as_args(get_contract):
@@ -403,7 +403,7 @@ def bar() -> (Bytes[11], decimal, int128):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
     c = get_contract(code)
-    assert c.bar() == (b"hello world", Decimal("66.77"), 44)
+    assert c.bar() == (b"hello world", decimal_to_int("66.77"), 44)
 
 
 FAILING_CONTRACTS_CALL_VIOLATION = [

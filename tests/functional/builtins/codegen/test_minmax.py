@@ -1,7 +1,6 @@
-from decimal import Decimal
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.semantics.types import IntegerT
 
 
@@ -17,7 +16,7 @@ def goo() -> uint256:
     """
 
     c = get_contract(minmax_test)
-    assert c.foo() == Decimal("58223.123")
+    assert c.foo() == decimal_to_int("58223.123")
     assert c.goo() == 83
 
     print("Passed min/max test")

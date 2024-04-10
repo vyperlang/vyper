@@ -1,7 +1,6 @@
-from decimal import Decimal
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.exceptions import ZeroDivisionException
 
 
@@ -26,9 +25,9 @@ def num_modulo_decimal() -> decimal:
 """
     c = get_contract(code)
     assert c.num_modulo_num() == 1
-    assert c.decimal_modulo_decimal() == Decimal(".18")
-    assert c.decimal_modulo_num() == Decimal(".5")
-    assert c.num_modulo_decimal() == Decimal(".5")
+    assert c.decimal_modulo_decimal() == decimal_to_int(".18")
+    assert c.decimal_modulo_num() == decimal_to_int(".5")
+    assert c.num_modulo_decimal() == decimal_to_int(".5")
 
 
 def test_modulo_with_input_of_zero(tx_failed, get_contract):
@@ -39,7 +38,7 @@ def foo(a: decimal, b: decimal) -> decimal:
 """
     c = get_contract(code)
     with tx_failed():
-        c.foo(Decimal("1"), Decimal("0"))
+        c.foo(decimal_to_int("1"), decimal_to_int("0"))
 
 
 def test_literals_vs_evm(get_contract):
