@@ -38,6 +38,9 @@ class OptimizationLevel(Enum):
         return cls.GAS
 
 
+DEFAULT_ENABLE_DECIMALS = False
+
+
 @dataclass
 class Settings:
     compiler_version: Optional[str] = None

@@ -4,6 +4,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Optional
 
+import vyper.compiler.settings as compiler_settings
 from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
@@ -141,6 +142,9 @@ class CompilerData:
 
         if self.settings.experimental_codegen is None:
             self.settings.experimental_codegen = False
+
+        if self.settings.enable_decimals is None:
+            self.settings.enable_decimals = compiler_settings.DEFAULT_ENABLE_DECIMALS
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
