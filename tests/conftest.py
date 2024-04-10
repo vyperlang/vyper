@@ -124,6 +124,7 @@ def global_settings(evm_version, experimental_codegen, optimize, debug):
         evm_version=evm_version,
         experimental_codegen=experimental_codegen,
         debug=debug,
+        enable_decimals=True,
     )
     set_global_settings(settings)
 
