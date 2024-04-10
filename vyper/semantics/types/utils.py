@@ -1,9 +1,9 @@
-from typing import Dict
-
 from vyper import ast as vy_ast
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
+    FeatureException,
     InstantiationException,
     InvalidType,
     StructureException,
@@ -18,13 +18,13 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 # TODO maybe this should be merged with .types/base.py
 
 
-def type_from_abi(abi_type: Dict) -> VyperType:
+def type_from_abi(abi_type: dict) -> VyperType:
     """
     Return a type object from an ABI type definition.
 
     Arguments
     ---------
-    abi_type : Dict
+    abi_type : dict
        A type definition taken from the `input` or `output` field of an ABI.
 
     Returns
@@ -33,7 +33,7 @@ def type_from_abi(abi_type: Dict) -> VyperType:
         Type definition object.
     """
     type_string = abi_type["type"]
-    if type_string == "fixed168x10":
+    if type_string == "int168" and abi_type.get("internalType") == "decimal":
         type_string = "decimal"
     if type_string in ("string", "bytes"):
         type_string = type_string.capitalize()
@@ -85,13 +85,22 @@ def type_from_annotation(
     VyperType
         Type definition object.
     """
-    typ_ = _type_from_annotation(node)
+    typ = _type_from_annotation(node)
 
-    if location in typ_._invalid_locations:
+    if location in typ._invalid_locations:
         location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
-        raise InstantiationException(f"{typ_} is not instantiable {location_str}", node)
+        raise InstantiationException(f"{typ} is not instantiable {location_str}", node)
 
-    return typ_
+    # TODO: cursed import cycle!
+    from vyper.semantics.types.primitives import DecimalT
+
+    if isinstance(typ, DecimalT):
+        # is there a better place to put this check?
+        settings = get_global_settings()
+        if settings and not settings.get_enable_decimals():
+            raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
+
+    return typ
 
 
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
