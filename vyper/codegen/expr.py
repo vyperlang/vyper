@@ -71,8 +71,7 @@ class Expr:
 
     def __init__(self, node, context, is_stmt=False):
         assert isinstance(node, vy_ast.VyperNode)
-        if node.has_folded_value:
-            node = node.get_folded_value()
+        node = node.reduced()
 
         self.expr = node
         self.context = context
@@ -347,7 +346,9 @@ class Expr:
             index = Expr.parse_value_expr(self.expr.slice, self.context)
 
         elif is_tuple_like(sub.typ):
-            index = self.expr.slice.n
+            # should we annotate expr.slice in the frontend with the
+            # folded value instead of calling reduced() here?
+            index = self.expr.slice.reduced().n
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")

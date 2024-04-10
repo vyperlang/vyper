@@ -128,8 +128,7 @@ class _SequenceT(_SubscriptableT):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        if node.has_folded_value:
-            node = node.get_folded_value()
+        node = node.reduced()
 
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -293,9 +292,7 @@ class DArrayT(_SequenceT):
         if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.elements[1]
-        if length_node.has_folded_value:
-            length_node = length_node.get_folded_value()
+        length_node = node.slice.elements[1].reduced()
 
         if not isinstance(length_node, vy_ast.Int):
             raise StructureException(err_msg, length_node)
@@ -370,6 +367,8 @@ class TupleT(VyperType):
         return sum(i.size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
+        node = node.reduced()
+
         if not isinstance(node, vy_ast.Int):
             raise InvalidType("Tuple indexes must be literals", node)
         if node.value < 0:
@@ -378,6 +377,7 @@ class TupleT(VyperType):
             raise ArrayIndexException("Index out of range", node)
 
     def get_subscripted_type(self, node):
+        node = node.reduced()
         return self.member_types[node.value]
 
     def compare_type(self, other):
