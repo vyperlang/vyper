@@ -4,6 +4,7 @@ from vyper import compile_code
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
+import vyper.compiler.settings as compiler_settings
 from vyper.exceptions import StructureException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
@@ -185,8 +186,9 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
         # None is sentinel here meaning that nothing changed
         compiler_data_settings = pre_parse_settings
 
-    # cannot be set via pragma, don't check
+    # defaults
     compiler_data_settings.experimental_codegen = False
+    compiler_data_settings.enable_decimals = compiler_settings.DEFAULT_ENABLE_DECIMALS
 
     assert compiler_data.settings == compiler_data_settings
 
