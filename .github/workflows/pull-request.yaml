@@ -55,5 +55,3 @@ jobs:
           # type[scope]<optional !>: subject
           # use [] instead of () for aesthetics
           headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?!?: (.*)$'
-          validateSingleCommit: true
-          validateSingleCommitMatchesPrTitle: true
