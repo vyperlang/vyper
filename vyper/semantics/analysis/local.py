@@ -268,7 +268,14 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
     for module_info in module_infos:
         if module_info.ownership < ModuleOwnership.USES:
-            msg = f"Cannot access `{module_info.alias}` state!"
+            msg = f"Cannot access `{module_info.alias}` state!\n  note that"
+            # CMC 2024-04-12 add UX note about nonreentrant. might be nice
+            # in the future to be more specific about exactly which state is
+            # used, although that requires threading a bit more context into
+            # this function.
+            msg += " use of the `@nonreentrant` decorator is also considered"
+            msg += " state access"
+
             hint = f"add `uses: {module_info.alias}` or "
             hint += f"`initializes: {module_info.alias}` as "
             hint += "a top-level statement to your contract"
