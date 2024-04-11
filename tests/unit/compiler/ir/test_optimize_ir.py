@@ -1,12 +1,9 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import EVM_VERSIONS, anchor_evm_version
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StaticAssertionException
 from vyper.ir import optimizer
-
-POST_CANCUN = {k: v for k, v in EVM_VERSIONS.items() if v >= EVM_VERSIONS["cancun"]}
-
 
 optimize_list = [
     (["eq", 1, 2], [0]),
@@ -368,9 +365,9 @@ mload_merge_list = [
 
 
 @pytest.mark.parametrize("ir", mload_merge_list)
-@pytest.mark.parametrize("evm_version", list(POST_CANCUN.keys()))
 def test_mload_merge(ir, evm_version):
-    with anchor_evm_version(evm_version):
+    # TODO: use something like pytest.mark.post_cancun
+    if version_check(begin="cancun"):
         optimized = optimizer.optimize(IRnode.from_list(ir[0]))
         if ir[1] is None:
             # no-op, assert optimizer does nothing
@@ -379,3 +376,5 @@ def test_mload_merge(ir, evm_version):
             expected = IRnode.from_list(ir[1])
 
         assert optimized == expected
+    else:
+        pytest.skip("no mcopy available")

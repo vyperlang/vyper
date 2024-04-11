@@ -133,13 +133,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 
-.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Deploys a small, EIP1167-compliant "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
 
 
     * ``target``: Address of the contract to proxy to
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
@@ -163,12 +164,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
   Before version 0.3.4, this function was named ``create_forwarder_to``.
 
 
-.. py:function:: create_copy_of(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_copy_of(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
 
     * ``target``: Address of the contract to copy
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
@@ -184,7 +186,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 3, [, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 3, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
@@ -193,6 +195,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``raw_args``: If ``True``, ``*args`` must be a single ``Bytes[...]`` argument, which will be interpreted as a raw bytes buffer to forward to the create operation (which is useful for instance, if pre- ABI-encoded data is passed in from elsewhere). (Optional, default ``False``)
     * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 3)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.

@@ -383,7 +383,7 @@ initializes: lib1
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
-    assert e.value._hint == "add `lib1` to its initializer list"
+    assert e.value._hint == "did you mean lib2[lib1 := lib1]?"
 
 
 def test_missing_uses(make_input_bundle):
@@ -915,7 +915,9 @@ initializes: lib1
 
     with pytest.raises(BorrowException) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "`lib1` is declared as used, but it is not actually used in lib2.vy!"
+    expected = "`lib1` is declared as used, but its state is not"
+    expected += " actually used in lib2.vy!"
+    assert e.value._message == expected
     assert e.value._hint == "delete `uses: lib1`"
 
 
@@ -956,7 +958,9 @@ def foo():
 
     with pytest.raises(BorrowException) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "`lib1` is declared as used, but it is not actually used in lib2.vy!"
+    expected = "`lib1` is declared as used, but its state is not "
+    expected += "actually used in lib2.vy!"
+    assert e.value._message == expected
     assert e.value._hint == "delete `uses: lib1`"
 
 
@@ -1228,3 +1232,67 @@ def use_lib1():
         compile_code(main, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
         is not None
     )
+
+
+def test_hint_for_missing_initializer_in_list(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib3 = """
+counter: uint256
+        """
+    lib2 = """
+import lib1
+import lib3
+
+uses: lib1
+uses: lib3
+
+counter: uint256
+
+@internal
+def foo():
+    lib1.counter += 1
+    lib3.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib2[lib1:=lib1]
+initializes: lib1
+initializes: lib3
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "`lib2` uses `lib3`, but it is not initialized with `lib3`"
+    assert e.value._hint == "add `lib3 := lib3` to its initializer list"
+
+
+def test_hint_for_missing_initializer_when_no_import(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@internal
+def foo():
+    lib1.counter += 1
+    """
+    main = """
+import lib2
+
+initializes: lib2
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
+    assert e.value._hint == "try importing lib1 first"

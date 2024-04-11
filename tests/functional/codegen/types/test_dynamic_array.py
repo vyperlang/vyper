@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -220,7 +221,10 @@ def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
     assert c.poo([]) == []
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
-    assert c.roo([1, 2]) == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.roo([decimal_to_int(1), decimal_to_int(2)]) == [
+        [decimal_to_int(1), decimal_to_int(2)],
+        [decimal_to_int(3), decimal_to_int(4)],
+    ]
     assert c.soo() == [1, 2]
     assert c.too() == [2, 1]
     assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
@@ -729,9 +733,15 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
 
     c = get_contract_with_gas_estimation(code)
     assert c.test_array_num_return() == [[], [3, 4]]
-    assert c.test_array_decimal_return1() == [[1.0], [3.0, 4.0]]
-    assert c.test_array_decimal_return2() == [[1.0, 2.0]]
-    assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0]]
+    assert c.test_array_decimal_return1() == [
+        [decimal_to_int(1)],
+        [decimal_to_int(3), decimal_to_int(4)],
+    ]
+    assert c.test_array_decimal_return2() == [[decimal_to_int(1), decimal_to_int(2)]]
+    assert c.test_array_decimal_return3() == [
+        [decimal_to_int(1), decimal_to_int(2)],
+        [decimal_to_int(3)],
+    ]
 
 
 @pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
@@ -1660,7 +1670,7 @@ def ix(i: uint256) -> decimal:
     """
     c = get_contract(code)
     for i, p in enumerate(some_good_primes):
-        assert c.ix(i) == p
+        assert c.ix(i) == decimal_to_int(p)
     # assert oob
     with tx_failed():
         c.ix(len(some_good_primes) + 1)
