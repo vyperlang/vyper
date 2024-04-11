@@ -9,6 +9,7 @@ from vyper.venom.passes.dft import DFTPass
 
 class Mem2Stack(IRPass):
     """ """
+
     ctx: IRFunction
     dom: DominatorTree
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
@@ -20,7 +21,7 @@ class Mem2Stack(IRPass):
 
         calculate_cfg(ctx)
         self.dom = DominatorTree.build_dominator_tree(ctx, entry)
-        #self._propagate_variables()
+        # self._propagate_variables()
         dfg = DFG.build_dfg(ctx)
         self.dfg = dfg
 
@@ -77,7 +78,10 @@ class Mem2Stack(IRPass):
                 elif inst.opcode == "return":
                     bb = inst.parent
                     new_var = self.ctx.get_next_variable()
-                    bb.insert_instruction(IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]], new_var), -1)
+                    bb.insert_instruction(
+                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]], new_var),
+                        -1,
+                    )
                     inst.operands[1] = new_var
 
     def _compute_stores(self):

@@ -59,8 +59,10 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
     return value
 
+
 def _evm_iszero(ops: list[IROperand]) -> int:
     return 1 if ops[0].value == 0 else 0
+
 
 def _evm_shr(ops: list[IROperand]) -> int:
     value = ops[0].value
@@ -69,12 +71,14 @@ def _evm_shr(ops: list[IROperand]) -> int:
         return 0
     return (value >> shift_len) & SizeLimits.MAX_UINT256
 
+
 def _evm_shl(ops: list[IROperand]) -> int:
     value = ops[0].value
     shift_len = ops[1].value
     if shift_len >= 256:
         return 0
     return (value << shift_len) & SizeLimits.MAX_UINT256
+
 
 def _evm_sar(ops: list[IROperand]) -> int:
     value = _unsigned_to_signed(ops[0].value)
@@ -83,14 +87,17 @@ def _evm_sar(ops: list[IROperand]) -> int:
         return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
+
 def _evm_not(ops: list[IROperand]) -> int:
     value = ops[0].value
     return SizeLimits.MAX_UINT256 - value
 
+
 def _evm_exp(ops: list[IROperand]) -> int:
     base = ops[1].value
     exponent = ops[0].value
-    return (base ** exponent) & SizeLimits.MAX_UINT256
+    return (base**exponent) & SizeLimits.MAX_UINT256
+
 
 ARITHMETIC_OPS = {
     "add": _wrap_uint_binop(operator.add),
@@ -120,6 +127,5 @@ ARITHMETIC_OPS = {
     "shr": _evm_shr,
     "shl": _evm_shl,
     "sar": _evm_sar,
-
     "store": lambda ops: ops[0],
 }

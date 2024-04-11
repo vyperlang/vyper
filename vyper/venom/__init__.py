@@ -82,7 +82,7 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
 
     calculate_cfg(ctx)
     calculate_liveness(ctx)
-    
+
     while True:
         changes = 0
 

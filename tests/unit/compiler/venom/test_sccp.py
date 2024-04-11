@@ -59,6 +59,7 @@ def test_cont_jump_case():
     assert sccp.lattice[IRVariable("%5")].value == 106
     assert sccp.lattice.get(IRVariable("%6")) == None
 
+
 def test_cont_phi_case():
     ctx = IRFunction(IRLabel("_global"))
 

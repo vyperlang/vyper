@@ -51,9 +51,9 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
-        #print("SCCP :", self.lattice)
+        # print("SCCP :", self.lattice)
         self._propagate_constants()
-        #self._propagate_variables()
+        # self._propagate_variables()
         return 0
 
     def _propagate_variables(self):
