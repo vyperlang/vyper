@@ -547,17 +547,30 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # regular function
                 funcs = [info.typ]
             elif isinstance(info.typ, InterfaceT):
-                # TODO: disambiguate the module parent of expr and check that
-                # the interface is actually implemented by the module. (as
-                # written, i can `export: IERC20` even though those are just
-                # signatures).
-                funcs = [f for f in info.typ.functions.values() if f.is_external]
+                if not isinstance(item, vy_ast.Attribute):
+                    raise StructureException(
+                        "invalid export",
+                        hint="exports should look like <module>.<function | interface>",
+                    )
+
+                module_info = get_expr_info(item.value).module_info
+                if module_info is None:
+                    raise StructureException("not a valid module!", item.value)
+
+                module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
+                funcs = [
+                    module_exposed_fns[f.name] for f in info.typ.functions.values() if f.is_external
+                ]
             else:
-                raise StructureException(f"not a function or interface: `{info.typ}`", info.typ.decl_node, item)
+                raise StructureException(
+                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
+                )
 
             for func_t in funcs:
                 if not func_t.is_external:
-                    raise StructureException("can't export non-external functions!", func_t.decl_node, item)
+                    raise StructureException(
+                        "can't export non-external functions!", func_t.decl_node, item
+                    )
 
                 self._add_exposed_function(func_t, item, relax=False)
                 with tag_exceptions(item):  # tag exceptions with specific item
