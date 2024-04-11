@@ -59,7 +59,6 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
     return value
 
-
 def _evm_iszero(ops: list[IROperand]) -> int:
     return 1 if ops[0].value == 0 else 0
 
@@ -88,6 +87,11 @@ def _evm_not(ops: list[IROperand]) -> int:
     value = ops[0].value
     return SizeLimits.MAX_UINT256 - value
 
+def _evm_exp(ops: list[IROperand]) -> int:
+    base = ops[1].value
+    exponent = ops[0].value
+    return (base ** exponent) & SizeLimits.MAX_UINT256
+
 ARITHMETIC_OPS = {
     "add": _wrap_uint_binop(operator.add),
     "sub": _wrap_uint_binop(operator.sub),
@@ -96,7 +100,7 @@ ARITHMETIC_OPS = {
     "sdiv": _wrap_uint_binop(evm_div),
     "mod": _wrap_uint_binop(evm_mod),
     "smod": _wrap_uint_binop(evm_mod),
-    "exp": _wrap_uint_binop(evm_pow),
+    "exp": _evm_exp,
     "eq": _wrap_uint_binop(operator.eq),
     "ne": _wrap_uint_binop(operator.ne),
     "lt": _wrap_uint_binop(operator.lt),
