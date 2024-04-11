@@ -174,11 +174,12 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
-                if lat.value == 0:
-                    target = self.ctx.get_basic_block(inst.operands[2].name)
-                else:
+                if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
                     target = self.ctx.get_basic_block(inst.operands[1].name)
-                self.work_list.append(FlowWorkItem(inst.parent, target))
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                if _meet(lat, IRLiteral(1)) == LatticeEnum.BOTTOM:
+                    target = self.ctx.get_basic_block(inst.operands[2].name)
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self.lattice[inst.operands[0]]
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
