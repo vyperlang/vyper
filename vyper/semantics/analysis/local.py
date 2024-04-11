@@ -527,9 +527,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def _analyse_list_iter(self, iter_node, target_type):
         # iteration over a variable or literal list
-        iter_val = iter_node
-        if iter_val.has_folded_value:
-            iter_val = iter_val.get_folded_value()
+        iter_val = iter_node.reduced()
 
         if isinstance(iter_val, vy_ast.List):
             len_ = len(iter_val.elements)
@@ -946,12 +944,10 @@ def _validate_range_call(node: vy_ast.Call):
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
-    start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
+    start, end = [i.reduced() for i in (start, end)]
 
     if "bound" in kwargs:
-        bound = kwargs["bound"]
-        if bound.has_folded_value:
-            bound = bound.get_folded_value()
+        bound = kwargs["bound"].reduced()
         if not isinstance(bound, vy_ast.Int):
             raise StructureException("Bound must be a literal integer", bound)
         if bound.value <= 0:
