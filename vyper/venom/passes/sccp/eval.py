@@ -84,6 +84,10 @@ def _evm_sar(ops: list[IROperand]) -> int:
         return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
+def _evm_not(ops: list[IROperand]) -> int:
+    value = ops[0].value
+    return SizeLimits.MAX_UINT256 - value
+
 ARITHMETIC_OPS = {
     "add": _wrap_uint_binop(operator.add),
     "sub": _wrap_uint_binop(operator.sub),
@@ -106,7 +110,7 @@ ARITHMETIC_OPS = {
     "or": _wrap_uint_binop(operator.or_),
     "and": _wrap_uint_binop(operator.and_),
     "xor": _wrap_uint_binop(operator.xor),
-    "not": _wrap_uint_unaop(operator.not_),
+    "not": _evm_not,
     "signextend": _evm_signextend,
     "iszero": _evm_iszero,
     "shr": _evm_shr,
