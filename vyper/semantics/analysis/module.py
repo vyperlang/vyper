@@ -557,13 +557,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             with tag_exceptions(item):  # tag with specific item
                 self._self_t.typ.add_member(func_t.name, func_t)
 
-            funcs.append(func_t)
+                funcs.append(func_t)
 
-            # check module uses
-            if func_t.uses_state():
-                module_info = check_module_uses(item)
-                assert module_info is not None  # guaranteed by above checks
-                used_modules.add(module_info)
+                # check module uses
+                if func_t.uses_state():
+                    module_info = check_module_uses(item)
+                    assert module_info is not None  # guaranteed by above checks
+                    used_modules.add(module_info)
 
         node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
 
