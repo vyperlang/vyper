@@ -78,9 +78,9 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         cfg_dirty |= sccp_pass.cfg_dirty
 
     calculate_cfg(ctx)
-    
     SimplifyCFGPass().run_pass(ctx, ctx.basic_blocks[0])
 
+    calculate_cfg(ctx)
     calculate_liveness(ctx)
     
     while True:
