@@ -96,7 +96,11 @@ def _evm_not(ops: list[IROperand]) -> int:
 def _evm_exp(ops: list[IROperand]) -> int:
     base = ops[1].value
     exponent = ops[0].value
-    return (base**exponent) & SizeLimits.MAX_UINT256
+
+    if base == 0:
+        return 0
+    
+    return pow(base, exponent, SizeLimits.CEILING_UINT256)
 
 
 ARITHMETIC_OPS = {
