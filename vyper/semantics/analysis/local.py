@@ -1,4 +1,4 @@
-# CMC 2024-02-03 TODO: split me into function.py and expr.py
+# CMC 2024-02-03 TODO: rename me to function.py
 
 import contextlib
 from typing import Optional
@@ -35,6 +35,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -64,22 +65,22 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_functions(vy_module: vy_ast.Module) -> None:
+def analyze_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        _validate_function_r(vy_module, node, err_list)
+        _analyze_function_r(vy_module, node, err_list)
 
     for node in vy_module.get_children(vy_ast.VariableDecl):
         if not node.is_public:
             continue
-        _validate_function_r(vy_module, node._expanded_getter, err_list)
+        _analyze_function_r(vy_module, node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
 
-def _validate_function_r(
+def _analyze_function_r(
     vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
 ):
     func_t = node._metadata["func_type"]
@@ -87,7 +88,7 @@ def _validate_function_r(
     for call_t in func_t.called_functions:
         if isinstance(call_t, ContractFunctionT):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
-            _validate_function_r(vy_module, call_t.ast_def, err_list)
+            _analyze_function_r(vy_module, call_t.ast_def, err_list)
 
     namespace = get_namespace()
 
@@ -267,7 +268,14 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
     for module_info in module_infos:
         if module_info.ownership < ModuleOwnership.USES:
-            msg = f"Cannot access `{module_info.alias}` state!"
+            msg = f"Cannot access `{module_info.alias}` state!\n  note that"
+            # CMC 2024-04-12 add UX note about nonreentrant. might be nice
+            # in the future to be more specific about exactly which state is
+            # used, although that requires threading a bit more context into
+            # this function.
+            msg += " use of the `@nonreentrant` decorator is also considered"
+            msg += " state access"
+
             hint = f"add `uses: {module_info.alias}` or "
             hint += f"`initializes: {module_info.alias}` as "
             hint += "a top-level statement to your contract"
@@ -443,10 +451,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
-        if not var_access.variable.is_state_variable():
-            return
-
+    def _handle_module_access(self, target: vy_ast.ExprNode):
         root_module_info = check_module_uses(target)
 
         if root_module_info is not None:
@@ -682,9 +687,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                             msg += f" `{var.decl_node.target.id}`"
                         raise ImmutableViolation(msg, var.decl_node, node)
 
-                variable_accesses = info._writes | info._reads
-                for s in variable_accesses:
-                    self.function_analyzer._handle_module_access(s, node)
+                var_accesses = info._writes | info._reads
+                if uses_state(var_accesses):
+                    self.function_analyzer._handle_module_access(node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -787,8 +792,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
-                for s in func_type.get_variable_accesses():
-                    self.function_analyzer._handle_module_access(s, node.func)
+                if func_type.uses_state():
+                    self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
