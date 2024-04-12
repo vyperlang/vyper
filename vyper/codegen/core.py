@@ -465,19 +465,19 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
         ofst_ir = add_ofst(parent, abi_ofst)
 
         if parent.location == MEMORY:  # TODO: replace with utility function
-            # TODO cache parent and abi_ofst
-            bound = parent_abi_t.size_bound()
-            end = ["add", abi_ofst, member_abi_t.size_bound()]
-            # head + member_size is le upper_bound of the parent buffer
-            end_clamped = clamp("le", end, bound)
-            # head + member_size doesn't overflow and thus is ge lower_bound of the parent buffer
-            end_clamped = ["assert", ["gt", end_clamped, abi_ofst]]
-            ofst_ir = add_ofst(parent, abi_ofst)
-            ofst_ir = [
-                "seq",
-                end_clamped,
-                ofst_ir
-            ]
+            with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
+                bound = parent_abi_t.size_bound()
+                end = ["add", abi_ofst, member_abi_t.size_bound()]
+                # head + member_size must be 'le' upper_bound of the parent buffer
+                end_clamped = clamp("le", end, bound)
+                # head + member_size must be 'gt' lower_bound of the parent buffer (no overflow)
+                end_clamped = ["assert", ["gt", end_clamped, abi_ofst]]
+                ofst_ir = [
+                    "seq",
+                    end_clamped,
+                    add_ofst(parent, abi_ofst)
+                ]
+                ofst_ir = b1.resolve(ofst_ir)
 
     return IRnode.from_list(
         ofst_ir,
