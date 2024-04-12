@@ -30,7 +30,7 @@ class DFTPass(IRPass):
         self.inst_order_num += 1
 
         if inst.opcode in BB_TERMINATORS:
-            offset = len(bb.instructions) 
+            offset = len(bb.instructions)
 
         if inst.opcode == "phi":
             # phi instructions stay at the beginning of the basic block
