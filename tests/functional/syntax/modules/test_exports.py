@@ -3,6 +3,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import ImmutableViolation, NamespaceCollision, StructureException
 
+from .helpers import NONREENTRANT_NOTE
+
 
 def test_exports_no_uses(make_input_bundle):
     lib1 = """
@@ -21,7 +23,7 @@ exports: lib1.get_counter
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    assert e.value._message == "Cannot access `lib1` state!"
+    assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
@@ -40,7 +42,7 @@ exports: lib1.counter
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    assert e.value._message == "Cannot access `lib1` state!"
+    assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
