@@ -43,7 +43,7 @@ from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
 from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.local import ExprVisitor, check_module_uses, validate_functions
+from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -102,7 +102,7 @@ def _analyze_module_r(
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
         if not is_interface:
-            validate_functions(module_ast)
+            analyze_functions(module_ast)
             analyzer.validate_initialized_modules()
             analyzer.validate_used_modules()
 
@@ -557,14 +557,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             with tag_exceptions(item):  # tag with specific item
                 self._self_t.typ.add_member(func_t.name, func_t)
 
-            funcs.append(func_t)
+                funcs.append(func_t)
 
-            # check module uses
-            var_accesses = func_t.get_variable_accesses()
-            if any(s.variable.is_state_variable() for s in var_accesses):
-                module_info = check_module_uses(item)
-                assert module_info is not None  # guaranteed by above checks
-                used_modules.add(module_info)
+                # check module uses
+                if func_t.uses_state():
+                    module_info = check_module_uses(item)
+                    assert module_info is not None  # guaranteed by above checks
+                    used_modules.add(module_info)
 
         node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
 
