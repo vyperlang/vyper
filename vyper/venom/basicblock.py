@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -20,6 +20,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "tstore",
         "assert",
         "assert_unreachable",
+        "abort",
         "mstore",
         "mload",
         "calldatacopy",
@@ -308,8 +309,8 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        if self.liveness:
-            return f"{s: <30} # {self.liveness}"
+        # if self.liveness:
+        #     return f"{s: <30} # {self.liveness}"
 
         return s
 
