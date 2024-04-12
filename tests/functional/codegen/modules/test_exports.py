@@ -1,3 +1,8 @@
+import pytest
+
+from vyper.compiler import compile_code
+
+
 def test_simple_export(make_input_bundle, get_contract):
     lib1 = """
 @external
@@ -147,3 +152,76 @@ exports: lib2.foo
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.foo() == 5
+
+
+@pytest.fixture
+def simple_library(make_input_bundle):
+    ifoo = """
+@external
+def foo() -> uint256:
+    ...
+
+@external
+def bar() -> uint256:
+    ...
+    """
+    ibar = """
+@external
+def bar() -> uint256:
+    ...
+
+@external
+def qux() -> uint256:
+    ...
+    """
+    lib1 = """
+import ifoo
+import ibar
+
+implements: ifoo
+implements: ibar
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def bar() -> uint256:
+    return 2
+
+@external
+def qux() -> uint256:
+    return 3
+    """
+    return make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo, "ibar.vyi": ibar})
+
+
+def test_exports_interface_simple(get_contract, simple_library):
+    main = """
+import lib1
+
+exports: lib1.__interface__
+    """
+    c = get_contract(main, input_bundle=simple_library)
+    assert c.foo() == 1
+    assert c.bar() == 2
+    assert c.qux() == 3
+
+
+def test_exports_interface2(get_contract, simple_library):
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    out = compile_code(
+        main, output_formats=["abi"], contract_path="main.vy", input_bundle=simple_library
+    )
+    fnames = [item["name"] for item in out["abi"]]
+    assert fnames == ["foo", "bar"]
+
+    c = get_contract(main, input_bundle=simple_library)
+    assert c.foo() == 1
+    assert c.bar() == 2
+    # TODO: check the selector table too
+    assert not hasattr(c, "qux")
