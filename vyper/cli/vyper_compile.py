@@ -11,12 +11,7 @@ import vyper.codegen.ir_node as ir_node
 import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import (
-    VYPER_TRACEBACK_LIMIT,
-    OptimizationLevel,
-    Settings,
-    _set_debug_mode,
-)
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -152,6 +147,7 @@ def _parse_args(argv):
         action="store_true",
         dest="experimental_codegen",
     )
+    parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -172,9 +168,6 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
-    if args.debug:
-        _set_debug_mode(True)
-
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
 
@@ -190,6 +183,12 @@ def _parse_args(argv):
 
     if args.experimental_codegen:
         settings.experimental_codegen = args.experimental_codegen
+
+    if args.debug:
+        settings.debug = args.debug
+
+    if args.enable_decimals:
+        settings.enable_decimals = args.enable_decimals
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)

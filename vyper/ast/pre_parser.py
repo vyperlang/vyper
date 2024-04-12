@@ -191,6 +191,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         validate_version_pragma(compiler_version, code, start)
                         settings.compiler_version = compiler_version
 
+                    # TODO: refactor these to something like Settings.from_pragma
                     elif pragma.startswith("optimize "):
                         if settings.optimize is not None:
                             raise StructureException("pragma optimize specified twice!", start)
@@ -212,6 +213,12 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                                 "pragma experimental-codegen specified twice!", start
                             )
                         settings.experimental_codegen = True
+                    elif pragma.startswith("enable-decimals"):
+                        if settings.enable_decimals is not None:
+                            raise StructureException(
+                                "pragma enable_decimals specified twice!", start
+                            )
+                        settings.enable_decimals = True
 
                     else:
                         raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")

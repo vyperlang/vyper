@@ -315,7 +315,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list = ExceptionList()
             for used_module_info, uses_info in should_use.values():
                 msg = f"`{used_module_info.alias}` is declared as used, but "
-                msg += f"it is not actually used in {module_t}!"
+                msg += f"its state is not actually used in {module_t}!"
                 hint = f"delete `uses: {used_module_info.alias}`"
                 err_list.append(BorrowException(msg, uses_info.node, hint=hint))
 
