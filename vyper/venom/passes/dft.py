@@ -22,13 +22,15 @@ class DFTPass(IRPass):
                 # if the instruction is a terminator, we need to place
                 # it at the end of the basic block
                 # along with all the instructions that "lead" to it
-                if uses_this.opcode in BB_TERMINATORS:
-                    offset = len(bb.instructions)
                 self._process_instruction_r(bb, uses_this, offset)
 
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
+        self.inst_order_num += 1
+
+        if inst.opcode in BB_TERMINATORS:
+            offset = len(bb.instructions) 
 
         if inst.opcode == "phi":
             # phi instructions stay at the beginning of the basic block
@@ -45,7 +47,6 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target, offset)
 
-        self.inst_order_num += 1
         self.inst_order[inst] = self.inst_order_num + offset
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
