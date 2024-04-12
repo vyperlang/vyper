@@ -99,7 +99,7 @@ def _evm_exp(ops: list[IROperand]) -> int:
 
     if base == 0:
         return 0
-    
+
     return pow(base, exponent, SizeLimits.CEILING_UINT256)
 
 
@@ -108,9 +108,9 @@ ARITHMETIC_OPS = {
     "sub": _wrap_uint_binop(operator.sub),
     "mul": _wrap_uint_binop(operator.mul),
     "div": _wrap_uint_binop(evm_div),
-    "sdiv": _wrap_uint_binop(evm_div),
+    "sdiv": _wrap_int_binop(evm_div),
     "mod": _wrap_uint_binop(evm_mod),
-    "smod": _wrap_uint_binop(evm_mod),
+    "smod": _wrap_int_binop(evm_mod),
     "exp": _evm_exp,
     "eq": _wrap_uint_binop(operator.eq),
     "ne": _wrap_uint_binop(operator.ne),
