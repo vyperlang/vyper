@@ -488,3 +488,26 @@ def f(x: Bytes[32 * 3]):
     data = "d45754f800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0"
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
+
+
+def test_abi_decode_oob_due_to_invalid_head(w3, tx_failed, get_contract):
+    code = """
+@external
+def f(x: Bytes[32 * 5]):
+    y: Bytes[32 * 5] = x
+    a: Bytes[32] = b"a"
+    decoded_y1: DynArray[uint256, 3] = _abi_decode(y, DynArray[uint256, 3])
+    a = b"aaaa"
+    decoded_y1 = _abi_decode(y, DynArray[uint256, 3])
+    """
+    c = get_contract(code)
+    data = "d45754f8"
+    data += "20".zfill(64)  # tuple head
+    data += "A0".zfill(64)  # parent array length
+    # head should be 20 and thus the decoding func will try to decode 1 word
+    # over the end of the input data
+    # _getelemptr_abi_helper will revert due to clamping
+    data += "40".zfill(64)  # inner array head
+    data += "3".zfill(64) * 4  # inner array payload - length: 3 | idx0: 3 | idx1: 3 | idx2: 3
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "data": data})
