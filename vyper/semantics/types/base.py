@@ -196,7 +196,7 @@ class VyperType:
         """
         return self.abi_type.selector_name()
 
-    def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
+    def to_abi_arg(self, name: str = "") -> dict[str, Any]:
         """
         The JSON ABI description of this type. Note for complex types,
         the implementation is overridden to be compliant with the spec:

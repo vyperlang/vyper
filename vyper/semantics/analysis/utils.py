@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, List
+from typing import Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -46,6 +46,10 @@ def _validate_op(node, types_list, validation_fn_name):
         return ret
 
     raise err_list[0]
+
+
+def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
+    return any(s.variable.is_state_variable() for s in var_accesses)
 
 
 class _ExprAnalyser:

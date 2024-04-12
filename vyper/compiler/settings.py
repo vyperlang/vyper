@@ -38,6 +38,9 @@ class OptimizationLevel(Enum):
         return cls.GAS
 
 
+DEFAULT_ENABLE_DECIMALS = False
+
+
 @dataclass
 class Settings:
     compiler_version: Optional[str] = None
@@ -45,8 +48,16 @@ class Settings:
     evm_version: Optional[str] = None
     experimental_codegen: Optional[bool] = None
     debug: Optional[bool] = None
+    enable_decimals: Optional[bool] = None
+
+    # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
+    def get_enable_decimals(self) -> bool:
+        if self.enable_decimals is None:
+            return DEFAULT_ENABLE_DECIMALS
+        return self.enable_decimals
 
 
+# CMC 2024-04-10 do we need it to be Optional?
 _settings = None
 
 
@@ -56,19 +67,9 @@ def get_global_settings() -> Optional[Settings]:
 
 def set_global_settings(new_settings: Optional[Settings]) -> None:
     assert isinstance(new_settings, Settings) or new_settings is None
-    # TODO evil circular import
-    from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS, set_global_evm_version
 
     global _settings
     _settings = new_settings
-
-    # set the global evm version so that version_check picks it up.
-    # this is a bit spooky, but it's generally always what we want
-    # when set_global_settings is called.
-    evm_version = DEFAULT_EVM_VERSION
-    if new_settings is not None and new_settings.evm_version is not None:
-        evm_version = new_settings.evm_version
-    set_global_evm_version(EVM_VERSIONS[evm_version])
 
 
 # could maybe refactor this, but it is easier for now than threading settings

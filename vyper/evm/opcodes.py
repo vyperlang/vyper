@@ -1,6 +1,6 @@
-import contextlib
-from typing import Dict, Generator, Optional
+from typing import Dict, Optional
 
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
@@ -14,9 +14,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 _evm_versions = ("london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
-
-DEFAULT_EVM_VERSION: str = "shanghai"
-active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
+DEFAULT_EVM_VERSION = "shanghai"
 
 
 # opcode as hex value
@@ -208,26 +206,6 @@ PSEUDO_OPCODES: OpcodeMap = {
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
-def set_global_evm_version(evm_version: int) -> None:
-    global active_evm_version
-    active_evm_version = evm_version
-
-
-@contextlib.contextmanager
-def anchor_evm_version(evm_version: Optional[str]) -> Generator:
-    global active_evm_version
-    if evm_version is None:
-        evm_version = DEFAULT_EVM_VERSION
-
-    tmp = active_evm_version
-    evm_version_int = EVM_VERSIONS[evm_version]
-    set_global_evm_version(evm_version_int)
-    try:
-        yield
-    finally:
-        set_global_evm_version(tmp)
-
-
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
     gas: OpcodeGasCost = value[3]
     if isinstance(gas, int):
@@ -253,15 +231,23 @@ _ir_opcodes: Dict[int, OpcodeRulesetMap] = {
 }
 
 
+def get_active_evm_version():
+    settings = get_global_settings()
+    evm_version_str = settings and settings.evm_version or DEFAULT_EVM_VERSION
+    return EVM_VERSIONS[evm_version_str]
+
+
 def get_opcodes() -> OpcodeRulesetMap:
-    return _evm_opcodes[active_evm_version]
+    return _evm_opcodes[get_active_evm_version()]
 
 
 def get_ir_opcodes() -> OpcodeRulesetMap:
-    return _ir_opcodes[active_evm_version]
+    return _ir_opcodes[get_active_evm_version()]
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
+    active_evm_version = get_active_evm_version()
+
     if begin is None and end is None:
         raise CompilerPanic("Either beginning or end fork ruleset must be set.")
     if begin is None:
