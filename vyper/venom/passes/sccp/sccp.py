@@ -129,10 +129,13 @@ class SCCP(IRPass):
         elif inst.opcode == "assert":
             lat = lattice[inst.operands[0]]
             if isinstance(lat, IRLiteral):
-                if lat.value == 0:
+                if lat.value > 0:
                     inst.opcode = "nop"
-                    inst.operands = []
-                    self.cfg_dirty = True
+                else:
+                    inst.opcode = f"abort"
+
+                inst.operands = []
+
         elif inst.opcode == "phi":
             return
 
