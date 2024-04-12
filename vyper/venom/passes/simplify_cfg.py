@@ -25,6 +25,11 @@ class SimplifyCFGPass(IRPass):
             next_bb.remove_cfg_in(b)
             next_bb.add_cfg_in(a)
 
+            for inst in next_bb.instructions:
+                if inst.opcode != "phi":
+                    break
+                inst.operands[inst.operands.index(b.label)] = a.label
+
         self.ctx.basic_blocks.remove(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
