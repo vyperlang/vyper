@@ -57,7 +57,7 @@ def test_cont_jump_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5")].value == 106
-    assert sccp.lattice.get(IRVariable("%6")) == None
+    assert sccp.lattice.get(IRVariable("%6")) == LatticeEnum.BOTTOM
 
 
 def test_cont_phi_case():
@@ -96,8 +96,8 @@ def test_cont_phi_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.TOP
-    assert sccp.lattice[IRVariable("%5")].value == 106
+    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5")].value == 2
 
 
 def test_cont_phi_const_case():
@@ -135,5 +135,5 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.TOP
-    assert sccp.lattice[IRVariable("%5")].value == 106
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
+    assert sccp.lattice[IRVariable("%5")].value == 2
