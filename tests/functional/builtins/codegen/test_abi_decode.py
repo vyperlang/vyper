@@ -470,7 +470,8 @@ def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_cod
 
 
 def test_abi_decode_overflow(w3, tx_failed, get_contract):
-    # test based on GHSA-9p8r-4xp4-gw5w: https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
+    # test based on GHSA-9p8r-4xp4-gw5w:
+    # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
     # note: doesn't even reach the assert but reverts internally on the clamp in getelemptr
     code = """
 @external
@@ -485,7 +486,10 @@ def f(x: Bytes[32 * 3]):
     assert decoded_y1 != decoded_y2
     """
     c = get_contract(code)
-    data = "d45754f800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0"
+    data = "d45754f8"
+    data += "20".zfill(64)
+    data += "60".zfill(64)
+    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0"
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
