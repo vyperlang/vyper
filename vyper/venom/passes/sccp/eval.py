@@ -1,7 +1,7 @@
 import operator
 from typing import Callable
 
-from vyper.utils import SizeLimits, evm_div, evm_mod, evm_pow
+from vyper.utils import SizeLimits, evm_div, evm_mod
 from vyper.venom.basicblock import IROperand
 
 
@@ -19,15 +19,15 @@ def _signed_to_unsigned(value: int) -> int:
         return value + SizeLimits.CEILING_UINT256
 
 
-def _wrap_uint_unaop(operation) -> int:
-    def wrapper(ops: list[IROperand]):
+def _wrap_uint_unaop(operation):
+    def wrapper(ops: list[IROperand]) -> int:
         return (operation(ops[0].value)) & SizeLimits.MAX_UINT256
 
     return wrapper
 
 
-def _wrap_int_binop(operation) -> int:
-    def wrapper(ops: list[IROperand]):
+def _wrap_int_binop(operation):
+    def wrapper(ops: list[IROperand]) -> int:
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
         return _signed_to_unsigned(int(operation(first, second)))
@@ -35,8 +35,8 @@ def _wrap_int_binop(operation) -> int:
     return wrapper
 
 
-def _wrap_uint_binop(operation) -> int:
-    def wrapper(ops: list[IROperand]):
+def _wrap_uint_binop(operation):
+    def wrapper(ops: list[IROperand]) -> int:
         first = ops[1].value
         second = ops[0].value
         return (int(operation(first, second))) & SizeLimits.MAX_UINT256
@@ -132,5 +132,5 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
     "shr": _evm_shr,
     "shl": _evm_shl,
     "sar": _evm_sar,
-    "store": lambda ops: ops[0],
+    "store": lambda ops: ops[0].value,
 }

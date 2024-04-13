@@ -269,7 +269,7 @@ class IRInstruction:
                 self.operands[i] = replacements[operand.value]
 
     @property
-    def phi_operands(self) -> Generator[tuple[IRLabel, IRVariable], None, None]:
+    def phi_operands(self) -> Generator[tuple[IRLabel, IROperand], None, None]:
         """
         Get phi operands for instruction.
         """

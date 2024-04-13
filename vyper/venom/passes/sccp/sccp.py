@@ -4,7 +4,14 @@ from functools import reduce
 from typing import Union
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -30,13 +37,13 @@ class FlowWorkItem:
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
-Lattice = dict[IRVariable, LatticeItem]
+Lattice = dict[IROperand, LatticeItem]
 
 
 class SCCP(IRPass):
     ctx: IRFunction
     dom: DominatorTree
-    uses: dict[IRVariable, IRInstruction]
+    uses: dict[IRVariable, OrderedSet[IRInstruction]]
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_dirty: bool
@@ -146,13 +153,14 @@ class SCCP(IRPass):
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
-        vars = []
+        vars: list[LatticeItem] = []
         for bb_label, var in inst.phi_operands:
             bb = self.ctx.get_basic_block(bb_label.name)
             if bb not in inst.parent.cfg_in_exec:
                 continue
             vars.append(self.lattice[var])
-        value = reduce(_meet, vars, LatticeEnum.TOP)
+        value = reduce(_meet, vars, LatticeEnum.TOP)  # type: ignore
+        assert inst.output in self.lattice, f"Got undefined var for phi"
         if value != self.lattice[inst.output]:
             self.lattice[inst.output] = value
             self._add_ssa_work_items(inst)
@@ -161,9 +169,9 @@ class SCCP(IRPass):
         opcode = inst.opcode
         if opcode in ["store", "alloca"]:
             if isinstance(inst.operands[0], IRLiteral):
-                self.lattice[inst.output] = inst.operands[0]
+                self.lattice[inst.output] = inst.operands[0]  # type: ignore
             else:
-                self.lattice[inst.output] = self.lattice[inst.operands[0]]
+                self.lattice[inst.output] = self.lattice[inst.operands[0]]  # type: ignore
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.ctx.get_basic_block(inst.operands[0].value)
@@ -192,10 +200,10 @@ class SCCP(IRPass):
                 assert False, "Implement me"
 
         elif opcode in ["param", "calldataload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM
+            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
-            self.lattice[inst.output] = LatticeEnum.BOTTOM
+            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
@@ -220,24 +228,24 @@ class SCCP(IRPass):
         else:
             if opcode in ARITHMETIC_OPS:
                 fn = ARITHMETIC_OPS[opcode]
-                ret = IRLiteral(fn(ops))
+                ret = IRLiteral(fn(ops))  # type: ignore
             elif len(ops) > 0:
-                ret = ops[0]
+                ret = ops[0]  # type: ignore
             else:
                 raise CompilerPanic("Bad constant evaluation")
 
         old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
         if old_val != ret:
-            self.lattice[inst.output] = ret
+            self.lattice[inst.output] = ret  # type: ignore
             self._add_ssa_work_items(inst)
 
-        return ret
+        return ret  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         if inst.output not in self.uses:
-            self.uses[inst.output] = OrderedSet()
+            self.uses[inst.output] = OrderedSet()  # type: ignore
 
-        for target_inst in self.uses[inst.output]:
+        for target_inst in self.uses[inst.output]:  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
 
     def _compute_uses(self, dom: DominatorTree):
