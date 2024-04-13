@@ -290,7 +290,7 @@ def foo() -> uint256:
     send_failing_tx_to_signature(c, "bar()")
 
 
-def test_export_unimplemented_interface(
+def test_export_unimplemented_function(
     send_failing_tx_to_signature, get_contract, make_input_bundle
 ):
     ifoo = """
@@ -300,6 +300,7 @@ def foo() -> uint256:
     """
     lib1 = """
 import ifoo
+implements: ifoo
 
 @external
 def foo() -> uint256:

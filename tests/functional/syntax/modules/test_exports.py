@@ -1,7 +1,12 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ImmutableViolation, NamespaceCollision, StructureException
+from vyper.exceptions import (
+    ImmutableViolation,
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+)
 
 from .helpers import NONREENTRANT_NOTE
 
@@ -349,9 +354,9 @@ import lib1
 exports: lib1.ifoo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(InterfaceViolation) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "requested `lib1.ifoo` but `lib1.do_xyz` is not implemented"
+    assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
 
 
 def test_export_selector_conflict(make_input_bundle):
@@ -381,3 +386,35 @@ exports: (lib1.ifoo, lib1.tgeo)
     with pytest.raises(StructureException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "Methods produce colliding method ID `0x67e43e43`: gsf(), tgeo()"
+
+
+def test_export_different_return_type(make_input_bundle):
+    ifoo = """
+@external
+def foo() -> uint256:
+    ...
+    """
+    lib1 = """
+import ifoo
+
+foo: public(int256)
+
+@deploy
+def __init__():
+    self.foo = -1
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+exports: lib1.ifoo
+
+@deploy
+def __init__():
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
+    with pytest.raises(InterfaceViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"

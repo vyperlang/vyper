@@ -374,6 +374,15 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.ImplementsDecl)
 
     @cached_property
+    def implemented_interfaces(self):
+        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+
+        # a module implicitly implements module.__interface__.
+        ret.append(self.interface)
+
+        return ret
+
+    @cached_property
     def interfaces(self) -> dict[str, InterfaceT]:
         ret = {}
         for i in self.interface_defs:

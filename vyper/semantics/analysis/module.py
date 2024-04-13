@@ -20,6 +20,7 @@ from vyper.exceptions import (
     ExceptionList,
     ImmutableViolation,
     InitializerException,
+    InterfaceViolation,
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
@@ -533,6 +534,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         exported_funcs = []
         used_modules = OrderedSet()
 
+        # CMC 2024-04-13 TODO: reduce nesting in this function
+
         for item in items:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
@@ -557,20 +560,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if module_info is None:
                     raise StructureException("not a valid module!", item.value)
 
-                module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
-                funcs = []
-                for f in info.typ.functions.values():
-                    # find the implementation of the function in the specific module
-                    impl = module_exposed_fns.get(f.name)
-                    if impl is None:
-                        msg = f"requested `{item.node_source_code}` but"
-                        msg += f" `{item.value.node_source_code}.{f.name}`"
-                        msg += " is not implemented"
-                        raise StructureException(msg, item)
+                if info.typ not in module_info.typ.implemented_interfaces:
+                    iface_str = item.node_source_code
+                    module_str = item.value.node_source_code
+                    msg = f"requested `{iface_str}` but `{module_str}`"
+                    msg += f" does not implement `{iface_str}`!"
+                    raise InterfaceViolation(msg, item)
 
-                    # guaranteed by `.exposed_functions`:
-                    assert isinstance(impl, ContractFunctionT) and impl.is_external
-                    funcs.append(impl)
+                module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
+                # find the specific implementation of the function in the module
+                funcs = [module_exposed_fns[fname] for fname in info.typ.functions.keys()]
             else:
                 raise StructureException(
                     f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
@@ -591,7 +590,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # check module uses
                     if func_t.uses_state():
                         module_info = check_module_uses(item)
-                        assert module_info is not None  # guaranteed by above checks
+
+                        # guaranteed by above checks:
+                        assert module_info is not None
+
                         used_modules.add(module_info)
 
         node._metadata["exports_info"] = ExportsInfo(exported_funcs, used_modules)
