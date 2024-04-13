@@ -334,7 +334,7 @@ def bar() -> uint256:
     assert e.value._message == "already exported!"
 
 
-def test_export_missing_function(make_input_bundle):
+def test_no_export_missing_function(make_input_bundle):
     ifoo = """
 @external
 def do_xyz():
@@ -347,6 +347,32 @@ import ifoo
 @view
 def bar() -> uint256:
     return 1
+    """
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
+    with pytest.raises(InterfaceViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
+
+
+def test_no_export_unimplemented_interface(make_input_bundle):
+    ifoo = """
+@external
+def do_xyz():
+    ...
+    """
+    lib1 = """
+import ifoo
+
+# technically implements ifoo, but missing `implements: ifoo`
+
+@external
+def do_xyz():
+    pass
     """
     main = """
 import lib1
