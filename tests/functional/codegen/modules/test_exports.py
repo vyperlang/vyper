@@ -319,3 +319,48 @@ exports: lib1.ifoo
     c = get_contract(main, input_bundle=input_bundle)
     assert c.foo() == 1
     send_failing_tx_to_signature(c, "bar()")
+
+
+# sanity check that when multiple modules implement an interface, the
+# correct one (specified by the user) gets selected for export.
+def test_export_interface_multiple_choices(get_contract, make_input_bundle):
+    ifoo = """
+@external
+def foo() -> uint256:
+    ...
+    """
+    lib1 = """
+import ifoo
+implements: ifoo
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    lib2 = """
+import ifoo
+implements: ifoo
+
+@external
+def foo() -> uint256:
+    return 2
+    """
+    main = """
+import lib1
+import lib2
+
+exports: lib1.ifoo
+    """
+    main2 = """
+import lib1
+import lib2
+
+exports: lib2.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "ifoo.vyi": ifoo})
+
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.foo() == 1
+
+    c = get_contract(main2, input_bundle=input_bundle)
+    assert c.foo() == 2
