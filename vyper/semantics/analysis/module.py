@@ -569,7 +569,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
                 # find the specific implementation of the function in the module
-                funcs = [module_exposed_fns[fname] for fname in info.typ.functions.keys()]
+                funcs = [
+                    module_exposed_fns[fn.name]
+                    for fn in info.typ.functions.values()
+                    if fn.is_external
+                ]
             else:
                 raise StructureException(
                     f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
