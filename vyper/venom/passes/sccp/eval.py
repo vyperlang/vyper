@@ -1,4 +1,5 @@
 import operator
+from typing import Callable
 
 from vyper.utils import SizeLimits, evm_div, evm_mod, evm_pow
 from vyper.venom.basicblock import IROperand
@@ -103,7 +104,7 @@ def _evm_exp(ops: list[IROperand]) -> int:
     return pow(base, exponent, SizeLimits.CEILING_UINT256)
 
 
-ARITHMETIC_OPS = {
+ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
     "add": _wrap_uint_binop(operator.add),
     "sub": _wrap_uint_binop(operator.sub),
     "mul": _wrap_uint_binop(operator.mul),
