@@ -80,7 +80,7 @@ def test_cont_phi_case():
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
-    op5 = br2.append_instruction("add", op3, p1, ret=op4)
+    br2.append_instruction("add", op3, p1, ret=op4)
     br2.append_instruction("jmp", join.label)
 
     join.append_instruction("return", op4, p1)

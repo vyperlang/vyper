@@ -2,7 +2,6 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
-from vyper.exceptions import StackTooDeep
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])

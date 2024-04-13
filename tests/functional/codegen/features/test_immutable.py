@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
-from vyper.exceptions import StackTooDeep
 
 
 @pytest.mark.parametrize(

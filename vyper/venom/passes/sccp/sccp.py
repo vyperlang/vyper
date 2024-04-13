@@ -138,7 +138,7 @@ class SCCP(IRPass):
                 if lat.value > 0:
                     inst.opcode = "nop"
                 else:
-                    inst.opcode = f"abort"
+                    inst.opcode = "abort"
 
                 inst.operands = []
 
@@ -160,7 +160,7 @@ class SCCP(IRPass):
                 continue
             vars.append(self.lattice[var])
         value = reduce(_meet, vars, LatticeEnum.TOP)  # type: ignore
-        assert inst.output in self.lattice, f"Got undefined var for phi"
+        assert inst.output in self.lattice, "Got undefined var for phi"
         if value != self.lattice[inst.output]:
             self.lattice[inst.output] = value
             self._add_ssa_work_items(inst)

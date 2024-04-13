@@ -1,8 +1,6 @@
 import pytest
 from web3.exceptions import ValidationError
 
-from vyper.exceptions import StackTooDeep
-
 
 def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
