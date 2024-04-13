@@ -2,7 +2,6 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.utils import method_id
-from vyper.exceptions import StructureException
 
 
 def test_simple_export(make_input_bundle, get_contract):
@@ -204,6 +203,7 @@ def send_failing_tx_to_signature(w3, tx_failed):
         data = method_id(method_sig)
         with tx_failed():
             w3.eth.send_transaction({"to": c.address, "data": data})
+
     return _send_transaction
 
 
@@ -247,7 +247,7 @@ exports: lib2.__interface__
     lib1 = """
 @external
 def bar() -> uint256:
-    return 1 
+    return 1
     """
     lib2 = """
 import lib1
@@ -264,7 +264,9 @@ exports: lib1.bar
     assert c.foo() == 2
 
 
-def test_imported_module_not_part_of_interface(send_failing_tx_to_signature, get_contract, make_input_bundle):
+def test_imported_module_not_part_of_interface(
+    send_failing_tx_to_signature, get_contract, make_input_bundle
+):
     main = """
 import lib2
 
@@ -273,7 +275,7 @@ exports: lib2.__interface__
     lib1 = """
 @external
 def bar() -> uint256:
-    return 1 
+    return 1
     """
     lib2 = """
 import lib1
@@ -288,24 +290,9 @@ def foo() -> uint256:
     send_failing_tx_to_signature(c, "bar()")
 
 
-def test_interface_export_collision(send_failing_tx_to_signature, get_contract, make_input_bundle):
-    main = """
-import lib1
-
-exports: lib1.__interface__
-exports: lib1.bar
-    """
-    lib1 = """
-@external
-def bar() -> uint256:
-    return 1 
-    """
-    input_bundle = make_input_bundle({"lib1.vy": lib1})
-    with pytest.raises(StructureException):
-        get_contract(main, input_bundle=input_bundle)
-
-
-def test_export_unimplemented_interface(send_failing_tx_to_signature, get_contract, make_input_bundle):
+def test_export_unimplemented_interface(
+    send_failing_tx_to_signature, get_contract, make_input_bundle
+):
     ifoo = """
 @external
 def foo() -> uint256:
@@ -331,4 +318,3 @@ exports: lib1.ifoo
     c = get_contract(main, input_bundle=input_bundle)
     assert c.foo() == 1
     send_failing_tx_to_signature(c, "bar()")
-

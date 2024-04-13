@@ -558,9 +558,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     raise StructureException("not a valid module!", item.value)
 
                 module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
-                funcs = [
-                    module_exposed_fns[f.name] for f in info.typ.functions.values() if f.is_external
-                ]
+                funcs = []
+                for f in info.typ.functions.values():
+                    # find the implementation of the function in the specific module
+                    impl = module_exposed_fns.get(f.name)
+                    if impl is None:
+                        msg = f"requested `{item.node_source_code}` but"
+                        msg += f" `{item.value.node_source_code}.{f.name}`"
+                        msg += " is not implemented"
+                        raise StructureException(msg, item)
+
+                    # guaranteed by `.exposed_functions`:
+                    assert isinstance(impl, ContractFunctionT) and impl.is_external
+                    funcs.append(impl)
             else:
                 raise StructureException(
                     f"not a function or interface: `{info.typ}`", info.typ.decl_node, item

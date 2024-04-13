@@ -309,3 +309,75 @@ exports: (lib1.bar, lib1.foo)
     assert e.value.prev_decl.col_offset == 9
     assert e.value.prev_decl.node_source_code == "lib1.foo"
     assert e.value.prev_decl.module_node.path == "main.vy"
+
+
+def test_interface_export_collision(make_input_bundle):
+    main = """
+import lib1
+
+exports: lib1.__interface__
+exports: lib1.bar
+    """
+    lib1 = """
+@external
+def bar() -> uint256:
+    return 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "already exported!"
+
+
+def test_export_missing_function(make_input_bundle):
+    ifoo = """
+@external
+def do_xyz():
+    ...
+    """
+    lib1 = """
+import ifoo
+
+@external
+@view
+def bar() -> uint256:
+    return 1
+    """
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "requested `lib1.ifoo` but `lib1.do_xyz` is not implemented"
+
+
+def test_export_selector_conflict(make_input_bundle):
+    ifoo = """
+@external
+def gsf():
+    ...
+    """
+    lib1 = """
+import ifoo
+
+@external
+def gsf():
+    pass
+
+@external
+@view
+def tgeo() -> uint256:
+    return 1
+    """
+    main = """
+import lib1
+
+exports: (lib1.ifoo, lib1.tgeo)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "Methods produce colliding method ID `0x67e43e43`: gsf(), tgeo()"
