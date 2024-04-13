@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from typing import Union
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
