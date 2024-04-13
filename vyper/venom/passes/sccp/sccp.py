@@ -197,7 +197,7 @@ class SCCP(IRPass):
                     target = self.ctx.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
-                assert False, "Implement me"
+                raise CompilerPanic("Unimplemented djmp with literal")
 
         elif opcode in ["param", "calldataload"]:
             self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
