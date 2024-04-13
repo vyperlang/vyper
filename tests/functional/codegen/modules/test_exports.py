@@ -1,6 +1,8 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.utils import method_id
+from vyper.exceptions import StructureException
 
 
 def test_simple_export(make_input_bundle, get_contract):
@@ -196,6 +198,15 @@ def qux() -> uint256:
     return make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo, "ibar.vyi": ibar})
 
 
+@pytest.fixture
+def send_failing_tx_to_signature(w3, tx_failed):
+    def _send_transaction(c, method_sig):
+        data = method_id(method_sig)
+        with tx_failed():
+            w3.eth.send_transaction({"to": c.address, "data": data})
+    return _send_transaction
+
+
 def test_exports_interface_simple(get_contract, simple_library):
     main = """
 import lib1
@@ -208,7 +219,7 @@ exports: lib1.__interface__
     assert c.qux() == 3
 
 
-def test_exports_interface2(get_contract, simple_library):
+def test_exports_interface2(get_contract, send_failing_tx_to_signature, simple_library):
     main = """
 import lib1
 
@@ -223,5 +234,101 @@ exports: lib1.ifoo
     c = get_contract(main, input_bundle=simple_library)
     assert c.foo() == 1
     assert c.bar() == 2
-    # TODO: check the selector table too
     assert not hasattr(c, "qux")
+    send_failing_tx_to_signature(c, "qux()")
+
+
+def test_exported_fun_part_of_interface(get_contract, make_input_bundle):
+    main = """
+import lib2
+
+exports: lib2.__interface__
+    """
+    lib1 = """
+@external
+def bar() -> uint256:
+    return 1 
+    """
+    lib2 = """
+import lib1
+
+@external
+def foo() -> uint256:
+    return 2
+
+exports: lib1.bar
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.bar() == 1
+    assert c.foo() == 2
+
+
+def test_imported_module_not_part_of_interface(send_failing_tx_to_signature, get_contract, make_input_bundle):
+    main = """
+import lib2
+
+exports: lib2.__interface__
+    """
+    lib1 = """
+@external
+def bar() -> uint256:
+    return 1 
+    """
+    lib2 = """
+import lib1
+
+@external
+def foo() -> uint256:
+    return 2
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.foo() == 2
+    send_failing_tx_to_signature(c, "bar()")
+
+
+def test_interface_export_collision(send_failing_tx_to_signature, get_contract, make_input_bundle):
+    main = """
+import lib1
+
+exports: lib1.__interface__
+exports: lib1.bar
+    """
+    lib1 = """
+@external
+def bar() -> uint256:
+    return 1 
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StructureException):
+        get_contract(main, input_bundle=input_bundle)
+
+
+def test_export_unimplemented_interface(send_failing_tx_to_signature, get_contract, make_input_bundle):
+    ifoo = """
+@external
+def foo() -> uint256:
+    ...
+    """
+    lib1 = """
+import ifoo
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def bar() -> uint256:
+    return 2
+    """
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoo.vyi": ifoo})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.foo() == 1
+    send_failing_tx_to_signature(c, "bar()")
+
