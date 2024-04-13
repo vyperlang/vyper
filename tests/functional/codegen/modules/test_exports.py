@@ -364,3 +364,78 @@ exports: lib2.ifoo
 
     c = get_contract(main2, input_bundle=input_bundle)
     assert c.foo() == 2
+
+
+def test_export_module_with_init(get_contract, make_input_bundle):
+    lib1 = """
+@deploy
+def __init__():
+    pass
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    main = """
+import lib1
+
+exports: lib1.__interface__
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.foo() == 1
+
+
+def test_export_module_with_getter(get_contract, make_input_bundle):
+    lib1 = """
+counter: public(uint256)
+
+@external
+def foo():
+    self.counter += 1
+    """
+    main = """
+import lib1
+
+initializes: lib1
+exports: lib1.__interface__
+
+@deploy
+def __init__():
+    lib1.counter = 100
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.counter() == 100
+    c.foo(transact={})
+    assert c.counter() == 101
+
+
+def test_export_module_with_default(w3, get_contract, make_input_bundle):
+    lib1 = """
+counter: public(uint256)
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def __default__():
+    self.counter += 1
+    """
+    main = """
+import lib1
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.counter = 5
+
+exports: lib1.__interface__
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.foo() == 1
+    assert c.counter() == 5
+    w3.eth.send_transaction({"to": c.address})
+    assert c.counter() == 6
