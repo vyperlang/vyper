@@ -1,7 +1,7 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Any, Optional
+from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
@@ -11,14 +11,11 @@ from vyper.venom.bb_optimizer import (
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
 )
-from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.mem2stack import Mem2Stack
-from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.venom_to_assembly import VenomCompiler
