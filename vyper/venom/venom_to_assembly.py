@@ -97,6 +97,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "delegatecall",
         "codesize",
         "basefee",
+        "blobbasefee",
         "prevrandao",
         "difficulty",
         "invalid",

@@ -31,6 +31,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    EvmVersionException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -286,6 +287,12 @@ class Expr:
                 return IRnode.from_list(["gaslimit"], typ=UINT256_T)
             elif key == "block.basefee":
                 return IRnode.from_list(["basefee"], typ=UINT256_T)
+            elif key == "block.blobbasefee":
+                if not version_check(begin="cancun"):
+                    raise EvmVersionException(
+                        "`block.blobbasefee` is not available pre-cancun", self.expr
+                    )
+                return IRnode.from_list(["blobbasefee"], typ=UINT256_T)
             elif key == "block.prevhash":
                 return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ=BYTES32_T)
             elif key == "tx.origin":
