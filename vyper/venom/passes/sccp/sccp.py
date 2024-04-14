@@ -42,6 +42,14 @@ Lattice = dict[IROperand, LatticeItem]
 
 
 class SCCP(IRPass):
+    """
+    This class implements the Sparse Conditional Constant Propagation
+    algorithm for Venom IR. It is a forward dataflow analysis that
+    propagates constant values through the IR graph. It is used to
+    optimize the IR by removing dead code and replacing variables
+    with their constant values.
+    """
+
     ctx: IRFunction
     dom: DominatorTree
     uses: dict[IRVariable, OrderedSet[IRInstruction]]
@@ -63,94 +71,61 @@ class SCCP(IRPass):
         # self._propagate_variables()
         return 0
 
-    def _propagate_variables(self):
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if inst.opcode == "store":
-                    uses = self.uses.get(inst.output, [])
-                    remove_inst = True
-                    for usage_inst in uses:
-                        if usage_inst.opcode == "phi":
-                            remove_inst = False
-                            continue
-                        for i, op in enumerate(usage_inst.operands):
-                            if op == inst.output:
-                                usage_inst.operands[i] = inst.operands[0]
-                    if remove_inst:
-                        inst.opcode = "nop"
-                        inst.operands = []
-
     def _calculate_sccp(self, entry: IRBasicBlock):
+        """
+        This method is the main entry point for the SCCP algorithm. It
+        initializes the work list and the lattice and then iterates over
+        the work list until it is empty. It then visits each basic block
+        in the CFG and processes the instructions in the block.
+
+        This method does not update the IR, it only updates the lattice
+        and the work list. The `_propagate_constants()` method is responsible
+        for updating the IR with the constant values.
+        """
         for bb in self.ctx.basic_blocks:
             bb.cfg_in_exec = OrderedSet()
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
         self.work_list.append(FlowWorkItem(dummy, entry))
 
+        # Initialize the lattice with TOP values for all variables
         for v in self.uses.keys():
             self.lattice[v] = LatticeEnum.TOP
 
+        # Iterate over the work list until it is empty
+        # Items in the work list can be either FlowWorkItem or SSAWorkListItem
         while len(self.work_list) > 0:
             workItem = self.work_list.pop()
             if isinstance(workItem, FlowWorkItem):
-                start = workItem.start
-                end = workItem.end
-                if start in end.cfg_in_exec:
-                    continue
-                end.cfg_in_exec.add(start)
-
-                for inst in end.instructions:
-                    if inst.opcode == "phi":
-                        self._visitPhi(inst)
-
-                if len(end.cfg_in_exec) == 1:
-                    for inst in end.instructions:
-                        if inst.opcode == "phi":
-                            continue
-                        self._visitExpr(inst)
-
-                if len(end.cfg_out) == 1:
-                    self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
+                self._handle_flow_work_item(workItem)
             elif isinstance(workItem, SSAWorkListItem):
-                if workItem.inst.opcode == "phi":
-                    self._visitPhi(workItem.inst)
-                elif len(workItem.basic_block.cfg_in_exec) > 0:
-                    self._visitExpr(workItem.inst)
+                self._handle_SSA_work_item(workItem)
 
-    def _propagate_constants(self):
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                self._replace_constants(inst, self.lattice)
-
-    def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
-        if inst.opcode == "jnz":
-            lat = lattice[inst.operands[0]]
-            if isinstance(lat, IRLiteral):
-                if lat.value == 0:
-                    target = inst.operands[2]
-                else:
-                    target = inst.operands[1]
-                inst.opcode = "jmp"
-                inst.operands = [target]
-                self.cfg_dirty = True
-        elif inst.opcode == "assert":
-            lat = lattice[inst.operands[0]]
-            if isinstance(lat, IRLiteral):
-                if lat.value > 0:
-                    inst.opcode = "nop"
-                else:
-                    inst.opcode = "abort"
-
-                inst.operands = []
-
-        elif inst.opcode == "phi":
+    def _handle_flow_work_item(self, workItem: FlowWorkItem):
+        start = workItem.start
+        end = workItem.end
+        if start in end.cfg_in_exec:
             return
+        end.cfg_in_exec.add(start)
 
-        for i, op in enumerate(inst.operands):
-            if isinstance(op, IRVariable):
-                lat = lattice[op]
-                if isinstance(lat, IRLiteral):
-                    inst.operands[i] = lat
+        for inst in end.instructions:
+            if inst.opcode == "phi":
+                self._visitPhi(inst)
+
+        if len(end.cfg_in_exec) == 1:
+            for inst in end.instructions:
+                if inst.opcode == "phi":
+                    continue
+                self._visitExpr(inst)
+
+        if len(end.cfg_out) == 1:
+            self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
+
+    def _handle_SSA_work_item(self, workItem: SSAWorkListItem):
+        if workItem.inst.opcode == "phi":
+            self._visitPhi(workItem.inst)
+        elif len(workItem.basic_block.cfg_in_exec) > 0:
+            self._visitExpr(workItem.inst)
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
@@ -250,12 +225,79 @@ class SCCP(IRPass):
             self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
 
     def _compute_uses(self, dom: DominatorTree):
+        """
+        This method computes the uses for each variable in the IR.
+        It iterates over the dominator tree and collects all the
+        instructions that use each variable.
+        """
         self.uses = {}
         for bb in dom.dfs_walk:
             for var, insts in bb.get_uses().items():
                 if var not in self.uses:
                     self.uses[var] = OrderedSet()
                 self.uses[var].update(insts)
+
+    def _propagate_constants(self):
+        """
+        This method iterates over the IR and replaces constant values
+        with their actual values. It also replaces conditional jumps
+        with unconditional jumps if the condition is a constant value.
+        """
+        for bb in self.dom.dfs_walk:
+            for inst in bb.instructions:
+                self._replace_constants(inst, self.lattice)
+
+    def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
+        """
+        This method replaces constant values in the instruction with
+        their actual values. It also updates the instruction opcode in
+        case of jumps and asserts as needed.
+        """
+        if inst.opcode == "jnz":
+            lat = lattice[inst.operands[0]]
+            if isinstance(lat, IRLiteral):
+                if lat.value == 0:
+                    target = inst.operands[2]
+                else:
+                    target = inst.operands[1]
+                inst.opcode = "jmp"
+                inst.operands = [target]
+                self.cfg_dirty = True
+        elif inst.opcode == "assert":
+            lat = lattice[inst.operands[0]]
+            if isinstance(lat, IRLiteral):
+                if lat.value > 0:
+                    inst.opcode = "nop"
+                else:
+                    inst.opcode = "abort"
+
+                inst.operands = []
+
+        elif inst.opcode == "phi":
+            return
+
+        for i, op in enumerate(inst.operands):
+            if isinstance(op, IRVariable):
+                lat = lattice[op]
+                if isinstance(lat, IRLiteral):
+                    inst.operands[i] = lat
+
+    def _propagate_variables(self):
+        for bb in self.dom.dfs_walk:
+            for inst in bb.instructions:
+                if inst.opcode == "store":
+                    uses = self.uses.get(inst.output, [])
+                    remove_inst = True
+                    for usage_inst in uses:
+                        if usage_inst.opcode == "phi":
+                            remove_inst = False
+                            continue
+                        for i, op in enumerate(usage_inst.operands):
+                            if op == inst.output:
+                                usage_inst.operands[i] = inst.operands[0]
+                    if remove_inst:
+                        inst.opcode = "nop"
+                        inst.operands = []
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
