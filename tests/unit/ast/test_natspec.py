@@ -431,8 +431,8 @@ def test_natspec_parsed_implicitly():
         parse_natspec(code)
 
     # check we can get ast
-    compile_code(code, output_formats=["annotated_ast_dict"])
+    compile_code(code, output_formats=["ast_dict"])
 
     # anything beyond ast is blocked
     with pytest.raises(NatSpecSyntaxException):
-        compile_code(code, output_formats=["ir_dict"])
+        compile_code(code, output_formats=["annotated_ast_dict"])

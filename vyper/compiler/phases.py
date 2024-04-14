@@ -152,8 +152,18 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
+    def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
+        module = generate_annotated_ast(self.vyper_module, self.input_bundle)
+        nspec = natspec.parse_natspec(module)
+        return nspec, module
+
+    @cached_property
+    def natspec(self) -> natspec.NatspecOutput:
+        return self._annotate[0]
+
+    @cached_property
     def annotated_vyper_module(self) -> vy_ast.Module:
-        return generate_annotated_ast(self.vyper_module, self.input_bundle)
+        return self._annotate[1]
 
     @cached_property
     def compilation_target(self):
@@ -169,10 +179,6 @@ class CompilerData:
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
         return set_data_positions(module_ast, self.storage_layout_override)
-
-    @cached_property
-    def natspec(self) -> natspec.NatspecOutput:
-        return natspec.parse_natspec(self.annotated_vyper_module)
 
     @property
     def global_ctx(self) -> ModuleT:
