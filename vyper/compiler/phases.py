@@ -5,6 +5,7 @@ from pathlib import Path, PurePath
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
@@ -169,10 +170,16 @@ class CompilerData:
         module_ast = self.compilation_target
         return set_data_positions(module_ast, self.storage_layout_override)
 
+    @cached_property
+    def natspec(self) -> natspec.NatspecOutput:
+        return natspec.parse_natspec(self.annotated_vyper_module)
+
     @property
     def global_ctx(self) -> ModuleT:
         # ensure storage layout is computed
         _ = self.storage_layout
+        # ensure natspec is computed
+        _ = self.natspec
         return self.annotated_vyper_module._metadata["type"]
 
     @cached_property

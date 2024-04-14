@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
+from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.exceptions import NatSpecSyntaxException
 
@@ -65,10 +66,10 @@ def parse_natspec(code):
 
 
 def test_documentation_example_output():
-    userdoc, devdoc = parse_natspec(test_code)
+    natspec = parse_natspec(test_code)
 
-    assert userdoc == expected_userdoc
-    assert devdoc == expected_devdoc
+    assert natspec.userdoc == expected_userdoc
+    assert natspec.devdoc == expected_devdoc
 
 
 def test_no_tags_implies_notice():
@@ -84,13 +85,13 @@ def foo():
     pass
     """
 
-    userdoc, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert userdoc == {
+    assert natspec.userdoc == {
         "methods": {"foo()": {"notice": "This one too!"}},
         "notice": "Because there is no tag, this docstring is handled as a notice.",
     }
-    assert not devdoc
+    assert natspec.devdoc == {}
 
 
 def test_whitespace():
@@ -111,9 +112,9 @@ We don't mind!
 @author Mr No-linter
                 '''
 """
-    _, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert devdoc == {
+    assert natspec.devdoc == {
         "author": "Mr No-linter",
         "details": "Whitespace gets cleaned up, people can use awful formatting. We don't mind!",
     }
@@ -131,9 +132,9 @@ def foo(bar: int128, baz: uint256, potato: bytes32):
     pass
     """
 
-    _, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert devdoc == {
+    assert natspec.devdoc == {
         "methods": {
             "foo(int128,uint256,bytes32)": {
                 "details": "we didn't document potato, but that's ok",
@@ -154,9 +155,9 @@ def foo(bar: int128, baz: uint256) -> (int128, uint256):
     return bar, baz
     """
 
-    _, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert devdoc == {
+    assert natspec.devdoc == {
         "methods": {
             "foo(int128,uint256)": {"returns": {"_0": "value of bar", "_1": "value of baz"}}
         }
@@ -176,9 +177,9 @@ def notfoo(bar: int128, baz: uint256):
     pass
     """
 
-    _, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert devdoc["methods"] == {"foo(int128,uint256)": {"details": "I will be parsed."}}
+    assert natspec.devdoc["methods"] == {"foo(int128,uint256)": {"details": "I will be parsed."}}
 
 
 def test_partial_natspec():
@@ -276,9 +277,9 @@ def foo():
     pass
     """
 
-    _, devdoc = parse_natspec(code)
+    natspec = parse_natspec(code)
 
-    assert devdoc == {"license": license}
+    assert natspec.devdoc == {"license": license}
 
 
 fields = ["title", "author", "license", "notice", "dev"]
@@ -417,3 +418,21 @@ def foo() -> (int128,uint256):
         NatSpecSyntaxException, match="Number of documented return values exceeds actual number"
     ):
         parse_natspec(code)
+
+
+def test_natspec_parsed_implicitly():
+    # test natspec is parsed even if not explicitly requested
+    code = """
+'''
+@noticee x
+'''
+    """
+    with pytest.raises(NatSpecSyntaxException):
+        parse_natspec(code)
+
+    # check we can get ast
+    compile_code(code, output_formats=["annotated_ast_dict"])
+
+    # anything beyond ast is blocked
+    with pytest.raises(NatSpecSyntaxException):
+        compile_code(code, output_formats=["ir_dict"])
