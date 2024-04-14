@@ -68,6 +68,7 @@ class SCCP(IRPass):
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
         self._propagate_constants()
+
         # self._propagate_variables()
         return 0
 
@@ -218,10 +219,7 @@ class SCCP(IRPass):
         return ret  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        if inst.output not in self.uses:
-            self.uses[inst.output] = OrderedSet()  # type: ignore
-
-        for target_inst in self.uses[inst.output]:  # type: ignore
+        for target_inst in self._get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
 
     def _compute_uses(self, dom: DominatorTree):
@@ -233,9 +231,12 @@ class SCCP(IRPass):
         self.uses = {}
         for bb in dom.dfs_walk:
             for var, insts in bb.get_uses().items():
-                if var not in self.uses:
-                    self.uses[var] = OrderedSet()
-                self.uses[var].update(insts)
+                self._get_uses(var).update(insts)
+
+    def _get_uses(self, var: IRVariable):
+        if var not in self.uses:
+            self.uses[var] = OrderedSet()
+        return self.uses[var]
 
     def _propagate_constants(self):
         """
@@ -286,7 +287,7 @@ class SCCP(IRPass):
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 if inst.opcode == "store":
-                    uses = self.uses.get(inst.output, [])
+                    uses = self._get_uses(inst.output)
                     remove_inst = True
                     for usage_inst in uses:
                         if usage_inst.opcode == "phi":
