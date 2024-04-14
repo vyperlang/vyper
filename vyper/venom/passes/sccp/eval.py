@@ -19,13 +19,6 @@ def _signed_to_unsigned(value: int) -> int:
         return value + SizeLimits.CEILING_UINT256
 
 
-def _wrap_uint_unaop(operation):
-    def wrapper(ops: list[IROperand]) -> int:
-        return (operation(ops[0].value)) & SizeLimits.MAX_UINT256
-
-    return wrapper
-
-
 def _wrap_int_binop(operation):
     def wrapper(ops: list[IROperand]) -> int:
         first = _unsigned_to_signed(ops[1].value)
