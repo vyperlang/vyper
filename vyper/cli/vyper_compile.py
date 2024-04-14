@@ -138,7 +138,7 @@ def _parse_args(argv):
     )
     parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
-        "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
+        "--path", "-p", help="Add a path to the compiler's search path", action="append", dest="paths"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
