@@ -7,7 +7,10 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class Mem2Stack(IRPass):
-    """ """
+    """
+    This pass promoted memory operations to variable operations, when possible.
+    It does yet do any memory aliasing analysis, so it is conservative.
+    """
 
     ctx: IRFunction
     dom: DominatorTree
@@ -20,7 +23,7 @@ class Mem2Stack(IRPass):
 
         calculate_cfg(ctx)
         self.dom = DominatorTree.build_dominator_tree(ctx, entry)
-        # self._propagate_variables()
+
         dfg = DFG.build_dfg(ctx)
         self.dfg = dfg
 
@@ -34,26 +37,7 @@ class Mem2Stack(IRPass):
 
         self._compute_stores()
 
-        # self._rename_vars(entry)
-
         return 0
-
-    def _propagate_variables(self):
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if inst.opcode == "store":
-                    uses = self.dfg.get_uses(inst.output)
-                    remove_inst = True
-                    for usage_inst in uses:
-                        if usage_inst.opcode == "phi":
-                            remove_inst = False
-                            continue
-                        for i, op in enumerate(usage_inst.operands):
-                            if op == inst.output:
-                                usage_inst.operands[i] = inst.operands[0]
-                    if remove_inst:
-                        inst.opcode = "nop"
-                        inst.operands = []
 
     def _process_alloca_var(self, dfg: DFG, var: IRVariable, alloca_inst: IRInstruction):
         uses = dfg.get_uses(var)
@@ -64,8 +48,6 @@ class Mem2Stack(IRPass):
         elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
-            # print(f"Processing alloca var {var_name}")
-            # print(uses)
             for inst in uses:
                 if inst.opcode == "mstore":
                     inst.opcode = "store"
