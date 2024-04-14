@@ -309,8 +309,8 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        # if self.liveness:
-        #     return f"{s: <30} # {self.liveness}"
+        if self.liveness:
+            return f"{s: <30} # {self.liveness}"
 
         return s
 
