@@ -352,7 +352,7 @@ class VenomCompiler:
         # Step 1: Apply instruction special stack manipulations
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
-            operands = inst.get_non_label_operands()
+            operands = list(inst.get_non_label_operands())
         elif opcode == "alloca":
             offset, _size = inst.operands
             operands = [offset]
@@ -381,7 +381,7 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phis = inst.get_inputs()
+            phis = list(inst.get_inputs())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will

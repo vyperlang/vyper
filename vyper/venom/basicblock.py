@@ -223,23 +223,23 @@ class IRInstruction:
     def volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS
 
-    def get_label_operands(self) -> list[IRLabel]:
+    def get_label_operands(self) -> Iterator[IRLabel]:
         """
         Get all labels in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRLabel)]
+        return (op for op in self.operands if isinstance(op, IRLabel))
 
-    def get_non_label_operands(self) -> list[IROperand]:
+    def get_non_label_operands(self) -> Iterator[IROperand]:
         """
         Get input operands for instruction which are not labels
         """
-        return [op for op in self.operands if not isinstance(op, IRLabel)]
+        return (op for op in self.operands if not isinstance(op, IRLabel))
 
-    def get_inputs(self) -> list[IRVariable]:
+    def get_inputs(self) -> Iterator[IRVariable]:
         """
         Get all input operands for instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRVariable)]
+        return (op for op in self.operands if isinstance(op, IRVariable))
 
     def get_outputs(self) -> list[IROperand]:
         """
@@ -269,7 +269,7 @@ class IRInstruction:
                 self.operands[i] = replacements[operand.value]
 
     @property
-    def phi_operands(self) -> Generator[tuple[IRLabel, IROperand], None, None]:
+    def phi_operands(self) -> Iterator[tuple[IRLabel, IROperand]]:
         """
         Get phi operands for instruction.
         """
@@ -470,10 +470,7 @@ class IRBasicBlock:
     def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
         uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
         for inst in self.instructions:
-            ops = inst.get_non_label_operands()
-            for op in ops:
-                if not isinstance(op, IRVariable):
-                    continue
+            for op in inst.get_inputs():
                 if op not in uses:
                     uses[op] = OrderedSet()
                 uses[op].add(inst)
