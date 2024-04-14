@@ -103,6 +103,9 @@ class SCCP(IRPass):
                 self._handle_SSA_work_item(workItem)
 
     def _handle_flow_work_item(self, workItem: FlowWorkItem):
+        """
+        This method handles a FlowWorkItem.
+        """
         start = workItem.start
         end = workItem.end
         if start in end.cfg_in_exec:
@@ -112,6 +115,10 @@ class SCCP(IRPass):
         for inst in end.instructions:
             if inst.opcode == "phi":
                 self._visitPhi(inst)
+            else:
+                # Stop at the first non-phi instruction
+                # as phis are only valid at the beginning of a block
+                break 
 
         if len(end.cfg_in_exec) == 1:
             for inst in end.instructions:
@@ -123,6 +130,9 @@ class SCCP(IRPass):
             self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
 
     def _handle_SSA_work_item(self, workItem: SSAWorkListItem):
+        """
+        This method handles a SSAWorkListItem.
+        """
         if workItem.inst.opcode == "phi":
             self._visitPhi(workItem.inst)
         elif len(workItem.basic_block.cfg_in_exec) > 0:
@@ -188,6 +198,12 @@ class SCCP(IRPass):
                 self.lattice[inst.output] = LatticeEnum.BOTTOM
 
     def _eval(self, inst) -> LatticeItem:
+        """
+        This method evaluates an arithmetic operation and returns the result.
+        At the same time it updates the lattice with the result and adds the
+        instruction to the SSA work list if the knowledge about the variable 
+        changed.
+        """
         opcode = inst.opcode
 
         ops = []
@@ -284,6 +300,9 @@ class SCCP(IRPass):
                     inst.operands[i] = lat
 
     def _propagate_variables(self):
+        """
+        Copy elimination. #NOTE: Not working yet, but it's also not needed atm. 
+        """
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 if inst.opcode == "store":
