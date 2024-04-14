@@ -553,17 +553,6 @@ def _convert_ir_bb(ctx, ir, symbols):
             _global_symbols[ir.value] = ptr
 
         return _global_symbols.get(ir.value) or symbols.get(ir.value)
-    # elif isinstance(ir.value, str):
-    #     if ir.value.startswith("$alloca") and ir.value not in symbols:
-    #         alloca = ir.passthrough_metadata["alloca"]
-    #         ptr = ctx.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-    #         symbols[ir.value] = ptr
-    #     elif ir.value.startswith("$palloca") and ir.value not in symbols:
-    #         alloca = ir.passthrough_metadata["alloca"]
-    #         ptr = ctx.get_basic_block().append_instruction("store", alloca.offset)
-    #         symbols[ir.value] = ptr
-
-    #     return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
