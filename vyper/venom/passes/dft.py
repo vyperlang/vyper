@@ -4,6 +4,8 @@ from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, 
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
+COMMUTATIVE_OPS = frozenset(["mul", "add", "xor", "or", "and", "eq"])
+
 
 class DFTPass(IRPass):
     inst_order: dict[IRInstruction, int]
@@ -36,6 +38,12 @@ class DFTPass(IRPass):
             # bb.instructions.append(inst)
             self.inst_order[inst] = 0
             return
+
+        if inst.opcode in COMMUTATIVE_OPS and all(isinstance(t, IRVariable) for t in inst.operands):
+            liveness_order = list(inst.liveness)
+            # higher index in liveness_order means shorter time to live
+            ttl = lambda item: -liveness_order.index(item)  # noqa: E731
+            inst.operands.sort(key=ttl)
 
         for op in inst.get_inputs():
             target = self.dfg.get_producing_instruction(op)

@@ -548,6 +548,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif isinstance(ir.value, str) and ir.value in symbols:
         return symbols[ir.value]
     elif ir.is_literal:
+        # return ctx.get_basic_block().append_instruction("store", IRLiteral(ir.value))
         return IRLiteral(ir.value)
     else:
         raise Exception(f"Unknown IR node: {ir}")
