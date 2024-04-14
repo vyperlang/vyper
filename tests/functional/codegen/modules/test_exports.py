@@ -437,5 +437,6 @@ exports: lib1.__interface__
     c = get_contract(main, input_bundle=input_bundle)
     assert c.foo() == 1
     assert c.counter() == 5
+    # call `c.__default__()`
     w3.eth.send_transaction({"to": c.address})
     assert c.counter() == 6
