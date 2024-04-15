@@ -39,13 +39,12 @@ def _wrap_binop(operation):
 
 def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
-    bits = ops[1].value
+    bytes = ops[1].value
 
-    if bits > 31:
+    if bytes > 31:
         return value
 
-    bits = bits * 8 + 7
-    sign_bit = 1 << bits
+    sign_bit = 1 << (bytes * 8 + 7)
     if value & sign_bit:
         value |= SizeLimits.CEILING_UINT256 - sign_bit
     else:
@@ -55,7 +54,7 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
 
 def _evm_iszero(ops: list[IROperand]) -> int:
-    return 1 if ops[0].value == 0 else 0
+    return int(ops[0].value == 0)
 
 
 def _evm_shr(ops: list[IROperand]) -> int:
