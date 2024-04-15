@@ -3,10 +3,12 @@ from decimal import getcontext
 
 import pytest
 
+import vyper.compiler.settings as compiler_settings
 from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     DecimalOverrideException,
+    FeatureException,
     InvalidOperation,
     OverflowException,
     TypeMismatch,
@@ -317,3 +319,22 @@ def foo():
         compile_code(code)
 
     assert e.value._hint == "did you mean `5.0 / 9.0`?"
+
+
+def test_decimals_blocked():
+    code = """
+@external
+def foo(x: decimal):
+    pass
+    """
+    # enable_decimals default to False normally, but defaults to True in the
+    # test suite. this test manually overrides the default value to test the
+    # "normal" behavior of enable_decimals outside of the test suite.
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True

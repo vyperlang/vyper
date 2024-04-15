@@ -6,6 +6,7 @@ import pytest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
+import vyper.compiler.settings as vyper_compiler_settings
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, EvmError
 from tests.evm_backends.pyevm_env import PyEvmEnv
@@ -14,7 +15,8 @@ from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
+from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
+from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
@@ -45,7 +47,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--evm-version",
-        choices=list(evm_opcodes.EVM_VERSIONS.keys()),
+        choices=list(EVM_VERSIONS.keys()),
         default="shanghai",
         help="set evm version",
     )
@@ -65,17 +67,17 @@ def output_formats():
     return output_formats
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
-    _set_debug_mode(debug)
+    return debug
 
 
 @pytest.fixture(scope="session")
@@ -217,11 +219,17 @@ def get_contract_from_ir(env, optimize):
     return ir_compiler
 
 
-@pytest.fixture(scope="module")
-def compiler_settings(optimize, experimental_codegen, evm_version):
-    return Settings(
-        optimize=optimize, evm_version=evm_version, experimental_codegen=experimental_codegen
+@pytest.fixture(scope="module", autouse=True)
+def compiler_settings(optimize, experimental_codegen, evm_version, debug):
+    vyper_compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+    settings = Settings(
+        optimize=optimize,
+        evm_version=evm_version,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
     )
+    set_global_settings(settings)
+    return settings
 
 
 @pytest.fixture(scope="module")
@@ -232,6 +240,7 @@ def get_contract(env, optimize, output_formats, compiler_settings):
             settings = Settings(
                 **dict(settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
+            set_global_settings(settings)
         return env.deploy_source(source_code, output_formats, settings, *args, **kwargs)
 
     return fn

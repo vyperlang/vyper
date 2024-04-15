@@ -20,6 +20,7 @@ from vyper.exceptions import (
     ExceptionList,
     ImmutableViolation,
     InitializerException,
+    InterfaceViolation,
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
@@ -43,7 +44,7 @@ from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
 from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.local import ExprVisitor, check_module_uses, validate_functions
+from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -102,7 +103,7 @@ def _analyze_module_r(
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
         if not is_interface:
-            validate_functions(module_ast)
+            analyze_functions(module_ast)
             analyzer.validate_initialized_modules()
             analyzer.validate_used_modules()
 
@@ -315,7 +316,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list = ExceptionList()
             for used_module_info, uses_info in should_use.values():
                 msg = f"`{used_module_info.alias}` is declared as used, but "
-                msg += f"it is not actually used in {module_t}!"
+                msg += f"its state is not actually used in {module_t}!"
                 hint = f"delete `uses: {used_module_info.alias}`"
                 err_list.append(BorrowException(msg, uses_info.node, hint=hint))
 
@@ -530,43 +531,76 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_ExportsDecl(self, node):
         items = vy_ast.as_tuple(node.annotation)
-        funcs = []
+        exported_funcs = []
         used_modules = OrderedSet()
+
+        # CMC 2024-04-13 TODO: reduce nesting in this function
 
         for item in items:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
             info = get_expr_info(item, is_callable=True)
+
             if info.var_info is not None:
-                decl_node = info.var_info.decl_node
+                decl = info.var_info.decl_node
                 if not info.var_info.is_public:
-                    raise StructureException("not a public variable!", decl_node, item)
-                func_t = decl_node._expanded_getter._metadata["func_type"]
-
-            else:
+                    raise StructureException("not a public variable!", decl, item)
+                funcs = [decl._expanded_getter._metadata["func_type"]]
+            elif isinstance(info.typ, ContractFunctionT):
                 # regular function
-                func_t = info.typ
-                decl_node = func_t.decl_node
+                funcs = [info.typ]
+            elif isinstance(info.typ, InterfaceT):
+                if not isinstance(item, vy_ast.Attribute):
+                    raise StructureException(
+                        "invalid export",
+                        hint="exports should look like <module>.<function | interface>",
+                    )
 
-            if not isinstance(func_t, ContractFunctionT):
-                raise StructureException(f"not a function: `{func_t}`", decl_node, item)
-            if not func_t.is_external:
-                raise StructureException("can't export non-external functions!", decl_node, item)
+                module_info = get_expr_info(item.value).module_info
+                if module_info is None:
+                    raise StructureException("not a valid module!", item.value)
 
-            self._add_exposed_function(func_t, item, relax=False)
-            with tag_exceptions(item):  # tag with specific item
-                self._self_t.typ.add_member(func_t.name, func_t)
+                if info.typ not in module_info.typ.implemented_interfaces:
+                    iface_str = item.node_source_code
+                    module_str = item.value.node_source_code
+                    msg = f"requested `{iface_str}` but `{module_str}`"
+                    msg += f" does not implement `{iface_str}`!"
+                    raise InterfaceViolation(msg, item)
 
-            funcs.append(func_t)
+                module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
+                # find the specific implementation of the function in the module
+                funcs = [
+                    module_exposed_fns[fn.name]
+                    for fn in info.typ.functions.values()
+                    if fn.is_external
+                ]
+            else:
+                raise StructureException(
+                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
+                )
 
-            # check module uses
-            var_accesses = func_t.get_variable_accesses()
-            if any(s.variable.is_state_variable() for s in var_accesses):
-                module_info = check_module_uses(item)
-                assert module_info is not None  # guaranteed by above checks
-                used_modules.add(module_info)
+            for func_t in funcs:
+                if not func_t.is_external:
+                    raise StructureException(
+                        "can't export non-external functions!", func_t.decl_node, item
+                    )
 
-        node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
+                self._add_exposed_function(func_t, item, relax=False)
+                with tag_exceptions(item):  # tag exceptions with specific item
+                    self._self_t.typ.add_member(func_t.name, func_t)
+
+                    exported_funcs.append(func_t)
+
+                    # check module uses
+                    if func_t.uses_state():
+                        module_info = check_module_uses(item)
+
+                        # guaranteed by above checks:
+                        assert module_info is not None
+
+                        used_modules.add(module_info)
+
+        node._metadata["exports_info"] = ExportsInfo(exported_funcs, used_modules)
 
     @property
     def _self_t(self):
@@ -575,7 +609,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_exposed_function(self, func_t, node, relax=True):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
-        if (prev_decl := self._exposed_functions.get(func_t)) is not None:
+        if not relax and (prev_decl := self._exposed_functions.get(func_t)) is not None:
             raise StructureException("already exported!", node, prev_decl=prev_decl)
 
         self._exposed_functions[func_t] = node

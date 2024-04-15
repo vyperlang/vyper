@@ -104,7 +104,6 @@ setup(
     entry_points={
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
-            "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]

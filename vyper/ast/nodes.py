@@ -421,6 +421,11 @@ class VyperNode:
         except KeyError:
             raise UnfoldableNode("not foldable", self)
 
+    def reduced(self) -> "ExprNode":
+        if self.has_folded_value:
+            return self.get_folded_value()
+        return self
+
     def _set_folded_value(self, node: "VyperNode") -> None:
         # sanity check this is only called once
         assert "folded_value" not in self._metadata
