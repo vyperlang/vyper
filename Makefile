@@ -17,7 +17,10 @@ dev-init:
 test:
 	pytest
 
-lint: mypy black flake8 isort
+lint: black
+	$(MAKE) mypy 
+	$(MAKE) flake8
+	$(MAKE) isort	
 
 mypy:
 	mypy \
@@ -52,7 +55,8 @@ release: clean
 	twine check dist/*
 	#twine upload dist/*
 
-freeze: clean init
+freeze: clean
+	$(MAKE) init
 	echo Generating binary...
 	export OS="$$(uname -s | tr A-Z a-z)" && \
 	export VERSION="$$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" && \
