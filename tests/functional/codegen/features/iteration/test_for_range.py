@@ -283,7 +283,7 @@ def test():
     """
     if experimental_codegen:
         try:
-            c = get_contract(code)
+            get_contract(code)
         except StaticAssertionException as e:
             assert "assertion found to fail at compile time" in e.args[0]
     else:
@@ -438,7 +438,7 @@ def foo() -> DynArray[int256, 10]:
 
     if experimental_codegen:
         try:
-            c = get_contract(code)
+            get_contract(code)
         except StaticAssertionException as e:
             assert "clamp sle end" in e.args[0]
     else:
