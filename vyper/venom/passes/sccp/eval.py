@@ -79,7 +79,7 @@ def _evm_sar(ops: list[IROperand]) -> int:
     shift_len = ops[1].value
     if shift_len >= 256:
         return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
-    return (value << shift_len) & SizeLimits.MAX_UINT256
+    return (value >> shift_len) & SizeLimits.MAX_UINT256
 
 
 def _evm_not(ops: list[IROperand]) -> int:
