@@ -6,7 +6,6 @@ import pytest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
-import vyper.compiler.settings as vyper_compiler_settings
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, EvmError
 from tests.evm_backends.pyevm_env import PyEvmEnv
@@ -16,7 +15,6 @@ from vyper import compiler
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
-from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
@@ -47,7 +45,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--evm-version",
-        choices=list(EVM_VERSIONS.keys()),
+        choices=list(evm_opcodes.EVM_VERSIONS.keys()),
         default="shanghai",
         help="set evm version",
     )
@@ -221,7 +219,7 @@ def get_contract_from_ir(env, optimize):
 
 @pytest.fixture(scope="module", autouse=True)
 def compiler_settings(optimize, experimental_codegen, evm_version, debug):
-    vyper_compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+    compiler.settings.DEFAULT_ENABLE_DECIMALS = True
     settings = Settings(
         optimize=optimize,
         evm_version=evm_version,
