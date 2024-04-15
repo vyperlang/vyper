@@ -17,6 +17,16 @@ def f0():
         compile_code(code)
 
 
+def test_fold_nonliteral(get_contract):
+    # test we can fold non-literal constants
+    code = """
+N: constant(uint256) = 3
+N2: public(constant(uint256)) = N**N
+    """
+    c = get_contract(code)
+    assert c.N2() == 3**3
+
+
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 255))
 def test_exp_uint256(get_contract, tx_failed, power):
