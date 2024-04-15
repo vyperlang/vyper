@@ -9,7 +9,7 @@ from vyper.compiler.settings import Settings
 from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
-PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501
+PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
 PRECOMPILED_BYTECODE = """0x61004456600436101561000d57610035565b60046000601c376000513461003b576319ff1d2181186100335760005460e052602060e0f35b505b60006000fd5b600080fd5b61000461004403610004600039610004610044036000f3"""  # noqa: E501
 PRECOMPILED_BYTECODE_RUNTIME = """0x600436101561000d57610035565b60046000601c376000513461003b576319ff1d2181186100335760005460e052602060e0f35b505b60006000fd5b600080fd"""  # noqa: E501
 PRECOMPILED = bytes.fromhex(PRECOMPILED_BYTECODE_RUNTIME[2:])
