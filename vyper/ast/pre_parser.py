@@ -205,7 +205,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                             raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
-                            raise StructureException("Invalid evm version: `{evm_version}`", start)
+                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
                     elif pragma.startswith("experimental-codegen"):
                         if settings.experimental_codegen is not None:
