@@ -38,6 +38,10 @@ class Mem2Stack(IRPass):
         return 0
 
     def _process_alloca_var(self, dfg: DFG, var: IRVariable):
+        """
+        Process alloca allocated variable. If it is only used by mstore/mload/return
+        instructions, it is promoted to a stack variable. Otherwise, it is left as is.
+        """
         uses = dfg.get_uses(var)
         if all([inst.opcode == "mload" for inst in uses]):
             return
