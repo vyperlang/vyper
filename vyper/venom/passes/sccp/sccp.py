@@ -118,7 +118,7 @@ class SCCP(IRPass):
             else:
                 # Stop at the first non-phi instruction
                 # as phis are only valid at the beginning of a block
-                break 
+                break
 
         if len(end.cfg_in_exec) == 1:
             for inst in end.instructions:
@@ -201,7 +201,7 @@ class SCCP(IRPass):
         """
         This method evaluates an arithmetic operation and returns the result.
         At the same time it updates the lattice with the result and adds the
-        instruction to the SSA work list if the knowledge about the variable 
+        instruction to the SSA work list if the knowledge about the variable
         changed.
         """
         opcode = inst.opcode
@@ -301,7 +301,7 @@ class SCCP(IRPass):
 
     def _propagate_variables(self):
         """
-        Copy elimination. #NOTE: Not working yet, but it's also not needed atm. 
+        Copy elimination. #NOTE: Not working yet, but it's also not needed atm.
         """
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:

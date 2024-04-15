@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -66,4 +66,3 @@ class Mem2Stack(IRPass):
                         -1,
                     )
                     inst.operands[1] = new_var
-
