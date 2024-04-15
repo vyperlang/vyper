@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 
+from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
@@ -197,7 +198,7 @@ class IRInstruction:
     parent: "IRBasicBlock"
     fence_id: int
     annotation: Optional[str]
-    ast_source: Optional[int]
+    ast_source: Optional[IRnode]
     error_msg: Optional[str]
 
     def __init__(
@@ -291,6 +292,15 @@ class IRInstruction:
             if self.operands[i] == label:
                 del self.operands[i : i + 2]
                 return
+            
+    def get_ast_source(self) -> Optional[IRnode]:
+        if self.ast_source:
+            return self.ast_source
+        idx = self.parent.instructions.index(self)
+        for inst in reversed(self.parent.instructions[:idx]):
+            if inst.ast_source:
+                return inst.ast_source
+        return self.parent.parent.ast_source
 
     def __repr__(self) -> str:
         s = ""

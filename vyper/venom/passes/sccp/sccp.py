@@ -287,7 +287,7 @@ class SCCP(IRPass):
                     inst.opcode = "nop"
                 else:
                     raise StaticAssertionException(
-                        "assertion found to fail at compile time", inst.ast_source
+                        f"assertion found to fail at compile time ({inst.error_msg}).", inst.get_ast_source()
                     )
 
                 inst.operands = []
