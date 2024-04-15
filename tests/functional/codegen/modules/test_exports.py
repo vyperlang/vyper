@@ -198,11 +198,11 @@ def qux() -> uint256:
 
 
 @pytest.fixture
-def send_failing_tx_to_signature(w3, tx_failed):
+def send_failing_tx_to_signature(env, tx_failed):
     def _send_transaction(c, method_sig):
         data = method_id(method_sig)
         with tx_failed():
-            w3.eth.send_transaction({"to": c.address, "data": data})
+            env.execute_code(c.address, data=data)
 
     return _send_transaction
 
@@ -407,11 +407,11 @@ def __init__():
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)
     assert c.counter() == 100
-    c.foo(transact={})
+    c.foo()
     assert c.counter() == 101
 
 
-def test_export_module_with_default(w3, get_contract, make_input_bundle):
+def test_export_module_with_default(env, get_contract, make_input_bundle):
     lib1 = """
 counter: public(uint256)
 
@@ -438,5 +438,5 @@ exports: lib1.__interface__
     assert c.foo() == 1
     assert c.counter() == 5
     # call `c.__default__()`
-    w3.eth.send_transaction({"to": c.address})
+    env.execute_code(c.address)
     assert c.counter() == 6
