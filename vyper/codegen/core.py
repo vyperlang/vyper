@@ -467,12 +467,11 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
         if parent.location == MEMORY:  # TODO: replace with utility function
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
                 bound = parent_abi_t.size_bound()
-                end = ["add", abi_ofst, member_abi_t.size_bound()]
-                # head + member_size must be 'le' than the upper bound of parent buffer
-                end_clamped = clamp("le", end, bound)
-                # head + member_size must be 'gt' than the head (ie no overflow due to 'add')
-                end_clamped = ["assert", ["gt", end_clamped, abi_ofst]]
-                ofst_ir = ["seq", end_clamped, add_ofst(parent, abi_ofst)]
+                ofst_ir = [
+                    "seq",
+                    slice_bounds_check(abi_ofst, member_abi_t.size_bound(), bound),
+                    add_ofst(parent, abi_ofst),
+                ]
                 ofst_ir = b1.resolve(ofst_ir)
 
     return IRnode.from_list(
@@ -1243,3 +1242,15 @@ def clamp2(lo, arg, hi, signed):
         LE = "sle" if signed else "le"
         ret = ["seq", ["assert", ["and", [GE, arg, lo], [LE, arg, hi]]], arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+# make sure we don't overrun the source buffer, checking for overflow:
+# valid inputs satisfy:
+#   `assert !(start+length > src_len || start+length < start)`
+def slice_bounds_check(start, length, src_len):
+    with start.cache_when_complex("start") as (b1, start):
+        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
+            arithmetic_overflow = ["lt", end, start]
+            buffer_oob = ["gt", end, src_len]
+            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            return b1.resolve(b2.resolve(["assert", ok]))
