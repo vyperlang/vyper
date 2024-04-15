@@ -1,5 +1,7 @@
 import pytest
 
+from vyper.exceptions import StaticAssertionException
+
 
 def test_basic_repeater(get_contract_with_gas_estimation):
     basic_repeater = """
@@ -271,7 +273,7 @@ def test():
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
-def test_for_range_oob_check(get_contract, tx_failed, typ):
+def test_for_range_oob_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
 @external
 def test():
@@ -279,9 +281,15 @@ def test():
     for i: {typ} in range(x, x + 2, bound=2):
         pass
     """
-    c = get_contract(code)
-    with tx_failed():
-        c.test()
+    if experimental_codegen:
+        try:
+            c = get_contract(code)
+        except StaticAssertionException as e:
+            assert "assertion found to fail at compile time" in e.args[0]
+    else:
+        c = get_contract(code)
+        with tx_failed():
+            c.test()
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
@@ -416,7 +424,7 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(0) == 31337
 
 
-def test_for_range_signed_int_overflow(get_contract, tx_failed):
+def test_for_range_signed_int_overflow(get_contract, tx_failed, experimental_codegen):
     code = """
 @external
 def foo() -> DynArray[int256, 10]:
@@ -427,6 +435,13 @@ def foo() -> DynArray[int256, 10]:
         res.append(i)
     return res
     """
-    c = get_contract(code)
-    with tx_failed():
-        c.foo()
+
+    if experimental_codegen:
+        try:
+            c = get_contract(code)
+        except StaticAssertionException as e:
+            assert "clamp sle end" in e.args[0]
+    else:
+        c = get_contract(code)
+        with tx_failed():
+            c.foo()
