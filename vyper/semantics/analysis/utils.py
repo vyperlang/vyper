@@ -359,7 +359,7 @@ class _ExprAnalyser:
                     # for typeclasses like bytestrings, use a generic type acceptor
                     ret.append(DArrayT(t.any(), 1))
                 else:
-                    raise CompilerPanic("busted type {t}", node)
+                    raise CompilerPanic(f"busted type {t}", node)
             return ret
 
         types_list = get_common_types(*node.elements)
