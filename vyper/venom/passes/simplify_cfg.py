@@ -85,7 +85,7 @@ class SimplifyCFGPass(IRPass):
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> None:
         self.ctx = ctx
 
-        while True:
+        for _ in range(len(ctx.basic_blocks)): # essentialy `while True`
             self._collapse_chained_blocks(entry)
             if ir_pass_remove_unreachable_blocks(ctx) == 0:
                 break
