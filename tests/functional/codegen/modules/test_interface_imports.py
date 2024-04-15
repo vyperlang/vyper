@@ -29,3 +29,32 @@ def test_foo(s: ifaces.IFoo) -> bool:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.test_foo(foo.address) is True
+
+
+def test_import_interface_types_stability(make_input_bundle, get_contract):
+    lib1 = """
+from ethereum.ercs import IERC20
+    """
+    lib2 = """
+from ethereum.ercs import IERC20
+    """
+
+    main = """
+import lib1
+import lib2
+
+from ethereum.ercs import IERC20
+
+@external
+def foo() -> bool:
+    # check that this typechecks both directions
+    a: lib1.IERC20 = IERC20(msg.sender)
+    b: lib2.IERC20 = IERC20(msg.sender)
+
+    # return the equality so we can sanity check it
+    return a == b
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.foo() is True
