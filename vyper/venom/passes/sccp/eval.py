@@ -19,7 +19,7 @@ def _signed_to_unsigned(value: int) -> int:
         return value + SizeLimits.CEILING_UINT256
 
 
-def _wrap_int_binop(operation):
+def _wrap_signed_binop(operation):
     def wrapper(ops: list[IROperand]) -> int:
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
@@ -28,7 +28,7 @@ def _wrap_int_binop(operation):
     return wrapper
 
 
-def _wrap_uint_binop(operation):
+def _wrap_binop(operation):
     def wrapper(ops: list[IROperand]) -> int:
         first = ops[1].value
         second = ops[0].value
@@ -98,27 +98,27 @@ def _evm_exp(ops: list[IROperand]) -> int:
 
 
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
-    "add": _wrap_uint_binop(operator.add),
-    "sub": _wrap_uint_binop(operator.sub),
-    "mul": _wrap_uint_binop(operator.mul),
-    "div": _wrap_uint_binop(evm_div),
-    "sdiv": _wrap_int_binop(evm_div),
-    "mod": _wrap_uint_binop(evm_mod),
-    "smod": _wrap_int_binop(evm_mod),
+    "add": _wrap_binop(operator.add),
+    "sub": _wrap_binop(operator.sub),
+    "mul": _wrap_binop(operator.mul),
+    "div": _wrap_binop(evm_div),
+    "sdiv": _wrap_signed_binop(evm_div),
+    "mod": _wrap_binop(evm_mod),
+    "smod": _wrap_signed_binop(evm_mod),
     "exp": _evm_exp,
-    "eq": _wrap_uint_binop(operator.eq),
-    "ne": _wrap_uint_binop(operator.ne),
-    "lt": _wrap_uint_binop(operator.lt),
-    "le": _wrap_uint_binop(operator.le),
-    "gt": _wrap_uint_binop(operator.gt),
-    "ge": _wrap_uint_binop(operator.ge),
-    "slt": _wrap_int_binop(operator.lt),
-    "sle": _wrap_int_binop(operator.le),
-    "sgt": _wrap_int_binop(operator.gt),
-    "sge": _wrap_int_binop(operator.ge),
-    "or": _wrap_uint_binop(operator.or_),
-    "and": _wrap_uint_binop(operator.and_),
-    "xor": _wrap_uint_binop(operator.xor),
+    "eq": _wrap_binop(operator.eq),
+    "ne": _wrap_binop(operator.ne),
+    "lt": _wrap_binop(operator.lt),
+    "le": _wrap_binop(operator.le),
+    "gt": _wrap_binop(operator.gt),
+    "ge": _wrap_binop(operator.ge),
+    "slt": _wrap_signed_binop(operator.lt),
+    "sle": _wrap_signed_binop(operator.le),
+    "sgt": _wrap_signed_binop(operator.gt),
+    "sge": _wrap_signed_binop(operator.ge),
+    "or": _wrap_binop(operator.or_),
+    "and": _wrap_binop(operator.and_),
+    "xor": _wrap_binop(operator.xor),
     "not": _evm_not,
     "signextend": _evm_signextend,
     "iszero": _evm_iszero,
