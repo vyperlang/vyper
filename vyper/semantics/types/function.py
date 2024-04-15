@@ -32,7 +32,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
-from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.primitives import BoolT, AddressT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -191,6 +191,7 @@ class ContractFunctionT(VyperType):
             "gas": KwargSettings(UINT256_T, "gas"),
             "value": KwargSettings(UINT256_T, 0),
             "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
+            "auth": KwargSettings(AddressT(), 0),
             "default_return_value": KwargSettings(self.return_type, None),
         }
 

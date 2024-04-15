@@ -203,11 +203,15 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     value = call_kwargs.value
 
     use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
+    use_authcall = call_expr.is_authcall
+    assert not (use_staticcall and use_authcall)
     if context.is_constant():
         assert use_staticcall, "typechecker missed this"
 
     if use_staticcall:
         call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
+    elif use_authcall:
+        call_op = ["authcall", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
 

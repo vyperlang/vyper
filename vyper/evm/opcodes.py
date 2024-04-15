@@ -164,6 +164,8 @@ OPCODES: OpcodeMap = {
     "RETURN": (0xF3, 2, 0, 0),
     "DELEGATECALL": (0xF4, 6, 1, 2100),
     "CREATE2": (0xF5, 4, 1, 32000),
+    "AUTH": (0xF6, 3, 1, 3100),  # TODO: assign fork
+    "AUTHCALL": (0xF7, 7, 1, 2100),  # TODO: assign fork
     "SELFDESTRUCT": (0xFF, 1, 0, 25000),
     "STATICCALL": (0xFA, 6, 1, 2100),
     "REVERT": (0xFD, 2, 0, 0),

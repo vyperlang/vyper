@@ -280,6 +280,10 @@ class _ExprAnalyser:
         call_node = node.value
         return self._find_fn(call_node)(call_node)
 
+    def types_from_AuthCall(self, node):
+        call_node = node.value
+        return self._find_fn(call_node)(call_node)
+
     def types_from_StaticCall(self, node):
         call_node = node.value
         return self._find_fn(call_node)(call_node)

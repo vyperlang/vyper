@@ -715,6 +715,9 @@ class Expr:
 
         return external_call.ir_for_external_call(call_node, context)
 
+    def parse_AuthCall(self):
+        return self.handle_external_call(self.expr, self.context)
+
     def parse_ExtCall(self):
         return self.handle_external_call(self.expr, self.context)
 

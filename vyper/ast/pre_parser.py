@@ -119,7 +119,7 @@ VYPER_CLASS_TYPES = {
 # simple statements that are replaced with `yield`
 CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 # expression types that are replaced with `await`
-CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
+CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall", "authcall": "AuthCall"}
 
 
 def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:

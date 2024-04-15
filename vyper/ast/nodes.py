@@ -1253,12 +1253,16 @@ class Call(ExprNode):
         return isinstance(self._parent, ExtCall)
 
     @property
+    def is_authcall(self):
+        return isinstance(self._parent, AuthCall)
+
+    @property
     def is_staticcall(self):
         return isinstance(self._parent, StaticCall)
 
     @property
     def is_plain_call(self):
-        return not (self.is_extcall or self.is_staticcall)
+        return not (self.is_extcall or self.is_staticcall or self.is_authcall)
 
     @property
     def kind_str(self):
@@ -1304,6 +1308,18 @@ class StaticCall(ExprNode):
         if not isinstance(self.value, Call):
             raise StructureException(
                 "`staticcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
+
+class AuthCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            # TODO: investigate wrong col_offset for `self.value`
+            raise StructureException(
+                "`extcall` must be followed by a function call",
                 self.value,
                 hint="did you forget parentheses?",
             )
