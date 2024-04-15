@@ -771,7 +771,7 @@ class Authorize(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         address = args[0]
         buf = args[1]
-        with buf.cache_when_complex("buf") as (b1, buf):
+        with ensure_in_memory(buf, context).cache_when_complex("buf") as (b1, buf):
             auth = ["auth", address, bytes_data_ptr(buf), get_bytearray_length(buf)]
             ret = IRnode.from_list(["assert", auth])
             return b1.resolve(ret)
