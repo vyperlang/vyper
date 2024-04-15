@@ -486,10 +486,10 @@ def f(x: Bytes[32 * 3]):
     assert decoded_y1 != decoded_y2
     """
     c = get_contract(code)
-    data = "d45754f8"
-    data += "20".zfill(64)
-    data += "60".zfill(64)
-    data += "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0"
+    data = (0xd45754f8).to_bytes(4, "big")
+    data += (0x20).to_bytes(32, "big")
+    data += (0x60).to_bytes(32, "big")
+    data += (0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0).to_bytes(32, "big")
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
@@ -505,13 +505,14 @@ def f(x: Bytes[32 * 5]):
     decoded_y1 = _abi_decode(y, DynArray[uint256, 3])
     """
     c = get_contract(code)
-    data = "d45754f8"
-    data += "20".zfill(64)  # tuple head
-    data += "A0".zfill(64)  # parent array length
+    data = (0xd45754f8).to_bytes(4, "big")
+    data += (0x20).to_bytes(32, "big") # tuple head
+    data += (0xA0).to_bytes(32, "big") # parent array head
     # head should be 20 and thus the decoding func will try to decode 1 word
     # over the end of the input data
     # _getelemptr_abi_helper will revert due to clamping
-    data += "40".zfill(64)  # inner array head
-    data += "3".zfill(64) * 4  # inner array payload - length: 3 | idx0: 3 | idx1: 3 | idx2: 3
+    data += (0x40).to_bytes(32, "big") # inner array head
+    # inner array payload: length: 3 | idx0: 3 | idx1: 3 | idx2: 3
+    data += (0x3).to_bytes(32, "big") * 4
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
