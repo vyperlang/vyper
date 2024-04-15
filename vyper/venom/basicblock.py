@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
@@ -292,7 +292,7 @@ class IRInstruction:
             if self.operands[i] == label:
                 del self.operands[i : i + 2]
                 return
-            
+
     def get_ast_source(self) -> Optional[IRnode]:
         if self.ast_source:
             return self.ast_source
