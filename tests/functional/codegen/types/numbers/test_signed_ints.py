@@ -8,6 +8,7 @@ from vyper import compile_code
 from vyper.exceptions import (
     InvalidOperation,
     OverflowException,
+    StaticAssertionException,
     TypeMismatch,
     ZeroDivisionException,
 )
@@ -73,7 +74,7 @@ def foo(x: int256) -> int256:
 
 # TODO: make this test pass
 @pytest.mark.parametrize("base", (0, 1))
-def test_exponent_negative_power(get_contract, tx_failed, base):
+def test_exponent_negative_power(get_contract, tx_failed, base, experimental_codegen):
     # #2985
     code = f"""
 @external
@@ -81,10 +82,16 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    c = get_contract(code)
-    # known bug: 2985
-    with tx_failed():
-        c.bar()
+    if experimental_codegen:
+        try:
+            compile_code(code)
+        except StaticAssertionException as e:
+            assert "assertion found to fail at compile time" in e.args[0]
+    else:
+        c = get_contract(code)
+        # known bug: 2985
+        with tx_failed():
+            c.bar()
 
 
 def test_exponent_min_int16(get_contract):
