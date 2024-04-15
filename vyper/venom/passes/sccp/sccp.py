@@ -3,7 +3,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -286,7 +286,9 @@ class SCCP(IRPass):
                 if lat.value > 0:
                     inst.opcode = "nop"
                 else:
-                    inst.opcode = "abort"
+                    raise StaticAssertionException(
+                        "assertion found to fail at compile time", inst.ast_source
+                    )
 
                 inst.operands = []
 

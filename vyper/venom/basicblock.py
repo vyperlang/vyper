@@ -20,7 +20,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "tstore",
         "assert",
         "assert_unreachable",
-        "abort",
         "mstore",
         "mload",
         "calldatacopy",

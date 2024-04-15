@@ -523,8 +523,6 @@ class VenomCompiler:
             assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
-        elif opcode == "abort":
-            assembly.extend([*PUSH(0), "DUP1", "REVERT"])
         elif opcode == "nop":
             pass
         else:
