@@ -30,7 +30,7 @@ class IRFunction:
     last_variable: int
 
     # Used during code generation
-    _ast_source_stack: list[int]
+    _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
     _bb_index: dict[str, int]
 
@@ -236,7 +236,7 @@ class IRFunction:
         self._error_msg_stack.pop()
 
     @property
-    def ast_source(self) -> Optional[int]:
+    def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
 
     @property
