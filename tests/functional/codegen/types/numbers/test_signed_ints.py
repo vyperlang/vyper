@@ -83,10 +83,8 @@ def bar() -> int16:
     return {base} ** x
     """
     if experimental_codegen:
-        try:
-            compile_code(code)
-        except StaticAssertionException as e:
-            assert "assertion found to fail at compile time" in e.args[0]
+        with pytest.raises(StaticAssertionException):
+            get_contract(code)
     else:
         c = get_contract(code)
         # known bug: 2985

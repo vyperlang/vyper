@@ -282,10 +282,8 @@ def test():
         pass
     """
     if experimental_codegen:
-        try:
+        with pytest.raises(StaticAssertionException):
             get_contract(code)
-        except StaticAssertionException as e:
-            assert "assertion found to fail at compile time" in e.args[0]
     else:
         c = get_contract(code)
         with tx_failed():
@@ -437,10 +435,8 @@ def foo() -> DynArray[int256, 10]:
     """
 
     if experimental_codegen:
-        try:
+        with pytest.raises(StaticAssertionException):
             get_contract(code)
-        except StaticAssertionException as e:
-            assert "clamp sle end" in e.args[0]
     else:
         c = get_contract(code)
         with tx_failed():
