@@ -137,9 +137,7 @@ def _parse_args(argv):
         action="store_true",
     )
     parser.add_argument(
-        "--hex-ir",
-        help="Represent integers as hex values in the IR",
-        action="store_true",
+        "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
     )
     parser.add_argument(
         "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
