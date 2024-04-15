@@ -33,13 +33,11 @@ class Mem2Stack(IRPass):
         for var, inst in dfg.outputs.items():
             if inst.opcode != "alloca":
                 continue
-            self._process_alloca_var(dfg, var, inst)
-
-        self._compute_stores()
+            self._process_alloca_var(dfg, var)
 
         return 0
 
-    def _process_alloca_var(self, dfg: DFG, var: IRVariable, alloca_inst: IRInstruction):
+    def _process_alloca_var(self, dfg: DFG, var: IRVariable):
         uses = dfg.get_uses(var)
         if all([inst.opcode == "mload" for inst in uses]):
             return
@@ -65,18 +63,3 @@ class Mem2Stack(IRPass):
                     )
                     inst.operands[1] = new_var
 
-    def _compute_stores(self):
-        self.defs = {}
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if self._is_store(inst):
-                    var = f"addr{inst.operands[1]}"
-                    if var not in self.defs:
-                        self.defs[var] = OrderedSet()
-                    self.defs[var].add(bb)
-
-    def _is_store(self, inst: IRInstruction) -> bool:
-        return inst.opcode == "mstore" and isinstance(inst.operands[1], IRLiteral)
-
-    def _is_load(self, inst: IRInstruction) -> bool:
-        return inst.opcode == "mload" and isinstance(inst.operands[0], IRLiteral)
