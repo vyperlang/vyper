@@ -37,7 +37,6 @@ def _wrap_uint_binop(operation):
     return wrapper
 
 
-
 def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
     bits = ops[1].value
