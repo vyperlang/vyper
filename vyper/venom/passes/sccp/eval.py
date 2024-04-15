@@ -37,6 +37,7 @@ def _wrap_uint_binop(operation):
     return wrapper
 
 
+
 def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
     bits = ops[1].value
@@ -47,7 +48,7 @@ def _evm_signextend(ops: list[IROperand]) -> int:
     bits = bits * 8 + 7
     sign_bit = 1 << bits
     if value & sign_bit:
-        value |= SizeLimits.MAX_UINT256 - sign_bit
+        value |= SizeLimits.CEILING_UINT256 - sign_bit
     else:
         value &= sign_bit - 1
 
