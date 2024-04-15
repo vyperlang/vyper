@@ -96,18 +96,18 @@ class SCCP(IRPass):
         # Iterate over the work list until it is empty
         # Items in the work list can be either FlowWorkItem or SSAWorkListItem
         while len(self.work_list) > 0:
-            workItem = self.work_list.pop()
-            if isinstance(workItem, FlowWorkItem):
-                self._handle_flow_work_item(workItem)
-            elif isinstance(workItem, SSAWorkListItem):
-                self._handle_SSA_work_item(workItem)
+            work_item = self.work_list.pop()
+            if isinstance(work_item, FlowWorkItem):
+                self._handle_flow_work_item(work_item)
+            elif isinstance(work_item, SSAWorkListItem):
+                self._handle_SSA_work_item(work_item)
 
-    def _handle_flow_work_item(self, workItem: FlowWorkItem):
+    def _handle_flow_work_item(self, work_item: FlowWorkItem):
         """
         This method handles a FlowWorkItem.
         """
-        start = workItem.start
-        end = workItem.end
+        start = work_item.start
+        end = work_item.end
         if start in end.cfg_in_exec:
             return
         end.cfg_in_exec.add(start)
@@ -129,14 +129,14 @@ class SCCP(IRPass):
         if len(end.cfg_out) == 1:
             self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
 
-    def _handle_SSA_work_item(self, workItem: SSAWorkListItem):
+    def _handle_SSA_work_item(self, work_item: SSAWorkListItem):
         """
         This method handles a SSAWorkListItem.
         """
-        if workItem.inst.opcode == "phi":
-            self._visitPhi(workItem.inst)
-        elif len(workItem.basic_block.cfg_in_exec) > 0:
-            self._visitExpr(workItem.inst)
+        if work_item.inst.opcode == "phi":
+            self._visitPhi(work_item.inst)
+        elif len(work_item.basic_block.cfg_in_exec) > 0:
+            self._visitExpr(work_item.inst)
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
