@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.bb_optimizer import ir_pass_remove_unreachable_blocks
@@ -89,3 +90,5 @@ class SimplifyCFGPass(IRPass):
             self._collapse_chained_blocks(entry)
             if ir_pass_remove_unreachable_blocks(ctx) == 0:
                 break
+        else:
+            raise CompilerPanic("Too many iterations collapsing chained blocks")
