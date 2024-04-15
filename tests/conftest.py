@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from random import Random
+from typing import Generator
 
 import hypothesis
 import pytest
@@ -334,7 +335,8 @@ def tx_failed(env):
     return fn
 
 
-def pytest_runtest_call(item):
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item) -> Generator:
     marker = item.get_closest_marker("requires_evm_version")
     if marker:
         assert len(marker.args) == 1
@@ -343,3 +345,11 @@ def pytest_runtest_call(item):
             item.add_marker(
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
+
+    # Isolate tests by reverting the state of the environment after each test
+    env = item.funcargs.get("env")
+    if env:
+        with env.anchor():
+            yield
+    else:
+        yield
