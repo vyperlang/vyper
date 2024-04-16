@@ -54,7 +54,7 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
 
 def _evm_iszero(ops: list[IROperand]) -> int:
-    return int(ops[0].value == 0)
+    return int(ops[0].value == 0) # 1 if True else 0
 
 
 def _evm_shr(ops: list[IROperand]) -> int:
@@ -78,12 +78,13 @@ def _evm_sar(ops: list[IROperand]) -> int:
     shift_len = ops[1].value
     if shift_len >= 256:
         return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
-    return (value >> shift_len) & SizeLimits.MAX_UINT256
+    return value >> shift_len
 
 
 def _evm_not(ops: list[IROperand]) -> int:
     value = ops[0].value
-    return SizeLimits.MAX_UINT256 - value
+    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ value
 
 
 def _evm_exp(ops: list[IROperand]) -> int:
