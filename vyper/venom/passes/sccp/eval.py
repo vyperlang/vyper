@@ -1,22 +1,22 @@
 import operator
 from typing import Callable
 
-from vyper.utils import SizeLimits, evm_div, evm_mod
+from vyper.utils import SizeLimits, evm_div, evm_mod, signed_to_unsigned, unsigned_to_signed
 from vyper.venom.basicblock import IROperand
 
 
 def _unsigned_to_signed(value: int) -> int:
     if value <= SizeLimits.MAX_INT256:
-        return value
+        return value  # fast exit
     else:
-        return value - SizeLimits.CEILING_UINT256
+        return unsigned_to_signed(value, 256)
 
 
 def _signed_to_unsigned(value: int) -> int:
     if value >= 0:
-        return value
+        return value  # fast exit
     else:
-        return value + SizeLimits.CEILING_UINT256
+        return signed_to_unsigned(value, 256)
 
 
 def _wrap_signed_binop(operation):
