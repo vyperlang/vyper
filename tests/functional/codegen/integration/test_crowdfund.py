@@ -1,3 +1,12 @@
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def set_balance(env):
+    for a in env.accounts[:7]:
+        env.set_balance(a, 10**10)
+
+
 # TODO: check, this is probably redundant with examples/test_crowdfund.py
 def test_crowdfund(env, get_contract):
     crowdfund = """
@@ -63,8 +72,6 @@ def refund():
 
     """
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
-    for a in env.accounts[:7]:
-        env.set_balance(a, 10**10)
 
     c = get_contract(crowdfund, *[a1, 50, 60])
     start_timestamp = env.timestamp

@@ -53,7 +53,7 @@ def __default__():
     log Sent(msg.sender)
     """
     c = get_contract(code)
-
+    env.set_balance(env.deployer, 10**18)
     env.execute_code(c.address, value=10**17)
     (log,) = get_logs(c, "Sent")
     assert env.deployer == log.args.sender
