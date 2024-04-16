@@ -94,7 +94,7 @@ class BytesM_T(_PrimT):
         val = node.value
 
         if node.n_bytes != self.m:
-            raise InvalidLiteral("Invalid literal for type {self}", node)
+            raise InvalidLiteral(f"Invalid literal for type {self}", node)
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
@@ -151,9 +151,9 @@ class NumericT(_PrimT):
 
         def _get_lr():
             if isinstance(node, vy_ast.BinOp):
-                return node.left, node.right
+                return node.left.reduced(), node.right.reduced()
             elif isinstance(node, vy_ast.AugAssign):
-                return node.target, node.value
+                return node.target.reduced(), node.value.reduced()
             else:
                 raise CompilerPanic(f"Unexpected node type for numeric op: {type(node).__name__}")
 

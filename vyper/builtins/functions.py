@@ -1658,8 +1658,8 @@ class _CreateBase(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        # errmsg something like "Cannot use {self._id} in pure fn"
-        context.check_is_not_constant("use {self._id}", expr)
+        # errmsg something like f"Cannot use {self._id} in pure fn"
+        context.check_is_not_constant(f"use {self._id}", expr)
 
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
@@ -2277,7 +2277,7 @@ class Print(BuiltinFunctionT):
             method_id = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
             if len(schema) > 32:
-                raise CompilerPanic("print signature too long: {schema}")
+                raise CompilerPanic(f"print signature too long: {schema}")
 
             schema_t = StringT(len(schema))
             schema_buf = context.new_internal_variable(schema_t)

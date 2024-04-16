@@ -9,8 +9,8 @@ from tests.utils import ZERO_ADDRESS
 CONTRACT_NAME = "TEST 1155"
 CONTRACT_SYMBOL = "T1155"
 
-CONTRACT_URI = "https://mydomain.io/NFTdata/{id}"
-NEW_CONTRACT_URI = "https://mynewdomain.io/NFTdata/{id}"
+CONTRACT_URI = "https://mydomain.io/NFTdata/ID"
+NEW_CONTRACT_URI = "https://mynewdomain.io/NFTdata/ID"
 CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/collectionMetaData.json"
 NEW_CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/newCollectionMetaData.json"
 

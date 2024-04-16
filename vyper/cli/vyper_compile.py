@@ -284,8 +284,8 @@ def compile_files(
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
             raise ValueError(
-                "provided {len(storage_layout_paths)} storage "
-                "layouts, but {len(input_files)} source files"
+                f"provided {len(storage_layout_paths)} storage "
+                f"layouts, but {len(input_files)} source files"
             )
 
     ret: dict[Any, Any] = {}
