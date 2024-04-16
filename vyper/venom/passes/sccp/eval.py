@@ -54,7 +54,7 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
 
 def _evm_iszero(ops: list[IROperand]) -> int:
-    return int(ops[0].value == 0) # 1 if True else 0
+    return int(ops[0].value == 0)  # 1 if True else 0
 
 
 def _evm_shr(ops: list[IROperand]) -> int:
