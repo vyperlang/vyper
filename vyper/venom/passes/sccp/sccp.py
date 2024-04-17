@@ -114,7 +114,7 @@ class SCCP(IRPass):
 
         for inst in end.instructions:
             if inst.opcode == "phi":
-                self._visitPhi(inst)
+                self._visit_phi(inst)
             else:
                 # Stop at the first non-phi instruction
                 # as phis are only valid at the beginning of a block
@@ -124,7 +124,7 @@ class SCCP(IRPass):
             for inst in end.instructions:
                 if inst.opcode == "phi":
                     continue
-                self._visitExpr(inst)
+                self._visit_expr(inst)
 
         if len(end.cfg_out) == 1:
             self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
@@ -134,11 +134,11 @@ class SCCP(IRPass):
         This method handles a SSAWorkListItem.
         """
         if work_item.inst.opcode == "phi":
-            self._visitPhi(work_item.inst)
+            self._visit_phi(work_item.inst)
         elif len(work_item.basic_block.cfg_in_exec) > 0:
-            self._visitExpr(work_item.inst)
+            self._visit_expr(work_item.inst)
 
-    def _visitPhi(self, inst: IRInstruction):
+    def _visit_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         vars: list[LatticeItem] = []
         for bb_label, var in inst.phi_operands:
@@ -152,7 +152,7 @@ class SCCP(IRPass):
             self.lattice[inst.output] = value
             self._add_ssa_work_items(inst)
 
-    def _visitExpr(self, inst: IRInstruction):
+    def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
         if opcode in ["store", "alloca"]:
             if isinstance(inst.operands[0], IRLiteral):
