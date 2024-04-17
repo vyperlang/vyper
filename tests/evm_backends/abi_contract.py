@@ -384,20 +384,18 @@ class ABIContractFactory:
         functions: list[ABIFunction],
         log_topics: list[ABILogTopic],
         bytecode: Optional[bytes] = None,
-        filename: Optional[str] = None,
     ):
         self._name = name
         self._abi = abi
         self._functions = functions
         self._log_topics = log_topics
         self._bytecode = bytecode
-        self._filename = filename
 
     @classmethod
     def from_abi_dict(cls, abi, name="<anonymous contract>", bytecode: Optional[bytes] = None):
         functions = [ABIFunction(item, name) for item in abi if item.get("type") == "function"]
         log_topics = [ABILogTopic(item, name) for item in abi if item.get("type") == "event"]
-        return cls(basename(name), abi, functions, log_topics, bytecode, filename=name)
+        return cls(basename(name), abi, functions, log_topics, bytecode)
 
     def at(self, env, address: HexAddress) -> ABIContract:
         """
@@ -411,7 +409,6 @@ class ABIContractFactory:
             self._log_topics,
             self._bytecode,
             address,
-            self._filename,
         )
 
 

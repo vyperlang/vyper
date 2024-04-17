@@ -1,6 +1,6 @@
 import json
-from collections import namedtuple
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Callable
 
 from eth_keys.datatypes import PrivateKey
@@ -12,11 +12,22 @@ from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
 
+
 # a very simple log representation for the raw log entries
-LogEntry = namedtuple("LogEntry", ["address", "topics", "data"])
+@dataclass
+class LogEntry:
+    address: str
+    topics: list[str]
+    data: tuple[list[bytes], bytes]  # (topic list, non-topic)
+
 
 # object returned by `last_result` property
-ExecutionResult = namedtuple("ExecutionResult", ["is_success", "logs", "gas_refunded", "gas_used"])
+@dataclass
+class ExecutionResult:
+    is_success: bool
+    logs: list[LogEntry]
+    gas_refunded: int
+    gas_used: int
 
 
 class EvmError(RuntimeError):
