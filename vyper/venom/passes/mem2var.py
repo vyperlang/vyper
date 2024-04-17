@@ -61,8 +61,9 @@ class Mem2Var(IRPass):
                 elif inst.opcode == "return":
                     bb = inst.parent
                     new_var = self.ctx.get_next_variable()
+                    idx = bb.instructions.index(inst)
                     bb.insert_instruction(
                         IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]], new_var),
-                        -1,
+                        idx,
                     )
                     inst.operands[1] = new_var
