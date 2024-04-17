@@ -39,14 +39,14 @@ def _wrap_binop(operation):
 
 def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
-    bytes = ops[1].value
+    nbytes = ops[1].value
 
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
 
-    if bytes > 31:
+    if nbytes > 31:
         return value
 
-    sign_bit = 1 << (bytes * 8 + 7)
+    sign_bit = 1 << (nbytes * 8 + 7)
     if value & sign_bit:
         value |= SizeLimits.CEILING_UINT256 - sign_bit
     else:
