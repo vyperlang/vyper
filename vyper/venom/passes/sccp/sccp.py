@@ -139,13 +139,13 @@ class SCCP(IRPass):
 
     def _visit_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
-        vars: list[LatticeItem] = []
+        in_vars: list[LatticeItem] = []
         for bb_label, var in inst.phi_operands:
             bb = self.ctx.get_basic_block(bb_label.name)
             if bb not in inst.parent.cfg_in_exec:
                 continue
-            vars.append(self.lattice[var])
-        value = reduce(_meet, vars, LatticeEnum.TOP)  # type: ignore
+            in_vars.append(self.lattice[var])
+        value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
         assert inst.output in self.lattice, "Got undefined var for phi"
         if value != self.lattice[inst.output]:
             self.lattice[inst.output] = value
