@@ -79,8 +79,6 @@ def _evm_sar(ops: list[IROperand]) -> int:
     value = _unsigned_to_signed(ops[0].value)
     assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256, "Value out of bounds"
     shift_len = ops[1].value
-    if shift_len >= 256:
-        return 0 if value >= 0 else (SizeLimits.CEILING_UINT256 - 1)
     return value >> shift_len
 
 
