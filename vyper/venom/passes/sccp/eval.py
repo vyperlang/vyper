@@ -65,8 +65,6 @@ def _evm_shr(ops: list[IROperand]) -> int:
     value = ops[0].value
     shift_len = ops[1].value
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
-    if shift_len >= 256:
-        return 0
     return value >> shift_len
 
 
@@ -74,8 +72,6 @@ def _evm_shl(ops: list[IROperand]) -> int:
     value = ops[0].value
     shift_len = ops[1].value
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
-    if shift_len >= 256:
-        return 0
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
 
