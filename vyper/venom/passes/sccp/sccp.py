@@ -55,6 +55,7 @@ class SCCP(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_dirty: bool
+    cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     def __init__(self, dom: DominatorTree):
         self.dom = dom
@@ -82,8 +83,7 @@ class SCCP(IRPass):
         and the work list. The `_propagate_constants()` method is responsible
         for updating the IR with the constant values.
         """
-        for bb in self.ctx.basic_blocks:
-            bb.cfg_in_exec = OrderedSet()
+        self.cfg_in_exec = {bb: OrderedSet() for bb in self.ctx.basic_blocks}
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
         self.work_list.append(FlowWorkItem(dummy, entry))
@@ -107,9 +107,9 @@ class SCCP(IRPass):
         """
         start = work_item.start
         end = work_item.end
-        if start in end.cfg_in_exec:
+        if start in self.cfg_in_exec[end]:
             return
-        end.cfg_in_exec.add(start)
+        self.cfg_in_exec[end].add(start)
 
         for inst in end.instructions:
             if inst.opcode == "phi":
@@ -119,7 +119,7 @@ class SCCP(IRPass):
                 # as phis are only valid at the beginning of a block
                 break
 
-        if len(end.cfg_in_exec) == 1:
+        if len(self.cfg_in_exec[end]) == 1:
             for inst in end.instructions:
                 if inst.opcode == "phi":
                     continue
@@ -134,7 +134,7 @@ class SCCP(IRPass):
         """
         if work_item.inst.opcode == "phi":
             self._visit_phi(work_item.inst)
-        elif len(work_item.inst.parent.cfg_in_exec) > 0:
+        elif len(self.cfg_in_exec[work_item.inst.parent]) > 0:
             self._visit_expr(work_item.inst)
 
     def _visit_phi(self, inst: IRInstruction):
@@ -142,7 +142,7 @@ class SCCP(IRPass):
         in_vars: list[LatticeItem] = []
         for bb_label, var in inst.phi_operands:
             bb = self.ctx.get_basic_block(bb_label.name)
-            if bb not in inst.parent.cfg_in_exec:
+            if bb not in self.cfg_in_exec[inst.parent]:
                 continue
             in_vars.append(self.lattice[var])
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
