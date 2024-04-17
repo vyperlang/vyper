@@ -102,18 +102,16 @@ class RevmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
 
-    def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
+    def time_travel(self, num_blocks=1) -> None:
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
-        if time_delta is None:
-            time_delta = num_blocks
         block = self._evm.env.block
         self._evm.set_block_env(
             BlockEnv(
                 number=block.number + num_blocks,
                 coinbase=block.coinbase,
-                timestamp=block.timestamp + time_delta,
+                timestamp=block.timestamp + num_blocks,
                 difficulty=block.difficulty,
                 prevrandao=block.prevrandao,
                 basefee=block.basefee,

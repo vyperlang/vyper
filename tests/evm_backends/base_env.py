@@ -174,7 +174,7 @@ class BaseEnv:
     def get_code(self, address: str) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 
-    def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
+    def time_travel(self, num_blocks=1) -> None:
         raise NotImplementedError  # must be implemented by subclasses
 
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:

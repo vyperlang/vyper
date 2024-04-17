@@ -42,8 +42,6 @@ class PyEvmEnv(BaseEnv):
         # but eth-tester is only configured with the latest mainnet
         # version.
         evm_opcodes.DEFAULT_EVM_VERSION = evm_version
-        # this should get overridden by anchor_evm_version, but set it anyway
-        evm_opcodes.active_evm_version = evm_opcodes.EVM_VERSIONS[evm_version]
 
         if tracing:
             logger = logging.getLogger("eth.vm.computation.BaseComputation")
@@ -156,7 +154,7 @@ class PyEvmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
 
-    def time_travel(self, num_blocks=1, time_delta: int | None = None) -> None:
+    def time_travel(self, num_blocks=1) -> None:
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
@@ -164,7 +162,7 @@ class PyEvmEnv(BaseEnv):
         # Cast since ExecutionContextAPI does not have the properties we need to change
         context = cast(ExecutionContext, self._state.execution_context)
         context._block_number += num_blocks
-        context._timestamp += num_blocks if time_delta is None else time_delta
+        context._timestamp += num_blocks
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         sender = _addr(self.deployer)
