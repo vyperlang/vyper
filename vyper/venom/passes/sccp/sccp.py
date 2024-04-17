@@ -100,6 +100,8 @@ class SCCP(IRPass):
                 self._handle_flow_work_item(work_item)
             elif isinstance(work_item, SSAWorkListItem):
                 self._handle_SSA_work_item(work_item)
+            else:
+                raise CompilerPanic("Invalid work item type")
 
     def _handle_flow_work_item(self, work_item: FlowWorkItem):
         """
