@@ -6,7 +6,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
-class Mem2Stack(IRPass):
+class Mem2Var(IRPass):
     """
     This pass promoted memory operations to variable operations, when possible.
     It does yet do any memory aliasing analysis, so it is conservative.
