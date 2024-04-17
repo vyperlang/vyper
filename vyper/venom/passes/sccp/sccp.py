@@ -27,7 +27,6 @@ class LatticeEnum(Enum):
 @dataclass
 class SSAWorkListItem:
     inst: IRInstruction
-    basic_block: IRBasicBlock
 
 
 @dataclass
@@ -135,7 +134,7 @@ class SCCP(IRPass):
         """
         if work_item.inst.opcode == "phi":
             self._visit_phi(work_item.inst)
-        elif len(work_item.basic_block.cfg_in_exec) > 0:
+        elif len(work_item.inst.parent.cfg_in_exec) > 0:
             self._visit_expr(work_item.inst)
 
     def _visit_phi(self, inst: IRInstruction):
@@ -236,7 +235,7 @@ class SCCP(IRPass):
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self._get_uses(inst.output):  # type: ignore
-            self.work_list.append(SSAWorkListItem(target_inst, target_inst.parent))
+            self.work_list.append(SSAWorkListItem(target_inst))
 
     def _compute_uses(self, dom: DominatorTree):
         """
