@@ -596,7 +596,7 @@ def _get_element_ptr_mapping(parent, key):
     key = unwrap_location(key)
 
     if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
-        raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
+        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
 
