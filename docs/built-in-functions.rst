@@ -955,7 +955,7 @@ Utilities
 
     .. note::
 
-         A versioned hash consists of a single byte representing the version (currently ``0x01``), followed by the last 31 bytes of the ``SHA256`` hash of the KZG commitment (`EIP-4844 <https://eips.ethereum.org/EIPS/eip-4844>`_). For the case ``index >= len(tx.blob_versioned_hashes)``, `blobhash(index: uint256)` returns ``empty(bytes32)``.
+         A versioned hash consists of a single byte representing the version (currently ``0x01``), followed by the last 31 bytes of the ``SHA256`` hash of the KZG commitment (`EIP-4844 <https://eips.ethereum.org/EIPS/eip-4844>`_). For the case ``index >= len(tx.blob_versioned_hashes)``, ``blobhash(index: uint256)`` returns ``empty(bytes32)``.
 
     .. code-block:: vyper
 
