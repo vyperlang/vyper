@@ -37,10 +37,12 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.evm.opcodes import version_check
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    EvmVersionException,
     InvalidLiteral,
     InvalidType,
     StateAccessViolation,
@@ -1215,6 +1217,21 @@ class BlockHash(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
             ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
+            typ=BYTES32_T,
+        )
+
+
+class BlobHash(BuiltinFunctionT):
+    _id = "blobhash"
+    _inputs = [("index", UINT256_T)]
+    _return_type = BYTES32_T
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, contact):
+        if not version_check(begin="cancun"):
+            raise EvmVersionException("`blobhash` is not available pre-cancun", expr)
+        return IRnode.from_list(
+            ["blockhash", args[0]],
             typ=BYTES32_T,
         )
 
@@ -2591,6 +2608,7 @@ DISPATCH_TABLE = {
     "as_wei_value": AsWeiValue(),
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
+    "blobhash": BlobHash(),
     "bitwise_and": BitwiseAnd(),
     "bitwise_or": BitwiseOr(),
     "bitwise_xor": BitwiseXor(),

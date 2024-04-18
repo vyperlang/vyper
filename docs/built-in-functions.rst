@@ -949,6 +949,30 @@ Utilities
         >>> ExampleContract.foo()
         0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
+.. py:function:: blobhash(index: uint256) -> bytes32
+
+    Return the versioned hash of the ``index``-th BLOB associated with the current transaction.
+
+    .. note::
+
+         A versioned hash consists of a single byte representing the version (currently ``0x01``), followed by the last 31 bytes of the ``SHA256`` hash of the KZG commitment (`EIP-4844 <https://eips.ethereum.org/EIPS/eip-4844>`_). For the case ``index >= len(tx.blob_versioned_hashes)``, `blobhash(index: uint256)` returns ``empty(bytes32)``.
+
+    .. code-block:: vyper
+
+        @external
+        @view
+        def foo(index: uint256) -> bytes32:
+            return blobhash(index)
+
+    .. code-block:: vyper
+
+        >>> ExampleContract.foo(0)
+        0xfd28610fb309939bfec12b6db7c4525446f596a5a5a66b8e2cb510b45b2bbeb5
+
+        >>> ExampleContract.foo(6)
+        0x0000000000000000000000000000000000000000000000000000000000000000
+
+
 .. py:function:: empty(typename) -> Any
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.

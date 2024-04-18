@@ -76,6 +76,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "balance",
         "msize",
         "basefee",
+        "blobhash",
         "invalid",
         "stop",
         "selfdestruct",
