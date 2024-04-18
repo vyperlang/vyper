@@ -14,6 +14,7 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
+    check_buffer_overflow_ir,
     check_external_call,
     clamp,
     clamp2,
@@ -32,7 +33,6 @@ from vyper.codegen.core import (
     sar,
     shl,
     shr,
-    check_buffer_overflow_ir,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr

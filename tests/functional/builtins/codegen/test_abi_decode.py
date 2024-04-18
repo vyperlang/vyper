@@ -495,7 +495,7 @@ def f(x: Bytes[32 * 3]):
         w3.eth.send_transaction({"to": c.address, "data": data})
 
 
-def test_abi_decode_oob_due_to_invalid_head(w3, tx_failed, get_contract):
+def test_abi_decode_oob_due_to_large_inner_payload(w3, tx_failed, get_contract):
     code = """
 @external
 def f(x: Bytes[32 * 5]):
@@ -517,3 +517,21 @@ def f(x: Bytes[32 * 5]):
     data += (0x3).to_bytes(32, "big") * 4
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
+
+
+def test_abi_decode_oob_due_to_invalid_head(tx_failed, get_contract):
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256):
+    return (480, 0, 0)
+
+interface A:
+    def bar() -> String[32]: nonpayable
+
+@external
+def foo():
+    x:String[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
