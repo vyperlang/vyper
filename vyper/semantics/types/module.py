@@ -70,7 +70,7 @@ class InterfaceT(_UserType):
 
     @property
     def getter_signature(self):
-        return (), AddressT()
+        return (), self
 
     @property
     def abi_type(self) -> ABIType:
