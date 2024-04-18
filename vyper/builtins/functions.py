@@ -37,8 +37,8 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.opcodes import version_check
 from vyper.evm.address_space import MEMORY
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
