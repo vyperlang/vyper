@@ -4,6 +4,7 @@ import pytest
 from eth.codecs import abi
 
 from vyper.exceptions import ArgumentException, StackTooDeep, StructureException
+from vyper.utils import method_id
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
@@ -486,10 +487,10 @@ def f(x: Bytes[32 * 3]):
     assert decoded_y1 != decoded_y2
     """
     c = get_contract(code)
-    data = (0xD45754F8).to_bytes(4, "big")
+    data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")
     data += (0x60).to_bytes(32, "big")
-    data += (0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFA0).to_bytes(32, "big")
+    data += (2**256 - 0x60).to_bytes(32, "big")
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
@@ -505,7 +506,7 @@ def f(x: Bytes[32 * 5]):
     decoded_y1 = _abi_decode(y, DynArray[uint256, 3])
     """
     c = get_contract(code)
-    data = (0xD45754F8).to_bytes(4, "big")
+    data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")  # tuple head
     data += (0xA0).to_bytes(32, "big")  # parent array head
     # head should be 20 and thus the decoding func will try to decode 1 word

@@ -469,7 +469,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
                 bound = parent_abi_t.size_bound()
                 ofst_ir = [
                     "seq",
-                    slice_bounds_check(abi_ofst, member_abi_t.size_bound(), bound),
+                    check_buffer_overflow_ir(abi_ofst, member_abi_t.size_bound(), bound),
                     add_ofst(parent, abi_ofst),
                 ]
                 ofst_ir = b1.resolve(ofst_ir)
@@ -1247,7 +1247,7 @@ def clamp2(lo, arg, hi, signed):
 # make sure we don't overrun the source buffer, checking for overflow:
 # valid inputs satisfy:
 #   `assert !(start+length > src_len || start+length < start)`
-def slice_bounds_check(start, length, src_len):
+def check_buffer_overflow_ir(start, length, src_len):
     with start.cache_when_complex("start") as (b1, start):
         with add_ofst(start, length).cache_when_complex("end") as (b2, end):
             arithmetic_overflow = ["lt", end, start]

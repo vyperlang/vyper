@@ -32,7 +32,7 @@ from vyper.codegen.core import (
     sar,
     shl,
     shr,
-    slice_bounds_check,
+    check_buffer_overflow_ir,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -243,7 +243,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     if sub.value == "~calldata":
         node = [
             "seq",
-            slice_bounds_check(start, length, "calldatasize"),
+            check_buffer_overflow_ir(start, length, "calldatasize"),
             ["mstore", np, length],
             ["calldatacopy", np + 32, start, length],
             np,
@@ -253,7 +253,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     elif sub.value == "~selfcode":
         node = [
             "seq",
-            slice_bounds_check(start, length, "codesize"),
+            check_buffer_overflow_ir(start, length, "codesize"),
             ["mstore", np, length],
             ["codecopy", np + 32, start, length],
             np,
@@ -268,7 +268,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             sub.args[0],
             [
                 "seq",
-                slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
+                check_buffer_overflow_ir(start, length, ["extcodesize", "_extcode_address"]),
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -441,7 +441,7 @@ class Slice(BuiltinFunctionT):
 
             ret = [
                 "seq",
-                slice_bounds_check(start, length, src_len),
+                check_buffer_overflow_ir(start, length, src_len),
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
