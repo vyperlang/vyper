@@ -100,6 +100,9 @@ class _ExprAnalyser:
             if isinstance(t, ModuleInfo):
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
+            if isinstance(t, TYPE_T):
+                t = t.typedef
+
             return info.copy_with_type(t, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo
@@ -197,7 +200,10 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
 
-            if isinstance(s, (VyperType, TYPE_T)):
+            if isinstance(s, VyperType):
+                if isinstance(s, TYPE_T):
+                    s = s.typedef
+
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
 
@@ -391,6 +397,7 @@ class _ExprAnalyser:
                 # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
+            # it's a VarInfo
             return [t.typ]
 
         except VyperException as exc:
