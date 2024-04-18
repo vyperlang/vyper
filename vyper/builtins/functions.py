@@ -1230,10 +1230,7 @@ class BlobHash(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, contact):
         if not version_check(begin="cancun"):
             raise EvmVersionException("`blobhash` is not available pre-cancun", expr)
-        return IRnode.from_list(
-            ["blockhash", args[0]],
-            typ=BYTES32_T,
-        )
+        return IRnode.from_list(["blockhash", args[0]], typ=BYTES32_T)
 
 
 class RawRevert(BuiltinFunctionT):
