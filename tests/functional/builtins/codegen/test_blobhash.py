@@ -1,7 +1,6 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import EvmVersionException
 
 valid_list = [
     """
