@@ -21,7 +21,8 @@ def foo() -> bytes32:
 @external
 @view
 def foo() -> bytes32:
-    a: bytes32 = blobhash(5)
+    a: bytes32 = blobhash(0)
+    assert a != empty(bytes32)
     return a
     """,
     """
