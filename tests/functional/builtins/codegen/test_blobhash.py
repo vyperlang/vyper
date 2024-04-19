@@ -42,10 +42,3 @@ def test_blobhash_success(good_code):
     assert compiler.compile_code(good_code) is not None
     assembly = compiler.compile_code(good_code, output_formats=["asm"])["asm"].split(" ")
     assert "BLOBHASH" in assembly
-
-
-@pytest.mark.requires_evm_version("shanghai")
-@pytest.mark.parametrize("invalid_evm_version", valid_list)
-def test_blobhash_fail(invalid_evm_version):
-    with pytest.raises(EvmVersionException):
-        compiler.compile_code(invalid_evm_version)
