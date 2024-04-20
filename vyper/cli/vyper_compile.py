@@ -8,15 +8,10 @@ from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
+import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import (
-    VYPER_TRACEBACK_LIMIT,
-    OptimizationLevel,
-    Settings,
-    _set_debug_mode,
-)
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -65,6 +60,7 @@ def _parse_cli_args():
 
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
+        compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
         return
 
@@ -106,9 +102,9 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION}). "
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
         "note: cancun support is EXPERIMENTAL",
-        choices=list(EVM_VERSIONS),
+        choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
@@ -140,7 +136,9 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument("--hex-ir", action="store_true")
+    parser.add_argument(
+        "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
+    )
     parser.add_argument(
         "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
     )
@@ -151,6 +149,7 @@ def _parse_args(argv):
         action="store_true",
         dest="experimental_codegen",
     )
+    parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -171,9 +170,6 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
-    if args.debug:
-        _set_debug_mode(True)
-
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
 
@@ -189,6 +185,12 @@ def _parse_args(argv):
 
     if args.experimental_codegen:
         settings.experimental_codegen = args.experimental_codegen
+
+    if args.debug:
+        settings.debug = args.debug
+
+    if args.enable_decimals:
+        settings.enable_decimals = args.enable_decimals
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
@@ -282,8 +284,8 @@ def compile_files(
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
             raise ValueError(
-                "provided {len(storage_layout_paths)} storage "
-                "layouts, but {len(input_files)} source files"
+                f"provided {len(storage_layout_paths)} storage "
+                f"layouts, but {len(input_files)} source files"
             )
 
     ret: dict[Any, Any] = {}

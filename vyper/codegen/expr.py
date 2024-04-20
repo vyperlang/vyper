@@ -71,8 +71,7 @@ class Expr:
 
     def __init__(self, node, context, is_stmt=False):
         assert isinstance(node, vy_ast.VyperNode)
-        if node.has_folded_value:
-            node = node.get_folded_value()
+        node = node.reduced()
 
         self.expr = node
         self.context = context
@@ -206,12 +205,9 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyFlag.foo
-        if (
-            isinstance(typ, FlagT)
-            and isinstance(self.expr.value, vy_ast.Name)
-            and typ.name == self.expr.value.id
-        ):
+        # check if we have a flag constant, e.g.
+        # [lib1].MyFlag.FOO
+        if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]
             value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
@@ -273,7 +269,7 @@ class Expr:
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
                     vyper_warn(warning, self.expr)
-                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
+                return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
@@ -350,7 +346,9 @@ class Expr:
             index = Expr.parse_value_expr(self.expr.slice, self.context)
 
         elif is_tuple_like(sub.typ):
-            index = self.expr.slice.n
+            # should we annotate expr.slice in the frontend with the
+            # folded value instead of calling reduced() here?
+            index = self.expr.slice.reduced().n
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")

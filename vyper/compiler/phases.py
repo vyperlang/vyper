@@ -5,11 +5,11 @@ from pathlib import Path, PurePath
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast import natspec
 from vyper.codegen import module
-from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
@@ -38,6 +38,7 @@ def _merge_settings(cli: Settings, pragma: Settings):
     ret.experimental_codegen = _merge_one(
         cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
     )
+    ret.enable_decimals = _merge_one(cli.enable_decimals, pragma.enable_decimals, "enable-decimals")
 
     return ret
 
@@ -97,8 +98,6 @@ class CompilerData:
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
         """
-        # to force experimental codegen, uncomment:
-        # settings.experimental_codegen = True
 
         if isinstance(file_input, str):
             file_input = FileInput(
@@ -153,8 +152,18 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
+    def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
+        module = generate_annotated_ast(self.vyper_module, self.input_bundle)
+        nspec = natspec.parse_natspec(module)
+        return nspec, module
+
+    @cached_property
+    def natspec(self) -> natspec.NatspecOutput:
+        return self._annotate[0]
+
+    @cached_property
     def annotated_vyper_module(self) -> vy_ast.Module:
-        return generate_annotated_ast(self.vyper_module, self.input_bundle)
+        return self._annotate[1]
 
     @cached_property
     def compilation_target(self):
@@ -175,12 +184,14 @@ class CompilerData:
     def global_ctx(self) -> ModuleT:
         # ensure storage layout is computed
         _ = self.storage_layout
+        # ensure natspec is computed
+        _ = self.natspec
         return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        return generate_ir_nodes(self.global_ctx, self.settings)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -270,7 +281,7 @@ def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundl
     return vyper_module
 
 
-def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -290,9 +301,9 @@ def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    with anchor_opt_level(optimize):
+    with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if optimize != OptimizationLevel.NONE:
+    if settings.optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
     return ir_nodes, ir_runtime

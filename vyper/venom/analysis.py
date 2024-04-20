@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
@@ -38,6 +40,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
 
 def _reset_liveness(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
+        bb.out_vars = OrderedSet()
         for inst in bb.instructions:
             inst.liveness = OrderedSet()
 
@@ -50,16 +53,15 @@ def _calculate_liveness(bb: IRBasicBlock) -> bool:
     orig_liveness = bb.instructions[0].liveness.copy()
     liveness = bb.out_vars.copy()
     for instruction in reversed(bb.instructions):
-        ops = instruction.get_inputs()
+        ins = instruction.get_inputs()
+        outs = instruction.get_outputs()
 
-        for op in ops:
-            if op in liveness:
-                instruction.dup_requirements.add(op)
+        if ins or outs:
+            # perf: only copy if changed
+            liveness = liveness.copy()
+            liveness.update(ins)
+            liveness.dropmany(outs)
 
-        liveness = liveness.union(OrderedSet.fromkeys(ops))
-        out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
-        if out in liveness:
-            liveness.remove(out)
         instruction.liveness = liveness
 
     return orig_liveness != bb.instructions[0].liveness
@@ -89,6 +91,18 @@ def calculate_liveness(ctx: IRFunction) -> None:
             break
 
 
+def calculate_dup_requirements(ctx: IRFunction) -> None:
+    for bb in ctx.basic_blocks:
+        last_liveness = bb.out_vars
+        for inst in reversed(bb.instructions):
+            inst.dup_requirements = OrderedSet()
+            ops = inst.get_inputs()
+            for op in ops:
+                if op in last_liveness:
+                    inst.dup_requirements.add(op)
+            last_liveness = inst.liveness
+
+
 # calculate the input variables into self from source
 def input_vars_from(source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
     liveness = target.instructions[0].liveness.copy()
@@ -104,19 +118,17 @@ def input_vars_from(source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IR
             # will arbitrarily choose either %12 or %14 to be in the liveness
             # set, and then during instruction selection, after this instruction,
             # %12 will be replaced by %56 in the liveness set
-            source1, source2 = inst.operands[0], inst.operands[2]
-            phi1, phi2 = inst.operands[1], inst.operands[3]
-            if source.label == source1:
-                liveness.add(phi1)
-                if phi2 in liveness:
-                    liveness.remove(phi2)
-            elif source.label == source2:
-                liveness.add(phi2)
-                if phi1 in liveness:
-                    liveness.remove(phi1)
-            else:
-                # bad path into this phi node
-                raise CompilerPanic(f"unreachable: {inst}")
+
+            # bad path into this phi node
+            if source.label not in inst.operands:
+                raise CompilerPanic(f"unreachable: {inst} from {source.label}")
+
+            for label, var in inst.phi_operands:
+                if label == source.label:
+                    liveness.add(var)
+                else:
+                    if var in liveness:
+                        liveness.remove(var)
 
     return liveness
 
@@ -137,8 +149,8 @@ class DFG:
         return self._dfg_inputs.get(op, [])
 
     # the instruction which produces this variable.
-    def get_producing_instruction(self, op: IRVariable) -> IRInstruction:
-        return self._dfg_outputs[op]
+    def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
+        return self._dfg_outputs.get(op)
 
     @classmethod
     def build_dfg(cls, ctx: IRFunction) -> "DFG":
@@ -163,3 +175,20 @@ class DFG:
                     dfg._dfg_outputs[op] = inst
 
         return dfg
+
+    def as_graph(self) -> str:
+        """
+        Generate a graphviz representation of the dfg
+        """
+        lines = ["digraph dfg_graph {"]
+        for var, inputs in self._dfg_inputs.items():
+            for input in inputs:
+                for op in input.get_outputs():
+                    if isinstance(op, IRVariable):
+                        lines.append(f'    " {var.name} " -> " {op.name} "')
+
+        lines.append("}")
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return self.as_graph()

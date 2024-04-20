@@ -1,8 +1,5 @@
-import contextlib
-from typing import Generator
-
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
     CALLDATA,
     DATA,
@@ -599,7 +596,7 @@ def _get_element_ptr_mapping(parent, key):
     key = unwrap_location(key)
 
     if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
-        raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
+        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
 
@@ -914,40 +911,6 @@ def make_setter(left, right):
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
     return _complex_make_setter(left, right)
-
-
-_opt_level = OptimizationLevel.GAS
-
-
-# FIXME: this is to get around the fact that we don't have a
-# proper context object in the IR generation phase.
-@contextlib.contextmanager
-def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
-    """
-    Set the global optimization level variable for the duration of this
-    context manager.
-    """
-    assert isinstance(new_level, OptimizationLevel)
-
-    global _opt_level
-    try:
-        tmp = _opt_level
-        _opt_level = new_level
-        yield
-    finally:
-        _opt_level = tmp
-
-
-def _opt_codesize():
-    return _opt_level == OptimizationLevel.CODESIZE
-
-
-def _opt_gas():
-    return _opt_level == OptimizationLevel.GAS
-
-
-def _opt_none():
-    return _opt_level == OptimizationLevel.NONE
 
 
 def _complex_make_setter(left, right):

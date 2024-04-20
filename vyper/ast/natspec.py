@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from asttokens import LineNumbers
@@ -11,7 +12,13 @@ PARAM_FIELDS = ("param", "return")
 USERDOCS_FIELDS = ("notice",)
 
 
-def parse_natspec(annotated_vyper_module: vy_ast.Module) -> Tuple[dict, dict]:
+@dataclass
+class NatspecOutput:
+    userdoc: dict
+    devdoc: dict
+
+
+def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     """
     Parses NatSpec documentation from a contract.
 
@@ -63,7 +70,7 @@ def parse_natspec(annotated_vyper_module: vy_ast.Module) -> Tuple[dict, dict]:
             if fn_natspec:
                 devdoc.setdefault("methods", {})[method_id] = fn_natspec
 
-    return userdoc, devdoc
+    return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
 def _parse_docstring(

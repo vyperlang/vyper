@@ -4,11 +4,19 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from tests.utils import parse_and_fold
+from tests.utils import decimal_to_int, parse_and_fold
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
+from vyper.semantics.analysis.local import ExprVisitor
+from vyper.semantics.types import DecimalT
+
+DECIMAL_T = DecimalT()
 
 st_decimals = st.decimals(
-    min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10
+    min_value=DECIMAL_T.decimal_bounds[0],
+    max_value=DECIMAL_T.decimal_bounds[1],
+    allow_nan=False,
+    allow_infinity=False,
+    places=DECIMAL_T._decimal_places,
 )
 
 
@@ -30,14 +38,20 @@ def foo(a: decimal, b: decimal) -> decimal:
 
     try:
         vyper_ast = parse_and_fold(f"{left} {op} {right}")
-        old_node = vyper_ast.body[0].value
-        new_node = old_node.get_folded_value()
+        expr = vyper_ast.body[0].value
+
+        # check invalid values
+        ExprVisitor().visit(expr, DecimalT())
+
+        new_node = expr.get_folded_value()
         is_valid = True
-    except ZeroDivisionException:
+    except (OverflowException, ZeroDivisionException):
         is_valid = False
 
+    left = decimal_to_int(left)
+    right = decimal_to_int(right)
     if is_valid:
-        assert contract.foo(left, right) == new_node.value
+        assert contract.foo(left, right) == decimal_to_int(new_node.value)
     else:
         with tx_failed():
             contract.foo(left, right)
@@ -71,15 +85,21 @@ def foo({input_value}) -> decimal:
     literal_op = literal_op.rsplit(maxsplit=1)[0]
     try:
         vyper_ast = parse_and_fold(literal_op)
-        new_node = vyper_ast.body[0].value.get_folded_value()
+        expr = vyper_ast.body[0].value
+
+        # check invalid intermediate values
+        ExprVisitor().visit(expr, DecimalT())
+
+        new_node = expr.get_folded_value()
         expected = new_node.value
-        is_valid = -(2**127) <= expected < 2**127
+        is_valid = True
     except (OverflowException, ZeroDivisionException):
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False
 
+    values = [decimal_to_int(v) for v in values]
     if is_valid:
-        assert contract.foo(*values) == expected
+        assert contract.foo(*values) == decimal_to_int(expected)
     else:
         with tx_failed():
             contract.foo(*values)

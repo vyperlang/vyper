@@ -27,6 +27,7 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
+    uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -163,7 +164,11 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
+    def uses_state(self):
+        return self.nonreentrant or uses_state(self.get_variable_accesses())
+
     def get_used_modules(self):
+        # _used_modules is populated during analysis
         return self._used_modules
 
     def mark_used_module(self, module_info):

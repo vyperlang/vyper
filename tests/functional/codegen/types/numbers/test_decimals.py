@@ -1,16 +1,19 @@
 import warnings
-from decimal import ROUND_DOWN, Decimal, getcontext
+from decimal import getcontext
 
 import pytest
 
+import vyper.compiler.settings as compiler_settings
+from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     DecimalOverrideException,
+    FeatureException,
     InvalidOperation,
     OverflowException,
     TypeMismatch,
 )
-from vyper.utils import DECIMAL_EPSILON, SizeLimits
+from vyper.utils import DECIMAL_EPSILON, SizeLimits, quantize
 
 
 def test_decimal_override():
@@ -49,10 +52,6 @@ def foo(x: decimal) -> decimal:
     """
     with pytest.raises(InvalidOperation):
         compile_code(code)
-
-
-def quantize(x: Decimal) -> Decimal:
-    return x.quantize(DECIMAL_EPSILON, rounding=ROUND_DOWN)
 
 
 def test_decimal_test(get_contract_with_gas_estimation):
@@ -153,13 +152,13 @@ def iarg() -> uint256:
     """
 
     c = get_contract_with_gas_estimation(harder_decimal_test)
-    assert c.phooey(Decimal("1.2")) == Decimal("20736.0")
-    assert c.phooey(Decimal("-1.2")) == Decimal("20736.0")
-    assert c.arg(Decimal("-3.7")) == Decimal("-3.7")
-    assert c.arg(Decimal("3.7")) == Decimal("3.7")
-    assert c.garg() == Decimal("6.75")
-    assert c.harg() == Decimal("9.0")
-    assert c.iarg() == Decimal("14")
+    assert c.phooey(decimal_to_int("1.2")) == decimal_to_int("20736.0")
+    assert c.phooey(decimal_to_int("-1.2")) == decimal_to_int("20736.0")
+    assert c.arg(decimal_to_int("-3.7")) == decimal_to_int("-3.7")
+    assert c.arg(decimal_to_int("3.7")) == decimal_to_int("3.7")
+    assert c.garg() == decimal_to_int("6.75")
+    assert c.harg() == decimal_to_int("9.0")
+    assert c.iarg() == 14
 
     print("Passed fractional multiplication test")
 
@@ -175,8 +174,8 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
     c = get_contract_with_gas_estimation(mul_code)
 
-    x = Decimal("85070591730234615865843651857942052864")
-    y = Decimal("136112946768375385385349842973")
+    x = decimal_to_int("85070591730234615865843651857942052864")
+    y = decimal_to_int("136112946768375385385349842973")
 
     with tx_failed():
         c._num_mul(x, y)
@@ -185,14 +184,18 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
     y = 1 + DECIMAL_EPSILON
 
     with tx_failed():
-        c._num_mul(x, y)
+        c._num_mul(decimal_to_int(x), decimal_to_int(y))
 
-    assert c._num_mul(x, Decimal(1)) == x
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
 
-    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1 - DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x * (1 - DECIMAL_EPSILON))
+    )
 
     x = SizeLimits.MIN_AST_DECIMAL
-    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+    assert c._num_mul(decimal_to_int(x), decimal_to_int(1 - DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x * (1 - DECIMAL_EPSILON))
+    )
 
 
 # division failure modes(!)
@@ -209,35 +212,39 @@ def foo(x: decimal, y: decimal) -> decimal:
     y = -DECIMAL_EPSILON
 
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
     with tx_failed():
-        c.foo(x, Decimal(0))
+        c.foo(decimal_to_int(x), 0)
     with tx_failed():
-        c.foo(y, Decimal(0))
+        c.foo(decimal_to_int(y), 0)
 
-    y = Decimal(1) - DECIMAL_EPSILON  # 0.999999999
+    y = 1 - DECIMAL_EPSILON  # 0.999999999
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    y = Decimal(-1)
+    y = -1
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    assert c.foo(x, Decimal(1)) == x
-    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
+    assert c.foo(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
+    assert c.foo(decimal_to_int(x), decimal_to_int(1 + DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x / (1 + DECIMAL_EPSILON))
+    )
 
     x = SizeLimits.MAX_AST_DECIMAL
 
     with tx_failed():
-        c.foo(x, DECIMAL_EPSILON)
+        c.foo(decimal_to_int(x), decimal_to_int(DECIMAL_EPSILON))
 
-    y = Decimal(1) - DECIMAL_EPSILON
+    y = 1 - DECIMAL_EPSILON
     with tx_failed():
-        c.foo(x, y)
+        c.foo(decimal_to_int(x), decimal_to_int(y))
 
-    assert c.foo(x, Decimal(1)) == x
+    assert c.foo(decimal_to_int(x), decimal_to_int(1)) == decimal_to_int(x)
 
-    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
+    assert c.foo(decimal_to_int(x), decimal_to_int(1 + DECIMAL_EPSILON)) == decimal_to_int(
+        quantize(x / (1 + DECIMAL_EPSILON))
+    )
 
 
 def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):
@@ -267,8 +274,8 @@ def bar(num: decimal) -> decimal:
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo() == Decimal("1e-10")  # Smallest possible decimal
-    assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up
+    assert c.foo() == decimal_to_int("1e-10")  # Smallest possible decimal
+    assert c.bar(decimal_to_int("1e37")) == decimal_to_int("-9e37")  # Math lines up
 
 
 def test_exponents():
@@ -312,3 +319,22 @@ def foo():
         compile_code(code)
 
     assert e.value._hint == "did you mean `5.0 / 9.0`?"
+
+
+def test_decimals_blocked():
+    code = """
+@external
+def foo(x: decimal):
+    pass
+    """
+    # enable_decimals default to False normally, but defaults to True in the
+    # test suite. this test manually overrides the default value to test the
+    # "normal" behavior of enable_decimals outside of the test suite.
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True

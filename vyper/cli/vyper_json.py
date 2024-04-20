@@ -190,7 +190,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
         # some validation
         if not isinstance(value, dict):
-            raise JSONError("invalid interface (must be a dictionary):\n{json.dumps(value)}")
+            raise JSONError(f"invalid interface (must be a dictionary):\n{json.dumps(value)}")
         if "content" in value:
             if not isinstance(value["content"], str):
                 raise JSONError(f"invalid 'content' (expected string):\n{json.dumps(value)}")
@@ -199,11 +199,11 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(f"invalid 'abi' (expected list):\n{json.dumps(value)}")
         else:
             raise JSONError(
-                "invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
             )
         if "content" in value and "abi" in value:
             raise JSONError(
-                "invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
             )
 
         ret[path] = value

@@ -1,13 +1,13 @@
 import enum
 import itertools
-
-# import random
+import math
 from decimal import Decimal
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -17,6 +17,7 @@ from vyper.utils import (
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
+    quantize,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -248,13 +249,20 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        ret = abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        if isinstance(o_typ, DecimalT):
+            return Decimal(ret) / o_typ.divisor
+        return ret
     except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
+    if isinstance(i_typ, DecimalT):
+        val = val * i_typ.divisor
+        assert math.ceil(val) == math.floor(val)
+        val = int(val)
     return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
@@ -414,7 +422,7 @@ def _vyper_literal(val, typ):
         return "0x" + val.hex()
     if isinstance(typ, DecimalT):
         tmp = val
-        val = val.quantize(DECIMAL_EPSILON)
+        val = quantize(val)
         assert tmp == val
     return str(val)
 
@@ -428,6 +436,13 @@ def test_convert_passing(
     if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
         expected_val = None
+
+    if isinstance(o_typ, DecimalT):
+        expected_val = decimal_to_int(expected_val)
+
+    input_val = val
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(val)
 
     contract_1 = f"""
 @external
@@ -460,7 +475,7 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    assert c2.test_input_convert(val) == expected_val
+    assert c2.test_input_convert(input_val) == expected_val
 
     contract_3 = f"""
 bar: {i_typ}
@@ -482,7 +497,7 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c4 = get_contract_with_gas_estimation(contract_4)
-    assert c4.test_memory_variable_convert(val) == expected_val
+    assert c4.test_memory_variable_convert(input_val) == expected_val
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
@@ -714,5 +729,8 @@ def foo(bar: {i_typ}) -> {o_typ}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
+    input_val = val
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(input_val)
     with tx_failed():
-        c3.foo(val)
+        c3.foo(input_val)
