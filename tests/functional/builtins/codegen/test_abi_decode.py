@@ -470,7 +470,7 @@ def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_cod
     assert_compile_failed(lambda: get_contract(bad_code), exception)
 
 
-def test_abi_decode_overflow(w3, tx_failed, get_contract):
+def test_abi_decode_arithmetic_overflow(w3, tx_failed, get_contract):
     # test based on GHSA-9p8r-4xp4-gw5w:
     # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
     # note: doesn't even reach the assert but reverts internally on the clamp in getelemptr
@@ -488,14 +488,17 @@ def f(x: Bytes[32 * 3]):
     """
     c = get_contract(code)
     data = method_id("f(bytes)")
-    data += (0x20).to_bytes(32, "big")
-    data += (0x60).to_bytes(32, "big")
+    data += (0x20).to_bytes(32, "big") # tuple head
+    data += (0x60).to_bytes(32, "big") # parent array length
+    # parent payload - this word will be considered as the head of the abi-encoded inner array
+    # and it will be added to base ptr leading to an arithmetic overflow
     data += (2**256 - 0x60).to_bytes(32, "big")
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
 
-def test_abi_decode_oob_due_to_large_inner_payload(w3, tx_failed, get_contract):
+
+def test_abi_decode_oob_due_to_invalid_head(w3, tx_failed, get_contract):
     code = """
 @external
 def f(x: Bytes[32 * 5]):
@@ -508,13 +511,17 @@ def f(x: Bytes[32 * 5]):
     c = get_contract(code)
     data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")  # tuple head
-    data += (0xA0).to_bytes(32, "big")  # parent array head
-    # head should be 20 and thus the decoding func will try to decode 1 word
+    data += (0xA0).to_bytes(32, "big")  # parent array length
+    # head should be 20 and thus the decoding func would decode 1 byte
     # over the end of the input data
     # _getelemptr_abi_helper will revert due to clamping
-    data += (0x40).to_bytes(32, "big")  # inner array head
-    # inner array payload: length: 3 | idx0: 3 | idx1: 3 | idx2: 3
-    data += (0x3).to_bytes(32, "big") * 4
+    data += (0x21).to_bytes(32, "big")  # invalid inner array head (1 byte over)
+    # we don't want to revert on invalid length, so set this to 0
+    # the first byte of payload will be considered as the length
+    data += (0x00).to_bytes(32, "big")
+    data += (0x01).to_bytes(1, "big")   # will be considered as the length=1
+    data += (0x00).to_bytes(31, "big")
+    data += (0x03).to_bytes(32, "big") * 2
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
