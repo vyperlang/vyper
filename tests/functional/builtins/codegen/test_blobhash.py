@@ -52,7 +52,8 @@ event Blobhash:
 
 @external
 def log_blobhashes():
-    blobs: bytes32[6] = [blobhash(0), blobhash(1), blobhash(2), blobhash(3), blobhash(4), blobhash(5)]
+    blobs: bytes32[6] = [blobhash(0), blobhash(1), blobhash(2), blobhash(3), blobhash(4),\
+                         blobhash(5)]
 
     for i: uint256 in range(6):
         log Blobhash(blobs[i])
