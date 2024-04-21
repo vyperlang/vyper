@@ -1,5 +1,4 @@
 import pytest
-from eth.codecs import abi
 from eth.vm.forks.cancun.constants import BLOB_BASE_FEE_UPDATE_FRACTION, MIN_BLOB_BASE_FEE
 from eth.vm.forks.cancun.state import fake_exponential
 
@@ -18,18 +17,16 @@ def get_blobbasefee() -> uint256:
 
     a0 = w3.eth.account.from_key(f"0x{'00' * 31}01")
 
-    text = "Vyper is the language of the sneks"
-    encoded_text = abi.encode("(string)", (text,))
-    # Blobs contain 4096 32-byte field elements. Subtract the length of the encoded text
-    # divided into 32-byte chunks from 4096 and pad the rest with zeros.
-    blob_data = (b"\x00" * 32 * (4096 - len(encoded_text) // 32)) + encoded_text
+    text = b"Vyper is the language of the sneks"
+    # Blobs contain 4096 32-byte field elements.
+    blob_data = text.rjust(32 * 4096)
 
     for _i in range(10):
         tx = {
             "type": 3,
             "chainId": 1337,
             "from": a0.address,
-            "to": "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",
+            "to": "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",  # random address
             "value": 0,
             "gas": 21000,
             "maxFeePerGas": 10**10,
