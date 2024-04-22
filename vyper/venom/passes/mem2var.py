@@ -13,7 +13,6 @@ class Mem2Var(IRPass):
     """
 
     ctx: IRFunction
-    dom: DominatorTree
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
     dfg: DFG
 
@@ -22,7 +21,6 @@ class Mem2Var(IRPass):
         self.dfg = dfg
 
         calculate_cfg(ctx)
-        self.dom = DominatorTree.build_dominator_tree(ctx, entry)
 
         dfg = DFG.build_dfg(ctx)
         self.dfg = dfg
