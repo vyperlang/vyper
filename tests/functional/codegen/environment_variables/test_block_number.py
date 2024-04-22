@@ -7,5 +7,5 @@ def block_number() -> uint256:
     c = get_contract(block_number_code)
 
     assert c.block_number() == 1
-    env.fast_forward_blocks()
+    env.time_travel()
     assert c.block_number() == 2

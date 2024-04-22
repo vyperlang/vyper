@@ -12,7 +12,7 @@ def test_crowdfund_example(c, env):
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
     env.set_balance(a0, 100)
     c.participate(value=5)
-    env.fast_forward_blocks()  # make sure auction has started
+    env.time_travel()  # make sure auction has started
 
     assert c.timelimit() == 60
     assert c.deadline() - env.timestamp == 59
@@ -21,7 +21,7 @@ def test_crowdfund_example(c, env):
     c.participate(value=49)
     # assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.fast_forward_blocks(100)
+    env.time_travel(100)
     assert env.timestamp > c.deadline()  # expired
     c.finalize()
     post_bal = env.get_balance(a1)
@@ -39,7 +39,7 @@ def test_crowdfund_example2(c, env, tx_failed):
     c.participate(value=4, sender=a6)
 
     assert c.timelimit() == 60
-    env.fast_forward_blocks(100)
+    env.time_travel(100)
     # assert c.expired()
     # assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]

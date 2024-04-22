@@ -153,7 +153,7 @@ class PyEvmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
 
-    def fast_forward_blocks(self, num_blocks=1) -> None:
+    def time_travel(self, num_blocks=1) -> None:
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
@@ -162,6 +162,7 @@ class PyEvmEnv(BaseEnv):
         context = self._state.execution_context
         assert isinstance(context, ExecutionContext)
         context._block_number += num_blocks
+        context._timestamp += num_blocks
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         sender = _addr(self.deployer)

@@ -101,7 +101,7 @@ class RevmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
 
-    def fast_forward_blocks(self, num_blocks=1) -> None:
+    def time_travel(self, num_blocks=1) -> None:
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
