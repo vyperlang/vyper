@@ -469,7 +469,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
                 bound = parent_abi_t.size_bound()
                 ofst_ir = [
                     "seq",
-                    check_buffer_overflow_ir(abi_ofst, member_abi_t.size_bound(), bound),
+                    check_buffer_overflow_ir(ofst_ir, member_abi_t.size_bound(), bound),
                     add_ofst(parent, abi_ofst),
                 ]
                 ofst_ir = b1.resolve(ofst_ir)
