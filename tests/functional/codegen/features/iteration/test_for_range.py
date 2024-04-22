@@ -272,6 +272,7 @@ def test():
     c = get_contract(code)
     c.test()
 
+
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
