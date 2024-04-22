@@ -494,7 +494,7 @@ class Expr:
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
     @staticmethod
-    def _signed_to_unsigned_comparision_op(op):
+    def _signed_to_unsigned_comparison_op(op):
         translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
@@ -554,7 +554,7 @@ class Expr:
             if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
-                op = self._signed_to_unsigned_comparision_op(op)
+                op = self._signed_to_unsigned_comparison_op(op)
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):
