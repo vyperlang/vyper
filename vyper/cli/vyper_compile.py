@@ -150,6 +150,9 @@ def _parse_args(argv):
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
 
     args = parser.parse_args(argv)
 
@@ -195,10 +198,13 @@ def _parse_args(argv):
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
 
+    include_sys_path = not args.disable_sys_path
+
     compiled = compile_files(
         args.input_files,
         output_formats,
         args.paths,
+        include_sys_path,
         args.show_gas_estimates,
         settings,
         args.storage_layout,
@@ -232,7 +238,7 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_search_paths(paths: list[str] = None) -> list[Path]:
+def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Path]:
     # given `paths` input, get the full search path, including
     # the system search path.
     paths = paths or []
@@ -241,7 +247,9 @@ def get_search_paths(paths: list[str] = None) -> list[Path]:
     # note python sys path uses opposite resolution order from us
     # (first in list is highest precedence; we give highest precedence
     # to the last in the list)
-    search_paths = [Path(p) for p in reversed(sys.path)]
+    search_paths = []
+    if include_sys_path:
+        search_paths = [Path(p) for p in reversed(sys.path)]
 
     if Path(".") not in search_paths:
         search_paths.append(Path("."))
@@ -257,12 +265,13 @@ def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
     paths: list[str] = None,
+    include_sys_path: bool = True,
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
-    search_paths = get_search_paths(paths)
+    search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
