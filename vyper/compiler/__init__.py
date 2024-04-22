@@ -7,8 +7,7 @@ import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings
-from vyper.evm.opcodes import anchor_evm_version
+from vyper.compiler.settings import Settings, anchor_settings
 from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
@@ -97,7 +96,6 @@ def compile_from_file_input(
     Dict
         Compiler output as `{'output key': "output data"}`
     """
-
     settings = settings or Settings()
 
     if output_formats is None:
@@ -118,7 +116,7 @@ def compile_from_file_input(
     )
 
     ret = {}
-    with anchor_evm_version(compiler_data.settings.evm_version):
+    with anchor_settings(compiler_data.settings):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")

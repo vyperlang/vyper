@@ -1,4 +1,4 @@
-from decimal import Decimal
+from tests.utils import decimal_to_int
 
 
 def test_call_to_self_struct(w3, get_contract):
@@ -24,12 +24,12 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     return self.get_my_struct(_e1, block.timestamp)
     """
     c = get_contract(code)
-    assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (
-        Decimal("0.1"),
+    assert c.wrap_get_my_struct_WORKING(decimal_to_int("0.1")) == (
+        decimal_to_int("0.1"),
         w3.eth.get_block(w3.eth.block_number)["timestamp"],
     )
-    assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (
-        Decimal("0.1"),
+    assert c.wrap_get_my_struct_BROKEN(decimal_to_int("0.1")) == (
+        decimal_to_int("0.1"),
         w3.eth.get_block(w3.eth.block_number)["timestamp"],
     )
 
@@ -56,5 +56,5 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     return self.get_my_struct(_e1)
     """
     c = get_contract(code)
-    assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (Decimal("0.1"),)
-    assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (Decimal("0.1"),)
+    assert c.wrap_get_my_struct_WORKING(decimal_to_int("0.1")) == (decimal_to_int("0.1"),)
+    assert c.wrap_get_my_struct_BROKEN(decimal_to_int("0.1")) == (decimal_to_int("0.1"),)

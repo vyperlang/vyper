@@ -13,16 +13,15 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
-        "eth-tester[py-evm]>=0.10.0b4,<0.11",
-        "eth_abi>=4.0.0,<5.0.0",
-        "py-evm>=0.10.0b4,<0.11",
-        "web3==6.0.0",
+        "eth-tester[py-evm]>=0.11.0b1,<0.12",
+        "eth_abi>=5.0.0,<6.0.0",
+        "py-evm>=0.10.1b1,<0.11",
+        "web3>=7.0.0b4,<8.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
-        "hexbytes<1.0",
-        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
+        "hexbytes>=1.2",
     ],
     "lint": [
         "black==23.12.0",
@@ -104,7 +103,6 @@ setup(
     entry_points={
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
-            "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]

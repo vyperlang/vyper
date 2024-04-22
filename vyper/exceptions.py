@@ -204,7 +204,7 @@ class InstantiationException(StructureException):
     """Variable or expression cannot be instantiated"""
 
 
-class VersionException(VyperException):
+class VersionException(SyntaxException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
@@ -352,6 +352,10 @@ class ParserException(Exception):
 
 class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
+
+
+class FeatureException(VyperException):
+    """Some feature flag is not enabled"""
 
 
 class StaticAssertionException(VyperException):

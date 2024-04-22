@@ -239,7 +239,7 @@ A value with a precision of 10 decimal places between -1870722095783555735300716
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
 
-The ABI type (for computing method identifiers) of ``decimal`` is ``fixed168x10``.
+The ABI type (for computing method identifiers) of ``decimal`` is ``int168``.
 
 Operators
 *********
