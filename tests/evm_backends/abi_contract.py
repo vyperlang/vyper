@@ -402,13 +402,7 @@ class ABIContractFactory:
         Create an ABI contract object for a deployed contract at `address`.
         """
         return ABIContract(
-            env,
-            self._name,
-            self._abi,
-            self._functions,
-            self._log_topics,
-            self._bytecode,
-            address,
+            env, self._name, self._abi, self._functions, self._log_topics, self._bytecode, address
         )
 
 

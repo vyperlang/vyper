@@ -1,12 +1,3 @@
-import pytest
-
-
-@pytest.fixture(autouse=True)
-def set_initial_balance(env):
-    # set the balance of the deployer so the tests can transfer funds
-    env.set_balance(env.deployer, 10**20)
-
-
 def test_arbitration_code(env, get_contract, tx_failed):
     arbitration_code = """
 buyer: address
@@ -32,6 +23,7 @@ def refund():
 
     """
     a0, a1, a2 = env.accounts[:3]
+    env.set_balance(a0, 1)
     c = get_contract(arbitration_code, value=1)
     c.setup(a1, a2)
     with tx_failed():
@@ -66,6 +58,7 @@ def refund():
     send(self.buyer, self.balance)
     """
     a0, a1, a2 = env.accounts[:3]
+    env.set_balance(env.deployer, 1)
     c = get_contract(arbitration_code_with_init, *[a1, a2], value=1)
     with tx_failed():
         c.finalize(sender=a1)

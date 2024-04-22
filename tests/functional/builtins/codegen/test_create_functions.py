@@ -106,6 +106,7 @@ def test2(a: uint256) -> Bytes[100]:
     with tx_failed(exc_text="invaliddddd"):
         c.test2(0, gas=gas_sent)
 
+    # check we issued `revert`, which does not consume all gas
     assert env.last_result.gas_used < gas_sent
 
 

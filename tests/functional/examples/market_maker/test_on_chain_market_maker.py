@@ -36,6 +36,7 @@ def test_initial_state(market_maker):
 
 def test_initiate(env, market_maker, erc20, tx_failed):
     a0 = env.accounts[0]
+    env.set_balance(a0, to_wei(2, "ether"))
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
     erc20.approve(market_maker.address, ethers)
     market_maker.initiate(erc20.address, ether, value=ethers)
@@ -52,7 +53,8 @@ def test_initiate(env, market_maker, erc20, tx_failed):
 
 
 def test_eth_to_tokens(env, market_maker, erc20):
-    a1 = env.accounts[1]
+    a0, a1 = env.accounts[:2]
+    env.set_balance(a0, to_wei(2, "ether"))
     erc20.approve(market_maker.address, to_wei(2, "ether"))
     market_maker.initiate(erc20.address, to_wei(1, "ether"), value=to_wei(2, "ether"))
     assert erc20.balanceOf(market_maker.address) == to_wei(1, "ether")
@@ -94,7 +96,8 @@ def test_tokens_to_eth(env, market_maker, erc20):
 
 def test_owner_withdraw(env, market_maker, erc20, tx_failed):
     a0, a1 = env.accounts[:2]
-    a0_balance_before = env.get_balance(a0)
+    a0_balance_before = to_wei(10, "ether")
+    env.set_balance(a0, a0_balance_before)
     # Approve 2 eth transfers.
     erc20.approve(market_maker.address, to_wei(2, "ether"))
     # Initiate market with 2 eth value.

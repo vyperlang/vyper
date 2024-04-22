@@ -1,5 +1,4 @@
 import pytest
-from eth.codecs.abi.exceptions import EncodeError
 
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
@@ -196,13 +195,13 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     assert c.bar(-123) == (-123, -1)
     assert c.bar(100, 100) == (100, 100)
 
-    def validate_value(cls, value):
-        pass
+    def visit_int(node, value):
+        return value.to_bytes(32, "big", signed=node.is_signed)
 
-    monkeypatch.setattr("eth_abi.encoding.NumberEncoder.validate_value", validate_value)
+    monkeypatch.setattr("eth.codecs.abi.encoder.Encoder.visit_IntegerNode", visit_int)
 
     assert c.bar(200, 2**127 - 1) == (200, 2**127 - 1)
-    with tx_failed(EncodeError):
+    with tx_failed():
         c.bar(200, 2**127, disambiguate_signature="bar(int128,int128)")
 
 

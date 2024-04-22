@@ -79,7 +79,7 @@ class RevmEnv(BaseEnv):
     ):
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         try:
-            output = self._evm.message_call(
+            return self._evm.message_call(
                 to=to,
                 caller=sender or self.deployer,
                 calldata=data,
@@ -88,7 +88,6 @@ class RevmEnv(BaseEnv):
                 gas_price=gas_price,
                 is_static=not is_modifying,
             )
-            return bytes(output)
         except RuntimeError as e:
             if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]+) }", e.args[0]):
                 gas_used, output_str = match.groups()
@@ -102,7 +101,7 @@ class RevmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
 
-    def time_travel(self, num_blocks=1) -> None:
+    def fast_forward_blocks(self, num_blocks=1) -> None:
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """

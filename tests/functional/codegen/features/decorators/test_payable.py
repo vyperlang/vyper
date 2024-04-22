@@ -334,9 +334,9 @@ def bar() -> bool:
 
 
 @pytest.mark.parametrize("code", payable_code)
-def test_payable_runtime_assertion(get_contract, code):
+def test_payable_runtime_assertion(env, get_contract, code):
     c = get_contract(code)
-
+    env.set_balance(env.deployer, 10**18)
     c.foo(value=10**18)
     c.foo(value=0)
 
@@ -352,8 +352,8 @@ def foo() -> bool:
 def __default__():
     pass
     """
-
     c = get_contract(code)
+    env.set_balance(env.deployer, 100)
     env.execute_code(c.address, value=100, data="0x12345678")
 
 

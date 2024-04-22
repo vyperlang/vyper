@@ -7,6 +7,5 @@ def block_number() -> uint256:
     c = get_contract(block_number_code)
 
     assert c.block_number() == 1
-    env.time_travel()
-    c = env.deploy_source(block_number_code, output_formats, compiler_settings)
+    env.fast_forward_blocks()
     assert c.block_number() == 2

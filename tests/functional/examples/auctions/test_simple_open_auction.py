@@ -40,7 +40,7 @@ def test_initial_state(env, auction_contract, auction_start):
 
 def test_bid(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
-    env.time_travel()  # make sure auction has started
+    env.fast_forward_blocks()  # make sure auction has started
 
     # Bidder cannot bid 0
     with tx_failed():
@@ -85,7 +85,7 @@ def test_bid(env, auction_contract, tx_failed):
 def test_end_auction(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
 
-    env.time_travel()  # make sure auction has started
+    env.fast_forward_blocks()  # make sure auction has started
 
     # Fails if auction end time has not been reached
     with tx_failed():
@@ -94,7 +94,7 @@ def test_end_auction(env, auction_contract, tx_failed):
     auction_contract.bid(value=1 * 10**10, sender=k2)
     # Move block timestamp forward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
-    env.time_travel(EXPIRY)
+    env.fast_forward_blocks(EXPIRY)
     balance_before_end = env.get_balance(k1)
     auction_contract.endAuction(sender=k2)
     balance_after_end = env.get_balance(k1)

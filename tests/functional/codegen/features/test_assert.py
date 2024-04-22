@@ -1,12 +1,6 @@
 import pytest
 
 
-# web3 returns f"execution reverted: {err_str}"
-# TODO move exception string parsing logic into tx_failed
-def _fixup_err_str(e_info):
-    return e_info.value.args[0].replace("execution reverted: ", "")
-
-
 def test_assert_refund(env, get_contract, tx_failed):
     code = """
 @external
@@ -19,7 +13,8 @@ def foo():
     with tx_failed():
         c.foo(gas=gas_sent, gas_price=10)
 
-    assert env.last_result.gas_used < gas_sent, "Gas refund not received"
+    # check we issued `revert`, which does not consume all gas
+    assert env.last_result.gas_used < gas_sent
 
 
 def test_assert_reason(env, get_contract, tx_failed, memory_mocker):

@@ -36,6 +36,7 @@ def test_initial_state(env, tx_failed, get_contract, get_balance, contract_code)
     # Initial deposit has to be divisible by two
     with tx_failed():
         get_contract(contract_code, value=13)
+    env.set_balance(env.deployer, to_wei(2, "ether"))
     # Seller puts item up for sale
     a0_pre_bal, a1_pre_bal = get_balance()
     c = get_contract(contract_code, value_in_eth=2)
@@ -51,8 +52,8 @@ def test_initial_state(env, tx_failed, get_contract, get_balance, contract_code)
 
 def test_abort(env, tx_failed, get_balance, get_contract, contract_code):
     a0, a1, a2 = env.accounts[:3]
-    env.set_balance(a1, 10**18)
-    env.set_balance(a2, 10**18)
+    for a in env.accounts[:3]:
+        env.set_balance(a, 10**20)
 
     a0_pre_bal, a1_pre_bal = get_balance()
     c = get_contract(contract_code, value=to_wei(2, "ether"))
@@ -151,7 +152,8 @@ def __default__():
     """
 
     a0, a1 = env.accounts[:2]
-    env.set_balance(a1, 10**18)
+    for a in env.accounts[:2]:
+        env.set_balance(a, 10**18)
 
     c = get_contract(contract_code, value=2)
     buyer_contract = get_contract(buyer_contract_code, *[c.address])

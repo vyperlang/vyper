@@ -260,6 +260,7 @@ def __default__():
     assert reentrant_contract.callback() == calling_contract.address
 
     # Test unprotected function without callback.
+    env.set_balance(env.deployer, 10**6)
     reentrant_contract.unprotected_function("some value", False, value=1000)
     assert reentrant_contract.special_value() == "some value"
     assert env.get_balance(reentrant_contract.address) == 0

@@ -408,7 +408,7 @@ def __default__():
     """
 
     c = get_contract(code)
-
+    env.set_balance(env.deployer, to_wei(1, "ether"))
     env.execute_code(c.address, value=to_wei(1, "ether"))
     assert env.get_balance(c.address) == to_wei(1, "ether")
     a3 = env.accounts[2]

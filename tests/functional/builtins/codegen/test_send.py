@@ -15,7 +15,9 @@ def fop():
     c = get_contract(send_test, value=10)
     with tx_failed():
         c.foo()
+    assert env.get_balance(c.address) == 10
     c.fop()
+    assert env.get_balance(c.address) == 0
     with tx_failed():
         c.fop()
 
