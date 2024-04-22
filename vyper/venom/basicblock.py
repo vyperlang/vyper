@@ -278,8 +278,8 @@ class IRInstruction:
             label = self.operands[i]
             var = self.operands[i + 1]
             assert isinstance(label, IRLabel), "phi operand must be a label"
-            assert isinstance(var, IRVariable) or isinstance(
-                var, IRLiteral
+            assert isinstance(
+                var, (IRVariable, IRLiteral)
             ), "phi operand must be a variable or literal"
             yield label, var
 
