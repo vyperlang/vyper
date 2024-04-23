@@ -449,39 +449,45 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
     parent_t = parent.typ
     member_abi_t = member_t.abi_type
 
+    buf_ofst = 0
+
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD)
+        buf_ofst = parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD
+        parent = add_ofst(parent, buf_ofst)
 
     ofst_ir = add_ofst(parent, ofst)
 
     if member_abi_t.is_dynamic():
+        # the relative location of `member` in the abi payload
         abi_ofst = unwrap_location(ofst_ir)
+
         # double dereference, according to ABI spec
-        # TODO optimize special case: first dynamic item
-        # offset is statically known.
-        ofst_ir = add_ofst(parent, abi_ofst)
+        # `ofst_ir` is the "real" (absolute) pointer to the item
+        if parent.location != MEMORY:
+            ofst_ir = add_ofst(parent, abi_ofst)
 
-        if parent.location == MEMORY:  # TODO: replace with utility function
+        # if abi decoding from memory, we add extra sanity checks to validate
+        # the pointers are in-bounds.
+        else:
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                bound = parent_t.abi_type.size_bound()
+                buf_bound = parent_t.abi_type.size_bound()
+                # subtract the size of the length word (if applicable), since
+                # the relative pointers are from the start of the "inner"
+                # static array, not from the beginning of the dynarray
+                buf_bound -= buf_ofst
 
-                if has_length_word(parent_t):
-                    bound -= MEMORY.word_scale * DYNAMIC_ARRAY_OVERHEAD
+                item_bound = member_abi_t.size_bound()
 
-                ofst_ir = [
-                    "seq",
-                    # the bound check is stricter than it has to be but it satisfies the ABI spec
-                    # it assumes that the length of the type pointed to by the head is maximal for
-                    # the given type (the parent bufffer is big enough to contain the max subtyp).
-                    # the actual runtime length might be smaller, so if we checked the runtime value
-                    # we could allow invalid head values as long as:
-                    #  - invalid_head + length_word + length*item_size <= bound
-                    check_buffer_overflow_ir(abi_ofst, member_abi_t.size_bound(), bound),
-                    add_ofst(parent, abi_ofst),
-                ]
+                # check the location that `head` points to has no risk
+                # of overflowing the buffer, i.e. that
+                # `abi_ofst + item_size_bound <= buf bound`
+                # TODO: runtime check? `ofst_i + len_i < ofst_(i+1)`
+                bounds_check = check_buffer_overflow_ir(abi_ofst, item_bound, buf_bound)
+
+                ofst_ir = ["seq", bounds_check, add_ofst(parent, abi_ofst)]
                 ofst_ir = b1.resolve(ofst_ir)
 
     return IRnode.from_list(
