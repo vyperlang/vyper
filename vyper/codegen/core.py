@@ -34,6 +34,8 @@ from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
+from vyper.evm.address_space import MEMORY
+
 DYNAMIC_ARRAY_OVERHEAD = 1
 
 
@@ -447,7 +449,7 @@ def _mul(x, y):
 # Resolve pointer locations for ABI-encoded data
 def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
     member_abi_t = member_t.abi_type
-    parent_abi_t = parent.typ.abi_type
+    orig_parent = parent
 
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
@@ -466,10 +468,12 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
 
         if parent.location == MEMORY:  # TODO: replace with utility function
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                bound = parent_abi_t.size_bound()
+                bound = orig_parent.typ.abi_type.size_bound()
+                if has_length_word(orig_parent.typ):
+                    bound -= MEMORY.word_scale * DYNAMIC_ARRAY_OVERHEAD
                 ofst_ir = [
                     "seq",
-                    check_buffer_overflow_ir(ofst_ir, member_abi_t.size_bound(), bound),
+                    check_buffer_overflow_ir(abi_ofst, member_abi_t.size_bound(), bound),
                     add_ofst(parent, abi_ofst),
                 ]
                 ofst_ir = b1.resolve(ofst_ir)
