@@ -446,8 +446,8 @@ def _mul(x, y):
 
 # Resolve pointer locations for ABI-encoded data
 def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
+    parent_t = parent.typ
     member_abi_t = member_t.abi_type
-    orig_parent = parent
 
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
@@ -466,12 +466,14 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
 
         if parent.location == MEMORY:  # TODO: replace with utility function
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                bound = orig_parent.typ.abi_type.size_bound()
-                if has_length_word(orig_parent.typ):
+                bound = parent_t.abi_type.size_bound()
+
+                if has_length_word(parent_t):
                     bound -= MEMORY.word_scale * DYNAMIC_ARRAY_OVERHEAD
+
                 ofst_ir = [
                     "seq",
-                    # the bound check is strickter than it has to be but it satisfies the ABI spec
+                    # the bound check is stricter than it has to be but it satisfies the ABI spec
                     # it assumes that the length of the type pointed to by the head is maximal for
                     # the given type (the parent bufffer is big enough to contain the max subtyp).
                     # the actual runtime length might be smaller, so if we checked the runtime value
