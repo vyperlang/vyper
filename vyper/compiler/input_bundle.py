@@ -1,7 +1,7 @@
 import contextlib
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
@@ -48,13 +48,7 @@ class ABIInput(CompilerInput):
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
-        return ABIInput(
-            file_input.source_id,
-            file_input.path,
-            file_input.resolved_path,
-            file_input.source_code,
-            s,
-        )
+        return ABIInput(**asdict(file_input), abi=s)
     except (ValueError, TypeError):
         return file_input
 
