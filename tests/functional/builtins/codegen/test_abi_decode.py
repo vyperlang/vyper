@@ -488,14 +488,13 @@ def f(x: Bytes[32 * 3]):
     """
     c = get_contract(code)
     data = method_id("f(bytes)")
-    data += (0x20).to_bytes(32, "big") # tuple head
-    data += (0x60).to_bytes(32, "big") # parent array length
+    data += (0x20).to_bytes(32, "big")  # tuple head
+    data += (0x60).to_bytes(32, "big")  # parent array length
     # parent payload - this word will be considered as the head of the abi-encoded inner array
     # and it will be added to base ptr leading to an arithmetic overflow
     data += (2**256 - 0x60).to_bytes(32, "big")
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
-
 
 
 def test_abi_decode_oob_due_to_invalid_head(w3, tx_failed, get_contract):
@@ -519,14 +518,55 @@ def f(x: Bytes[32 * 5]):
     # we don't want to revert on invalid length, so set this to 0
     # the first byte of payload will be considered as the length
     data += (0x00).to_bytes(32, "big")
-    data += (0x01).to_bytes(1, "big")   # will be considered as the length=1
+    data += (0x01).to_bytes(1, "big")  # will be considered as the length=1
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
     with tx_failed():
         w3.eth.send_transaction({"to": c.address, "data": data})
 
 
-def test_abi_decode_oob_due_to_invalid_head(tx_failed, get_contract):
+def test_abi_decode_oob_due_to_invalid_head2(w3, tx_failed, get_contract):
+    code = """
+@external
+def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[Bytes[32 * 3], 3] = _abi_decode(y,  DynArray[Bytes[32 * 3], 3])
+    """
+    c = get_contract(code)
+    data = method_id("f(bytes)")
+    data += (0x20).to_bytes(32, "big")  # tuple head
+    data += (0x0220).to_bytes(32, "big")  # top-level bytes array length
+
+    data += (0x20).to_bytes(32, "big")  # DynArray head
+    data += (0x03).to_bytes(32, "big")  # DynArray length
+
+    # invalid head - if the length pointed to by this head is 0x60, the decoding function
+    # would decode 1 byte over the end of the buffer
+    # skip the heads, 1st and 2nd tail to the third tail + 1B
+    data += (0x20 * 8 + 0x20 * 3 + 0x01).to_bytes(32, "big")  # inner array0 head
+
+    data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][0] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][0] data
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][1] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][1]  data
+
+    # the invalid head points here + 1B (thus the (0x01) will be considered as the length)
+    # we don't revert because of invalid length, but because of invalid head
+    # if the length is 0x60, then head + 0x20 (the length word) + 0x60 is 1B
+    # over the buffer end
+    data += (0x00).to_bytes(32, "big")  # DynArray[Bytes[96], 3][2] length
+    data += (0x01).to_bytes(1, "big")
+    data += (0x00).to_bytes(31, "big")
+    data += (0x03).to_bytes(32, "big") * 2
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "data": data})
+
+
+def test_abi_decode_oob_due_to_invalid_head3(tx_failed, get_contract):
     code = """
 @external
 def bar() -> (uint256, uint256, uint256):
