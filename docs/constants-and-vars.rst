@@ -11,23 +11,26 @@ Environment variables always exist in the namespace and are primarily used to pr
 Block and Transaction Properties
 --------------------------------
 
-==================== ================ =========================================================
-Name                 Type             Value
-==================== ================ =========================================================
-``block.coinbase``   ``address``      Current block miner's address
-``block.difficulty`` ``uint256``      Current block difficulty
-``block.prevrandao`` ``bytes32``      Current randomness beacon provided by the beacon chain
-``block.number``     ``uint256``      Current block number
-``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
-``block.timestamp``  ``uint256``      Current block epoch timestamp
-``chain.id``         ``uint256``      Chain ID
-``msg.data``         ``Bytes``        Message data
-``msg.gas``          ``uint256``      Remaining gas
-``msg.sender``       ``address``      Sender of the message (current call)
-``msg.value``        ``uint256``      Number of wei sent with the message
-``tx.origin``        ``address``      Sender of the transaction (full call chain)
-``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
-==================== ================ =========================================================
+===================== ================ =========================================================
+Name                  Type             Value
+===================== ================ =========================================================
+``block.coinbase``    ``address``      Current block miner's address
+``block.difficulty``  ``uint256``      Current block difficulty
+``block.prevrandao``  ``bytes32``      Current randomness beacon provided by the beacon chain
+``block.number``      ``uint256``      Current block number
+``block.gaslimit``    ``uint256``      Current block's gas limit
+``block.basefee``     ``uint256``      Current block's base fee
+``block.blobbasefee`` ``uint256``      Current block's blob gas base fee
+``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
+``block.timestamp``   ``uint256``      Current block epoch timestamp
+``chain.id``          ``uint256``      Chain ID
+``msg.data``          ``Bytes``        Message data
+``msg.gas``           ``uint256``      Remaining gas
+``msg.sender``        ``address``      Sender of the message (current call)
+``msg.value``         ``uint256``      Number of wei sent with the message
+``tx.origin``         ``address``      Sender of the transaction (full call chain)
+``tx.gasprice``       ``uint256``      Gas price of current transaction in wei
+===================== ================ =========================================================
 
 .. note::
 
