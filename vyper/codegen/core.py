@@ -473,6 +473,12 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
                     bound -= MEMORY.word_scale * DYNAMIC_ARRAY_OVERHEAD
                 ofst_ir = [
                     "seq",
+                    # the bound check is strickter than it has to be but it satisfies the ABI spec
+                    # it assumes that the length of the type pointed to by the head is maximal for
+                    # the given type (the parent bufffer is big enough to contain the maximal subtyp).
+                    # the actual runtime length might be smaller, so if we checked the runtime value
+                    # we could allow invalid head values as long as:
+                    #  - invalid_head + length_word + length*item_size <= bound
                     check_buffer_overflow_ir(abi_ofst, member_abi_t.size_bound(), bound),
                     add_ofst(parent, abi_ofst),
                 ]
