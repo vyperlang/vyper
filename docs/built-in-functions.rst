@@ -140,7 +140,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     * ``target``: Address of the contract to proxy to
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
-    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the null address.
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
@@ -170,7 +170,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     * ``target``: Address of the contract to copy
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
-    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the null address.
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
@@ -195,7 +195,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``raw_args``: If ``True``, ``*args`` must be a single ``Bytes[...]`` argument, which will be interpreted as a raw bytes buffer to forward to the create operation (which is useful for instance, if pre- ABI-encoded data is passed in from elsewhere). (Optional, default ``False``)
     * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 3)
-    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the null address.
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.

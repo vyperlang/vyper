@@ -1,8 +1,7 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
 
+from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -503,7 +502,7 @@ def foo():
     logs1 = receipt["logs"][0]
     logs2 = receipt["logs"][1]
     event_id1 = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
-    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
+    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,int168)))", "utf-8"))
 
     # Event id is always the first topic
     assert logs1["topics"][0] == "0x" + event_id1.hex()
@@ -533,7 +532,7 @@ def foo():
                         "type": "tuple",
                         "components": [
                             {"name": "t", "type": "string"},
-                            {"name": "w", "type": "fixed168x10"},
+                            {"name": "w", "type": "int168", "internalType": "decimal"},
                         ],
                     },
                 ],
@@ -552,7 +551,7 @@ def foo():
     logs = get_logs(tx_hash, c, "YourLog")
     args = logs[0].args
     assert args.arg1 == c.address
-    assert args.arg2 == {"x": 1, "y": b"abc", "z": {"t": "house", "w": Decimal("13.5")}}
+    assert args.arg2 == {"x": 1, "y": b"abc", "z": {"t": "house", "w": decimal_to_int("13.5")}}
 
 
 def test_fails_when_input_is_the_wrong_type(tx_failed, get_contract_with_gas_estimation):
@@ -902,10 +901,10 @@ def foo():
     tx_hash = c.foo(transact={})
     logs = get_logs(tx_hash, c, "Bar")
     assert logs[0].args._value == [
-        Decimal("1.11"),
-        Decimal("2.22"),
-        Decimal("3.33"),
-        Decimal("4.44"),
+        decimal_to_int("1.11"),
+        decimal_to_int("2.22"),
+        decimal_to_int("3.33"),
+        decimal_to_int("4.44"),
     ]
 
 
@@ -954,15 +953,15 @@ def set_list():
 
     tx_hash = c.foo(transact={})
     logs = get_logs(tx_hash, c, "Bar")
-    assert logs[0].args._value == [Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")]
+    assert logs[0].args._value == [decimal_to_int("0")] * 4
     c.set_list(transact={})
     tx_hash = c.foo(transact={})
     logs = get_logs(tx_hash, c, "Bar")
     assert logs[0].args._value == [
-        Decimal("1.33"),
-        Decimal("2.33"),
-        Decimal("3.33"),
-        Decimal("4.33"),
+        decimal_to_int("1.33"),
+        decimal_to_int("2.33"),
+        decimal_to_int("3.33"),
+        decimal_to_int("4.33"),
     ]
 
 

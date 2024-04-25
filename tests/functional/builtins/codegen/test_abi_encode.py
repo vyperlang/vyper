@@ -1,8 +1,7 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
 
+from tests.utils import decimal_to_int
 from vyper.exceptions import StackTooDeep
 
 
@@ -109,10 +108,10 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
-        ("vyper", test_addr, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", test_addr, 123, True, decimal_to_int("123.4"), [123, 456, 789], test_bytes32),
     )
     args = tuple([human_tuple[0]] + list(human_tuple[1]))
-    human_t = "(string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32))"
+    human_t = "(string,(string,address,int128,bool,int168,uint256[3],bytes32))"
     human_encoded = abi.encode(human_t, human_tuple)
     assert c.abi_encode(*args, False, False).hex() == human_encoded.hex()
     assert c.abi_encode(*args, False, True).hex() == (method_id + human_encoded).hex()
