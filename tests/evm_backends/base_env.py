@@ -1,8 +1,11 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
+from ckzg import blob_to_kzg_commitment, load_trusted_setup
+from eth.precompiles.point_evaluation import kzg_to_versioned_hash
+from eth_account._utils.typed_transactions.base import TRUSTED_SETUP
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
@@ -165,6 +168,7 @@ class BaseEnv:
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
+        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 
@@ -175,6 +179,12 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def time_travel(self, num_blocks=1) -> None:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def get_excess_blob_gas(self) -> Optional[int]:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    def set_excess_blob_gas(self, param):
         raise NotImplementedError  # must be implemented by subclasses
 
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
@@ -211,3 +221,8 @@ def _compile(
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
     return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+
+def kzg_hash(blob: bytes) -> bytes:
+    commitment = blob_to_kzg_commitment(blob, load_trusted_setup(TRUSTED_SETUP))
+    return kzg_to_versioned_hash(commitment)

@@ -1,5 +1,6 @@
 import logging
 from contextlib import contextmanager
+from typing import Optional
 
 import rlp
 from cached_property import cached_property
@@ -65,6 +66,12 @@ class PyEvmEnv(BaseEnv):
     def _vm(self):
         return self._chain.get_vm()
 
+    @cached_property
+    def _context(self) -> ExecutionContext:
+        context = self._state.execution_context
+        assert isinstance(context, ExecutionContext)
+        return context
+
     @contextmanager
     def anchor(self):
         snapshot_id = self._state.snapshot()
@@ -110,6 +117,7 @@ class PyEvmEnv(BaseEnv):
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
+        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ):
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         sender = _addr(sender or self.deployer)
@@ -157,12 +165,14 @@ class PyEvmEnv(BaseEnv):
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
+        self._context._block_number += num_blocks
+        self._context._timestamp += num_blocks
 
-        # Cast since ExecutionContextAPI does not have the properties we need to change
-        context = self._state.execution_context
-        assert isinstance(context, ExecutionContext)
-        context._block_number += num_blocks
-        context._timestamp += num_blocks
+    def get_excess_blob_gas(self) -> Optional[int]:
+        return self._context.excess_blob_gas
+
+    def set_excess_blob_gas(self, param):
+        self._context._excess_blob_gas = param
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         sender = _addr(self.deployer)

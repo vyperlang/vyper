@@ -22,7 +22,7 @@ extras_require = {
         "eth-stdlib==0.2.7",
         "setuptools",
         "hexbytes>=1.2",
-        "pyrevm>=0.3.1",
+        "pyrevm @ git+https://github.com/DanielSchiavini/pyrevm.git@725cbfc",
     ],
     "lint": [
         "black==23.12.0",

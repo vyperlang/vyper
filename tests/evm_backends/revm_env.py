@@ -1,5 +1,6 @@
 import re
 from contextlib import contextmanager
+from typing import Optional
 
 from eth_keys.datatypes import PrivateKey
 from pyrevm import EVM, BlockEnv, Env
@@ -76,8 +77,12 @@ class RevmEnv(BaseEnv):
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
+        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ):
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
+        if blob_hashes is not None:
+            self._evm.env.tx.blob_hashes = blob_hashes
+
         try:
             return self._evm.message_call(
                 to=to,
@@ -105,19 +110,17 @@ class RevmEnv(BaseEnv):
         """
         Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
         """
-        block = self._evm.env.block
-        self._evm.set_block_env(
-            BlockEnv(
-                number=block.number + num_blocks,
-                coinbase=block.coinbase,
-                timestamp=block.timestamp + num_blocks,
-                difficulty=block.difficulty,
-                prevrandao=block.prevrandao,
-                basefee=block.basefee,
-                gas_limit=block.gas_limit,
-                excess_blob_gas=block.excess_blob_gas,
-            )
-        )
+        self._evm.env.block.number += num_blocks
+        self._evm.env.block.timestamp += num_blocks
+
+    def get_excess_blob_gas(self) -> Optional[int]:
+        return self._evm.env.block.excess_blob_gas
+
+    def get_blob_gasprice(self) -> Optional[int]:
+        return self._evm.env.block.blob_gasprice
+
+    def set_excess_blob_gas(self, value):
+        self._evm.env.block.excess_blob_gas = value
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
         return self._evm.deploy(self.deployer, code, value, gas)
