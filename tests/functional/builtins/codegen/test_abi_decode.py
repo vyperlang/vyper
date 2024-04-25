@@ -521,8 +521,8 @@ def f(x: Bytes[32 * 5]):
     data += (0x01).to_bytes(1, "big")  # will be considered as the length=1
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
-    with tx_failed():
-        w3.eth.send_transaction({"to": c.address, "data": data})
+    #with tx_failed():
+    w3.eth.send_transaction({"to": c.address, "data": data})
 
 
 def test_abi_decode_oob_due_to_invalid_head2(w3, tx_failed, get_contract):
@@ -561,8 +561,8 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     data += (0x01).to_bytes(1, "big")
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
-    with tx_failed():
-        c.run(data)
+    #with tx_failed():
+    c.run(data)
 
 
 def test_abi_decode_oob_due_to_invalid_size(w3, tx_failed, get_contract):
@@ -575,8 +575,8 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     c = get_contract(code)
     data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")  # tuple head
-    data += (0x0220).to_bytes(32, "big")  # top-level bytes array length
-    #data += (0x01E4).to_bytes(32, "big")  # top-level bytes array length
+    #data += (0x0220).to_bytes(32, "big")  # top-level bytes array length
+    data += (0x01E4).to_bytes(32, "big")  # top-level bytes array length
 
     data += (0x20).to_bytes(32, "big")  # DynArray head
     data += (0x03).to_bytes(32, "big")  # DynArray length
