@@ -565,6 +565,39 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         c.run(data)
 
 
+def test_abi_decode_oob_due_to_invalid_size(w3, tx_failed, get_contract):
+    code = """
+@external
+def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[Bytes[32 * 3], 3] = _abi_decode(y,  DynArray[Bytes[32 * 3], 3])
+    """
+    c = get_contract(code)
+    data = method_id("f(bytes)")
+    data += (0x20).to_bytes(32, "big")  # tuple head
+    data += (0x0220).to_bytes(32, "big")  # top-level bytes array length
+    #data += (0x01E4).to_bytes(32, "big")  # top-level bytes array length
+
+    data += (0x20).to_bytes(32, "big")  # DynArray head
+    data += (0x03).to_bytes(32, "big")  # DynArray length
+
+    data += (0x20 * 3).to_bytes(32, "big")  # inner array0 head
+    data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][0] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][0] data
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][1] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][1]  data
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][2] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][2]  data
+
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "data": data})
+
+
 def test_abi_decode_oob_due_to_invalid_head3(tx_failed, get_contract):
     code = """
 @external
