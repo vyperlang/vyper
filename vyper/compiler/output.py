@@ -111,6 +111,9 @@ def build_archive(compiler_data: CompilerData) -> str:
             for sp in reversed(compiler_data.input_bundle.search_paths):
                 if c.resolved_path.is_relative_to(sp):
                     used_search_paths[sp] += 1
+                    # don't break. if there are more than 1 search path
+                    # which could possibly match, we add all them to the
+                    # archive.
 
         # construct the manifest file
         archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
