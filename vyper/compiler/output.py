@@ -75,6 +75,61 @@ def _anonymize(p: str):
     return str(PurePath(*segments))
 
 
+def build_solc_json(compiler_data: CompilerData) -> str:
+    compilation_target = compiler_data.compilation_target._metadata["type"]
+    imports = compilation_target.reachable_imports
+
+    compiler_inputs = [
+        t.compiler_input for t in imports if not _is_builtin(t.qualified_module_name)
+    ]
+    compiler_inputs.append(compiler_data.file_input)
+
+    seen_paths = set()
+    # only write those search paths into the manifest which are actually used
+    # setup: create a dict with the input bundle's search paths, to preserve
+    # order of seen search paths.
+    used_search_paths = {sp: 0 for sp in compiler_data.input_bundle.search_paths}
+
+    ret = {"sources": {}, "language": "Vyper"}
+
+    for c in compiler_inputs:
+        path = os.path.relpath(str(c.resolved_path))
+        # note: there should be a 1:1 correspondence between
+        # resolved_path and source_id, but for clarity use resolved_path
+        # since it corresponds more directly to zipfile semantics.
+        if path in seen_paths:
+            continue
+        seen_paths.add(path)
+        ret["sources"][_anonymize(path)] = {"content": c.contents, "sha256sum": c.sha256sum}
+
+        # recover the search path that was used for this CompilerInput.
+        # note that it is not sufficient to thread the "search path that
+        # was used" into CompilerInput because search_paths are modified
+        # during compilation (so a search path which does not exist in
+        # the original search_paths set could be used for a given file).
+        for sp in reversed(compiler_data.input_bundle.search_paths):
+            if c.resolved_path.is_relative_to(sp):
+                used_search_paths[sp] += 1
+                # don't break. if there are more than 1 search path
+                # which could possibly match, we add all them to the
+                # archive.
+
+    # construct the manifest file
+    ret["settings"] = {"outputSelection": {}}
+    ret["settings"]["outputSelection"][str(compiler_data.file_input.path)] = "*"
+
+    sps = [_anonymize(os.path.relpath(sp)) for sp, count in used_search_paths.items() if count > 0]
+    ret["settings"]["search_paths"] = sps
+
+    ret["integrity"] = compilation_target.integrity_sum
+
+    settings = compiler_data.original_settings
+    if settings is not None:
+        ret["settings"].update(settings.as_dict())
+
+    return ret
+
+
 def build_archive(compiler_data: CompilerData) -> str:
     compilation_target = compiler_data.compilation_target._metadata["type"]
     imports = compilation_target.reachable_imports

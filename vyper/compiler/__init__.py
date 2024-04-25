@@ -20,6 +20,7 @@ OUTPUT_FORMATS = {
     "userdoc": output.build_userdoc,
     "archive": output.build_archive,
     "integrity": output.build_integrity,
+    "solc_json": output.build_solc_json,
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
