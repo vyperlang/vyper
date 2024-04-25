@@ -1,6 +1,7 @@
 import contextlib
 from typing import Generator
 
+from vyper.abi_types import ABI_Bytes, ABI_DynamicArray
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import (
@@ -33,8 +34,6 @@ from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
-
-from vyper.abi_types import ABI_Bytes, ABI_DynamicArray
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
@@ -462,10 +461,7 @@ def _calculate_size_bounds(parent_t, member_t, ptr, hi, buf_ofst):
         count = IRnode.from_list(LOAD(ptr))
         return ["add", count, 32], hi
 
-    if (
-        isinstance(member_abi_t, ABI_DynamicArray)
-        and not member_abi_t.subtyp.is_dynamic()
-    ):
+    if isinstance(member_abi_t, ABI_DynamicArray) and not member_abi_t.subtyp.is_dynamic():
         count = IRnode.from_list(LOAD(ptr), typ=UINT256_T)
         payload_sz = ["mul", count, member_abi_t.subtyp.static_size()]
         return ["add", payload_sz, 32], hi
@@ -509,7 +505,9 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True, hi=None):
         else:
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
                 # TODO: cache add_ofst(parent, abi_ofst)
-                item_bound, buf_bound = _calculate_size_bounds(parent_t, member_t, add_ofst(parent, abi_ofst), hi, buf_ofst)
+                item_bound, buf_bound = _calculate_size_bounds(
+                    parent_t, member_t, add_ofst(parent, abi_ofst), hi, buf_ofst
+                )
 
                 # check the location that `head` points to has no risk
                 # of overflowing the buffer, i.e. that
