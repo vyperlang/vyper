@@ -1,20 +1,14 @@
-import base64
-import importlib
-import io
-import json
-import os
 import warnings
-import zipfile
 from collections import deque
 from pathlib import PurePath
 
 from vyper.ast import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.ir import compile_ir
-from vyper.semantics.analysis.module import _is_builtin
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -44,154 +38,16 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
     return compiler_data.natspec.userdoc
 
 
-def _get_compression_method():
-    # try to find a compression library, if none are available then
-    # fall back to ZIP_STORED
-    # (note: these should all be on all modern systems and in particular
-    # they should be in the build environment for our build artifacts,
-    # write the graceful fallback anyway).
-    try:
-        importlib.import_module("zlib")
-        return zipfile.ZIP_DEFLATED
-    except ImportError:
-        pass
-
-    # fallback
-    return zipfile.ZIP_STORED
-
-
-def _anonymize(p: str):
-    segments = []
-    # replace ../../../a/b with 0/1/2/a/b
-    # note that items which "escape" their current package might end up
-    # being invalid paths in the final artifact (they will not resolve
-    # properly during path resolution). TODO sanity check for these
-    # and reject them.
-    for i, s in enumerate(PurePath(p).parts):
-        if s == "..":
-            segments.append(str(i))
-        else:
-            segments.append(s)
-    return str(PurePath(*segments))
-
-
 def build_solc_json(compiler_data: CompilerData) -> str:
-    compilation_target = compiler_data.compilation_target._metadata["type"]
-    imports = compilation_target.reachable_imports
-
-    compiler_inputs = [
-        t.compiler_input for t in imports if not _is_builtin(t.qualified_module_name)
-    ]
-    compiler_inputs.append(compiler_data.file_input)
-
-    seen_paths = set()
-    # only write those search paths into the manifest which are actually used
-    # setup: create a dict with the input bundle's search paths, to preserve
-    # order of seen search paths.
-    used_search_paths = {sp: 0 for sp in compiler_data.input_bundle.search_paths}
-
-    ret = {"sources": {}, "language": "Vyper"}
-
-    for c in compiler_inputs:
-        path = os.path.relpath(str(c.resolved_path))
-        # note: there should be a 1:1 correspondence between
-        # resolved_path and source_id, but for clarity use resolved_path
-        # since it corresponds more directly to zipfile semantics.
-        if path in seen_paths:
-            continue
-        seen_paths.add(path)
-        ret["sources"][_anonymize(path)] = {"content": c.contents, "sha256sum": c.sha256sum}
-
-        # recover the search path that was used for this CompilerInput.
-        # note that it is not sufficient to thread the "search path that
-        # was used" into CompilerInput because search_paths are modified
-        # during compilation (so a search path which does not exist in
-        # the original search_paths set could be used for a given file).
-        for sp in reversed(compiler_data.input_bundle.search_paths):
-            if c.resolved_path.is_relative_to(sp):
-                used_search_paths[sp] += 1
-                # don't break. if there are more than 1 search path
-                # which could possibly match, we add all them to the
-                # archive.
-
-    # construct the manifest file
-    ret["settings"] = {"outputSelection": {}}
-    ret["settings"]["outputSelection"][str(compiler_data.file_input.path)] = "*"
-
-    sps = [_anonymize(os.path.relpath(sp)) for sp, count in used_search_paths.items() if count > 0]
-    ret["settings"]["search_paths"] = sps
-
-    ret["integrity"] = compilation_target.integrity_sum
-
-    settings = compiler_data.original_settings
-    if settings is not None:
-        ret["settings"].update(settings.as_dict())
-
-    return ret
+    writer = SolcJSONWriter(compiler_data)
+    writer.write()
+    return writer.output()
 
 
 def build_archive(compiler_data: CompilerData) -> str:
-    compilation_target = compiler_data.compilation_target._metadata["type"]
-    imports = compilation_target.reachable_imports
-
-    compiler_inputs = [
-        t.compiler_input for t in imports if not _is_builtin(t.qualified_module_name)
-    ]
-    compiler_inputs.append(compiler_data.file_input)
-
-    seen_paths = set()
-    # only write those search paths into the manifest which are actually used
-    # setup: create a dict with the input bundle's search paths, to preserve
-    # order of seen search paths.
-    used_search_paths = {sp: 0 for sp in compiler_data.input_bundle.search_paths}
-    buf = io.BytesIO()
-
-    method = _get_compression_method()
-    with zipfile.ZipFile(buf, mode="w", compression=method, compresslevel=9) as archive:
-        for c in compiler_inputs:
-            path = os.path.relpath(str(c.resolved_path))
-            # note: there should be a 1:1 correspondence between
-            # resolved_path and source_id, but for clarity use resolved_path
-            # since it corresponds more directly to zipfile semantics.
-            if path in seen_paths:
-                continue
-            seen_paths.add(path)
-            archive.writestr(_anonymize(path), c.contents)
-
-            # recover the search path that was used for this CompilerInput.
-            # note that it is not sufficient to thread the "search path that
-            # was used" into CompilerInput because search_paths are modified
-            # during compilation (so a search path which does not exist in
-            # the original search_paths set could be used for a given file).
-            for sp in reversed(compiler_data.input_bundle.search_paths):
-                if c.resolved_path.is_relative_to(sp):
-                    used_search_paths[sp] += 1
-                    # don't break. if there are more than 1 search path
-                    # which could possibly match, we add all them to the
-                    # archive.
-
-        # construct the manifest file
-        archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
-
-        sps = [
-            _anonymize(os.path.relpath(sp)) for sp, count in used_search_paths.items() if count > 0
-        ]
-        archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
-
-        archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
-
-        settings = compiler_data.original_settings
-        if settings is not None:
-            archive.writestr("MANIFEST/settings.json", json.dumps(settings.as_dict()))
-            archive.writestr("MANIFEST/cli_settings.txt", settings.as_cli())
-        else:
-            archive.writestr("MANIFEST/settings.json", json.dumps(None))
-            archive.writestr("MANIFEST/cli_settings.txt", "")
-
-        assert archive.testzip() is None  # sanity check
-
-    s = buf.getvalue()
-    return base64.b64encode(s).decode("utf-8")
+    writer = VyperArchiveWriter(compiler_data)
+    writer.write()
+    return writer.output()
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
