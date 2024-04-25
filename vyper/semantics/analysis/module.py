@@ -303,8 +303,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         for decl in module_t.exports_decls:
             info = decl._metadata["exports_info"]
-            for f in info.functions:
-                all_used_modules.update([u.module_t for u in f.get_used_modules()])
             all_used_modules.update([u.module_t for u in info.used_modules])
 
         for used_module in all_used_modules:
