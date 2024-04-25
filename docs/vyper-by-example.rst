@@ -97,7 +97,7 @@ our new ``highestBid`` and ``highestBidder``.
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: vyper
   :lineno-start: 60
-  :lines: 60-85
+  :lines: 60-87
 
 With the ``endAuction()`` method, we check whether our current time is past
 the ``auctionEnd`` time we set upon initialization of the contract. We also
