@@ -299,11 +299,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         all_used_modules = OrderedSet()
 
         for f in module_t.functions.values():
-            for u in f.get_used_modules():
-                all_used_modules.add(u.module_t)
+            all_used_modules.update([u.module_t for u in f.get_used_modules()])
 
         for decl in module_t.exports_decls:
             info = decl._metadata["exports_info"]
+            for f in info.functions:
+                all_used_modules.update([u.module_t for u in f.get_used_modules()])
             all_used_modules.update([u.module_t for u in info.used_modules])
 
         for used_module in all_used_modules:

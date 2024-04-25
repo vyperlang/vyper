@@ -22,11 +22,13 @@ from vyper.semantics.analysis.base import (
     ModuleInfo,
     StateMutability,
     VarAccess,
+    VarInfo,
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
+    get_reentrancy_key_location,
     uses_state,
     validate_expected_type,
 )
@@ -131,6 +133,16 @@ class ContractFunctionT(VyperType):
         # reads of variables from this function
         self._variable_reads: OrderedSet[VarAccess] = OrderedSet()
 
+        if nonreentrant:
+            location = get_reentrancy_key_location()
+            # dummy varinfo object. it doesn't matter where location is,
+            # so long as it registers as a state variable
+            dummy_varinfo = VarInfo(typ=self, location=location, decl_node=ast_def)  # type: ignore
+            nonreentrant_access = VarAccess(dummy_varinfo, path=())
+            self._variable_reads.add(nonreentrant_access)
+            if self.is_mutable:
+                self._variable_writes.add(nonreentrant_access)
+
         # list of modules used (accessed state) by this function
         self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
 
@@ -165,7 +177,7 @@ class ContractFunctionT(VyperType):
         return self._variable_reads | self._variable_writes
 
     def uses_state(self):
-        return self.nonreentrant or uses_state(self.get_variable_accesses())
+        return uses_state(self.get_variable_accesses())
 
     def get_used_modules(self):
         # _used_modules is populated during analysis

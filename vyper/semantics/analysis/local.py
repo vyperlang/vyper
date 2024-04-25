@@ -782,18 +782,11 @@ class ExprVisitor(VyperNodeVisitorBase):
                     raise CallViolation(msg, node.parent, hint=hint)
 
             if not func_type.from_interface:
-                for s in func_type.get_variable_writes():
-                    if s.variable.is_state_variable():
-                        func_info._writes.add(s)
-                for s in func_type.get_variable_reads():
-                    if s.variable.is_state_variable():
-                        func_info._reads.add(s)
+                func_info._writes.update(func_type.get_variable_writes())
+                func_info._reads.update(func_type.get_variable_reads())
 
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
-
-                if func_type.uses_state():
-                    self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
