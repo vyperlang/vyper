@@ -2,7 +2,6 @@ import itertools
 from typing import Callable, Iterable, List
 
 from vyper import ast as vy_ast
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -18,14 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import (
-    DataLocation,
-    ExprInfo,
-    Modifiability,
-    ModuleInfo,
-    VarAccess,
-    VarInfo,
-)
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -58,12 +50,6 @@ def _validate_op(node, types_list, validation_fn_name):
 
 def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
     return any(s.variable.is_state_variable() for s in var_accesses)
-
-
-def get_reentrancy_key_location() -> DataLocation:
-    if version_check(begin="cancun"):
-        return DataLocation.TRANSIENT
-    return DataLocation.STORAGE
 
 
 class _ExprAnalyser:

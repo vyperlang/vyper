@@ -2,9 +2,9 @@ from collections import defaultdict
 from typing import Generic, TypeVar
 
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.analysis.base import VarOffset
-from vyper.semantics.analysis.utils import get_reentrancy_key_location
 from vyper.semantics.data_locations import DataLocation
 from vyper.typing import StorageLayout
 
@@ -214,6 +214,12 @@ def set_storage_slots_with_overrides(
 def _get_allocatable(vyper_module: vy_ast.Module) -> list[vy_ast.VyperNode]:
     allocable = (vy_ast.InitializesDecl, vy_ast.VariableDecl)
     return [node for node in vyper_module.body if isinstance(node, allocable)]
+
+
+def get_reentrancy_key_location() -> DataLocation:
+    if version_check(begin="cancun"):
+        return DataLocation.TRANSIENT
+    return DataLocation.STORAGE
 
 
 _LAYOUT_KEYS = {
