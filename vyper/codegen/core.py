@@ -446,24 +446,37 @@ def _mul(x, y):
     return IRnode.from_list(ret)
 
 
-def _calculate_member_t_size_bound(member_t, ptr):
-    abi_t = member_t.abi_type
-    if not abi_t.is_dynamic():
-        return abi_t.static_size()
+def _calculate_size_bounds(parent_t, member_t, ptr, hi, buf_ofst):
+    member_abi_t = member_t.abi_type
 
-    if isinstance(abi_t, ABI_Bytes):
-        return get_bytearray_length(ptr)
+    if hi is None:
+        hi = parent_t.abi_type.size_bound()
+        hi -= buf_ofst
+    else:
+        hi = ["sub", hi, buf_ofst]
+
+    if not member_abi_t.is_dynamic():
+        return member_abi_t.static_size(), hi
+
+    if isinstance(member_abi_t, ABI_Bytes):
+        count = IRnode.from_list(LOAD(ptr))
+        return ["add", count, 32], hi
 
     if (
-        isinstance(abi_t, ABI_DynamicArray)
-        and not abi_t.subtyp.is_dynamic()
+        isinstance(member_abi_t, ABI_DynamicArray)
+        and not member_abi_t.subtyp.is_dynamic()
     ):
         count = IRnode.from_list(LOAD(ptr), typ=UINT256_T)
-        #return 0
-        return ["mul", count, abi_t.subtyp.static_size()]
+        payload_sz = ["mul", count, member_abi_t.subtyp.static_size()]
+        return ["add", payload_sz, 32], hi
 
-    # check only the size of the innermost payload
-    return abi_t.size_bound()
+    parent_static_bound = parent_t.abi_type.size_bound()
+    # subtract the size of the length word (if applicable), since
+    # the relative pointers are from the start of the "inner"
+    # static array, not from the beginning of the dynarray
+    parent_static_bound -= buf_ofst
+    # runtime value check only for the innermost payload
+    return member_abi_t.size_bound(), parent_static_bound
 
 
 # Resolve pointer locations for ABI-encoded data
@@ -495,18 +508,8 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True, hi=None):
         # the pointers are in-bounds.
         else:
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                if hi is not None:
-                    buf_bound = hi
-                else:
-                    buf_bound = parent_t.abi_type.size_bound()
-                    # subtract the size of the length word (if applicable), since
-                    # the relative pointers are from the start of the "inner"
-                    # static array, not from the beginning of the dynarray
-                    buf_bound -= buf_ofst
-
                 # TODO: cache add_ofst(parent, abi_ofst)
-                item_bound = _calculate_member_t_size_bound(member_t, add_ofst(parent, abi_ofst))
-                #item_bound = member_abi_t.size_bound()
+                item_bound, buf_bound = _calculate_size_bounds(parent_t, member_t, add_ofst(parent, abi_ofst), hi, buf_ofst)
 
                 # check the location that `head` points to has no risk
                 # of overflowing the buffer, i.e. that
