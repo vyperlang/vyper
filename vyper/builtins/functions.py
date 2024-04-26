@@ -1263,6 +1263,7 @@ class RawLog(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
+        topics = [unwrap_location(topic) for topic in topics]
 
         # sanity check topics is a literal list
         assert args[0].value in ("~empty", "multi")
