@@ -1812,9 +1812,13 @@ class CreateFromBlueprint(_CreateBase):
             if len(ctor_args) != 1 or not isinstance(ctor_args[0].typ, BytesT):
                 raise StructureException("raw_args must be used with exactly 1 bytes argument")
 
-            argbuf = bytes_data_ptr(ctor_args[0])
-            argslen = get_bytearray_length(ctor_args[0])
-            bufsz = ctor_args[0].typ.maxlen
+            with ctor_args[0].cache_when_complex("arg") as (b1, arg):
+                argbuf = bytes_data_ptr(arg)
+                argslen = get_bytearray_length(arg)
+                bufsz = arg.typ.maxlen
+                return b1.resolve(
+                    self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset)
+                )
         else:
             # encode the varargs
             to_encode = ir_tuple_from_args(ctor_args)
@@ -1829,7 +1833,9 @@ class CreateFromBlueprint(_CreateBase):
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
             argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+            return self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset)
 
+    def _helper(self, argbuf, bufsz, target, value, salt, argslen, code_offset):
         # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
         # then copy the abi encoded buffer to past-the-end of the initcode
         # (since the abi encoder could write to fresh memory).
