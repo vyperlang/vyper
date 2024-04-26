@@ -249,45 +249,48 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
     np = context.new_internal_variable(dst_typ)
-
-    # `msg.data` by `calldatacopy`
-    if sub.value == "~calldata":
-        node = [
-            "seq",
-            _make_slice_bounds_check(start, length, "calldatasize"),
-            ["mstore", np, length],
-            ["calldatacopy", np + 32, start, length],
-            np,
-        ]
-
-    # `self.code` by `codecopy`
-    elif sub.value == "~selfcode":
-        node = [
-            "seq",
-            _make_slice_bounds_check(start, length, "codesize"),
-            ["mstore", np, length],
-            ["codecopy", np + 32, start, length],
-            np,
-        ]
-
-    # `<address>.code` by `extcodecopy`
-    else:
-        assert sub.value == "~extcode" and len(sub.args) == 1
-        node = [
-            "with",
-            "_extcode_address",
-            sub.args[0],
-            [
+    with start.cache_when_complex("start") as ( b1, start, ), length.cache_when_complex("length") as (
+            b2,
+            length):
+        # `msg.data` by `calldatacopy`
+        if sub.value == "~calldata":
+            node = [
                 "seq",
-                _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
+                _make_slice_bounds_check(start, length, "calldatasize"),
                 ["mstore", np, length],
-                ["extcodecopy", "_extcode_address", np + 32, start, length],
+                ["calldatacopy", np + 32, start, length],
                 np,
-            ],
-        ]
+            ]
 
-    assert isinstance(length.value, int)  # mypy hint
-    return IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
+        # `self.code` by `codecopy`
+        elif sub.value == "~selfcode":
+            node = [
+                "seq",
+                _make_slice_bounds_check(start, length, "codesize"),
+                ["mstore", np, length],
+                ["codecopy", np + 32, start, length],
+                np,
+            ]
+
+        # `<address>.code` by `extcodecopy`
+        else:
+            assert sub.value == "~extcode" and len(sub.args) == 1
+            node = [
+                "with",
+                "_extcode_address",
+                sub.args[0],
+                [
+                    "seq",
+                    _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
+                    ["mstore", np, length],
+                    ["extcodecopy", "_extcode_address", np + 32, start, length],
+                    np,
+                ],
+            ]
+
+        assert isinstance(length.value, int)  # mypy hint
+        ret = IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
+        return b1.resolve(b2.resolve(ret))
 
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
