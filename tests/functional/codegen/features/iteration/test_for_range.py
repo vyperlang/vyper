@@ -440,7 +440,25 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(0) == 31337
 
 
-def test_for_range_signed_int_overflow(get_contract, tx_failed, experimental_codegen):
+def test_for_range_signed_int_overflow_runtime_check(get_contract, tx_failed, experimental_codegen):
+    code = """
+@external
+def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
+    res: DynArray[int256, 10] = empty(DynArray[int256, 10])
+    x:int256 = _max
+    y:int256 = _min+2
+    for i:int256 in range(x,y , bound=10):
+        res.append(i)
+    return res
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo(SizeLimits.MIN_INT128, SizeLimits.MAX_INT256)
+
+
+def test_for_range_signed_int_overflow_compile_time_check(
+    get_contract, tx_failed, experimental_codegen
+):
     code = """
 @external
 def foo() -> DynArray[int256, 10]:
@@ -451,11 +469,7 @@ def foo() -> DynArray[int256, 10]:
         res.append(i)
     return res
     """
-
-    if experimental_codegen:
-        with pytest.raises(StaticAssertionException):
-            get_contract(code)
-    else:
-        c = get_contract(code)
-        with tx_failed():
-            c.foo()
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)

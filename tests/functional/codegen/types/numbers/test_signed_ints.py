@@ -74,7 +74,24 @@ def foo(x: int256) -> int256:
 
 # TODO: make this test pass
 @pytest.mark.parametrize("base", (0, 1))
-def test_exponent_negative_power(get_contract, tx_failed, base, experimental_codegen):
+def test_exponent_negative_power_runtime_check(get_contract, tx_failed, base, experimental_codegen):
+    # #2985
+    code = f"""
+@external
+def bar(negative:int16) -> int16:
+    x: int16 = negative
+    return {base} ** x
+    """
+    c = get_contract(code)
+    # known bug: 2985
+    with tx_failed():
+        c.bar(-2)
+
+
+@pytest.mark.parametrize("base", (0, 1))
+def test_exponent_negative_power_compile_time_check(
+    get_contract, tx_failed, base, experimental_codegen
+):
     # #2985
     code = f"""
 @external
@@ -82,14 +99,10 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    if experimental_codegen:
-        with pytest.raises(StaticAssertionException):
-            get_contract(code)
-    else:
-        c = get_contract(code)
-        # known bug: 2985
-        with tx_failed():
-            c.bar()
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)
 
 
 def test_exponent_min_int16(get_contract):
