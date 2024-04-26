@@ -453,7 +453,7 @@ def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
     """
     c = get_contract(code)
     with tx_failed():
-        c.foo(SizeLimits.MIN_INT128, SizeLimits.MAX_INT256)
+        c.foo(SizeLimits.MIN_INT256, SizeLimits.MAX_INT256)
 
 
 def test_for_range_signed_int_overflow_compile_time_check(
