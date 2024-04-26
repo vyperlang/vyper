@@ -949,6 +949,27 @@ Utilities
         >>> ExampleContract.foo()
         0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
+.. py:function:: blobhash(index: uint256) -> bytes32
+
+    Return the versioned hash of the blob at the specified index if the index is smaller than the number of versioned hashes in the blob. Otherwise, return a zeroed ``bytes32`` value.
+
+    .. note::
+
+        The EVM only provides access to the most recent 256 blocks. This function reverts if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+
+    .. code-block:: vyper
+
+        @external
+        @view
+        def foo(x: uint256) -> bytes32:
+            return blobhash(x)
+
+    .. code-block:: vyper
+
+        >>> ExampleContract.foo()
+        0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+
 .. py:function:: empty(typename) -> Any
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
