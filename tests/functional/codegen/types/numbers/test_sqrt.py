@@ -164,3 +164,22 @@ def test_sqrt_valid_range(sqrt_contract, value):
 def test_sqrt_invalid_range(sqrt_contract, value):
     with pytest.raises(TransactionFailed):
         sqrt_contract.test(decimal_to_int(value))
+
+
+def test_sqrt_evals_once_side_effects(get_contract):
+    code = """
+c: uint256
+
+@internal
+def some_decimal() -> decimal:
+    self.c += 1
+    return 1.0
+
+@external
+def foo() -> uint256:
+    k: decimal = sqrt(self.some_decimal())
+    return self.c
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 1
