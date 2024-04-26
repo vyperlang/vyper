@@ -30,7 +30,7 @@ class IRFunction:
     last_variable: int
 
     # Used during code generation
-    _ast_source_stack: list[int]
+    _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
     _bb_index: dict[str, int]
 
@@ -158,6 +158,12 @@ class IRFunction:
                         continue
                     in_labels = inst.get_label_operands()
                     if bb.label in in_labels:
+                        inst.remove_phi_operand(bb.label)
+                    op_len = len(inst.operands)
+                    if op_len == 2:
+                        inst.opcode = "store"
+                        inst.operands = [inst.operands[1]]
+                    elif op_len == 0:
                         out_bb.remove_instruction(inst)
 
         return len(removed)
@@ -230,7 +236,7 @@ class IRFunction:
         self._error_msg_stack.pop()
 
     @property
-    def ast_source(self) -> Optional[int]:
+    def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
 
     @property

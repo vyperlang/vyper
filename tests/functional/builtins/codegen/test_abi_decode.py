@@ -2,7 +2,7 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
-from vyper.exceptions import ArgumentException, StackTooDeep, StructureException
+from vyper.exceptions import ArgumentException, StructureException
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
@@ -199,7 +199,6 @@ nested_3d_array_args = [
 
 @pytest.mark.parametrize("args", nested_3d_array_args)
 @pytest.mark.parametrize("unwrap_tuple", (True, False))
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_abi_decode_nested_dynarray2(get_contract, args, unwrap_tuple):
     if unwrap_tuple is True:
         encoded = abi.encode("(uint256[][][])", (args,))
@@ -277,7 +276,6 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     assert c.foo(encoded) == (2**256 - 1, bs)
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_abi_decode_private_nested_dynarray(get_contract):
     code = """
 bytez: DynArray[DynArray[DynArray[uint256, 3], 3], 3]
