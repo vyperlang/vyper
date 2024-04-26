@@ -111,13 +111,9 @@ def venom_xfail(request, experimental_codegen):
 
 @pytest.fixture(scope="session", autouse=True)
 def evm_version(pytestconfig):
-    version = pytestconfig.getoption("evm_version")
     # note: configure the evm version that we emit code for.
     # The env will read this fixture and apply the evm version there.
-    evm_opcodes.DEFAULT_EVM_VERSION = version
-    # This should get overridden by anchor_evm_version, but set it anyway
-    evm_opcodes.active_evm_version = evm_opcodes.EVM_VERSIONS[version]
-    return version
+    return pytestconfig.getoption("evm_version")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -326,7 +322,7 @@ def tx_failed(env):
     @contextmanager
     def fn(exception=EvmError, exc_text=None):
         with env.anchor(), pytest.raises(exception) as excinfo:
-            yield excinfo
+            yield
 
         if exc_text:
             # TODO test equality

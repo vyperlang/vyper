@@ -480,9 +480,6 @@ def test2(target: address, salt: bytes32) -> address:
     with tx_failed():
         c.test("0x" + "00" * 20)
 
-    # test1 = c.test(b"\x01")
-    # assert revm_env.get_code(test1) == b"\x01"
-
     salt = keccak(b"vyper")
     c.test2(c.address, salt)
     test2 = c.created_address()
@@ -683,9 +680,10 @@ def test(target: address) -> address:
 
     c = get_contract(complex_salt)
     bytecode = env.get_code(c.address)
+    assert bytecode  # Sanity check
     c.test(c.address)
     test1 = c.address
-    assert bytecode and env.get_code(test1) == bytecode
+    assert env.get_code(test1) == bytecode
 
     # test msize allocator does not get trampled by value= kwarg
     complex_value = """

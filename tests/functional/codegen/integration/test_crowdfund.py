@@ -84,7 +84,7 @@ def refund():
     c.participate(value=49)
     assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.time_travel(100)
+    env.timestamp += 100
     assert c.expired()
     c.finalize()
     post_bal = env.get_balance(a1)
@@ -95,7 +95,7 @@ def refund():
     c.participate(value=2, sender=a4)
     c.participate(value=3, sender=a5)
     c.participate(value=4, sender=a6)
-    env.time_travel(100)
+    env.timestamp += 100
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]
@@ -169,7 +169,7 @@ def refund():
     c = get_contract(crowdfund2, *[a1, 50, 60])
 
     c.participate(value=5)
-    env.time_travel()  # make sure auction has started
+    env.timestamp += 1  # make sure auction has started
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
@@ -177,7 +177,7 @@ def refund():
     c.participate(value=49)
     assert c.reached()
     pre_bal = env.get_balance(a1)
-    env.time_travel(100)
+    env.timestamp += 100
     assert c.expired()
     c.finalize()
     post_bal = env.get_balance(a1)
@@ -188,7 +188,7 @@ def refund():
     c.participate(value=2, sender=a4)
     c.participate(value=3, sender=a5)
     c.participate(value=4, sender=a6)
-    env.time_travel(100)
+    env.timestamp += 100
     assert c.expired()
     assert not c.reached()
     pre_bals = [env.get_balance(x) for x in [a3, a4, a5, a6]]

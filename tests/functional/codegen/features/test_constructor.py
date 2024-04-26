@@ -1,7 +1,8 @@
 import pytest
-from eth.codecs.abi.exceptions import EncodeError
 
+from tests.evm_backends.base_env import _compile
 from vyper.exceptions import StackTooDeep
+from vyper.utils import method_id
 
 
 def test_init_argument_test(get_contract):
@@ -75,7 +76,7 @@ def get_comb() -> uint256:
     print("Passed advanced init argument tests")
 
 
-def test_large_input_code(get_contract):
+def test_large_input_code(env, get_contract, tx_failed):
     large_input_code = """
 @external
 def foo(x: int128) -> int128:
@@ -83,15 +84,18 @@ def foo(x: int128) -> int128:
     """
 
     c = get_contract(large_input_code)
-    c.foo(1274124)
-    c.foo(2**120)
+    signature = "(int128)"
+    method = method_id(f"foo{signature}")
 
-    with pytest.raises(EncodeError):
-        c.foo(2**130)
+    env.execute_code(c.address, data=method + (1274124).to_bytes(32, "big"))
+    env.execute_code(c.address, data=method + (2**120).to_bytes(32, "big"))
+
+    with tx_failed():
+        env.execute_code(c.address, data=method + (2**130).to_bytes(32, "big"))
 
 
-def test_large_input_code_2(env, get_contract):
-    large_input_code_2 = """
+def test_large_input_code_2(env, get_contract, tx_failed, output_formats, compiler_settings):
+    code = """
 @deploy
 def __init__(x: int128):
     y: int128 = x
@@ -101,12 +105,11 @@ def foo() -> int128:
     return 5
     """
 
-    get_contract(large_input_code_2, *[17])
+    _, bytecode = _compile(code, output_formats, compiler_settings)
+    env._deploy(bytecode + (2**128 - 1).to_bytes(32, "big"), value=0)
 
-    with pytest.raises(EncodeError):
-        get_contract(large_input_code_2, *[2**130])
-
-    print("Passed invalid input tests")
+    with tx_failed():
+        env._deploy(bytecode + (2**128).to_bytes(32, "big"), value=0)
 
 
 def test_initialise_array_with_constant_key(get_contract):

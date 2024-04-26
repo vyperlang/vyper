@@ -54,9 +54,21 @@ class RevmEnv(BaseEnv):
     def block_number(self) -> int:
         return self._evm.env.block.number
 
+    @block_number.setter
+    def block_number(self, value: int):
+        block = self._evm.env.block
+        block.number = value
+        self._evm.set_block_env(block)
+
     @property
     def timestamp(self) -> int | None:
         return self._evm.env.block.timestamp
+
+    @timestamp.setter
+    def timestamp(self, value: int):
+        block = self._evm.env.block
+        block.timestamp = value
+        self._evm.set_block_env(block)
 
     @property
     def last_result(self) -> ExecutionResult:
@@ -81,7 +93,9 @@ class RevmEnv(BaseEnv):
     ):
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         if blob_hashes is not None:
-            self._evm.env.tx.blob_hashes = blob_hashes
+            tx = self._evm.env.tx
+            tx.blob_hashes = blob_hashes
+            self._evm.set_tx_env(tx)
 
         try:
             return self._evm.message_call(
@@ -94,6 +108,7 @@ class RevmEnv(BaseEnv):
                 is_static=not is_modifying,
             )
         except RuntimeError as e:
+            # TODO: Create a custom error in pyrevm instead parsing strings
             if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]+) }", e.args[0]):
                 gas_used, output_str = match.groups()
                 output_bytes = bytes.fromhex(output_str)
@@ -105,13 +120,6 @@ class RevmEnv(BaseEnv):
 
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
-
-    def time_travel(self, num_blocks=1) -> None:
-        """
-        Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
-        """
-        self._evm.env.block.number += num_blocks
-        self._evm.env.block.timestamp += num_blocks
 
     def get_excess_blob_gas(self) -> Optional[int]:
         return self._evm.env.block.excess_blob_gas

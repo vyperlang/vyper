@@ -85,14 +85,11 @@ class BaseEnv:
         compiler_settings: Settings,
         *args,
         input_bundle=None,
+        value=0,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
         abi, bytecode = _compile(source_code, output_formats, compiler_settings, input_bundle)
-        value = (
-            kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
-        )  # Handle deploying with an eth value.
-
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy_blueprint(
@@ -114,8 +111,7 @@ class BaseEnv:
         deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi: list[dict] = []  # just a constructor
-        value = 0
-        deployer = self.deploy(deployer_abi, deploy_bytecode, value, *args)
+        deployer = self.deploy(deployer_abi, deploy_bytecode, *args)
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
@@ -151,8 +147,16 @@ class BaseEnv:
     def block_number(self) -> int:
         raise NotImplementedError  # must be implemented by subclasses
 
+    @block_number.setter
+    def block_number(self, value: int):
+        raise NotImplementedError
+
     @property
     def timestamp(self) -> int | None:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @timestamp.setter
+    def timestamp(self, value: int):
         raise NotImplementedError  # must be implemented by subclasses
 
     @property
@@ -176,9 +180,6 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def get_code(self, address: str) -> bytes:
-        raise NotImplementedError  # must be implemented by subclasses
-
-    def time_travel(self, num_blocks=1) -> None:
         raise NotImplementedError  # must be implemented by subclasses
 
     def get_excess_blob_gas(self) -> Optional[int]:

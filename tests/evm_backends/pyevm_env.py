@@ -69,7 +69,7 @@ class PyEvmEnv(BaseEnv):
     @cached_property
     def _context(self) -> ExecutionContext:
         context = self._state.execution_context
-        assert isinstance(context, ExecutionContext)
+        assert isinstance(context, ExecutionContext)  # help mypy
         return context
 
     @contextmanager
@@ -92,11 +92,19 @@ class PyEvmEnv(BaseEnv):
 
     @property
     def block_number(self) -> int:
-        return self._state.block_number
+        return self._context.block_number
+
+    @block_number.setter
+    def block_number(self, value: int):
+        self._context._block_number = value
 
     @property
     def timestamp(self) -> int | None:
-        return self._state.timestamp
+        return self._context.timestamp
+
+    @timestamp.setter
+    def timestamp(self, value: int):
+        self._context._timestamp = value
 
     @property
     def last_result(self) -> ExecutionResult:
@@ -160,13 +168,6 @@ class PyEvmEnv(BaseEnv):
 
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
-
-    def time_travel(self, num_blocks=1) -> None:
-        """
-        Move the block number forward by `num_blocks` and the timestamp forward by `time_delta`.
-        """
-        self._context._block_number += num_blocks
-        self._context._timestamp += num_blocks
 
     def get_excess_blob_gas(self) -> Optional[int]:
         return self._context.excess_blob_gas

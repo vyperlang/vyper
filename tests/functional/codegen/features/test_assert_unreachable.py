@@ -11,7 +11,7 @@ def foo():
     with tx_failed():
         c.foo(gas=gas_sent, gas_price=10)
 
-    assert env.last_result.gas_used == gas_sent  # Drains all gains sent
+    assert env.last_result.gas_used == gas_sent  # Drains all gas sent per INVALID opcode
 
 
 def test_basic_unreachable(env, get_contract, tx_failed):

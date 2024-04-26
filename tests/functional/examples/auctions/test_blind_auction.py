@@ -39,7 +39,7 @@ def test_late_bid(env, auction_contract, tx_failed, keccak):
     k1 = env.accounts[1]
 
     # Move time forward past bidding end
-    env.time_travel(BIDDING_TIME + TEST_INCREMENT)
+    env.timestamp += BIDDING_TIME + TEST_INCREMENT
 
     # Try to bid after bidding has ended
     with tx_failed():
@@ -113,7 +113,7 @@ def test_early_reval(env, auction_contract, tx_failed, keccak):
     )
 
     # Move time slightly forward (still before bidding has ended)
-    env.time_travel(TEST_INCREMENT)
+    env.timestamp += TEST_INCREMENT
 
     # Try to reveal early
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -151,7 +151,7 @@ def test_late_reveal(env, auction_contract, tx_failed, keccak):
     )
 
     # Move time forward past bidding _and_ reveal time
-    env.time_travel(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
+    env.timestamp += BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT
 
     # Try to reveal late
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -182,7 +182,7 @@ def test_double_end(env, auction_contract, tx_failed):
     k0 = env.deployer
 
     # Move time forward past bidding and reveal end
-    env.time_travel(BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT)
+    env.timestamp += BIDDING_TIME + REVEAL_TIME + TEST_INCREMENT
 
     # First auction end should succeed
     auction_contract.auctionEnd(value=0, sender=k0)
@@ -290,7 +290,7 @@ def test_blind_auction(env, auction_contract, keccak):
     ###################################################################
 
     # Move time forward past bidding end (still within reveal end)
-    env.time_travel(BIDDING_TIME + TEST_INCREMENT)
+    env.timestamp += BIDDING_TIME + TEST_INCREMENT
 
     # Reveal k1 bids
     _values = [0] * MAX_BIDS  # Initialized with 128 default values
@@ -356,7 +356,7 @@ def test_blind_auction(env, auction_contract, keccak):
     ###################################################################
 
     # Move time forward past bidding and reveal end
-    env.time_travel(REVEAL_TIME)
+    env.timestamp += REVEAL_TIME
 
     # End the auction
     balance_before_end = env.get_balance(k0)

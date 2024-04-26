@@ -9,6 +9,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
+from vyper.utils import method_id
 
 
 def test_default_param_abi(get_contract):
@@ -183,7 +184,7 @@ def foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
     assert c.foo() == [1, 2, 3]
 
 
-def test_default_param_clamp(get_contract, monkeypatch, tx_failed):
+def test_default_param_clamp(env, get_contract, tx_failed):
     code = """
 @external
 def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
@@ -195,14 +196,13 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     assert c.bar(-123) == (-123, -1)
     assert c.bar(100, 100) == (100, 100)
 
-    def visit_int(node, value):
-        return value.to_bytes(32, "big", signed=node.is_signed)
+    method = method_id("bar(int128,int128)")
+    good_data = (200).to_bytes(32, "big") + (2**127 - 1).to_bytes(32, "big")
+    bad_data = (200).to_bytes(32, "big") + (2**127).to_bytes(32, "big")
 
-    monkeypatch.setattr("eth.codecs.abi.encoder.Encoder.visit_IntegerNode", visit_int)
-
-    assert c.bar(200, 2**127 - 1) == (200, 2**127 - 1)
+    assert env.execute_code(c.address, data=method + good_data) == good_data
     with tx_failed():
-        c.bar(200, 2**127, disambiguate_signature="bar(int128,int128)")
+        env.execute_code(c.address, data=method + bad_data)
 
 
 def test_default_param_private(get_contract):

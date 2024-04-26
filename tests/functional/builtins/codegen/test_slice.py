@@ -167,6 +167,9 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
 
     def _get_contract():
         if "__init__" in code:
+            # eth-tester used to ignore constructor arguments if no constructor was defined
+            # now we raise an exception, so only call the constructor if it exists
+            # TODO: Refactor so we don't rely on searching the source code.
             return get_contract(code, bytesdata, override_opt_level=opt_level)
         return get_contract(code, override_opt_level=opt_level)
 
