@@ -1820,7 +1820,7 @@ class CreateFromBlueprint(_CreateBase):
                 argslen = get_bytearray_length(arg)
                 bufsz = arg.typ.maxlen
                 return b1.resolve(
-                    self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset)
+                    self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure)
                 )
         else:
             # encode the varargs
@@ -1836,9 +1836,9 @@ class CreateFromBlueprint(_CreateBase):
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
             argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
-            return self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset)
+            return self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure)
 
-    def _helper(self, argbuf, bufsz, target, value, salt, argslen, code_offset):
+    def _helper(self, argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure):
         # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
         # then copy the abi encoded buffer to past-the-end of the initcode
         # (since the abi encoder could write to fresh memory).
