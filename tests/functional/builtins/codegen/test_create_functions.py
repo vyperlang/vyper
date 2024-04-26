@@ -670,15 +670,13 @@ def test(target: address):
     assert test.foo() == 12
 
 
-def test_blueprint_evals_once_side_effects(
-    get_contract, deploy_blueprint_for, w3
-):
+def test_blueprint_evals_once_side_effects(get_contract, deploy_blueprint_for, w3):
     # test msize allocator does not get trampled by salt= kwarg
     code = """
 foo: public(uint256)
     """
 
-    deployer_code = f"""
+    deployer_code = """
 created_address: public(address)
 deployed: public(uint256)
 
@@ -689,7 +687,11 @@ def get() -> Bytes[32]:
 
 @external
 def create_(target: address):
-    self.created_address = create_from_blueprint(target, raw_call(self, method_id("get()"), max_outsize=32), raw_args=True, code_offset=3)
+    self.created_address = create_from_blueprint(
+        target,
+        raw_call(self, method_id("get()"), max_outsize=32),
+        raw_args=True, code_offset=3
+    )
     """
 
     foo_contract = get_contract(code)

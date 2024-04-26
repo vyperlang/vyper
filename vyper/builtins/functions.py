@@ -250,8 +250,9 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     # allocate a buffer for the return value
     np = context.new_internal_variable(dst_typ)
     with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (
-            b2,
-            length):
+        b2,
+        length,
+    ):
         # `msg.data` by `calldatacopy`
         if sub.value == "~calldata":
             node = [
@@ -1820,7 +1821,9 @@ class CreateFromBlueprint(_CreateBase):
                 argslen = get_bytearray_length(arg)
                 bufsz = arg.typ.maxlen
                 return b1.resolve(
-                    self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure)
+                    self._helper(
+                        argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure
+                    )
                 )
         else:
             # encode the varargs
@@ -1836,7 +1839,9 @@ class CreateFromBlueprint(_CreateBase):
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
             argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
-            return self._helper(argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure)
+            return self._helper(
+                argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure
+            )
 
     def _helper(self, argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure):
         # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
