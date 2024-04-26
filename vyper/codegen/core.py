@@ -1,4 +1,3 @@
-from vyper.abi_types import ABI_Bytes, ABI_DynamicArray
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
@@ -252,7 +251,8 @@ def _dynarray_make_setter(dst, src, hi=None):
 
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
-                    get_element_ptr(src, i, array_bounds_check=False, hi=hi),
+                    get_element_ptr(src, i, array_bounds_check=False),
+                    hi=hi,
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
@@ -442,42 +442,9 @@ def _mul(x, y):
     return IRnode.from_list(ret)
 
 
-def _calculate_size_bounds(parent_t, member_t, ptr, hi, buf_ofst):
-    member_abi_t = member_t.abi_type
-
-    if hi is None:
-        hi = parent_t.abi_type.size_bound()
-        hi -= buf_ofst
-    else:
-        hi = ["sub", hi, buf_ofst]
-
-    if not member_abi_t.is_dynamic():
-        return member_abi_t.static_size(), hi
-
-    if isinstance(member_abi_t, ABI_Bytes):
-        count = IRnode.from_list(LOAD(ptr))
-        return ["add", count, 32], hi
-
-    if isinstance(member_abi_t, ABI_DynamicArray) and not member_abi_t.subtyp.is_dynamic():
-        count = IRnode.from_list(LOAD(ptr), typ=UINT256_T)
-        payload_sz = ["mul", count, member_abi_t.subtyp.static_size()]
-        return ["add", payload_sz, 32], hi
-
-    parent_static_bound = parent_t.abi_type.size_bound()
-    # subtract the size of the length word (if applicable), since
-    # the relative pointers are from the start of the "inner"
-    # static array, not from the beginning of the dynarray
-    parent_static_bound -= buf_ofst
-    # runtime value check only for the innermost payload
-    return member_abi_t.size_bound(), parent_static_bound
-
-
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True, hi=None):
-    parent_t = parent.typ
+def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
     member_abi_t = member_t.abi_type
-
-    buf_ofst = 0
 
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
@@ -497,20 +464,11 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True, hi=None):
         if parent.location != MEMORY:
             ofst_ir = add_ofst(parent, abi_ofst)
 
-        # if abi decoding from memory, we add extra sanity checks to validate
-        # the pointers are in-bounds.
         else:
             with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                # TODO: cache add_ofst(parent, abi_ofst)
-                item_bound, buf_bound = _calculate_size_bounds(
-                    parent_t, member_t, add_ofst(parent, abi_ofst), hi, buf_ofst
-                )
-
-                # check the location that `head` points to has no risk
-                # of overflowing the buffer, i.e. that
-                # `abi_ofst + item_size_bound <= buf bound`
-                # TODO: runtime check? `ofst_i + len_i < ofst_(i+1)`
-                bounds_check = check_buffer_overflow_ir(abi_ofst, item_bound, buf_bound)
+                # TODO: cache add_ofst
+                arithmetic_overflow = ["lt", add_ofst(parent, abi_ofst), parent]
+                bounds_check = ["assert", ["iszero", arithmetic_overflow]]
 
                 ofst_ir = ["seq", bounds_check, add_ofst(parent, abi_ofst)]
                 ofst_ir = b1.resolve(ofst_ir)
@@ -563,7 +521,7 @@ def _get_element_ptr_tuplelike(parent, key, hi=None):
             member_abi_t = typ.member_types[attrs[i]].abi_type
             ofst += member_abi_t.embedded_static_size()
 
-        return _getelemptr_abi_helper(parent, member_t, ofst, hi=hi)
+        return _getelemptr_abi_helper(parent, member_t, ofst)
 
     data_location = address_space_to_data_location(parent.location)
     for i in range(index):
@@ -585,7 +543,7 @@ def has_length_word(typ):
 
 
 # TODO simplify this code, especially the ABI decoding
-def _get_element_ptr_array(parent, key, array_bounds_check, hi=None):
+def _get_element_ptr_array(parent, key, array_bounds_check):
     assert is_array_like(parent.typ)
 
     if not is_integer_type(key.typ):  # pragma: nocover
@@ -631,7 +589,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check, hi=None):
 
         ofst = _mul(ix, member_abi_t.embedded_static_size())
 
-        return _getelemptr_abi_helper(parent, subtype, ofst, hi=hi)
+        return _getelemptr_abi_helper(parent, subtype, ofst)
 
     data_location = address_space_to_data_location(parent.location)
     element_size = subtype.get_size_in(data_location)
@@ -660,18 +618,18 @@ def _get_element_ptr_mapping(parent, key):
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
-def get_element_ptr(parent, key, array_bounds_check=True, hi=None):
+def get_element_ptr(parent, key, array_bounds_check=True):
     with parent.cache_when_complex("val") as (b, parent):
         typ = parent.typ
 
         if is_tuple_like(typ):
-            ret = _get_element_ptr_tuplelike(parent, key, hi)
+            ret = _get_element_ptr_tuplelike(parent, key)
 
         elif isinstance(typ, HashMapT):
             ret = _get_element_ptr_mapping(parent, key)
 
         elif is_array_like(typ):
-            ret = _get_element_ptr_array(parent, key, array_bounds_check, hi)
+            ret = _get_element_ptr_array(parent, key, array_bounds_check)
 
         else:  # pragma: nocover
             raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
@@ -925,15 +883,12 @@ def needs_clamp(t, encoding):
 def make_setter(left, right, hi=None):
     check_assign(left, right)
 
-    if (
-        hi is None
-        and isinstance(right.typ, _BytestringT)
-        and right.location == MEMORY
-        and right.encoding == Encoding.ABI
-    ):
-        # TODO: if decoding ABI encoded returnbuf should we use min(returndatasize, buflen)?
-        # TODO: should we pass a ref to top-lvl buff to _getelemptr_abi_helper and load len there?
-        hi = get_bytearray_length(right)
+    if hi is None and right.location == MEMORY and right.encoding == Encoding.ABI:
+        if isinstance(right.typ, _BytestringT):
+            hi = ["add", add_ofst(right, get_bytearray_length(right)), 32]
+        else:
+            #hi = add_ofst(right, right.typ.memory_bytes_required)
+            hi = add_ofst(right, right.typ.abi_type.dynamic_size_bound())
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
@@ -951,7 +906,7 @@ def make_setter(left, right, hi=None):
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
                 copier = make_byte_array_copier(left, right)
-                ret = b.resolve(["seq", clamp_bytestring(right), copier])
+                ret = b.resolve(["seq", clamp_bytestring(right, hi=hi), copier])
         else:
             ret = make_byte_array_copier(left, right)
 
@@ -967,7 +922,7 @@ def make_setter(left, right, hi=None):
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
                 copier = _dynarray_make_setter(left, right, hi=hi)
-                ret = b.resolve(["seq", clamp_dyn_array(right), copier])
+                ret = b.resolve(["seq", clamp_dyn_array(right, hi=hi), copier])
         else:
             ret = _dynarray_make_setter(left, right)
 
@@ -1059,8 +1014,8 @@ def _complex_make_setter(left, right, hi=None):
     # general case, unroll
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
         for k in keys:
-            l_i = get_element_ptr(left, k, array_bounds_check=False, hi=hi)
-            r_i = get_element_ptr(right, k, array_bounds_check=False, hi=hi)
+            l_i = get_element_ptr(left, k, array_bounds_check=False)
+            r_i = get_element_ptr(right, k, array_bounds_check=False)
             ret.append(make_setter(l_i, r_i, hi=hi))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
@@ -1133,18 +1088,41 @@ def sar(bits, x):
     return ["sar", bits, x]
 
 
-def clamp_bytestring(ir_node):
+def clamp_bytestring(ir_node, hi=None):
     t = ir_node.typ
     if not isinstance(t, _BytestringT):  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
-    ret = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
+
+    # TODO: cache get_bytearray_length
+    # check if byte array length is within type max
+    bslen_check = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
+
+    if hi:
+        payload_sz = ["add", get_bytearray_length(ir_node), 32]
+        absolute_end = add_ofst(ir_node, payload_sz)
+        ret = ["seq", ["assert", ["le", absolute_end, hi]], bslen_check]
+    else:
+        ret = bslen_check
+
     return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
 
 
-def clamp_dyn_array(ir_node):
+def clamp_dyn_array(ir_node, hi=None):
     t = ir_node.typ
     assert isinstance(t, DArrayT)
-    ret = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
+
+    dynarr_len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
+
+    if hi and not t.abi_type.subtyp.is_dynamic():
+        pass
+        payload_sz = ["add", ["mul", get_dyn_array_count(ir_node), 32], 32]
+        absolute_end = add_ofst(ir_node, payload_sz)
+        ret = ["seq"]
+        ret.append(["assert", ["le", absolute_end, hi]])
+        ret.append(dynarr_len_check)
+    else:
+        ret = dynarr_len_check
+
     return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
 
 

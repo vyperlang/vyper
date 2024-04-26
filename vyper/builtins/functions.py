@@ -2501,7 +2501,8 @@ class ABIDecode(BuiltinFunctionT):
 
             # sanity check buffer size for wrapped output type will not buffer overflow
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
-            ret.append(make_setter(output, to_decode, hi=data_len))
+            hi = ["add", add_ofst(data_ptr, data_len), 32]
+            ret.append(make_setter(output, to_decode, hi=hi))
 
             ret.append(output)
             # finalize. set the type and location for the return buffer.
