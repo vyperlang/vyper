@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -64,6 +65,20 @@ def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
         compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
+        return
+
+    if output_formats == ("archive",):
+        for contract_data in compiled.values():
+            assert list(contract_data.keys()) == ["archive"]
+            out = contract_data["archive"]
+            if f.isatty() and isinstance(out, bytes):
+                raise RuntimeError(
+                    "won't write raw bytes to a tty! (if you want to base64"
+                    " encode the archive, you can try `-f archive` in"
+                    " conjunction with `--base64`"
+                )
+            else:
+                f.write(out)
         return
 
     for contract_data in compiled.values():
@@ -213,12 +228,17 @@ def _parse_args(argv):
         args.no_bytecode_metadata,
     )
 
+    mode = "w"
+    if output_formats == ("archive",):
+        mode = "wb"
+
     if args.output_path:
-        with open(args.output_path, "w") as f:
+        with open(args.output_path, mode) as f:
             _cli_helper(f, output_formats, compiled)
     else:
-        f = sys.stdout
-        _cli_helper(f, output_formats, compiled)
+        # https://stackoverflow.com/a/54073813
+        with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
+            _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
