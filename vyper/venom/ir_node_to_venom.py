@@ -48,6 +48,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "signextend",
         "chainid",
         "basefee",
+        "blobhash",
         "blobbasefee",
         "timestamp",
         "blockhash",

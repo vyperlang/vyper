@@ -1212,9 +1212,22 @@ class BlockHash(BuiltinFunctionT):
     _return_type = BYTES32_T
 
     @process_inputs
-    def build_IR(self, expr, args, kwargs, contact):
+    def build_IR(self, expr, args, kwargs, context):
         return IRnode.from_list(
             ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
+            typ=BYTES32_T,
+        )
+
+
+class BlobHash(BuiltinFunctionT):
+    _id = "blobhash"
+    _inputs = [("index", UINT256_T)]
+    _return_type = BYTES32_T
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
+            ["blobhash", args[0]],
             typ=BYTES32_T,
         )
 
@@ -2591,6 +2604,7 @@ DISPATCH_TABLE = {
     "as_wei_value": AsWeiValue(),
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
+    "blobhash": BlobHash(),
     "bitwise_and": BitwiseAnd(),
     "bitwise_or": BitwiseOr(),
     "bitwise_xor": BitwiseXor(),
