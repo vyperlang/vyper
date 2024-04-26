@@ -106,7 +106,8 @@ def foo() -> int128:
     """
 
     _, bytecode = _compile(code, output_formats, compiler_settings)
-    env._deploy(bytecode + (2**128 - 1).to_bytes(32, "big"), value=0)
+    to_bytes = (2**127 - 1).to_bytes(32, "big")
+    env._deploy(bytecode + to_bytes, value=0)
 
     with tx_failed():
         env._deploy(bytecode + (2**128).to_bytes(32, "big"), value=0)

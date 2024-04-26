@@ -39,7 +39,7 @@ def test_initial_state(env, tx_failed, get_contract, get_balance, contract_code)
     env.set_balance(env.deployer, to_wei(2, "ether"))
     # Seller puts item up for sale
     a0_pre_bal, a1_pre_bal = get_balance()
-    c = get_contract(contract_code, value_in_eth=to_wei(2, "ether"))
+    c = get_contract(contract_code, value=to_wei(2, "ether"))
     # Check that the seller is set correctly
     assert c.seller() == env.accounts[0]
     # Check if item value is set correctly (Half of deposit)

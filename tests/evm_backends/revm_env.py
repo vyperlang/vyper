@@ -108,11 +108,7 @@ class RevmEnv(BaseEnv):
                 is_static=not is_modifying,
             )
         except RuntimeError as e:
-            # TODO: Create a custom error in pyrevm instead parsing strings
-            if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]+) }", e.args[0]):
-                gas_used, output_str = match.groups()
-                output_bytes = bytes.fromhex(output_str)
-                self._parse_revert(output_bytes, e, int(gas_used))
+            self._parse_error(e)
             raise EvmError(*e.args) from e
 
     def clear_transient_storage(self) -> None:
@@ -131,4 +127,15 @@ class RevmEnv(BaseEnv):
         self._evm.env.block.excess_blob_gas = value
 
     def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
-        return self._evm.deploy(self.deployer, code, value, gas)
+        try:
+            return self._evm.deploy(self.deployer, code, value, gas)
+        except RuntimeError as e:
+            self._parse_error(e)
+            raise EvmError(*e.args) from e
+
+    def _parse_error(self, e: RuntimeError):
+        # TODO: Create a custom error in pyrevm instead parsing strings
+        if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]*) }", e.args[0]):
+            gas_used, output_str = match.groups()
+            output_bytes = bytes.fromhex(output_str)
+            super()._parse_revert(output_bytes, e, int(gas_used))
