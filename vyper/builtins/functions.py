@@ -249,7 +249,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
     np = context.new_internal_variable(dst_typ)
-    with start.cache_when_complex("start") as ( b1, start, ), length.cache_when_complex("length") as (
+    with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (
             b2,
             length):
         # `msg.data` by `calldatacopy`
@@ -2121,7 +2121,8 @@ class Sqrt(BuiltinFunctionT):
 
         arg = args[0]
         # TODO: reify decimal and integer sqrt paths (see isqrt)
-        sqrt_code = """
+        with arg.cache_when_complex("x") as (b1, arg):
+            sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
 
@@ -2136,33 +2137,34 @@ else:
             break
         y = z
         z = (x / z + z) / 2.0
-        """
+            """
 
-        x_type = DecimalT()
-        placeholder_copy = ["pass"]
-        # Steal current position if variable is already allocated.
-        if arg.value == "mload":
-            new_var_pos = arg.args[0]
-        # Other locations need to be copied.
-        else:
-            new_var_pos = context.new_internal_variable(x_type)
-            placeholder_copy = ["mstore", new_var_pos, arg]
-        # Create input variables.
-        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Dictionary to update new (i.e. typecheck) namespace
-        variables_2 = {"x": VarInfo(DecimalT())}
-        # Generate inline IR.
-        new_ctx, sqrt_ir = generate_inline_function(
-            code=sqrt_code,
-            variables=variables,
-            variables_2=variables_2,
-            memory_allocator=context.memory_allocator,
-        )
-        return IRnode.from_list(
-            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-            typ=DecimalT(),
-            location=MEMORY,
-        )
+            x_type = DecimalT()
+            placeholder_copy = ["pass"]
+            # Steal current position if variable is already allocated.
+            if arg.value == "mload":
+                new_var_pos = arg.args[0]
+            # Other locations need to be copied.
+            else:
+                new_var_pos = context.new_internal_variable(x_type)
+                placeholder_copy = ["mstore", new_var_pos, arg]
+            # Create input variables.
+            variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+            # Dictionary to update new (i.e. typecheck) namespace
+            variables_2 = {"x": VarInfo(DecimalT())}
+            # Generate inline IR.
+            new_ctx, sqrt_ir = generate_inline_function(
+                code=sqrt_code,
+                variables=variables,
+                variables_2=variables_2,
+                memory_allocator=context.memory_allocator,
+            )
+            ret = IRnode.from_list(
+                ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
+                typ=DecimalT(),
+                location=MEMORY,
+            )
+            return b1.resolve(ret)
 
 
 class ISqrt(BuiltinFunctionT):
