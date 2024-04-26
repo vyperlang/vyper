@@ -43,9 +43,9 @@ Lattice = dict[IROperand, LatticeItem]
 class SCCP(IRPass):
     """
     This class implements the Sparse Conditional Constant Propagation
-    algorithm for Venom IR. It is a forward dataflow analysis that
-    propagates constant values through the IR graph. It is used to
-    optimize the IR by removing dead code and replacing variables
+    algorithm by Wegman and Zadeck. It is a forward dataflow analysis
+    that propagates constant values through the IR graph. It is used
+    to optimize the IR by removing dead code and replacing variables
     with their constant values.
     """
 
