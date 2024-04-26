@@ -106,11 +106,11 @@ def foo() -> int128:
     """
 
     _, bytecode = _compile(code, output_formats, compiler_settings)
-    to_bytes = (2**127 - 1).to_bytes(32, "big")
-    env._deploy(bytecode + to_bytes, value=0)
+    ctor_args = (2**127 - 1).to_bytes(32, "big")
+    env._deploy(bytecode + ctor_args, value=0)
 
     with tx_failed():
-        env._deploy(bytecode + (2**128).to_bytes(32, "big"), value=0)
+        env._deploy(bytecode + (2**127).to_bytes(32, "big"), value=0)
 
 
 def test_initialise_array_with_constant_key(get_contract):

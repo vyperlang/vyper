@@ -7,9 +7,6 @@ from vyper.exceptions import EvmVersionException, VyperException
 pytestmark = pytest.mark.requires_evm_version("cancun")
 
 
-# with eth-tester, each call happens in an isolated transaction and so we need to
-# test get/set within a single contract call. (we should remove this restriction
-# in the future by migrating away from eth-tester).
 def test_transient_compiles():
     getter_code = """
 my_map: public(transient(HashMap[address, uint256]))

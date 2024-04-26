@@ -318,7 +318,6 @@ def assert_side_effects_invoked():
 
 @pytest.fixture(scope="module")
 def tx_failed(env):
-    # todo: use custom exception, we don't use eth_tester anymore
     @contextmanager
     def fn(exception=EvmError, exc_text=None):
         with env.anchor(), pytest.raises(exception) as excinfo:

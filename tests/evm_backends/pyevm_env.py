@@ -38,9 +38,6 @@ class PyEvmEnv(BaseEnv):
     ) -> None:
         super().__init__(gas_limit, account_keys)
 
-        # note: we configure the evm version that we emit code for,
-        # but eth-tester is only configured with the latest mainnet
-        # version.
         evm_opcodes.DEFAULT_EVM_VERSION = evm_version
 
         if tracing:
