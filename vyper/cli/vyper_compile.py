@@ -339,6 +339,10 @@ def compile_files(
         except NotZipInput:
             pass
 
+        # note compile_from_zip also reads the file contents, so this
+        # is slightly inefficient (and also maybe allows for some very
+        # rare, strange race conditions if the file changes in between
+        # the two reads).
         file = input_bundle.load_file(file_path)
         assert isinstance(file, FileInput)  # mypy hint
 
