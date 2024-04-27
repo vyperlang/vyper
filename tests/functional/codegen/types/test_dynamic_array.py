@@ -62,7 +62,6 @@ def loo(x: DynArray[DynArray[int128, 2], 2]) -> int128:
     print("Passed list tests")
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_string_list(get_contract):
     code = """
 @external
@@ -1491,7 +1490,6 @@ def foo(x: int128) -> int128:
     assert c.foo(7) == 392
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_struct_of_lists(get_contract):
     code = """
 struct Foo:
@@ -1580,7 +1578,6 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_struct_of_lists(get_contract, assert_compile_failed, optimize):
     code = """
 struct nestedFoo:
@@ -1710,9 +1707,7 @@ def __init__():
         ("DynArray[DynArray[DynArray[uint256, 5], 5], 5]", [[[], []], []]),
     ],
 )
-def test_empty_nested_dynarray(get_contract, typ, val, venom_xfail):
-    if val == [[[], []], []]:
-        venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
+def test_empty_nested_dynarray(get_contract, typ, val):
     code = f"""
 @external
 def foo() -> {typ}:

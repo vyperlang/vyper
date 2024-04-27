@@ -354,9 +354,10 @@ class VenomCompiler:
         # Step 1: Apply instruction special stack manipulations
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
-            operands = inst.get_non_label_operands()
+            operands = list(inst.get_non_label_operands())
         elif opcode == "alloca":
-            operands = inst.operands[1:2]
+            offset, _size = inst.operands
+            operands = [offset]
 
         # iload and istore are special cases because they can take a literal
         # that is handled specialy with the _OFST macro. Look below, after the
@@ -382,7 +383,7 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phis = inst.get_inputs()
+            phis = list(inst.get_inputs())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
@@ -524,6 +525,8 @@ class VenomCompiler:
             assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
+        elif opcode == "nop":
+            pass
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
