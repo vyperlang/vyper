@@ -280,7 +280,7 @@ class ExprInfo:
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
-                    raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
+                    raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
 
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()

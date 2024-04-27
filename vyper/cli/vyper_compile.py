@@ -136,7 +136,9 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument("--hex-ir", action="store_true")
+    parser.add_argument(
+        "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
+    )
     parser.add_argument(
         "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
     )
@@ -282,8 +284,8 @@ def compile_files(
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
             raise ValueError(
-                "provided {len(storage_layout_paths)} storage "
-                "layouts, but {len(input_files)} source files"
+                f"provided {len(storage_layout_paths)} storage "
+                f"layouts, but {len(input_files)} source files"
             )
 
     ret: dict[Any, Any] = {}

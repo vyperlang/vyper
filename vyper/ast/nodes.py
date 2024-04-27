@@ -1393,7 +1393,7 @@ class VariableDecl(VyperNode):
             # do the same thing as `validate_call_args`
             # (can't be imported due to cyclic dependency)
             if len(annotation.args) != 1:
-                raise ArgumentException("Invalid number of arguments to `{call_name}`:", self)
+                raise ArgumentException(f"Invalid number of arguments to `{call_name}`:", self)
 
         # the annotation is a "function" call, e.g.
         # `foo: public(constant(uint256))`
