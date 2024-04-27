@@ -13,6 +13,10 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.semantics.analysis.module import _is_builtin
 
+# data structures and routines for constructing "output bundles",
+# basically reproducible builds of a vyper contract, with varying
+# formats.
+
 
 def _anonymize(p: str):
     segments = []

@@ -11,6 +11,7 @@ import vyper
 import vyper.codegen.ir_node as ir_node
 import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
+from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
@@ -325,6 +326,19 @@ def compile_files(
 
     for file_name in input_files:
         file_path = Path(file_name)
+
+        try:
+            # try to compile in zipfile mode if it's a zip file, falling back
+            # to regular mode if it's not.
+            # we allow this instead of requiring a different mode (like
+            # `--zip`) so that verifier pipelines do not need a different
+            # workflow for archive files and single-file contracts.
+            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            ret[file_path] = output
+            continue
+        except NotZipInput:
+            pass
+
         file = input_bundle.load_file(file_path)
         assert isinstance(file, FileInput)  # mypy hint
 
