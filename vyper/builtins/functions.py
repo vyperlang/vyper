@@ -1226,10 +1226,7 @@ class BlobHash(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            ["blobhash", args[0]],
-            typ=BYTES32_T,
-        )
+        return IRnode.from_list(["blobhash", args[0]], typ=BYTES32_T)
 
 
 class RawRevert(BuiltinFunctionT):
