@@ -1,0 +1,57 @@
+# jobs to validate pull request well-formedness
+
+name: Validate PR metadata
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        name: Run conventional commit checker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # https://github.com/amannn/action-semantic-pull-request?tab=readme-ov-file#configuration
+        with:
+          types: |
+            feat
+            fix
+            chore
+            refactor
+          # ci: continuous integration
+          # docs: documentation
+          # test: test suite
+          # lang: language changes
+          # ux: language changes (UX)
+          # tool: integration
+          # ir: (old) IR/codegen changes
+          # codegen: lowering from vyper AST to codegen
+          # venom: venom changes
+          scopes: |
+            ci
+            build
+            docs
+            test
+            lang
+            ux
+            tool
+            ir
+            codegen
+            venom
+          requireScope: true
+          subjectPattern: '^(?![A-Z]).+$'
+          subjectPatternError: |
+            Starts with uppercase letter: '{subject}'
+            (Full PR title: '{title}')
+          # type[scope]<optional !>: subject
+          # use [] instead of () for aesthetics
+          headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?!?: (.*)$'

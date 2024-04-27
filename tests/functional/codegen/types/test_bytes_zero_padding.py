@@ -25,7 +25,7 @@ def get_count(counter: uint256) -> Bytes[24]:
 
 
 @pytest.mark.fuzzing
-@hypothesis.given(value=hypothesis.strategies.integers(min_value=0, max_value=2**64))
+@hypothesis.given(value=hypothesis.strategies.integers(min_value=0, max_value=(2**64 - 1)))
 def test_zero_pad_range(little_endian_contract, value):
     actual_bytes = value.to_bytes(8, byteorder="little")
     contract_bytes = little_endian_contract.get_count(value)

@@ -1,5 +1,6 @@
 import pytest
 
+from vyper import compile_code
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
@@ -45,14 +46,14 @@ invalid_versions = [
 @pytest.mark.parametrize("file_version", valid_versions)
 def test_valid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
-    validate_version_pragma(f"{file_version}", (SRC_LINE))
+    validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", invalid_versions)
 def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(f"{file_version}", (SRC_LINE))
+        validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
 
 
 prerelease_valid_versions = [
@@ -82,14 +83,14 @@ prerelease_invalid_versions = [
 @pytest.mark.parametrize("file_version", prerelease_valid_versions)
 def test_prerelease_valid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
-    validate_version_pragma(file_version, (SRC_LINE))
+    validate_version_pragma(file_version, file_version, (SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", prerelease_invalid_versions)
 def test_prerelease_invalid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(file_version, (SRC_LINE))
+        validate_version_pragma(file_version, file_version, (SRC_LINE))
 
 
 pragma_examples = [
@@ -184,7 +185,7 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
         # None is sentinel here meaning that nothing changed
         compiler_data_settings = pre_parse_settings
 
-    # cannot be set via pragma, don't check
+    # experimental_codegen is False by default
     compiler_data_settings.experimental_codegen = False
 
     assert compiler_data.settings == compiler_data_settings
@@ -224,3 +225,32 @@ invalid_pragmas = [
 def test_invalid_pragma(code):
     with pytest.raises(StructureException):
         pre_parse(code)
+
+
+def test_version_exception_in_import(make_input_bundle):
+    lib_version = "~=0.3.10"
+    lib = f"""
+#pragma version {lib_version}
+
+@external
+def foo():
+    pass
+    """
+
+    code = """
+import lib
+
+uses: lib
+
+@external
+def bar():
+    pass
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    with pytest.raises(VersionException) as excinfo:
+        compile_code(code, input_bundle=input_bundle)
+    annotation = excinfo.value.annotations[0]
+    assert annotation.lineno == 2
+    assert annotation.col_offset == 0
+    assert annotation.full_source_code == lib

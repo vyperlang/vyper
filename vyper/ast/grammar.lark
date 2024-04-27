@@ -15,6 +15,7 @@ module: ( DOCSTRING
         | event_def
         | function_def
         | immutable_def
+        | transient_def
         | exports_decl
         | _NEWLINE )*
 
@@ -47,9 +48,13 @@ constant_def: (constant_private | constant_with_getter) "=" expr
 immutable: "immutable" "(" type ")"
 immutable_def: NAME ":" immutable
 
+// transient definitions
+transient: "transient" "(" type ")"
+transient_def: NAME ":" transient
+
 variable: NAME ":" type
 // NOTE: Temporary until decorators used
-variable_with_getter: NAME ":" "public" "(" (type | immutable) ")"
+variable_with_getter: NAME ":" "public" "(" (type | immutable | transient) ")"
 variable_def: variable | variable_with_getter
 
 // A decorator "wraps" a method, modifying it's context.
@@ -98,7 +103,7 @@ tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | a
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
 map_def: _MAP "[" ( NAME | array_def ) "," type "]"
-imported_type: NAME "." NAME
+imported_type: NAME ("." NAME)+
 type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
 
 // Structs can be composed of 1+ basic types or other custom_types

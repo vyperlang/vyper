@@ -589,9 +589,9 @@ def foo():
     with warnings.catch_warnings(record=True) as w:
         assert compiler.compile_code(code) is not None
 
-        expected = "Instantiating a struct using a dictionary is deprecated "
-        expected += "as of v0.4.0 and will be disallowed in a future release. "
-        expected += "Use kwargs instead e.g. Foo(a=1, b=2)"
+    expected = "Instantiating a struct using a dictionary is deprecated "
+    expected += "as of v0.4.0 and will be disallowed in a future release. "
+    expected += "Use kwargs instead e.g. Foo(a=1, b=2)"
 
-        assert len(w) == 1
-        assert str(w[0].message).startswith(expected)
+    assert len(w) == 1, [s.message for s in w]
+    assert str(w[0].message).startswith(expected)

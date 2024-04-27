@@ -4,6 +4,8 @@ import pytest
 from eth.codecs import abi
 from eth_utils import keccak
 
+from tests.utils import decimal_to_int
+from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
 
@@ -316,7 +318,7 @@ def foo(s: decimal) -> decimal:
 
     c = get_contract(code)
 
-    assert c.foo(Decimal(value)) == Decimal(value)
+    assert c.foo(decimal_to_int(value)) == decimal_to_int(value)
 
 
 @pytest.mark.parametrize(
@@ -338,7 +340,7 @@ def foo(s: decimal) -> decimal:
     c = get_contract(code)
 
     with tx_failed():
-        _make_tx(w3, c.address, "foo(fixed168x10)", [value])
+        _make_tx(w3, c.address, "foo(int168)", [value])
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -506,6 +508,7 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_multidimension_dynarray_clamper_passing(w3, get_contract, value):
     code = """
 @external

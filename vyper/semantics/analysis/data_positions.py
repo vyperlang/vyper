@@ -282,9 +282,9 @@ def _allocate_layout_r(
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
-        # skip non-storage variables
+        # skip non-state variables
         varinfo = node.target._metadata["varinfo"]
-        if not varinfo.is_module_variable():
+        if not varinfo.is_state_variable():
             continue
         location = varinfo.location
 

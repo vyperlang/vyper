@@ -3,6 +3,7 @@ from eth_tester.exceptions import TransactionFailed
 
 from vyper import compiler
 from vyper.exceptions import StructureException, TypeMismatch
+from vyper.utils import method_id
 
 
 def test_variable_assignment(get_contract, keccak):
@@ -14,8 +15,7 @@ def foo() -> Bytes[4]:
 """
 
     contract = get_contract(code)
-
-    assert contract.foo() == bytes(keccak(text="foo()")[:4])
+    assert contract.foo() == method_id("foo()")
 
 
 def test_slicing_start_index_other_than_zero(get_contract):
@@ -41,11 +41,11 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    method_id = keccak(text="foo(uint256)").hex()[2:10]  # 2fbebd38
-    encoded_42 = w3.to_bytes(42).hex()  # 2a
-    expected_result = method_id + "00" * 31 + encoded_42
+    selector_hex = method_id("foo(uint256)")  # 2fbebd38
+    encoded_42 = (42).to_bytes(32, "big")
+    expected_result = selector_hex + encoded_42
 
-    assert contract.foo(42).hex() == expected_result
+    assert contract.foo(42) == expected_result
 
 
 @pytest.mark.parametrize("bar", [0, 1, 42, 2**256 - 1])
@@ -73,7 +73,7 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == [2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1]
+    assert contract.foo() == [2**256 - 1, method_id("foo()"), 2**256 - 1]
 
 
 def test_assignment_to_storage(w3, get_contract, keccak):
@@ -88,7 +88,7 @@ def foo():
     contract = get_contract(code)
 
     contract.foo(transact={"from": acct})
-    assert contract.cache() == bytes(keccak(text="foo()")[:4])
+    assert contract.cache() == method_id("foo()")
 
 
 def test_get_len(get_contract):

@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import FunctionDeclarationException
 
 
@@ -13,6 +15,20 @@ def foo() -> int128:
     assert c.foo() == 5
 
     print("Passed constant function test")
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_transient_test(get_contract):
+    code = """
+x: transient(uint256)
+
+@external
+@view
+def foo() -> uint256:
+    return self.x
+    """
+    c = get_contract(code)
+    assert c.foo() == 0
 
 
 def test_invalid_constant_and_payable(
