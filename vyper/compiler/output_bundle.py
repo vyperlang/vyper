@@ -15,7 +15,9 @@ from vyper.semantics.analysis.module import _is_builtin
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
-# formats.
+# formats. note this is similar but not exactly analogous to
+# `input_bundle.py` -- the output bundle defined here contains more
+# information.
 
 
 def _anonymize(p: str):
