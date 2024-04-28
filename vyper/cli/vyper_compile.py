@@ -127,6 +127,11 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "--base64",
+        help="Base64 encode the output (only valid in conjunction with `-f archive`",
+        action="store_true",
+    )
+    parser.add_argument(
         "-O",
         "--optimize",
         help="Optimization flag (defaults to 'gas')",
@@ -190,6 +195,12 @@ def _parse_args(argv):
         ir_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
+
+    if args.base64 and output_formats != ("archive",):
+        raise ValueError("Cannot use `--base64` except with `-f archive`")
+
+    if args.base64:
+        output_formats = ("archive_b64",)
 
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")

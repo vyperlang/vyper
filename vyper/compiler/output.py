@@ -1,3 +1,4 @@
+import base64
 import warnings
 from collections import deque
 from pathlib import PurePath
@@ -44,10 +45,14 @@ def build_solc_json(compiler_data: CompilerData) -> str:
     return writer.output()
 
 
-def build_archive(compiler_data: CompilerData) -> str:
+def build_archive(compiler_data: CompilerData) -> bytes:
     writer = VyperArchiveWriter(compiler_data)
     writer.write()
     return writer.output()
+
+
+def build_archive_b64(compiler_data: CompilerData) -> str:
+    return base64.b64encode(build_archive(compiler_data))
 
 
 def build_integrity(compiler_data: CompilerData) -> str:

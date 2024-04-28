@@ -19,6 +19,7 @@ OUTPUT_FORMATS = {
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
     "archive": output.build_archive,
+    "archive_b64": output.build_archive_b64,
     "integrity": output.build_integrity,
     "solc_json": output.build_solc_json,
     # requires ir_node

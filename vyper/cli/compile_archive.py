@@ -2,6 +2,7 @@
 # utility functions to handle compiling from a "vyper archive"
 
 import base64
+import binascii
 import io
 import zipfile
 from pathlib import PurePath
@@ -30,7 +31,7 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
             bcontents = base64.b64decode(bcontents, validate=False)
             buf = io.BytesIO(bcontents)
             archive = zipfile.ZipFile(buf, mode="r")
-        except zipfile.BadZipFile:
+        except (zipfile.BadZipFile, binascii.Error):
             raise NotZipInput() from e1
 
     fcontents = archive.read("MANIFEST/compilation_targets").decode("utf-8")
