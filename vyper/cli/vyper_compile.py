@@ -76,7 +76,7 @@ def _cli_helper(f, output_formats, compiled):
                 raise RuntimeError(
                     "won't write raw bytes to a tty! (if you want to base64"
                     " encode the archive, you can try `-f archive` in"
-                    " conjunction with `--base64`"
+                    " conjunction with `--base64`)"
                 )
             else:
                 f.write(out)
