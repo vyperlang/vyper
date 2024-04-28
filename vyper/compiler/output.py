@@ -52,7 +52,7 @@ def build_archive(compiler_data: CompilerData) -> bytes:
 
 
 def build_archive_b64(compiler_data: CompilerData) -> str:
-    return base64.b64encode(build_archive(compiler_data))
+    return base64.b64encode(build_archive(compiler_data)).decode("ascii")
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
