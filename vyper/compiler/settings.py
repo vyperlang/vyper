@@ -69,8 +69,12 @@ class Settings:
             ret.append(" --experimental-codegen")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
+        if self.debug is True:
+            ret.append(" --debug")
+        if self.enable_decimals is True:
+            ret.append(" --enable-decimals")
 
-        return " ".join(ret)
+        return "".join(ret)
 
     def as_dict(self):
         ret = dataclasses.asdict(self)
