@@ -315,6 +315,11 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
+    # formats which can only be requested as a single output format
+    for c in ("solc_json", "archive"):
+        if c in output_formats and len(output_formats) > 1:
+            raise ValueError(f"If using {c} it must be the only output format requested")
+
     translate_map = {
         "abi_python": "abi",
         "json": "abi",
