@@ -236,7 +236,7 @@ class JSONInputBundle(InputBundle):
 
 
 # input bundle for vyper archives. similar to JSONInputBundle, but takes
-# a zipfile as input. interestingly
+# a zipfile as input.
 class ZipInputBundle(InputBundle):
     def __init__(self, archive: "ZipFile"):
         assert archive.testzip() is None
