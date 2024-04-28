@@ -87,7 +87,6 @@ class Settings:
         return cls(**data)
 
 
-# TODO: does this belong as a method under Settings?
 def merge_settings(
     one: Settings, two: Settings, lhs_source="compiler settings", rhs_source="source pragma"
 ) -> Settings:
