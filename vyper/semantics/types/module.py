@@ -412,7 +412,6 @@ class ModuleT(VyperType):
             ret[info.alias] = module_info
         return ret
 
-    # TODO: maybe this should actually be implemented in compiler/phases.py
     @cached_property
     def reachable_imports(self) -> list["ImportInfo"]:
         """
