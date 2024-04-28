@@ -121,10 +121,16 @@ class OutputBundleWriter:
     def write_compilation_target(self, targets: list[str]):
         raise NotImplementedError(f"write_compilation_target: {self.__class__}")
 
+    def write_compiler_version(self, version: str):
+        raise NotImplementedError(f"write_compiler_version: {self.__class__}")
+
     def output(self):
         raise NotImplementedError(f"output: {self.__class__}")
 
     def write(self):
+        from vyper import __long_version__  # TODO: evil import cycle
+
+        self.write_version(f"v{__long_version__}")
         self.write_compilation_target([str(self.compiler_data.file_input.path)])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
@@ -158,6 +164,9 @@ class SolcJSONWriter(OutputBundleWriter):
     def write_compilation_target(self, targets: list[str]):
         for target in targets:
             self._output["settings"]["outputSelection"][target] = "*"
+
+    def write_version(self, version):
+        self._output["compiler_version"] = version
 
     def output(self):
         return self._output
@@ -207,6 +216,9 @@ class VyperArchiveWriter(OutputBundleWriter):
 
     def write_compilation_target(self, targets: list[str]):
         self.archive.writestr("MANIFEST/compilation_targets", "\n".join(targets))
+
+    def write_version(self, version: str):
+        self.archive.writestr("MANIFEST/compiler_version", version)
 
     def output(self):
         assert self.archive.testzip() is None

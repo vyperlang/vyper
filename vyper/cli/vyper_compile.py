@@ -103,9 +103,7 @@ def _parse_args(argv):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
