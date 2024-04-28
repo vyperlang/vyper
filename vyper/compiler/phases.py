@@ -9,8 +9,7 @@ from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
-from vyper.exceptions import StructureException
+from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.types.function import ContractFunctionT
@@ -20,27 +19,6 @@ from vyper.utils import ERC5202_PREFIX
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
-
-
-def _merge_one(lhs, rhs, helpstr):
-    if lhs is not None and rhs is not None and lhs != rhs:
-        raise StructureException(
-            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
-        )
-    return lhs if rhs is None else rhs
-
-
-# TODO: does this belong as a method under Settings?
-def _merge_settings(cli: Settings, pragma: Settings):
-    ret = Settings()
-    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
-    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
-    ret.experimental_codegen = _merge_one(
-        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
-    )
-    ret.enable_decimals = _merge_one(cli.enable_decimals, pragma.enable_decimals, "enable-decimals")
-
-    return ret
 
 
 class CompilerData:
@@ -135,7 +113,7 @@ class CompilerData:
         )
 
         og_settings = self.original_settings
-        settings = _merge_settings(og_settings, settings)
+        settings = merge_settings(og_settings, settings)
         assert self.original_settings == og_settings  # be paranoid
 
         if settings.optimize is None:

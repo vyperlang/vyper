@@ -87,6 +87,32 @@ class Settings:
         return cls(**data)
 
 
+# TODO: does this belong as a method under Settings?
+def merge_settings(
+    one: Settings, two: Settings, lhs_source="compiler settings", rhs_source="source pragma"
+) -> Settings:
+    def _merge_one(lhs, rhs, helpstr):
+        if lhs is not None and rhs is not None and lhs != rhs:
+            # aesthetics, conjugate the verbs per english rules
+            s1 = "" if lhs_source.endswith("s") else "s"
+            s2 = "" if rhs_source.endswith("s") else "s"
+            raise ValueError(
+                f"settings conflict!\n\n  {lhs_source}: {one}\n  {rhs_source}: {two}\n\n"
+                f"({lhs_source} indicate{s1} {helpstr} {lhs}, but {rhs_source} indicate{s2} {rhs}.)"
+            )
+        return lhs if rhs is None else rhs
+
+    ret = Settings()
+    ret.evm_version = _merge_one(one.evm_version, two.evm_version, "evm version")
+    ret.optimize = _merge_one(one.optimize, two.optimize, "optimize")
+    ret.experimental_codegen = _merge_one(
+        one.experimental_codegen, two.experimental_codegen, "experimental codegen"
+    )
+    ret.enable_decimals = _merge_one(one.enable_decimals, two.enable_decimals, "enable-decimals")
+
+    return ret
+
+
 # CMC 2024-04-10 do we need it to be Optional?
 _settings = None
 

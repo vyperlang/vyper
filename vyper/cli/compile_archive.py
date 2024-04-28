@@ -4,11 +4,13 @@
 import base64
 import binascii
 import io
+import json
 import zipfile
 from pathlib import PurePath
 
 from vyper.compiler import compile_from_file_input
 from vyper.compiler.input_bundle import FileInput, ZipInputBundle
+from vyper.compiler.settings import Settings, merge_settings
 from vyper.exceptions import BadArchive
 
 
@@ -46,7 +48,13 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
     file = input_bundle.load_file(mainpath)
     assert isinstance(file, FileInput)  # mypy hint
 
-    # TODO: read settings and merge them
+    archive_settings_txt = archive.read("MANIFEST/settings.json").decode("utf-8")
+    archive_settings = Settings.from_dict(json.loads(archive_settings_txt))
+
+    settings = merge_settings(
+        settings, archive_settings, lhs_source="command line", rhs_source="archive settings"
+    )
+
     # TODO: validate integrity sum (probably in CompilerData)
     return compile_from_file_input(
         file,
