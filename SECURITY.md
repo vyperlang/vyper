@@ -4,7 +4,9 @@
 
 - it is recommended to follow the list of known [vulnerabilities](https://github.com/vyperlang/vyper/security/advisories) and stay up-to-date with the latest releases
   - as of May 2024, the `0.4.0` release is the most secure and the most comprehensively reviewed one and is recommended for use in production environments
-- if a compiler vulnerability is found, a new compiler version with a patch will be released. The vulnerable version itself is not updated.
+- if a compiler vulnerability is found, a new compiler version with a patch will be released. The vulnerable version itself is not updated (see the examples below).
+  - `example1`: suppose `0.4.0` is the latest version and a hypothetical vulnerability is found in `0.4.0`, then a patch will be released in `0.4.1`
+  - `example2`: suppose `0.4.0` is the latest version and a hypothetical vulnerability is found both in `0.3.10` and `0.4.0`, then a patch will be released only in `0.4.1`
 
 ## Compiler Audits
 
