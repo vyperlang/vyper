@@ -197,7 +197,7 @@ def test() -> Bytes[100]:
     assert c.test() == test_str
 
 
-def test_constant_folds():
+def test_constant_folds(experimental_codegen):
     some_prime = 10013677
     code = f"""
 SOME_CONSTANT: constant(uint256) = 11 + 1
@@ -211,7 +211,8 @@ def test() -> uint256:
     return ret
     """
     ir = compile_code(code, output_formats=["ir"])["ir"]
-    search = ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
+    memory = "$alloca_64_32" if experimental_codegen else MemoryPositions.RESERVED_MEMORY
+    search = ["mstore", [memory], [2**12 * some_prime]]
     assert search_for_sublist(ir, search)
 
 
