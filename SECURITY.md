@@ -3,7 +3,7 @@
 ## Supported Versions
 
 - each Vyper version in the range `<v0.1.0-beta.1, 0.3.10>` contains a high severity vulnerability
-  - if developing with such verions, please read https://github.com/vyperlang/vyper/security/advisories to leaern how to work around the vulnerabilities
+  - if developing with such versions, please read https://github.com/vyperlang/vyper/security/advisories to learn how to work around the vulnerabilities
 - as of May 2024, the `0.4.0` release is the most secure and the most comprehensively reviewed one and is recommended for use in production environments
 - if a compiler vulnerability is found, a new compiler version with a patch will be released. The vulnerable version itself is not updated.
 
