@@ -887,8 +887,7 @@ def make_setter(left, right, hi=None):
         if isinstance(right.typ, _BytestringT):
             hi = ["add", add_ofst(right, get_bytearray_length(right)), 32]
         else:
-            #hi = add_ofst(right, right.typ.memory_bytes_required)
-            hi = add_ofst(right, right.typ.abi_type.dynamic_size_bound())
+            hi = add_ofst(right, right.typ.abi_type.size_bound())
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
