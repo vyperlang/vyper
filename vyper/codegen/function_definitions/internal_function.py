@@ -49,7 +49,7 @@ def generate_ir_for_internal_function(
     for arg in func_t.arguments:
         # allocate a variable for every arg, setting mutability
         # to True to allow internal function arguments to be mutable
-        context.new_variable(arg.name, arg.typ, is_mutable=True)
+        context.new_variable(arg.name, arg.typ, is_mutable=True, internal_function=True)
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
