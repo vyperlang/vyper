@@ -1,7 +1,10 @@
 from collections import namedtuple
 
+import pytest
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
+from vyper.compiler.settings import OptimizationLevel
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
@@ -31,7 +34,10 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map():
+def test_jump_map(optimize):
+    if optimize == OptimizationLevel.NONE:
+        raise pytest.skip("This test is not working for unoptimized code.")
+
     source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
