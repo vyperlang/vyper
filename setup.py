@@ -18,6 +18,7 @@ extras_require = {
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
+        "eth-account==0.12.2",
         "setuptools",
         "hexbytes>=1.2",
         "pyrevm @ git+https://github.com/DanielSchiavini/pyrevm.git@b1a6f63",
