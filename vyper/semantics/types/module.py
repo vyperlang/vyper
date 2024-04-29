@@ -127,7 +127,7 @@ class InterfaceT(_UserType):
                 continue
 
             if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
+                unimplemented.append(type_._pp_signature)
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
@@ -331,6 +331,8 @@ class ModuleT(VyperType):
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
+        self.add_member("__interface__", self.interface)
+
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
     # search path, symlinked vs normalized path, etc.)
@@ -370,6 +372,15 @@ class ModuleT(VyperType):
     @cached_property
     def implements_decls(self):
         return self._module.get_children(vy_ast.ImplementsDecl)
+
+    @cached_property
+    def implemented_interfaces(self):
+        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+
+        # a module implicitly implements module.__interface__.
+        ret.append(self.interface)
+
+        return ret
 
     @cached_property
     def interfaces(self) -> dict[str, InterfaceT]:

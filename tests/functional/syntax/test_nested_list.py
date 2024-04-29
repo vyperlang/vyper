@@ -75,5 +75,5 @@ def foo():
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_nested_list_sucess(good_code):
+def test_nested_list_success(good_code):
     assert compiler.compile_code(good_code) is not None

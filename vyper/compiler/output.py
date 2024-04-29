@@ -2,7 +2,7 @@ import warnings
 from collections import deque
 from pathlib import PurePath
 
-from vyper.ast import ast_to_dict, parse_natspec
+from vyper.ast import ast_to_dict
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -30,13 +30,11 @@ def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return devdoc
+    return compiler_data.natspec.devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return userdoc
+    return compiler_data.natspec.userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
