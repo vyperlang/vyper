@@ -271,7 +271,7 @@ def compile_from_input_dict(
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
         optimize = OptimizationLevel.from_string(optimize)
-    elif not isinstance(optimize, OptimizationLevel):
+    else:
         assert optimize is None
 
     settings = Settings(evm_version=evm_version, optimize=optimize)

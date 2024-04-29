@@ -72,7 +72,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize):
+def input_json(optimize, evm_version):
     return {
         "language": "Vyper",
         "sources": {
@@ -81,7 +81,11 @@ def input_json(optimize):
             "contracts/bar.vy": {"content": BAR_CODE},
         },
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
-        "settings": {"outputSelection": {"*": ["*"]}, "optimize": optimize.name.lower()},
+        "settings": {
+            "outputSelection": {"*": ["*"]},
+            "optimize": optimize.name.lower(),
+            "evmVersion": evm_version,
+        },
     }
 
 
