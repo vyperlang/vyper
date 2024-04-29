@@ -81,7 +81,7 @@ def input_json(optimize):
             "contracts/bar.vy": {"content": BAR_CODE},
         },
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
-        "settings": {"outputSelection": {"*": ["*"]}, "optimize": optimize},
+        "settings": {"outputSelection": {"*": ["*"]}, "optimize": optimize.name.lower()},
     }
 
 
