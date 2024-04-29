@@ -36,21 +36,4 @@ to reporting to us. Additionally, please submit the compiler vulnerability at ht
 **Please Do Not Log An Issue** mentioning the vulnerability.
 
 
-The Vyper team can also be reached via email at security@vyperlang.org. Our PGP key is:
-```
------BEGIN PGP PUBLIC KEY BLOCK-----
-Version: OpenPGP.js v4.7.2
-Comment: https://openpgpjs.org
-
-xjMEXiC9KhYJKwYBBAHaRw8BAQdAMMsB1qaofcbuG5/4Hmm1GD8M+2lKJ50B
-YI2G44/nquDNK3Z5cGVyLXNlY3VyaXR5QHBtLm1lIDx2eXBlci1zZWN1cml0
-eUBwbS5tZT7CeAQQFgoAIAUCXiC9KgYLCQcIAwIEFQgKAgQWAgEAAhkBAhsD
-Ah4BAAoJENARd3wFTk2lbdIBALELumbNOvueWQJSN8g+AYmb2i2XGDkuhWB0
-ZK8maVfpAPwINHjx8vmNZ2T/aML2dpmaL7h2g13OTDjt1nYeTMVCD844BF4g
-vSoSCisGAQQBl1UBBQEBB0A7Lb7v2tyRBAasuwwzF94OzrbqVybJ5cgxsO3F
-N+XKBAMBCAfCYQQYFggACQUCXiC9KgIbDAAKCRDQEXd8BU5NpRLzAQC+gaZ6
-lg4OrPFHOK9zYqbQ0zpx+tadKaEoo51jzsjCLgEAmp01XCX7/0Ln1TtUFzMy
-fRy18qk7KR6zOg2RRch5gQQ=
-=O37G
------END PGP PUBLIC KEY BLOCK-----
-```
+- **Please Do Not Log An Issue** mentioning the vulnerability.
