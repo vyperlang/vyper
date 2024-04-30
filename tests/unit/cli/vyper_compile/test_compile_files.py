@@ -1,11 +1,11 @@
 import contextlib
 import sys
+import base64
 import zipfile
 from pathlib import Path
 
 import pytest
 
-from tests.utils import working_directory
 from vyper.cli.vyper_compile import compile_files
 
 
@@ -135,15 +135,14 @@ def test_import_parent_folder(tmp_path, make_file):
     compile_files([foo], ["combined_json"], paths=[tmp_path / "contracts"])
 
 
-def test_import_search_paths(tmp_path, make_file):
-    with working_directory(tmp_path):
-        contract_code = CONTRACT_CODE.format(import_stmt="from utils import IFoo", alias="IFoo")
-        contract_filename = "dir1/baz/foo.vy"
-        interface_filename = "dir2/utils/IFoo.vyi"
-        make_file(interface_filename, INTERFACE_CODE)
-        make_file(contract_filename, contract_code)
+def test_import_search_paths(chdir_tmp_path, make_file):
+    contract_code = CONTRACT_CODE.format(import_stmt="from utils import IFoo", alias="IFoo")
+    contract_filename = "dir1/baz/foo.vy"
+    interface_filename = "dir2/utils/IFoo.vyi"
+    make_file(interface_filename, INTERFACE_CODE)
+    make_file(contract_filename, contract_code)
 
-        assert compile_files([contract_filename], ["combined_json"], paths=["dir2"])
+    assert compile_files([contract_filename], ["combined_json"], paths=["dir2"])
 
 
 META_IMPORT_STMT = [
@@ -271,7 +270,8 @@ def mock_sys_path(path):
         sys.path.pop()
 
 
-def test_import_sys_path(tmp_path_factory, make_file):
+@pytest.fixture
+def input_files(tmp_path_factory, make_file, chdir_tmp_path):
     library_source = """
 @internal
 def foo() -> uint256:
@@ -284,36 +284,26 @@ import lib
 def foo() -> uint256:
     return lib.foo()
     """
-    tmpdir = tmp_path_factory.mktemp("test-sys-path")
+    tmpdir = tmp_path_factory.mktemp("fake-package")
     with open(tmpdir / "lib.vy", "w") as f:
         f.write(library_source)
 
     contract_file = make_file("contract.vy", contract_source)
+
+    return (tmpdir, tmpdir / "lib.vy", contract_file)
+
+
+
+def test_import_sys_path(input_files):
+    tmpdir, _, contract_file = input_files
     with mock_sys_path(tmpdir):
         assert compile_files([contract_file], ["combined_json"]) is not None
 
 
-def test_archive_output(tmp_path_factory, make_file, chdir_tmp_path):
-    library_source = """
-@internal
-def foo() -> uint256:
-    return block.number + 1
-    """
-    contract_source = """
-import lib
-
-@external
-def foo() -> uint256:
-    return lib.foo()
-    """
-    # create a file in another directory and check that it shows up
-    # in the output
-    tmpdir = tmp_path_factory.mktemp("fake_package")
-    with open(tmpdir / "lib.vy", "w") as f:
-        f.write(library_source)
-
-    contract_file = make_file("contract.vy", contract_source)
+def test_archive_output(input_files):
+    tmpdir, _, contract_file = input_files
     search_paths = [".", tmpdir]
+
     s = compile_files([contract_file], ["archive"], paths=search_paths)
     archive_bytes = s[contract_file]["archive"]
 
@@ -325,5 +315,26 @@ def foo() -> uint256:
 
     # compare compiling the two input bundles
     out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+    out2 = compile_files([archive_path], ["integrity", "bytecode"])
+    assert out[contract_file] == out2[archive_path]
+
+def test_archive_b64_output(input_files):
+    tmpdir, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    out = compile_files([contract_file], ["archive_b64", "integrity", "bytecode"], paths=search_paths)
+
+    archive_b64 = out[contract_file].pop("archive_b64")
+
+    # sanity check
+    s = compile_files([contract_file], ["archive"], paths=search_paths)
+    archive_bytes = s[contract_file]["archive"]
+    #assert base64.b64encode(archive_bytes) == archive_b64
+
+    archive_path = Path("foo.zip.b64")
+    with archive_path.open("w") as f:
+        f.write(archive_b64)
+
+    # compare compiling the two input bundles
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
