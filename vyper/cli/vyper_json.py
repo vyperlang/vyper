@@ -245,7 +245,7 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
 
 
 def get_search_paths(input_dict: dict) -> list[PurePath]:
-    ret = input_dict["settings"]["search_paths"]
+    ret = input_dict["settings"].get("search_paths", ".")
     return [PurePath(p) for p in ret]
 
 

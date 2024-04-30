@@ -112,9 +112,14 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        og_settings = self.original_settings
-        settings = merge_settings(og_settings, settings)
-        assert self.original_settings == og_settings  # be paranoid
+        if self.original_settings:
+            og_settings = self.original_settings
+            settings = merge_settings(og_settings, settings)
+            assert self.original_settings == og_settings  # be paranoid
+        else:
+            # merge with empty Settings(), doesn't do much but it does
+            # remove the compiler version
+            settings = merge_settings(Settings(), settings)
 
         if settings.optimize is None:
             settings.optimize = OptimizationLevel.default()
