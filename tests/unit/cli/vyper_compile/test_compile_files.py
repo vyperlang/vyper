@@ -8,6 +8,7 @@ import pytest
 
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_json
+from vyper.utils import sha256sum
 
 
 def test_combined_json_keys(chdir_tmp_path, make_file):
@@ -359,3 +360,20 @@ def test_solc_json_output(input_files):
     out2 = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
 
     assert out2[contract_file]["bytecode"] == json_out_bytecode
+
+
+# maybe this belongs in tests/unit/compiler?
+def test_integrity_sum(input_files):
+    tmpdir, library_file, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    out = compile_files([contract_file], ["integrity"], paths=search_paths)
+
+    with library_file.open() as f, contract_file.open() as g:
+        library_contents = f.read()
+        contract_contents = g.read()
+
+    contract_hash = sha256sum(contract_contents)
+    library_hash = sha256sum(library_contents)
+    expected = sha256sum(contract_hash + sha256sum(library_hash))
+    assert out[contract_file]["integrity"] == expected
