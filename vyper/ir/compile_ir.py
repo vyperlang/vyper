@@ -893,6 +893,8 @@ def _merge_jumpdests(assembly):
                 # (except for _sym_x JUMPDEST - don't want duplicate labels)
                 new_symbol = assembly[i + 2]
                 if new_symbol == current_symbol:
+                    # no need to replace if they are the same
+                    # just delete the extra JUMPDEST
                     del assembly[i : i + 2]
                     changed = True
                 else:
