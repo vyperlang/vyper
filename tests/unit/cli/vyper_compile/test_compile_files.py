@@ -1,12 +1,13 @@
+import base64
 import contextlib
 import sys
-import base64
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from vyper.cli.vyper_compile import compile_files
+from vyper.cli.vyper_json import compile_json
 
 
 def test_combined_json_keys(chdir_tmp_path, make_file):
@@ -293,7 +294,6 @@ def foo() -> uint256:
     return (tmpdir, tmpdir / "lib.vy", contract_file)
 
 
-
 def test_import_sys_path(input_files):
     tmpdir, _, contract_file = input_files
     with mock_sys_path(tmpdir):
@@ -318,18 +318,21 @@ def test_archive_output(input_files):
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
 
+
 def test_archive_b64_output(input_files):
     tmpdir, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
-    out = compile_files([contract_file], ["archive_b64", "integrity", "bytecode"], paths=search_paths)
+    out = compile_files(
+        [contract_file], ["archive_b64", "integrity", "bytecode"], paths=search_paths
+    )
 
     archive_b64 = out[contract_file].pop("archive_b64")
 
-    # sanity check
+    # sanity check that it matches binary archive
     s = compile_files([contract_file], ["archive"], paths=search_paths)
     archive_bytes = s[contract_file]["archive"]
-    #assert base64.b64encode(archive_bytes) == archive_b64
+    assert base64.b64encode(archive_bytes).decode("ascii") == archive_b64
 
     archive_path = Path("foo.zip.b64")
     with archive_path.open("w") as f:
@@ -338,3 +341,21 @@ def test_archive_b64_output(input_files):
     # compare compiling the two input bundles
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
+
+
+def test_solc_json_output(input_files):
+    tmpdir, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    out = compile_files([contract_file], ["solc_json"], paths=search_paths)
+
+    json_input = out[contract_file]["solc_json"]
+
+    # check that round-tripping solc_json thru standard json produces
+    # the same as compiling directly
+    json_out = compile_json(json_input)["contracts"]["contract.vy"]
+    json_out_bytecode = json_out["contract"]["evm"]["bytecode"]["object"]
+
+    out2 = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+
+    assert out2[contract_file]["bytecode"] == json_out_bytecode
