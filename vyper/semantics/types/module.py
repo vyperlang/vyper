@@ -127,7 +127,7 @@ class InterfaceT(_UserType):
                 continue
 
             if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
+                unimplemented.append(type_._pp_signature)
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
