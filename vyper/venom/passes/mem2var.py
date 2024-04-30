@@ -1,8 +1,11 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class Mem2Var(IRPass):
@@ -11,20 +14,18 @@ class Mem2Var(IRPass):
     It does yet do any memory aliasing analysis, so it is conservative.
     """
 
-    ctx: IRFunction
+    function: IRFunction
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
-    dfg: DFG
 
-    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock, dfg: DFG) -> int:
-        self.ctx = ctx
-        self.dfg = dfg
+    def __init__(self, manager: IRPassManager):
+        super().__init__(manager)
 
-        calculate_cfg(ctx)
+    def run_pass(self):
+        self.function = self.manager.function
 
-        dfg = DFG.build_dfg(ctx)
-        self.dfg = dfg
-
-        calculate_liveness(ctx)
+        self.manager.request_analysis(CFGAnalysis)
+        dfg = self.manager.request_analysis(DFGAnalysis)
+        self.manager.request_analysis(LivenessAnalysis)
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.items():
@@ -32,9 +33,10 @@ class Mem2Var(IRPass):
                 continue
             self._process_alloca_var(dfg, var)
 
-        return 0
+        self.manager.invalidate_analysis(DFGAnalysis)
+        self.manager.invalidate_analysis(LivenessAnalysis)
 
-    def _process_alloca_var(self, dfg: DFG, var: IRVariable):
+    def _process_alloca_var(self, dfg: DFGAnalysis, var: IRVariable):
         """
         Process alloca allocated variable. If it is only used by mstore/mload/return
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
@@ -57,7 +59,7 @@ class Mem2Var(IRPass):
                     inst.operands = [IRVariable(var_name)]
                 elif inst.opcode == "return":
                     bb = inst.parent
-                    new_var = self.ctx.get_next_variable()
+                    new_var = self.function.get_next_variable()
                     idx = bb.instructions.index(inst)
                     bb.insert_instruction(
                         IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]], new_var),

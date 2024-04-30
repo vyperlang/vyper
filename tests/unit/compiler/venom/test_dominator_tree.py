@@ -2,18 +2,19 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import calculate_cfg
+from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
-from vyper.venom.dominators import DominatorTree
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.pass_manager import IRPassManager
 
 
 def _add_bb(
-    ctx: IRFunction, label: IRLabel, cfg_outs: [IRLabel], bb: Optional[IRBasicBlock] = None
+    fn: IRFunction, label: IRLabel, cfg_outs: list[IRLabel], bb: Optional[IRBasicBlock] = None
 ) -> IRBasicBlock:
-    bb = bb if bb is not None else IRBasicBlock(label, ctx)
-    ctx.append_basic_block(bb)
+    bb = bb if bb is not None else IRBasicBlock(label, fn)
+    fn.append_basic_block(bb)
     cfg_outs_len = len(cfg_outs)
     if cfg_outs_len == 0:
         bb.append_instruction("stop")
@@ -29,27 +30,28 @@ def _add_bb(
 def _make_test_ctx():
     lab = [IRLabel(str(i)) for i in range(0, 9)]
 
-    ctx = IRFunction(lab[1])
+    ctx = IRContext()
+    fn = ctx.create_function(lab[1].value)
 
-    bb1 = ctx.basic_blocks[0]
+    bb1 = fn.basic_blocks[0]
     bb1.append_instruction("jmp", lab[2])
 
-    _add_bb(ctx, lab[7], [])
-    _add_bb(ctx, lab[6], [lab[7], lab[2]])
-    _add_bb(ctx, lab[5], [lab[6], lab[3]])
-    _add_bb(ctx, lab[4], [lab[6]])
-    _add_bb(ctx, lab[3], [lab[5]])
-    _add_bb(ctx, lab[2], [lab[3], lab[4]])
+    _add_bb(fn, lab[7], [])
+    _add_bb(fn, lab[6], [lab[7], lab[2]])
+    _add_bb(fn, lab[5], [lab[6], lab[3]])
+    _add_bb(fn, lab[4], [lab[6]])
+    _add_bb(fn, lab[3], [lab[5]])
+    _add_bb(fn, lab[2], [lab[3], lab[4]])
 
-    return ctx
+    return fn
 
 
 def test_deminator_frontier_calculation():
-    ctx = _make_test_ctx()
-    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [ctx.get_basic_block(str(i)) for i in range(1, 8)]
+    fn = _make_test_ctx()
+    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [fn.get_basic_block(str(i)) for i in range(1, 8)]
 
-    calculate_cfg(ctx)
-    dom = DominatorTree.build_dominator_tree(ctx, bb1)
+    pm = IRPassManager(fn)
+    dom = pm.request_analysis(DominatorTreeAnalysis)
     df = dom.dominator_frontiers
 
     assert len(df[bb1]) == 0, df[bb1]
@@ -62,12 +64,13 @@ def test_deminator_frontier_calculation():
 
 
 def test_phi_placement():
-    ctx = _make_test_ctx()
-    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [ctx.get_basic_block(str(i)) for i in range(1, 8)]
+    fn = _make_test_ctx()
+    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [fn.get_basic_block(str(i)) for i in range(1, 8)]
 
     x = IRVariable("%x")
     bb1.insert_instruction(IRInstruction("mload", [IRLiteral(0)], x), 0)
     bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], x), 0)
     bb7.insert_instruction(IRInstruction("mstore", [x, IRLiteral(0)]), 0)
 
-    MakeSSA().run_pass(ctx, bb1)
+    pm = IRPassManager(fn)
+    MakeSSA(pm).run_pass()

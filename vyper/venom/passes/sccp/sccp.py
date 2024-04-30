@@ -5,6 +5,8 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -13,9 +15,9 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.pass_manager import IRPassManager
 from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
 
 
@@ -49,28 +51,30 @@ class SCCP(IRPass):
     with their constant values.
     """
 
-    ctx: IRFunction
-    dom: DominatorTree
+    fn: IRFunction
+    dom: DominatorTreeAnalysis
     uses: dict[IRVariable, OrderedSet[IRInstruction]]
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, dom: DominatorTree):
-        self.dom = dom
+    def __init__(self, manager: IRPassManager):
+        super().__init__(manager)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
 
-    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
-        self.ctx = ctx
-        self._compute_uses(self.dom)
-        self._calculate_sccp(entry)
+    def run_pass(self):
+        self.fn = self.manager.function
+        self.dom = self.manager.request_analysis(DominatorTreeAnalysis)
+        self._compute_uses()
+        self._calculate_sccp(self.fn.basic_blocks[0])
         self._propagate_constants()
 
         # self._propagate_variables()
-        return 0
+
+        self.manager.invalidate_analysis(CFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -83,9 +87,9 @@ class SCCP(IRPass):
         and the work list. The `_propagate_constants()` method is responsible
         for updating the IR with the constant values.
         """
-        self.cfg_in_exec = {bb: OrderedSet() for bb in self.ctx.basic_blocks}
+        self.cfg_in_exec = {bb: OrderedSet() for bb in self.fn.basic_blocks}
 
-        dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
+        dummy = IRBasicBlock(IRLabel("__dummy_start"), self.fn)
         self.work_list.append(FlowWorkItem(dummy, entry))
 
         # Initialize the lattice with TOP values for all variables
@@ -143,7 +147,7 @@ class SCCP(IRPass):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         in_vars: list[LatticeItem] = []
         for bb_label, var in inst.phi_operands:
-            bb = self.ctx.get_basic_block(bb_label.name)
+            bb = self.fn.get_basic_block(bb_label.name)
             if bb not in self.cfg_in_exec[inst.parent]:
                 continue
             in_vars.append(self.lattice[var])
@@ -162,7 +166,7 @@ class SCCP(IRPass):
                 self.lattice[inst.output] = self.lattice[inst.operands[0]]  # type: ignore
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
-            target = self.ctx.get_basic_block(inst.operands[0].value)
+            target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
             lat = self.lattice[inst.operands[0]]
@@ -172,17 +176,17 @@ class SCCP(IRPass):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
                 if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
-                    target = self.ctx.get_basic_block(inst.operands[1].name)
+                    target = self.fn.get_basic_block(inst.operands[1].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
                 if _meet(lat, IRLiteral(1)) == LatticeEnum.BOTTOM:
-                    target = self.ctx.get_basic_block(inst.operands[2].name)
+                    target = self.fn.get_basic_block(inst.operands[2].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self.lattice[inst.operands[0]]
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
                 for op in inst.operands[1:]:
-                    target = self.ctx.get_basic_block(op.name)
+                    target = self.fn.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
@@ -239,14 +243,14 @@ class SCCP(IRPass):
         for target_inst in self._get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
-    def _compute_uses(self, dom: DominatorTree):
+    def _compute_uses(self):
         """
         This method computes the uses for each variable in the IR.
         It iterates over the dominator tree and collects all the
         instructions that use each variable.
         """
         self.uses = {}
-        for bb in dom.dfs_walk:
+        for bb in self.dom.dfs_walk:
             for var, insts in bb.get_uses().items():
                 self._get_uses(var).update(insts)
 
