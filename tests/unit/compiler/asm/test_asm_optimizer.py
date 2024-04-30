@@ -134,5 +134,5 @@ asms = [
 
 @pytest.mark.parametrize("asm", asms)
 def test_merge_jumpdests(asm):
-    assert _merge_jumpdests(asm) == True
-    assert _merge_jumpdests(asm) == False, "Should not 'merge jumpdests' again"
+    assert _merge_jumpdests(asm) is True
+    assert _merge_jumpdests(asm) is False, "Should not 'merge jumpdests' again"
