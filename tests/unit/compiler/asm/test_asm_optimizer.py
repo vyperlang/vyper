@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.ir.compile_ir import _merge_jumpdests
 
 codes = [
     """
@@ -123,3 +124,15 @@ def foo():
 
     assert "unused1()" not in asm
     assert "unused2()" not in asm
+
+
+asms = [
+    ["_sym_label_1", "JUMP" "PUSH0", "_sym_label_1", "JUMPDEST", "_sym_label_0", "JUMPDEST"],
+    ["_sym_label_0", "JUMP" "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"],
+]
+
+
+@pytest.mark.parametrize("asm", asms)
+def test_merge_jumpdests(asm):
+    assert _merge_jumpdests(asm) == True
+    assert _merge_jumpdests(asm) == False, "Should not 'merge jumpdests' again"
