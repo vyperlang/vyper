@@ -69,6 +69,12 @@ class OutputBundle:
         return sources
 
     @cached_property
+    def compilation_target_path(self):
+        p = self.compiler_data.file_input.resolved_path
+        p = os.path.relpath(str(p))
+        return _anonymize(p)
+
+    @cached_property
     def used_search_paths(self) -> list[str]:
         # report back which search paths were "actually used" in this
         # compilation run. this is useful mainly for aesthetic purposes,
@@ -131,7 +137,7 @@ class OutputBundleWriter:
         from vyper import __long_version__  # TODO: evil import cycle
 
         self.write_version(f"v{__long_version__}")
-        self.write_compilation_target([str(self.compiler_data.file_input.path)])
+        self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
         self.write_integrity(self.bundle.compilation_target.integrity_sum)

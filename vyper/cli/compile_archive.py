@@ -48,6 +48,8 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
     file = input_bundle.load_file(mainpath)
     assert isinstance(file, FileInput)  # mypy hint
 
+    settings = settings or Settings()
+
     archive_settings_txt = archive.read("MANIFEST/settings.json").decode("utf-8")
     archive_settings = Settings.from_dict(json.loads(archive_settings_txt))
 

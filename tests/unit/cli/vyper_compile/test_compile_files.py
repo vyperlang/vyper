@@ -1,5 +1,6 @@
 import contextlib
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -290,3 +291,39 @@ def foo() -> uint256:
     contract_file = make_file("contract.vy", contract_source)
     with mock_sys_path(tmpdir):
         assert compile_files([contract_file], ["combined_json"]) is not None
+
+
+def test_archive_output(tmp_path_factory, make_file, chdir_tmp_path):
+    library_source = """
+@internal
+def foo() -> uint256:
+    return block.number + 1
+    """
+    contract_source = """
+import lib
+
+@external
+def foo() -> uint256:
+    return lib.foo()
+    """
+    # create a file in another directory and check that it shows up
+    # in the output
+    tmpdir = tmp_path_factory.mktemp("fake_package")
+    with open(tmpdir / "lib.vy", "w") as f:
+        f.write(library_source)
+
+    contract_file = make_file("contract.vy", contract_source)
+    search_paths = [".", tmpdir]
+    s = compile_files([contract_file], ["archive"], paths=search_paths)
+    archive_bytes = s[contract_file]["archive"]
+
+    archive_path = Path("foo.zip")
+    with archive_path.open("wb") as f:
+        f.write(archive_bytes)
+
+    assert zipfile.is_zipfile(archive_path)
+
+    # compare compiling the two input bundles
+    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+    out2 = compile_files([archive_path], ["integrity", "bytecode"])
+    assert out[contract_file] == out2[archive_path]
