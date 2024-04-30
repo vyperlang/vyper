@@ -8,7 +8,7 @@ from tests.utils import working_directory
 from vyper.cli.vyper_compile import compile_files
 
 
-def test_combined_json_keys(tmp_path, make_file):
+def test_combined_json_keys(chdir_tmp_path, make_file):
     make_file("bar.vy", "")
 
     combined_keys = {
@@ -22,7 +22,7 @@ def test_combined_json_keys(tmp_path, make_file):
         "userdoc",
         "devdoc",
     }
-    compile_data = compile_files(["bar.vy"], ["combined_json"], paths=[tmp_path])
+    compile_data = compile_files(["bar.vy"], ["combined_json"])
 
     assert set(compile_data.keys()) == {Path("bar.vy"), "version"}
     assert set(compile_data[Path("bar.vy")].keys()) == combined_keys
@@ -72,12 +72,12 @@ SAME_FOLDER_IMPORT_STMT = [
 
 
 @pytest.mark.parametrize("import_stmt,alias", SAME_FOLDER_IMPORT_STMT)
-def test_import_same_folder(import_stmt, alias, tmp_path, make_file):
+def test_import_same_folder(import_stmt, alias, chdir_tmp_path, make_file):
     foo = "contracts/foo.vy"
     make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"], paths=[tmp_path])
+    assert compile_files([foo], ["combined_json"])
 
 
 SUBFOLDER_IMPORT_STMT = [
@@ -95,13 +95,13 @@ SUBFOLDER_IMPORT_STMT = [
 
 
 @pytest.mark.parametrize("import_stmt, alias", SUBFOLDER_IMPORT_STMT)
-def test_import_subfolder(import_stmt, alias, tmp_path, make_file):
+def test_import_subfolder(import_stmt, alias, chdir_tmp_path, make_file):
     foo = make_file(
         "contracts/foo.vy", (CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     )
     make_file("contracts/other/IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"], paths=[tmp_path])
+    assert compile_files([foo], ["combined_json"])
 
 
 OTHER_FOLDER_IMPORT_STMT = [
@@ -204,7 +204,7 @@ def bar(_foo: address) -> {alias}.FooStruct:
     assert compile_files([baz], ["combined_json"], paths=[tmp_path])
 
 
-def test_local_namespace(make_file, tmp_path):
+def test_local_namespace(make_file, chdir_tmp_path):
     # interface code namespaces should be isolated
     # all of these contract should be able to compile together
     codes = [
@@ -229,7 +229,7 @@ struct FooStruct:
     for file_name in ("foo.vyi", "bar.vyi"):
         make_file(file_name, INTERFACE_CODE)
 
-    assert compile_files(paths, ["combined_json"], paths=[tmp_path])
+    assert compile_files(paths, ["combined_json"])
 
 
 def test_compile_outside_root_path(tmp_path, make_file):
