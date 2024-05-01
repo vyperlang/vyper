@@ -113,7 +113,7 @@ class PyEvmEnv(BaseEnv):
             gas_used=result.get_gas_used(),
         )
 
-    def execute_code(
+    def message_call(
         self,
         to: str,
         sender: str | None = None,

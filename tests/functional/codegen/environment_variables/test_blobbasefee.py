@@ -25,7 +25,7 @@ def get_blobbasefee() -> uint256:
     blob_data = text.rjust(32 * 4096)
     blob_hashes = [kzg_hash(blob_data)] * 6
 
-    env.execute_code(
+    env.message_call(
         "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",  # random address
         gas=21000,
         gas_price=10**10,

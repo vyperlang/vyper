@@ -204,7 +204,7 @@ class ABIFunction:
         if sender is None:
             sender = self.contract.env.deployer
 
-        computation = self.contract.env.execute_code(
+        computation = self.contract.env.message_call(
             to=self.contract.address,
             sender=sender,
             data=self.prepare_calldata(*args, **kwargs),
@@ -339,7 +339,7 @@ class ABIContract:
     def marshal_to_python(self, result: bytes, abi_type: list[str]) -> list[Any]:
         """
         Convert the output of a contract call to a Python object.
-        :param result: the computation result returned by `execute_code`
+        :param result: the computation result returned by `message_call`
         :param abi_type: the ABI type of the return value.
         """
         schema = f"({_format_abi_type(abi_type)})"

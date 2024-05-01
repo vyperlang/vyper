@@ -14,7 +14,7 @@ def __init__():
     assert c.x() == 123
     assert env.get_balance(c.address) == 0
     with tx_failed():
-        env.execute_code(c.address, value=to_wei(0.1, "ether"))  # call default function
+        env.message_call(c.address, value=to_wei(0.1, "ether"))  # call default function
     assert env.get_balance(c.address) == 0
 
 
@@ -30,7 +30,7 @@ def __default__():
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
-    env.execute_code(c.address, value=10**17)  # call default function
+    env.message_call(c.address, value=10**17)  # call default function
     (log,) = get_logs(c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
@@ -54,7 +54,7 @@ def __default__():
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
-    env.execute_code(c.address, value=10**17)  # call default function
+    env.message_call(c.address, value=10**17)  # call default function
     (log,) = get_logs(c, "Sent")
     assert env.deployer == log.args.sender
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
@@ -72,7 +72,7 @@ def __default__():
     c = get_contract(code)
 
     with tx_failed():
-        env.execute_code(c.address, value=10**17)  # call default function
+        env.message_call(c.address, value=10**17)  # call default function
 
 
 def test_multi_arg_default(assert_compile_failed, get_contract):
@@ -130,7 +130,7 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        env.execute_code(c.address, value=0, data=data)  # call default function
+        env.message_call(c.address, value=0, data=data)  # call default function
         (log,) = get_logs(c, "Sent")
         return log.args.sig
 
@@ -176,7 +176,7 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        env.execute_code(c.address, value=0, data=data, gas=10**6)  # call default function
+        env.message_call(c.address, value=0, data=data, gas=10**6)  # call default function
         (log,) = get_logs(c, "Sent")
         return log.args.sig
 
@@ -217,7 +217,7 @@ def __default__():
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
         data = bytes.fromhex(hexstr.removeprefix("0x"))
-        env.execute_code(c.address, value=0, data=data)  # call default function
+        env.message_call(c.address, value=0, data=data)  # call default function
         (log,) = get_logs(c, "Sent")
         return log.args.sig
 

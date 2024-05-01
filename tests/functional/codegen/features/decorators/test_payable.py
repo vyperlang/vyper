@@ -186,7 +186,7 @@ def test_nonpayable_runtime_assertion(env, keccak, tx_failed, get_contract, code
     c.foo(value=0)
     sig = keccak("foo()".encode()).hex()[:10]
     with tx_failed():
-        env.execute_code(c.address, data=sig, value=10**18)
+        env.message_call(c.address, data=sig, value=10**18)
 
 
 payable_code = [
@@ -354,7 +354,7 @@ def __default__():
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 100)
-    env.execute_code(c.address, value=100, data="0x12345678")
+    env.message_call(c.address, value=100, data="0x12345678")
 
 
 def test_nonpayable_default_func_invalid_calldata(get_contract, env, tx_failed):
@@ -370,9 +370,9 @@ def __default__():
     """
 
     c = get_contract(code)
-    env.execute_code(c.address, value=0, data="0x12345678")
+    env.message_call(c.address, value=0, data="0x12345678")
     with tx_failed():
-        env.execute_code(c.address, value=100, data="0x12345678")
+        env.message_call(c.address, value=100, data="0x12345678")
 
 
 def test_batch_nonpayable(get_contract, env, tx_failed):
@@ -387,9 +387,9 @@ def __default__():
     """
 
     c = get_contract(code)
-    env.execute_code(c.address, value=0, data="0x12345678")
+    env.message_call(c.address, value=0, data="0x12345678")
     data = bytes([1, 2, 3, 4])
     for i in range(5):
         calldata = "0x" + data[:i].hex()
         with tx_failed():
-            env.execute_code(c.address, value=100, data=calldata)
+            env.message_call(c.address, value=100, data=calldata)

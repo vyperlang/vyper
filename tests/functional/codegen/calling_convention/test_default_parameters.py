@@ -200,9 +200,9 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     good_data = (200).to_bytes(32, "big") + (2**127 - 1).to_bytes(32, "big")
     bad_data = (200).to_bytes(32, "big") + (2**127).to_bytes(32, "big")
 
-    assert env.execute_code(c.address, data=method + good_data) == good_data
+    assert env.message_call(c.address, data=method + good_data) == good_data
     with tx_failed():
-        env.execute_code(c.address, data=method + bad_data)
+        env.message_call(c.address, data=method + bad_data)
 
 
 def test_default_param_private(get_contract):

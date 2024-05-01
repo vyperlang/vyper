@@ -176,6 +176,8 @@ def test2(target: address, salt: bytes32):
 
     # deploy a foo, so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
+    expected_runtime_code = env.get_code(foo_contract.address)
+
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
@@ -183,7 +185,7 @@ def test2(target: address, salt: bytes32):
     d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert env.get_code(test.address) == env.get_code(foo_contract.address)
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # extcodesize check
@@ -196,7 +198,7 @@ def test2(target: address, salt: bytes32):
     d.test2(f.address, salt)
 
     test = FooContract(d.created_address())
-    assert env.get_code(test.address) == env.get_code(foo_contract.address)
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # check if the create2 address matches our offchain calculation
@@ -436,7 +438,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     with tx_failed():
-        env.execute_code(d.address, env.deployer, f"{sig}{encoded}")
+        env.message_call(d.address, env.deployer, f"{sig}{encoded}")
 
 
 @pytest.mark.parametrize("revert_on_failure", [True, False, None])

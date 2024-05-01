@@ -202,7 +202,7 @@ def send_failing_tx_to_signature(env, tx_failed):
     def _send_transaction(c, method_sig):
         data = method_id(method_sig)
         with tx_failed():
-            env.execute_code(c.address, data=data)
+            env.message_call(c.address, data=data)
 
     return _send_transaction
 
@@ -438,5 +438,5 @@ exports: lib1.__interface__
     assert c.foo() == 1
     assert c.counter() == 5
     # call `c.__default__()`
-    env.execute_code(c.address)
+    env.message_call(c.address)
     assert c.counter() == 6

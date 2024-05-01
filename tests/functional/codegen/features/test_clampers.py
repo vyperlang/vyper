@@ -13,14 +13,14 @@ def _make_tx(env, address, signature, values):
     # helper function to broadcast transactions that fail clamping check
     sig = keccak(signature.encode()).hex()[:8]
     data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in values)
-    env.execute_code(address, data=f"0x{sig}{data}")
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
 def _make_abi_encode_tx(env, address, signature, input_types, values):
     # helper function to broadcast transactions where data is constructed from abi_encode
     sig = keccak(signature.encode()).hex()[:8]
     data = abi.encode(input_types, values).hex()
-    env.execute_code(address, data=f"0x{sig}{data}")
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
 def _make_dynarray_data(offset, length, values):
@@ -31,7 +31,7 @@ def _make_dynarray_data(offset, length, values):
 
 def _make_invalid_dynarray_tx(env, address, signature, data):
     sig = keccak(signature.encode()).hex()[:8]
-    env.execute_code(address, data=f"0x{sig}{data}")
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
 def test_bytes_clamper(tx_failed, get_contract):

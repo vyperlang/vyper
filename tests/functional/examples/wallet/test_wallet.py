@@ -15,7 +15,7 @@ def c(env, get_contract):
     # Sends wei to the contract for future transactions gas costs
     c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
     env.set_balance(a0, 10**17)
-    env.execute_code(c.address, value=10**17)
+    env.message_call(c.address, value=10**17)
     return c
 
 
@@ -111,7 +111,7 @@ def test_javascript_signatures(env, get_contract, keccak):
         x2 = get_contract(f.read(), *[owners, 2])
 
     env.set_balance(env.deployer, 10**18)
-    env.execute_code(x2.address, value=10**17)
+    env.message_call(x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures

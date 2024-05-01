@@ -260,7 +260,7 @@ def __default__():
 
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]
-    assert env.execute_code(caller.address, data=sig) == b""
+    assert env.message_call(caller.address, data=sig) == b""
 
 
 # check max_outsize=0 does same thing as not setting max_outsize.

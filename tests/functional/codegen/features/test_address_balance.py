@@ -14,6 +14,6 @@ def foo() -> uint256:
     assert c.foo() == 0
 
     env.set_balance(env.deployer, 1337)
-    env.execute_code(address, value=1337)
+    env.message_call(address, value=1337)
 
     assert c.foo() == 1337

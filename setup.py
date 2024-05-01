@@ -21,7 +21,7 @@ extras_require = {
         "eth-account==0.12.2",
         "setuptools",
         "hexbytes>=1.2",
-        "pyrevm @ git+https://github.com/DanielSchiavini/pyrevm.git@b1a6f63",
+        "pyrevm>=0.3.2",
     ],
     "lint": [
         "black==23.12.0",

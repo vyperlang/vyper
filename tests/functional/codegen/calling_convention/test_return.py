@@ -19,7 +19,7 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     assert c.hardtest(b"hello" * 5, b"hello" * 10) == b"hello" * 15
 
     # Make sure underlying struct is correctly right padded
-    res = env.execute_code(
+    res = env.message_call(
         to=c.address, data=c.hardtest.prepare_calldata(b"hello" * 5, b"hello" * 10)
     )
     static_offset = int.from_bytes(res[:32], "big")

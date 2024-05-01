@@ -84,11 +84,11 @@ def foo(x: int128) -> int128:
     signature = "(int128)"
     method = method_id(f"foo{signature}")
 
-    env.execute_code(c.address, data=method + (1274124).to_bytes(32, "big"))
-    env.execute_code(c.address, data=method + (2**120).to_bytes(32, "big"))
+    env.message_call(c.address, data=method + (1274124).to_bytes(32, "big"))
+    env.message_call(c.address, data=method + (2**120).to_bytes(32, "big"))
 
     with tx_failed():
-        env.execute_code(c.address, data=method + (2**130).to_bytes(32, "big"))
+        env.message_call(c.address, data=method + (2**130).to_bytes(32, "big"))
 
 
 def test_large_input_code_2(env, get_contract, tx_failed, output_formats, compiler_settings):

@@ -70,11 +70,7 @@ class BaseEnv:
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
             initcode += ctor.prepare_calldata(*args, **kwargs)
 
-        try:
-            deployed_at = self._deploy(initcode, value)
-        except RuntimeError as e:
-            raise EvmError(*e.args) from e
-
+        deployed_at = self._deploy(initcode, value)
         address = to_checksum_address(deployed_at)
         return factory.at(self, address)
 
@@ -163,7 +159,7 @@ class BaseEnv:
     def last_result(self) -> ExecutionResult:
         raise NotImplementedError  # must be implemented by subclasses
 
-    def execute_code(
+    def message_call(
         self,
         to: str,
         sender: str | None = None,

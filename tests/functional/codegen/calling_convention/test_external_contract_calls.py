@@ -2502,13 +2502,13 @@ def foo(a: {typ}):
     # Static size is short by 1 byte
     malformed = data[:-2]
     with tx_failed():
-        env.execute_code(c1.address, data=malformed)
+        env.message_call(c1.address, data=malformed)
 
     # Static size is exact
-    env.execute_code(c1.address, data=data)
+    env.message_call(c1.address, data=data)
 
     # Static size exceeds by 1 byte, ok
-    env.execute_code(c1.address, data=data + "ff")
+    env.message_call(c1.address, data=data + "ff")
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
@@ -2527,8 +2527,8 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     # Dynamic size is short by 1 byte
     malformed = data[:264]
     with tx_failed():
-        env.execute_code(c1.address, data=malformed)
+        env.message_call(c1.address, data=malformed)
 
     # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
     valid = data[:266]
-    env.execute_code(c1.address, data=valid)
+    env.message_call(c1.address, data=valid)

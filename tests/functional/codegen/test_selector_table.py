@@ -599,7 +599,7 @@ event _Return:
                 else:
                     hexstr = (method_id + argsdata).hex()
                     with tx_failed():
-                        env.execute_code(c.address, data=hexstr, value=1)
+                        env.message_call(c.address, data=hexstr, value=1)
 
                 # now do calldatasize check
                 # strip some bytes
@@ -610,15 +610,15 @@ event _Return:
                     # no args, hit default function
                     if default_fn_mutability == "":
                         with tx_failed():
-                            env.execute_code(**tx_params)
+                            env.message_call(**tx_params)
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        env.execute_code(**tx_params)
+                        env.message_call(**tx_params)
                         logs = get_logs(c, "CalledDefault")
                         assert len(logs) == 1
                     else:
-                        env.execute_code(**tx_params)
+                        env.message_call(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
                         # so the logging is not tested.
@@ -629,9 +629,9 @@ event _Return:
                         # check default function reverts
                         tx_params["value"] = 1
                         with tx_failed():
-                            env.execute_code(**tx_params)
+                            env.message_call(**tx_params)
                 else:
                     with tx_failed():
-                        env.execute_code(**tx_params)
+                        env.message_call(**tx_params)
 
     _test()

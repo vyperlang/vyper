@@ -80,7 +80,7 @@ class RevmEnv(BaseEnv):
             logs=result.logs,
         )
 
-    def execute_code(
+    def message_call(
         self,
         to: str,
         sender: str | None = None,
