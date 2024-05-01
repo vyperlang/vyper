@@ -157,7 +157,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, compiler_settings):
+def test_address_code_self_success(get_contract):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -170,9 +170,7 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
-    code_compiled = compiler.compile_code(
-        code, output_formats=["bytecode", "bytecode_runtime"], settings=compiler_settings
-    )
+    code_compiled = compiler.compile_code(code, output_formats=["bytecode", "bytecode_runtime"])
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]
 

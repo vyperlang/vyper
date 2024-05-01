@@ -37,7 +37,10 @@ def test_jump_map(optimize):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    expected_jumps = 3 if optimize == OptimizationLevel.NONE else 1
+    expected_jumps = 1
+    if optimize == OptimizationLevel.NONE:
+        expected_jumps = 3  # some jumps get optimized out when optimizer is on
+
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == 2
 
