@@ -12,6 +12,7 @@ from vyper.compiler.input_bundle import CompilerInput
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.semantics.analysis.module import _is_builtin
+from vyper.utils import get_long_version
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -134,9 +135,8 @@ class OutputBundleWriter:
         raise NotImplementedError(f"output: {self.__class__}")
 
     def write(self):
-        from vyper import __long_version__  # TODO: evil import cycle
-
-        self.write_version(f"v{__long_version__}")
+        long_version = get_long_version()
+        self.write_version(f"v{long_version}")
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
