@@ -230,26 +230,19 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
 @pytest.fixture(scope="module")
 def get_contract(env, optimize, output_formats, compiler_settings):
     def fn(source_code, *args, **kwargs):
-        settings = kwargs.pop("compiler_settings", compiler_settings)
         if "override_opt_level" in kwargs:
-            settings = Settings(
-                **dict(settings.__dict__, optimize=kwargs.pop("override_opt_level"))
+            kwargs["compiler_settings"] = Settings(
+                **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
-            set_global_settings(settings)
-        return env.deploy_source(source_code, output_formats, settings, *args, **kwargs)
+        return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(env, compiler_settings, output_formats):
+def deploy_blueprint_for(env, output_formats):
     def fn(source_code, *args, **kwargs):
-        settings = kwargs.pop("compiler_settings", compiler_settings)
-        if "override_opt_level" in kwargs:
-            settings = Settings(
-                **dict(settings.__dict__, optimize=kwargs.pop("override_opt_level"))
-            )
-        return env.deploy_blueprint(source_code, output_formats, settings, *args, **kwargs)
+        return env.deploy_blueprint(source_code, output_formats, *args, **kwargs)
 
     return fn
 

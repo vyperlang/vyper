@@ -328,14 +328,6 @@ class ABIContract:
 
         self._address = address
 
-    @cached_property
-    def method_id_map(self):
-        """
-        Returns a mapping from method id to function object.
-        This is used to create the stack trace when an error occurs.
-        """
-        return {function.method_id: function for function in self._functions}
-
     def marshal_to_python(self, result: bytes, abi_type: list[str]) -> list[Any]:
         """
         Convert the output of a contract call to a Python object.
@@ -344,13 +336,6 @@ class ABIContract:
         """
         schema = f"({_format_abi_type(abi_type)})"
         return abi_decode(schema, result)
-
-    @property
-    def deployer(self) -> "ABIContractFactory":
-        """
-        Returns a factory that can be used to retrieve another deployed contract.
-        """
-        return ABIContractFactory(self._name, self.abi, self._functions, self.log_topics)
 
     def __repr__(self):
         file_str = f" (file {self.filename})" if self.filename else ""

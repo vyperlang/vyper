@@ -266,8 +266,8 @@ def test_burnFrom_and_Allowance(c, env, tx_failed):
 def test_raw_logs(c, env, get_logs):
     minter, a1, a2, a3 = env.accounts[0:4]
 
-    def get_log_args(result, c, event_name):
-        return get_logs(result, c, event_name)[0].args
+    def get_log_args(_, c, event_name):
+        return get_logs(c, event_name)[0].args
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, sender=minter), c, "Transfer")

@@ -9,7 +9,7 @@ from eth_utils import to_checksum_address
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
-from vyper.compiler import CompilerData, Settings, compile_code
+from vyper.compiler import CompilerData, InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
 
 
@@ -75,27 +75,26 @@ class BaseEnv:
         self,
         source_code: str,
         output_formats: dict[str, Callable[[CompilerData], str]],
-        compiler_settings: Settings,
         *args,
-        input_bundle=None,
-        value=0,
+        compiler_settings: Settings = None,
+        input_bundle: InputBundle = None,
+        value: int = 0,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, compiler_settings, input_bundle)
+        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy_blueprint(
         self,
         source_code,
         output_formats,
-        compiler_settings: Settings,
         *args,
-        input_bundle=None,
-        initcode_prefix=ERC5202_PREFIX,
+        input_bundle: InputBundle = None,
+        initcode_prefix: bytes = ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = _compile(source_code, output_formats, compiler_settings, input_bundle)
+        abi, bytecode = _compile(source_code, output_formats, input_bundle)
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -201,8 +200,8 @@ class BaseEnv:
 def _compile(
     source_code: str,
     output_formats: dict[str, Callable[[CompilerData], str]],
-    settings: Settings,
-    input_bundle=None,
+    input_bundle: InputBundle = None,
+    settings: Settings = None,
 ) -> tuple[list[dict], bytes]:
     out = compile_code(
         source_code,

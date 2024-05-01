@@ -71,9 +71,11 @@ def foo(a: {typ}) -> {typ}:
     assert c.bar() == zero
     assert c.foo(value) == value
     env.clear_transient_storage()
+
     assert c.bar() == zero
     assert c.foo(value) == value
     env.clear_transient_storage()
+
     assert c.bar() == zero
 
 
@@ -99,6 +101,7 @@ def a1() -> uint256:
     c = get_contract(code, val)
     assert c.a() == val
     env.clear_transient_storage()
+
     assert c.a1() == 0
 
 
@@ -127,6 +130,7 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
     c = get_contract(code)
     assert c.foo(*values) == values
     env.clear_transient_storage()
+
     assert c.a() == 0
     assert c.b() == ZERO_ADDRESS
     assert c.c() == ""
@@ -158,6 +162,7 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
     c = get_contract(code)
     assert c.foo(*values) == values
     env.clear_transient_storage()
+
     assert c.my_struct() == (0, 0, ZERO_ADDRESS, 0)
     assert c.foo(*values) == values
 
@@ -188,6 +193,7 @@ def foo(_a: address, _b: MyStruct2, _c: DynArray[DynArray[uint256, 3], 3]) -> My
     c = get_contract(code)
     assert c.foo(*values) == values
     env.clear_transient_storage()
+
     assert c.my_struct() == (ZERO_ADDRESS, ([],), [])
     assert c.foo(*values) == values
 
@@ -212,6 +218,7 @@ def foo(a: uint256) -> MyStruct:
     c = get_contract(code)
     assert c.foo(1) == (2,)
     env.clear_transient_storage()
+
     assert c.my_struct() == (0,)
     assert c.foo(1) == (2,)
 
@@ -230,6 +237,7 @@ def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
     c = get_contract(code)
     assert c.foo(*values) == list(values)
     env.clear_transient_storage()
+
     for i in range(3):
         assert c.my_list(i) == 0
     assert c.foo(*values) == list(values)
@@ -278,6 +286,7 @@ def do_side_effects():
         assert c.my_res(i)[0] == i
         assert c.my_map(i)[0] == 0
         env.clear_transient_storage()
+
         for j in range(3):
             assert c.my_res(i)[1][j] == i + j
             assert c.my_map(i)[1] == []
@@ -302,10 +311,12 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     c = get_contract(code)
     assert c.get_my_list(*values) == list(values)
     env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0)
     assert c.get_idx_two(*values) == values[2]
     env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0)
 
@@ -379,14 +390,17 @@ def get_idx_two_using_getter(x: int128, y: int128, z: int128) -> int128:
     c = get_contract(code)
     assert c.get_my_list(*values) == expected_values
     env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two(*values) == expected_values[2][2][2]
     env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two_using_getter(*values) == expected_values[2][2][2]
     env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
 
@@ -413,6 +427,7 @@ def bar(x: uint256) -> uint256:
     c = get_contract(code)
     assert c.bar(n) == n + 2
     env.clear_transient_storage()
+
     assert c.val() == 0
     assert c.bar(n) == n + 2
 
@@ -440,6 +455,7 @@ def b():
     c = get_contract(code)
     assert c.d() == 2
     env.clear_transient_storage()
+
     assert c.x() == 0
 
 
@@ -475,6 +491,7 @@ def bar(i: uint256, a: address) -> uint256:
     value = 333
     assert c2.bar(value, c1.address) == value
     env.clear_transient_storage()
+
     assert c1.get_x() == 0
 
 

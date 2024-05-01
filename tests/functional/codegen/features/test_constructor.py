@@ -91,7 +91,7 @@ def foo(x: int128) -> int128:
         env.message_call(c.address, data=method + (2**130).to_bytes(32, "big"))
 
 
-def test_large_input_code_2(env, get_contract, tx_failed, output_formats, compiler_settings):
+def test_large_input_code_2(env, get_contract, tx_failed, output_formats):
     code = """
 @deploy
 def __init__(x: int128):
@@ -102,7 +102,7 @@ def foo() -> int128:
     return 5
     """
 
-    _, bytecode = _compile(code, output_formats, compiler_settings)
+    _, bytecode = _compile(code, output_formats)
     ctor_args = (2**127 - 1).to_bytes(32, "big")
     env._deploy(bytecode + ctor_args, value=0)
 
