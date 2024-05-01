@@ -86,6 +86,7 @@ class OutputBundle:
 
         search_paths = self.compiler_data.input_bundle.search_paths
 
+        # preserve order of original search paths
         tmp = {sp: 0 for sp in search_paths}
 
         for c in self.compiler_inputs.values():
