@@ -3,9 +3,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from ckzg import blob_to_kzg_commitment, load_trusted_setup
-from eth.precompiles.point_evaluation import kzg_to_versioned_hash
-from eth_account._utils.typed_transactions.base import TRUSTED_SETUP
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
@@ -218,8 +215,3 @@ def _compile(
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
     return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
-
-
-def kzg_hash(blob: bytes) -> bytes:
-    commitment = blob_to_kzg_commitment(blob, load_trusted_setup(TRUSTED_SETUP))
-    return kzg_to_versioned_hash(commitment)

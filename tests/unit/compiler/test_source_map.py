@@ -47,12 +47,14 @@ def test_jump_map(optimize):
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
         if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")

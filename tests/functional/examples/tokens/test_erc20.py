@@ -14,7 +14,7 @@ TOKEN_INITIAL_SUPPLY = 0
 
 
 @pytest.fixture
-def c(get_contract, env):
+def c(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
     return get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
@@ -29,14 +29,6 @@ def c_bad(get_contract):
         "self.totalSupply -= _value", ""
     )
     return get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
-
-
-@pytest.fixture
-def get_log_args(get_logs):
-    def get_log_args(_, c, event_name):
-        return get_logs(c, event_name)[0].args
-
-    return get_log_args
 
 
 def test_initial_state(c, env):
@@ -271,8 +263,11 @@ def test_burnFrom_and_Allowance(c, env, tx_failed):
         c.burnFrom(ZERO_ADDRESS, 0, sender=a1)
 
 
-def test_raw_logs(c, env, get_log_args):
+def test_raw_logs(c, env, get_logs):
     minter, a1, a2, a3 = env.accounts[0:4]
+
+    def get_log_args(result, c, event_name):
+        return get_logs(result, c, event_name)[0].args
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, sender=minter), c, "Transfer")
