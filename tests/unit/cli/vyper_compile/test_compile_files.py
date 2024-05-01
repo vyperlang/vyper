@@ -80,7 +80,7 @@ def test_import_same_folder(import_stmt, alias, chdir_tmp_path, make_file):
     make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"])
+    assert compile_files([foo], ["combined_json"]) is not None
 
 
 SUBFOLDER_IMPORT_STMT = [
@@ -104,7 +104,7 @@ def test_import_subfolder(import_stmt, alias, chdir_tmp_path, make_file):
     )
     make_file("contracts/other/IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"])
+    assert compile_files([foo], ["combined_json"]) is not None
 
 
 OTHER_FOLDER_IMPORT_STMT = [
@@ -121,7 +121,7 @@ def test_import_other_folder(import_stmt, alias, tmp_path, make_file):
     foo = make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     make_file("interfaces/IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"], paths=[tmp_path])
+    assert compile_files([foo], ["combined_json"], paths=[tmp_path]) is not None
 
 
 def test_import_parent_folder(tmp_path, make_file):
@@ -131,7 +131,7 @@ def test_import_parent_folder(tmp_path, make_file):
     )
     make_file("IFoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo], ["combined_json"], paths=[tmp_path])
+    assert compile_files([foo], ["combined_json"], paths=[tmp_path]) is not None
 
     # perform relative import outside of base folder
     compile_files([foo], ["combined_json"], paths=[tmp_path / "contracts"])
@@ -144,7 +144,7 @@ def test_import_search_paths(chdir_tmp_path, make_file):
     make_file(interface_filename, INTERFACE_CODE)
     make_file(contract_filename, contract_code)
 
-    assert compile_files([contract_filename], ["combined_json"], paths=["dir2"])
+    assert compile_files([contract_filename], ["combined_json"], paths=["dir2"]) is not None
 
 
 META_IMPORT_STMT = [
@@ -183,7 +183,7 @@ def be_known() -> ISelf.FooStruct:
     make_file("contracts/ISelf.vyi", interface_code)
     meta = make_file("contracts/Self.vy", code)
 
-    assert compile_files([meta], ["combined_json"], paths=[tmp_path])
+    assert compile_files([meta], ["combined_json"], paths=[tmp_path]) is not None
 
 
 # implement IFoo in another contract for fun
@@ -203,7 +203,7 @@ def bar(_foo: address) -> {alias}.FooStruct:
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
     baz = make_file("contracts/Baz.vy", baz_code)
 
-    assert compile_files([baz], ["combined_json"], paths=[tmp_path])
+    assert compile_files([baz], ["combined_json"], paths=[tmp_path]) is not None
 
 
 def test_local_namespace(make_file, chdir_tmp_path):
@@ -231,7 +231,7 @@ struct FooStruct:
     for file_name in ("foo.vyi", "bar.vyi"):
         make_file(file_name, INTERFACE_CODE)
 
-    assert compile_files(paths, ["combined_json"])
+    assert compile_files(paths, ["combined_json"]) is not None
 
 
 def test_compile_outside_root_path(tmp_path, make_file):
@@ -239,7 +239,7 @@ def test_compile_outside_root_path(tmp_path, make_file):
     make_file("ifoo.vyi", INTERFACE_CODE)
     foo = make_file("foo.vy", CONTRACT_CODE.format(import_stmt="import ifoo as IFoo", alias="IFoo"))
 
-    assert compile_files([foo], ["combined_json"], paths=None)
+    assert compile_files([foo], ["combined_json"], paths=None) is not None
 
 
 def test_import_library(tmp_path, make_file):
