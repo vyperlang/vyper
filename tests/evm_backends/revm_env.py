@@ -47,10 +47,6 @@ class RevmEnv(BaseEnv):
         self._evm.set_balance(address, value)
 
     @property
-    def accounts(self) -> list[str]:
-        return [key.public_key.to_checksum_address() for key in self._keys]
-
-    @property
     def block_number(self) -> int:
         return self._evm.env.block.number
 
@@ -91,7 +87,8 @@ class RevmEnv(BaseEnv):
         is_modifying: bool = True,
         blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ):
-        data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
+        if isinstance(data, str):
+            data = bytes.fromhex(data.removeprefix("0x"))
         if blob_hashes is not None:
             tx = self._evm.env.tx
             tx.blob_hashes = blob_hashes

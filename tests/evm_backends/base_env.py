@@ -48,15 +48,6 @@ class BaseEnv:
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
-    @contextmanager
-    def sender(self, address: str):
-        original_deployer = self.deployer
-        self.deployer = address
-        try:
-            yield
-        finally:
-            self.deployer = original_deployer
-
     def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
         """Deploy a contract with the given ABI and bytecode."""
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
@@ -121,6 +112,10 @@ class BaseEnv:
 
         return parsed_logs
 
+    @property
+    def accounts(self) -> list[str]:
+        return [key.public_key.to_checksum_address() for key in self._keys]
+
     @contextmanager
     def anchor(self):
         raise NotImplementedError  # must be implemented by subclasses
@@ -129,10 +124,6 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def set_balance(self, address: str, value: int):
-        raise NotImplementedError  # must be implemented by subclasses
-
-    @property
-    def accounts(self) -> list[str]:
         raise NotImplementedError  # must be implemented by subclasses
 
     @property

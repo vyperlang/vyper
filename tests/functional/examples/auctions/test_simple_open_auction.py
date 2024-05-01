@@ -18,6 +18,7 @@ def auction_contract(env, get_contract, auction_start):
     for acc in env.accounts[:5]:
         env.set_balance(acc, 10**20)
 
+    env.timestamp += 1  # make sure auction has started
     return get_contract(contract_code, *[env.accounts[0], auction_start, EXPIRY])
 
 
@@ -40,7 +41,6 @@ def test_initial_state(env, auction_contract, auction_start):
 
 def test_bid(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
-    env.timestamp += 1  # make sure auction has started
 
     # Bidder cannot bid 0
     with tx_failed():
@@ -84,8 +84,6 @@ def test_bid(env, auction_contract, tx_failed):
 
 def test_end_auction(env, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = env.accounts[:5]
-
-    env.timestamp += 1  # make sure auction has started
 
     # Fails if auction end time has not been reached
     with tx_failed():

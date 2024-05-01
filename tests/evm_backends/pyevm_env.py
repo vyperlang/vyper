@@ -84,10 +84,6 @@ class PyEvmEnv(BaseEnv):
         self._state.set_balance(_addr(address), value)
 
     @property
-    def accounts(self) -> list[str]:
-        return [key.public_key.to_checksum_address() for key in self._keys]
-
-    @property
     def block_number(self) -> int:
         return self._context.block_number
 
@@ -124,7 +120,8 @@ class PyEvmEnv(BaseEnv):
         is_modifying: bool = True,
         blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ):
-        data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
+        if isinstance(data, str):
+            data = bytes.fromhex(data.removeprefix("0x"))
         sender = _addr(sender or self.deployer)
         try:
             computation = self._state.computation_class.apply_message(
