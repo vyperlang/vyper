@@ -437,7 +437,7 @@ def foo():
     # Event is decoded correctly
     (log,) = get_logs(c, "MyLog")
     assert log.args.arg1 == 1
-    assert log.args.arg2.removesuffix(b"\0") == b"bar"
+    assert log.args.arg2 == b"bar"
 
 
 def test_event_logging_with_multiple_logs_topics_and_data(env, keccak, get_logs, get_contract):

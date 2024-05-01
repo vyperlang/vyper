@@ -119,8 +119,8 @@ def foo(s: bytes{n}) -> bytes{n}:
     c = get_contract(code)
     for v in values:
         # munge for `_make_tx`
+        int_value = int.from_bytes(v, byteorder="big")
         with tx_failed():
-            int_value = int.from_bytes(v, byteorder="big")
             _make_tx(env, c.address, f"foo(bytes{n})", [int_value])
 
 

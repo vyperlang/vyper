@@ -109,20 +109,20 @@ def venom_xfail(request, experimental_codegen):
     return _xfail
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def evm_version(pytestconfig):
     # note: configure the evm version that we emit code for.
     # The env will read this fixture and apply the evm version there.
     return pytestconfig.getoption("evm_version")
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def evm_backend(pytestconfig):
     backend_str = pytestconfig.getoption("evm_backend")
     return {"py-evm": PyEvmEnv, "revm": RevmEnv}[backend_str]
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def tracing(pytestconfig):
     return pytestconfig.getoption("tracing")
 
@@ -320,7 +320,7 @@ def assert_side_effects_invoked():
 def tx_failed(env):
     @contextmanager
     def fn(exception=EvmError, exc_text=None):
-        with env.anchor(), pytest.raises(exception) as excinfo:
+        with pytest.raises(exception) as excinfo:
             yield
 
         if exc_text:
