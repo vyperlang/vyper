@@ -127,6 +127,6 @@ def foo():
 
 
 def test_merge_jumpdests():
-    asm = ["_sym_label_0", "JUMP" "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"]
+    asm = ["_sym_label_0", "JUMP", "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"]
 
     assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"
