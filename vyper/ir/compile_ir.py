@@ -892,10 +892,11 @@ def _merge_jumpdests(assembly):
                 # replace all instances of _sym_x with _sym_y
                 # (except for _sym_x JUMPDEST - don't want duplicate labels)
                 new_symbol = assembly[i + 2]
-                for j in range(len(assembly)):
-                    if assembly[j] == current_symbol and i != j:
-                        assembly[j] = new_symbol
-                        changed = True
+                if new_symbol != current_symbol:
+                    for j in range(len(assembly)):
+                        if assembly[j] == current_symbol and i != j:
+                            assembly[j] = new_symbol
+                            changed = True
             elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
                 # _sym_x JUMPDEST _sym_y JUMP
                 # replace all instances of _sym_x with _sym_y
