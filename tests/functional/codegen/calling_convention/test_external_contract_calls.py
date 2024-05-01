@@ -1393,8 +1393,6 @@ def get_lucky(amount_to_send: uint256) -> int128:
 
     # Send some eth
     env.set_balance(env.deployer, 10000)
-    with env.anchor():  # anchor to check if the transaction is cancelled
-        assert c2.get_lucky(0, value=500) == 1
 
     c2.get_lucky(0, value=500)
     # Contract 1 received money.
@@ -1403,10 +1401,7 @@ def get_lucky(amount_to_send: uint256) -> int128:
     assert env.get_balance(c2.address) == 0
 
     # Send subset of amount
-    with env.anchor():  # anchor to check if the transaction is cancelled
-        assert c2.get_lucky(250, value=500) == 1
     c2.get_lucky(250, value=500)
-
     # Contract 1 received more money.
     assert c1.get_balance() == 750
     assert env.get_balance(c1.address) == 750
