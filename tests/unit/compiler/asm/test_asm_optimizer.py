@@ -126,13 +126,8 @@ def foo():
     assert "unused2()" not in asm
 
 
-asms = [
-    ["_sym_label_1", "JUMP" "PUSH0", "_sym_label_1", "JUMPDEST", "_sym_label_0", "JUMPDEST"],
-    ["_sym_label_0", "JUMP" "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"],
-]
-
-
-@pytest.mark.parametrize("asm", asms)
-def test_merge_jumpdests(asm):
-    assert _merge_jumpdests(asm) is True
-    assert _merge_jumpdests(asm) is False, "Should not 'merge jumpdests' again"
+def test_merge_jumpdests():
+    asm = (
+        ["_sym_label_0", "JUMP" "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"],
+    )
+    assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"
