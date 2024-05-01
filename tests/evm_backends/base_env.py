@@ -31,7 +31,11 @@ class ExecutionResult:
 
 
 class EvmError(RuntimeError):
-    """Exception raised when a transaction reverts."""
+    """Exception raised when a call fails."""
+
+
+class ExecutionReverted(EvmError):
+    """Exception raised when a call reverts."""
 
 
 class BaseEnv:
@@ -179,13 +183,11 @@ class BaseEnv:
         """
         Tries to parse the EIP-838 revert reason from the output bytes.
         """
-        # REVIEW: not sure the prefix is needed
-        prefix = "execution reverted"
         if output_bytes[:4] == method_id("Error(string)"):
             (msg,) = abi_decode("(string)", output_bytes[4:])
-            raise EvmError(f"{prefix}: {msg}", gas_used) from error
+            raise ExecutionReverted(f"{msg}", gas_used) from error
 
-        raise EvmError(f"{prefix}: 0x{output_bytes.hex()}", gas_used) from error
+        raise ExecutionReverted(f"0x{output_bytes.hex()}", gas_used) from error
 
 
 def _compile(
