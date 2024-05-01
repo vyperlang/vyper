@@ -242,6 +242,7 @@ def get_contract(env, optimize, output_formats, compiler_settings):
 @pytest.fixture(scope="module")
 def deploy_blueprint_for(env, output_formats):
     def fn(source_code, *args, **kwargs):
+        # we don't pass any settings, but it will pick up the global settings
         return env.deploy_blueprint(source_code, output_formats, *args, **kwargs)
 
     return fn
@@ -309,6 +310,7 @@ def assert_side_effects_invoked():
     return assert_side_effects_invoked
 
 
+# should probably be renamed since there is no longer a transaction object
 @pytest.fixture(scope="module")
 def tx_failed(env):
     @contextmanager

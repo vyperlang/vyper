@@ -32,9 +32,9 @@ class PyEvmEnv(BaseEnv):
         self,
         gas_limit: int,
         account_keys: list[PrivateKey],
-        tracing=False,
-        block_number=1,
-        evm_version="mainnet",
+        tracing: bool,
+        block_number: int,
+        evm_version: str,
     ) -> None:
         super().__init__(gas_limit, account_keys)
 
