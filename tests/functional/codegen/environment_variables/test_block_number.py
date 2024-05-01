@@ -1,4 +1,4 @@
-def test_block_number(get_contract, env, compiler_settings, output_formats):
+def test_block_number(get_contract, env):
     block_number_code = """
 @external
 def block_number() -> uint256:

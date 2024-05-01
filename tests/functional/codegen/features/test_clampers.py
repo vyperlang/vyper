@@ -10,7 +10,6 @@ from vyper.utils import int_bounds
 
 
 def _make_tx(env, address, signature, values):
-    # helper function to broadcast transactions that fail clamping check
     sig = keccak(signature.encode()).hex()[:8]
     data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in values)
     env.message_call(address, data=f"0x{sig}{data}")
