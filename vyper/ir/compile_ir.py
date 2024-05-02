@@ -892,10 +892,11 @@ def _merge_jumpdests(assembly):
                 # replace all instances of _sym_x with _sym_y
                 # (except for _sym_x JUMPDEST - don't want duplicate labels)
                 new_symbol = assembly[i + 2]
-                for j in range(len(assembly)):
-                    if assembly[j] == current_symbol and i != j:
-                        assembly[j] = new_symbol
-                        changed = True
+                if new_symbol != current_symbol:
+                    for j in range(len(assembly)):
+                        if assembly[j] == current_symbol and i != j:
+                            assembly[j] = new_symbol
+                            changed = True
             elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
                 # _sym_x JUMPDEST _sym_y JUMP
                 # replace all instances of _sym_x with _sym_y
@@ -1020,7 +1021,11 @@ def _stack_peephole_opts(assembly):
             changed = True
             del assembly[i]
             continue
-        if assembly[i : i + 2] == ["SWAP1", "SWAP1"]:
+        if (
+            isinstance(assembly[i], str)
+            and assembly[i].startswith("SWAP")
+            and assembly[i] == assembly[i + 1]
+        ):
             changed = True
             del assembly[i : i + 2]
         if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:

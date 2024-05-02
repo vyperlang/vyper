@@ -190,7 +190,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
         # some validation
         if not isinstance(value, dict):
-            raise JSONError("invalid interface (must be a dictionary):\n{json.dumps(value)}")
+            raise JSONError(f"invalid interface (must be a dictionary):\n{json.dumps(value)}")
         if "content" in value:
             if not isinstance(value["content"], str):
                 raise JSONError(f"invalid 'content' (expected string):\n{json.dumps(value)}")
@@ -199,11 +199,11 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(f"invalid 'abi' (expected list):\n{json.dumps(value)}")
         else:
             raise JSONError(
-                "invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
             )
         if "content" in value and "abi" in value:
             raise JSONError(
-                "invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
             )
 
         ret[path] = value
@@ -262,6 +262,7 @@ def compile_from_input_dict(
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen", False)
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
@@ -274,7 +275,9 @@ def compile_from_input_dict(
     else:
         assert optimize is None
 
-    settings = Settings(evm_version=evm_version, optimize=optimize)
+    settings = Settings(
+        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+    )
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 

@@ -1,26 +1,32 @@
-from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
+from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
-        "alloca",
         "call",
         "staticcall",
+        "delegatecall",
         "invoke",
         "sload",
         "sstore",
         "iload",
         "istore",
+        "tload",
+        "tstore",
         "assert",
+        "assert_unreachable",
         "mstore",
         "mload",
         "calldatacopy",
+        "mcopy",
+        "extcodecopy",
+        "returndatacopy",
         "codecopy",
         "dloadbytes",
         "dload",
@@ -39,11 +45,15 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "istore",
         "dloadbytes",
         "calldatacopy",
+        "mcopy",
+        "returndatacopy",
         "codecopy",
+        "extcodecopy",
         "return",
         "ret",
         "revert",
         "assert",
+        "assert_unreachable",
         "selfdestruct",
         "stop",
         "invalid",
@@ -52,6 +62,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "djmp",
         "jnz",
         "log",
+        "exit",
     ]
 )
 
@@ -81,24 +92,29 @@ class IRDebugInfo:
 
 class IROperand:
     """
-    IROperand represents an operand in IR. An operand is anything that can
-    be an argument to an IRInstruction
+    IROperand represents an IR operand. An operand is anything that can be
+    operated by instructions. It can be a literal, a variable, or a label.
     """
 
     value: Any
 
+    @property
+    def name(self) -> str:
+        return self.value
 
-class IRValue(IROperand):
-    """
-    IRValue represents a value in IR. A value is anything that can be
-    operated by non-control flow instructions. That is, IRValues can be
-    IRVariables or IRLiterals.
-    """
+    def __hash__(self) -> int:
+        return hash(self.value)
 
-    pass
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
+
+    def __repr__(self) -> str:
+        return str(self.value)
 
 
-class IRLiteral(IRValue):
+class IRLiteral(IROperand):
     """
     IRLiteral represents a literal in IR
     """
@@ -109,38 +125,33 @@ class IRLiteral(IRValue):
         assert isinstance(value, int), "value must be an int"
         self.value = value
 
-    def __repr__(self) -> str:
-        return str(self.value)
 
-
-class MemType(Enum):
-    OPERAND_STACK = auto()
-    MEMORY = auto()
-
-
-class IRVariable(IRValue):
+class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
     value: str
-    offset: int = 0
 
-    # some variables can be in memory for conversion from legacy IR to venom
-    mem_type: MemType = MemType.OPERAND_STACK
-    mem_addr: Optional[int] = None
-
-    def __init__(
-        self, value: str, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = None
-    ) -> None:
+    def __init__(self, value: str, version: Optional[str | int] = None) -> None:
         assert isinstance(value, str)
+        assert ":" not in value, "Variable name cannot contain ':'"
+        if version:
+            assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
+            value = f"{value}:{version}"
+        if value[0] != "%":
+            value = f"%{value}"
         self.value = value
-        self.offset = 0
-        self.mem_type = mem_type
-        self.mem_addr = mem_addr
 
-    def __repr__(self) -> str:
-        return self.value
+    @property
+    def name(self) -> str:
+        return self.value.split(":")[0]
+
+    @property
+    def version(self) -> int:
+        if ":" not in self.value:
+            return 0
+        return int(self.value.split(":")[1])
 
 
 class IRLabel(IROperand):
@@ -158,8 +169,14 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
-    def __repr__(self) -> str:
-        return self.value
+    def __eq__(self, other):
+        # no need for is_symbol to participate in equality
+        return super().__eq__(other)
+
+    def __hash__(self):
+        # __hash__ is required when __eq__ is overridden --
+        # https://docs.python.org/3/reference/datamodel.html#object.__hash__
+        return super().__hash__()
 
 
 class IRInstruction:
@@ -173,15 +190,16 @@ class IRInstruction:
     """
 
     opcode: str
-    volatile: bool
     operands: list[IROperand]
     output: Optional[IROperand]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
-    parent: Optional["IRBasicBlock"]
+    parent: "IRBasicBlock"
     fence_id: int
     annotation: Optional[str]
+    ast_source: Optional[IRnode]
+    error_msg: Optional[str]
 
     def __init__(
         self,
@@ -192,32 +210,36 @@ class IRInstruction:
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
-        self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
-        self.parent = None
         self.fence_id = -1
         self.annotation = None
+        self.ast_source = None
+        self.error_msg = None
 
-    def get_label_operands(self) -> list[IRLabel]:
+    @property
+    def volatile(self) -> bool:
+        return self.opcode in VOLATILE_INSTRUCTIONS
+
+    def get_label_operands(self) -> Iterator[IRLabel]:
         """
         Get all labels in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRLabel)]
+        return (op for op in self.operands if isinstance(op, IRLabel))
 
-    def get_non_label_operands(self) -> list[IROperand]:
+    def get_non_label_operands(self) -> Iterator[IROperand]:
         """
         Get input operands for instruction which are not labels
         """
-        return [op for op in self.operands if not isinstance(op, IRLabel)]
+        return (op for op in self.operands if not isinstance(op, IRLabel))
 
-    def get_inputs(self) -> list[IRVariable]:
+    def get_inputs(self) -> Iterator[IRVariable]:
         """
         Get all input operands for instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRVariable)]
+        return (op for op in self.operands if isinstance(op, IRVariable))
 
     def get_outputs(self) -> list[IROperand]:
         """
@@ -246,22 +268,58 @@ class IRInstruction:
             if isinstance(operand, IRLabel) and operand.value in replacements:
                 self.operands[i] = replacements[operand.value]
 
+    @property
+    def phi_operands(self) -> Iterator[tuple[IRLabel, IROperand]]:
+        """
+        Get phi operands for instruction.
+        """
+        assert self.opcode == "phi", "instruction must be a phi"
+        for i in range(0, len(self.operands), 2):
+            label = self.operands[i]
+            var = self.operands[i + 1]
+            assert isinstance(label, IRLabel), "phi operand must be a label"
+            assert isinstance(
+                var, (IRVariable, IRLiteral)
+            ), "phi operand must be a variable or literal"
+            yield label, var
+
+    def remove_phi_operand(self, label: IRLabel) -> None:
+        """
+        Remove a phi operand from the instruction.
+        """
+        assert self.opcode == "phi", "instruction must be a phi"
+        for i in range(0, len(self.operands), 2):
+            if self.operands[i] == label:
+                del self.operands[i : i + 2]
+                return
+
+    def get_ast_source(self) -> Optional[IRnode]:
+        if self.ast_source:
+            return self.ast_source
+        idx = self.parent.instructions.index(self)
+        for inst in reversed(self.parent.instructions[:idx]):
+            if inst.ast_source:
+                return inst.ast_source
+        return self.parent.parent.ast_source
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
             s += f"{self.output} = "
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
-        operands = ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands = reversed(operands)  # type: ignore
+        s += ", ".join(
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
         )
-        s += operands
 
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        # if self.liveness:
-        #     return f"{s: <30} # {self.liveness}"
+        if self.liveness:
+            return f"{s: <30} # {self.liveness}"
 
         return s
 
@@ -307,6 +365,9 @@ class IRBasicBlock:
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
+    reachable: OrderedSet["IRBasicBlock"]
+    is_reachable: bool = False
+
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
@@ -315,6 +376,8 @@ class IRBasicBlock:
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
+        self.reachable = OrderedSet()
+        self.is_reachable = False
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
@@ -333,23 +396,26 @@ class IRBasicBlock:
         assert bb in self.cfg_out
         self.cfg_out.remove(bb)
 
-    @property
-    def is_reachable(self) -> bool:
-        return len(self.cfg_in) > 0
-
-    def append_instruction(self, opcode: str, *args: Union[IROperand, int]) -> Optional[IRVariable]:
+    def append_instruction(
+        self, opcode: str, *args: Union[IROperand, int], ret: IRVariable = None
+    ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
 
         Returns the output variable if the instruction supports one
         """
-        ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
+        assert not self.is_terminated, self
+
+        if ret is None:
+            ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
         inst = IRInstruction(opcode, inst_args, ret)
         inst.parent = self
+        inst.ast_source = self.parent.ast_source
+        inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
 
@@ -357,10 +423,9 @@ class IRBasicBlock:
         self, args: list[IROperand | int], returns: bool
     ) -> Optional[IRVariable]:
         """
-        Append an instruction to the basic block
-
-        Returns the output variable if the instruction supports one
+        Append an invoke to the basic block
         """
+        assert not self.is_terminated, self
         ret = None
         if returns:
             ret = self.parent.get_next_variable()
@@ -368,15 +433,29 @@ class IRBasicBlock:
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
+        assert isinstance(inst_args[0], IRLabel), "Invoked non label"
+
         inst = IRInstruction("invoke", inst_args, ret)
         inst.parent = self
+        inst.ast_source = self.parent.ast_source
+        inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
 
-    def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
+    def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+
+        if index is None:
+            assert not self.is_terminated, self
+            index = len(self.instructions)
         instruction.parent = self
+        instruction.ast_source = self.parent.ast_source
+        instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
+
+    def remove_instruction(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        self.instructions.remove(instruction)
 
     def clear_instructions(self) -> None:
         self.instructions = []
@@ -388,6 +467,28 @@ class IRBasicBlock:
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
 
+    def get_assignments(self):
+        """
+        Get all assignments in basic block.
+        """
+        return [inst.output for inst in self.instructions if inst.output]
+
+    def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
+        uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
+        for inst in self.instructions:
+            for op in inst.get_inputs():
+                if op not in uses:
+                    uses[op] = OrderedSet()
+                uses[op].add(inst)
+        return uses
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Check if the basic block is empty, i.e. it has no instructions.
+        """
+        return len(self.instructions) == 0
+
     @property
     def is_terminated(self) -> bool:
         """
@@ -398,6 +499,20 @@ class IRBasicBlock:
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in BB_TERMINATORS
+
+    @property
+    def is_terminal(self) -> bool:
+        """
+        Check if the basic block is terminal.
+        """
+        return len(self.cfg_out) == 0
+
+    @property
+    def in_vars(self) -> OrderedSet[IRVariable]:
+        for inst in self.instructions:
+            if inst.opcode != "phi":
+                return inst.liveness
+        return OrderedSet()
 
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)

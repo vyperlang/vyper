@@ -1,7 +1,7 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
+
+from tests.utils import decimal_to_int
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -107,10 +107,10 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
-        ("vyper", test_addr, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", test_addr, 123, True, decimal_to_int("123.4"), [123, 456, 789], test_bytes32),
     )
     args = tuple([human_tuple[0]] + list(human_tuple[1]))
-    human_t = "(string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32))"
+    human_t = "(string,(string,address,int128,bool,int168,uint256[3],bytes32))"
     human_encoded = abi.encode(human_t, human_tuple)
     assert c.abi_encode(*args, False, False).hex() == human_encoded.hex()
     assert c.abi_encode(*args, False, True).hex() == (method_id + human_encoded).hex()
@@ -310,7 +310,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = b"\x00" * 32
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(bytes)", (bs,)))
 
 
 def test_abi_encode_private_dynarray(get_contract):
@@ -327,7 +327,7 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[])", (bs,)))
 
 
 def test_abi_encode_private_nested_dynarray(get_contract):
@@ -349,7 +349,7 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[][][])", (bs,)))
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))

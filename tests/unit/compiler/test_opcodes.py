@@ -6,16 +6,6 @@ from vyper.evm import opcodes
 from vyper.exceptions import CompilerPanic
 
 
-@pytest.fixture(params=list(opcodes.EVM_VERSIONS))
-def evm_version(request):
-    default = opcodes.active_evm_version
-    try:
-        opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
-        yield request.param
-    finally:
-        opcodes.active_evm_version = default
-
-
 def test_opcodes():
     code = """
 @external

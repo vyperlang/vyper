@@ -31,6 +31,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    EvmVersionException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -71,8 +72,7 @@ class Expr:
 
     def __init__(self, node, context, is_stmt=False):
         assert isinstance(node, vy_ast.VyperNode)
-        if node.has_folded_value:
-            node = node.get_folded_value()
+        node = node.reduced()
 
         self.expr = node
         self.context = context
@@ -168,17 +168,7 @@ class Expr:
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
-            var = self.context.vars[self.expr.id]
-            ret = IRnode.from_list(
-                var.pos,
-                typ=var.typ,
-                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
-                encoding=var.encoding,
-                annotation=self.expr.id,
-                mutable=var.mutable,
-            )
-            ret._referenced_variables = {var}
-            return ret
+            return self.context.lookup_var(self.expr.id).as_ir_node()
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
@@ -206,12 +196,9 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyFlag.foo
-        if (
-            isinstance(typ, FlagT)
-            and isinstance(self.expr.value, vy_ast.Name)
-            and typ.name == self.expr.value.id
-        ):
+        # check if we have a flag constant, e.g.
+        # [lib1].MyFlag.FOO
+        if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]
             value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
@@ -273,7 +260,7 @@ class Expr:
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
                     vyper_warn(warning, self.expr)
-                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
+                return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
@@ -290,6 +277,12 @@ class Expr:
                 return IRnode.from_list(["gaslimit"], typ=UINT256_T)
             elif key == "block.basefee":
                 return IRnode.from_list(["basefee"], typ=UINT256_T)
+            elif key == "block.blobbasefee":
+                if not version_check(begin="cancun"):
+                    raise EvmVersionException(
+                        "`block.blobbasefee` is not available pre-cancun", self.expr
+                    )
+                return IRnode.from_list(["blobbasefee"], typ=UINT256_T)
             elif key == "block.prevhash":
                 return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ=BYTES32_T)
             elif key == "tx.origin":
@@ -350,7 +343,9 @@ class Expr:
             index = Expr.parse_value_expr(self.expr.slice, self.context)
 
         elif is_tuple_like(sub.typ):
-            index = self.expr.slice.n
+            # should we annotate expr.slice in the frontend with the
+            # folded value instead of calling reduced() here?
+            index = self.expr.slice.reduced().n
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")
@@ -496,7 +491,7 @@ class Expr:
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
     @staticmethod
-    def _signed_to_unsigned_comparision_op(op):
+    def _signed_to_unsigned_comparison_op(op):
         translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
@@ -556,7 +551,7 @@ class Expr:
             if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
-                op = self._signed_to_unsigned_comparision_op(op)
+                op = self._signed_to_unsigned_comparison_op(op)
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):

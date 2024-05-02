@@ -1,8 +1,8 @@
-import pytest
-from web3.exceptions import ValidationError
+from tests.evm_backends.base_env import _compile
+from vyper.utils import method_id
 
 
-def test_init_argument_test(get_contract_with_gas_estimation):
+def test_init_argument_test(get_contract):
     init_argument_test = """
 moose: int128
 
@@ -15,12 +15,12 @@ def returnMoose() -> int128:
     return self.moose
     """
 
-    c = get_contract_with_gas_estimation(init_argument_test, *[5])
+    c = get_contract(init_argument_test, *[5])
     assert c.returnMoose() == 5
     print("Passed init argument test")
 
 
-def test_constructor_mapping(get_contract_with_gas_estimation):
+def test_constructor_mapping(get_contract):
     contract = """
 foo: HashMap[bytes4, bool]
 
@@ -36,11 +36,11 @@ def check_foo(a: bytes4) -> bool:
     return self.foo[a]
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     assert c.check_foo("0x01ffc9a7") is True
 
 
-def test_constructor_advanced_code(get_contract_with_gas_estimation):
+def test_constructor_advanced_code(get_contract):
     constructor_advanced_code = """
 twox: int128
 
@@ -52,11 +52,11 @@ def __init__(x: int128):
 def get_twox() -> int128:
     return self.twox
     """
-    c = get_contract_with_gas_estimation(constructor_advanced_code, *[5])
+    c = get_contract(constructor_advanced_code, *[5])
     assert c.get_twox() == 10
 
 
-def test_constructor_advanced_code2(get_contract_with_gas_estimation):
+def test_constructor_advanced_code2(get_contract):
     constructor_advanced_code2 = """
 comb: uint256
 
@@ -68,28 +68,31 @@ def __init__(x: uint256[2], y: Bytes[3], z: uint256):
 def get_comb() -> uint256:
     return self.comb
     """
-    c = get_contract_with_gas_estimation(constructor_advanced_code2, *[[5, 7], b"dog", 8])
+    c = get_contract(constructor_advanced_code2, *[[5, 7], b"dog", 8])
     assert c.get_comb() == 5738
     print("Passed advanced init argument tests")
 
 
-def test_large_input_code(get_contract_with_gas_estimation):
+def test_large_input_code(env, get_contract, tx_failed):
     large_input_code = """
 @external
 def foo(x: int128) -> int128:
     return 3
     """
 
-    c = get_contract_with_gas_estimation(large_input_code)
-    c.foo(1274124)
-    c.foo(2**120)
+    c = get_contract(large_input_code)
+    signature = "(int128)"
+    method = method_id(f"foo{signature}")
 
-    with pytest.raises(ValidationError):
-        c.foo(2**130)
+    env.message_call(c.address, data=method + (1274124).to_bytes(32, "big"))
+    env.message_call(c.address, data=method + (2**120).to_bytes(32, "big"))
+
+    with tx_failed():
+        env.message_call(c.address, data=method + (2**130).to_bytes(32, "big"))
 
 
-def test_large_input_code_2(w3, get_contract_with_gas_estimation):
-    large_input_code_2 = """
+def test_large_input_code_2(env, get_contract, tx_failed, output_formats):
+    code = """
 @deploy
 def __init__(x: int128):
     y: int128 = x
@@ -99,15 +102,15 @@ def foo() -> int128:
     return 5
     """
 
-    get_contract_with_gas_estimation(large_input_code_2, *[17])
+    _, bytecode = _compile(code, output_formats)
+    ctor_args = (2**127 - 1).to_bytes(32, "big")
+    env._deploy(bytecode + ctor_args, value=0)
 
-    with pytest.raises(TypeError):
-        get_contract_with_gas_estimation(large_input_code_2, *[2**130])
-
-    print("Passed invalid input tests")
+    with tx_failed():
+        env._deploy(bytecode + (2**127).to_bytes(32, "big"), value=0)
 
 
-def test_initialise_array_with_constant_key(get_contract_with_gas_estimation):
+def test_initialise_array_with_constant_key(get_contract):
     contract = """
 X: constant(uint256) = 4
 
@@ -123,11 +126,11 @@ def check_foo(a: uint256) -> int16:
     return self.foo[a]
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     assert c.check_foo(3) == -2
 
 
-def test_initialise_dynarray_with_constant_key(get_contract_with_gas_estimation):
+def test_initialise_dynarray_with_constant_key(get_contract):
     contract = """
 X: constant(int16) = 4
 
@@ -143,11 +146,11 @@ def check_foo(a: uint64) -> int16:
     return self.foo[a]
     """
 
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     assert c.check_foo(3) == -2
 
 
-def test_nested_dynamic_array_constructor_arg(w3, get_contract_with_gas_estimation):
+def test_nested_dynamic_array_constructor_arg(env, get_contract):
     code = """
 foo: uint256
 
@@ -159,11 +162,11 @@ def __init__(x: DynArray[DynArray[uint256, 3], 3]):
 def get_foo() -> uint256:
     return self.foo
     """
-    c = get_contract_with_gas_estimation(code, *[[[3, 5, 7], [11, 13, 17], [19, 23, 29]]])
+    c = get_contract(code, *[[[3, 5, 7], [11, 13, 17], [19, 23, 29]]])
     assert c.get_foo() == 39
 
 
-def test_nested_dynamic_array_constructor_arg_2(w3, get_contract_with_gas_estimation):
+def test_nested_dynamic_array_constructor_arg_2(env, get_contract):
     code = """
 foo: int128
 
@@ -175,7 +178,7 @@ def __init__(x: DynArray[DynArray[DynArray[int128, 3], 3], 3]):
 def get_foo() -> int128:
     return self.foo
     """
-    c = get_contract_with_gas_estimation(
+    c = get_contract(
         code,
         *[
             [
@@ -188,7 +191,7 @@ def get_foo() -> int128:
     assert c.get_foo() == 9580
 
 
-def test_initialise_nested_dynamic_array(w3, get_contract_with_gas_estimation):
+def test_initialise_nested_dynamic_array(env, get_contract):
     code = """
 foo: DynArray[DynArray[uint256, 3], 3]
 
@@ -204,11 +207,11 @@ def __init__(x: uint256, y: uint256, z: uint256):
 def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
     return self.foo
     """
-    c = get_contract_with_gas_estimation(code, *[37, 41, 73])
+    c = get_contract(code, *[37, 41, 73])
     assert c.get_foo() == [[37, 41, 73], [37041, 41073, 73037], [146, 123, 148]]
 
 
-def test_initialise_nested_dynamic_array_2(w3, get_contract_with_gas_estimation):
+def test_initialise_nested_dynamic_array_2(env, get_contract):
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
 
@@ -232,7 +235,7 @@ def __init__(x: int128, y: int128, z: int128):
 def get_foo() -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
     return self.foo
     """
-    c = get_contract_with_gas_estimation(code, *[37, 41, 73])
+    c = get_contract(code, *[37, 41, 73])
     assert c.get_foo() == [
         [[37, 41, 73], [41, 73, 37], [73, 41, 37]],
         [[37041, 41073, 73037], [-37041, -41073, -73037], [-36959, -40927, -72963]],

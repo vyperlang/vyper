@@ -1,4 +1,4 @@
-def test_packing_test(get_contract_with_gas_estimation, memory_mocker):
+def test_packing_test(get_contract, memory_mocker):
     packing_test = """
 struct Bar:
     a: int128
@@ -46,7 +46,7 @@ def fop() -> int128:
         _z.bar[0].a + _z.bar[0].b + _z.bar[1].a + _z.bar[1].b + _a
     """
 
-    c = get_contract_with_gas_estimation(packing_test)
+    c = get_contract(packing_test)
     assert c.foo() == 1023, c.foo()
     assert c.fop() == 1023, c.fop()
     print("Passed packing test")

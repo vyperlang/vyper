@@ -1,8 +1,10 @@
 from eth_account import Account
 from eth_account._utils.signing import to_bytes32
 
+from tests.utils import ZERO_ADDRESS
 
-def test_ecrecover_test(get_contract_with_gas_estimation):
+
+def test_ecrecover_test(get_contract):
     ecrecover_test = """
 @external
 def test_ecrecover(h: bytes32, v: uint8, r: bytes32, s: bytes32) -> address:
@@ -28,7 +30,7 @@ def test_ecrecover_uints2() -> address:
 
     """
 
-    c = get_contract_with_gas_estimation(ecrecover_test)
+    c = get_contract(ecrecover_test)
 
     h = b"\x35" * 32
     local_account = Account.from_key(b"\x46" * 32)
@@ -56,8 +58,7 @@ def test_ecrecover(hash: bytes32, v: uint8, r: uint256) -> address:
     hash_ = bytes(i for i in range(32))
     v = 0  # invalid v! ecrecover precompile will not write to output buffer
     r = 0
-    # note web3.py decoding of 0x000..00 address is None.
-    assert c.test_ecrecover(hash_, v, r) is None
+    assert c.test_ecrecover(hash_, v, r) == ZERO_ADDRESS
 
 
 # slightly more subtle example: get_v() stomps memory location 0,

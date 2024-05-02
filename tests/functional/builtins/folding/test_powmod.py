@@ -4,7 +4,7 @@ from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
 
-st_uint256 = st.integers(min_value=0, max_value=2**256)
+st_uint256 = st.integers(min_value=0, max_value=(2**256 - 1))
 
 
 @pytest.mark.fuzzing

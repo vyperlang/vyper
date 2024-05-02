@@ -127,7 +127,7 @@ class InterfaceT(_UserType):
                 continue
 
             if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
+                unimplemented.append(type_._pp_signature)
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
@@ -296,9 +296,17 @@ class ModuleT(VyperType):
             # note: this checks for collisions
             self.add_member(f.name, f._metadata["func_type"])
 
+        for item in self.exports_decls:
+            for fn_t in item._metadata["exports_info"].functions:
+                self.add_member(fn_t.name, fn_t)
+
         for e in self.event_defs:
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
+
+        for f in self.flag_defs:
+            self.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
+            self._helper.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
 
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
@@ -322,6 +330,8 @@ class ModuleT(VyperType):
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
+
+        self.add_member("__interface__", self.interface)
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
@@ -347,6 +357,10 @@ class ModuleT(VyperType):
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
 
+    @cached_property
+    def flag_defs(self):
+        return self._module.get_children(vy_ast.FlagDef)
+
     @property
     def struct_defs(self):
         return self._module.get_children(vy_ast.StructDef)
@@ -358,6 +372,15 @@ class ModuleT(VyperType):
     @cached_property
     def implements_decls(self):
         return self._module.get_children(vy_ast.ImplementsDecl)
+
+    @cached_property
+    def implemented_interfaces(self):
+        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+
+        # a module implicitly implements module.__interface__.
+        ret.append(self.interface)
+
+        return ret
 
     @cached_property
     def interfaces(self) -> dict[str, InterfaceT]:

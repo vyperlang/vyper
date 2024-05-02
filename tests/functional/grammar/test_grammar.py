@@ -37,36 +37,31 @@ def test_basic_grammar_empty():
     assert len(tree.children) == 0
 
 
-def utf8_encodable(terminal: str) -> bool:
-    try:
-        if "\x00" not in terminal and "\\ " not in terminal and "\x0c" not in terminal:
-            terminal.encode("utf-8-sig")
-            return True
-        else:
-            return False
-    except UnicodeEncodeError:  # pragma: no cover
-        # Very rarely, a "." in some terminal regex will generate a surrogate
-        # character that cannot be encoded as UTF-8.  We apply this filter to
-        # ensure it doesn't happen at runtime, but don't worry about coverage.
-        return False
+def fix_terminal(terminal: str) -> bool:
+    # these throw exceptions in the grammar
+    for bad in ("\x00", "\\ ", "\x0c"):
+        terminal = terminal.replace(bad, " ")
+    return terminal
+
+
+ALLOWED_CHARS = st.characters(codec="ascii", min_codepoint=1)
 
 
 # With help from hyposmith
 # https://github.com/Zac-HD/hypothesmith/blob/master/src/hypothesmith/syntactic.py
 class GrammarStrategy(LarkStrategy):
     def __init__(self, grammar, start, explicit_strategies):
-        super().__init__(grammar, start, explicit_strategies)
+        super().__init__(grammar, start, explicit_strategies, alphabet=ALLOWED_CHARS)
         self.terminal_strategies = {
-            k: v.map(lambda s: s.replace("\0", "")).filter(utf8_encodable)
-            for k, v in self.terminal_strategies.items()  # type: ignore
+            k: v.map(fix_terminal) for k, v in self.terminal_strategies.items()  # type: ignore
         }
 
     def draw_symbol(self, data, symbol, draw_state):  # type: ignore
-        count = len(draw_state.result)
+        count = len(draw_state)
         super().draw_symbol(data, symbol, draw_state)
         try:
             compile(
-                source="".join(draw_state.result[count:])
+                source="".join(draw_state[count:])
                 .replace("contract", "class")
                 .replace("struct", "class"),  # HACK: Python ast.parse
                 filename="<string>",
@@ -102,10 +97,11 @@ def has_no_docstrings(c):
 
 
 @pytest.mark.fuzzing
-@given(code=from_grammar().filter(lambda c: utf8_encodable(c)))
-@hypothesis.settings(max_examples=500, suppress_health_check=[HealthCheck.too_slow])
+@given(code=from_grammar())
+@hypothesis.settings(
+    max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
+)
 def test_grammar_bruteforce(code):
-    if utf8_encodable(code):
-        _, _, _, reformatted_code = pre_parse(code + "\n")
-        tree = parse_to_ast(reformatted_code)
-        assert isinstance(tree, Module)
+    _, _, _, reformatted_code = pre_parse(code + "\n")
+    tree = parse_to_ast(reformatted_code)
+    assert isinstance(tree, Module)

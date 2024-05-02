@@ -13,7 +13,8 @@ def _optimize_unused_variables(ctx: IRFunction) -> set[IRInstruction]:
         for i, inst in enumerate(bb.instructions[:-1]):
             if inst.volatile:
                 continue
-            if inst.output and inst.output not in bb.instructions[i + 1].liveness:
+            next_liveness = bb.instructions[i + 1].liveness
+            if (inst.output and inst.output not in next_liveness) or inst.opcode == "nop":
                 removeList.add(inst)
 
         bb.instructions = [inst for inst in bb.instructions if inst not in removeList]
@@ -51,6 +52,25 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
 
         ctx.basic_blocks.remove(bb)
         i -= 1
+        count += 1
+
+    return count
+
+
+def _daisychain_empty_basicblocks(ctx: IRFunction) -> int:
+    count = 0
+    i = 0
+    while i < len(ctx.basic_blocks):
+        bb = ctx.basic_blocks[i]
+        i += 1
+        if bb.is_terminated:
+            continue
+
+        if i < len(ctx.basic_blocks) - 1:
+            bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
+        else:
+            bb.append_instruction("stop")
+
         count += 1
 
     return count

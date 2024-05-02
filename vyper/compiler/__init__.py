@@ -1,15 +1,12 @@
-from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, Optional
 
-import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings
-from vyper.evm.opcodes import anchor_evm_version
-from vyper.typing import ContractPath, OutputFormats, StorageLayout
+from vyper.compiler.settings import Settings, anchor_settings, get_global_settings
+from vyper.typing import OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -25,6 +22,8 @@ OUTPUT_FORMATS = {
     "interface": output.build_interface_output,
     "bb": output.build_bb_output,
     "bb_runtime": output.build_bb_runtime_output,
+    "cfg": output.build_cfg_output,
+    "cfg_runtime": output.build_cfg_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
@@ -94,8 +93,7 @@ def compile_from_file_input(
     Dict
         Compiler output as `{'output key': "output data"}`
     """
-
-    settings = settings or Settings()
+    settings = settings or get_global_settings() or Settings()
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -115,7 +113,7 @@ def compile_from_file_input(
     )
 
     ret = {}
-    with anchor_evm_version(compiler_data.settings.evm_version):
+    with anchor_settings(compiler_data.settings):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")

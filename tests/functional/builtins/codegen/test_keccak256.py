@@ -1,7 +1,7 @@
 from vyper.utils import hex_to_int
 
 
-def test_hash_code(get_contract_with_gas_estimation, keccak):
+def test_hash_code(get_contract, keccak):
     hash_code = """
 @external
 def foo(inp: Bytes[100]) -> bytes32:
@@ -16,26 +16,26 @@ def bar() -> bytes32:
     return keccak256("inp")
     """
 
-    c = get_contract_with_gas_estimation(hash_code)
+    c = get_contract(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert "0x" + c.foo(inp).hex() == keccak(inp).hex()
+        assert c.foo(inp) == keccak(inp)
 
-    assert "0x" + c.bar().hex() == keccak(b"inp").hex()
-    assert "0x" + c.foob().hex() == keccak(b"inp").hex()
+    assert c.bar() == keccak(b"inp")
+    assert c.foob() == keccak(b"inp")
 
 
-def test_hash_code2(get_contract_with_gas_estimation):
+def test_hash_code2(get_contract):
     hash_code2 = """
 @external
 def foo(inp: Bytes[100]) -> bool:
     return keccak256(inp) == keccak256("badminton")
     """
-    c = get_contract_with_gas_estimation(hash_code2)
+    c = get_contract(hash_code2)
     assert c.foo(b"badminto") is False
     assert c.foo(b"badminton") is True
 
 
-def test_hash_code3(get_contract_with_gas_estimation):
+def test_hash_code3(get_contract):
     hash_code3 = """
 test: Bytes[100]
 
@@ -61,22 +61,22 @@ def try32(inp: bytes32) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
     """
-    c = get_contract_with_gas_estimation(hash_code3)
-    c.set_test(b"", transact={})
+    c = get_contract(hash_code3)
+    c.set_test(b"")
     assert c.tryy(b"") is True
     assert c.tryy_str("") is True
     assert c.trymem(b"") is True
     assert c.tryy(b"cow") is False
-    c.set_test(b"cow", transact={})
+    c.set_test(b"cow")
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True
     assert c.tryy_str("cow") is True
-    c.set_test(b"\x35" * 32, transact={})
+    c.set_test(b"\x35" * 32)
     assert c.tryy(b"\x35" * 32) is True
     assert c.trymem(b"\x35" * 32) is True
     assert c.try32(b"\x35" * 32) is True
     assert c.tryy(b"\x35" * 33) is False
-    c.set_test(b"\x35" * 33, transact={})
+    c.set_test(b"\x35" * 33)
     assert c.tryy(b"\x35" * 32) is False
     assert c.trymem(b"\x35" * 32) is False
     assert c.try32(b"\x35" * 32) is False
@@ -85,7 +85,7 @@ def try32(inp: bytes32) -> bool:
     print("Passed KECCAK256 hash test")
 
 
-def test_hash_constant_bytes32(get_contract_with_gas_estimation, keccak):
+def test_hash_constant_bytes32(get_contract, keccak):
     hex_val = "0x1234567890123456789012345678901234567890123456789012345678901234"
     code = f"""
 FOO: constant(bytes32) = {hex_val}
@@ -95,11 +95,11 @@ def foo() -> bytes32:
     x: bytes32 = BAR
     return x
     """
-    c = get_contract_with_gas_estimation(code)
-    assert "0x" + c.foo().hex() == keccak(hex_to_int(hex_val).to_bytes(32, "big")).hex()
+    c = get_contract(code)
+    assert c.foo() == keccak(hex_to_int(hex_val).to_bytes(32, "big"))
 
 
-def test_hash_constant_string(get_contract_with_gas_estimation, keccak):
+def test_hash_constant_string(get_contract, keccak):
     str_val = "0x1234567890123456789012345678901234567890123456789012345678901234"
     code = f"""
 FOO: constant(String[66]) = "{str_val}"
@@ -109,5 +109,5 @@ def foo() -> bytes32:
     x: bytes32 = BAR
     return x
     """
-    c = get_contract_with_gas_estimation(code)
-    assert "0x" + c.foo().hex() == keccak(str_val.encode()).hex()
+    c = get_contract(code)
+    assert c.foo() == keccak(str_val.encode())
