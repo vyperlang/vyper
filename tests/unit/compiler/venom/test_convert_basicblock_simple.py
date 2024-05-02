@@ -10,7 +10,7 @@ def test_simple():
 
     fn = list(venom.functions.values())[0]
 
-    bb = fn.basic_blocks[0]
+    bb = fn.entry
     assert bb.instructions[0].opcode == "calldatasize"
     assert bb.instructions[1].opcode == "calldatacopy"
 

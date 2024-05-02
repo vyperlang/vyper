@@ -69,7 +69,7 @@ class SCCP(IRPass):
         self.fn = self.manager.function
         self.dom = self.manager.request_analysis(DominatorTreeAnalysis)
         self._compute_uses()
-        self._calculate_sccp(self.fn.basic_blocks[0])
+        self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
         # self._propagate_variables()

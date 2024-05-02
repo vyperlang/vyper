@@ -20,19 +20,17 @@ class MakeSSA(IRPass):
 
     def run_pass(self):
         fn = self.manager.function
-        entry = fn.basic_blocks[0]
 
         self.manager.request_analysis(CFGAnalysis)
-
         self.dom = self.manager.request_analysis(DominatorTreeAnalysis)
-
         self.manager.request_analysis(LivenessAnalysis)
+
         self._add_phi_nodes()
 
         self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
         self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
-        self._rename_vars(entry)
-        self._remove_degenerate_phis(entry)
+        self._rename_vars(fn.entry)
+        self._remove_degenerate_phis(fn.entry)
 
     def _add_phi_nodes(self):
         """

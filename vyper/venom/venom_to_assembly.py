@@ -161,7 +161,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.basic_blocks[0], StackModel())
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])

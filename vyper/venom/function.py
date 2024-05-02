@@ -12,7 +12,6 @@ class IRFunction:
 
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
-    entry_points: list[IRLabel]  # entry points
     args: list
     basic_blocks: list[IRBasicBlock]
     last_label: int
@@ -26,7 +25,6 @@ class IRFunction:
     def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
         self.ctx = ctx
         self.name = name
-        self.entry_points = []
         self.args = []
         self.basic_blocks = []
 
@@ -36,20 +34,11 @@ class IRFunction:
         self._error_msg_stack = []
         self._bb_index = {}
 
-        self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
 
-    def add_entry_point(self, label: IRLabel) -> None:
-        """
-        Add entry point.
-        """
-        self.entry_points.append(label)
-
-    def remove_entry_point(self, label: IRLabel) -> None:
-        """
-        Remove entry point.
-        """
-        self.entry_points.remove(label)
+    @property
+    def entry(self) -> IRBasicBlock:
+        return self.basic_blocks[0]
 
     def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
         """
@@ -160,9 +149,7 @@ class IRFunction:
             bb.reachable = OrderedSet()
             bb.is_reachable = False
 
-        for entry in self.entry_points:
-            entry_bb = self.get_basic_block(entry.value)
-            self._compute_reachability_from(entry_bb)
+        self._compute_reachability_from(self.entry)
 
     def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
         """

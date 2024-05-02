@@ -123,7 +123,7 @@ class SimplifyCFGPass(IRPass):
 
     def run_pass(self):
         fn = self.manager.function
-        entry = fn.basic_blocks[0]
+        entry = fn.entry
 
         for _ in range(len(fn.basic_blocks)):
             changes = self._optimize_empty_basicblocks()

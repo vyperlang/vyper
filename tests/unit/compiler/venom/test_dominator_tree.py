@@ -33,8 +33,7 @@ def _make_test_ctx():
     ctx = IRContext()
     fn = ctx.create_function(lab[1].value)
 
-    bb1 = fn.basic_blocks[0]
-    bb1.append_instruction("jmp", lab[2])
+    fn.entry.append_instruction("jmp", lab[2])
 
     _add_bb(fn, lab[7], [])
     _add_bb(fn, lab[6], [lab[7], lab[2]])

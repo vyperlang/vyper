@@ -27,7 +27,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         Compute the dominator tree.
         """
         self.fn = self.manager.function
-        self.entry_block = self.fn.basic_blocks[0]
+        self.entry_block = self.fn.entry
         self.dfs_order = {}
         self.dfs_walk = []
         self.dominators = {}
