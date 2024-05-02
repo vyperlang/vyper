@@ -22,6 +22,6 @@ class StackReorderPass(IRPass):
             self._visit(bb_out)
 
     def _run_pass(self):
-        entry = self.manager.function.basic_blocks[0]
+        entry = self.manager.function.entry
         self.visited = OrderedSet()
         self._visit(entry)

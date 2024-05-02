@@ -129,14 +129,14 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 def _append_jmp(fn: IRFunction, label: IRLabel) -> None:
     bb = fn.get_basic_block()
     if bb.is_terminated:
-        bb = IRBasicBlock(fn.get_next_label("jmp_target"), fn)
+        bb = IRBasicBlock(fn.ctx.get_next_label("jmp_target"), fn)
         fn.append_basic_block(bb)
 
     bb.append_instruction("jmp", label)
 
 
 def _new_block(fn: IRFunction) -> IRBasicBlock:
-    bb = IRBasicBlock(fn.get_next_label(), fn)
+    bb = IRBasicBlock(fn.ctx.get_next_label(), fn)
     bb = fn.append_basic_block(bb)
     return bb
 
@@ -144,7 +144,7 @@ def _new_block(fn: IRFunction) -> IRBasicBlock:
 def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
     bb = fn.get_basic_block()
     if bb.is_terminated:
-        bb = IRBasicBlock(fn.get_next_label("exit_to"), fn)
+        bb = IRBasicBlock(fn.ctx.get_next_label("exit_to"), fn)
         fn.append_basic_block(bb)
     ret_ofst = IRVariable("ret_ofst")
     ret_size = IRVariable("ret_size")
@@ -235,6 +235,7 @@ def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     global _break_target, _continue_target, current_func, var_list, _global_symbols
 
+    ctx = fn.ctx
     fn.push_source(ir)
 
     if ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
@@ -250,8 +251,8 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        fn.ctx.ctor_mem_size = ir.args[0].value
-        fn.ctx.immutables_len = ir.args[2].value
+        ctx.ctor_mem_size = ir.args[0].value
+        ctx.immutables_len = ir.args[2].value
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -280,7 +281,7 @@ def _convert_ir_bb(fn, ir, symbols):
         else:
             bb = fn.get_basic_block()
             if bb.is_terminated:
-                bb = IRBasicBlock(fn.get_next_label("seq"), fn)
+                bb = IRBasicBlock(ctx.get_next_label("seq"), fn)
                 fn.append_basic_block(bb)
             ret = _convert_ir_bb(fn, ir.args[0], symbols)
 
@@ -297,8 +298,8 @@ def _convert_ir_bb(fn, ir, symbols):
 
         saved_global_symbols = _global_symbols.copy()
 
-        then_block = IRBasicBlock(fn.get_next_label("then"), fn)
-        else_block = IRBasicBlock(fn.get_next_label("else"), fn)
+        then_block = IRBasicBlock(ctx.get_next_label("then"), fn)
+        else_block = IRBasicBlock(ctx.get_next_label("else"), fn)
 
         # convert "then"
         cond_symbols = symbols.copy()
@@ -326,7 +327,7 @@ def _convert_ir_bb(fn, ir, symbols):
         cond_block.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
         # exit bb
-        exit_bb = IRBasicBlock(fn.get_next_label("if_exit"), fn)
+        exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), fn)
         exit_bb = fn.append_basic_block(exit_bb)
 
         if_ret = fn.get_next_variable()
@@ -371,16 +372,16 @@ def _convert_ir_bb(fn, ir, symbols):
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value)
-        fn.ctx.append_data("dbname", [label])
+        ctx.append_data("dbname", [label])
         for c in ir.args[1:]:
             if isinstance(c, int):
                 assert 0 <= c <= 255, "data with invalid size"
-                fn.ctx.append_data("db", [c])  # type: ignore
+                ctx.append_data("db", [c])  # type: ignore
             elif isinstance(c.value, bytes):
-                fn.ctx.append_data("db", [c.value])  # type: ignore
+                ctx.append_data("db", [c.value])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
-                fn.ctx.append_data("db", [data])  # type: ignore
+                ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
@@ -399,7 +400,7 @@ def _convert_ir_bb(fn, ir, symbols):
         _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
         if bb.is_terminated:
-            bb = IRBasicBlock(fn.get_next_label("exit_to"), fn)
+            bb = IRBasicBlock(ctx.get_next_label("exit_to"), fn)
             fn.append_basic_block(bb)
         bb = fn.get_basic_block()
 
@@ -479,11 +480,11 @@ def _convert_ir_bb(fn, ir, symbols):
 
         body = ir.args[4]
 
-        entry_block = IRBasicBlock(fn.get_next_label("repeat"), fn)
-        cond_block = IRBasicBlock(fn.get_next_label("condition"), fn)
-        body_block = IRBasicBlock(fn.get_next_label("body"), fn)
-        incr_block = IRBasicBlock(fn.get_next_label("incr"), fn)
-        exit_block = IRBasicBlock(fn.get_next_label("exit"), fn)
+        entry_block = IRBasicBlock(ctx.get_next_label("repeat"), fn)
+        cond_block = IRBasicBlock(ctx.get_next_label("condition"), fn)
+        body_block = IRBasicBlock(ctx.get_next_label("body"), fn)
+        incr_block = IRBasicBlock(ctx.get_next_label("incr"), fn)
+        exit_block = IRBasicBlock(ctx.get_next_label("exit"), fn)
 
         bb = fn.get_basic_block()
         bb.append_instruction("jmp", entry_block.label)
@@ -522,11 +523,11 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
         fn.get_basic_block().append_instruction("jmp", _break_target.label)
-        fn.append_basic_block(IRBasicBlock(fn.get_next_label(), fn))
+        fn.append_basic_block(IRBasicBlock(ctx.get_next_label(), fn))
     elif ir.value == "continue":
         assert _continue_target is not None, "Continue with no contrinue target"
         fn.get_basic_block().append_instruction("jmp", _continue_target.label)
-        fn.append_basic_block(IRBasicBlock(fn.get_next_label(), fn))
+        fn.append_basic_block(IRBasicBlock(ctx.get_next_label(), fn))
     elif ir.value in NOOP_INSTRUCTIONS:
         pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):

@@ -98,9 +98,6 @@ class IRFunction:
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
-    def get_next_label(self, suffix: str = "") -> IRLabel:
-        return self.ctx.get_next_label(suffix)
-
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
