@@ -11,6 +11,7 @@ from typing import Optional
 from vyper.compiler.input_bundle import CompilerInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.analysis.module import _is_builtin
 from vyper.utils import get_long_version
 
@@ -24,10 +25,6 @@ from vyper.utils import get_long_version
 def _anonymize(p: str):
     segments = []
     # replace ../../../a/b with 0/1/2/a/b
-    # note that items which "escape" their current package might end up
-    # being invalid paths in the final artifact (they will not resolve
-    # properly during path resolution). TODO sanity check for these
-    # and reject them.
     for i, s in enumerate(PurePath(p).parts):
         if s == "..":
             segments.append(str(i))
@@ -98,6 +95,7 @@ class OutputBundle:
         tmp = {sp: 0 for sp in search_paths}
 
         for c in self.compiler_inputs.values():
+            ok = False
             # recover the search path that was used for this CompilerInput.
             # note that it is not sufficient to thread the "search path that
             # was used" into CompilerInput because search_paths are modified
@@ -109,6 +107,12 @@ class OutputBundle:
                     # which could possibly match, we add all them to the
                     # output.
                     tmp[sp] += 1
+                    ok = True
+
+            # this shouldn't happen unless a file escapes its package,
+            # *or* if we have a bug
+            if not ok:
+                raise CompilerPanic(f"Invalid path: {c.resolved_path}")
 
         sps = [sp for sp, count in tmp.items() if count > 0]
         return [_anonymize(os.path.relpath(sp)) for sp in sps]
