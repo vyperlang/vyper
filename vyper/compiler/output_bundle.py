@@ -8,7 +8,7 @@ from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
-from vyper.compiler.input_bundle import CompilerInput
+from vyper.compiler.input_bundle import CompilerInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.semantics.analysis.module import _is_builtin
@@ -86,7 +86,13 @@ class OutputBundle:
 
         input_bundle = self.compiler_data.input_bundle
 
-        search_paths = map(input_bundle._normalize_path, input_bundle.search_paths)
+        search_paths = []
+        for sp in input_bundle.search_paths:
+            try:
+                search_paths.append(input_bundle._normalize_path(sp))
+            except _NotFound:
+                # invalid / nonexistent path
+                pass
 
         # preserve order of original search paths
         tmp = {sp: 0 for sp in search_paths}
