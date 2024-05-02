@@ -84,10 +84,12 @@ class OutputBundle:
         # that being said, we are overly conservative. that is, we might
         # put search paths which are not actually used in the output.
 
-        search_paths = self.compiler_data.input_bundle.search_paths
+        input_bundle = self.compiler_data.input_bundle
+
+        search_paths = input_bundle.search_paths
 
         # preserve order of original search paths
-        tmp = {sp: 0 for sp in search_paths}
+        tmp = {input_bundle._normalize_path(sp): 0 for sp in search_paths}
 
         for c in self.compiler_inputs.values():
             # recover the search path that was used for this CompilerInput.
