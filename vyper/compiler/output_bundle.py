@@ -86,10 +86,10 @@ class OutputBundle:
 
         input_bundle = self.compiler_data.input_bundle
 
-        search_paths = input_bundle.search_paths
+        search_paths = map(input_bundle._normalize_path, input_bundle.search_paths)
 
         # preserve order of original search paths
-        tmp = {input_bundle._normalize_path(sp): 0 for sp in search_paths}
+        tmp = {sp: 0 for sp in search_paths}
 
         for c in self.compiler_inputs.values():
             # recover the search path that was used for this CompilerInput.
