@@ -3,7 +3,7 @@ import itertools
 import pytest
 
 
-def test_bytes_literal_code(get_contract_with_gas_estimation):
+def test_bytes_literal_code(get_contract):
     bytes_literal_code = """
 @external
 def foo() -> Bytes[5]:
@@ -31,7 +31,7 @@ def baz4() -> Bytes[100]:
                   b"01234567890123456789012345678901234567890123456789")
     """
 
-    c = get_contract_with_gas_estimation(bytes_literal_code)
+    c = get_contract(bytes_literal_code)
     assert c.foo() == b"horse"
     assert c.bar() == b"badminton"
     assert c.baz() == b"012345678901234567890123456789012"
@@ -43,7 +43,7 @@ def baz4() -> Bytes[100]:
 
 
 @pytest.mark.parametrize("i,e,_s", itertools.product([95, 96, 97], [63, 64, 65], [31, 32, 33]))
-def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation, i, e, _s):
+def test_bytes_literal_splicing_fuzz(get_contract, i, e, _s):
     kode = f"""
 moo: Bytes[100]
 
@@ -76,7 +76,7 @@ def baz(s: uint256, L: uint256) -> Bytes[100]:
     return b"3434346667777"
     """
 
-    c = get_contract_with_gas_estimation(kode)
+    c = get_contract(kode)
     o1 = c.foo(_s, e - _s)
     o2 = c.bar(_s, e - _s)
     o3 = c.baz(_s, e - _s)

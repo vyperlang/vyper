@@ -71,6 +71,7 @@ jobs:
         evm-version: [shanghai]
         experimental-codegen: [false]
         memorymock: [false]
+        evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -79,6 +80,7 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
+
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
@@ -94,6 +96,19 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: cancun
+
+          # py-evm rules
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: codesize
+            evm-version: london
+            evm-backend: py-evm
+
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: cancun
+            evm-backend: py-evm
 
           # test experimental pipeline
           - python-version: ["3.11", "311"]
@@ -123,8 +138,13 @@ jobs:
             debug: false
             evm-version: shanghai
 
-
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}${{ matrix.experimental-codegen && '-experimental' || '' }}-${{ matrix.evm-version }}
+    name: "py${{ matrix.python-version[1] }}\
+      -opt-${{ matrix.opt-mode }}\
+      ${{ matrix.debug && '-debug' || '' }}\
+      ${{ matrix.memorymock && '-memorymock' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      -${{ matrix.evm-version }}\
+      ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}"
 
     steps:
     - uses: actions/checkout@v4
@@ -150,6 +170,7 @@ jobs:
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
+          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
