@@ -115,6 +115,8 @@ class OutputBundle:
                 raise CompilerPanic(f"Invalid path: {c.resolved_path}")
 
         sps = [sp for sp, count in tmp.items() if count > 0]
+        assert len(sps) > 0
+
         return [_anonymize(os.path.relpath(sp)) for sp in sps]
 
 
