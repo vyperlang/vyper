@@ -1,5 +1,6 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     InvalidLiteral,
@@ -8,6 +9,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
+from vyper.utils import method_id
 
 
 def test_default_param_abi(get_contract):
@@ -17,7 +19,7 @@ def test_default_param_abi(get_contract):
 def safeTransferFrom(_data: Bytes[100] = b"test", _b: int128 = 1):
     pass
     """
-    abi = get_contract(code)._classic_contract.abi
+    abi = get_contract(code).abi
 
     assert len(abi) == 3
     assert set([fdef["name"] for fdef in abi]) == {"safeTransferFrom"}
@@ -51,8 +53,8 @@ def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
     """
 
     c = get_contract(code)
-    assert c.fooBar(456, 444) == [456, 444]
-    assert c.fooBar(456) == [456, 333]
+    assert c.fooBar(456, 444) == (456, 444)
+    assert c.fooBar(456) == (456, 333)
 
 
 def test_basic_default_param_set_2args(get_contract):
@@ -68,11 +70,11 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
     addr2 = "0x1000000000000000000000000000000000004321"
 
     # b default value, c default value
-    assert c.fooBar(123) == [123, b_default_value, c_default_value]
+    assert c.fooBar(123) == (123, b_default_value, c_default_value)
     # c default_value, b set from param
-    assert c.fooBar(456, 444) == [456, 444, c_default_value]
+    assert c.fooBar(456, 444) == (456, 444, c_default_value)
     # no default values
-    assert c.fooBar(6789, 4567, addr2) == [6789, 4567, addr2]
+    assert c.fooBar(6789, 4567, addr2) == (6789, 4567, addr2)
 
 
 def test_default_param_bytes(get_contract):
@@ -86,11 +88,11 @@ def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 99
     d_default = 999
 
     # c set, 7d default value
-    assert c.fooBar(b"booo", 12321, b"woo") == [b"booo", 12321, b"woo", d_default]
+    assert c.fooBar(b"booo", 12321, b"woo") == (b"booo", 12321, b"woo", d_default)
     # d set, c set
-    assert c.fooBar(b"booo", 12321, b"lucky", 777) == [b"booo", 12321, b"lucky", 777]
+    assert c.fooBar(b"booo", 12321, b"lucky", 777) == (b"booo", 12321, b"lucky", 777)
     # no default values
-    assert c.fooBar(b"booo", 12321) == [b"booo", 12321, c_default, d_default]
+    assert c.fooBar(b"booo", 12321) == (b"booo", 12321, c_default, d_default)
 
 
 def test_default_param_array(get_contract):
@@ -104,11 +106,11 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
     d_default = 8
 
     # c set, d default value
-    assert c.fooBar(b"booo", [99, 88], b"woo") == [b"booo", 88, b"woo", d_default]
+    assert c.fooBar(b"booo", [99, 88], b"woo") == (b"booo", 88, b"woo", d_default)
     # d set, c set
-    assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
+    assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == (b"booo", 11, b"lucky", 26)
     # no default values
-    assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
+    assert c.fooBar(b"booo", [55, 66]) == (b"booo", 66, c_default, d_default)
 
 
 def test_default_param_interface(get_contract):
@@ -137,8 +139,8 @@ def faz(a: uint256, b: Foo = FOO) -> Foo:
 
     assert c.bar(1) == addr2
     assert c.bar(1, addr1) == addr1
-    assert c.baz(1) is None
-    assert c.baz(1, "0x0000000000000000000000000000000000000000") is None
+    assert c.baz(1) == ZERO_ADDRESS
+    assert c.baz(1, ZERO_ADDRESS) == ZERO_ADDRESS
     assert c.faz(1) == addr1
     assert c.faz(1, addr1) == addr1
 
@@ -182,7 +184,7 @@ def foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
     assert c.foo() == [1, 2, 3]
 
 
-def test_default_param_clamp(get_contract, monkeypatch, tx_failed):
+def test_default_param_clamp(env, get_contract, tx_failed):
     code = """
 @external
 def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
@@ -191,17 +193,16 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 
     c = get_contract(code)
 
-    assert c.bar(-123) == [-123, -1]
-    assert c.bar(100, 100) == [100, 100]
+    assert c.bar(-123) == (-123, -1)
+    assert c.bar(100, 100) == (100, 100)
 
-    def validate_value(cls, value):
-        pass
+    method = method_id("bar(int128,int128)")
+    good_data = (200).to_bytes(32, "big") + (2**127 - 1).to_bytes(32, "big")
+    bad_data = (200).to_bytes(32, "big") + (2**127).to_bytes(32, "big")
 
-    monkeypatch.setattr("eth_abi.encoding.NumberEncoder.validate_value", validate_value)
-
-    assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
+    assert env.message_call(c.address, data=method + good_data) == good_data
     with tx_failed():
-        c.bar(200, 2**127)
+        env.message_call(c.address, data=method + bad_data)
 
 
 def test_default_param_private(get_contract):
@@ -226,11 +227,11 @@ def callMeMaybe() -> (Bytes[100], uint256, Bytes[20]):
 
     c = get_contract(code)
 
-    # assert c.callMe() == [b'hello there', 123456, b'crazy']
-    assert c.callMeMaybe() == [b"here is my number", 555123456, b"baby"]
+    # assert c.callMe() == (b'hello there', 123456, b'crazy')
+    assert c.callMeMaybe() == (b"here is my number", 555123456, b"baby")
 
 
-def test_environment_vars_as_default(get_contract):
+def test_environment_vars_as_default(get_contract, env):
     code = """
 xx: uint256
 
@@ -249,11 +250,13 @@ def get_balance() -> uint256:
     return self.balance
     """
     c = get_contract(code)
-    c.foo(transact={"value": 31337})
+    env.set_balance(env.deployer, 31337 + 9001)
+    c.foo(value=31337)
     assert c.bar() == 31337
-    c.foo(666, transact={"value": 9001})
+    c.foo(666, value=9001)
     assert c.bar() == 31337 + 666
     assert c.get_balance() == 31337 + 9001
+    assert env.get_balance(env.deployer) == 0
 
 
 PASSING_CONTRACTS = [

@@ -17,7 +17,8 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)
-    logs = get_logs(c.bar(transact={}), c, "MyEvent")
+    c.bar()
+    logs = get_logs(c, "MyEvent")
     assert len(logs) == 1
 
 
@@ -36,9 +37,9 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)
-    logs = get_logs(c.bar(transact={}), c, "MyEvent")
-    assert len(logs) == 1
-    assert logs[0].args.x == 5
+    c.bar()
+    (log,) = get_logs(c, "MyEvent")
+    assert log.args.x == 5
 
 
 def test_module_event_indexed(get_contract, make_input_bundle, get_logs):
@@ -60,7 +61,7 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)
-    logs = get_logs(c.bar(transact={}), c, "MyEvent")
-    assert len(logs) == 1
-    assert logs[0].args.x == 5
-    assert logs[0].args.y == 6
+    c.bar()
+    (log,) = get_logs(c, "MyEvent")
+    assert log.args.x == 5
+    assert log.args.y == 6

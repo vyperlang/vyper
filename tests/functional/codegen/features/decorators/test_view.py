@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import FunctionDeclarationException
 
 
-def test_constant_test(get_contract_with_gas_estimation_for_constants):
+def test_constant_test(get_contract):
     constant_test = """
 @external
 @view
@@ -11,7 +11,7 @@ def foo() -> int128:
     return 5
     """
 
-    c = get_contract_with_gas_estimation_for_constants(constant_test)
+    c = get_contract(constant_test)
     assert c.foo() == 5
 
     print("Passed constant function test")
@@ -31,9 +31,7 @@ def foo() -> uint256:
     assert c.foo() == 0
 
 
-def test_invalid_constant_and_payable(
-    get_contract_with_gas_estimation_for_constants, assert_compile_failed
-):
+def test_invalid_constant_and_payable(get_contract, assert_compile_failed):
     code = """
 @external
 @payable
@@ -41,6 +39,4 @@ def test_invalid_constant_and_payable(
 def foo() -> num:
     return 5
 """
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation_for_constants(code), FunctionDeclarationException
-    )
+    assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)
