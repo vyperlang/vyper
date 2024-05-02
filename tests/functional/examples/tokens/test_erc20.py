@@ -13,14 +13,14 @@ TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = 0
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
     return get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c_bad(get_contract):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open("examples/tokens/ERC20.vy") as f:
