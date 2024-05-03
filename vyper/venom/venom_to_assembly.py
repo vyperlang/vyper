@@ -144,13 +144,6 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
-        # Before emitting the assembly, we need to make sure that the
-        # CFG is normalized. Calling calculate_cfg() will denormalize IR (reset)
-        # so it should not be called after calling NormalizationPass().run_pass().
-        # Liveness is then computed for the normalized IR, and we can proceed to
-        # assembly generation.
-        # This is a side-effect of how dynamic jumps are temporarily being used
-        # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
