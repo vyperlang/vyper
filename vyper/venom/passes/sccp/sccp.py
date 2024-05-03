@@ -3,9 +3,9 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
-from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import (
@@ -59,8 +59,8 @@ class SCCP(IRPass):
     cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, function: IRFunction, analyses_cache: IRAnalysesCache):
-        super().__init__(function, analyses_cache)
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False

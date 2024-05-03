@@ -1,9 +1,8 @@
 from typing import Optional
 
-from vyper.venom.function import IRFunction
-
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.function import IRFunction
 
 
 class DFGAnalysis(IRAnalysis):

@@ -1,8 +1,6 @@
 from collections import Counter
 from typing import Any
 
-from vyper.venom.analysis.analysis import IRAnalysesCache
-
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
@@ -13,6 +11,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dup_requirements import DupRequirementsAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import (
