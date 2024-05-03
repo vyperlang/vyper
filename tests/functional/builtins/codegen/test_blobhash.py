@@ -62,4 +62,4 @@ def get_blobhash(i: uint256) -> bytes32:
     for i in range(6):
         assert c.get_blobhash(i) == env.blob_hashes[i]
 
-    assert c.get_blobhash(7) == b"\0" * 32
+    assert c.get_blobhash(len(env.blob_hashes)) == b"\0" * 32
