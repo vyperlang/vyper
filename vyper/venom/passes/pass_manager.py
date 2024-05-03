@@ -40,10 +40,9 @@ class IRPassManager:
         from vyper.venom.analysis.analysis import IRAnalysis
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
-        if analysis_cls not in self.valid_analyses:
-            return
-        self.valid_analyses[analysis_cls].invalidate()
-        del self.valid_analyses[analysis_cls]
+        analysis = self.valid_analyses.pop(analysis_cls, None)
+        if analysis is not None:
+            analysis.invalidate()
 
     def force_analysis(
         self, analysis_cls: "IRAnalysis", *args, **kwargs  # type: ignore # noqa: F821
