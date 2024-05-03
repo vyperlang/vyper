@@ -1,6 +1,4 @@
 import pytest
-from eth.codecs import abi
-from hexbytes import HexBytes
 
 from vyper import compiler
 
@@ -47,16 +45,14 @@ def test_blobhash_success(good_code):
 
 
 @pytest.mark.requires_evm_version("cancun")
-def test_get_blobhashes(get_contract_with_gas_estimation, w3, keccak, tx_failed):
+def test_get_blobhashes(env, get_contract, tx_failed):
     code = """
 x: public(bytes32)
 @external
 def set_blobhash(i: uint256):
     self.x = blobhash(i)
 """
-    c = get_contract_with_gas_estimation(code)
-
-    a0 = w3.eth.account.from_key(f"0x{'00' * 31}01")
+    c = get_contract(code)
 
     # to get the expected versioned hashes:
     #
@@ -66,35 +62,8 @@ def set_blobhash(i: uint256):
     expected_versioned_hash = "0x0168dea5bd14ec82691edc861dcee360342a921c1664b02745465f6c42239f06"
 
     def _send_tx_with_blobs(num_blobs, input_idx):
-        text = b"Long live the BLOBs!"
-        # BLOBs contain 4096 32-byte field elements.
-        # (32 * 4096) / 2 ** 10 = 128.0 -> Each BLOB can store up to 128kb.
-        blob_data = text.rjust(32 * 4096)
-
-        sig = keccak("set_blobhash(uint256)".encode()).hex()[:8]
-        encoded = abi.encode("uint256", input_idx).hex()
-        tx = {
-            "type": 3,
-            "chainId": 1337,
-            "from": a0.address,
-            "to": c.address,
-            "value": 0,
-            "gas": 210000,
-            "maxFeePerGas": 10**10,
-            "maxPriorityFeePerGas": 10**10,
-            "maxFeePerBlobGas": 10**10,
-            "nonce": w3.eth.get_transaction_count(a0.address),
-            "data": f"0x{sig}{encoded}",
-        }
-
-        signed = a0.sign_transaction(tx, blobs=[blob_data] * num_blobs)
-        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-        transaction = w3.eth.get_transaction(tx_hash)
-
-        # sanity check
-        assert len(transaction["blobVersionedHashes"]) == num_blobs
-        for i in range(num_blobs):
-            assert transaction["blobVersionedHashes"][i] == HexBytes(expected_versioned_hash)
+        env.blob_hashes = [bytes.fromhex(expected_versioned_hash[2:])] * num_blobs
+        c.set_blobhash(input_idx)
 
     c.set_blobhash(0)
     assert c.x() == b"\x00" * 32
