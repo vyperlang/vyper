@@ -474,13 +474,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         is_sub = isinstance(node.op, python_ast.USub)
-        is_num = (
-            hasattr(node.operand, "n")
-            and not isinstance(node.operand.n, bool)
-            and isinstance(node.operand.n, (int, Decimal))
+        is_num = isinstance(node.operand, python_ast.Constant) and isinstance(
+            node.operand.value, (int, Decimal)
         )
         if is_sub and is_num:
-            node.operand.n = 0 - node.operand.n
+            node.operand.value = 0 - node.operand.value
             node.operand.col_offset = node.col_offset
             node.operand.node_source_code = node.node_source_code
             return node.operand
