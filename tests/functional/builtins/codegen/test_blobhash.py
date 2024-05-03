@@ -1,4 +1,6 @@
 import pytest
+from eth.codecs import abi
+from hexbytes import HexBytes
 
 from vyper import compiler
 
@@ -45,46 +47,63 @@ def test_blobhash_success(good_code):
 
 
 @pytest.mark.requires_evm_version("cancun")
-def test_get_blobhashes(get_contract_with_gas_estimation, w3):
+def test_get_blobhashes(get_contract_with_gas_estimation, w3, keccak, tx_failed):
     code = """
-event Blobhash:
-    blobs: indexed(bytes32)
-
+x: public(bytes32)
 @external
-def log_blobhashes():
-    for i: uint256 in range(6):
-        log Blobhash(blobhash(i))
+def set_blobhash(i: uint256):
+    self.x = blobhash(i)
 """
     c = get_contract_with_gas_estimation(code)
 
-    random_account = w3.eth.account.from_key(f"0x{'00' * 31}01")
+    a0 = w3.eth.account.from_key(f"0x{'00' * 31}01")
 
-    text = b"Long live the BLOBs!"
-    # BLOBs contain 4096 32-byte field elements.
-    # (32 * 4096) / 2 ** 10 = 128.0 -> Each BLOB can store up to 128kb.
-    blob_data = text.rjust(32 * 4096)
+    # to get the expected versioned hashes:
+    #
+    # from eth_account._utils.typed_transactions import BlobTransaction
+    # blob_transaction = BlobTransaction.from_bytes(HexBytes(signed.rawTransaction))
+    # print(blob_transaction.blob_data.versioned_hashes)
+    expected_versioned_hash = "0x0168dea5bd14ec82691edc861dcee360342a921c1664b02745465f6c42239f06"
 
-    tx = {
-        "type": 3,
-        "chainId": 1337,
-        "from": random_account.address,
-        "to": c.address,
-        "data": 0xCC883AC4,  # function selector of `log_blobhashes()`
-        "value": 0,
-        "gas": 45000,
-        "maxFeePerGas": 10**10,
-        "maxPriorityFeePerGas": 10**10,
-        "maxFeePerBlobGas": 10**10,
-        "nonce": w3.eth.get_transaction_count(random_account.address),
-    }
+    def _send_tx_with_blobs(num_blobs, input_idx):
+        text = b"Long live the BLOBs!"
+        # BLOBs contain 4096 32-byte field elements.
+        # (32 * 4096) / 2 ** 10 = 128.0 -> Each BLOB can store up to 128kb.
+        blob_data = text.rjust(32 * 4096)
 
-    signed = random_account.sign_transaction(tx, blobs=[blob_data] * 6)
-    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    tx = w3.eth.get_transaction(tx_hash)
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        sig = keccak("set_blobhash(uint256)".encode()).hex()[:8]
+        encoded = abi.encode("uint256", input_idx).hex()
+        tx = {
+            "type": 3,
+            "chainId": 1337,
+            "from": a0.address,
+            "to": c.address,
+            "value": 0,
+            "gas": 210000,
+            "maxFeePerGas": 10**10,
+            "maxPriorityFeePerGas": 10**10,
+            "maxFeePerBlobGas": 10**10,
+            "nonce": w3.eth.get_transaction_count(a0.address),
+            "data": f"0x{sig}{encoded}",
+        }
 
-    # the attribute `blobVersionedHashes` are currently only available at the tx-level:
-    # https://github.com/ethereum/web3.py/blob/332ff99ae5dbe0209254619801c4848e528f7851/web3/_utils/method_formatters.py#L233
-    expected_blob_versioned_hash = tx["blobVersionedHashes"]
+        signed = a0.sign_transaction(tx, blobs=[blob_data] * num_blobs)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        transaction = w3.eth.get_transaction(tx_hash)
 
-    assert [tx_receipt["logs"][0]["topics"][1]] * 6 == [expected_blob_versioned_hash[0]] * 6
+        # sanity check
+        assert len(transaction["blobVersionedHashes"]) == num_blobs
+        for i in range(num_blobs):
+            assert transaction["blobVersionedHashes"][i] == HexBytes(expected_versioned_hash)
+
+    c.set_blobhash(0)
+    assert c.x() == b"\x00" * 32
+
+    _send_tx_with_blobs(1, 0)
+    assert "0x" + c.x().hex() == expected_versioned_hash
+
+    _send_tx_with_blobs(6, 5)
+    assert "0x" + c.x().hex() == expected_versioned_hash
+
+    _send_tx_with_blobs(1, 1)
+    assert c.x() == b"\x00" * 32
