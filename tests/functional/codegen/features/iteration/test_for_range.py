@@ -4,7 +4,7 @@ from vyper.exceptions import StaticAssertionException
 from vyper.utils import SizeLimits
 
 
-def test_basic_repeater(get_contract_with_gas_estimation):
+def test_basic_repeater(get_contract):
     basic_repeater = """
 @external
 def repeat(z: int128) -> int128:
@@ -13,7 +13,7 @@ def repeat(z: int128) -> int128:
         x = x + z
     return(x)
     """
-    c = get_contract_with_gas_estimation(basic_repeater)
+    c = get_contract(basic_repeater)
     assert c.repeat(9) == 54
 
 
@@ -131,7 +131,7 @@ def get_last(start: uint256, end: uint256) -> uint256:
             c.get_last(UINT_MAX, UINT_MAX - n)
 
 
-def test_digit_reverser(get_contract_with_gas_estimation):
+def test_digit_reverser(get_contract):
     digit_reverser = """
 @external
 def reverse_digits(x: int128) -> int128:
@@ -147,11 +147,11 @@ def reverse_digits(x: int128) -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation(digit_reverser)
+    c = get_contract(digit_reverser)
     assert c.reverse_digits(123456) == 654321
 
 
-def test_more_complex_repeater(get_contract_with_gas_estimation):
+def test_more_complex_repeater(get_contract):
     more_complex_repeater = """
 @external
 def repeat() -> int128:
@@ -163,12 +163,12 @@ def repeat() -> int128:
     return(out)
     """
 
-    c = get_contract_with_gas_estimation(more_complex_repeater)
+    c = get_contract(more_complex_repeater)
     assert c.repeat() == 666666
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
-def test_offset_repeater(get_contract_with_gas_estimation, typ):
+def test_offset_repeater(get_contract, typ):
     offset_repeater = f"""
 @external
 def sum() -> {typ}:
@@ -178,12 +178,12 @@ def sum() -> {typ}:
     return out
     """
 
-    c = get_contract_with_gas_estimation(offset_repeater)
+    c = get_contract(offset_repeater)
     assert c.sum() == 4100
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
-def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
+def test_offset_repeater_2(get_contract, typ):
     offset_repeater_2 = f"""
 @external
 def sum(frm: {typ}, to: {typ}) -> {typ}:
@@ -195,12 +195,12 @@ def sum(frm: {typ}, to: {typ}) -> {typ}:
     return out
     """
 
-    c = get_contract_with_gas_estimation(offset_repeater_2)
+    c = get_contract(offset_repeater_2)
     assert c.sum(100, 99999) == 15150
     assert c.sum(70, 131) == 6100
 
 
-def test_loop_call_priv(get_contract_with_gas_estimation):
+def test_loop_call_priv(get_contract):
     code = """
 @internal
 def _bar() -> bool:
@@ -213,7 +213,7 @@ def foo() -> bool:
     return True
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True
 
 
@@ -400,7 +400,7 @@ def foo(a: {typ}):
     self.result = 31337
     """
     c = get_contract(code)
-    c.foo(val, transact={})
+    c.foo(val)
     if val + 1 >= 19:
         assert c.result() == 31337
     else:

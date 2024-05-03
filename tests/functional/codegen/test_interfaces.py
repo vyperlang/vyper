@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
@@ -185,7 +186,7 @@ def test_extract_file_interface_imports_raises(
         compile_code(code, input_bundle=input_bundle)
 
 
-def test_external_call_to_interface(w3, get_contract, make_input_bundle):
+def test_external_call_to_interface(env, get_contract, make_input_bundle):
     token_interface = """
 @view
 @external
@@ -232,10 +233,10 @@ def test():
 
     test_c = get_contract(code, *[token.address], input_bundle=input_bundle)
 
-    sender = w3.eth.accounts[0]
+    sender = env.deployer
     assert token.balanceOf(sender) == 0
 
-    test_c.test(transact={})
+    test_c.test()
     assert token.balanceOf(sender) == 1000
 
 
@@ -279,12 +280,12 @@ def bar(a_address: address) -> {typ}:
     """
 
     contract_a = get_contract(code1, input_bundle=input_bundle)
-    contract_b = get_contract(code2, *[contract_a.address], input_bundle=input_bundle)
+    contract_b = get_contract(code2, input_bundle=input_bundle)
 
     assert contract_b.bar(contract_a.address) == expected
 
 
-def test_external_call_to_builtin_interface(w3, get_contract):
+def test_external_call_to_builtin_interface(env, get_contract):
     token_code = """
 balanceOf: public(HashMap[address, uint256])
 
@@ -311,14 +312,14 @@ def test():
     erc20 = get_contract(token_code)
     test_c = get_contract(code, *[erc20.address])
 
-    sender = w3.eth.accounts[0]
+    sender = env.deployer
     assert erc20.balanceOf(sender) == 0
 
-    test_c.test(transact={})
+    test_c.test()
     assert erc20.balanceOf(sender) == 1000
 
 
-def test_address_member(w3, get_contract):
+def test_address_member(env, get_contract):
     code = """
 interface Foo:
     def foo(): payable
@@ -331,7 +332,7 @@ def test(addr: address):
     assert self.f.address == addr
     """
     c = get_contract(code)
-    for address in w3.eth.accounts:
+    for address in env.accounts:
         c.test(address)
 
 
@@ -503,7 +504,7 @@ def test_fail3() -> Bytes[3]:
         c.test_fail3()
 
 
-def test_units_interface(w3, get_contract, make_input_bundle):
+def test_units_interface(env, get_contract, make_input_bundle):
     code = """
 import balanceof as BalanceOf
 
@@ -526,7 +527,7 @@ def balanceOf(owner: address) -> uint256:
 
     c = get_contract(code, input_bundle=input_bundle)
 
-    assert c.balanceOf(w3.eth.accounts[0]) == w3.to_wei(1, "ether")
+    assert c.balanceOf(env.deployer) == to_wei(1, "ether")
 
 
 def test_simple_implements(make_input_bundle):
