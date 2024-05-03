@@ -14,9 +14,11 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10**TOKEN_DECIMALS)
 def erc20(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         contract_code = f.read()
-    return get_contract(
+    contract = get_contract(
         contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
     )
+    print("Deployed ERC20 to " + contract.address)
+    return contract
 
 
 @pytest.fixture(scope="module")
@@ -27,6 +29,7 @@ def market_maker(get_contract, erc20):
 
 
 def test_initial_state(market_maker):
+    print("Starting test_initial_state")
     assert market_maker.totalEthQty() == 0
     assert market_maker.totalTokenQty() == 0
     assert market_maker.invariant() == 0
@@ -34,9 +37,10 @@ def test_initial_state(market_maker):
 
 
 def test_initiate(env, market_maker, erc20, tx_failed):
+    print("Starting test_initiate")
     a0 = env.accounts[0]
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
-    env.set_balance(a0, ethers)
+    env.set_balance(a0, ethers * 2)
     erc20.approve(market_maker.address, ethers)
     market_maker.initiate(erc20.address, ether, value=ethers)
     assert market_maker.totalEthQty() == ethers
@@ -52,6 +56,7 @@ def test_initiate(env, market_maker, erc20, tx_failed):
 
 
 def test_eth_to_tokens(env, market_maker, erc20):
+    print("Starting test_eth_to_tokens")
     a0, a1 = env.accounts[:2]
     env.set_balance(a0, to_wei(2, "ether"))
     erc20.approve(market_maker.address, to_wei(2, "ether"))
