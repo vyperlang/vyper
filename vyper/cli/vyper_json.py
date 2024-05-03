@@ -262,6 +262,7 @@ def compile_from_input_dict(
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen", False)
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
@@ -274,7 +275,9 @@ def compile_from_input_dict(
     else:
         assert optimize is None
 
-    settings = Settings(evm_version=evm_version, optimize=optimize)
+    settings = Settings(
+        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+    )
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 

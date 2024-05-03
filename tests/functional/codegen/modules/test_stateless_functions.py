@@ -14,7 +14,7 @@ from vyper.exceptions import (
 # test modules which have no variables - "libraries"
 
 
-def test_simple_library(get_contract, make_input_bundle, w3):
+def test_simple_library(get_contract, make_input_bundle, env):
     library_source = """
 @internal
 def foo() -> uint256:
@@ -31,7 +31,7 @@ def bar() -> uint256:
 
     c = get_contract(main, input_bundle=input_bundle)
 
-    assert c.bar() == w3.eth.block_number
+    assert c.bar() == env.block_number
 
 
 # is this the best place for this?
@@ -179,7 +179,7 @@ def qux() -> library.SomeStruct:
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    assert c.bar((1,)) == []
+    assert c.bar((1,)) is None
 
     assert c.baz() == (2,)
     assert c.qux() == (1,)
@@ -207,7 +207,7 @@ def foo(x: uint256):
 
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    c.foo(7, transact={})
+    c.foo(7)
 
     assert c.counter() == 7
 

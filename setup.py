@@ -20,8 +20,10 @@ extras_require = {
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
+        "eth-account==0.12.2",
         "setuptools",
         "hexbytes>=1.2",
+        "pyrevm>=0.3.2",
     ],
     "lint": [
         "black==23.12.0",

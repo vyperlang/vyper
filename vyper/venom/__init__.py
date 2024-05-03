@@ -1,7 +1,7 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Any, Optional
+from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
@@ -11,13 +11,12 @@ from vyper.venom.bb_optimizer import (
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
 )
-from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes.mem2var import Mem2Var
+from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -56,10 +55,30 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     for entry in internals:
         SimplifyCFGPass().run_pass(ctx, entry)
 
+    dfg = DFG.build_dfg(ctx)
+    Mem2Var().run_pass(ctx, ctx.basic_blocks[0], dfg)
+    for entry in internals:
+        Mem2Var().run_pass(ctx, entry, dfg)
+
     make_ssa_pass = MakeSSA()
     make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
+
+    cfg_dirty = False
+    sccp_pass = SCCP(make_ssa_pass.dom)
+    sccp_pass.run_pass(ctx, ctx.basic_blocks[0])
+    cfg_dirty |= sccp_pass.cfg_dirty
+
     for entry in internals:
         make_ssa_pass.run_pass(ctx, entry)
+        sccp_pass = SCCP(make_ssa_pass.dom)
+        sccp_pass.run_pass(ctx, entry)
+        cfg_dirty |= sccp_pass.cfg_dirty
+
+    calculate_cfg(ctx)
+    SimplifyCFGPass().run_pass(ctx, ctx.basic_blocks[0])
+
+    calculate_cfg(ctx)
+    calculate_liveness(ctx)
 
     while True:
         changes = 0
