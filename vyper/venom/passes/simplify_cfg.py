@@ -3,14 +3,10 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class SimplifyCFGPass(IRPass):
     visited: OrderedSet
-
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
 
     def _merge_blocks(self, a: IRBasicBlock, b: IRBasicBlock):
         a.instructions.pop()
@@ -34,7 +30,7 @@ class SimplifyCFGPass(IRPass):
                     break
                 inst.operands[inst.operands.index(b.label)] = a.label
 
-        self.manager.function.basic_blocks.remove(b)
+        self.function.basic_blocks.remove(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
         next_bb = b.cfg_out.first()
@@ -48,7 +44,7 @@ class SimplifyCFGPass(IRPass):
         next_bb.remove_cfg_in(b)
         next_bb.add_cfg_in(a)
 
-        self.manager.function.basic_blocks.remove(b)
+        self.function.basic_blocks.remove(b)
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
         """
@@ -90,7 +86,7 @@ class SimplifyCFGPass(IRPass):
         """
         Remove empty basic blocks.
         """
-        fn = self.manager.function
+        fn = self.function
         count = 0
         i = 0
         while i < len(fn.basic_blocks):
@@ -122,7 +118,7 @@ class SimplifyCFGPass(IRPass):
         return count
 
     def run_pass(self):
-        fn = self.manager.function
+        fn = self.function
         entry = fn.entry
 
         for _ in range(len(fn.basic_blocks)):
@@ -133,7 +129,7 @@ class SimplifyCFGPass(IRPass):
         else:
             raise CompilerPanic("Too many iterations removing empty basic blocks")
 
-        self.manager.force_analysis(CFGAnalysis)
+        self.analyses_cache.force_analysis(CFGAnalysis)
 
         for _ in range(len(fn.basic_blocks)):  # essentially `while True`
             self._collapse_chained_blocks(entry)
@@ -142,4 +138,4 @@ class SimplifyCFGPass(IRPass):
         else:
             raise CompilerPanic("Too many iterations collapsing chained blocks")
 
-        self.manager.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(CFGAnalysis)

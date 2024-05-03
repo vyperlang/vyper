@@ -3,16 +3,12 @@ from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class DFTPass(IRPass):
     function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
-
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
 
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction, offset: int = 0):
         for op in inst.get_outputs():
@@ -73,8 +69,7 @@ class DFTPass(IRPass):
         bb.instructions.sort(key=lambda x: self.inst_order[x])
 
     def run_pass(self) -> None:
-        self.function = self.manager.function
-        self.dfg = self.manager.request_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()

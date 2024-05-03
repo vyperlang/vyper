@@ -7,9 +7,9 @@ class RemoveUnusedVariablesPass(IRPass):
     def run_pass(self):
         removeList = set()
 
-        self.manager.request_analysis(LivenessAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)
 
-        for bb in self.manager.function.basic_blocks:
+        for bb in self.function.basic_blocks:
             for i, inst in enumerate(bb.instructions[:-1]):
                 if inst.volatile:
                     continue
@@ -19,4 +19,4 @@ class RemoveUnusedVariablesPass(IRPass):
 
             bb.instructions = [inst for inst in bb.instructions if inst not in removeList]
 
-        self.manager.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)

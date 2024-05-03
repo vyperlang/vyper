@@ -3,6 +3,8 @@
 
 from typing import Optional
 
+from vyper.venom.analysis.analysis import IRAnalysesCache
+
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -12,7 +14,6 @@ from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.mem2var import Mem2Var
-from vyper.venom.passes.pass_manager import IRPassManager
 from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
@@ -40,16 +41,16 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
-    pm = IRPassManager(fn)
+    ac = IRAnalysesCache(fn)
 
-    SimplifyCFGPass(pm).run_pass()
-    Mem2Var(pm).run_pass()
-    MakeSSA(pm).run_pass()
-    SCCP(pm).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
 
-    SimplifyCFGPass(pm).run_pass()
-    RemoveUnusedVariablesPass(pm).run_pass()
-    DFTPass(pm).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    DFTPass(ac, fn).run_pass()
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:

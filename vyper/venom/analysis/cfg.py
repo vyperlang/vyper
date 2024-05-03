@@ -9,7 +9,7 @@ class CFGAnalysis(IRAnalysis):
     """
 
     def analyze(self) -> None:
-        fn = self.manager.function
+        fn = self.function
         for bb in fn.basic_blocks:
             bb.cfg_in = OrderedSet()
             bb.cfg_out = OrderedSet()
@@ -34,10 +34,8 @@ class CFGAnalysis(IRAnalysis):
                 in_bb.add_cfg_out(bb)
 
     def invalidate(self):
-        super().invalidate()
-
         from vyper.venom.analysis.dominators import DominatorTreeAnalysis
         from vyper.venom.analysis.liveness import LivenessAnalysis
 
-        self.manager.invalidate_analysis(DominatorTreeAnalysis)
-        self.manager.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)

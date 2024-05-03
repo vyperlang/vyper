@@ -1,6 +1,8 @@
 from collections import Counter
 from typing import Any
 
+from vyper.venom.analysis.analysis import IRAnalysesCache
+
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
@@ -23,7 +25,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
-from vyper.venom.passes.pass_manager import IRPassManager
 from vyper.venom.stack_model import StackModel
 
 # instructions which map one-to-one from venom to EVM
@@ -153,11 +154,11 @@ class VenomCompiler:
         # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
-                pm = IRPassManager(fn)
+                ac = IRAnalysesCache(fn)
 
-                NormalizationPass(pm).run_pass()
-                self.liveness_analysis = pm.request_analysis(LivenessAnalysis)
-                pm.request_analysis(DupRequirementsAnalysis)
+                NormalizationPass(ac, fn).run_pass()
+                self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
+                ac.request_analysis(DupRequirementsAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
 

@@ -3,6 +3,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -17,7 +18,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
 
 
@@ -59,22 +59,22 @@ class SCCP(IRPass):
     cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
+    def __init__(self, function: IRFunction, analyses_cache: IRAnalysesCache):
+        super().__init__(function, analyses_cache)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
 
     def run_pass(self):
-        self.fn = self.manager.function
-        self.dom = self.manager.request_analysis(DominatorTreeAnalysis)
+        self.fn = self.function
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self._compute_uses()
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
         # self._propagate_variables()
 
-        self.manager.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(CFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """

@@ -11,11 +11,11 @@ class LivenessAnalysis(IRAnalysis):
     """
 
     def analyze(self):
-        self.manager.request_analysis(CFGAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
         while True:
             changed = False
-            for bb in self.manager.function.basic_blocks:
+            for bb in self.function.basic_blocks:
                 changed |= self._calculate_out_vars(bb)
                 changed |= self._calculate_liveness(bb)
 
@@ -23,7 +23,7 @@ class LivenessAnalysis(IRAnalysis):
                 break
 
     def _reset_liveness(self) -> None:
-        for bb in self.manager.function.basic_blocks:
+        for bb in self.function.basic_blocks:
             bb.out_vars = OrderedSet()
             for inst in bb.instructions:
                 inst.liveness = OrderedSet()

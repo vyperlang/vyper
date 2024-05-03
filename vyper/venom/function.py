@@ -156,7 +156,7 @@ class IRFunction:
             return
         bb.is_reachable = True
         for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:  # or inst.opcode == "invoke":
+            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
                 for op in inst.get_label_operands():
                     out_bb = self.get_basic_block(op.value)
                     bb.reachable.add(out_bb)

@@ -4,7 +4,6 @@ from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class MakeSSA(IRPass):
@@ -15,15 +14,12 @@ class MakeSSA(IRPass):
     dom: DominatorTreeAnalysis
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
-
     def run_pass(self):
-        fn = self.manager.function
+        fn = self.function
 
-        self.manager.request_analysis(CFGAnalysis)
-        self.dom = self.manager.request_analysis(DominatorTreeAnalysis)
-        self.manager.request_analysis(LivenessAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self._add_phi_nodes()
 

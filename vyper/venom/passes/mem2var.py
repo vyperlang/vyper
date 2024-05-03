@@ -5,7 +5,6 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class Mem2Var(IRPass):
@@ -17,15 +16,10 @@ class Mem2Var(IRPass):
     function: IRFunction
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
-
     def run_pass(self):
-        self.function = self.manager.function
-
-        self.manager.request_analysis(CFGAnalysis)
-        dfg = self.manager.request_analysis(DFGAnalysis)
-        self.manager.request_analysis(LivenessAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.items():
@@ -33,8 +27,8 @@ class Mem2Var(IRPass):
                 continue
             self._process_alloca_var(dfg, var)
 
-        self.manager.invalidate_analysis(DFGAnalysis)
-        self.manager.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_alloca_var(self, dfg: DFGAnalysis, var: IRVariable):
         """

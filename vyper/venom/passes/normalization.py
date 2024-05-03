@@ -2,7 +2,6 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 class NormalizationPass(IRPass):
@@ -13,9 +12,6 @@ class NormalizationPass(IRPass):
     """
 
     changes = 0
-
-    def __init__(self, manager: IRPassManager):
-        super().__init__(manager)
 
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
         # Iterate over the predecessors to this basic block
@@ -31,7 +27,7 @@ class NormalizationPass(IRPass):
         # Create an intermediary basic block and append it
         source = in_bb.label.value
         target = bb.label.value
-        fn = self.manager.function
+        fn = self.function
 
         split_label = IRLabel(f"{source}_split_{target}")
         in_terminal = in_bb.instructions[-1]
@@ -56,10 +52,10 @@ class NormalizationPass(IRPass):
         return split_bb
 
     def _run_pass(self) -> int:
-        fn = self.manager.function
+        fn = self.function
         self.changes = 0
 
-        self.manager.request_analysis(CFGAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
 
         # Split blocks that need splitting
         for bb in fn.basic_blocks:
@@ -68,13 +64,13 @@ class NormalizationPass(IRPass):
 
         # If we made changes, recalculate the cfg
         if self.changes > 0:
-            self.manager.force_analysis(CFGAnalysis)
+            self.analyses_cache.force_analysis(CFGAnalysis)
             fn.remove_unreachable_blocks()
 
         return self.changes
 
     def run_pass(self):
-        fn = self.manager.function
+        fn = self.function
         for _ in range(len(fn.basic_blocks) * 2):
             if self._run_pass() == 0:
                 break
