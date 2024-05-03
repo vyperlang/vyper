@@ -46,8 +46,6 @@ class IRAnalysesCache:
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
-        from vyper.venom.analysis.analysis import IRAnalysis
-
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             return self.analyses_cache[analysis_cls]
@@ -61,8 +59,6 @@ class IRAnalysesCache:
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
-        from vyper.venom.analysis.analysis import IRAnalysis
-
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         analysis = self.analyses_cache.pop(analysis_cls, None)
         if analysis is not None:
