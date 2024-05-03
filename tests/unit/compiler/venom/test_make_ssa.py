@@ -1,7 +1,7 @@
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 def test_phi_case():
@@ -31,8 +31,8 @@ def test_phi_case():
 
     bb.append_instruction("jmp", bb_cont.label)
 
-    pm = IRPassManager(fn)
-    MakeSSA(pm).run_pass()
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
 
     condition_block = fn.get_basic_block("condition")
     assert len(condition_block.instructions) == 2

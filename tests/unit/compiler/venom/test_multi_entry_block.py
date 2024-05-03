@@ -1,8 +1,8 @@
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRBasicBlock, IRLabel
 from vyper.venom.passes.normalization import NormalizationPass
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 def test_multi_entry_block_1():
@@ -34,11 +34,11 @@ def test_multi_entry_block_1():
     fn.append_basic_block(finish_bb)
     finish_bb.append_instruction("stop")
 
-    pm = IRPassManager(fn)
-    pm.request_analysis(CFGAnalysis)
+    ac = IRAnalysesCache(fn)
+    ac.request_analysis(CFGAnalysis)
     assert not fn.normalized, "CFG should not be normalized"
 
-    NormalizationPass(pm).run_pass()
+    NormalizationPass(ac, fn).run_pass()
 
     assert fn.normalized, "CFG should be normalized"
 
@@ -88,11 +88,11 @@ def test_multi_entry_block_2():
     fn.append_basic_block(finish_bb)
     finish_bb.append_instruction("stop")
 
-    pm = IRPassManager(fn)
-    pm.request_analysis(CFGAnalysis)
+    ac = IRAnalysesCache(fn)
+    ac.request_analysis(CFGAnalysis)
     assert not fn.normalized, "CFG should not be normalized"
 
-    NormalizationPass(pm).run_pass()
+    NormalizationPass(ac, fn).run_pass()
 
     assert fn.normalized, "CFG should be normalized"
 
@@ -132,11 +132,11 @@ def test_multi_entry_block_with_dynamic_jump():
     fn.append_basic_block(finish_bb)
     finish_bb.append_instruction("stop")
 
-    pm = IRPassManager(fn)
-    pm.request_analysis(CFGAnalysis)
+    ac = IRAnalysesCache(fn)
+    ac.request_analysis(CFGAnalysis)
     assert not fn.normalized, "CFG should not be normalized"
 
-    NormalizationPass(pm).run_pass()
+    NormalizationPass(ac, fn).run_pass()
     assert fn.normalized, "CFG should be normalized"
 
     finish_bb = fn.get_basic_block(finish_label.value)

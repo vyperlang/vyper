@@ -2,12 +2,12 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.pass_manager import IRPassManager
 
 
 def _add_bb(
@@ -49,8 +49,8 @@ def test_deminator_frontier_calculation():
     fn = _make_test_ctx()
     bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [fn.get_basic_block(str(i)) for i in range(1, 8)]
 
-    pm = IRPassManager(fn)
-    dom = pm.request_analysis(DominatorTreeAnalysis)
+    ac = IRAnalysesCache(fn)
+    dom = ac.request_analysis(DominatorTreeAnalysis)
     df = dom.dominator_frontiers
 
     assert len(df[bb1]) == 0, df[bb1]
@@ -71,5 +71,5 @@ def test_phi_placement():
     bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], x), 0)
     bb7.insert_instruction(IRInstruction("mstore", [x, IRLiteral(0)]), 0)
 
-    pm = IRPassManager(fn)
-    MakeSSA(pm).run_pass()
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
