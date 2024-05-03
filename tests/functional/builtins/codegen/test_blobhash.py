@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from vyper import compiler
+from vyper.compiler import compile_code
 
 valid_list = [
     """
@@ -41,8 +41,9 @@ def foo() -> bytes32:
 @pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize("good_code", valid_list)
 def test_blobhash_success(good_code):
-    assert compiler.compile_code(good_code) is not None
-    assembly = compiler.compile_code(good_code, output_formats=["asm"])["asm"].split(" ")
+    assert compile_code(good_code) is not None
+    out = compile_code(good_code, output_formats=["opcodes_runtime"])
+    assembly = out["opcodes_runtime"].split(" ")
     assert "BLOBHASH" in assembly
 
 
