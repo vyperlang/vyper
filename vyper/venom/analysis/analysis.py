@@ -31,7 +31,7 @@ class IRAnalysis:
 
 class IRAnalysesCache:
     """
-    Manages the analysis and passes for the Venom IR.
+    A cache for IR analyses.
     """
 
     function: IRFunction
