@@ -19,7 +19,7 @@ def get_blobbasefee() -> uint256:
     env.set_excess_blob_gas(10**6)
 
     # kzg_hash(b"Vyper is the language of the sneks")
-    blob_hashes = [
+    env.blob_hashes = [
         (bytes.fromhex("015a5c97e3cc516f22a95faf7eefff00eb2fee7a65037fde07ac5446fc93f2a0"))
     ] * 6
 
@@ -27,7 +27,6 @@ def get_blobbasefee() -> uint256:
         "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",  # random address
         gas=21000,
         gas_price=10**10,
-        blob_hashes=blob_hashes,
     )
 
     excess_blob_gas = env.get_excess_blob_gas()
