@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from vyper import compiler
@@ -47,32 +49,16 @@ def test_blobhash_success(good_code):
 @pytest.mark.requires_evm_version("cancun")
 def test_get_blobhashes(env, get_contract, tx_failed):
     code = """
-x: public(bytes32)
 @external
-def set_blobhash(i: uint256):
-    self.x = blobhash(i)
+def get_blobhash(i: uint256) -> bytes32:
+    return blobhash(i)
 """
     c = get_contract(code)
 
-    # to get the expected versioned hashes:
-    #
-    # from eth_account._utils.typed_transactions import BlobTransaction
-    # blob_transaction = BlobTransaction.from_bytes(HexBytes(signed.rawTransaction))
-    # print(blob_transaction.blob_data.versioned_hashes)
-    expected_versioned_hash = "0x0168dea5bd14ec82691edc861dcee360342a921c1664b02745465f6c42239f06"
+    # mock the evm blobhash attribute
+    env.blob_hashes = [random.randbytes(32) for _ in range(6)]
 
-    def _send_tx_with_blobs(num_blobs, input_idx):
-        env.blob_hashes = [bytes.fromhex(expected_versioned_hash[2:])] * num_blobs
-        c.set_blobhash(input_idx)
+    for i in range(6):
+        assert c.get_blobhash(i) == env.blob_hashes[i]
 
-    c.set_blobhash(0)
-    assert c.x() == b"\x00" * 32
-
-    _send_tx_with_blobs(1, 0)
-    assert "0x" + c.x().hex() == expected_versioned_hash
-
-    _send_tx_with_blobs(6, 5)
-    assert "0x" + c.x().hex() == expected_versioned_hash
-
-    _send_tx_with_blobs(1, 1)
-    assert c.x() == b"\x00" * 32
+    assert c.get_blobhash(7) == b"\0" * 32
