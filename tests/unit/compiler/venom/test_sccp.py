@@ -1,24 +1,26 @@
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.function import IRFunction
+from vyper.venom.context import IRContext
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 
 def test_simple_case():
-    ctx = IRFunction(IRLabel("_global"))
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
 
-    bb = ctx.get_basic_block()
+    bb = fn.get_basic_block()
     p1 = bb.append_instruction("param")
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
     bb.append_instruction("return", p1, op3)
 
-    make_ssa_pass = MakeSSA()
-    make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
-    sccp = SCCP(make_ssa_pass.dom)
-    sccp.run_pass(ctx, ctx.basic_blocks[0])
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -27,14 +29,15 @@ def test_simple_case():
 
 
 def test_cont_jump_case():
-    ctx = IRFunction(IRLabel("_global"))
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
 
-    bb = ctx.get_basic_block()
+    bb = fn.get_basic_block()
 
-    br1 = IRBasicBlock(IRLabel("then"), ctx)
-    ctx.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), ctx)
-    ctx.append_basic_block(br2)
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+    br2 = IRBasicBlock(IRLabel("else"), fn)
+    fn.append_basic_block(br2)
 
     p1 = bb.append_instruction("param")
     op1 = bb.append_instruction("store", 32)
@@ -47,10 +50,10 @@ def test_cont_jump_case():
     br2.append_instruction("add", op3, p1)
     br2.append_instruction("stop")
 
-    make_ssa_pass = MakeSSA()
-    make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
-    sccp = SCCP(make_ssa_pass.dom)
-    sccp.run_pass(ctx, ctx.basic_blocks[0])
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -61,16 +64,17 @@ def test_cont_jump_case():
 
 
 def test_cont_phi_case():
-    ctx = IRFunction(IRLabel("_global"))
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
 
-    bb = ctx.get_basic_block()
+    bb = fn.get_basic_block()
 
-    br1 = IRBasicBlock(IRLabel("then"), ctx)
-    ctx.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), ctx)
-    ctx.append_basic_block(br2)
-    join = IRBasicBlock(IRLabel("join"), ctx)
-    ctx.append_basic_block(join)
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+    br2 = IRBasicBlock(IRLabel("else"), fn)
+    fn.append_basic_block(br2)
+    join = IRBasicBlock(IRLabel("join"), fn)
+    fn.append_basic_block(join)
 
     p1 = bb.append_instruction("param")
     op1 = bb.append_instruction("store", 32)
@@ -85,11 +89,10 @@ def test_cont_phi_case():
 
     join.append_instruction("return", op4, p1)
 
-    make_ssa_pass = MakeSSA()
-    make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
-
-    sccp = SCCP(make_ssa_pass.dom)
-    sccp.run_pass(ctx, ctx.basic_blocks[0])
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -101,16 +104,17 @@ def test_cont_phi_case():
 
 
 def test_cont_phi_const_case():
-    ctx = IRFunction(IRLabel("_global"))
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
 
-    bb = ctx.get_basic_block()
+    bb = fn.get_basic_block()
 
-    br1 = IRBasicBlock(IRLabel("then"), ctx)
-    ctx.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), ctx)
-    ctx.append_basic_block(br2)
-    join = IRBasicBlock(IRLabel("join"), ctx)
-    ctx.append_basic_block(join)
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+    br2 = IRBasicBlock(IRLabel("else"), fn)
+    fn.append_basic_block(br2)
+    join = IRBasicBlock(IRLabel("join"), fn)
+    fn.append_basic_block(join)
 
     p1 = bb.append_instruction("store", 1)
     op1 = bb.append_instruction("store", 32)
@@ -125,10 +129,10 @@ def test_cont_phi_const_case():
 
     join.append_instruction("return", op4, p1)
 
-    make_ssa_pass = MakeSSA()
-    make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
-    sccp = SCCP(make_ssa_pass.dom)
-    sccp.run_pass(ctx, ctx.basic_blocks[0])
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
 
     assert sccp.lattice[IRVariable("%1")].value == 1
     assert sccp.lattice[IRVariable("%2")].value == 32
