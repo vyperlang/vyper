@@ -1,8 +1,8 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import calculate_cfg, calculate_liveness
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
-from vyper.venom.dominators import DominatorTree
-from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -11,24 +11,22 @@ class MakeSSA(IRPass):
     This pass converts the function into Static Single Assignment (SSA) form.
     """
 
-    dom: DominatorTree
+    dom: DominatorTreeAnalysis
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
-    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
-        self.ctx = ctx
+    def run_pass(self):
+        fn = self.function
 
-        calculate_cfg(ctx)
-        self.dom = DominatorTree.build_dominator_tree(ctx, entry)
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)
 
-        calculate_liveness(ctx)
         self._add_phi_nodes()
 
         self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
         self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
-        self._rename_vars(entry)
-        self._remove_degenerate_phis(entry)
-
-        return 0
+        self._rename_vars(fn.entry)
+        self._remove_degenerate_phis(fn.entry)
 
     def _add_phi_nodes(self):
         """
