@@ -40,30 +40,35 @@ class IRFunction:
     def entry(self) -> IRBasicBlock:
         return self.basic_blocks[0]
 
-    def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
+    def append_basic_block(self, bb: IRBasicBlock):
         """
         Append basic block to function.
         """
-        assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
+        assert isinstance(bb, IRBasicBlock), bb
         self.basic_blocks.append(bb)
 
-        return self.basic_blocks[-1]
+        self._bb_index[bb.label.name] = bb
 
-    def _get_basicblock_index(self, label: str):
-        # perf: keep an "index" of labels to block indices to
-        # perform fast lookup.
-        # TODO: maybe better just to throw basic blocks in an ordered
-        # dict of some kind.
-        ix = self._bb_index.get(label, -1)
-        if 0 <= ix < len(self.basic_blocks) and self.basic_blocks[ix].label == label:
-            return ix
-        # do a reindex
-        self._bb_index = dict((bb.label.name, ix) for ix, bb in enumerate(self.basic_blocks))
-        # sanity check - no duplicate labels
-        assert len(self._bb_index) == len(
-            self.basic_blocks
-        ), f"Duplicate labels in function '{self.name}' {self._bb_index} {self.basic_blocks}"
-        return self._bb_index[label]
+    def remove_basic_block(self, bb: IRBasicBlock):
+        assert isinstance(bb, IRBasicBlock), bb
+
+        self.basic_blocks.remove(bb)
+
+        self._bb_index.pop(bb.label, None)
+
+    def _get_basicblock(self, label: str):
+        bb = self._bb_index.get(label)
+        if bb is None:
+            # search for it the slow way, indexing as we go along
+            for bb in self.basic_blocks:
+                if bb.label.name not in self._bb_index:
+                    self._bb_index[bb.label.name] = bb
+                if bb.label.name == label:
+                    break
+            else:
+                raise CompilerPanic(f"Not found: {label}")
+
+        return bb
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -72,17 +77,8 @@ class IRFunction:
         """
         if label is None:
             return self.basic_blocks[-1]
-        ix = self._get_basicblock_index(label)
-        return self.basic_blocks[ix]
 
-    def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
-        """
-        Get basic block after label.
-        """
-        ix = self._get_basicblock_index(label.value)
-        if 0 <= ix < len(self.basic_blocks) - 1:
-            return self.basic_blocks[ix + 1]
-        raise AssertionError(f"Basic block after '{label}' not found")
+        return self._get_basicblock(label)
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """

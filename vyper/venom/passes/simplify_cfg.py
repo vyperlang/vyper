@@ -30,7 +30,7 @@ class SimplifyCFGPass(IRPass):
                     break
                 inst.operands[inst.operands.index(b.label)] = a.label
 
-        self.function.basic_blocks.remove(b)
+        self.function.remove_basic_block(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
         next_bb = b.cfg_out.first()
@@ -44,7 +44,7 @@ class SimplifyCFGPass(IRPass):
         next_bb.remove_cfg_in(b)
         next_bb.add_cfg_in(a)
 
-        self.function.basic_blocks.remove(b)
+        self.function.remove_basic_block(b)
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
         """
@@ -111,7 +111,7 @@ class SimplifyCFGPass(IRPass):
                         if isinstance(op, IRLabel) and op.value == replaced_label.value:
                             op.value = replacement_label.value
 
-            fn.basic_blocks.remove(bb)
+            fn.remove_basic_block(bb)
             i -= 1
             count += 1
 

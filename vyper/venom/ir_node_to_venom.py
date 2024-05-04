@@ -137,8 +137,7 @@ def _append_jmp(fn: IRFunction, label: IRLabel) -> None:
 
 def _new_block(fn: IRFunction) -> IRBasicBlock:
     bb = IRBasicBlock(fn.ctx.get_next_label(), fn)
-    bb = fn.append_basic_block(bb)
-    return bb
+    fn.append_basic_block(bb)
 
 
 def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
@@ -328,7 +327,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # exit bb
         exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), fn)
-        exit_bb = fn.append_basic_block(exit_bb)
+        fn.append_basic_block(exit_bb)
 
         if_ret = fn.get_next_variable()
         if then_ret_val is not None and else_ret_val is not None:
