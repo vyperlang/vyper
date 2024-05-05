@@ -10,12 +10,12 @@ class CFGAnalysis(IRAnalysis):
 
     def analyze(self) -> None:
         fn = self.function
-        for bb in fn.basic_blocks:
+        for bb in fn.get_basic_blocks():
             bb.cfg_in = OrderedSet()
             bb.cfg_out = OrderedSet()
             bb.out_vars = OrderedSet()
 
-        for bb in fn.basic_blocks:
+        for bb in fn.get_basic_blocks():
             assert len(bb.instructions) > 0, "Basic block should not be empty"
             last_inst = bb.instructions[-1]
             assert (
@@ -29,7 +29,7 @@ class CFGAnalysis(IRAnalysis):
                         fn.get_basic_block(op.value).add_cfg_in(bb)
 
         # Fill in the "out" set for each basic block
-        for bb in fn.basic_blocks:
+        for bb in fn.get_basic_blocks():
             for in_bb in bb.cfg_in:
                 in_bb.add_cfg_out(bb)
 

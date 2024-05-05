@@ -58,7 +58,7 @@ class NormalizationPass(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
 
         # Split blocks that need splitting
-        for bb in list(fn.basic_blocks):
+        for bb in list(fn.get_basic_blocks()):
             if len(bb.cfg_in) > 1:
                 self._split_basic_block(bb)
 
@@ -71,7 +71,7 @@ class NormalizationPass(IRPass):
 
     def run_pass(self):
         fn = self.function
-        for _ in range(len(fn._basic_blocks) * 2):
+        for _ in range(fn.num_basic_blocks * 2):
             if self._run_pass() == 0:
                 break
         else:

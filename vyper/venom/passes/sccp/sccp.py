@@ -87,7 +87,7 @@ class SCCP(IRPass):
         and the work list. The `_propagate_constants()` method is responsible
         for updating the IR with the constant values.
         """
-        self.cfg_in_exec = {bb: OrderedSet() for bb in self.fn.basic_blocks}
+        self.cfg_in_exec = {bb: OrderedSet() for bb in self.fn.get_basic_blocks()}
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.fn)
         self.work_list.append(FlowWorkItem(dummy, entry))

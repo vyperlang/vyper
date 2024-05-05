@@ -1,7 +1,6 @@
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
 
@@ -14,9 +13,9 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    basic_blocks: dict[str, IRBasicBlock]
     last_label: int
     last_variable: int
+    _basic_block_dict: dict[str, IRBasicBlock]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -26,7 +25,7 @@ class IRFunction:
         self.ctx = ctx
         self.name = name
         self.args = []
-        self._basic_blocks = {}
+        self._basic_block_dict = {}
 
         self.last_variable = 0
 
@@ -37,19 +36,19 @@ class IRFunction:
 
     @property
     def entry(self) -> IRBasicBlock:
-        return next(self.basic_blocks)
+        return next(self.get_basic_blocks())
 
     def append_basic_block(self, bb: IRBasicBlock):
         """
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        assert bb.label.name not in self._basic_blocks
-        self._basic_blocks[bb.label.name] = bb
+        assert bb.label.name not in self._basic_block_dict
+        self._basic_block_dict[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):
         assert isinstance(bb, IRBasicBlock), bb
-        del self._basic_blocks[bb.label.name]
+        del self._basic_block_dict[bb.label.name]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -57,27 +56,30 @@ class IRFunction:
         If label is None, return the last basic block.
         """
         if label is None:
-            return next(reversed(self._basic_blocks.values()))
+            return next(reversed(self._basic_block_dict.values()))
 
-        return self._basic_blocks[label]
+        return self._basic_block_dict[label]
+
+    def clear_basic_blocks(self):
+        self._basic_block_dict.clear()
+
+    def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
+        """
+        Get an iterator over this function's basic blocks
+        """
+        return iter(self._basic_block_dict.values())
 
     @property
-    def basic_blocks(self) -> Iterator[IRBasicBlock]:
-        return iter(self._basic_blocks.values())
+    def num_basic_blocks(self) -> int:
+        return len(self._basic_block_dict)
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
         Get basic blocks that are terminal.
         """
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             if bb.is_terminal:
                 yield bb
-
-    def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
-        """
-        Get basic blocks that point to the given basic block
-        """
-        return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
@@ -90,15 +92,14 @@ class IRFunction:
         self._compute_reachability()
 
         removed = []
-        new_basic_blocks = {}
 
         # Remove unreachable basic blocks
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             if not bb.is_reachable:
                 removed.append(bb)
-            else:
-                new_basic_blocks[bb.label.name] = bb
-        self._basic_blocks = new_basic_blocks
+
+        for bb in removed:
+            self.remove_basic_block(bb)
 
         # Remove phi instructions that reference removed basic blocks
         for bb in removed:
@@ -123,7 +124,7 @@ class IRFunction:
         """
         Compute reachability of basic blocks.
         """
-        for bb in self.basic_blocks:
+        for bb in self._basic_block_dict.values():
             bb.reachable = OrderedSet()
             bb.is_reachable = False
 
@@ -153,7 +154,7 @@ class IRFunction:
         Having a normalized CFG makes calculation of stack layout easier when
         emitting assembly.
         """
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             # Ignore if there are no multiple predecessors
             if len(bb.cfg_in) <= 1:
                 continue
@@ -192,23 +193,23 @@ class IRFunction:
         Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
         done after the IR is generated.
         """
-        bbs = list(self.basic_blocks)
+        bbs = list(self.get_basic_blocks())
         for i, bb in enumerate(bbs):
             if not bb.is_terminated:
                 if i < len(bbs) - 1:
                     # TODO: revisit this. When contructor calls internal functions they
                     # are linked to the last ctor block. Should separate them before this
                     # so we don't have to handle this here
-                    if self.basic_blocks[i + 1].label.value.startswith("internal"):
+                    if bbs[i + 1].label.value.startswith("internal"):
                         bb.append_instruction("stop")
                     else:
-                        bb.append_instruction("jmp", self.basic_blocks[i + 1].label)
+                        bb.append_instruction("jmp", bbs[i + 1].label)
                 else:
                     bb.append_instruction("exit")
 
     def copy(self):
         new = IRFunction(self.name)
-        new.basic_blocks = self.basic_blocks.copy()
+        new._basic_block_dict = self._basic_block_dict.copy()
         new.last_label = self.last_label
         new.last_variable = self.last_variable
         return new
@@ -228,11 +229,11 @@ class IRFunction:
 
         ret = "digraph G {\n"
 
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             for out_bb in bb.cfg_out:
                 ret += f'    "{bb.label.value}" -> "{out_bb.label.value}"\n'
 
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             ret += f'    "{bb.label.value}" [shape=plaintext, '
             ret += f'label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
 
@@ -241,6 +242,6 @@ class IRFunction:
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             str += f"{bb}\n"
         return str.strip()
