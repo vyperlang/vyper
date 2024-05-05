@@ -70,7 +70,6 @@ class IRFunction:
 
         raise CompilerPanic(f"unreachable: {label}")  # pragma: nocover
 
-
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
