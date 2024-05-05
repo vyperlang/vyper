@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class CompilerInput:
     # an input to the compiler, basically an abstraction for file contents
+
     source_id: int
     path: PathLike  # the path that was asked for
 
