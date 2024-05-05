@@ -58,18 +58,18 @@ class IRFunction:
         self._bb_index.pop(bb.label.name, None)
 
     def _get_basicblock(self, label: str):
-        bb = self._bb_index.get(label)
-        if bb is None:
-            # search for it the slow way, indexing as we go along
-            for bb in self.basic_blocks:
-                if bb.label.name not in self._bb_index:
-                    self._bb_index[bb.label.name] = bb
-                if bb.label.name == label:
-                    break
-            else:
-                raise CompilerPanic(f"Not found: {label}")
+        if (bb := self._bb_index.get(label)) is not None:
+            return bb
 
-        return bb
+        # search for it the slow way, indexing as we go along
+        for bb in self.basic_blocks:
+            if bb.label.name not in self._bb_index:
+                self._bb_index[bb.label.name] = bb
+            if bb.label.name == label:
+                return bb
+
+        raise CompilerPanic(f"unreachable: {label}")  # pragma: nocover
+
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
