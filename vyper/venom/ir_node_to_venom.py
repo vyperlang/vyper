@@ -135,7 +135,7 @@ def _append_jmp(fn: IRFunction, label: IRLabel) -> None:
     bb.append_instruction("jmp", label)
 
 
-def _new_block(fn: IRFunction) -> IRBasicBlock:
+def _new_block(fn: IRFunction) -> None:
     bb = IRBasicBlock(fn.ctx.get_next_label(), fn)
     fn.append_basic_block(bb)
 

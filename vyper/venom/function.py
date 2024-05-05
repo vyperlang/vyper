@@ -1,6 +1,7 @@
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
 
@@ -20,7 +21,7 @@ class IRFunction:
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
-    _bb_index: dict[str, int]
+    _bb_index: dict[str, IRBasicBlock]
 
     def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
         self.ctx = ctx
@@ -54,7 +55,7 @@ class IRFunction:
 
         self.basic_blocks.remove(bb)
 
-        self._bb_index.pop(bb.label, None)
+        self._bb_index.pop(bb.label.name, None)
 
     def _get_basicblock(self, label: str):
         bb = self._bb_index.get(label)
