@@ -217,6 +217,12 @@ class VyperArchiveWriter(OutputBundleWriter):
         method = _get_compression_method()
         self.archive = zipfile.ZipFile(self._buf, mode="w", compression=method, compresslevel=9)
 
+    def __del__(self):
+        # manually order the destruction of child objects.
+        # cf. https://bugs.python.org/issue37773
+        del self.archive
+        del self._buf
+
     def write_sources(self, sources: dict[str, CompilerInput]):
         for path, c in sources.items():
             self.archive.writestr(_anonymize(path), c.contents)
