@@ -40,12 +40,17 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_solc_json(compiler_data: CompilerData) -> str:
+    # request bytecode to ensure the input compiles, through all the
+    # compilation passes.
+    _ = compiler_data.bytecode
     writer = SolcJSONWriter(compiler_data)
     writer.write()
     return writer.output()
 
 
 def build_archive(compiler_data: CompilerData) -> bytes:
+    # ditto
+    _ = compiler_data.bytecode
     writer = VyperArchiveWriter(compiler_data)
     writer.write()
     return writer.output()
