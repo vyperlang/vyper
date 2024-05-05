@@ -153,6 +153,7 @@ class SCCP(IRPass):
             in_vars.append(self.lattice[var])
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
         assert inst.output in self.lattice, "Got undefined var for phi"
+
         if value != self.lattice[inst.output]:
             self.lattice[inst.output] = value
             self._add_ssa_work_items(inst)
@@ -169,7 +170,8 @@ class SCCP(IRPass):
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
-            lat = self.lattice[inst.operands[0]]
+            lat = _get_lattice(self.lattice, inst.operands[0])
+
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
                 for out_bb in inst.parent.cfg_out:
@@ -276,7 +278,8 @@ class SCCP(IRPass):
         case of jumps and asserts as needed.
         """
         if inst.opcode == "jnz":
-            lat = lattice[inst.operands[0]]
+            lat = _get_lattice(lattice, inst.operands[0])
+
             if isinstance(lat, IRLiteral):
                 if lat.value == 0:
                     target = inst.operands[2]
@@ -285,8 +288,10 @@ class SCCP(IRPass):
                 inst.opcode = "jmp"
                 inst.operands = [target]
                 self.cfg_dirty = True
-        elif inst.opcode == "assert":
-            lat = lattice[inst.operands[0]]
+
+        elif inst.opcode in ("assert", "assert_unreachable"):
+            lat = _get_lattice(lattice, inst.operands[0])
+
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
@@ -334,3 +339,10 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP or x == y:
         return x
     return LatticeEnum.BOTTOM
+
+
+def _get_lattice(lattice: Lattice, x: IROperand) -> LatticeItem:
+    if isinstance(x, IRLiteral):
+        return x
+
+    return lattice[x]
