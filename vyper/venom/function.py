@@ -14,61 +14,42 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    basic_blocks: list[IRBasicBlock]
+    basic_blocks: dict[str, IRBasicBlock]
     last_label: int
     last_variable: int
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
-    _bb_index: dict[str, IRBasicBlock]
 
     def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
         self.ctx = ctx
         self.name = name
         self.args = []
-        self.basic_blocks = []
+        self._basic_blocks = {}
 
         self.last_variable = 0
 
         self._ast_source_stack = []
         self._error_msg_stack = []
-        self._bb_index = {}
 
         self.append_basic_block(IRBasicBlock(name, self))
 
     @property
     def entry(self) -> IRBasicBlock:
-        return self.basic_blocks[0]
+        return next(self.basic_blocks)
 
     def append_basic_block(self, bb: IRBasicBlock):
         """
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        self.basic_blocks.append(bb)
-
-        self._bb_index[bb.label.name] = bb
+        assert bb.label.name not in self._basic_blocks
+        self._basic_blocks[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):
         assert isinstance(bb, IRBasicBlock), bb
-
-        self.basic_blocks.remove(bb)
-
-        self._bb_index.pop(bb.label.name, None)
-
-    def _get_basicblock(self, label: str):
-        if (bb := self._bb_index.get(label)) is not None:
-            return bb
-
-        # search for it the slow way, indexing as we go along
-        for bb in self.basic_blocks:
-            if bb.label.name not in self._bb_index:
-                self._bb_index[bb.label.name] = bb
-            if bb.label.name == label:
-                return bb
-
-        raise CompilerPanic(f"unreachable: {label}")  # pragma: nocover
+        del self._basic_blocks[bb.label.name]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -76,9 +57,13 @@ class IRFunction:
         If label is None, return the last basic block.
         """
         if label is None:
-            return self.basic_blocks[-1]
+            return next(reversed(self._basic_blocks.values()))
 
-        return self._get_basicblock(label)
+        return self._basic_blocks[label]
+
+    @property
+    def basic_blocks(self) -> Iterator[IRBasicBlock]:
+        return iter(self._basic_blocks.values())
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
@@ -105,15 +90,15 @@ class IRFunction:
         self._compute_reachability()
 
         removed = []
-        new_basic_blocks = []
+        new_basic_blocks = {}
 
         # Remove unreachable basic blocks
         for bb in self.basic_blocks:
             if not bb.is_reachable:
                 removed.append(bb)
             else:
-                new_basic_blocks.append(bb)
-        self.basic_blocks = new_basic_blocks
+                new_basic_blocks[bb.label.name] = bb
+        self._basic_blocks = new_basic_blocks
 
         # Remove phi instructions that reference removed basic blocks
         for bb in removed:
@@ -207,9 +192,10 @@ class IRFunction:
         Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
         done after the IR is generated.
         """
-        for i, bb in enumerate(self.basic_blocks):
+        bbs = list(self.basic_blocks)
+        for i, bb in enumerate(bbs):
             if not bb.is_terminated:
-                if len(self.basic_blocks) - 1 > i:
+                if i < len(bbs) - 1:
                     # TODO: revisit this. When contructor calls internal functions they
                     # are linked to the last ctor block. Should separate them before this
                     # so we don't have to handle this here

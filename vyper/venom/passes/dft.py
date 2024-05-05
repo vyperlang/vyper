@@ -76,6 +76,6 @@ class DFTPass(IRPass):
 
         basic_blocks = self.function.basic_blocks
 
-        self.function.basic_blocks = []
+        self.function._basic_blocks = {}
         for bb in basic_blocks:
             self._process_basic_block(bb)

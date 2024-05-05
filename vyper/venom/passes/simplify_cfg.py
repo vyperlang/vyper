@@ -87,25 +87,28 @@ class SimplifyCFGPass(IRPass):
         Remove empty basic blocks.
         """
         fn = self.function
-        count = 0
-        i = 0
-        while i < len(fn.basic_blocks):
-            bb = fn.basic_blocks[i]
+        bbs = list(fn._basic_blocks.values())
+        i = count = 0
+        while i < len(bbs):
+            bb = bbs[i]
             i += 1
+
             if len(bb.instructions) > 0:
                 continue
 
+            next_bb = bbs[i]
+
             replaced_label = bb.label
-            replacement_label = fn.basic_blocks[i].label if i < len(fn.basic_blocks) else None
+            replacement_label = next_bb.label if i < len(bbs) else None
             if replacement_label is None:
                 continue
 
             # Try to preserve symbol labels
             if replaced_label.is_symbol:
                 replaced_label, replacement_label = replacement_label, replaced_label
-                fn.basic_blocks[i].label = replacement_label
+                next_bb.label = replacement_label
 
-            for bb2 in fn.basic_blocks:
+            for bb2 in bbs:
                 for inst in bb2.instructions:
                     for op in inst.operands:
                         if isinstance(op, IRLabel) and op.value == replaced_label.value:
@@ -121,7 +124,7 @@ class SimplifyCFGPass(IRPass):
         fn = self.function
         entry = fn.entry
 
-        for _ in range(len(fn.basic_blocks)):
+        for _ in range(len(fn._basic_blocks)):
             changes = self._optimize_empty_basicblocks()
             changes += fn.remove_unreachable_blocks()
             if changes == 0:
@@ -131,7 +134,7 @@ class SimplifyCFGPass(IRPass):
 
         self.analyses_cache.force_analysis(CFGAnalysis)
 
-        for _ in range(len(fn.basic_blocks)):  # essentially `while True`
+        for _ in range(len(fn._basic_blocks)):  # essentially `while True`
             self._collapse_chained_blocks(entry)
             if fn.remove_unreachable_blocks() == 0:
                 break
