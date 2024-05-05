@@ -61,7 +61,7 @@ class OutputBundle:
             path = os.path.relpath(str(c.resolved_path))
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
-            # since it corresponds more directly to zipfile semantics.
+            # since it corresponds more directly to search path semantics.
             sources[_anonymize(path)] = c
 
         return sources
