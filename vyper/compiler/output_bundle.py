@@ -220,6 +220,7 @@ class VyperArchiveWriter(OutputBundleWriter):
     def __del__(self):
         # manually order the destruction of child objects.
         # cf. https://bugs.python.org/issue37773
+        #     https://github.com/python/cpython/issues/81954
         del self.archive
         del self._buf
 
