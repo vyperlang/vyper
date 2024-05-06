@@ -8,6 +8,9 @@ import pytest
 
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_json
+from vyper.compiler.input_bundle import FilesystemInputBundle
+from vyper.compiler.output_bundle import OutputBundle
+from vyper.compiler.phases import CompilerData
 from vyper.utils import sha256sum
 
 
@@ -377,3 +380,33 @@ def test_integrity_sum(input_files):
     library_hash = sha256sum(library_contents)
     expected = sha256sum(contract_hash + sha256sum(library_hash))
     assert out[contract_file]["integrity"] == expected
+
+
+# does this belong in tests/unit/compiler?
+def test_archive_search_path(tmp_path_factory, make_file, chdir_tmp_path):
+    lib1 = """
+x: uint256
+    """
+    lib2 = """
+y: uint256
+    """
+    dir1 = tmp_path_factory.mktemp("dir1")
+    dir2 = tmp_path_factory.mktemp("dir2")
+    make_file(dir1 / "lib.vy", lib1)
+    make_file(dir2 / "lib.vy", lib2)
+
+    main = """
+import lib
+    """
+    pwd = Path(".")
+    make_file(pwd / "main.vy", main)
+    for search_paths in ([pwd, dir1, dir2], [pwd, dir2, dir1]):
+        input_bundle = FilesystemInputBundle(search_paths)
+        file_input = input_bundle.load_file("main.vy")
+
+        # construct CompilerData manually
+        compiler_data = CompilerData(file_input, input_bundle)
+        output_bundle = OutputBundle(compiler_data)
+
+        used_dir = search_paths[-1].stem  # either dir1 or dir2
+        assert output_bundle.used_search_paths == [".", "0/" + used_dir]
