@@ -277,6 +277,8 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
+    integrity = input_dict.get("integrity")
+
     sources = get_inputs(input_dict)
     output_formats = get_output_formats(input_dict)
     compilation_targets = list(output_formats.keys())
@@ -296,6 +298,7 @@ def compile_from_input_dict(
                     file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
+                    integrity_sum=integrity,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )

@@ -54,6 +54,7 @@ def compile_from_file_input(
     file_input: FileInput,
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    integrity_sum: str = None,
     output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
     no_bytecode_metadata: bool = False,
@@ -109,10 +110,11 @@ def compile_from_file_input(
     compiler_data = CompilerData(
         file_input,
         input_bundle,
-        settings,
-        storage_layout_override,
-        show_gas_estimates,
-        no_bytecode_metadata,
+        settings=settings,
+        integrity_sum=integrity_sum,
+        storage_layout=storage_layout_override,
+        show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
 
     ret = {}

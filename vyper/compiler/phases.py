@@ -15,7 +15,7 @@ from vyper.semantics import analyze_module, set_data_positions, validate_compila
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -56,6 +56,7 @@ class CompilerData:
         file_input: FileInput | str,
         input_bundle: InputBundle = None,
         settings: Settings = None,
+        integrity_sum: str = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
@@ -90,6 +91,7 @@ class CompilerData:
         self.no_bytecode_metadata = no_bytecode_metadata
         self.original_settings = settings
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
+        self.expected_integrity_sum = integrity_sum
 
     @cached_property
     def source_code(self):
@@ -160,6 +162,18 @@ class CompilerData:
         required for a compilation target.
         """
         module_t = self.annotated_vyper_module._metadata["type"]
+
+        expected = self.expected_integrity_sum
+
+        if expected is not None and module_t.integrity_sum != expected:
+            # warn for now. strict/relaxed mode was considered but it costs
+            # interface and testing complexity to add another feature flag.
+            vyper_warn(
+                f"Mismatched integrity sum! Expected {expected}"
+                f" but got {module_t.integrity_sum}."
+                " (This likely indicates a corrupted archive)"
+            )
+
         validate_compilation_target(module_t)
         return self.annotated_vyper_module
 

@@ -53,6 +53,8 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
     archive_settings_txt = archive.read("MANIFEST/settings.json").decode("utf-8")
     archive_settings = Settings.from_dict(json.loads(archive_settings_txt))
 
+    integrity = archive.read("MANIFEST/integrity").decode("utf-8").strip()
+
     settings = merge_settings(
         settings, archive_settings, lhs_source="command line", rhs_source="archive settings"
     )
@@ -62,6 +64,7 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
         file,
         input_bundle=input_bundle,
         output_formats=output_formats,
+        integrity_sum=integrity,
         settings=settings,
         no_bytecode_metadata=no_bytecode_metadata,
     )
