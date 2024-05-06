@@ -20,9 +20,6 @@ from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
 
-# Import the base fixtures
-pytest_plugins = ["tests.fixtures.memorymock"]
-
 ############
 # PATCHING #
 ############

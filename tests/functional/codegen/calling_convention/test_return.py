@@ -4,8 +4,6 @@ from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.exceptions import TypeMismatch
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
-
 
 def test_correct_abi_right_padding(env, get_contract):
     selfcall_code_6 = """
