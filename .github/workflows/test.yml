@@ -79,22 +79,26 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
+            evm-backend: revm
 
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: paris
+            evm-backend: revm
 
           # redundant rule, for clarity
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: shanghai
+            evm-backend: revm
 
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: cancun
+            evm-backend: revm
 
           # py-evm rules
           - python-version: ["3.11", "311"]
@@ -114,6 +118,7 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
+            evm-backend: revm
             experimental-codegen: true
           # TODO: test experimental_codegen + -Ocodesize
 
@@ -123,18 +128,20 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
+            evm-backend: revm
 
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
+            evm-backend: revm
 
     name: "py${{ matrix.python-version[1] }}\
       -opt-${{ matrix.opt-mode }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
       -${{ matrix.evm-version }}\
-      ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}"
+      -${{ matrix.evm-backend }}"
 
     steps:
     - uses: actions/checkout@v4
