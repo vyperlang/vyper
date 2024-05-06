@@ -3,8 +3,6 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import FunctionDeclarationException
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
-
 fail_list = [
     """
 @external
