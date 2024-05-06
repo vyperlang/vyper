@@ -45,6 +45,7 @@ class BaseEnv:
     """
 
     INVALID_OPCODE_ERROR = "NotImplemented"  # must be implemented by subclasses
+    OUT_OF_GAS_ERROR = "NotImplemented"  # must be implemented by subclasses
     DEFAULT_CHAIN_ID = 1
 
     def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:

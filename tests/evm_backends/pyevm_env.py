@@ -27,6 +27,7 @@ class PyEvmEnv(BaseEnv):
     """EVM backend environment using the Py-EVM library."""
 
     INVALID_OPCODE_ERROR = "Invalid opcode"
+    OUT_OF_GAS_ERROR = "Out of gas"
 
     def __init__(
         self,
