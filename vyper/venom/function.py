@@ -2,16 +2,7 @@ from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import (
-    CFG_ALTERING_INSTRUCTIONS,
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IROperand,
-    IRVariable,
-)
-
-GLOBAL_LABEL = IRLabel("__global")
+from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
 
 
 class IRFunction:
@@ -20,12 +11,9 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    entry_points: list[IRLabel]  # entry points
+    ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
     basic_blocks: list[IRBasicBlock]
-    data_segment: list[IRInstruction]
     last_label: int
     last_variable: int
 
@@ -34,37 +22,23 @@ class IRFunction:
     _error_msg_stack: list[str]
     _bb_index: dict[str, int]
 
-    def __init__(self, name: IRLabel = None) -> None:
-        if name is None:
-            name = GLOBAL_LABEL
+    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
+        self.ctx = ctx
         self.name = name
-        self.entry_points = []
         self.args = []
-        self.ctor_mem_size = None
-        self.immutables_len = None
         self.basic_blocks = []
-        self.data_segment = []
-        self.last_label = 0
+
         self.last_variable = 0
 
         self._ast_source_stack = []
         self._error_msg_stack = []
         self._bb_index = {}
 
-        self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
 
-    def add_entry_point(self, label: IRLabel) -> None:
-        """
-        Add entry point.
-        """
-        self.entry_points.append(label)
-
-    def remove_entry_point(self, label: IRLabel) -> None:
-        """
-        Remove entry point.
-        """
-        self.entry_points.remove(label)
+    @property
+    def entry(self) -> IRBasicBlock:
+        return self.basic_blocks[0]
 
     def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
         """
@@ -86,7 +60,9 @@ class IRFunction:
         # do a reindex
         self._bb_index = dict((bb.label.name, ix) for ix, bb in enumerate(self.basic_blocks))
         # sanity check - no duplicate labels
-        assert len(self._bb_index) == len(self.basic_blocks)
+        assert len(self._bb_index) == len(
+            self.basic_blocks
+        ), f"Duplicate labels in function '{self.name}' {self._bb_index} {self.basic_blocks}"
         return self._bb_index[label]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
@@ -121,12 +97,6 @@ class IRFunction:
         Get basic blocks that point to the given basic block
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
-
-    def get_next_label(self, suffix: str = "") -> IRLabel:
-        if suffix != "":
-            suffix = f"_{suffix}"
-        self.last_label += 1
-        return IRLabel(f"{self.last_label}{suffix}")
 
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
@@ -176,9 +146,7 @@ class IRFunction:
             bb.reachable = OrderedSet()
             bb.is_reachable = False
 
-        for entry in self.entry_points:
-            entry_bb = self.get_basic_block(entry.value)
-            self._compute_reachability_from(entry_bb)
+        self._compute_reachability_from(self.entry)
 
     def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
         """
@@ -188,17 +156,11 @@ class IRFunction:
             return
         bb.is_reachable = True
         for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS or inst.opcode == "invoke":
+            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
                 for op in inst.get_label_operands():
                     out_bb = self.get_basic_block(op.value)
                     bb.reachable.add(out_bb)
                     self._compute_reachability_from(out_bb)
-
-    def append_data(self, opcode: str, args: list[IROperand]) -> None:
-        """
-        Append data
-        """
-        self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
 
     @property
     def normalized(self) -> bool:
@@ -243,10 +205,28 @@ class IRFunction:
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
+    def chain_basic_blocks(self) -> None:
+        """
+        Chain basic blocks together. If a basic block is not terminated, jump to the next one.
+        Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
+        done after the IR is generated.
+        """
+        for i, bb in enumerate(self.basic_blocks):
+            if not bb.is_terminated:
+                if len(self.basic_blocks) - 1 > i:
+                    # TODO: revisit this. When contructor calls internal functions they
+                    # are linked to the last ctor block. Should separate them before this
+                    # so we don't have to handle this here
+                    if self.basic_blocks[i + 1].label.value.startswith("internal"):
+                        bb.append_instruction("stop")
+                    else:
+                        bb.append_instruction("jmp", self.basic_blocks[i + 1].label)
+                else:
+                    bb.append_instruction("exit")
+
     def copy(self):
         new = IRFunction(self.name)
         new.basic_blocks = self.basic_blocks.copy()
-        new.data_segment = self.data_segment.copy()
         new.last_label = self.last_label
         new.last_variable = self.last_variable
         return new
@@ -281,8 +261,4 @@ class IRFunction:
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"
-        if len(self.data_segment) > 0:
-            str += "Data segment:\n"
-            for inst in self.data_segment:
-                str += f"{inst}\n"
         return str.strip()

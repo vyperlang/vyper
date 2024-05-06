@@ -150,6 +150,14 @@ class BaseEnv:
     def last_result(self) -> ExecutionResult:
         raise NotImplementedError  # must be implemented by subclasses
 
+    @property
+    def blob_hashes(self) -> list[bytes]:
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @blob_hashes.setter
+    def blob_hashes(self, value: list[bytes]):
+        raise NotImplementedError  # must be implemented by subclasses
+
     def message_call(
         self,
         to: str,
@@ -159,7 +167,6 @@ class BaseEnv:
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
-        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 

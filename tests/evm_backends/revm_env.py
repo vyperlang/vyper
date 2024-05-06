@@ -76,6 +76,16 @@ class RevmEnv(BaseEnv):
             logs=result.logs,
         )
 
+    @property
+    def blob_hashes(self):
+        return self._evm.env.tx.blob_hashes
+
+    @blob_hashes.setter
+    def blob_hashes(self, value):
+        tx = self._evm.env.tx
+        tx.blob_hashes = value
+        self._evm.set_tx_env(tx)
+
     def message_call(
         self,
         to: str,
@@ -89,10 +99,6 @@ class RevmEnv(BaseEnv):
     ):
         if isinstance(data, str):
             data = bytes.fromhex(data.removeprefix("0x"))
-        if blob_hashes is not None:
-            tx = self._evm.env.tx
-            tx.blob_hashes = blob_hashes
-            self._evm.set_tx_env(tx)
 
         try:
             return self._evm.message_call(
