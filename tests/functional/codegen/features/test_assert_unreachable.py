@@ -11,7 +11,7 @@ def foo():
 
     c = get_contract(code)
     gas_sent = 10**6
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(gas=gas_sent, gas_price=10)
 
     assert env.last_result.gas_used == gas_sent  # Drains all gas sent per INVALID opcode
@@ -30,11 +30,11 @@ def foo(val: int128) -> bool:
 
     assert c.foo(2) is True
 
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(1)
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-1)
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-2)
 
 
@@ -56,9 +56,9 @@ def foo(val: int128) -> int128:
 
     assert c.foo(33) == -123
 
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(1)
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-1)
 
 
@@ -71,5 +71,5 @@ def foo():
 
     c = get_contract(code)
 
-    with tx_failed(EvmError, exc_text=env.INVALID_OPCODE_ERROR):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo()
