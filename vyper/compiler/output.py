@@ -9,9 +9,11 @@ from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
+from vyper.utils import vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -40,9 +42,17 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_solc_json(compiler_data: CompilerData) -> str:
-    # request bytecode to ensure the input compiles, through all the
-    # compilation passes.
-    _ = compiler_data.bytecode
+    # request bytecode to ensure the input compiles through all the
+    # compilation passes, emit warnings if there are any issues
+    # (this allows use cases like sending a bug reproduction while
+    # still alerting the user in the common case that they didn't
+    # mean to have a bug)
+    try:
+        _ = compiler_data.bytecode
+    except VyperException as e:
+        vyper_warn(
+            f"Exceptions encountered during code generation (but producing output anyway): {e}"
+        )
     writer = SolcJSONWriter(compiler_data)
     writer.write()
     return writer.output()
@@ -50,7 +60,12 @@ def build_solc_json(compiler_data: CompilerData) -> str:
 
 def build_archive(compiler_data: CompilerData) -> bytes:
     # ditto
-    _ = compiler_data.bytecode
+    try:
+        _ = compiler_data.bytecode
+    except VyperException as e:
+        vyper_warn(
+            f"Exceptions encountered during code generation (but producing archive anyway): {e}"
+        )
     writer = VyperArchiveWriter(compiler_data)
     writer.write()
     return writer.output()
