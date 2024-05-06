@@ -70,7 +70,6 @@ jobs:
         debug: [true, false]
         evm-version: [shanghai]
         experimental-codegen: [false]
-        memorymock: [false]
         evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
@@ -118,14 +117,6 @@ jobs:
             experimental-codegen: true
           # TODO: test experimental_codegen + -Ocodesize
 
-          # run with `--memorymock`, but only need to do it one configuration
-          # TODO: consider removing the memorymock tests
-          - python-version: ["3.11", "311"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            memorymock: true
-
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
@@ -141,7 +132,6 @@ jobs:
     name: "py${{ matrix.python-version[1] }}\
       -opt-${{ matrix.opt-mode }}\
       ${{ matrix.debug && '-debug' || '' }}\
-      ${{ matrix.memorymock && '-memorymock' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
       -${{ matrix.evm-version }}\
       ${{ matrix.evm-backend && format('-{0}', matrix.evm-backend) || '' }}"
@@ -172,7 +162,6 @@ jobs:
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
           --cov-branch \
           --cov-report xml:coverage.xml \

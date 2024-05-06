@@ -17,7 +17,7 @@ def foo():
     assert env.last_result.gas_used < gas_sent
 
 
-def test_assert_reason(env, get_contract, tx_failed, memory_mocker):
+def test_assert_reason(env, get_contract, tx_failed):
     code = """
 err: String[32]
 
@@ -134,7 +134,7 @@ def test_valid_assertions(get_contract, code):
     get_contract(code)
 
 
-def test_assert_staticcall(get_contract, env, tx_failed, memory_mocker):
+def test_assert_staticcall(get_contract, env, tx_failed):
     foreign_code = """
 state: uint256
 @external
@@ -158,7 +158,7 @@ def test(c: ForeignContract):
         c2.test(c1.address)
 
 
-def test_assert_in_for_loop(get_contract, tx_failed, memory_mocker):
+def test_assert_in_for_loop(get_contract, tx_failed):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -178,7 +178,7 @@ def test(x: uint256[3]) -> bool:
         c.test([1, 3, 5])
 
 
-def test_assert_with_reason_in_for_loop(get_contract, tx_failed, memory_mocker):
+def test_assert_with_reason_in_for_loop(get_contract, tx_failed):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -198,7 +198,7 @@ def test(x: uint256[3]) -> bool:
         c.test([1, 3, 5])
 
 
-def test_assert_reason_revert_length(env, get_contract, tx_failed, memory_mocker):
+def test_assert_reason_revert_length(env, get_contract, tx_failed):
     code = """
 @external
 def test() -> int128:
