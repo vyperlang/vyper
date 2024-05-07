@@ -918,10 +918,15 @@ class ExprVisitor(VyperNodeVisitorBase):
         # not be exactly base_type.key_type
         # note: index_type is validated in types_from_Subscript
         index_types = get_possible_types_from_node(node.slice)
-        index_type = index_types.pop()
+        index_type = index_types[0]
 
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
+
+        if node.slice.has_folded_value:
+            self.visit(node.slice.get_folded_value(), index_type)
+        if node.value.has_folded_value:
+            self.visit(node.value.get_folded_value(), base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

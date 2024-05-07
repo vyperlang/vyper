@@ -111,12 +111,17 @@ def __init__():
     [
         ("uint256", "-1", TypeMismatch),
         ("uint256", "0-1", TypeMismatch),
+        ("uint256", "0-1+1", TypeMismatch),
         ("uint256", "2**256", OverflowException),
+        ("uint256", "2**256 // 2", OverflowException),
         ("uint256", "2 * 2**255", OverflowException),
         ("int256", "-2**255", TypeMismatch),
         ("int256", "-2**256", OverflowException),
         ("int256", "2**255", TypeMismatch),
+        ("int256", "2**256 - 5", TypeMismatch),
         ("int256", "2 * 2**254", TypeMismatch),
+        ("int8", "*".join(["2"] * 7), TypeMismatch),
+        ("int256", "*".join(["2"] * 255), TypeMismatch),
     ],
 )
 def test_hashmap_index_checks(typ, index, expected_error):
