@@ -9,7 +9,8 @@ from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
 
 
 class RevmEnv(BaseEnv):
-    INVALID_OPCODE_ERROR = "InvalidFEOpcode"
+    invalid_opcode_error = "InvalidFEOpcode"
+    out_of_gas_error = "OutOfGas"
 
     def __init__(
         self,
@@ -30,6 +31,7 @@ class RevmEnv(BaseEnv):
     @contextmanager
     def anchor(self):
         snapshot_id = self._evm.snapshot()
+        block = BlockEnv(number=self._evm.env.block.number, timestamp=self._evm.env.block.timestamp)
         try:
             yield
         finally:
@@ -39,6 +41,8 @@ class RevmEnv(BaseEnv):
                 # snapshot_id is reverted by the transaction already.
                 # revm updates are needed to make the journal more robust.
                 pass
+            self._evm.set_block_env(block)
+            # self._evm.set_tx_env(tx)
 
     def get_balance(self, address: str) -> int:
         return self._evm.get_balance(address)
@@ -76,6 +80,16 @@ class RevmEnv(BaseEnv):
             logs=result.logs,
         )
 
+    @property
+    def blob_hashes(self):
+        return self._evm.env.tx.blob_hashes
+
+    @blob_hashes.setter
+    def blob_hashes(self, value):
+        tx = self._evm.env.tx
+        tx.blob_hashes = value
+        self._evm.set_tx_env(tx)
+
     def message_call(
         self,
         to: str,
@@ -89,10 +103,6 @@ class RevmEnv(BaseEnv):
     ):
         if isinstance(data, str):
             data = bytes.fromhex(data.removeprefix("0x"))
-        if blob_hashes is not None:
-            tx = self._evm.env.tx
-            tx.blob_hashes = blob_hashes
-            self._evm.set_tx_env(tx)
 
         try:
             return self._evm.message_call(

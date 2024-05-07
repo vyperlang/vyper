@@ -3,14 +3,6 @@ from eth_utils import to_wei
 
 from tests.utils import ZERO_ADDRESS
 
-
-@pytest.fixture
-def market_maker(get_contract):
-    with open("examples/market_maker/on_chain_market_maker.vy") as f:
-        contract_code = f.read()
-    return get_contract(contract_code)
-
-
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
@@ -18,13 +10,20 @@ TOKEN_INITIAL_SUPPLY = 21 * 10**6
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10**TOKEN_DECIMALS)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def erc20(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         contract_code = f.read()
     return get_contract(
         contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
     )
+
+
+@pytest.fixture(scope="module")
+def market_maker(get_contract, erc20):
+    with open("examples/market_maker/on_chain_market_maker.vy") as f:
+        contract_code = f.read()
+    return get_contract(contract_code)
 
 
 def test_initial_state(market_maker):
@@ -37,7 +36,7 @@ def test_initial_state(market_maker):
 def test_initiate(env, market_maker, erc20, tx_failed):
     a0 = env.accounts[0]
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
-    env.set_balance(a0, ethers)
+    env.set_balance(a0, ethers * 2)
     erc20.approve(market_maker.address, ethers)
     market_maker.initiate(erc20.address, ether, value=ethers)
     assert market_maker.totalEthQty() == ethers

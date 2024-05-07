@@ -1,10 +1,11 @@
+import copy
 import logging
 from contextlib import contextmanager
 from typing import Optional
 
 import rlp
 from cached_property import cached_property
-from eth.abc import ChainAPI, ComputationAPI
+from eth.abc import ChainAPI, ComputationAPI, VirtualMachineAPI
 from eth.chains.mainnet import MainnetChain
 from eth.constants import CREATE_CONTRACT_ADDRESS, GENESIS_DIFFICULTY
 from eth.db.atomic import AtomicDB
@@ -12,8 +13,8 @@ from eth.exceptions import Revert, VMError
 from eth.tools.builder import chain as chain_builder
 from eth.vm.base import StateAPI
 from eth.vm.execution_context import ExecutionContext
+from eth.vm.forks.cancun.transaction_context import CancunTransactionContext
 from eth.vm.message import Message
-from eth.vm.transaction_context import BaseTransactionContext
 from eth_keys.datatypes import PrivateKey
 from eth_typing import Address
 from eth_utils import setup_DEBUG2_logging, to_canonical_address, to_checksum_address
@@ -26,7 +27,8 @@ from vyper.utils import keccak256
 class PyEvmEnv(BaseEnv):
     """EVM backend environment using the Py-EVM library."""
 
-    INVALID_OPCODE_ERROR = "Invalid opcode"
+    invalid_opcode_error = "Invalid opcode"
+    out_of_gas_error = "Out of gas"
 
     def __init__(
         self,
@@ -54,16 +56,17 @@ class PyEvmEnv(BaseEnv):
         )
 
         self._last_computation: ComputationAPI = None
+        self._blob_hashes: list[bytes] = []
 
     @cached_property
     def _state(self) -> StateAPI:
         return self._vm.state
 
     @cached_property
-    def _vm(self):
+    def _vm(self) -> VirtualMachineAPI:
         return self._chain.get_vm()
 
-    @cached_property
+    @property
     def _context(self) -> ExecutionContext:
         context = self._state.execution_context
         assert isinstance(context, ExecutionContext)  # help mypy
@@ -72,10 +75,12 @@ class PyEvmEnv(BaseEnv):
     @contextmanager
     def anchor(self):
         snapshot_id = self._state.snapshot()
+        ctx = copy.copy(self._state.execution_context)
         try:
             yield
         finally:
             self._state.revert(snapshot_id)
+            self._state.execution_context = ctx
 
     def get_balance(self, address: str) -> int:
         return self._state.get_balance(_addr(address))
@@ -109,6 +114,14 @@ class PyEvmEnv(BaseEnv):
             gas_used=result.get_gas_used(),
         )
 
+    @property
+    def blob_hashes(self) -> list[bytes]:
+        return self._blob_hashes
+
+    @blob_hashes.setter
+    def blob_hashes(self, value: list[bytes]):
+        self._blob_hashes = value
+
     def message_call(
         self,
         to: str,
@@ -118,7 +131,6 @@ class PyEvmEnv(BaseEnv):
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
-        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
     ):
         if isinstance(data, str):
             data = bytes.fromhex(data.removeprefix("0x"))
@@ -135,7 +147,7 @@ class PyEvmEnv(BaseEnv):
                     gas=self.gas_limit if gas is None else gas,
                     is_static=not is_modifying,
                 ),
-                transaction_context=BaseTransactionContext(origin=sender, gas_price=gas_price),
+                transaction_context=self._make_tx_context(sender, gas_price),
             )
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation
@@ -143,6 +155,14 @@ class PyEvmEnv(BaseEnv):
 
         self._check_computation(computation)
         return computation.output
+
+    def _make_tx_context(self, sender, gas_price):
+        context_class = self._state.transaction_context_class
+        context = context_class(origin=sender, gas_price=gas_price)
+        if self._blob_hashes:
+            assert isinstance(context, CancunTransactionContext)
+            context._blob_versioned_hashes = self._blob_hashes
+        return context
 
     def clear_transient_storage(self) -> None:
         try:
@@ -185,7 +205,7 @@ class PyEvmEnv(BaseEnv):
                     gas=gas or self.gas_limit,
                     create_address=target_address,
                 ),
-                transaction_context=BaseTransactionContext(origin=sender, gas_price=0),
+                transaction_context=self._make_tx_context(sender, gas_price=0),
             )
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation

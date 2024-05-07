@@ -11,7 +11,7 @@ ERC165_INVALID_SIG = "0xffffffff"
 ERC721_SIG = "0x80ac58cd"
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c(get_contract, env):
     with open("examples/tokens/ERC721.vy") as f:
         code = f.read()
