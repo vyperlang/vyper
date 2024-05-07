@@ -1,9 +1,6 @@
-import pytest
 from eth.codecs import abi
 
 from vyper.utils import method_id
-
-pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_revert_reason(env, tx_failed, get_contract):

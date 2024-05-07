@@ -182,6 +182,7 @@ def baz() -> bool:
 @pytest.mark.parametrize("code", nonpayable_code)
 def test_nonpayable_runtime_assertion(env, keccak, tx_failed, get_contract, code):
     c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
 
     c.foo(value=0)
     sig = keccak("foo()".encode()).hex()[:10]
@@ -371,6 +372,7 @@ def __default__():
 
     c = get_contract(code)
     env.message_call(c.address, value=0, data="0x12345678")
+    env.set_balance(env.deployer, 100)
     with tx_failed():
         env.message_call(c.address, value=100, data="0x12345678")
 
@@ -391,5 +393,6 @@ def __default__():
     data = bytes([1, 2, 3, 4])
     for i in range(5):
         calldata = "0x" + data[:i].hex()
+        env.set_balance(env.deployer, 100)
         with tx_failed():
             env.message_call(c.address, value=100, data=calldata)

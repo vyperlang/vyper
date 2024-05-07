@@ -8,7 +8,7 @@ from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv, EvmError
+from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
@@ -19,9 +19,6 @@ from vyper.compiler.settings import OptimizationLevel, Settings, set_global_sett
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
-
-# Import the base fixtures
-pytest_plugins = ["tests.fixtures.memorymock"]
 
 ############
 # PATCHING #
@@ -314,7 +311,7 @@ def assert_side_effects_invoked():
 @pytest.fixture(scope="module")
 def tx_failed(env):
     @contextmanager
-    def fn(exception=EvmError, exc_text=None):
+    def fn(exception=ExecutionReverted, exc_text=None):
         with pytest.raises(exception) as excinfo:
             yield
 

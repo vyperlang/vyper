@@ -26,7 +26,8 @@ from vyper.utils import keccak256
 class PyEvmEnv(BaseEnv):
     """EVM backend environment using the Py-EVM library."""
 
-    INVALID_OPCODE_ERROR = "Invalid opcode"
+    invalid_opcode_error = "Invalid opcode"
+    out_of_gas_error = "Out of gas"
 
     def __init__(
         self,
