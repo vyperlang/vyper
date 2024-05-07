@@ -917,8 +917,13 @@ class ExprVisitor(VyperNodeVisitorBase):
         # get the correct type for the index, it might
         # not be exactly base_type.key_type
         # note: index_type is validated in types_from_Subscript
-        index_types = get_possible_types_from_node(node.slice)
-        index_type = index_types[0]
+        for index_type in get_possible_types_from_node(node.slice):
+            if base_type.key_type.compare_type(index_type):
+                break
+        else:
+            raise TypeCheckFailure(
+                f"Expected {base_type.key_type} but it is not a possible type", node.slice
+            )
 
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
