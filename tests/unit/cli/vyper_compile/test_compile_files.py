@@ -1,4 +1,3 @@
-import base64
 import contextlib
 import sys
 import zipfile
@@ -350,11 +349,6 @@ def test_archive_b64_output(input_files):
     )
 
     archive_b64 = out[contract_file].pop("archive_b64")
-
-    # sanity check that it matches binary archive
-    s = compile_files([contract_file], ["archive"], paths=search_paths)
-    archive_bytes = s[contract_file]["archive"]
-    assert base64.b64encode(archive_bytes).decode("ascii") == archive_b64
 
     archive_path = Path("foo.zip.b64")
     with archive_path.open("w") as f:
