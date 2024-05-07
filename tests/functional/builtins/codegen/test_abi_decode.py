@@ -1,6 +1,7 @@
 import pytest
 from eth.codecs import abi
 
+from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
 from vyper.exceptions import ArgumentException, StructureException
 
@@ -421,15 +422,17 @@ def abi_decode(x: Bytes[160]) -> uint256:
 
 
 @pytest.mark.parametrize(
-    "output_typ1,output_typ2,input_",
+    "output_typ1,output_typ2,input_,error,error_property",
     [
-        ("DynArray[uint256, 3]", "uint256", b""),
-        ("DynArray[uint256, 3]", "uint256", b"\x01" * 128),
-        ("Bytes[5]", "address", b""),
-        ("Bytes[5]", "address", b"\x01" * 128),
+        ("DynArray[uint256, 3]", "uint256", b"", ExecutionReverted, ""),
+        ("DynArray[uint256, 3]", "uint256", b"\x01" * 128, EvmError, "OUT_OF_GAS_ERROR"),
+        ("Bytes[5]", "address", b"", ExecutionReverted, ""),
+        ("Bytes[5]", "address", b"\x01" * 128, EvmError, "OUT_OF_GAS_ERROR"),
     ],
 )
-def test_clamper_dynamic_tuple(get_contract, tx_failed, output_typ1, output_typ2, input_):
+def test_clamper_dynamic_tuple(
+    get_contract, tx_failed, output_typ1, output_typ2, input_, error, error_property, env
+):
     contract = f"""
 @external
 def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
@@ -439,7 +442,7 @@ def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
     return a, b
     """
     c = get_contract(contract)
-    with tx_failed():
+    with tx_failed(error, exc_text=getattr(env, error_property, None)):
         c.abi_decode(input_)
 
 
