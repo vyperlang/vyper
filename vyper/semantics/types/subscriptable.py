@@ -37,7 +37,7 @@ class _SubscriptableT(VyperType):
         # TODO: break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        validate_expected_type(node, self.key_type)
+        validate_expected_type(node.reduced(), self.key_type)
 
 
 class HashMapT(_SubscriptableT):
