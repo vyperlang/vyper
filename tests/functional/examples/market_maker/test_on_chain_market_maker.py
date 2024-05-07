@@ -36,7 +36,7 @@ def test_initial_state(market_maker):
 def test_initiate(env, market_maker, erc20, tx_failed):
     a0 = env.accounts[0]
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
-    env.set_balance(a0, ethers)
+    env.set_balance(a0, ethers * 2)
     erc20.approve(market_maker.address, ethers)
     market_maker.initiate(erc20.address, ether, value=ethers)
     assert market_maker.totalEthQty() == ethers

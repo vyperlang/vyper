@@ -1,7 +1,4 @@
-import pytest
 from eth_utils import to_int
-
-pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_log_dynamic_static_combo(get_logs, get_contract):

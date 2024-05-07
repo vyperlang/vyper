@@ -13,8 +13,10 @@ def __init__():
 
     assert c.x() == 123
     assert env.get_balance(c.address) == 0
+    value = to_wei(0.1, "ether")
+    env.set_balance(env.deployer, value)
     with tx_failed():
-        env.message_call(c.address, value=to_wei(0.1, "ether"), data=b"")  # call default function
+        env.message_call(c.address, value=value, data=b"")  # call default function
     assert env.get_balance(c.address) == 0
 
 
@@ -70,6 +72,7 @@ def __default__():
     log Sent(msg.sender)
     """
     c = get_contract(code)
+    env.set_balance(env.deployer, 10**17)
 
     with tx_failed():
         env.message_call(c.address, value=10**17, data=b"")  # call default function
