@@ -177,7 +177,10 @@ class SolcJSONWriter(OutputBundleWriter):
 
     def write_settings(self, settings: Optional[Settings]):
         if settings is not None:
-            self._output["settings"].update(settings.as_dict())
+            s = settings.as_dict()
+            if "evm_version" in s:
+                s["evmVersion"] = s.pop("evm_version")
+            self._output["settings"].update(s)
 
     def write_integrity(self, integrity_sum: str):
         self._output["integrity"] = integrity_sum
