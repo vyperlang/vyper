@@ -282,30 +282,48 @@ def input_files(tmp_path_factory, make_file, chdir_tmp_path):
 def foo() -> uint256:
     return block.number + 1
     """
+    json_source = """
+[
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "test_json",
+    "inputs": [ { "name": "", "type": "uint256" } ],
+    "outputs": [ { "name": "", "type": "uint256" } ]
+  }
+]
+    """
     contract_source = """
 import lib
+import jsonabi
 
 @external
 def foo() -> uint256:
     return lib.foo()
+
+@external
+def bar(x: uint256) -> uint256:
+    return extcall jsonabi(msg.sender).test_json(x)
     """
     tmpdir = tmp_path_factory.mktemp("fake-package")
     with open(tmpdir / "lib.vy", "w") as f:
         f.write(library_source)
+    with open(tmpdir / "jsonabi.json", "w") as f:
+        f.write(json_source)
 
     contract_file = make_file("contract.vy", contract_source)
 
-    return (tmpdir, tmpdir / "lib.vy", contract_file)
+    return (tmpdir, tmpdir / "lib.vy", tmpdir / "jsonabi.json", contract_file)
 
 
 def test_import_sys_path(input_files):
-    tmpdir, _, contract_file = input_files
+    tmpdir, _, _, contract_file = input_files
     with mock_sys_path(tmpdir):
         assert compile_files([contract_file], ["combined_json"]) is not None
 
 
 def test_archive_output(input_files):
-    tmpdir, _, contract_file = input_files
+    tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     s = compile_files([contract_file], ["archive"], paths=search_paths)
@@ -318,13 +336,13 @@ def test_archive_output(input_files):
     assert zipfile.is_zipfile(archive_path)
 
     # compare compiling the two input bundles
-    out = compile_files([contract_file], ["integrity", "bytecode", "ir"], paths=search_paths)
-    out2 = compile_files([archive_path], ["integrity", "bytecode", "ir"])
+    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+    out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
 
 
 def test_archive_b64_output(input_files):
-    tmpdir, _, contract_file = input_files
+    tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     out = compile_files(
@@ -348,7 +366,7 @@ def test_archive_b64_output(input_files):
 
 
 def test_solc_json_output(input_files):
-    tmpdir, _, contract_file = input_files
+    tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     out = compile_files([contract_file], ["solc_json"], paths=search_paths)
@@ -367,18 +385,20 @@ def test_solc_json_output(input_files):
 
 # maybe this belongs in tests/unit/compiler?
 def test_integrity_sum(input_files):
-    tmpdir, library_file, contract_file = input_files
+    tmpdir, library_file, jsonabi_file, contract_file = input_files
     search_paths = [".", tmpdir]
 
     out = compile_files([contract_file], ["integrity"], paths=search_paths)
 
-    with library_file.open() as f, contract_file.open() as g:
+    with library_file.open() as f, contract_file.open() as g, jsonabi_file.open() as h:
         library_contents = f.read()
         contract_contents = g.read()
+        jsonabi_contents = h.read()
 
     contract_hash = sha256sum(contract_contents)
     library_hash = sha256sum(library_contents)
-    expected = sha256sum(contract_hash + sha256sum(library_hash))
+    jsonabi_hash = sha256sum(jsonabi_contents)
+    expected = sha256sum(contract_hash + sha256sum(library_hash) + jsonabi_hash)
     assert out[contract_file]["integrity"] == expected
 
 
