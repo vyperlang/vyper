@@ -3,7 +3,7 @@ import pytest
 INITIAL_VALUE = 4
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def storage_contract(get_contract):
     with open("examples/storage/storage.vy") as f:
         contract_code = f.read()

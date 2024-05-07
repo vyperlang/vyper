@@ -29,7 +29,7 @@ minBatchSetOf10 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 mintConflictBatch = [1, 2, 3]
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def erc1155(get_contract, env, tx_failed):
     owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     with open("examples/tokens/ERC1155ownable.vy") as f:
