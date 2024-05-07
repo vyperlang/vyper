@@ -1,10 +1,6 @@
 import hashlib
 
-import pytest
-
 from vyper.utils import hex_to_int
-
-pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_sha256_string_literal(get_contract):
