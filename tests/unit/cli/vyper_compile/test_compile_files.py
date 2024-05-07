@@ -318,8 +318,8 @@ def test_archive_output(input_files):
     assert zipfile.is_zipfile(archive_path)
 
     # compare compiling the two input bundles
-    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
-    out2 = compile_files([archive_path], ["integrity", "bytecode"])
+    out = compile_files([contract_file], ["integrity", "bytecode", "ir"], paths=search_paths)
+    out2 = compile_files([archive_path], ["integrity", "bytecode", "ir"])
     assert out[contract_file] == out2[archive_path]
 
 

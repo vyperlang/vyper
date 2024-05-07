@@ -55,6 +55,17 @@ class Settings:
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
 
+    def __post_init__(self):
+        # sanity check inputs
+        if self.optimize is not None:
+            assert isinstance(self.optimize, OptimizationLevel)
+        if self.experimental_codegen is not None:
+            assert isinstance(self.experimental_codegen, bool)
+        if self.debug is not None:
+            assert isinstance(self.debug, bool)
+        if self.enable_decimals is not None:
+            assert isinstance(self.enable_decimals, bool)
+
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
         if self.enable_decimals is None:
@@ -88,6 +99,9 @@ class Settings:
 
     @classmethod
     def from_dict(cls, data):
+        data = data.copy()
+        if "optimize" in data:
+            data["optimize"] = OptimizationLevel.from_string(data["optimize"])
         return cls(**data)
 
 
