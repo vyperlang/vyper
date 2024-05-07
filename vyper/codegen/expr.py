@@ -89,7 +89,7 @@ class Expr:
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        return IRnode.from_list(self.expr.n, typ=typ)
+        return IRnode.from_list(self.expr.value, typ=typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -133,8 +133,8 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
-        bytez = self.expr.s
-        bytez_length = len(self.expr.s)
+        bytez = self.expr.value
+        bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
@@ -345,7 +345,7 @@ class Expr:
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
             # folded value instead of calling reduced() here?
-            index = self.expr.slice.reduced().n
+            index = self.expr.slice.reduced().value
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")

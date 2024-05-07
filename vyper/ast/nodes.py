@@ -788,11 +788,6 @@ class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
 
-    @property
-    def n(self):
-        # TODO phase out use of Num.n and remove this
-        return self.value
-
     def validate(self):
         if self.value < SizeLimits.MIN_INT256:
             raise OverflowException("Value is below lower bound for all numeric types", self)
@@ -893,11 +888,6 @@ class Str(Constant):
         for c in self.value:
             if ord(c) >= 256:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
-
-    @property
-    def s(self):
-        # TODO phase out use of Str.s and remove this
-        return self.value
 
 
 class Bytes(Constant):
