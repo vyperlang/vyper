@@ -143,6 +143,16 @@ class SCCP(IRPass):
         elif len(self.cfg_in_exec[work_item.inst.parent]) > 0:
             self._visit_expr(work_item.inst)
 
+    def _from_lattice(self, op: IROperand):
+        if isinstance(op, IRLiteral):
+            return op
+
+        if isinstance(op, IRLabel):
+            return LatticeEnum.BOTTOM
+
+        assert isinstance(op, IRVariable)  # IRLabel would be an error
+        return self.lattice[op]
+
     def _visit_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
         in_vars: list[LatticeItem] = []
@@ -170,7 +180,7 @@ class SCCP(IRPass):
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
-            lat = _get_lattice(self.lattice, inst.operands[0])
+            lat = self._from_lattice(inst.operands[0])
 
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
@@ -184,7 +194,7 @@ class SCCP(IRPass):
                     target = self.fn.get_basic_block(inst.operands[2].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
-            lat = self.lattice[inst.operands[0]]
+            lat = self._from_lattice(inst.operands[0])
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
                 for op in inst.operands[1:]:
@@ -213,14 +223,7 @@ class SCCP(IRPass):
         """
         opcode = inst.opcode
 
-        ops = []
-        for op in inst.operands:
-            if isinstance(op, IRVariable):
-                ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
-            else:
-                ops.append(op)
+        ops = [self._from_lattice(op) for op in inst.operands]
 
         ret = None
         if LatticeEnum.BOTTOM in ops:
@@ -269,16 +272,16 @@ class SCCP(IRPass):
         """
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
-                self._replace_constants(inst, self.lattice)
+                self._replace_constants(inst)
 
-    def _replace_constants(self, inst: IRInstruction, lattice: Lattice):
+    def _replace_constants(self, inst: IRInstruction):
         """
         This method replaces constant values in the instruction with
         their actual values. It also updates the instruction opcode in
         case of jumps and asserts as needed.
         """
         if inst.opcode == "jnz":
-            lat = _get_lattice(lattice, inst.operands[0])
+            lat = self._from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
                 if lat.value == 0:
@@ -290,7 +293,7 @@ class SCCP(IRPass):
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
-            lat = _get_lattice(lattice, inst.operands[0])
+            lat = self._from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
@@ -308,7 +311,7 @@ class SCCP(IRPass):
 
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
-                lat = lattice[op]
+                lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
 
@@ -339,10 +342,3 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP or x == y:
         return x
     return LatticeEnum.BOTTOM
-
-
-def _get_lattice(lattice: Lattice, x: IROperand) -> LatticeItem:
-    if isinstance(x, IRLiteral):
-        return x
-
-    return lattice[x]
