@@ -9,7 +9,8 @@ from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
 
 
 class RevmEnv(BaseEnv):
-    INVALID_OPCODE_ERROR = "InvalidFEOpcode"
+    invalid_opcode_error = "InvalidFEOpcode"
+    out_of_gas_error = "OutOfGas"
 
     def __init__(
         self,

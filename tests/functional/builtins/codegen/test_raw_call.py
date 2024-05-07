@@ -6,8 +6,6 @@ from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
-
 
 def test_max_outsize_exceeds_returndatasize(get_contract):
     source_code = """
