@@ -168,7 +168,7 @@ class ContractFunctionT(VyperType):
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())
-            or any(f.nonreentrant for f in self.called_functions)
+            or any(f.nonreentrant for f in self.reachable_internal_functions)
         )
 
     def get_used_modules(self):
