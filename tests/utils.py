@@ -6,6 +6,8 @@ from vyper import ast as vy_ast
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
 
 @contextlib.contextmanager
 def working_directory(directory):

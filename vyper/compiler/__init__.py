@@ -1,14 +1,12 @@
-from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, Optional
 
-import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings, anchor_settings
-from vyper.typing import ContractPath, OutputFormats, StorageLayout
+from vyper.compiler.settings import Settings, anchor_settings, get_global_settings
+from vyper.typing import OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -95,7 +93,7 @@ def compile_from_file_input(
     Dict
         Compiler output as `{'output key': "output data"}`
     """
-    settings = settings or Settings()
+    settings = settings or get_global_settings() or Settings()
 
     if output_formats is None:
         output_formats = ("bytecode",)

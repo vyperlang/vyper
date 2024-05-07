@@ -405,6 +405,7 @@ class SizeLimits:
     MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
+    CEILING_UINT256 = 2**256
 
 
 def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
@@ -577,25 +578,3 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
-
-
-def ir_pass(func):
-    """
-    Decorator for IR passes. This decorator will run the pass repeatedly until
-    no more changes are made.
-    """
-
-    def wrapper(*args, **kwargs):
-        count = 0
-
-        while True:
-            changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list) or isinstance(changes, set):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
-                break
-
-        return count
-
-    return wrapper
