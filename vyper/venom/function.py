@@ -234,7 +234,7 @@ class IRFunction:
         ret = []
 
         if not only_subgraph:
-            ret.append(f"digraph G {{")
+            ret.append("digraph G {{")
         ret.append(f'subgraph "{self.name}" {{')
 
         for bb in self.get_basic_blocks():
