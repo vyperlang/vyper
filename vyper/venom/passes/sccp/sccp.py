@@ -178,7 +178,8 @@ class SCCP(IRPass):
         opcode = inst.opcode
         if opcode in ["store", "alloca"]:
             assert inst.output is not None, "Got store/alloca without output"
-            self._set_lattice(inst.output, self._eval_from_lattice(inst.operands[0]))
+            out = self._eval_from_lattice(inst.operands[0])
+            self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
