@@ -120,7 +120,20 @@ jobs:
             evm-version: shanghai
             evm-backend: revm
             experimental-codegen: true
-          # TODO: test experimental_codegen + -Ocodesize
+
+          - python-version: ["3.11", "311"]
+            opt-mode: codesize
+            debug: false
+            evm-version: shanghai
+            evm-backend: revm
+            experimental-codegen: true
+
+          - python-version: ["3.11", "311"]
+            opt-mode: none
+            debug: false
+            evm-version: shanghai
+            evm-backend: revm
+            experimental-codegen: true
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
