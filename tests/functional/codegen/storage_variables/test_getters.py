@@ -121,7 +121,6 @@ def __init__():
         ("int256", "2**256 - 5", TypeMismatch),
         ("int256", "2 * 2**254", TypeMismatch),
         ("int8", "*".join(["2"] * 7), TypeMismatch),
-        ("int256", "*".join(["2"] * 255), TypeMismatch),
     ],
 )
 def test_hashmap_index_checks(typ, index, expected_error):

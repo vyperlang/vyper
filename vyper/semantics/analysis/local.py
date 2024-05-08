@@ -914,16 +914,12 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        # get the correct type for the index, it might
-        # not be exactly base_type.key_type
-        # note: index_type is validated in types_from_Subscript
-        for index_type in reversed(get_possible_types_from_node(node.slice)):
-            if base_type.key_type.compare_type(index_type):
-                break
+        if isinstance(base_type, HashMapT):
+            # for hash maps we enforce the index to be key_type
+            index_type = base_type.key_type
         else:
-            raise TypeCheckFailure(
-                f"Expected {base_type.key_type} but it is not a possible type", node.slice
-            )
+            # Arrays allow most int types as index: Take least specific
+            index_type = get_possible_types_from_node(node.slice).pop()
 
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
