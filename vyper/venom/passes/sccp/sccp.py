@@ -153,7 +153,7 @@ class SCCP(IRPass):
         assert isinstance(op, IRVariable), "Can't set lattice for non-variable"
         self.lattice[op] = value
 
-    def _eval_lattice_with_op(self, op: IROperand) -> IRLiteral | LatticeEnum:
+    def _eval_from_lattice(self, op: IROperand) -> IRLiteral | LatticeEnum:
         if isinstance(op, IRLiteral):
             return op
 
@@ -178,13 +178,13 @@ class SCCP(IRPass):
         opcode = inst.opcode
         if opcode in ["store", "alloca"]:
             assert inst.output is not None, "Got store/alloca without output"
-            self._set_lattice(inst.output, self._eval_lattice_with_op(inst.operands[0]))
+            self._set_lattice(inst.output, self._eval_from_lattice(inst.operands[0]))
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
-            lat = self._eval_lattice_with_op(inst.operands[0])
+            lat = self._eval_from_lattice(inst.operands[0])
 
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
@@ -198,7 +198,7 @@ class SCCP(IRPass):
                     target = self.fn.get_basic_block(inst.operands[2].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
-            lat = self._eval_lattice_with_op(inst.operands[0])
+            lat = self._eval_from_lattice(inst.operands[0])
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
                 for op in inst.operands[1:]:
@@ -292,7 +292,7 @@ class SCCP(IRPass):
         case of jumps and asserts as needed.
         """
         if inst.opcode == "jnz":
-            lat = self._eval_lattice_with_op(inst.operands[0])
+            lat = self._eval_from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
                 if lat.value == 0:
@@ -304,7 +304,7 @@ class SCCP(IRPass):
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
-            lat = self._eval_lattice_with_op(inst.operands[0])
+            lat = self._eval_from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
