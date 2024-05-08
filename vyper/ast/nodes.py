@@ -1104,7 +1104,6 @@ class Pow(Operator):
         # r > ln(2 ** 256) / ln(l)
         if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
             raise InvalidLiteral("Out of bounds", self)
-
         return int(left**right)
 
 
