@@ -143,7 +143,7 @@ class SCCP(IRPass):
         elif len(self.cfg_in_exec[work_item.inst.parent]) > 0:
             self._visit_expr(work_item.inst)
 
-    def _get_lattice(self, op: IROperand) -> LatticeItem:
+    def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
         assert isinstance(op, IRVariable), "Can't get lattice for non-variable"
         lat = self.lattice[op]
         assert lat is not None, f"Got undefined var {op}"
@@ -157,7 +157,7 @@ class SCCP(IRPass):
         if isinstance(op, IRLiteral):
             return op
 
-        return self._get_lattice(op)
+        return self._lookup_from_lattice(op)
 
     def _visit_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
@@ -166,11 +166,11 @@ class SCCP(IRPass):
             bb = self.fn.get_basic_block(bb_label.name)
             if bb not in self.cfg_in_exec[inst.parent]:
                 continue
-            in_vars.append(self._get_lattice(var))
+            in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
         assert inst.output in self.lattice, "Got undefined var for phi"
 
-        if value != self._get_lattice(inst.output):
+        if value != self._lookup_from_lattice(inst.output):
             self._set_lattice(inst.output, value)
             self._add_ssa_work_items(inst)
 
