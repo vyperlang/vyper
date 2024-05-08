@@ -74,8 +74,8 @@ class DFTPass(IRPass):
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-        basic_blocks = self.function.basic_blocks
+        basic_blocks = list(self.function.get_basic_blocks())
 
-        self.function.basic_blocks = []
+        self.function.clear_basic_blocks()
         for bb in basic_blocks:
             self._process_basic_block(bb)

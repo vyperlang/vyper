@@ -153,7 +153,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         Generate a graphviz representation of the dominator tree.
         """
         lines = ["digraph dominator_tree {"]
-        for bb in self.fn.basic_blocks:
+        for bb in self.fn.get_basic_blocks():
             if bb == self.entry_block:
                 continue
             idom = self.immediate_dominator(bb)

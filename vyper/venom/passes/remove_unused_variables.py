@@ -9,7 +9,7 @@ class RemoveUnusedVariablesPass(IRPass):
 
         self.analyses_cache.request_analysis(LivenessAnalysis)
 
-        for bb in self.function.basic_blocks:
+        for bb in self.function.get_basic_blocks():
             for i, inst in enumerate(bb.instructions[:-1]):
                 if inst.volatile:
                     continue
