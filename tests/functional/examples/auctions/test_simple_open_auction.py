@@ -5,12 +5,12 @@ from tests.utils import ZERO_ADDRESS
 EXPIRY = 16
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def auction_start(env):
     return env.timestamp + 1
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def auction_contract(env, get_contract, auction_start):
     with open("examples/auctions/simple_open_auction.vy") as f:
         contract_code = f.read()

@@ -4,7 +4,7 @@ from vyper.venom.analysis.analysis import IRAnalysis
 
 class DupRequirementsAnalysis(IRAnalysis):
     def analyze(self):
-        for bb in self.function.basic_blocks:
+        for bb in self.function.get_basic_blocks():
             last_liveness = bb.out_vars
             for inst in reversed(bb.instructions):
                 inst.dup_requirements = OrderedSet()

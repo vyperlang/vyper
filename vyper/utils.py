@@ -191,6 +191,12 @@ def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
 
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
+
+
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]

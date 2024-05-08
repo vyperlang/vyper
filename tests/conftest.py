@@ -56,10 +56,11 @@ def pytest_addoption(parser):
 @pytest.fixture(scope="module")
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
-    del output_formats["bb"]
-    del output_formats["bb_runtime"]
-    del output_formats["cfg"]
-    del output_formats["cfg_runtime"]
+
+    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    for s in to_drop:
+        del output_formats[s]
+
     return output_formats
 
 
