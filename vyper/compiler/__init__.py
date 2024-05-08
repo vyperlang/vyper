@@ -14,9 +14,12 @@ OUTPUT_FORMATS = {
     # requires annotated_vyper_module
     "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
-    # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
+    "archive": output.build_archive,
+    "archive_b64": output.build_archive_b64,
+    "integrity": output.build_integrity,
+    "solc_json": output.build_solc_json,
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
@@ -51,6 +54,7 @@ def compile_from_file_input(
     file_input: FileInput,
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    integrity_sum: str = None,
     output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
     no_bytecode_metadata: bool = False,
@@ -106,10 +110,11 @@ def compile_from_file_input(
     compiler_data = CompilerData(
         file_input,
         input_bundle,
-        settings,
-        storage_layout_override,
-        show_gas_estimates,
-        no_bytecode_metadata,
+        settings=settings,
+        integrity_sum=integrity_sum,
+        storage_layout=storage_layout_override,
+        show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
 
     ret = {}
@@ -147,7 +152,7 @@ def compile_code(
         contract_path = Path(contract_path)
     file_input = FileInput(
         source_id=source_id,
-        source_code=source_code,
+        contents=source_code,
         path=contract_path,
         resolved_path=resolved_path or contract_path,  # type: ignore
     )

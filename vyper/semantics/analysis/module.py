@@ -16,6 +16,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
+    CompilerPanic,
     DuplicateImport,
     EvmVersionException,
     ExceptionList,
@@ -907,6 +908,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 BUILTIN_PREFIXES = ["ethereum.ercs"]
 
 
+# TODO: could move this to analysis/common.py or something
 def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
@@ -915,8 +917,8 @@ _builtins_cache: dict[PathLike, tuple[CompilerInput, ModuleT]] = {}
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
-    if not _is_builtin(module_str):
-        raise ModuleNotFound(module_str)
+    if not _is_builtin(module_str):  # pragma: nocover
+        raise CompilerPanic("unreachable!")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info

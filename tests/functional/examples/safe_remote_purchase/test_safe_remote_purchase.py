@@ -15,14 +15,14 @@ import pytest
 from eth_utils import to_wei
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def contract_code(get_contract):
     with open("examples/safe_remote_purchase/safe_remote_purchase.vy") as f:
         contract_code = f.read()
     return contract_code
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_balance(env):
     def get_balance():
         a0, a1 = env.accounts[:2]
