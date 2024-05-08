@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c(env, get_contract):
     with open("examples/crowdfund.vy") as f:
         contract_code = f.read()

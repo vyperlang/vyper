@@ -7,7 +7,7 @@ TOKEN_DECIMALS = 18
 TOKEN_INITIAL_SUPPLY = 0
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def token(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         return get_contract(
@@ -15,7 +15,7 @@ def token(get_contract):
         )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def vault(get_contract, token):
     with open("examples/tokens/ERC4626.vy") as f:
         return get_contract(f.read(), token.address)
