@@ -15,6 +15,7 @@ from vyper.exceptions import (
     NonPayableViolation,
     StateAccessViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
@@ -898,15 +899,28 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        base_type = get_exact_type_from_node(node.value)
-        self.visit(node.value, base_type)
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
+            possible_base_types = get_possible_types_from_node(node.value)
+
+            for possible_type in possible_base_types:
+                if typ.compare_type(possible_type.value_type):
+                    base_type = possible_type
+                    break
+            else:
+                # this should have been caught in
+                # `get_possible_types_from_node` but wasn't.
+                raise TypeCheckFailure(f"Expected {typ} but it is not a possible type", node)
+
+        else:
+            base_type = get_exact_type_from_node(node.value)
 
         if isinstance(base_type, HashMapT):
-            # for hash maps we enforce the index to be key_type
             index_type = base_type.key_type
         else:
             # Arrays allow most int types as index: Take the least specific
             index_type = get_possible_types_from_node(node.slice).pop()
+
+        self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
