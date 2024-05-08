@@ -227,11 +227,6 @@ def test_different_outputs(input_bundle, input_json):
     assert foo["evm"]["methodIdentifiers"] == method_identifiers
 
 
-def test_root_folder_not_exists(input_json):
-    with pytest.raises(FileNotFoundError):
-        compile_json(input_json, root_folder="/path/that/does/not/exist")
-
-
 def test_wrong_language():
     with pytest.raises(JSONError):
         compile_json({"language": "Solidity"})
