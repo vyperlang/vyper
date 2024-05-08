@@ -124,7 +124,7 @@ class IRFunction:
         """
         Compute reachability of basic blocks.
         """
-        for bb in self._basic_block_dict.values():
+        for bb in self.get_basic_blocks():
             bb.reachable = OrderedSet()
             bb.is_reachable = False
 
