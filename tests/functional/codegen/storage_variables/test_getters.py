@@ -118,7 +118,7 @@ def __init__():
         ("int256", "-2**255", TypeMismatch),
         ("int256", "-2**256", OverflowException),
         ("int256", "2**255", TypeMismatch),
-        ("int256", "2**256 - 5", TypeMismatch),
+        ("int256", "2**256 - 5", OverflowException),
         ("int256", "2 * 2**254", TypeMismatch),
         ("int8", "*".join(["2"] * 7), TypeMismatch),
     ],
