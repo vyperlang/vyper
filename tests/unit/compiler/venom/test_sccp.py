@@ -1,5 +1,8 @@
+import pytest
+
+from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.sccp import SCCP
@@ -26,6 +29,73 @@ def test_simple_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
+
+
+def test_branch_eliminator_simple():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb1 = fn.get_basic_block()
+
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    br1.append_instruction("stop")
+    br2 = IRBasicBlock(IRLabel("else"), fn)
+    br2.append_instruction("jmp", IRLabel("foo"))
+
+    fn.append_basic_block(br1)
+    fn.append_basic_block(br2)
+
+    bb1.append_instruction("jnz", IRLiteral(1), br1.label, br2.label)
+
+    bb2 = IRBasicBlock(IRLabel("foo"), fn)
+    bb2.append_instruction("jnz", IRLiteral(0), br1.label, br2.label)
+    fn.append_basic_block(bb2)
+
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
+
+    assert bb1.instructions[-1].opcode == "jmp"
+    assert bb1.instructions[-1].operands == [br1.label]
+    assert bb2.instructions[-1].opcode == "jmp"
+    assert bb2.instructions[-1].operands == [br2.label]
+
+
+def test_assert_elimination():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("assert", IRLiteral(1))
+    bb.append_instruction("assert_unreachable", IRLiteral(1))
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    sccp.run_pass()
+
+    for inst in bb.instructions[:-1]:
+        assert inst.opcode == "nop"
+
+
+@pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
+def test_assert_false(asserter):
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction(asserter, IRLiteral(0))
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    sccp = SCCP(ac, fn)
+    with pytest.raises(StaticAssertionException):
+        sccp.run_pass()
 
 
 def test_cont_jump_case():

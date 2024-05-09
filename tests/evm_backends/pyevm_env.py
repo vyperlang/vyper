@@ -1,3 +1,4 @@
+import copy
 import logging
 from contextlib import contextmanager
 from typing import Optional
@@ -65,7 +66,7 @@ class PyEvmEnv(BaseEnv):
     def _vm(self) -> VirtualMachineAPI:
         return self._chain.get_vm()
 
-    @cached_property
+    @property
     def _context(self) -> ExecutionContext:
         context = self._state.execution_context
         assert isinstance(context, ExecutionContext)  # help mypy
@@ -74,10 +75,12 @@ class PyEvmEnv(BaseEnv):
     @contextmanager
     def anchor(self):
         snapshot_id = self._state.snapshot()
+        ctx = copy.copy(self._state.execution_context)
         try:
             yield
         finally:
             self._state.revert(snapshot_id)
+            self._state.execution_context = ctx
 
     def get_balance(self, address: str) -> int:
         return self._state.get_balance(_addr(address))

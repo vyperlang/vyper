@@ -4,7 +4,7 @@ from eth.codecs.abi.exceptions import EncodeError
 INITIAL_VALUE = 4
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def adv_storage_contract(get_contract):
     with open("examples/storage/advanced_storage.vy") as f:
         contract_code = f.read()

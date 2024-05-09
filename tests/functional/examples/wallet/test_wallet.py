@@ -5,9 +5,10 @@ from eth_keys import KeyAPI
 from eth_utils import is_same_address, to_bytes, to_checksum_address, to_int
 
 from tests.utils import ZERO_ADDRESS
+from vyper.utils import keccak256
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c(env, get_contract):
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
     with open("examples/wallet/wallet.vy") as f:
@@ -19,20 +20,16 @@ def c(env, get_contract):
     return c
 
 
-@pytest.fixture
-def sign(keccak):
-    def _sign(seq, to, value, data, key):
-        keys = KeyAPI()
-        comb = seq.to_bytes(32, "big") + b"\x00" * 12 + to + value.to_bytes(32, "big") + data
-        h1 = keccak(comb)
-        h2 = keccak(b"\x19Ethereum Signed Message:\n32" + h1)
-        sig = keys.ecdsa_sign(h2, key)
-        return [28 if sig.v == 1 else 27, sig.r, sig.s]
-
-    return _sign
+def sign(seq, to, value, data, key):
+    keys = KeyAPI()
+    comb = seq.to_bytes(32, "big") + b"\x00" * 12 + to + value.to_bytes(32, "big") + data
+    h1 = keccak256(comb)
+    h2 = keccak256(b"\x19Ethereum Signed Message:\n32" + h1)
+    sig = keys.ecdsa_sign(h2, key)
+    return [28 if sig.v == 1 else 27, sig.r, sig.s]
 
 
-def test_approve(env, c, tx_failed, sign):
+def test_approve(env, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
     k0, k1, k2, k3, k4, k5, k6, k7 = env._keys[:8]
     env.set_balance(a1, 10**18)

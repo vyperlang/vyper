@@ -4,7 +4,7 @@ from eth_utils import keccak
 import vyper
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def create_token(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
@@ -15,7 +15,7 @@ def create_token(get_contract):
     return create_token
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def create_exchange(env, get_contract):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
@@ -29,7 +29,7 @@ def create_exchange(env, get_contract):
     return create_exchange
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def factory(get_contract):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
