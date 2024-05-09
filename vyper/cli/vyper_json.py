@@ -344,7 +344,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
 
         evm_keys = ("bytecode", "opcodes")
         pc_maps_keys = ("source_map", "source_map_full")
-        if any(i in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
+        if any(i in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
@@ -355,7 +355,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             if "source_map_full" in data:
                 evm["sourceMapFull"] = data["source_map_full"]
 
-        if any(i + "_runtime" in data for i in evm_keys):
+        if any(i + "_runtime" in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]

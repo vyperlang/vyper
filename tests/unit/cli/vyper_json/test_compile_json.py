@@ -171,12 +171,17 @@ def test_compile_json(input_json, input_bundle):
             "userdoc": data["userdoc"],
             "metadata": data["metadata"],
             "evm": {
-                "bytecode": {"object": data["bytecode"], "opcodes": data["opcodes"]},
+                "bytecode": {
+                    "object": data["bytecode"],
+                    "opcodes": data["opcodes"],
+                    "sourceMap": data["source_map"]["pc_pos_map_compressed"],
+                    "sourceMapFull": data["source_map_full"],
+                },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
-                    "sourceMap": data["source_map"]["pc_pos_map_compressed"],
-                    "sourceMapFull": data["source_map_full"],
+                    "sourceMap": data["source_map_runtime"]["pc_pos_map_compressed"],
+                    "sourceMapFull": data["source_map_full_runtime"],
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
