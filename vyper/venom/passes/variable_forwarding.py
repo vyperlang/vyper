@@ -3,6 +3,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -16,23 +17,36 @@ class VariableForwarding(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        self.var_name_count = 0
         for var, inst in dfg.outputs.items():
             if inst.opcode != "store":
                 continue
-            self._process_store(dfg, var, inst.operands[0])
-            inst.parent.remove_instruction(inst)
+            if isinstance(inst.operands[0], IRVariable) is False:
+                continue
+            if inst.operands[0].name in ['%ret_ofst', '%ret_size']:
+                continue
+            if inst.output.name in ['%ret_ofst', '%ret_size']:
+                continue
+            self._process_store(dfg, inst, var, inst.operands[0])
+            
 
+        self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _process_store(self, dfg, var, new_var):
+    def _process_store(self, dfg, inst, var, new_var):
         """
         Process store instruction. If the variable is only used by a load instruction,
         forward the variable to the load instruction.
         """
         uses = dfg.get_uses(var)
-        for inst in uses:
-            for i, operand in enumerate(inst.operands):
+        
+        if any([inst.opcode == "phi" for inst in uses]):
+            return
+        
+        for use_inst in uses:
+            for i, operand in enumerate(use_inst.operands):
                 if operand == var:
-                    inst.operands[i] = new_var
+                    use_inst.operands[i] = new_var
+
+        inst.parent.remove_instruction(inst)
             
