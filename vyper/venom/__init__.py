@@ -17,6 +17,7 @@ from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.passes.variable_forwarding import VariableForwarding
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -43,6 +44,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     ac = IRAnalysesCache(fn)
 
     SimplifyCFGPass(ac, fn).run_pass()
+    VariableForwarding(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
