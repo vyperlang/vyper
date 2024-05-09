@@ -24,7 +24,8 @@ bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
-source_map         - Vyper source map
+source_map         - Vyper source map of deployable bytecode
+source_map_runtime - Vyper source map of runtime bytecode
 method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
@@ -52,6 +53,7 @@ combined_json_outputs = [
     "abi",
     "layout",
     "source_map",
+    "source_map_runtime",
     "method_identifiers",
     "userdoc",
     "devdoc",
