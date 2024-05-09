@@ -4,6 +4,13 @@ from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
 
+class IRParameter:
+    
+    offset: int
+    size: int
+    call_site_var: Optional[IRVariable]
+    func_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]
 
 class IRFunction:
     """
@@ -12,7 +19,7 @@ class IRFunction:
 
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
-    args: list
+    args: list[IRParameter]
     last_label: int
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
@@ -178,6 +185,12 @@ class IRFunction:
         self._ast_source_stack.pop()
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
+
+    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+        for param in self.args:
+            if param.offset == offset:
+                return param
+        return None
 
     @property
     def ast_source(self) -> Optional[IRnode]:

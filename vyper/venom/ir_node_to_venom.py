@@ -14,7 +14,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import IRFunction, IRParameter
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -157,15 +157,42 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     target_label = goto_ir.args[0].value  # goto
     return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
+    frame_start = func_t._ir_info.frame_info.frame_start
+
+    fn_new = fn.ctx.create_function(target_label)
+
+    stack_args = []
 
     if setup_ir != goto_ir:
-        _convert_ir_bb(fn, setup_ir, symbols)
+        final_setup_ir = []
+
+        for i, arg in enumerate(func_t.arguments):
+            ir = setup_ir.args[i]
+            if arg.typ.memory_bytes_required == 32 and ir.value == "mstore":
+                bb = fn.get_basic_block()
+                param_val = _convert_ir_bb(fn, ir.args[1], symbols)
+                ret = bb.append_instruction("store", param_val)
+                stack_args.append(ret)
+                param = IRParameter()
+                param.offset = ir.args[0].value
+                param.size = 32
+                param.call_site_var = ret
+                fn_new.args.append(param)
+            else:
+                final_setup_ir.append(setup_ir[i])
+
+        _convert_ir_bb_list(fn, final_setup_ir, symbols)
 
     return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
 
     bb = fn.get_basic_block()
     if len(goto_ir.args) > 2:
         ret_args.append(return_buf)  # type: ignore
+
+    for stack_arg in stack_args:
+        ret_args.append(stack_arg)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -183,11 +210,26 @@ def _handle_internal_func(
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
+    for arg in fn.args:
+        ret = bb.append_instruction("param")
+        arg.func_var = ret
+
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
+    for arg in fn.args:
+        ret = bb.append_instruction("alloca", arg.offset, 32 )
+        bb.append_instruction("mstore", arg.func_var, ret)
+        arg.addr_var = ret
+
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
+
+    for inst in bb.instructions:
+        if inst.opcode == "store":
+            param = fn.get_param_at_offset(inst.operands[0].value)
+            if param is not None:
+                inst.operands[0] = param.addr_var
 
     return fn
 

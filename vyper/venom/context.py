@@ -24,6 +24,8 @@ class IRContext:
 
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)
+        if label in self.functions:
+            return self.functions[label]
         fn = IRFunction(label, self)
         self.add_function(fn)
         return fn
