@@ -914,14 +914,14 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        # get the correct type for the index, it might
-        # not be exactly base_type.key_type
-        # note: index_type is validated in types_from_Subscript
-        index_types = get_possible_types_from_node(node.slice)
-        index_type = index_types.pop()
+        if isinstance(base_type, HashMapT):
+            index_type = base_type.key_type
+        else:
+            # Arrays allow most int types as index: Take the least specific
+            index_type = get_possible_types_from_node(node.slice).pop()
 
-        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
+        self.visit(node.slice, index_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
