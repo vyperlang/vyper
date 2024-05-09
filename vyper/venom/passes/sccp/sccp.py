@@ -168,7 +168,9 @@ class SCCP(IRPass):
                 continue
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
-        assert inst.output in self.lattice, "Got undefined var for phi"
+
+        if inst.output not in self.lattice:
+            return
 
         if value != self._lookup_from_lattice(inst.output):
             self._set_lattice(inst.output, value)
