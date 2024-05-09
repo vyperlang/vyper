@@ -174,14 +174,12 @@ def test_compile_json(input_json, input_bundle):
                 "bytecode": {
                     "object": data["bytecode"],
                     "opcodes": data["opcodes"],
-                    "sourceMap": data["source_map"]["pc_pos_map_compressed"],
-                    "sourceMapFull": data["source_map_full"],
+                    "sourceMap": data["source_map"],
                 },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
-                    "sourceMap": data["source_map_runtime"]["pc_pos_map_compressed"],
-                    "sourceMapFull": data["source_map_full_runtime"],
+                    "sourceMap": data["source_map_runtime"],
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
@@ -271,7 +269,7 @@ def test_exc_handler_to_dict_compiler(input_json):
 
 
 def test_source_ids_increment(input_json):
-    input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMapFull"]}
+    input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMap"]}
     result = compile_json(input_json)
 
     def get(filename, contractname):
@@ -280,7 +278,7 @@ def test_source_ids_increment(input_json):
 
         # grab it via source map to sanity check
         contract_info = result["contracts"][filename][contractname]["evm"]
-        pc_ast_map = contract_info["deployedBytecode"]["sourceMapFull"]["pc_ast_map"]
+        pc_ast_map = contract_info["deployedBytecode"]["sourceMap"]["pc_ast_map"]
         pc_item = next(iter(pc_ast_map.values()))
         source_id, node_id = pc_item
         assert ret == source_id
