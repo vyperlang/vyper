@@ -1,11 +1,9 @@
+import json
 from typing import Type
 
 import pytest
-from eth_tester.exceptions import TransactionFailed
-from web3 import Web3
 
 from vyper import compiler
-from vyper.compiler.settings import Settings
 from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
@@ -15,30 +13,29 @@ PRECOMPILED_BYTECODE_RUNTIME = """0x600436101561000d57610035565b60046000601c3760
 PRECOMPILED = bytes.fromhex(PRECOMPILED_BYTECODE_RUNTIME[2:])
 
 
-def _deploy_precompiled_contract(w3: Web3):
-    Precompiled = w3.eth.contract(abi=PRECOMPILED_ABI, bytecode=PRECOMPILED_BYTECODE)
-    tx_hash = Precompiled.constructor().transact()
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    address = tx_receipt["contractAddress"]
-    return w3.eth.contract(address=address, abi=PRECOMPILED_ABI)
+@pytest.fixture
+def precompiled_contract(env):
+    bytecode = bytes.fromhex(PRECOMPILED_BYTECODE.removeprefix("0x"))
+    return env.deploy(json.loads(PRECOMPILED_ABI), bytecode)
 
 
 @pytest.mark.parametrize(
     ("start", "length", "expected"), [(0, 5, PRECOMPILED[:5]), (5, 10, PRECOMPILED[5:][:10])]
 )
-def test_address_code_slice(start: int, length: int, expected: bytes, w3: Web3, get_contract):
+def test_address_code_slice(
+    start: int, length: int, expected: bytes, precompiled_contract, get_contract
+):
     code = f"""
 @external
 def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = _deploy_precompiled_contract(w3)
     actual = contract.code_slice(precompiled_contract.address)
     assert actual == expected
 
 
-def test_address_code_runtime_error_slice_too_long(w3: Web3, get_contract):
+def test_address_code_runtime_error_slice_too_long(precompiled_contract, get_contract, tx_failed):
     start = len(PRECOMPILED) - 5
     length = 10
     code = f"""
@@ -47,19 +44,18 @@ def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = _deploy_precompiled_contract(w3)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_slice(precompiled_contract.address)
 
 
-def test_address_code_runtime_error_no_code(get_contract):
+def test_address_code_runtime_error_no_code(get_contract, tx_failed):
     code = """
 @external
 def code_slice(x: address) -> Bytes[4]:
     return slice(x.code, 0, 4)
 """
     contract = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_slice(b"\x00" * 20)
 
 
@@ -161,7 +157,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, optimize, experimental_codegen):
+def test_address_code_self_success(get_contract):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -174,15 +170,12 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
-    settings = Settings(optimize=optimize, experimental_codegen=experimental_codegen)
-    code_compiled = compiler.compile_code(
-        code, output_formats=["bytecode", "bytecode_runtime"], settings=settings
-    )
+    code_compiled = compiler.compile_code(code, output_formats=["bytecode", "bytecode_runtime"])
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]
 
 
-def test_address_code_self_runtime_error_deployment(get_contract):
+def test_address_code_self_runtime_error_deployment(get_contract, tx_failed):
     code = """
 dummy: public(Bytes[1000000])
 
@@ -190,16 +183,16 @@ dummy: public(Bytes[1000000])
 def __init__():
     self.dummy = slice(self.code, 0, 1000000)
 """
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         get_contract(code)
 
 
-def test_address_code_self_runtime_error_runtime(get_contract):
+def test_address_code_self_runtime_error_runtime(get_contract, tx_failed):
     code = """
 @external
 def code_runtime() -> Bytes[1000000]:
     return slice(self.code, 0, 1000000)
 """
     contract = get_contract(code)
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.code_runtime()

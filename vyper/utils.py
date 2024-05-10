@@ -191,6 +191,12 @@ def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
 
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
+
+
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
@@ -578,25 +584,3 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
-
-
-def ir_pass(func):
-    """
-    Decorator for IR passes. This decorator will run the pass repeatedly until
-    no more changes are made.
-    """
-
-    def wrapper(*args, **kwargs):
-        count = 0
-
-        while True:
-            changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list) or isinstance(changes, set):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
-                break
-
-        return count
-
-    return wrapper

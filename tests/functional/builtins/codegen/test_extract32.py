@@ -4,7 +4,7 @@ from vyper.evm.opcodes import version_check
 
 
 @pytest.mark.parametrize("location", ["storage", "transient"])
-def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation, location):
+def test_extract32_extraction(tx_failed, get_contract, location):
     if location == "transient" and not version_check(begin="cancun"):
         pytest.skip(
             "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
@@ -32,7 +32,7 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
     return extract32(self.y, index)
     """
 
-    c = get_contract_with_gas_estimation(extract32_code)
+    c = get_contract(extract32_code)
     test_cases = (
         (b"c" * 31, 0),
         (b"c" * 32, 0),
@@ -60,7 +60,7 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
                 c.extrakt32(S, i)
 
 
-def test_extract32_code(tx_failed, get_contract_with_gas_estimation):
+def test_extract32_code(tx_failed, get_contract):
     extract32_code = """
 @external
 def foo(inp: Bytes[32]) -> int128:
@@ -83,7 +83,7 @@ def foq(inp: Bytes[32]) -> address:
     return extract32(inp, 0, output_type=address)
     """
 
-    c = get_contract_with_gas_estimation(extract32_code)
+    c = get_contract(extract32_code)
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
 

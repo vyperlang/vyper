@@ -1,10 +1,10 @@
 import contextlib
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 from vyper.exceptions import JSONError
 from vyper.utils import sha256sum
@@ -12,40 +12,47 @@ from vyper.utils import sha256sum
 # a type to make mypy happy
 PathLike = Path | PurePath
 
+if TYPE_CHECKING:
+    from zipfile import ZipFile
 
-@dataclass
+
+@dataclass(frozen=True)
 class CompilerInput:
     # an input to the compiler, basically an abstraction for file contents
+
     source_id: int
     path: PathLike  # the path that was asked for
 
     # resolved_path is the real path that was resolved to.
     # mainly handy for debugging at this point
     resolved_path: PathLike
-
-
-@dataclass
-class FileInput(CompilerInput):
-    source_code: str
+    contents: str
 
     @cached_property
     def sha256sum(self):
-        return sha256sum(self.source_code)
+        return sha256sum(self.contents)
 
 
-@dataclass
+@dataclass(frozen=True)
+class FileInput(CompilerInput):
+    @cached_property
+    def source_code(self):
+        return self.contents
+
+
+@dataclass(frozen=True, unsafe_hash=True)
 class ABIInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    abi: Any  # something that json.load() returns
+    abi: Any = field(hash=False)  # something that json.load() returns
 
 
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
-        return ABIInput(file_input.source_id, file_input.path, file_input.resolved_path, s)
+        return ABIInput(**asdict(file_input), abi=s)
     except (ValueError, TypeError):
         return file_input
 
@@ -185,9 +192,10 @@ def _normpath(path):
     return path.__class__(os.path.normpath(path))
 
 
-# fake filesystem for JSON inputs. takes a base path, and `load_file()`
-# "reads" the file from the JSON input. Note that this input bundle type
-# never actually interacts with the filesystem -- it is guaranteed to be pure!
+# fake filesystem for "standard JSON" (aka solc-style) inputs. takes search
+# paths, and `load_file()` "reads" the file from the JSON input. Note that this
+# input bundle type never actually interacts with the filesystem -- it is
+# guaranteed to be pure!
 class JSONInputBundle(InputBundle):
     input_json: dict[PurePath, Any]
 
@@ -216,7 +224,9 @@ class JSONInputBundle(InputBundle):
             return FileInput(source_id, original_path, resolved_path, value["content"])
 
         if "abi" in value:
-            return ABIInput(source_id, original_path, resolved_path, value["abi"])
+            return ABIInput(
+                source_id, original_path, resolved_path, json.dumps(value), value["abi"]
+            )
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
@@ -224,3 +234,32 @@ class JSONInputBundle(InputBundle):
         # unreachable, based on how JSONInputBundle is constructed in
         # the codebase.
         raise JSONError(f"Unexpected type in file: '{resolved_path}'")  # pragma: nocover
+
+
+# input bundle for vyper archives. similar to JSONInputBundle, but takes
+# a zipfile as input.
+class ZipInputBundle(InputBundle):
+    def __init__(self, archive: "ZipFile"):
+        assert archive.testzip() is None
+        self.archive = archive
+
+        sp_str = archive.read("MANIFEST/searchpaths").decode("utf-8")
+        search_paths = [PurePath(p) for p in sp_str.splitlines()]
+
+        super().__init__(search_paths)
+
+    def _normalize_path(self, path: PurePath) -> PurePath:
+        return _normpath(path)
+
+    def _load_from_path(self, resolved_path: PurePath, original_path: PurePath) -> CompilerInput:
+        # zipfile.BadZipFile: File is not a zip file
+
+        try:
+            value = self.archive.read(str(resolved_path)).decode("utf-8")
+        except KeyError:
+            # zipfile literally raises KeyError if the file is not there
+            raise _NotFound(resolved_path)
+
+        source_id = super()._generate_source_id(resolved_path)
+
+        return FileInput(source_id, original_path, resolved_path, value)

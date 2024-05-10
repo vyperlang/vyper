@@ -1,7 +1,7 @@
 from vyper import compiler
 
 
-def test_self_balance(w3, get_contract_with_gas_estimation):
+def test_self_balance(env, get_contract):
     code = """
 @external
 @view
@@ -17,7 +17,10 @@ def __default__():
     opcodes = compiler.compile_code(code, output_formats=["opcodes"])["opcodes"]
     assert "SELFBALANCE" in opcodes
 
-    c = get_contract_with_gas_estimation(code)
-    w3.eth.send_transaction({"to": c.address, "value": 1337})
+    c = get_contract(code)
+    env.set_balance(env.deployer, 1337)
+    env.message_call(c.address, value=1337)
 
     assert c.get_balance() == 1337
+    assert env.get_balance(c.address) == 1337
+    assert env.get_balance(env.deployer) == 0
