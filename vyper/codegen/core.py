@@ -461,19 +461,14 @@ def _getelemptr_abi_helper(parent, member_t, ofst):
 
         # double dereference, according to ABI spec
         # `ofst_ir` is the "real" (absolute) pointer to the item
-        if parent.location != MEMORY:
-            ofst_ir = add_ofst(parent, abi_ofst)
+        ofst_ir = add_ofst(parent, abi_ofst)
+        with ofst_ir.cache_when_complex("ofst_ir") as (b1, ofst_ir):
+            if parent.location == MEMORY:
+                arithmetic_overflow = ["lt", ofst_ir, parent]
+                bounds_check = ["assert", ["iszero", arithmetic_overflow]]
+                ofst_ir = ["seq", bounds_check, ofst_ir]
 
-        else:
-            with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                new_ofst = add_ofst(parent, abi_ofst)
-                with new_ofst.cache_when_complex("new_ofst") as (b2, new_ofst):
-                    arithmetic_overflow = ["lt", new_ofst, parent]
-                    bounds_check = ["assert", ["iszero", arithmetic_overflow]]
-
-                    ofst_ir = ["seq", bounds_check, new_ofst]
-                    ofst_ir = b2.resolve(ofst_ir)
-                ofst_ir = b1.resolve(ofst_ir)
+            ofst_ir = b1.resolve(ofst_ir)
 
     return IRnode.from_list(
         ofst_ir,
