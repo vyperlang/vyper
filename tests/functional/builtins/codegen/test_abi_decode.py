@@ -3,7 +3,7 @@ from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
-from vyper.exceptions import ArgumentException, StackTooDeep, StructureException
+from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
