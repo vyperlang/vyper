@@ -22,6 +22,7 @@ def test_combined_json_keys(chdir_tmp_path, make_file):
         "blueprint_bytecode",
         "abi",
         "source_map",
+        "source_map_runtime",
         "layout",
         "method_identifiers",
         "userdoc",
