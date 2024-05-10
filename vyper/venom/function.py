@@ -214,7 +214,11 @@ class IRFunction:
         new.last_variable = self.last_variable
         return new
 
-    def as_graph(self) -> str:
+    def as_graph(self, only_subgraph=False) -> str:
+        """
+        Return the function as a graphviz dot string. If only_subgraph is True, only return the
+        subgraph, not the full digraph -for embedding in a larger graph-
+        """
         import html
 
         def _make_label(bb):
@@ -227,18 +231,25 @@ class IRFunction:
             return ret
             # return f"{bb.label.value}:\n" + "\n".join([f"    {inst}" for inst in bb.instructions])
 
-        ret = "digraph G {\n"
+        ret = []
+
+        if not only_subgraph:
+            ret.append("digraph G {{")
+        ret.append(f'subgraph "{self.name}" {{')
 
         for bb in self.get_basic_blocks():
             for out_bb in bb.cfg_out:
-                ret += f'    "{bb.label.value}" -> "{out_bb.label.value}"\n'
+                ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
 
         for bb in self.get_basic_blocks():
-            ret += f'    "{bb.label.value}" [shape=plaintext, '
-            ret += f'label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
+            ret.append(f'    "{bb.label.value}" [shape=plaintext, ')
+            ret.append(f'label={_make_label(bb)}, fontname="Courier" fontsize="8"]')
 
-        ret += "}\n"
-        return ret
+        ret.append("}\n")
+        if not only_subgraph:
+            ret.append("}\n")
+
+        return "\n".join(ret)
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"
