@@ -474,7 +474,7 @@ def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_cod
     assert_compile_failed(lambda: get_contract(bad_code), exception)
 
 
-def test_abi_decode_arithmetic_overflow(w3, tx_failed, get_contract):
+def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):
     # test based on GHSA-9p8r-4xp4-gw5w:
     # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
     # note: doesn't even reach the assert but reverts internally on the clamp in getelemptr
@@ -498,10 +498,10 @@ def f(x: Bytes[32 * 3]):
     # and it will be added to base ptr leading to an arithmetic overflow
     data += (2**256 - 0x60).to_bytes(32, "big")
     with tx_failed():
-        w3.eth.send_transaction({"to": c.address, "data": data})
+        env.message_call(c.address, data=data)
 
 
-def test_abi_decode_oob_due_to_invalid_head(w3, tx_failed, get_contract):
+def test_abi_decode_oob_due_to_invalid_head(env, tx_failed, get_contract):
     code = """
 @external
 def f(x: Bytes[32 * 5]):
@@ -526,10 +526,10 @@ def f(x: Bytes[32 * 5]):
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
     # with tx_failed():
-    w3.eth.send_transaction({"to": c.address, "data": data})
+    env.message_call(c.address, data=data)
 
 
-def test_abi_decode_oob_due_to_invalid_head2(w3, tx_failed, get_contract):
+def test_abi_decode_oob_due_to_invalid_head2(tx_failed, get_contract):
     code = """
 @external
 def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
@@ -569,7 +569,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     c.run(data)
 
 
-def test_abi_decode_oob_due_to_invalid_size(w3, tx_failed, get_contract):
+def test_abi_decode_oob_due_to_invalid_size(tx_failed, get_contract, env):
     code = """
 @external
 def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
@@ -599,7 +599,7 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][2]  data
 
     with tx_failed():
-        w3.eth.send_transaction({"to": c.address, "data": data})
+        env.message_call(c.address, data=data)
 
 
 def test_abi_decode_oob_due_to_invalid_head3(tx_failed, get_contract):
