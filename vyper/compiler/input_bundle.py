@@ -256,7 +256,7 @@ class ZipInputBundle(InputBundle):
         # zipfile.BadZipFile: File is not a zip file
 
         try:
-            value = self.archive.read(str(resolved_path)).decode("utf-8")
+            value = self.archive.read(resolved_path.as_posix()).decode("utf-8")
         except KeyError:
             # zipfile literally raises KeyError if the file is not there
             raise _NotFound(resolved_path)
