@@ -1,9 +1,9 @@
 import contextlib
 import json
-import os
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
+import posixpath
 from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 from vyper.exceptions import JSONError
@@ -187,9 +187,10 @@ class FilesystemInputBundle(InputBundle):
         return FileInput(source_id, original_path, resolved_path, code)
 
 
-# wrap os.path.normpath, but return the same type as the input
+# wrap os.path.normpath, but return the same type as the input -
+# but use posixpath instead so that things work cross-platform.
 def _normpath(path):
-    return path.__class__(os.path.normpath(path))
+    return path.__class__(posixpath.normpath(path))
 
 
 # fake filesystem for "standard JSON" (aka solc-style) inputs. takes search
