@@ -5,7 +5,7 @@ import os
 import zipfile
 from dataclasses import dataclass
 from functools import cached_property
-from pathlib import PurePosixPath
+from pathlib import PurePath
 from typing import Optional
 
 from vyper.compiler.input_bundle import CompilerInput, _NotFound
@@ -22,21 +22,19 @@ from vyper.utils import get_long_version
 # information.
 
 
-# the way to get reliable paths which reproduce cross-platform is to use
-# posix style paths.
-# cf. https://stackoverflow.com/a/122485
-PURE_PATH = PurePosixPath
-
-
 def _anonymize(p: str):
     segments = []
     # replace ../../../a/b with 0/1/2/a/b
-    for i, s in enumerate(PURE_PATH(p).parts):
+    for i, s in enumerate(PurePath(p).parts):
         if s == "..":
             segments.append(str(i))
         else:
             segments.append(s)
-    return str(PURE_PATH(*segments))
+
+    # the way to get reliable paths which reproduce cross-platform is to use
+    # posix style paths.
+    # cf. https://stackoverflow.com/a/122485
+    return PurePath(*segments).as_posix()
 
 
 # data structure containing things that should be in an output bundle,
@@ -64,7 +62,7 @@ class OutputBundle:
 
         sources = {}
         for c in inputs:
-            path = os.path.relpath(str(c.resolved_path))
+            path = os.path.relpath(c.resolved_path)
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to search path semantics.
@@ -74,8 +72,8 @@ class OutputBundle:
 
     @cached_property
     def compilation_target_path(self):
-        p = PURE_PATH(self.compiler_data.file_input.resolved_path)
-        p = os.path.relpath(str(p))
+        p = PurePath(self.compiler_data.file_input.resolved_path)
+        p = os.path.relpath(p)
         return _anonymize(p)
 
     @cached_property
