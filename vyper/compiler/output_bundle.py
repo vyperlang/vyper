@@ -255,6 +255,12 @@ class VyperArchiveWriter(OutputBundleWriter):
         self.archive.writestr("MANIFEST/compiler_version", version)
 
     def output(self):
-        assert self.archive.testzip() is None
         self.archive.close()
+
+        # there is a race on windows where testzip() will return false
+        # before closing. close it and then reopen to run testzip()
+        s = zipfile.ZipFile(self._buf)
+        assert s.testzip() is None
+        del s  # garbage collector, cf. `__del__()` method.
+
         return self._buf.getvalue()
