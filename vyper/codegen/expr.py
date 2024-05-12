@@ -168,17 +168,7 @@ class Expr:
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
-            var = self.context.vars[self.expr.id]
-            ret = IRnode.from_list(
-                var.pos,
-                typ=var.typ,
-                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
-                encoding=var.encoding,
-                annotation=self.expr.id,
-                mutable=var.mutable,
-            )
-            ret._referenced_variables = {var}
-            return ret
+            return self.context.lookup_var(self.expr.id).as_ir_node()
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:

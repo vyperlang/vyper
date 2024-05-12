@@ -1,17 +1,19 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.function import IRFunction
 
 
-class DominatorTree:
+class DominatorTreeAnalysis(IRAnalysis):
     """
     Dominator tree implementation. This class computes the dominator tree of a
     function and provides methods to query the tree. The tree is computed using
     the Lengauer-Tarjan algorithm.
     """
 
-    ctx: IRFunction
+    fn: IRFunction
     entry_block: IRBasicBlock
     dfs_order: dict[IRBasicBlock, int]
     dfs_walk: list[IRBasicBlock]
@@ -20,24 +22,20 @@ class DominatorTree:
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
-    @classmethod
-    def build_dominator_tree(cls, ctx, entry):
-        ret = DominatorTree()
-        ret.compute(ctx, entry)
-        return ret
-
-    def compute(self, ctx: IRFunction, entry: IRBasicBlock):
+    def analyze(self):
         """
         Compute the dominator tree.
         """
-        self.ctx = ctx
-        self.entry_block = entry
+        self.fn = self.function
+        self.entry_block = self.fn.entry
         self.dfs_order = {}
         self.dfs_walk = []
         self.dominators = {}
         self.immediate_dominators = {}
         self.dominated = {}
         self.dominator_frontiers = {}
+
+        self.analyses_cache.request_analysis(CFGAnalysis)
 
         self._compute_dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
@@ -155,7 +153,7 @@ class DominatorTree:
         Generate a graphviz representation of the dominator tree.
         """
         lines = ["digraph dominator_tree {"]
-        for bb in self.ctx.basic_blocks:
+        for bb in self.fn.basic_blocks:
             if bb == self.entry_block:
                 continue
             idom = self.immediate_dominator(bb)

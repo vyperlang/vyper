@@ -1,6 +1,7 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRBasicBlock
-from vyper.venom.function import IRFunction
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -24,7 +25,12 @@ class SimplifyCFGPass(IRPass):
             next_bb.remove_cfg_in(b)
             next_bb.add_cfg_in(a)
 
-        self.ctx.basic_blocks.remove(b)
+            for inst in next_bb.instructions:
+                if inst.opcode != "phi":
+                    break
+                inst.operands[inst.operands.index(b.label)] = a.label
+
+        self.function.basic_blocks.remove(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
         next_bb = b.cfg_out.first()
@@ -38,7 +44,7 @@ class SimplifyCFGPass(IRPass):
         next_bb.remove_cfg_in(b)
         next_bb.add_cfg_in(a)
 
-        self.ctx.basic_blocks.remove(b)
+        self.function.basic_blocks.remove(b)
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
         """
@@ -76,7 +82,60 @@ class SimplifyCFGPass(IRPass):
         self.visited = OrderedSet()
         self._collapse_chained_blocks_r(entry)
 
-    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> None:
-        self.ctx = ctx
+    def _optimize_empty_basicblocks(self) -> int:
+        """
+        Remove empty basic blocks.
+        """
+        fn = self.function
+        count = 0
+        i = 0
+        while i < len(fn.basic_blocks):
+            bb = fn.basic_blocks[i]
+            i += 1
+            if len(bb.instructions) > 0:
+                continue
 
-        self._collapse_chained_blocks(entry)
+            replaced_label = bb.label
+            replacement_label = fn.basic_blocks[i].label if i < len(fn.basic_blocks) else None
+            if replacement_label is None:
+                continue
+
+            # Try to preserve symbol labels
+            if replaced_label.is_symbol:
+                replaced_label, replacement_label = replacement_label, replaced_label
+                fn.basic_blocks[i].label = replacement_label
+
+            for bb2 in fn.basic_blocks:
+                for inst in bb2.instructions:
+                    for op in inst.operands:
+                        if isinstance(op, IRLabel) and op.value == replaced_label.value:
+                            op.value = replacement_label.value
+
+            fn.basic_blocks.remove(bb)
+            i -= 1
+            count += 1
+
+        return count
+
+    def run_pass(self):
+        fn = self.function
+        entry = fn.entry
+
+        for _ in range(len(fn.basic_blocks)):
+            changes = self._optimize_empty_basicblocks()
+            changes += fn.remove_unreachable_blocks()
+            if changes == 0:
+                break
+        else:
+            raise CompilerPanic("Too many iterations removing empty basic blocks")
+
+        self.analyses_cache.force_analysis(CFGAnalysis)
+
+        for _ in range(len(fn.basic_blocks)):  # essentially `while True`
+            self._collapse_chained_blocks(entry)
+            if fn.remove_unreachable_blocks() == 0:
+                break
+        else:
+            raise CompilerPanic("Too many iterations collapsing chained blocks")
+
+        self.analyses_cache.invalidate_analysis(CFGAnalysis)

@@ -4,7 +4,7 @@ from decimal import Decimal
 from tests.utils import decimal_to_int
 
 
-def test_ceil(get_contract_with_gas_estimation):
+def test_ceil(get_contract):
     code = """
 x: decimal
 
@@ -40,7 +40,7 @@ def fou() -> int256:
     return ceil(c)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.x_ceil() == 505
     assert c.foo() == 1
@@ -51,7 +51,7 @@ def fou() -> int256:
 
 
 # ceil(x) should yield the smallest integer greater than or equal to x
-def test_ceil_negative(get_contract_with_gas_estimation):
+def test_ceil_negative(get_contract):
     code = """
 x: decimal
 
@@ -95,7 +95,7 @@ def ceil_param(p: decimal) -> int256:
     return ceil(p)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.x_ceil() == -504
     assert c.foo() == -11
@@ -108,7 +108,7 @@ def ceil_param(p: decimal) -> int256:
     assert c.ceil_param(decimal_to_int("-7777777.7777777")) == -7777777
 
 
-def test_ceil_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_ceil_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: decimal) -> decimal: payable
@@ -123,10 +123,10 @@ def foo(a: Foo) -> int256:
 
     assert c2.foo(c1.address) == 3
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
-def test_ceil_internal_call(get_contract_with_gas_estimation):
+def test_ceil_internal_call(get_contract):
     code = """
 @external
 def foo() -> int256:
@@ -137,6 +137,6 @@ def bar() -> decimal:
     return 2.5
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == 3

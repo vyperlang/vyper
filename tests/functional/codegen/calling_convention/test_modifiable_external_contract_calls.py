@@ -40,11 +40,11 @@ def static_set_lucky(_lucky: int128):
 
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2, *[c1.address])
-    c2.modifiable_set_lucky(7, transact={})
+    c2.modifiable_set_lucky(7)
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
     with tx_failed():
-        c2.static_set_lucky(5, transact={})
+        c2.static_set_lucky(5)
     assert c1.lucky() == 7
 
 
@@ -85,11 +85,11 @@ def static_set_lucky(_lucky: int128):
 
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2, *[c1.address])
-    c2.modifiable_set_lucky(7, transact={})
+    c2.modifiable_set_lucky(7)
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
     with tx_failed():
-        c2.static_set_lucky(5, transact={})
+        c2.static_set_lucky(5)
     assert c1.lucky() == 7
 
 
@@ -166,14 +166,14 @@ def static_modifiable_set_lucky(_lucky: int128) -> int128:
     c3 = get_contract(contract_3, *[c2.address])
 
     assert c1.lucky() == 0
-    c3.modifiable_modifiable_set_lucky(7, transact={})
+    c3.modifiable_modifiable_set_lucky(7)
     assert c1.lucky() == 7
     with tx_failed():
-        c3.modifiable_static_set_lucky(6, transact={})
+        c3.modifiable_static_set_lucky(6)
     with tx_failed():
-        c3.static_modifiable_set_lucky(6, transact={})
+        c3.static_modifiable_set_lucky(6)
     with tx_failed():
-        c3.static_static_set_lucky(6, transact={})
+        c3.static_static_set_lucky(6)
     assert c1.lucky() == 7
 
 
@@ -199,7 +199,7 @@ def get_bar() -> int128:
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c2.foo(c1.address, transact={})
+    c2.foo(c1.address)
     assert c2.bar_contract() == c1.address
     assert c2.get_bar() == 1
 

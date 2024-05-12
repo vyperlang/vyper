@@ -2,6 +2,7 @@ from collections import namedtuple
 
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
+from vyper.compiler.settings import OptimizationLevel
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
@@ -31,20 +32,30 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map():
+def test_jump_map(optimize):
     source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    assert len([v for v in jump_map.values() if v == "o"]) == 1
+    expected_jumps = 1
+    if optimize == OptimizationLevel.NONE:
+        expected_jumps = 3  # some jumps get optimized out when optimizer is on
+
+    assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == 2
 
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
+        if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
+            continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
+        if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
+            continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")
 
