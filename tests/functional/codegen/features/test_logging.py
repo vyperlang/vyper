@@ -749,17 +749,39 @@ def ioo(inp: Bytes[100]):
     print("Passed raw log tests")
 
 
+def test_raw_log_topic_double_eval(get_contract, get_logs):
+    t1 = "0x1111111111111111111111111111111111111111111111111111111111111111"
+    code = f"""
+x: bytes32
+c: public(uint256)
+
+@internal
+def bar() -> bytes32:
+    self.c += 1
+    return {t1}
+
+@external
+def foo():
+    self.x = {t1}
+    raw_log([self.bar(), self.bar()], b"")
+
+    """
+
+    c = get_contract(code)
+    c.foo()
+
+    assert c.c() == 2
+
+
 def test_raw_log_with_topics_in_storage_locs(get_contract, get_logs):
     t1 = "0x1111111111111111111111111111111111111111111111111111111111111111"
     t2 = "0x2222222222222222222222222222222222222222222222222222222222222222"
     code = f"""
 x: bytes32
-
 @external
 def foo():
     self.x = {t1}
     raw_log([self.x], b"")
-
     y: bytes32 = {t2}
     raw_log([y], b"")
     """
