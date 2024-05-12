@@ -244,8 +244,6 @@ def _make_slice_bounds_check(start, length, src_len):
             return b1.resolve(b2.resolve(["assert", ok]))
 
 
-
-
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
@@ -255,8 +253,8 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     buf = context.new_internal_variable(dst_typ)
 
     with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (
-            b2,
-            length,
+        b2,
+        length,
     ):
         # `msg.data` by `calldatacopy`
         if sub.value == "~calldata":
