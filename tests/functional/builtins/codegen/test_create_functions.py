@@ -665,7 +665,7 @@ def test(target: address):
     assert test.foo() == 12
 
 
-def test_blueprint_evals_once_side_effects(get_contract, deploy_blueprint_for, w3):
+def test_blueprint_evals_once_side_effects(get_contract, deploy_blueprint_for, env):
     # test msize allocator does not get trampled by salt= kwarg
     code = """
 foo: public(uint256)
@@ -690,16 +690,16 @@ def create_(target: address):
     """
 
     foo_contract = get_contract(code)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code)
 
     d = get_contract(deployer_code)
 
-    d.create_(f.address, transact={})
+    d.create_(f.address)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 0
     assert d.deployed() == 1
 
