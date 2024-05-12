@@ -38,9 +38,11 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    EvmVersionException,
     InvalidLiteral,
     InvalidType,
     StateAccessViolation,
@@ -242,25 +244,28 @@ def _make_slice_bounds_check(start, length, src_len):
             return b1.resolve(b2.resolve(["assert", ok]))
 
 
+
+
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
 
     dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
-    np = context.new_internal_variable(dst_typ)
+    buf = context.new_internal_variable(dst_typ)
+
     with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (
-        b2,
-        length,
+            b2,
+            length,
     ):
         # `msg.data` by `calldatacopy`
         if sub.value == "~calldata":
             node = [
                 "seq",
                 _make_slice_bounds_check(start, length, "calldatasize"),
-                ["mstore", np, length],
-                ["calldatacopy", np + 32, start, length],
-                np,
+                ["mstore", buf, length],
+                ["calldatacopy", add_ofst(buf, 32), start, length],
+                buf,
             ]
 
         # `self.code` by `codecopy`
@@ -268,9 +273,9 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             node = [
                 "seq",
                 _make_slice_bounds_check(start, length, "codesize"),
-                ["mstore", np, length],
-                ["codecopy", np + 32, start, length],
-                np,
+                ["mstore", buf, length],
+                ["codecopy", add_ofst(buf, 32), start, length],
+                buf,
             ]
 
         # `<address>.code` by `extcodecopy`
@@ -283,9 +288,9 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
                 [
                     "seq",
                     _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
-                    ["mstore", np, length],
-                    ["extcodecopy", "_extcode_address", np + 32, start, length],
-                    np,
+                    ["mstore", buf, length],
+                    ["extcodecopy", "_extcode_address", add_ofst(buf, 32), start, length],
+                    buf,
                 ],
             ]
 
@@ -556,10 +561,8 @@ class Concat(BuiltinFunctionT):
 
         # respect API of copy_bytes
         bufsize = dst_maxlen + 32
-        buf = context.new_internal_variable(BytesT(bufsize))
-
-        # Node representing the position of the output in memory
-        dst = IRnode.from_list(buf, typ=ret_typ, location=MEMORY, annotation="concat destination")
+        dst = context.new_internal_variable(BytesT(bufsize))
+        dst.annotation = "concat destination"
 
         ret = ["seq"]
         # stack item representing our current offset in the dst buffer
@@ -787,9 +790,9 @@ class ECRecover(BuiltinFunctionT):
                 # clear output memory first, ecrecover can return 0 bytes
                 ["mstore", output_buf, 0],
                 ["mstore", input_buf, args[0]],
-                ["mstore", input_buf + 32, args[1]],
-                ["mstore", input_buf + 64, args[2]],
-                ["mstore", input_buf + 96, args[3]],
+                ["mstore", add_ofst(input_buf, 32), args[1]],
+                ["mstore", add_ofst(input_buf, 64), args[2]],
+                ["mstore", add_ofst(input_buf, 96), args[3]],
                 ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
                 ["mload", output_buf],
             ],
@@ -803,9 +806,7 @@ class _ECArith(BuiltinFunctionT):
         args_tuple = ir_tuple_from_args(_args)
 
         args_t = args_tuple.typ
-        input_buf = IRnode.from_list(
-            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
-        )
+        input_buf = context.new_internal_variable(args_t)
         ret_t = self._return_type
 
         ret = ["seq"]
@@ -1107,9 +1108,7 @@ class RawCall(BuiltinFunctionT):
             args_ofst = add_ofst(input_buf, 32)
             args_len = ["mload", input_buf]
 
-        output_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(outsize)), typ=BytesT(outsize), location=MEMORY
-        )
+        output_node = context.new_internal_variable(BytesT(outsize))
 
         bool_ty = BoolT()
 
@@ -1221,6 +1220,18 @@ class BlockHash(BuiltinFunctionT):
             ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
             typ=BYTES32_T,
         )
+
+
+class BlobHash(BuiltinFunctionT):
+    _id = "blobhash"
+    _inputs = [("index", UINT256_T)]
+    _return_type = BYTES32_T
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, contact):
+        if not version_check(begin="cancun"):
+            raise EvmVersionException("`blobhash` is not available pre-cancun", expr)
+        return IRnode.from_list(["blobhash", args[0]], typ=BYTES32_T)
 
 
 class RawRevert(BuiltinFunctionT):
@@ -1716,8 +1727,8 @@ class CreateMinimalProxyTo(_CreateBase):
         return [
             "seq",
             ["mstore", buf, forwarder_preamble],
-            ["mstore", ["add", buf, preamble_length], aligned_target],
-            ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
+            ["mstore", add_ofst(buf, preamble_length), aligned_target],
+            ["mstore", add_ofst(buf, preamble_length + 20), forwarder_post],
             _create_ir(value, buf, buf_len, salt, revert_on_failure),
         ]
 
@@ -1832,9 +1843,7 @@ class CreateFromBlueprint(_CreateBase):
             # pretend we allocated enough memory for the encoder
             # (we didn't, but we are clobbering unused memory so it's safe.)
             bufsz = to_encode.typ.abi_type.size_bound()
-            argbuf = IRnode.from_list(
-                context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
-            )
+            argbuf = context.new_internal_variable(get_type_for_exact_size(bufsz))
 
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
@@ -2085,13 +2094,17 @@ class Uint2Str(BuiltinFunctionT):
                     # clobber val, and return it as a pointer
                     [
                         "seq",
-                        ["mstore", ["sub", buf + n_digits, i], i],
-                        ["set", val, ["sub", buf + n_digits, i]],
+                        ["mstore", ["sub", add_ofst(buf, n_digits), i], i],
+                        ["set", val, ["sub", add_ofst(buf, n_digits), i]],
                         "break",
                     ],
                     [
                         "seq",
-                        ["mstore", ["sub", buf + n_digits, i], ["add", 48, ["mod", val, 10]]],
+                        [
+                            "mstore",
+                            ["sub", add_ofst(buf, n_digits), i],
+                            ["add", 48, ["mod", val, 10]],
+                        ],
                         ["set", val, ["div", val, 10]],
                     ],
                 ],
@@ -2107,7 +2120,7 @@ class Uint2Str(BuiltinFunctionT):
             ret = [
                 "if",
                 ["eq", val, 0],
-                ["seq", ["mstore", buf + 1, ord("0")], ["mstore", buf, 1], buf],
+                ["seq", ["mstore", add_ofst(buf, 1), ord("0")], ["mstore", buf, 1], buf],
                 ["seq", ret, val],
             ]
 
@@ -2287,7 +2300,7 @@ class Print(BuiltinFunctionT):
 
             ret = ["seq"]
             ret.append(["mstore", buf, method_id])
-            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            encode = abi_encode(add_ofst(buf, 32), args_as_tuple, context, buflen, returns_len=True)
 
         else:
             method_id = method_id_int("log(string,bytes)")
@@ -2301,7 +2314,9 @@ class Print(BuiltinFunctionT):
             ret.append(["mstore", schema_buf, len(schema)])
 
             # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
+            ret.append(
+                ["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))]
+            )
 
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
@@ -2309,7 +2324,7 @@ class Print(BuiltinFunctionT):
             # 32 bytes extra space for the method id
             payload_buf = context.new_internal_variable(payload_t)
             encode_payload = abi_encode(
-                payload_buf + 32, args_as_tuple, context, payload_buflen, returns_len=True
+                add_ofst(payload_buf, 32), args_as_tuple, context, payload_buflen, returns_len=True
             )
 
             ret.append(["mstore", payload_buf, encode_payload])
@@ -2324,11 +2339,13 @@ class Print(BuiltinFunctionT):
             buflen = 32 + args_as_tuple.typ.abi_type.size_bound()
             buf = context.new_internal_variable(get_type_for_exact_size(buflen))
             ret.append(["mstore", buf, method_id])
-            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            encode = abi_encode(add_ofst(buf, 32), args_as_tuple, context, buflen, returns_len=True)
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
-        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, ["add", 4, encode], 0, 0])
+        ret.append(
+            ["staticcall", "gas", CONSOLE_ADDRESS, add_ofst(buf, 28), ["add", 4, encode], 0, 0]
+        )
 
         return IRnode.from_list(ret, annotation="print:" + sig)
 
@@ -2431,15 +2448,19 @@ class ABIEncode(BuiltinFunctionT):
             # <32 bytes length> | <4 bytes method_id> | <everything else>
             # write the unaligned method_id first, then we will
             # overwrite the 28 bytes of zeros with the bytestring length
-            ret += [["mstore", buf + 4, method_id]]
+            ret += [["mstore", add_ofst(buf, 4), method_id]]
             # abi encode, and grab length as stack item
-            length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
+            length = abi_encode(
+                add_ofst(buf, 36), encode_input, context, returns_len=True, bufsz=maxlen
+            )
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
 
         else:
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 32, encode_input, context, returns_len=True, bufsz=maxlen)
+            length = abi_encode(
+                add_ofst(buf, 32), encode_input, context, returns_len=True, bufsz=maxlen
+            )
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, length]]
 
@@ -2524,13 +2545,12 @@ class ABIDecode(BuiltinFunctionT):
             # input validation
 
             output_buf = context.new_internal_variable(wrapped_typ)
-            output = IRnode.from_list(output_buf, typ=wrapped_typ, location=MEMORY)
 
             # sanity check buffer size for wrapped output type will not buffer overflow
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
-            ret.append(make_setter(output, to_decode))
+            ret.append(make_setter(output_buf, to_decode))
 
-            ret.append(output)
+            ret.append(output_buf)
             # finalize. set the type and location for the return buffer.
             # (note: unwraps the tuple type if necessary)
             ret = IRnode.from_list(ret, typ=output_typ, location=MEMORY)
@@ -2607,6 +2627,7 @@ DISPATCH_TABLE = {
     "as_wei_value": AsWeiValue(),
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
+    "blobhash": BlobHash(),
     "bitwise_and": BitwiseAnd(),
     "bitwise_or": BitwiseOr(),
     "bitwise_xor": BitwiseXor(),

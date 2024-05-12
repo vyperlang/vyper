@@ -165,35 +165,35 @@ def __default__():
     contract = get_contract(protected_code)
     malicious = get_contract(malicious_code)
 
-    contract.set_callback(malicious.address, transact={})
+    contract.set_callback(malicious.address)
     assert contract.callback() == malicious.address
 
     # Test unprotected function.
-    contract.unprotected_function("some value", True, transact={})
+    contract.unprotected_function("some value", True)
     assert contract.special_value() == "surprise!"
 
     # Test protected function.
-    contract.protected_function("some value", False, transact={})
+    contract.protected_function("some value", False)
     assert contract.special_value() == "some value"
     assert contract.protected_view_fn() == "some value"
 
     with tx_failed():
-        contract.protected_function("zzz value", True, transact={})
+        contract.protected_function("zzz value", True)
 
-    contract.protected_function2("another value", False, transact={})
+    contract.protected_function2("another value", False)
     assert contract.special_value() == "another value"
 
     with tx_failed():
-        contract.protected_function2("zzz value", True, transact={})
+        contract.protected_function2("zzz value", True)
 
-    contract.protected_function3("another value", False, transact={})
+    contract.protected_function3("another value", False)
     assert contract.special_value() == "another value"
 
     with tx_failed():
-        contract.protected_function3("zzz value", True, transact={})
+        contract.protected_function3("zzz value", True)
 
 
-def test_nonreentrant_decorator_for_default(w3, get_contract, tx_failed):
+def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
     calling_contract_code = """
 @external
 def send_funds(_amount: uint256):
@@ -256,30 +256,31 @@ def __default__():
     reentrant_contract = get_contract(reentrant_code)
     calling_contract = get_contract(calling_contract_code)
 
-    reentrant_contract.set_callback(calling_contract.address, transact={})
+    reentrant_contract.set_callback(calling_contract.address)
     assert reentrant_contract.callback() == calling_contract.address
 
     # Test unprotected function without callback.
-    reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
+    env.set_balance(env.deployer, 10**6)
+    reentrant_contract.unprotected_function("some value", False, value=1000)
     assert reentrant_contract.special_value() == "some value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 0
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert env.get_balance(reentrant_contract.address) == 0
+    assert env.get_balance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
-    reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
+    reentrant_contract.unprotected_function("another value", True, value=1000)
     assert reentrant_contract.special_value() == "another value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert env.get_balance(reentrant_contract.address) == 1000
+    assert env.get_balance(calling_contract.address) == 1000
 
     # Test protected function without callback.
-    reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
+    reentrant_contract.protected_function("surprise!", False, value=1000)
     assert reentrant_contract.special_value() == "surprise!"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 2000
+    assert env.get_balance(reentrant_contract.address) == 1000
+    assert env.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
     with tx_failed():
-        reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
+        reentrant_contract.protected_function("zzz value", True, value=1000)
 
 
 def test_disallow_on_init_function(get_contract):

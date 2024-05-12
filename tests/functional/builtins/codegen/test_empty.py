@@ -97,8 +97,8 @@ def foo() -> bool:
     """,
     ],
 )
-def test_empty_basic_type(contract, get_contract_with_gas_estimation):
-    c = get_contract_with_gas_estimation(contract)
+def test_empty_basic_type(contract, get_contract):
+    c = get_contract(contract)
     c.foo()
 
 
@@ -223,8 +223,8 @@ def foo():
     """,
     ],
 )
-def test_empty_basic_type_lists(contract, get_contract_with_gas_estimation):
-    c = get_contract_with_gas_estimation(contract)
+def test_empty_basic_type_lists(contract, get_contract):
+    c = get_contract(contract)
     c.foo()
 
 
@@ -259,11 +259,11 @@ def foo():
     """,
     ],
 )
-def test_clear_literals(contract, assert_compile_failed, get_contract_with_gas_estimation):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), Exception)
+def test_clear_literals(contract, assert_compile_failed, get_contract):
+    assert_compile_failed(lambda: get_contract(contract), Exception)
 
 
-def test_empty_bytes(get_contract_with_gas_estimation):
+def test_empty_bytes(get_contract):
     code = """
 foobar: Bytes[5]
 
@@ -278,7 +278,7 @@ def foo() -> (Bytes[5], Bytes[5]):
     return (self.foobar, bar)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     a, b = c.foo()
     assert a == b == b""
 
@@ -297,13 +297,13 @@ def foo() -> (Bytes[5], Bytes[5]):
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_string_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_string_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: String[{length}]) -> bool:
     return xs {op} empty(String[{length}])
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":
@@ -324,20 +324,20 @@ def foo(xs: String[{length}]) -> bool:
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_bytes_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_bytes_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: Bytes[{length}]) -> bool:
     return empty(Bytes[{length}]) {op} xs
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":
         assert c.foo(value) != result
 
 
-def test_empty_struct(get_contract_with_gas_estimation):
+def test_empty_struct(get_contract):
     code = """
 struct FOOBAR:
     a: int128
@@ -386,11 +386,11 @@ def foo():
     assert bar.f == empty(address)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.foo()
 
 
-def test_empty_dynarray(get_contract_with_gas_estimation):
+def test_empty_dynarray(get_contract):
     code = """
 foobar: DynArray[uint256, 10]
 bar: uint256
@@ -407,13 +407,13 @@ def foo():
     assert self.bar == 1
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     c.foo()
 
 
 # param empty not working yet
 @pytest.mark.xfail
-def test_param_empty(get_contract_with_gas_estimation):
+def test_param_empty(get_contract):
     code = """
 interface Mirror:
     # reuse the contract for this test by compiling two copies of it
@@ -447,8 +447,8 @@ def pub3(x: address) -> bool:
     self.write_junk_to_memory()
     return staticcall Mirror(x).test_empty(empty(int128[111]), empty(Bytes[1024]), empty(Bytes[31]))
     """
-    c = get_contract_with_gas_estimation(code)
-    mirror = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
+    mirror = get_contract(code)
 
     assert c.test_empty([0] * 111, b"", b"")
     assert c.pub2()
@@ -457,7 +457,7 @@ def pub3(x: address) -> bool:
 
 # return empty not working yet
 @pytest.mark.xfail
-def test_return_empty(get_contract_with_gas_estimation):
+def test_return_empty(get_contract):
     code = """
 struct X:
     foo: int128
@@ -497,16 +497,16 @@ def e() -> X:
     self.write_junk_to_memory()
     return empty(X)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.a() == 0
-    assert c.b() == [0] * 5
-    assert c.c() == [[0] * 5] * 5
+    assert c.b() == (0) * 5
+    assert c.c() == ([0] * 5) * 5
     assert c.d() == b""
     assert c.e() == (0, "0x" + "0" * 40, 0x0, [0])
 
 
-def test_map_clear(get_contract_with_gas_estimation):
+def test_map_clear(get_contract):
     code = """
 big_storage: HashMap[bytes32, bytes32]
 
@@ -523,19 +523,19 @@ def delete(key: bytes32):
     self.big_storage[key] = empty(bytes32)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     key = b"test".ljust(32)
     val = b"value".ljust(32)
 
     assert c.get(key) == b"\x00" * 32
-    c.set(key, val, transact={})
+    c.set(key, val)
     assert c.get(key)[:5] == b"value"
-    c.delete(key, transact={})
+    c.delete(key)
     assert c.get(key) == b"\x00" * 32
 
 
-def test_map_clear_nested(get_contract_with_gas_estimation):
+def test_map_clear_nested(get_contract):
     code = """
 big_storage: HashMap[bytes32, HashMap[bytes32, bytes32]]
 
@@ -552,20 +552,20 @@ def delete(key1: bytes32, key2: bytes32):
     self.big_storage[key1][key2] = empty(bytes32)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     key1 = b"test1".ljust(32)
     key2 = b"test2".ljust(32)
     val = b"value".ljust(32)
 
     assert c.get(key1, key2) == b"\x00" * 32
-    c.set(key1, key2, val, transact={})
+    c.set(key1, key2, val)
     assert c.get(key1, key2)[:5] == b"value"
-    c.delete(key1, key2, transact={})
+    c.delete(key1, key2)
     assert c.get(key1, key2) == b"\x00" * 32
 
 
-def test_map_clear_struct(get_contract_with_gas_estimation):
+def test_map_clear_struct(get_contract):
     code = """
 struct X:
     a: int128
@@ -586,13 +586,13 @@ def delete():
     self.structmap[123] = empty(X)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
-    assert c.get() == [0, 0]
-    c.set(transact={})
-    assert c.get() == [333, 444]
-    c.delete(transact={})
-    assert c.get() == [0, 0]
+    assert c.get() == (0, 0)
+    c.set()
+    assert c.get() == (333, 444)
+    c.delete()
+    assert c.get() == (0, 0)
 
 
 @pytest.mark.parametrize(
@@ -622,20 +622,20 @@ def test_clear_typecheck(contract, get_contract, assert_compile_failed):
 @pytest.mark.parametrize(
     "a,b,expected",
     [
-        ("empty(Bytes[65])", "b'hello'", [b"hello", b""]),
-        ("b'hello'", "empty(Bytes[33])", [b"", b"hello"]),
+        ("empty(Bytes[65])", "b'hello'", (b"hello", b"")),
+        ("b'hello'", "empty(Bytes[33])", (b"", b"hello")),
         (
             "empty(Bytes[65])",
             "b'thirty three bytes long baby!!!!!'",
-            [b"thirty three bytes long baby!!!!!", b""],
+            (b"thirty three bytes long baby!!!!!", b""),
         ),
         (
             "b'thirty three bytes long baby!!!aathirty three bytes long baby!!!a'",
             "b'thirty three bytes long baby!!!aa'",
-            [
+            (
                 b"thirty three bytes long baby!!!aa",
                 b"thirty three bytes long baby!!!aathirty three bytes long baby!!!a",
-            ],
+            ),
         ),
     ],
 )
@@ -664,7 +664,7 @@ def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
     c1 = get_contract(code_a)
     c2 = get_contract(code_b)
 
-    assert c2.bar(c1.address) == [12] + expected + [42]
+    assert c2.bar(c1.address) == (12, *expected, 42)
 
 
 def test_empty_array_in_event_logging(get_contract, get_logs):
@@ -688,7 +688,8 @@ def foo():
     """
 
     c = get_contract(code)
-    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
+    c.foo()
+    (log,) = get_logs(c, "MyLog")
 
     assert log.args.arg1 == b"hello" * 9
     assert log.args.arg2 == [[0, 0], [0, 0], [0, 0]]

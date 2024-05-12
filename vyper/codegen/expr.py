@@ -89,7 +89,7 @@ class Expr:
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        return IRnode.from_list(self.expr.n, typ=typ)
+        return IRnode.from_list(self.expr.value, typ=typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -133,8 +133,8 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
-        bytez = self.expr.s
-        bytez_length = len(self.expr.s)
+        bytez = self.expr.value
+        bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
@@ -168,17 +168,7 @@ class Expr:
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
-            var = self.context.vars[self.expr.id]
-            ret = IRnode.from_list(
-                var.pos,
-                typ=var.typ,
-                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
-                encoding=var.encoding,
-                annotation=self.expr.id,
-                mutable=var.mutable,
-            )
-            ret._referenced_variables = {var}
-            return ret
+            return self.context.lookup_var(self.expr.id).as_ir_node()
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
@@ -355,7 +345,7 @@ class Expr:
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
             # folded value instead of calling reduced() here?
-            index = self.expr.slice.reduced().n
+            index = self.expr.slice.reduced().value
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")
