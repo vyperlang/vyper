@@ -1284,12 +1284,7 @@ class RawLog(BuiltinFunctionT):
             placeholder = context.new_internal_variable(BYTES32_T)
             log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
-                [
-                    "seq",
-                    # TODO use make_setter
-                    ["mstore", placeholder, unwrap_location(data)],
-                    ensure_eval_once("raw_log", log_ir),
-                ]
+                ["seq", make_setter(placeholder, data), ensure_eval_once("raw_log", log_ir)]
             )
 
         input_buf = ensure_in_memory(data, context)
