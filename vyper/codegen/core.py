@@ -150,7 +150,7 @@ def make_byte_array_copier(dst, src):
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        has_storage = STORAGE in (src.location, dst.location)
+        has_storage = any(loc.word_addressable for loc in (src.location, dst.location))
         is_memory_copy = dst.location == src.location == MEMORY
         batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
         if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
@@ -934,7 +934,7 @@ def _complex_make_setter(left, right):
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
 
-        has_storage = STORAGE in (left.location, right.location)
+        has_storage = any(loc.word_addressable for loc in (left.location, right.location))
         if has_storage:
             if _opt_codesize():
                 # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,

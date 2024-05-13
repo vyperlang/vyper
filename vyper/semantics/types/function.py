@@ -443,7 +443,7 @@ class ContractFunctionT(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl, data_loc: DataLocation) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from an `VariableDecl` node.
 
@@ -453,6 +453,7 @@ class ContractFunctionT(VyperType):
         ---------
         node : VariableDecl
             Vyper ast node to generate the function definition from.
+        data_loc : DataLocation
 
         Returns
         -------
@@ -460,7 +461,11 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
+
+        assert data_loc not in (DataLocation.MEMORY, DataLocation.CALLDATA)
+
+        type_ = type_from_annotation(node.annotation, data_loc)
+
         arguments, return_type = type_.getter_signature
         args = []
         for i, item in enumerate(arguments):
