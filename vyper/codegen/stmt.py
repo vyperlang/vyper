@@ -315,7 +315,9 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).ir_node
             for node in target.args:
-                if (node.location.word_addressable and self.context.is_constant()) or not node.mutable:
+                if (
+                    node.location.word_addressable and self.context.is_constant()
+                ) or not node.mutable:
                     raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 

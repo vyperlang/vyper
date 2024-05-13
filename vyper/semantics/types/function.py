@@ -443,7 +443,9 @@ class ContractFunctionT(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl, data_loc: DataLocation) -> "ContractFunctionT":
+    def getter_from_VariableDecl(
+        cls, node: vy_ast.VariableDecl, data_loc: DataLocation
+    ) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from an `VariableDecl` node.
 
