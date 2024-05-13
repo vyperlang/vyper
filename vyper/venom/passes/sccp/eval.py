@@ -1,6 +1,7 @@
 import operator
 from typing import Callable
 
+from vyper.exceptions import StaticAssertionException
 from vyper.utils import (
     SizeLimits,
     evm_div,
@@ -50,8 +51,9 @@ def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
     nbytes = ops[1].value
 
-    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
-
+    if not 0 <= value <= SizeLimits.MAX_UINT256:
+        raise StaticAssertionException("Value out of bounds")
+    
     if nbytes > 31:
         return value
 
@@ -66,21 +68,25 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
 def _evm_iszero(ops: list[IROperand]) -> int:
     value = ops[0].value
-    assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    if SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_UINT256:
+        raise StaticAssertionException("Value out of bounds")
     return int(value == 0)  # 1 if True else 0
 
 
 def _evm_shr(ops: list[IROperand]) -> int:
     value = ops[0].value
     shift_len = ops[1].value
-    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    if not 0 <= value <= SizeLimits.MAX_UINT256:
+        raise StaticAssertionException("Value out of bounds")
+    
     return value >> shift_len
 
 
 def _evm_shl(ops: list[IROperand]) -> int:
     value = ops[0].value
     shift_len = ops[1].value
-    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    if not 0 <= value <= SizeLimits.MAX_UINT256:
+        raise StaticAssertionException("Value out of bounds")
     if shift_len >= 256:
         return 0
     return (value << shift_len) & SizeLimits.MAX_UINT256
@@ -88,14 +94,16 @@ def _evm_shl(ops: list[IROperand]) -> int:
 
 def _evm_sar(ops: list[IROperand]) -> int:
     value = _unsigned_to_signed(ops[0].value)
-    assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256, "Value out of bounds"
+    if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
+        raise StaticAssertionException("Value out of bounds")
     shift_len = ops[1].value
     return value >> shift_len
 
 
 def _evm_not(ops: list[IROperand]) -> int:
     value = ops[0].value
-    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    if not 0 <= value <= SizeLimits.MAX_UINT256:
+        raise StaticAssertionException("Value out of bounds")
     return SizeLimits.MAX_UINT256 ^ value
 
 
