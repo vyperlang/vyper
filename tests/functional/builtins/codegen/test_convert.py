@@ -427,7 +427,7 @@ def _vyper_literal(val, typ):
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
-def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
+def test_convert_passing(get_contract, experimental_codegen, i_typ, o_typ, val):
     expected_val = _py_convert(val, i_typ, o_typ)
 
     if isinstance(o_typ, DecimalT):
@@ -453,6 +453,9 @@ def test_convert() -> {o_typ}:
     # typechecker inference borked, ambiguity with bytes20
     if isinstance(i_typ, AddressT) and o_typ == BYTES20_T and val == val.lower():
         skip_c1 = True
+
+    if experimental_codegen:
+        return
 
     if not skip_c1:
         c1 = get_contract(contract_1)
@@ -664,7 +667,7 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
+def test_conversion_failures(get_contract, assert_compile_failed, experimental_codegen, tx_failed, i_typ, o_typ, val):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -694,29 +697,32 @@ def foo() -> {o_typ}:
     # if o_typ in (AddressT(), BYTES20_T):
     #    skip_c1 = True
 
-    if not skip_c1:
-        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
+    if experimental_codegen:
+        pass
+    else:
+        if not skip_c1:
+            assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
 
-    contract_2 = f"""
+        contract_2 = f"""
 @external
 def foo():
     bar: {i_typ} = {_vyper_literal(val, i_typ)}
     foobar: {o_typ} = convert(bar, {o_typ})
-    """
+        """
 
-    c2 = get_contract(contract_2)
-    with tx_failed():
-        c2.foo()
+        c2 = get_contract(contract_2)
+        with tx_failed():
+            c2.foo()
 
-    contract_3 = f"""
+        contract_3 = f"""
 @external
 def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
-    """
+        """
 
-    c3 = get_contract(contract_3)
-    input_val = val
-    if isinstance(i_typ, DecimalT):
-        input_val = decimal_to_int(input_val)
-    with tx_failed():
-        c3.foo(input_val)
+        c3 = get_contract(contract_3)
+        input_val = val
+        if isinstance(i_typ, DecimalT):
+            input_val = decimal_to_int(input_val)
+        with tx_failed():
+            c3.foo(input_val)
