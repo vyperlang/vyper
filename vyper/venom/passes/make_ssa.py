@@ -67,24 +67,6 @@ class MakeSSA(IRPass):
 
         basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
 
-    def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
-        for inst in basic_block.instructions:
-            if inst.opcode == "phi" and inst.output is not None and inst.output.name == var.name:
-                return False
-
-        args: list[IROperand] = []
-        for bb in basic_block.cfg_in:
-            if bb == basic_block:
-                continue
-
-            args.append(bb.label)
-            args.append(var)
-
-        phi = IRInstruction("phi", args, var)
-        basic_block.instructions.insert(0, phi)
-
-        return True
-
     def _rename_vars(self, basic_block: IRBasicBlock):
         """
         Rename variables. This follows the placement of phi nodes.

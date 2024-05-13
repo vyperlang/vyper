@@ -15,8 +15,6 @@ from vyper.exceptions import (
 )
 from vyper.utils import keccak256
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
-
 
 def test_empty_event_logging(get_logs, keccak, get_contract):
     loggy_code = """

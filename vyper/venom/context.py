@@ -53,6 +53,14 @@ class IRContext:
         """
         self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
 
+    def as_graph(self) -> str:
+        s = ["digraph G {"]
+        for fn in self.functions.values():
+            s.append(fn.as_graph(True))
+            s.append("\n")
+        s.append("}")
+        return "\n".join(s)
+
     def __repr__(self) -> str:
         s = ["IRContext:"]
         for fn in self.functions.values():

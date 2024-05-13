@@ -44,7 +44,6 @@ class BaseEnv:
     It provides a common interface for deploying contracts and interacting with them.
     """
 
-    INVALID_OPCODE_ERROR = "NotImplemented"  # must be implemented by subclasses
     DEFAULT_CHAIN_ID = 1
 
     def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
@@ -195,6 +194,16 @@ class BaseEnv:
             raise ExecutionReverted(f"{msg}", gas_used) from error
 
         raise ExecutionReverted(f"0x{output_bytes.hex()}", gas_used) from error
+
+    @property
+    def invalid_opcode_error(self) -> str:
+        """Expected error message when invalid opcode is executed."""
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def out_of_gas_error(self) -> str:
+        """Expected error message when user runs out of gas"""
+        raise NotImplementedError  # must be implemented by subclasses
 
 
 def _compile(

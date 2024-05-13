@@ -1,3 +1,9 @@
+import pytest
+
+from vyper import compile_code
+from vyper.exceptions import OverflowException, TypeMismatch
+
+
 def test_state_accessor(get_contract):
     state_accessor = """
 y: HashMap[int128, int128]
@@ -98,3 +104,32 @@ def __init__():
         if item["type"] == "constructor":
             continue
         assert item["stateMutability"] == "view"
+
+
+@pytest.mark.parametrize(
+    "typ,index,expected_error",
+    [
+        ("uint256", "-1", TypeMismatch),
+        ("uint256", "0-1", TypeMismatch),
+        ("uint256", "0-1+1", TypeMismatch),
+        ("uint256", "2**256", OverflowException),
+        ("uint256", "2**256 // 2", OverflowException),
+        ("uint256", "2 * 2**255", OverflowException),
+        ("int256", "-2**255", TypeMismatch),
+        ("int256", "-2**256", OverflowException),
+        ("int256", "2**255", TypeMismatch),
+        ("int256", "2**256 - 5", OverflowException),
+        ("int256", "2 * 2**254", TypeMismatch),
+        ("int8", "*".join(["2"] * 7), TypeMismatch),
+    ],
+)
+def test_hashmap_index_checks(typ, index, expected_error):
+    code = f"""
+m: HashMap[{typ}, uint256]
+
+@external
+def foo():
+    self.m[{index}] = 2
+    """
+    with pytest.raises(expected_error):
+        compile_code(code)

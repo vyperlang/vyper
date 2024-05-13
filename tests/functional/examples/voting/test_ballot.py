@@ -6,7 +6,7 @@ PROPOSAL_1_NAME = b"Clinton" + b"\x00" * 25
 PROPOSAL_2_NAME = b"Trump" + b"\x00" * 27
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c(get_contract):
     with open("examples/voting/ballot.vy") as f:
         contract_code = f.read()

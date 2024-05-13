@@ -350,6 +350,10 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
+class BadArchive(Exception):
+    """Bad archive"""
+
+
 class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
 

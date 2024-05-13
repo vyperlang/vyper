@@ -9,7 +9,7 @@ REVEAL_TIME = 50
 TEST_INCREMENT = 1
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def auction_contract(env, get_contract):
     with open("examples/auctions/blind_auction.vy") as f:
         contract_code = f.read()

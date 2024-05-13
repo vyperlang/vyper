@@ -9,7 +9,8 @@ from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
 
 
 class RevmEnv(BaseEnv):
-    INVALID_OPCODE_ERROR = "InvalidFEOpcode"
+    invalid_opcode_error = "InvalidFEOpcode"
+    out_of_gas_error = "OutOfGas"
 
     def __init__(
         self,
@@ -30,6 +31,7 @@ class RevmEnv(BaseEnv):
     @contextmanager
     def anchor(self):
         snapshot_id = self._evm.snapshot()
+        block = BlockEnv(number=self._evm.env.block.number, timestamp=self._evm.env.block.timestamp)
         try:
             yield
         finally:
@@ -39,6 +41,8 @@ class RevmEnv(BaseEnv):
                 # snapshot_id is reverted by the transaction already.
                 # revm updates are needed to make the journal more robust.
                 pass
+            self._evm.set_block_env(block)
+            # self._evm.set_tx_env(tx)
 
     def get_balance(self, address: str) -> int:
         return self._evm.get_balance(address)

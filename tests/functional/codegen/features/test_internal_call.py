@@ -8,8 +8,6 @@ from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, CallViolation
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
-
 
 def test_selfcall_code(get_contract):
     selfcall_code = """
