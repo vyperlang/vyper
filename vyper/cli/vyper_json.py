@@ -235,7 +235,7 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
         else:
             output_paths = [PurePath(path)]
-            if str(output_paths[0]) not in input_dict["sources"]:
+            if output_paths[0].as_posix() not in input_dict["sources"]:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
         for output_path in output_paths:
@@ -317,7 +317,7 @@ def compile_from_input_dict(
 def format_to_output_dict(compiler_data: dict) -> dict:
     output_dict: dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for path, data in compiler_data.items():
-        path = str(path)  # Path breaks json serializability
+        path = path.as_posix()
         output_dict["sources"][path] = {"id": data["source_id"]}
 
         for k in ("ast_dict", "annotated_ast_dict"):

@@ -424,4 +424,4 @@ import lib
         output_bundle = OutputBundle(compiler_data)
 
         used_dir = search_paths[-1].stem  # either dir1 or dir2
-        assert output_bundle.used_search_paths == [".", "0/" + used_dir]
+        assert output_bundle.used_search_paths == [".", str(Path("0", used_dir))]
