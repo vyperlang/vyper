@@ -1271,6 +1271,7 @@ class RawLog(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
+        topics = [unwrap_location(topic) for topic in topics]
 
         # sanity check topics is a literal list
         assert args[0].value in ("~empty", "multi")
@@ -1283,12 +1284,7 @@ class RawLog(BuiltinFunctionT):
             placeholder = context.new_internal_variable(BYTES32_T)
             log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
-                [
-                    "seq",
-                    # TODO use make_setter
-                    ["mstore", placeholder, unwrap_location(data)],
-                    ensure_eval_once("raw_log", log_ir),
-                ]
+                ["seq", make_setter(placeholder, data), ensure_eval_once("raw_log", log_ir)]
             )
 
         input_buf = ensure_in_memory(data, context)
