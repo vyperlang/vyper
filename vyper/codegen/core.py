@@ -870,6 +870,7 @@ def needs_clamp(t, encoding):
 def make_setter(left, right, hi=None):
     check_assign(left, right)
 
+    # TODO: `hi is not None` should be equal to `location==MEMORY and encoding==ABI`.
     if hi is None and right.location == MEMORY and right.encoding == Encoding.ABI:
         if isinstance(right.typ, _BytestringT):
             hi = ["add", add_ofst(right, get_bytearray_length(right)), 32]

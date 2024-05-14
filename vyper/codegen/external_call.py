@@ -118,8 +118,10 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     if needs_clamp(wrapped_return_t, encoding):
         return_buf = context.new_internal_variable(wrapped_return_t)
 
+        payload_bound = ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
+
         # note: make_setter does ABI decoding and clamps
-        unpacker.append(make_setter(return_buf, buf))
+        unpacker.append(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
     else:
         return_buf = buf
 
