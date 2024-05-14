@@ -19,7 +19,7 @@ class StoreElimination(IRPass):
         for var, inst in dfg.outputs.items():
             if inst.opcode != "store":
                 continue
-            if isinstance(inst.operands[0], IRVariable) is False:
+            if not isinstance(inst.operands[0], IRVariable):
                 continue
             if inst.operands[0].name in ["%ret_ofst", "%ret_size"]:
                 continue
