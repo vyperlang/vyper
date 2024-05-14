@@ -329,26 +329,6 @@ class SCCP(IRPass):
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
 
-    def _propagate_variables(self):
-        """
-        Copy elimination. #NOTE: Not working yet, but it's also not needed atm.
-        """
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if inst.opcode == "store":
-                    uses = self._get_uses(inst.output)
-                    remove_inst = True
-                    for usage_inst in uses:
-                        if usage_inst.opcode == "phi":
-                            remove_inst = False
-                            continue
-                        for i, op in enumerate(usage_inst.operands):
-                            if op == inst.output:
-                                usage_inst.operands[i] = inst.operands[0]
-                    if remove_inst:
-                        inst.opcode = "nop"
-                        inst.operands = []
-
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if x == LatticeEnum.TOP:
