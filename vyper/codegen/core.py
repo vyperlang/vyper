@@ -443,7 +443,7 @@ def _mul(x, y):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
+def _getelemptr_abi_helper(parent, member_t, ofst):
     member_abi_t = member_t.abi_type
 
     # ABI encoding has length word and then pretends length is not there
@@ -461,17 +461,14 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp_=True):
 
         # double dereference, according to ABI spec
         # `ofst_ir` is the "real" (absolute) pointer to the item
-        if parent.location != MEMORY:
-            ofst_ir = add_ofst(parent, abi_ofst)
-
-        else:
-            with abi_ofst.cache_when_complex("abi_ofst") as (b1, abi_ofst):
-                # TODO: cache add_ofst
-                arithmetic_overflow = ["lt", add_ofst(parent, abi_ofst), parent]
+        ofst_ir = add_ofst(parent, abi_ofst)
+        with ofst_ir.cache_when_complex("ofst_ir") as (b1, ofst_ir):
+            if parent.location == MEMORY:
+                arithmetic_overflow = ["lt", ofst_ir, parent]
                 bounds_check = ["assert", ["iszero", arithmetic_overflow]]
+                ofst_ir = ["seq", bounds_check, ofst_ir]
 
-                ofst_ir = ["seq", bounds_check, add_ofst(parent, abi_ofst)]
-                ofst_ir = b1.resolve(ofst_ir)
+            ofst_ir = b1.resolve(ofst_ir)
 
     return IRnode.from_list(
         ofst_ir,
@@ -494,7 +491,7 @@ def _get_element_ptr_tuplelike(parent, key, hi=None):
         index = attrs.index(key)
         annotation = key
     else:
-        # TupleT
+        assert isinstance(typ, TupleT)
         assert isinstance(key, int)
         subtype = typ.member_types[key]
         attrs = list(typ.tuple_keys())
@@ -1092,18 +1089,15 @@ def clamp_bytestring(ir_node, hi=None):
     if not isinstance(t, _BytestringT):  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
 
-    # TODO: cache get_bytearray_length
     # check if byte array length is within type max
-    bslen_check = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
+    with get_bytearray_length(ir_node).cache_when_complex("length") as (b1, length):
+        len_check = ["assert", ["le", length, t.maxlen]]
+        if hi:
+            payload_len = ["add", length, 32]
+            absolute_end = add_ofst(ir_node, payload_len)
+            len_check = ["seq", ["assert", ["le", absolute_end, hi]], len_check]
 
-    if hi:
-        payload_sz = ["add", get_bytearray_length(ir_node), 32]
-        absolute_end = add_ofst(ir_node, payload_sz)
-        ret = ["seq", ["assert", ["le", absolute_end, hi]], bslen_check]
-    else:
-        ret = bslen_check
-
-    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
+        return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
 
 
 def clamp_dyn_array(ir_node, hi=None):
@@ -1113,16 +1107,11 @@ def clamp_dyn_array(ir_node, hi=None):
     dynarr_len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
     if hi and not t.abi_type.subtyp.is_dynamic():
-        pass
         payload_sz = ["add", ["mul", get_dyn_array_count(ir_node), 32], 32]
         absolute_end = add_ofst(ir_node, payload_sz)
-        ret = ["seq"]
-        ret.append(["assert", ["le", absolute_end, hi]])
-        ret.append(dynarr_len_check)
-    else:
-        ret = dynarr_len_check
+        dynarr_len_check = ["seq", ["assert", ["le", absolute_end, hi]], dynarr_len_check]
 
-    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
+    return IRnode.from_list(dynarr_len_check, error_msg=f"{ir_node.typ} bounds check")
 
 
 # clampers for basetype
