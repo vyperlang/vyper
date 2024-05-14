@@ -188,7 +188,7 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, lo=None, hi=None):
+def _dynarray_make_setter(dst, src, hi=None):
     assert isinstance(src.typ, DArrayT)
     assert isinstance(dst.typ, DArrayT)
 
@@ -252,7 +252,6 @@ def _dynarray_make_setter(dst, src, lo=None, hi=None):
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
                     get_element_ptr(src, i, array_bounds_check=False),
-                    lo=lo,
                     hi=hi,
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
@@ -868,17 +867,14 @@ def needs_clamp(t, encoding):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, lo=None, hi=None):
+def make_setter(left, right, hi=None):
     check_assign(left, right)
 
     if hi is None and right.location == MEMORY and right.encoding == Encoding.ABI:
         if isinstance(right.typ, _BytestringT):
             hi = ["add", add_ofst(right, get_bytearray_length(right)), 32]
-        # is this branch necessary? if yes, is it too permissive by not using runtime sz?
         else:
             hi = add_ofst(right, right.typ.abi_type.size_bound())
-
-        lo = right
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
@@ -896,7 +892,7 @@ def make_setter(left, right, lo=None, hi=None):
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
                 copier = make_byte_array_copier(left, right)
-                ret = b.resolve(["seq", clamp_bytestring(right, lo=lo, hi=hi), copier])
+                ret = b.resolve(["seq", clamp_bytestring(right, hi=hi), copier])
         else:
             ret = make_byte_array_copier(left, right)
 
@@ -911,8 +907,8 @@ def make_setter(left, right, lo=None, hi=None):
         # TODO rethink/streamline the clamp_basetype logic
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right, lo=lo, hi=hi)
-                ret = b.resolve(["seq", clamp_dyn_array(right, lo=lo, hi=hi), copier])
+                copier = _dynarray_make_setter(left, right, hi=hi)
+                ret = b.resolve(["seq", clamp_dyn_array(right, hi=hi), copier])
         else:
             ret = _dynarray_make_setter(left, right)
 
@@ -921,10 +917,10 @@ def make_setter(left, right, lo=None, hi=None):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right, lo=lo, hi=hi)
+    return _complex_make_setter(left, right, hi=hi)
 
 
-def _complex_make_setter(left, right, lo=None, hi=None):
+def _complex_make_setter(left, right, hi=None):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
@@ -1006,7 +1002,7 @@ def _complex_make_setter(left, right, lo=None, hi=None):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
             r_i = get_element_ptr(right, k, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i, lo=lo, hi=hi))
+            ret.append(make_setter(l_i, r_i, hi=hi))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
@@ -1078,7 +1074,7 @@ def sar(bits, x):
     return ["sar", bits, x]
 
 
-def clamp_bytestring(ir_node, lo=None, hi=None):
+def clamp_bytestring(ir_node, hi=None):
     t = ir_node.typ
     if not isinstance(t, _BytestringT):  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
@@ -1086,11 +1082,16 @@ def clamp_bytestring(ir_node, lo=None, hi=None):
     # check if byte array length is within type max
     with get_bytearray_length(ir_node).cache_when_complex("length") as (b1, length):
         len_check = ["assert", ["le", length, t.maxlen]]
-        if hi:
-            payload_sz = ["add", length, 32]
-            abs_ptr_end = add_ofst(ir_node, payload_sz)
+
+        if hi is not None:
+            SCALE = ir_node.location.word_scale
+            assert SCALE == 32
+
+            payload_size = ["add", length, SCALE]
+            abs_ptr_end = add_ofst(ir_node, payload_size)
             # TODO: can we reuse check_buffer_overflow_ir?
-            arithmetic_overflow = ["lt", ir_node, lo]
+            # share code with dynarray
+            arithmetic_overflow = ["lt", ir_node, abs_ptr_end]
             buffer_oob = ["gt", abs_ptr_end, hi]
             ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
             len_check = ["seq", ["assert", ok], len_check]
@@ -1098,16 +1099,22 @@ def clamp_bytestring(ir_node, lo=None, hi=None):
         return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
 
 
-def clamp_dyn_array(ir_node, lo=None, hi=None):
+def clamp_dyn_array(ir_node, hi=None):
     t = ir_node.typ
     assert isinstance(t, DArrayT)
 
     len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
-    if hi and not t.abi_type.subtyp.is_dynamic():
-        payload_sz = ["add", ["mul", get_dyn_array_count(ir_node), 32], 32]
-        abs_ptr_end = add_ofst(ir_node, payload_sz)
-        arithmetic_overflow = ["lt", ir_node, lo]
+    if hi is not None and not t.abi_type.subtyp.is_dynamic():
+        SCALE = ir_node.location.word_scale
+        assert SCALE == 32  # we must be in some byte-addressable region, like memory
+        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
+
+        payload_size = ["add", ["mul", get_dyn_array_count(ir_node), SCALE], LENGTH_WORD]
+        abs_ptr_end = add_ofst(ir_node, payload_size)
+
+        arithmetic_overflow = ["lt", ir_node, abs_ptr_end]
+
         buffer_oob = ["gt", abs_ptr_end, hi]
         ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
         len_check = ["seq", ["assert", ok], len_check]
