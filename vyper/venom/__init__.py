@@ -16,8 +16,8 @@ from vyper.venom.passes.mem2var import Mem2Var
 from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
-from vyper.venom.venom_to_assembly import VenomCompiler
 from vyper.venom.passes.variable_forwarding import VariableForwarding
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 

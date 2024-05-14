@@ -1,12 +1,12 @@
-
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+
 
 class VariableForwarding(IRPass):
     """
@@ -22,12 +22,11 @@ class VariableForwarding(IRPass):
                 continue
             if isinstance(inst.operands[0], IRVariable) is False:
                 continue
-            if inst.operands[0].name in ['%ret_ofst', '%ret_size']:
+            if inst.operands[0].name in ["%ret_ofst", "%ret_size"]:
                 continue
-            if inst.output.name in ['%ret_ofst', '%ret_size']:
+            if inst.output.name in ["%ret_ofst", "%ret_size"]:
                 continue
             self._process_store(dfg, inst, var, inst.operands[0])
-            
 
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -39,14 +38,13 @@ class VariableForwarding(IRPass):
         forward the variable to the load instruction.
         """
         uses = dfg.get_uses(var)
-        
+
         if any([inst.opcode == "phi" for inst in uses]):
             return
-        
+
         for use_inst in uses:
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:
                     use_inst.operands[i] = new_var
 
         inst.parent.remove_instruction(inst)
-            
