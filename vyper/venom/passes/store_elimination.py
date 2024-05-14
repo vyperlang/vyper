@@ -8,9 +8,10 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
-class VariableForwarding(IRPass):
+class StoreElimination(IRPass):
     """
-    This pass forwards variables to their uses though `store` instructions.
+    This pass forwards variables to their uses though `store` instructions,
+    and removes the `store` instruction.
     """
 
     def run_pass(self):
