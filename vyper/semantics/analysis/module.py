@@ -51,8 +51,8 @@ from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
+    location_from_decl,
 )
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
@@ -621,28 +621,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.target, vy_ast.Name)
         name = node.target.id
 
-        data_loc = (
-            DataLocation.CODE
-            if node.is_immutable
-            else DataLocation.UNSET
-            if node.is_constant
-            else DataLocation.TRANSIENT
-            if node.is_transient
-            else DataLocation.STORAGE
-        )
-
-        modifiability = (
-            Modifiability.RUNTIME_CONSTANT
-            if node.is_immutable
-            else Modifiability.CONSTANT
-            if node.is_constant
-            else Modifiability.MODIFIABLE
-        )
-
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            func_t = ContractFunctionT.getter_from_VariableDecl(node, data_loc)
+            func_t = ContractFunctionT.getter_from_VariableDecl(node)
             node._metadata["getter_type"] = func_t
             self._add_exposed_function(func_t, node)
 
@@ -665,6 +647,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     else "Immutable definition requires an assignment in the constructor"
                 )
                 raise ImmutableViolation(message, node)
+
+        data_loc = location_from_decl(node)
+
+        modifiability = (
+            Modifiability.RUNTIME_CONSTANT
+            if node.is_immutable
+            else Modifiability.CONSTANT
+            if node.is_constant
+            else Modifiability.MODIFIABLE
+        )
 
         type_ = type_from_annotation(node.annotation, data_loc)
 

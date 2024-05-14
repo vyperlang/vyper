@@ -19,6 +19,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -681,3 +682,23 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
     info = get_expr_info(node)
     return info.modifiability <= modifiability
+
+
+def location_from_decl(node: vy_ast.VariableDecl) -> DataLocation:
+    """
+    Extract the data location from a variable declaration node.
+    """
+
+    assert isinstance(node, vy_ast.VariableDecl)
+
+    data_loc = (
+        DataLocation.CODE
+        if node.is_immutable
+        else DataLocation.UNSET
+        if node.is_constant
+        else DataLocation.TRANSIENT
+        if node.is_transient
+        else DataLocation.STORAGE
+    )
+
+    return data_loc

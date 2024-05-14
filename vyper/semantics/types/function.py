@@ -27,6 +27,7 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
+    location_from_decl,
     uses_state,
     validate_expected_type,
 )
@@ -443,9 +444,7 @@ class ContractFunctionT(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDecl(
-        cls, node: vy_ast.VariableDecl, data_loc: DataLocation
-    ) -> "ContractFunctionT":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from an `VariableDecl` node.
 
@@ -455,7 +454,6 @@ class ContractFunctionT(VyperType):
         ---------
         node : VariableDecl
             Vyper ast node to generate the function definition from.
-        data_loc : DataLocation
 
         Returns
         -------
@@ -463,6 +461,8 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
+
+        data_loc = location_from_decl(node)
 
         assert data_loc not in (DataLocation.MEMORY, DataLocation.CALLDATA)
 
