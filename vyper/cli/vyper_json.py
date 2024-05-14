@@ -22,10 +22,10 @@ TRANSLATE_MAP = {
     "evm.methodIdentifiers": "method_identifiers",
     "evm.bytecode.object": "bytecode",
     "evm.bytecode.opcodes": "opcodes",
+    "evm.bytecode.sourceMap": "source_map",
     "evm.deployedBytecode.object": "bytecode_runtime",
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
-    "evm.deployedBytecode.sourceMap": "source_map",
-    "evm.deployedBytecode.sourceMapFull": "source_map_full",
+    "evm.deployedBytecode.sourceMap": "source_map_runtime",
     "interface": "interface",
     "ir": "ir_dict",
     "ir_runtime": "ir_runtime_dict",
@@ -341,24 +341,24 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        if any(i in data for i in evm_keys):
+        pc_maps_keys = ("source_map",)
+        if any(i in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
+            if "source_map" in data:
+                evm["sourceMap"] = data["source_map"]
 
-        pc_maps_keys = ("source_map", "source_map_full")
-        if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
+        if any(i + "_runtime" in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
             if "opcodes_runtime" in data:
                 evm["opcodes"] = data["opcodes_runtime"]
-            if "source_map" in data:
-                evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
-            if "source_map_full" in data:
-                evm["sourceMapFull"] = data["source_map_full"]
+            if "source_map_runtime" in data:
+                evm["sourceMap"] = data["source_map_runtime"]
 
     return output_dict
 

@@ -55,6 +55,5 @@ class Mem2Var(IRPass):
                     bb = inst.parent
                     idx = bb.instructions.index(inst)
                     bb.insert_instruction(
-                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]),
-                        idx,
+                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
                     )

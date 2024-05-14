@@ -288,16 +288,13 @@ def _build_node_identifier(ast_node):
     return (ast_node.module_node.source_id, ast_node.node_id)
 
 
-def build_source_map_output(compiler_data: CompilerData) -> dict:
+def _build_source_map_output(compiler_data, bytecode, pc_maps):
     """
     Generate source map output in various formats. Note that integrations
     are encouraged to use pc_ast_map since the information it provides is
     a superset of the other formats, and the other types are included
     for legacy reasons.
     """
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_compiler_metadata=False
-    )
     # sort the pc maps alphabetically
     # CMC 2024-03-09 is this really necessary?
     out = {}
@@ -320,6 +317,20 @@ def build_source_map_output(compiler_data: CompilerData) -> dict:
     # hint to consumers what the fields in pc_ast_map mean
     out["pc_ast_map_item_keys"] = ("source_id", "node_id")
     return out
+
+
+def build_source_map_output(compiler_data: CompilerData) -> dict:
+    bytecode, pc_maps = compile_ir.assembly_to_evm(
+        compiler_data.assembly, insert_compiler_metadata=False
+    )
+    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+
+
+def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
+    bytecode, pc_maps = compile_ir.assembly_to_evm(
+        compiler_data.assembly_runtime, insert_compiler_metadata=False
+    )
+    return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
 
 # generate a solidity-style source map. this functionality is deprecated
