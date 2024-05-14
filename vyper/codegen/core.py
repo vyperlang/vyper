@@ -866,16 +866,33 @@ def needs_clamp(t, encoding):
     raise CompilerPanic("unreachable")  # pragma: nocover
 
 
+def _abi_payload_size(ir_node):
+    SCALE = ir_node.location.word_scale
+    assert SCALE == 32  # we must be in some byte-addressable region, like memory
+    if not ir_node.abi_type.is_dynamic():
+        return ir_node.abi_type.size_bound()
+
+    if isinstance(ir_node.typ, DArrayT):
+        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
+        return ["add", ["mul", get_dyn_array_count(ir_node), SCALE], LENGTH_WORD]
+
+    if isinstance(ir_node.typ, _BytestringT):
+        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
+        return ["add", get_bytearray_length(ir_node), SCALE]
+
+    raise CompilerPanic("unreachable!")  # pragma: nocover
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, hi=None):
     check_assign(left, right)
 
-    # TODO: `hi is not None` should be equal to `location==MEMORY and encoding==ABI`.
-    if hi is None and right.location == MEMORY and right.encoding == Encoding.ABI:
-        if isinstance(right.typ, _BytestringT):
-            hi = ["add", add_ofst(right, get_bytearray_length(right)), 32]
-        else:
-            hi = add_ofst(right, right.typ.abi_type.size_bound())
+    # we need bounds checks when decoding from memory, otherwise we can
+    # get oob reads.
+    assert (hi is not None) == (right.encoding == Encoding.ABI and right.location == MEMORY)
+    if hi is None:
+        # TODO: do we actually need this check?
+        hi = add_ofst(right, _abi_payload_size(right))
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
@@ -1085,11 +1102,7 @@ def clamp_bytestring(ir_node, hi=None):
         len_check = ["assert", ["le", length, t.maxlen]]
 
         if hi is not None:
-            SCALE = ir_node.location.word_scale
-            assert SCALE == 32
-
-            payload_size = ["add", length, SCALE]
-            abs_ptr_end = add_ofst(ir_node, payload_size)
+            abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
             # TODO: can we reuse check_buffer_overflow_ir?
             # share code with dynarray
             arithmetic_overflow = ["lt", ir_node, abs_ptr_end]
@@ -1107,12 +1120,7 @@ def clamp_dyn_array(ir_node, hi=None):
     len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
     if hi is not None and not t.abi_type.subtyp.is_dynamic():
-        SCALE = ir_node.location.word_scale
-        assert SCALE == 32  # we must be in some byte-addressable region, like memory
-        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
-
-        payload_size = ["add", ["mul", get_dyn_array_count(ir_node), SCALE], LENGTH_WORD]
-        abs_ptr_end = add_ofst(ir_node, payload_size)
+        abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
         arithmetic_overflow = ["lt", ir_node, abs_ptr_end]
 
