@@ -212,6 +212,8 @@ class JSONInputBundle(InputBundle):
             assert path not in self.input_json
             self.input_json[path] = item
 
+        print("ENTER", self.input_json)
+
     def _normalize_path(self, path: PurePath) -> PurePath:
         return _normpath(path)
 
