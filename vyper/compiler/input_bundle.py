@@ -125,7 +125,7 @@ class InputBundle:
             formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
             raise FileNotFoundError(
                 f"could not find {path} in any of the following locations:\n"
-                f"{formatted_search_paths}"
+                f"{formatted_search_paths}\n\n{self.search_paths}"
             )
 
         # try to parse from json, so that return types are consistent
