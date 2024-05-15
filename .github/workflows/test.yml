@@ -224,9 +224,7 @@ jobs:
         -m "not fuzzing"
         --evm-version ${{ matrix.evm-version }}
         --evm-backend ${{ matrix.evm-backend }}
-        tests/unit/
-
-        #tests/
+        tests/
 
   core-tests-success:
     if: always()
