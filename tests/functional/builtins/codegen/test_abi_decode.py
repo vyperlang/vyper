@@ -625,3 +625,25 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_abi_decode_extcall_oob(tx_failed, get_contract):
+    # the head returned from the extcall is 1 byte bigger than expected
+    # thus we'll take the last 31 0-bytes from tuple[1] and the 1st byte from tuple[2]
+    # and consider this the length - thus the length is 2**5
+    # and thus we'll read 1B over the buffer end (33 + 32 + 32)
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256):
+    return (33, 0, 2**(5+248))
+
+interface A:
+    def bar() -> String[32]: nonpayable
+
+@external
+def foo():
+    x:String[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
