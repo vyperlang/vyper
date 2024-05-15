@@ -62,99 +62,55 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+    # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
+    # it is annoying that we need to duplicate them, but it is necessary
+    # to avoid repeating defaults for every "include" in the matrix.
+    name: "${{ matrix.os && matrix.os != 'ubuntu' && format('{0}-', matrix.os) || '' }}\
+      py${{ matrix.python-version[1] || '311' }}\
+      -opt-${{ matrix.opt-mode || 'gas' }}\
+      ${{ matrix.debug && '-debug' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      -${{ matrix.evm-version || 'shanghai' }}\
+      -${{ matrix.evm-backend || 'revm' }}"
     strategy:
       matrix:
-        python-version: [["3.11", "311"]]
-        opt-mode: ["gas", "none", "codesize"]
+        # declare all variables used in the "include" section here! Conflicting jobs get overwritten by GitHub actions.
+        os: [ubuntu]
+        python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
+        opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [shanghai]
+        evm-version: [shanghai]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
         evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: london
-            evm-backend: revm
-
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: paris
-            evm-backend: revm
-
-          # redundant rule, for clarity
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: shanghai
-            evm-backend: revm
-
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: cancun
-            evm-backend: revm
+          - evm-version: london
+          - evm-version: paris
+          - evm-version: cancun
 
           # py-evm rules
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: codesize
-            evm-version: london
-            evm-backend: py-evm
-
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
+          - evm-backend: py-evm
+          - evm-backend: py-evm
             evm-version: cancun
-            evm-backend: py-evm
 
           # test experimental pipeline
-          - python-version: ["3.11", "311"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
-
-          - python-version: ["3.11", "311"]
-            opt-mode: codesize
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
-
-          - python-version: ["3.11", "311"]
+          - experimental-codegen: true
+          - experimental-codegen: true
             opt-mode: none
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
+          - experimental-codegen: true
+            opt-mode: codesize
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-
           - python-version: ["3.12", "312"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
 
-    name: "py${{ matrix.python-version[1] }}\
-      -opt-${{ matrix.opt-mode }}\
-      ${{ matrix.debug && '-debug' || '' }}\
-      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version }}\
-      -${{ matrix.evm-backend }}"
+          # os-specific rules
+          - os: windows
+          - os: macos
 
     steps:
     - uses: actions/checkout@v4
@@ -162,10 +118,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
 
     - name: Install dependencies
@@ -175,18 +131,18 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      run: |
-        pytest \
-          -m "not fuzzing" \
-          --optimize ${{ matrix.opt-mode }} \
-          --evm-version ${{ matrix.evm-version }} \
-          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }} \
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
-          --cov-branch \
-          --cov-report xml:coverage.xml \
-          --cov=vyper \
-          tests/
+      run: >
+        pytest
+        -m "not fuzzing"
+        --optimize ${{ matrix.opt-mode || 'gas' }}
+        --evm-version ${{ matrix.evm-version || 'shanghai' }}
+        --evm-backend ${{ matrix.evm-backend || 'revm' }}
+        ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
+        ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        --cov-branch
+        --cov-report xml:coverage.xml
+        --cov=vyper
+        tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v3
@@ -194,47 +150,15 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
 
-  windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: [["3.12", "312"]]
-        evm-version: [shanghai]
-        evm-backend: [py-evm]
-
-    name: "py${{ matrix.python-version[1] }}-windows-${{ matrix.evm-version }}-${{ matrix.evm-backend }}"
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-          fetch-depth: 0  # we need the full history for setuptools_scm to infer the version
-
-    - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version[0] }}
-        cache: "pip"
-
-    - name: Install dependencies
-      run: pip install .[test]
-
-    - name: Run tests
-      run: >
-        pytest
-        -m "not fuzzing"
-        --evm-version ${{ matrix.evm-version }}
-        --evm-backend ${{ matrix.evm-backend }}
-        tests/
-
   core-tests-success:
     if: always()
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
-    needs: [tests, windows]
+    needs: [tests]
     steps:
       - name: Check tests tests all succeeded
-        if: ${{ needs.tests.result != 'success' || needs.windows.result != 'success' }}
+        if: ${{ needs.tests.result != 'success' }}
         run: exit 1
 
 
