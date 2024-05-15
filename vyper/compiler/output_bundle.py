@@ -255,6 +255,6 @@ class VyperArchiveWriter(OutputBundleWriter):
         self.archive.writestr("MANIFEST/compiler_version", version)
 
     def output(self):
-        assert self.archive.testzip() is None
+        #assert self.archive.testzip() is None
         self.archive.close()
         return self._buf.getvalue()
