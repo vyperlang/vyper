@@ -62,7 +62,7 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os || 'ubuntu' }}-latest
     strategy:
       matrix:
         os: [ubuntu]
@@ -136,12 +136,12 @@ jobs:
             debug: false
 
     name: "py${{ matrix.python-version[1] }}\
-      -opt-${{ matrix.opt-mode }}\
+      -opt-${{ matrix.opt-mode || 'none' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version }}\
-      -${{ matrix.evm-backend }}\
-      -${{ matrix.os }}"
+      -${{ matrix.evm-version || 'shanghai' }}\
+      -${{ matrix.evm-backend || 'revm' }}\
+      -${{ matrix.os || 'ubuntu' }}"
 
     steps:
     - uses: actions/checkout@v4
