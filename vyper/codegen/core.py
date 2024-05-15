@@ -202,6 +202,9 @@ def _dynarray_make_setter(dst, src, hi=None):
     # before we clobber the length word.
 
     if src.value == "multi":
+        # validation is only performed on unsafe data, but we are dealing with
+        # a literal here.
+        assert hi is None
         ret = ["seq"]
         # handle literals
 
@@ -866,6 +869,10 @@ def needs_clamp(t, encoding):
 
     raise CompilerPanic("unreachable")  # pragma: nocover
 
+
+# when abi encoded data is user provided and lives in memory,
+# we risk either reading oob of the buffer or oob of the payload data.
+# in these cases, we need additional validation.
 def _dirty_read_risk(ir_node):
     return ir_node.encoding == Encoding.ABI and ir_node.location == MEMORY
 
@@ -891,8 +898,7 @@ def make_setter(left, right, hi=None):
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
-    if _dirty_read_risk(right):
-        assert hi is not None
+    assert (hi is not None) == _dirty_read_risk(right)
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
