@@ -74,7 +74,9 @@ jobs:
         experimental-codegen: [false]
         evm-backend: [revm]
 
+        # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
+          # test default settings with 3.11 across all supported evm versions
           - debug: false
             opt-mode: gas
             evm-version: london
