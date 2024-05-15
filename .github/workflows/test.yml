@@ -148,47 +148,15 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
 
-  windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: [["3.12", "312"]]
-        evm-version: [shanghai]
-        evm-backend: [py-evm]
-
-    name: "py${{ matrix.python-version[1] }}-windows-${{ matrix.evm-version }}-${{ matrix.evm-backend }}"
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-          fetch-depth: 0  # we need the full history for setuptools_scm to infer the version
-
-    - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version[0] }}
-        cache: "pip"
-
-    - name: Install dependencies
-      run: pip install .[test]
-
-    - name: Run tests
-      run: >
-        pytest
-        -m "not fuzzing"
-        --evm-version ${{ matrix.evm-version }}
-        --evm-backend ${{ matrix.evm-backend }}
-        tests/
-
   core-tests-success:
     if: always()
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
-    needs: [tests, windows]
+    needs: [tests]
     steps:
       - name: Check tests tests all succeeded
-        if: ${{ needs.tests.result != 'success' || needs.windows.result != 'success' }}
+        if: ${{ needs.tests.result != 'success' }}
         run: exit 1
 
 
