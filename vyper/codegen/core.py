@@ -883,13 +883,13 @@ def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
 
+    OFFSET = DYNAMIC_ARRAY_OVERHEAD * SCALE
+
     if isinstance(ir_node.typ, DArrayT):
-        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
-        return ["add", ["mul", get_dyn_array_count(ir_node), SCALE], LENGTH_WORD]
+        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), SCALE]]
 
     if isinstance(ir_node.typ, _BytestringT):
-        LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
-        return ["add", get_bytearray_length(ir_node), LENGTH_WORD]
+        return ["add", OFFSET, get_bytearray_length(ir_node)]
 
     raise CompilerPanic("unreachable")  # pragma: nocover
 
@@ -1119,9 +1119,9 @@ def clamp_bytestring(ir_node, hi=None):
 
             # note: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
-            abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
+            item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
-            len_check = ["seq", ["assert", ["le", abs_ptr_end, hi]], len_check]
+            len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
 
         return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
 
@@ -1133,14 +1133,16 @@ def clamp_dyn_array(ir_node, hi=None):
     len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
     assert (hi is not None) == _dirty_read_risk(ir_node)
+
+    # if the subtype is dynamic, the check will be performed in the recursion
     if hi is not None and not t.abi_type.subtyp.is_dynamic():
         assert t.count < 2**64  # sanity check
 
         # note: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
-        abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
+        item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
-        len_check = ["seq", ["assert", ["le", abs_ptr_end, hi]], len_check]
+        len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
 
     return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")
 
