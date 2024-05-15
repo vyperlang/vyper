@@ -578,7 +578,10 @@ def test_abi_decode_nonstrict_head_oob2(tx_failed, get_contract):
 @external
 def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
-    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(y,  DynArray[DynArray[uint256, 3], 3])
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y,
+        DynArray[DynArray[uint256, 3], 3]
+    )
     """
     c = get_contract(code)
 
@@ -707,7 +710,10 @@ def test_abi_decode_runtimesz_oob2(tx_failed, get_contract, env):
 @external
 def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
-    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(y,  DynArray[DynArray[uint256, 3], 3])
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y,
+        DynArray[DynArray[uint256, 3], 3]
+    )
     """
     c = get_contract(code)
 
