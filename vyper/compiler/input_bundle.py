@@ -1,9 +1,9 @@
 import contextlib
 import json
+import posixpath
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
-import posixpath
 from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 from vyper.exceptions import JSONError
@@ -106,6 +106,8 @@ class InputBundle:
     def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
+        if isinstance(path, str):
+            path = PurePath(path)
         for sp in reversed(self.search_paths):
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
