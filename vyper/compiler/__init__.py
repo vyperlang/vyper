@@ -1,14 +1,12 @@
-from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, Optional
 
-import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings, anchor_settings
-from vyper.typing import ContractPath, OutputFormats, StorageLayout
+from vyper.compiler.settings import Settings, anchor_settings, get_global_settings
+from vyper.typing import OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -16,9 +14,12 @@ OUTPUT_FORMATS = {
     # requires annotated_vyper_module
     "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
-    # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
+    "archive": output.build_archive,
+    "archive_b64": output.build_archive_b64,
+    "integrity": output.build_integrity,
+    "solc_json": output.build_solc_json,
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
@@ -36,7 +37,7 @@ OUTPUT_FORMATS = {
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
     "source_map": output.build_source_map_output,
-    "source_map_full": output.build_source_map_output,
+    "source_map_runtime": output.build_source_map_runtime_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
     "bytecode_runtime": output.build_bytecode_runtime_output,
@@ -53,6 +54,7 @@ def compile_from_file_input(
     file_input: FileInput,
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    integrity_sum: str = None,
     output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
     no_bytecode_metadata: bool = False,
@@ -95,7 +97,7 @@ def compile_from_file_input(
     Dict
         Compiler output as `{'output key': "output data"}`
     """
-    settings = settings or Settings()
+    settings = settings or get_global_settings() or Settings()
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -103,15 +105,14 @@ def compile_from_file_input(
     # make IR output the same between runs
     codegen.reset_names()
 
-    # TODO: maybe at this point we might as well just pass a `FileInput`
-    # directly to `CompilerData`.
     compiler_data = CompilerData(
         file_input,
         input_bundle,
-        settings,
-        storage_layout_override,
-        show_gas_estimates,
-        no_bytecode_metadata,
+        settings=settings,
+        integrity_sum=integrity_sum,
+        storage_layout=storage_layout_override,
+        show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
 
     ret = {}
@@ -149,7 +150,7 @@ def compile_code(
         contract_path = Path(contract_path)
     file_input = FileInput(
         source_id=source_id,
-        source_code=source_code,
+        contents=source_code,
         path=contract_path,
         resolved_path=resolved_path or contract_path,  # type: ignore
     )
