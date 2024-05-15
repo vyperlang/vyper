@@ -529,9 +529,9 @@ def f(x: Bytes[32 * 5]):
 
 
 def test_abi_decode_nonstrict_head_oob(tx_failed, get_contract):
-    # data isn't strictly encoded - (non_strict_head + length) >= parent_static_sz
+    # data isn't strictly encoded and (non_strict_head + len(DynArray[..][2])) > parent_static_sz
     # thus decoding the data pointed to by the head would cause an OOB read
-    # the non_strict_head and the length are s.t. we have a read 1B over the buffer end
+    # non_strict_head + length == parent + parent_static_sz + 1
     code = """
 @external
 def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
@@ -567,6 +567,43 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     data += (0x60).to_bytes(1, "big")
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_nonstrict_head_oob2(tx_failed, get_contract):
+    # same principle as in Test_abi_decode_nonstrict_head_oob
+    # but adapted for dynarrays
+    code = """
+@external
+def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(y,  DynArray[DynArray[uint256, 3], 3])
+    """
+    c = get_contract(code)
+
+    data = b""
+
+    data += (0x20).to_bytes(32, "big")  # DynArray head
+    data += (0x03).to_bytes(32, "big")  # DynArray length
+
+    data += (0x20 * 8 + 0x20 * 3 + 0x01).to_bytes(32, "big")  # inner array0 head
+
+    data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    data += (0x03).to_bytes(32, "big")  # DynArray[..][0] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[..][0] data
+
+    data += (0x03).to_bytes(32, "big")  # DynArray[..][1] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[..][1]  data
+
+    # the invalid head points here + 1B (thus the length is 0x03)
+    # we don't revert because of invalid length, but because head+length is OOB
+    data += (0x00).to_bytes(32, "big")  # DynArray[..][2] length
+    data += (0x03).to_bytes(1, "big")
+    data += (0x00).to_bytes(31, "big")
+    data += (0x01).to_bytes(32, "big") * 2
     with tx_failed():
         c.run(data)
 
@@ -663,6 +700,41 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         env.message_call(c.address, data=data)
 
 
+def test_abi_decode_runtimesz_oob2(tx_failed, get_contract, env):
+    # same principle as in test_abi_decode_runtimesz_oob
+    # but adapted for dynarrays
+    code = """
+@external
+def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(y,  DynArray[DynArray[uint256, 3], 3])
+    """
+    c = get_contract(code)
+
+    data = method_id("f(bytes)")
+    data += (0x20).to_bytes(32, "big")  # tuple head
+    data += (0x01E4).to_bytes(32, "big")  # top-level bytes array length
+
+    data += (0x20).to_bytes(32, "big")  # DynArray head
+    data += (0x03).to_bytes(32, "big")  # DynArray length
+
+    data += (0x20 * 3).to_bytes(32, "big")  # inner array0 head
+    data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    data += (0x03).to_bytes(32, "big")  # DynArray[..][0] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[..][0] data
+
+    data += (0x03).to_bytes(32, "big")  # DynArray[..][1] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[..][1]  data
+
+    data += (0x03).to_bytes(32, "big")  # DynArray[..][2] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[..][2]  data
+
+    with tx_failed():
+        env.message_call(c.address, data=data)
+
+
 def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):
     # the head returned from the extcall is set to invalid value of 480
     code = """
@@ -722,3 +794,22 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_abi_decode_extcall_truncate_returndata(tx_failed, get_contract):
+    # return more data than expected
+    # the truncated data is still valid
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256, uint256):
+    return (32, 32, 36, 36)
+
+interface A:
+    def bar() -> Bytes[32]: nonpayable
+
+@external
+def foo():
+    x:Bytes[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    c.foo()
