@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+    PYTHON_VERSION: "3.11"
+
 jobs:
 
   lint:
@@ -17,10 +20,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install Dependencies
@@ -47,10 +50,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install deps
@@ -61,21 +64,41 @@ jobs:
         run: sphinx-build -E -b html docs dist/docs -n -q --color
 
   # "Regular"/core tests.
+  defaults:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.step.outputs.os }}
+      python-version-semver: ${{ steps.step.outputs.python-version-semver }}
+      python-version-number: ${{ steps.step.outputs.python-version-number }}
+      opt-mode: ${{ steps.step.outputs.opt-mode }}
+      evm-version: ${{ steps.step.outputs.evm-version }}
+      evm-backend: ${{ steps.step.outputs.evm-backend }}
+    steps:
+      - id: step
+        run: |
+          echo "os=ubuntu" >> "$GITHUB_OUTPUT"
+          echo "python-version-semver=$PYTHON_VERSION" >> "$GITHUB_OUTPUT"
+          echo "python-version-number=${PYTHON_VERSION//./}" >> "$GITHUB_OUTPUT"
+          echo "opt-mode=gas" >> "$GITHUB_OUTPUT"
+          echo "evm-version=shanghai" >> "$GITHUB_OUTPUT"
+          echo "evm-backend=revm" >> "$GITHUB_OUTPUT"
+
   tests:
-    runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+    runs-on: ${{ matrix.os || needs.defaults.outputs.os }}
+    needs: [defaults]
     strategy:
       matrix:
-        os: [ubuntu]
-        python-version: [["3.11", "311"]]
+        os: [needs.defaults.outputs.os]
+        python-version: [[needs.defaults.outputs.python-version-semver, needs.defaults.outputs.python-version-number]]
+        evm-version: [needs.defaults.outputs.evm-version]
+        evm-backend: [needs.defaults.outputs.evm-backend]
         opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [shanghai]
         experimental-codegen: [false]
-        evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
-          # test default settings with 3.11 across all supported evm versions
+          # test default settings across all supported evm versions
           - evm-version: london
           - evm-version: paris
           - evm-version: cancun
@@ -102,13 +125,13 @@ jobs:
           - python-version: ["3.10", "310"]
           - python-version: ["3.12", "312"]
 
-    name: "py${{ matrix.python-version[1] || '311' }}\
-      -opt-${{ matrix.opt-mode || 'gas' }}\
+    name: "py${{ matrix.python-version[1] || needs.defaults.outputs.python-version-number }}\
+      -opt-${{ matrix.opt-mode || needs.defaults.outputs.opt-mode }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version || 'shanghai' }}\
-      -${{ matrix.evm-backend || 'revm' }}\
-      -${{ matrix.os || 'ubuntu' }}"
+      -${{ matrix.evm-version || needs.defaults.outputs.evm-version }}\
+      -${{ matrix.evm-backend || needs.defaults.outputs.evm-backend }}\
+      -${{ matrix.os || needs.defaults.outputs.os }}"
 
     steps:
     - uses: actions/checkout@v4
@@ -116,10 +139,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
+    - name: Set up Python ${{ matrix.python-version[0] || needs.defaults.outputs.python-version-semver }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] || '3.11' }}
+        python-version: ${{ matrix.python-version[0] || needs.defaults.outputs.python-version-semver }}
         cache: "pip"
 
     - name: Install dependencies
@@ -175,10 +198,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install dependencies
