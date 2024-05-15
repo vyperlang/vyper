@@ -63,13 +63,24 @@ jobs:
   # "Regular"/core tests.
   tests:
     runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+    # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
+    # it is annoying that we need to duplicate them, but it is necessary
+    # to avoid repeating defaults for every "include" in the matrix.
+    name: "${{ matrix.os && matrix.os != 'ubuntu' && format('{0}-', matrix.os) || '' }}\
+      py${{ matrix.python-version[1] || '311' }}\
+      -opt-${{ matrix.opt-mode || 'gas' }}\
+      ${{ matrix.debug && '-debug' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      -${{ matrix.evm-version || 'shanghai' }}\
+      -${{ matrix.evm-backend || 'revm' }}"
     strategy:
       matrix:
+        # declare all variables used in the "include" section here! Conflicting jobs get overwritten by GitHub actions.
         os: [ubuntu]
-        python-version: [["3.11", "311"]]
+        python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
         opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [shanghai]
+        evm-version: [shanghai]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
         evm-backend: [revm]
 
@@ -81,10 +92,9 @@ jobs:
           - evm-version: cancun
 
           # py-evm rules
-          - evm-version: london
-            evm-backend: py-evm
-          - evm-version: cancun
-            evm-backend: py-evm
+          - evm-backend: py-evm
+          - evm-backend: py-evm
+            evm-version: cancun
 
           # test experimental pipeline
           - experimental-codegen: true
@@ -101,14 +111,6 @@ jobs:
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
           - python-version: ["3.12", "312"]
-
-    name: "py${{ matrix.python-version[1] || '311' }}\
-      -opt-${{ matrix.opt-mode || 'gas' }}\
-      ${{ matrix.debug && '-debug' || '' }}\
-      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version || 'shanghai' }}\
-      -${{ matrix.evm-backend || 'revm' }}\
-      -${{ matrix.os || 'ubuntu' }}"
 
     steps:
     - uses: actions/checkout@v4
