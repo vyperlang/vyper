@@ -1,22 +1,23 @@
-from vyper.venom.analysis import calculate_cfg, calculate_liveness
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
-from vyper.venom.function import IRFunction
+from vyper.venom.context import IRContext
 from vyper.venom.passes.make_ssa import MakeSSA
 
 
 def test_phi_case():
-    ctx = IRFunction(IRLabel("_global"))
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
 
-    bb = ctx.get_basic_block()
+    bb = fn.get_basic_block()
 
-    bb_cont = IRBasicBlock(IRLabel("condition"), ctx)
-    bb_then = IRBasicBlock(IRLabel("then"), ctx)
-    bb_else = IRBasicBlock(IRLabel("else"), ctx)
-    bb_if_exit = IRBasicBlock(IRLabel("if_exit"), ctx)
-    ctx.append_basic_block(bb_cont)
-    ctx.append_basic_block(bb_then)
-    ctx.append_basic_block(bb_else)
-    ctx.append_basic_block(bb_if_exit)
+    bb_cont = IRBasicBlock(IRLabel("condition"), fn)
+    bb_then = IRBasicBlock(IRLabel("then"), fn)
+    bb_else = IRBasicBlock(IRLabel("else"), fn)
+    bb_if_exit = IRBasicBlock(IRLabel("if_exit"), fn)
+    fn.append_basic_block(bb_cont)
+    fn.append_basic_block(bb_then)
+    fn.append_basic_block(bb_else)
+    fn.append_basic_block(bb_if_exit)
 
     v = bb.append_instruction("mload", 64)
     bb_cont.append_instruction("jnz", v, bb_then.label, bb_else.label)
@@ -30,11 +31,10 @@ def test_phi_case():
 
     bb.append_instruction("jmp", bb_cont.label)
 
-    calculate_cfg(ctx)
-    MakeSSA().run_pass(ctx, ctx.basic_blocks[0])
-    calculate_liveness(ctx)
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
 
-    condition_block = ctx.get_basic_block("condition")
+    condition_block = fn.get_basic_block("condition")
     assert len(condition_block.instructions) == 2
 
     phi_inst = condition_block.instructions[0]

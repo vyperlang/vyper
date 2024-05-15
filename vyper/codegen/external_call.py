@@ -1,9 +1,11 @@
+import copy
 from dataclasses import dataclass
 
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     _freshname,
+    add_ofst,
     calculate_type_for_external_return,
     check_assign,
     check_external_call,
@@ -54,7 +56,7 @@ def _pack_arguments(fn_type, args, context):
     buf_t = get_type_for_exact_size(buflen)
     buf = context.new_internal_variable(buf_t)
 
-    args_ofst = buf + 28
+    args_ofst = add_ofst(buf, 28)
     args_len = args_abi_t.size_bound() + 4
 
     abi_signature = fn_type.name + dst_tuple_t.abi_type.selector_name()
@@ -69,7 +71,7 @@ def _pack_arguments(fn_type, args, context):
     pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
 
     if len(args) != 0:
-        pack_args.append(abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen))
+        pack_args.append(abi_encode(add_ofst(buf, 32), args_as_tuple, context, bufsz=buflen))
 
     return buf, pack_args, args_ofst, args_len
 
@@ -93,13 +95,11 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     encoding = Encoding.ABI
 
-    buf = IRnode.from_list(
-        buf,
-        typ=wrapped_return_t,
-        location=MEMORY,
-        encoding=encoding,
-        annotation=f"{expr.node_source_code} returndata buffer",
-    )
+    assert buf.location == MEMORY
+    buf = copy.copy(buf)
+    buf.typ = wrapped_return_t
+    buf.encoding = encoding
+    buf.annotation = f"{expr.node_source_code} returndata buffer"
 
     unpacker = ["seq"]
 
@@ -117,7 +117,6 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     # unpack strictly
     if needs_clamp(wrapped_return_t, encoding):
         return_buf = context.new_internal_variable(wrapped_return_t)
-        return_buf = IRnode.from_list(return_buf, typ=wrapped_return_t, location=MEMORY)
 
         # note: make_setter does ABI decoding and clamps
         unpacker.append(make_setter(return_buf, buf))
