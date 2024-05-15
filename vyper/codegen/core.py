@@ -1108,13 +1108,17 @@ def clamp_bytestring(ir_node, hi=None):
     with get_bytearray_length(ir_node).cache_when_complex("length") as (b1, length):
         len_check = ["assert", ["le", length, t.maxlen]]
 
+        assert (hi is not None) == _dirty_read_risk(ir_node)
         if hi is not None:
+            assert t.maxlen < 2**64  # sanity check
+
+            # note: this add does not risk arithmetic overflow because
+            # length is bounded by maxlen.
             abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
             # TODO: can we reuse check_buffer_overflow_ir?
             # share code with dynarray
-            arithmetic_overflow = ["lt", abs_ptr_end, ir_node]
             buffer_oob = ["gt", abs_ptr_end, hi]
-            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            ok = ["iszero", buffer_oob]
             len_check = ["seq", ["assert", ok], len_check]
 
         return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
@@ -1126,13 +1130,16 @@ def clamp_dyn_array(ir_node, hi=None):
 
     len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
+    assert (hi is not None) == _dirty_read_risk(ir_node)
     if hi is not None and not t.abi_type.subtyp.is_dynamic():
+        assert t.count < 2**64  # sanity check
+
+        # note: this add does not risk arithmetic overflow because
+        # length is bounded by count * elemsize.
         abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
-        arithmetic_overflow = ["lt", abs_ptr_end, ir_node]
-
         buffer_oob = ["gt", abs_ptr_end, hi]
-        ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+        ok = ["iszero", buffer_oob]
         len_check = ["seq", ["assert", ok], len_check]
 
     return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")
