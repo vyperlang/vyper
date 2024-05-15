@@ -457,6 +457,9 @@ def _getelemptr_abi_helper(parent, member_t, ofst):
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
         ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
+        if parent.location == MEMORY:
+            # check no arithmetic overflow
+            ofst_ir = ["seq", ["assert", ["ge", ofst_ir, parent]], ofst_ir]
 
     return IRnode.from_list(
         ofst_ir,
