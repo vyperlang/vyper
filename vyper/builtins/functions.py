@@ -252,7 +252,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     # allocate a buffer for the return value
     buf = context.new_internal_variable(dst_typ)
 
-    with scope_multi((start, length), ("start", "length") as (b1, start, length):
+    with scope_multi((start, length), ("start", "length")) as (b1, (start, length)):
         # `msg.data` by `calldatacopy`
         if sub.value == "~calldata":
             node = [
