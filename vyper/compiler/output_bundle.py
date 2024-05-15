@@ -30,7 +30,11 @@ def _anonymize(p: str):
             segments.append(str(i))
         else:
             segments.append(s)
-    return str(PurePath(*segments))
+
+    # the way to get reliable paths which reproduce cross-platform is to use
+    # posix style paths.
+    # cf. https://stackoverflow.com/a/122485
+    return PurePath(*segments).as_posix()
 
 
 # data structure containing things that should be in an output bundle,
@@ -58,7 +62,7 @@ class OutputBundle:
 
         sources = {}
         for c in inputs:
-            path = os.path.relpath(str(c.resolved_path))
+            path = os.path.relpath(c.resolved_path)
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to search path semantics.
@@ -68,8 +72,8 @@ class OutputBundle:
 
     @cached_property
     def compilation_target_path(self):
-        p = self.compiler_data.file_input.resolved_path
-        p = os.path.relpath(str(p))
+        p = PurePath(self.compiler_data.file_input.resolved_path)
+        p = os.path.relpath(p)
         return _anonymize(p)
 
     @cached_property
@@ -255,6 +259,12 @@ class VyperArchiveWriter(OutputBundleWriter):
         self.archive.writestr("MANIFEST/compiler_version", version)
 
     def output(self):
-        assert self.archive.testzip() is None
         self.archive.close()
+
+        # there is a race on windows where testzip() will return false
+        # before closing. close it and then reopen to run testzip()
+        s = zipfile.ZipFile(self._buf)
+        assert s.testzip() is None
+        del s  # garbage collector, cf. `__del__()` method.
+
         return self._buf.getvalue()

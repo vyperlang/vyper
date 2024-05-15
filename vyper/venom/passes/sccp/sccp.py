@@ -168,7 +168,9 @@ class SCCP(IRPass):
                 continue
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
-        assert inst.output in self.lattice, "Got undefined var for phi"
+
+        if inst.output not in self.lattice:
+            return
 
         if value != self._lookup_from_lattice(inst.output):
             self._set_lattice(inst.output, value)
@@ -326,26 +328,6 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
-
-    def _propagate_variables(self):
-        """
-        Copy elimination. #NOTE: Not working yet, but it's also not needed atm.
-        """
-        for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if inst.opcode == "store":
-                    uses = self._get_uses(inst.output)
-                    remove_inst = True
-                    for usage_inst in uses:
-                        if usage_inst.opcode == "phi":
-                            remove_inst = False
-                            continue
-                        for i, op in enumerate(usage_inst.operands):
-                            if op == inst.output:
-                                usage_inst.operands[i] = inst.operands[0]
-                    if remove_inst:
-                        inst.opcode = "nop"
-                        inst.operands = []
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:

@@ -1,6 +1,6 @@
 import contextlib
 import json
-import os
+import posixpath
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
@@ -106,6 +106,8 @@ class InputBundle:
     def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
+        if isinstance(path, str):
+            path = PurePath(path)
         for sp in reversed(self.search_paths):
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
@@ -187,9 +189,13 @@ class FilesystemInputBundle(InputBundle):
         return FileInput(source_id, original_path, resolved_path, code)
 
 
-# wrap os.path.normpath, but return the same type as the input
+# wrap os.path.normpath, but return the same type as the input -
+# but use posixpath instead so that things work cross-platform.
 def _normpath(path):
-    return path.__class__(os.path.normpath(path))
+    cls = path.__class__
+    if not isinstance(path, str):
+        path = path.as_posix()
+    return cls(posixpath.normpath(path))
 
 
 # fake filesystem for "standard JSON" (aka solc-style) inputs. takes search
@@ -255,7 +261,7 @@ class ZipInputBundle(InputBundle):
         # zipfile.BadZipFile: File is not a zip file
 
         try:
-            value = self.archive.read(str(resolved_path)).decode("utf-8")
+            value = self.archive.read(resolved_path.as_posix()).decode("utf-8")
         except KeyError:
             # zipfile literally raises KeyError if the file is not there
             raise _NotFound(resolved_path)

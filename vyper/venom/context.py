@@ -68,8 +68,8 @@ class IRContext:
             s.append("\n")
 
         if len(self.data_segment) > 0:
-            s += "\nData segment:\n"
+            s.append("\nData segment:")
             for inst in self.data_segment:
-                s += f"{inst}\n"
+                s.append(f"{inst}")
 
         return "\n".join(s)

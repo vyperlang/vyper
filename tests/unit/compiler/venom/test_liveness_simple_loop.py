@@ -13,4 +13,6 @@ def foo(a: uint256):
 
 
 def test_liveness_simple_loop():
-    vyper.compile_code(source, ["opcodes"], settings=Settings(experimental_codegen=True))
+    vyper.compile_code(
+        source, output_formats=["opcodes"], settings=Settings(experimental_codegen=True)
+    )

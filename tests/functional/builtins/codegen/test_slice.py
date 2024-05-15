@@ -37,7 +37,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 def _fail_contract(code, opt_level, exceptions):
     settings = Settings(optimize=opt_level)
     with pytest.raises(exceptions):
-        compile_code(code, settings)
+        compile_code(code, settings=settings)
 
 
 @pytest.mark.parametrize("use_literal_start", (True, False))
