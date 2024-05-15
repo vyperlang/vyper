@@ -76,60 +76,33 @@ jobs:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - debug: false
-            opt-mode: gas
-            evm-version: london
-
-          - debug: false
-            opt-mode: gas
-            evm-version: paris
-
-          - debug: false
-            opt-mode: gas
-            evm-version: cancun
+          - evm-version: london
+          - evm-version: paris
+          - evm-version: cancun
 
           # py-evm rules
-          - debug: false
-            opt-mode: codesize
-            evm-version: london
+          - evm-version: london
             evm-backend: py-evm
-
-          - debug: false
-            opt-mode: gas
-            evm-version: cancun
+          - evm-version: cancun
             evm-backend: py-evm
 
           # test experimental pipeline
-          - opt-mode: gas
-            debug: false
-            experimental-codegen: true
-
-          - opt-mode: codesize
-            debug: false
-            experimental-codegen: true
-
-          - opt-mode: none
-            debug: false
-            experimental-codegen: true
+          - experimental-codegen: true
+          - experimental-codegen: true
+            opt-mode: gas
+          - experimental-codegen: true
+            opt-mode: codesize
 
           # os-specific rules
           - os: windows
-            opt-mode: none
-            debug: false
-
           - os: macos
-            opt-mode: none
-            debug: false
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
             opt-mode: gas
-            debug: false
-
           - python-version: ["3.12", "312"]
             opt-mode: gas
-            debug: false
 
     name: "py${{ matrix.python-version[1] || '311' }}\
       -opt-${{ matrix.opt-mode || 'none' }}\
