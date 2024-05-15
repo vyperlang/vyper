@@ -164,16 +164,16 @@ jobs:
     - name: Run tests
       run: >
         pytest
-          -m "not fuzzing"
-          --optimize ${{ matrix.opt-mode }}
-          --evm-version ${{ matrix.evm-version }}
-          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }}
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
-          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
-          --cov-branch
-          --cov-report xml:coverage.xml
-          --cov=vyper
-          tests/
+        -m "not fuzzing"
+        --optimize ${{ matrix.opt-mode }}
+        --evm-version ${{ matrix.evm-version }}
+        ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }}
+        ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
+        ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        --cov-branch
+        --cov-report xml:coverage.xml
+        --cov=vyper
+        tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v3
