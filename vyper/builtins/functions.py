@@ -252,10 +252,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     # allocate a buffer for the return value
     buf = context.new_internal_variable(dst_typ)
 
-    with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (
-        b2,
-        length,
-    ):
+    with scope_multi((start, length), ("start", "length") as (b1, start, length):
         # `msg.data` by `calldatacopy`
         if sub.value == "~calldata":
             node = [
@@ -294,7 +291,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 
         assert isinstance(length.value, int)  # mypy hint
         ret = IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
-        return b1.resolve(b2.resolve(ret))
+        return b1.resolve(ret)
 
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
