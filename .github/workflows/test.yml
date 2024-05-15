@@ -65,13 +65,8 @@ jobs:
     runs-on: ${{ matrix.os || 'ubuntu' }}-latest
     strategy:
       matrix:
-        os: [ubuntu]
-        python-version: [["3.11", "311"]]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
-        evm-version: [shanghai]
-        experimental-codegen: [false]
-        evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -83,10 +78,6 @@ jobs:
           - debug: false
             opt-mode: gas
             evm-version: paris
-
-          # redundant rule, for clarity
-          - debug: false
-            opt-mode: gas
 
           - debug: false
             opt-mode: gas
@@ -135,7 +126,7 @@ jobs:
             opt-mode: gas
             debug: false
 
-    name: "py${{ matrix.python-version[1] }}\
+    name: "py${{ matrix.python-version[1] || '311' }}\
       -opt-${{ matrix.opt-mode || 'none' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
@@ -149,10 +140,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
 
     - name: Install dependencies
@@ -165,9 +156,9 @@ jobs:
       run: >
         pytest
         -m "not fuzzing"
-        --optimize ${{ matrix.opt-mode }}
-        --evm-version ${{ matrix.evm-version }}
-        ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }}
+        --optimize ${{ matrix.opt-mode || 'none' }}
+        --evm-version ${{ matrix.evm-version || 'shanghai' }}
+        --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-branch
