@@ -571,6 +571,60 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         c.run(data)
 
 
+def test_abi_decode_head_pointing_outside_buffer(tx_failed, get_contract):
+    # the head points completely outside the buffer
+    code = """
+@external
+def run(x: Bytes[3 * 32]):
+    y: Bytes[3 * 32] = x
+    decoded_y1: Bytes[32] = _abi_decode(y, Bytes[32])
+    """
+    c = get_contract(code)
+
+    data = b""
+
+    data += (0x80).to_bytes(32, "big")
+    data += (0x20).to_bytes(32, "big")
+    data += (0x01).to_bytes(32, "big")
+
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_bytearray_clamp(tx_failed, get_contract):
+    # data has valid encoding, but the length of DynArray[Bytes[96], 3][0] is set to 0x61
+    # and thus the decoding should fail on bytestring clamp
+    code = """
+@external
+def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[Bytes[32 * 3], 3] = _abi_decode(y,  DynArray[Bytes[32 * 3], 3])
+    """
+    c = get_contract(code)
+
+    data = b""
+
+    data += (0x20).to_bytes(32, "big")  # DynArray head
+    data += (0x03).to_bytes(32, "big")  # DynArray length
+
+    data += (0x20 * 3).to_bytes(32, "big")  # inner array0 head
+    data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    # invalid length - should revert on bytestring clamp
+    data += (0x61).to_bytes(32, "big")  # DynArray[Bytes[96], 3][0] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][0] data
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][1] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][1]  data
+
+    data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][2] length
+    data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][2]  data
+
+    with tx_failed():
+        c.run(data)
+
+
 def test_abi_decode_runtimesz_oob(tx_failed, get_contract, env):
     # provide enough data, but set the runtime size to be smaller than the actual size
     # so after y: [..] = x, y will have the incorrect size set and only part of the
@@ -644,6 +698,26 @@ interface A:
 @external
 def foo():
     x:String[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_abi_decode_extcall_runtimesz_oob(tx_failed, get_contract):
+    # the runtime size (33) is bigger than the actual payload (32 bytes)
+    # thus we'll read 1B over the runtime size - but still within the static size of the buffer
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256):
+    return (32, 33, 0)
+
+interface A:
+    def bar() -> String[64]: nonpayable
+
+@external
+def foo():
+    x:String[64] = extcall A(self).bar()
     """
     c = get_contract(code)
     with tx_failed():
