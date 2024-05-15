@@ -548,7 +548,8 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     # non_strict_head - if the length pointed to by this head is 0x60 (which is valid
     # length for the Bytes[32*3] buffer), the decoding function  would decode
     # 1 byte over the end of the buffer
-    # we define the non_strict_head as: skip the remaining heads, 1st and 2nd tail to the third tail + 1B
+    # we define the non_strict_head as: skip the remaining heads, 1st and 2nd tail
+    # to the third tail + 1B
     data += (0x20 * 8 + 0x20 * 3 + 0x01).to_bytes(32, "big")  # inner array0 head
 
     data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
