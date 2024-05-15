@@ -443,7 +443,7 @@ def _mul(x, y):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
+def _getelemptr_abi_helper(parent, member_t, ofst):
     member_abi_t = member_t.abi_type
 
     # ABI encoding has length word and then pretends length is not there
@@ -456,8 +456,6 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
 
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
-        # TODO optimize special case: first dynamic item
-        # offset is statically known.
         ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
 
     return IRnode.from_list(
@@ -887,8 +885,8 @@ def make_setter(left, right, hi=None):
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
-    if hi is None and right.encoding == Encoding.ABI and right.location == MEMORY:
-        hi = add_ofst(right, _abi_payload_size(right))
+    if right.encoding == Encoding.ABI and right.location == MEMORY:
+        assert hi is not None
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
