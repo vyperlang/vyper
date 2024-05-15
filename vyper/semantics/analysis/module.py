@@ -888,8 +888,8 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
-        module_path=str(module_path),
-        resolved_path=str(file.resolved_path),
+        module_path=module_path.as_posix(),
+        resolved_path=file.resolved_path.as_posix(),
     )
     return ret
 

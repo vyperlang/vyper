@@ -105,8 +105,6 @@ def compile_from_file_input(
     # make IR output the same between runs
     codegen.reset_names()
 
-    # TODO: maybe at this point we might as well just pass a `FileInput`
-    # directly to `CompilerData`.
     compiler_data = CompilerData(
         file_input,
         input_bundle,
