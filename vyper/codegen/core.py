@@ -877,6 +877,8 @@ def _dirty_read_risk(ir_node):
     return ir_node.encoding == Encoding.ABI and ir_node.location == MEMORY
 
 
+# child elements which have dynamic length, and could overflow the buffer
+# even if the start of the item is in-bounds.
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
@@ -887,9 +889,9 @@ def _abi_payload_size(ir_node):
 
     if isinstance(ir_node.typ, _BytestringT):
         LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
-        return ["add", get_bytearray_length(ir_node), SCALE]
+        return ["add", get_bytearray_length(ir_node), LENGTH_WORD]
 
-    return ir_node.typ.abi_type.size_bound()
+    raise CompilerPanic("unreachable")  # pragma: nocover
 
 
 # Create an x=y statement, where the types may be compound
@@ -898,6 +900,9 @@ def make_setter(left, right, hi=None):
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
+    #
+    # the caller is responsible for calculating the bound;
+    # sanity check that there is a bound if there is dirty read risk
     assert (hi is not None) == _dirty_read_risk(right)
 
     # For types which occupy just one word we can use single load/store
@@ -1115,11 +1120,8 @@ def clamp_bytestring(ir_node, hi=None):
             # note: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
             abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
-            # TODO: can we reuse check_buffer_overflow_ir?
-            # share code with dynarray
-            buffer_oob = ["gt", abs_ptr_end, hi]
-            ok = ["iszero", buffer_oob]
-            len_check = ["seq", ["assert", ok], len_check]
+
+            len_check = ["seq", ["assert", ["le", abs_ptr_end, hi]], len_check]
 
         return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
 
@@ -1138,9 +1140,7 @@ def clamp_dyn_array(ir_node, hi=None):
         # length is bounded by count * elemsize.
         abs_ptr_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
-        buffer_oob = ["gt", abs_ptr_end, hi]
-        ok = ["iszero", buffer_oob]
-        len_check = ["seq", ["assert", ok], len_check]
+        len_check = ["seq", ["assert", ["le", abs_ptr_end, hi]], len_check]
 
     return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")
 
