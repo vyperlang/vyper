@@ -869,8 +869,8 @@ def needs_clamp(t, encoding):
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
-    if not ir_node.abi_type.is_dynamic():
-        return ir_node.abi_type.size_bound()
+    if not ir_node.typ.abi_type.is_dynamic():
+        return ir_node.typ.abi_type.size_bound()
 
     if isinstance(ir_node.typ, DArrayT):
         LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
