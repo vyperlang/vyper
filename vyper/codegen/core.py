@@ -869,8 +869,6 @@ def needs_clamp(t, encoding):
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
-    if not ir_node.typ.abi_type.is_dynamic():
-        return ir_node.typ.abi_type.size_bound()
 
     if isinstance(ir_node.typ, DArrayT):
         LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
@@ -880,7 +878,7 @@ def _abi_payload_size(ir_node):
         LENGTH_WORD = SCALE * DYNAMIC_ARRAY_OVERHEAD
         return ["add", get_bytearray_length(ir_node), SCALE]
 
-    raise CompilerPanic("unreachable!")  # pragma: nocover
+    return ir_node.typ.abi_type.size_bound()
 
 
 # Create an x=y statement, where the types may be compound
@@ -890,7 +888,7 @@ def make_setter(left, right, hi=None):
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
     assert (hi is not None) == (right.encoding == Encoding.ABI and right.location == MEMORY)
-    if hi is None:
+    if hi is not None:
         # TODO: do we actually need this check?
         hi = add_ofst(right, _abi_payload_size(right))
 
