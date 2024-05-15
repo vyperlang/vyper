@@ -477,7 +477,7 @@ def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_cod
 def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):
     # test based on GHSA-9p8r-4xp4-gw5w:
     # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
-    # note: doesn't even reach the assert but reverts internally on the clamp in getelemptr
+    # buf + head causes arithmetic overflow
     code = """
 @external
 def f(x: Bytes[32 * 3]):
@@ -501,7 +501,9 @@ def f(x: Bytes[32 * 3]):
         env.message_call(c.address, data=data)
 
 
-def test_abi_decode_oob_due_to_invalid_head(env, tx_failed, get_contract):
+def test_abi_decode_nonstrict_head(env, tx_failed, get_contract):
+    # data isn't strictly encoded - head is 0x21 instead of 0x20
+    # but the head + length is still within runtime bounds of the parent buffer
     code = """
 @external
 def f(x: Bytes[32 * 5]):
@@ -515,21 +517,21 @@ def f(x: Bytes[32 * 5]):
     data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")  # tuple head
     data += (0xA0).to_bytes(32, "big")  # parent array length
-    # head should be 20 and thus the decoding func would decode 1 byte
-    # over the end of the input data
-    # _getelemptr_abi_helper will revert due to clamping
-    data += (0x21).to_bytes(32, "big")  # invalid inner array head (1 byte over)
+    # head should be 0x20 but is 0x21 thus the data isn't strictly encoded
+    data += (0x21).to_bytes(32, "big")
     # we don't want to revert on invalid length, so set this to 0
     # the first byte of payload will be considered as the length
     data += (0x00).to_bytes(32, "big")
     data += (0x01).to_bytes(1, "big")  # will be considered as the length=1
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
-    # with tx_failed():
     env.message_call(c.address, data=data)
 
 
-def test_abi_decode_oob_due_to_invalid_head2(tx_failed, get_contract):
+def test_abi_decode_nonstrict_head_oob(tx_failed, get_contract):
+    # data isn't strictly encoded - (non_strict_head + length) >= parent_static_sz
+    # thus decoding the data pointed to by the head would cause an OOB read
+    # the non_strict_head and the length are s.t. we have a read 1B over the buffer end
     code = """
 @external
 def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
@@ -543,9 +545,10 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     data += (0x20).to_bytes(32, "big")  # DynArray head
     data += (0x03).to_bytes(32, "big")  # DynArray length
 
-    # invalid head - if the length pointed to by this head is 0x60, the decoding function
-    # would decode 1 byte over the end of the buffer
-    # skip the heads, 1st and 2nd tail to the third tail + 1B
+    # non_strict_head - if the length pointed to by this head is 0x60 (which is valid
+    # length for the Bytes[32*3] buffer), the decoding function  would decode
+    # 1 byte over the end of the buffer
+    # we define the non_strict_head as: skip the remaining heads, 1st and 2nd tail to the third tail + 1B
     data += (0x20 * 8 + 0x20 * 3 + 0x01).to_bytes(32, "big")  # inner array0 head
 
     data += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
@@ -557,19 +560,21 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     data += (0x60).to_bytes(32, "big")  # DynArray[Bytes[96], 3][1] length
     data += (0x01).to_bytes(32, "big") * 3  # DynArray[Bytes[96], 3][1]  data
 
-    # the invalid head points here + 1B (thus the (0x01) will be considered as the length)
-    # we don't revert because of invalid length, but because of invalid head
-    # if the length is 0x60, then head + 0x20 (the length word) + 0x60 is 1B
-    # over the buffer end
+    # the invalid head points here + 1B (thus the length is 0x60)
+    # we don't revert because of invalid length, but because head+length is OOB
     data += (0x00).to_bytes(32, "big")  # DynArray[Bytes[96], 3][2] length
-    data += (0x01).to_bytes(1, "big")
+    data += (0x60).to_bytes(1, "big")
     data += (0x00).to_bytes(31, "big")
     data += (0x03).to_bytes(32, "big") * 2
-    # with tx_failed():
-    c.run(data)
+    with tx_failed():
+        c.run(data)
 
 
-def test_abi_decode_oob_due_to_invalid_size(tx_failed, get_contract, env):
+def test_abi_decode_runtimesz_oob(tx_failed, get_contract, env):
+    # provide enough data, but set the runtime size to be smaller than the actual size
+    # so after y: [..] = x, y will have the incorrect size set and only part of the
+    # original data will be copied. This will cause oob read outside the
+    # runtime sz (but still within static size of the buffer)
     code = """
 @external
 def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
@@ -579,7 +584,8 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     c = get_contract(code)
     data = method_id("f(bytes)")
     data += (0x20).to_bytes(32, "big")  # tuple head
-    # data += (0x0220).to_bytes(32, "big")  # top-level bytes array length
+    # the correct size is 0x220 (2*32+3*32+4*3*32)
+    # therefore we will decode after the end of runtime size (but still within the buffer)
     data += (0x01E4).to_bytes(32, "big")  # top-level bytes array length
 
     data += (0x20).to_bytes(32, "big")  # DynArray head
@@ -602,7 +608,8 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         env.message_call(c.address, data=data)
 
 
-def test_abi_decode_oob_due_to_invalid_head3(tx_failed, get_contract):
+def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):
+    # the head returned from the extcall is set to invalid value of 480
     code = """
 @external
 def bar() -> (uint256, uint256, uint256):
