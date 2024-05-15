@@ -457,7 +457,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst):
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
         ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
-        if parent.location == MEMORY:
+        if _dirty_read_risk(ofst_ir):
             # check no arithmetic overflow
             ofst_ir = ["seq", ["assert", ["ge", ofst_ir, parent]], ofst_ir]
 
@@ -866,6 +866,9 @@ def needs_clamp(t, encoding):
 
     raise CompilerPanic("unreachable")  # pragma: nocover
 
+def _dirty_read_risk(ir_node):
+    return ir_node.encoding == Encoding.ABI and ir_node.location == MEMORY
+
 
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
@@ -888,7 +891,7 @@ def make_setter(left, right, hi=None):
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
-    if right.encoding == Encoding.ABI and right.location == MEMORY:
+    if _dirty_read_risk(right):
         assert hi is not None
 
     # For types which occupy just one word we can use single load/store
