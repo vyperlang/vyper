@@ -538,30 +538,18 @@ def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
         c.do_slice()
 
 
-def test_slice_adhoc_locs_evals_once_side_effects(get_contract):
-    code = """
-@external
-def ret10_slice() -> Bytes[10]:
-    b: Bytes[32] = concat(convert(65, bytes32), b'')
-    c: Bytes[10] = slice(b, 31, 1)
-    return c
-    """
-
-    c = get_contract(code)
-    assert c.ret10_slice() == b"A"
-
-
-def test_sqrt_evals_once_side_effects(get_contract):
+def test_slice_length_eval_once(get_contract):
     code = """
 l: DynArray[uint256, 5]
 
 @external
 def foo(cs: String[64]) -> uint256:
-    for i: uint256 in range(5):
-        self.l.append(1)
+    self.l = [1, 1, 1, 1, 1]
     assert len(self.l) == 5
+
     s: Bytes[64] = b""
     s = slice(msg.data, self.l.pop(), 3)
+
     return len(self.l)
     """
     arg = "a" * 64

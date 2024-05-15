@@ -165,7 +165,7 @@ def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
         sqrt_contract.test(decimal_to_int(value))
 
 
-def test_sqrt_evals_once_side_effects(get_contract):
+def test_sqrt_eval_once(get_contract):
     code = """
 c: uint256
 
