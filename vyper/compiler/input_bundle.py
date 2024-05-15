@@ -192,7 +192,10 @@ class FilesystemInputBundle(InputBundle):
 # wrap os.path.normpath, but return the same type as the input -
 # but use posixpath instead so that things work cross-platform.
 def _normpath(path):
-    return path.__class__(posixpath.normpath(path))
+    cls = path.__class__
+    if not isinstance(path, str):
+        path = path.as_posix()
+    return cls(posixpath.normpath(path))
 
 
 # fake filesystem for "standard JSON" (aka solc-style) inputs. takes search
