@@ -887,9 +887,7 @@ def make_setter(left, right, hi=None):
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
-    assert (hi is not None) == (right.encoding == Encoding.ABI and right.location == MEMORY)
-    if hi is not None:
-        # TODO: do we actually need this check?
+    if hi is None and right.encoding == Encoding.ABI and right.location == MEMORY:
         hi = add_ofst(right, _abi_payload_size(right))
 
     # For types which occupy just one word we can use single load/store
