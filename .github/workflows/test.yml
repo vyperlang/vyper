@@ -62,9 +62,10 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       matrix:
+        os: [ubuntu]
         python-version: [["3.11", "311"]]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
@@ -75,75 +76,103 @@ jobs:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: london
             evm-backend: revm
 
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: paris
             evm-backend: revm
 
           # redundant rule, for clarity
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: shanghai
             evm-backend: revm
 
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: cancun
             evm-backend: revm
 
           # py-evm rules
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: codesize
             evm-version: london
             evm-backend: py-evm
 
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: cancun
             evm-backend: py-evm
 
           # test experimental pipeline
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
             evm-backend: revm
             experimental-codegen: true
 
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             opt-mode: codesize
             debug: false
             evm-version: shanghai
             evm-backend: revm
             experimental-codegen: true
 
-          - python-version: ["3.11", "311"]
+          - os: ubuntu
+            python-version: ["3.11", "311"]
             opt-mode: none
             debug: false
             evm-version: shanghai
             evm-backend: revm
             experimental-codegen: true
 
+          # os-specific rules
+          - os: windows
+            python-version: ["3.12", "312"]
+            opt-mode: none
+            debug: false
+            evm-version: shanghai
+            evm-backend: revm
+            experimental-codegen: false
+
+          - os: macos
+            python-version: ["3.12", "312"]
+            opt-mode: none
+            debug: false
+            evm-version: shanghai
+            evm-backend: revm
+            experimental-codegen: false
+
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
-          - python-version: ["3.10", "310"]
+          - os: ubuntu
+            python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
             evm-backend: revm
 
-          - python-version: ["3.12", "312"]
+          - os: ubuntu
+            python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
@@ -154,7 +183,8 @@ jobs:
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
       -${{ matrix.evm-version }}\
-      -${{ matrix.evm-backend }}"
+      -${{ matrix.evm-backend }}\
+      -${{ matrix.os }}"
 
     steps:
     - uses: actions/checkout@v4
@@ -175,17 +205,17 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      run: |
-        pytest \
-          -m "not fuzzing" \
-          --optimize ${{ matrix.opt-mode }} \
-          --evm-version ${{ matrix.evm-version }} \
-          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }} \
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
-          --cov-branch \
-          --cov-report xml:coverage.xml \
-          --cov=vyper \
+      run: >
+        pytest
+          -m "not fuzzing"
+          --optimize ${{ matrix.opt-mode }}
+          --evm-version ${{ matrix.evm-version }}
+          ${{ matrix.evm-backend && format('--evm-backend {0}', matrix.evm-backend) || '' }}
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
+          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+          --cov-branch
+          --cov-report xml:coverage.xml
+          --cov=vyper
           tests/
 
     - name: Upload Coverage
