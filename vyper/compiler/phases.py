@@ -110,8 +110,8 @@ class CompilerData:
         settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
-            module_path=str(self.contract_path),
-            resolved_path=str(self.file_input.resolved_path),
+            module_path=self.contract_path.as_posix(),
+            resolved_path=self.file_input.resolved_path.as_posix(),
         )
 
         if self.original_settings:
