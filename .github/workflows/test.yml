@@ -62,7 +62,7 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os || 'ubuntu' }}-latest
     strategy:
       matrix:
         os: [ubuntu]
@@ -76,115 +76,39 @@ jobs:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: london
-            evm-backend: revm
-
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: paris
-            evm-backend: revm
-
-          # redundant rule, for clarity
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: shanghai
-            evm-backend: revm
-
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: cancun
-            evm-backend: revm
+          - evm-version: london
+          - evm-version: paris
+          - evm-version: cancun
 
           # py-evm rules
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: codesize
-            evm-version: london
+          - evm-version: london
             evm-backend: py-evm
-
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: cancun
+          - evm-version: cancun
             evm-backend: py-evm
 
           # test experimental pipeline
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
-
-          - os: ubuntu
-            python-version: ["3.11", "311"]
-            opt-mode: codesize
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
-
-          - os: ubuntu
-            python-version: ["3.11", "311"]
+          - experimental-codegen: true
+          - experimental-codegen: true
             opt-mode: none
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: true
+          - experimental-codegen: true
+            opt-mode: codesize
 
           # os-specific rules
           - os: windows
-            python-version: ["3.12", "312"]
-            opt-mode: none
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: false
-
           - os: macos
-            python-version: ["3.12", "312"]
-            opt-mode: none
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-            experimental-codegen: false
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
-          - os: ubuntu
-            python-version: ["3.10", "310"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
+          - python-version: ["3.10", "310"]
+          - python-version: ["3.12", "312"]
 
-          - os: ubuntu
-            python-version: ["3.12", "312"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            evm-backend: revm
-
-    name: "py${{ matrix.python-version[1] }}\
-      -opt-${{ matrix.opt-mode }}\
+    name: "py${{ matrix.python-version[1] || '311' }}\
+      -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version }}\
-      -${{ matrix.evm-backend }}\
-      -${{ matrix.os }}"
+      -${{ matrix.evm-version || 'shanghai' }}\
+      -${{ matrix.evm-backend || 'revm' }}\
+      -${{ matrix.os || 'ubuntu' }}"
 
     steps:
     - uses: actions/checkout@v4
@@ -192,10 +116,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
 
     - name: Install dependencies
@@ -208,9 +132,9 @@ jobs:
       run: >
         pytest
         -m "not fuzzing"
-        --optimize ${{ matrix.opt-mode }}
-        --evm-version ${{ matrix.evm-version }}
-        --evm-backend ${{ matrix.evm-backend }}
+        --optimize ${{ matrix.opt-mode || 'gas' }}
+        --evm-version ${{ matrix.evm-version || 'shanghai' }}
+        --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-branch
