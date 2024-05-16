@@ -741,6 +741,55 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         env.message_call(c.address, data=data)
 
 
+def test_abi_decode_head_roundtrip(tx_failed, get_contract, env):
+    # top-level head in the y2 buffer points to the y1 buffer
+    # and y1 contains intermediate heads pointing to the inner arrays
+    # which are in turn in the y2 buffer
+    # NOTE: the test is memory allocator dependent - we assume that y1 and y2
+    # have the 800 & 960 addresses respectively
+    code = """
+@external
+def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y1: Bytes[4*32] = x1 # addr: 800
+    y2: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x2 # addr: 960
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y2,
+        DynArray[DynArray[uint256, 3], 3]
+    )
+    """
+    c = get_contract(code)
+
+    data1 = (0x03).to_bytes(32, "big")  # DynArray length
+    # distance to y2 from y1 is 160
+    data1 += (160 + 0x20 + 0x20 * 3).to_bytes(32, "big")  # points to DynArray[..][0] length
+    data1 += (160 + 0x20 + 0x20 * 4 + 0x20 * 3).to_bytes(
+        32, "big"
+    )  # points to DynArray[..][1] length
+    data1 += (160 + 0x20 + 0x20 * 8 + 0x20 * 3).to_bytes(
+        32, "big"
+    )  # points to DynArray[..][2] length
+
+    # (960 + (2**256 - 160)) % 2**256 == 800, ie will roundtrip to y1
+    data2 = (2**256 - 160).to_bytes(32, "big")  # points to y1
+    data2 += (0x03).to_bytes(32, "big")  # DynArray length (not used)
+
+    data2 += (0x20 * 3).to_bytes(32, "big")  # inner array0 head
+    data2 += (0x20 * 4 + 0x20 * 3).to_bytes(32, "big")  # inner array1 head
+    data2 += (0x20 * 8 + 0x20 * 3).to_bytes(32, "big")  # inner array2 head
+
+    data2 += (0x03).to_bytes(32, "big")  # DynArray[..][0] length
+    data2 += (0x01).to_bytes(32, "big") * 3  # DynArray[..][0] data
+
+    data2 += (0x03).to_bytes(32, "big")  # DynArray[..][1] length
+    data2 += (0x02).to_bytes(32, "big") * 3  # DynArray[..][1]  data
+
+    data2 += (0x03).to_bytes(32, "big")  # DynArray[..][2] length
+    data2 += (0x03).to_bytes(32, "big") * 3  # DynArray[..][2]  data
+
+    with tx_failed():
+        c.run(data1, data2)
+
+
 def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):
     # the head returned from the extcall is set to invalid value of 480
     code = """
@@ -802,7 +851,7 @@ def foo():
         c.foo()
 
 
-def test_abi_decode_extcall_truncate_returndata(tx_failed, get_contract):
+def test_abi_decode_extcall_truncate_returndata(get_contract):
     # return more data than expected
     # the truncated data is still valid
     code = """
@@ -819,3 +868,23 @@ def foo():
     """
     c = get_contract(code)
     c.foo()
+
+
+def test_abi_decode_extcall_truncate_returndata2(tx_failed, get_contract):
+    # return more data than expected
+    # after truncation the data is invalid
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256, uint256):
+    return (32, 33, 36, 36)
+
+interface A:
+    def bar() -> Bytes[32]: nonpayable
+
+@external
+def foo():
+    x:Bytes[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
