@@ -27,11 +27,15 @@ class AddrSpace:
     load_op: str
     # TODO maybe make positional instead of defaulting to None
     store_op: Optional[str] = None
-    has_copy_opcode: bool = True  # has a dedicated opcode to copy to memory
+    copy_op: Optional[str] = None
 
     @property
     def word_addressable(self) -> bool:
         return self.word_scale == 1
+
+    @property
+    def has_copy_opcode(self):
+        return self.copy_op is not None
 
 
 # alternative:
@@ -43,13 +47,13 @@ class AddrSpace:
 #
 # MEMORY = Memory()
 
-MEMORY = AddrSpace("memory", 32, "mload", "mstore")
-STORAGE = AddrSpace("storage", 1, "sload", "sstore", has_copy_opcode=False)
-TRANSIENT = AddrSpace("transient", 1, "tload", "tstore", has_copy_opcode=False)
-CALLDATA = AddrSpace("calldata", 32, "calldataload")
+MEMORY = AddrSpace("memory", 32, "mload", "mstore", "mcopy")
+STORAGE = AddrSpace("storage", 1, "sload", "sstore")
+TRANSIENT = AddrSpace("transient", 1, "tload", "tstore")
+CALLDATA = AddrSpace("calldata", 32, "calldataload", None, "calldatacopy")
 # immutables address space: "immutables" section of memory
 # which is read-write in deploy code but then gets turned into
 # the "data" section of the runtime code
 IMMUTABLES = AddrSpace("immutables", 32, "iload", "istore")
 # data addrspace: "data" section of runtime code, read-only.
-DATA = AddrSpace("data", 32, "dload")
+DATA = AddrSpace("data", 32, "dload", None, "dloadbytes")
