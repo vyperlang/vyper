@@ -53,7 +53,7 @@ def _wrap_unop(operation):
     return wrapper
 
 
-def _evm_signextend(value, nbytes) -> int:
+def _evm_signextend(nbytes, value) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
 
     if nbytes > 31:
@@ -75,13 +75,13 @@ def _evm_iszero(value: int) -> int:
     return int(value == 0)  # 1 if True else 0
 
 
-def _evm_shr(value: int, shift_len: int) -> int:
+def _evm_shr(shift_len: int, value: int) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
     assert shift_len >= 0
     return value >> shift_len
 
 
-def _evm_shl(value: int, shift_len: int) -> int:
+def _evm_shl(shift_len: int, value: int) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
     if shift_len >= 256:
         return 0
@@ -89,7 +89,7 @@ def _evm_shl(value: int, shift_len: int) -> int:
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
 
-def _evm_sar(value: int, shift_len: int) -> int:
+def _evm_sar(shift_len: int, value: int) -> int:
     assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256, "Value out of bounds"
     assert shift_len >= 0
     return value >> shift_len
