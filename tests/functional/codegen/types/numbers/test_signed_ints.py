@@ -163,14 +163,15 @@ def negative_three() -> {typ}:
     return -(1+2)
 
 @external
-def negative_four(a: {typ}) -> {typ}:
+def negative_four() -> {typ}:
+    a: {typ} = 2
     return -(a+2)
     """
 
     c = get_contract(negative_nums_code)
     assert c.negative_one() == -1
     assert c.negative_three() == -3
-    assert c.negative_four(2) == -4
+    assert c.negative_four() == -4
 
 
 @pytest.mark.parametrize("typ", types)
