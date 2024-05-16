@@ -70,8 +70,7 @@ def _evm_signextend(value, nbytes) -> int:
     return value
 
 
-def _evm_iszero(ops: list[IROperand]) -> int:
-    value = ops[0].value
+def _evm_iszero(value: int) -> int:
     assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
     return int(value == 0)  # 1 if True else 0
 
