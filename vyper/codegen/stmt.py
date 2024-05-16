@@ -14,6 +14,7 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     make_setter,
     wrap_value_for_external_return,
+    writeable,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
@@ -317,15 +318,13 @@ class Stmt:
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).ir_node
-            for node in target.args:
-                if (
-                    node.location.word_addressable and self.context.is_constant()
-                ) or not node.mutable:
-                    raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
+            items = target.args
+            if any(not writeable(self.context, item) for item in items):
+                raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_pointer_expr(target, self.context)
-        if (target.location.word_addressable and self.context.is_constant()) or not target.mutable:
+        if not writeable(self.context, target):
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 

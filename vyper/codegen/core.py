@@ -136,6 +136,12 @@ def address_space_to_data_location(s: AddrSpace) -> DataLocation:
     raise CompilerPanic("unreachable!")  # pragma: nocover
 
 
+def writeable(context, ir_node):
+    if context.is_constant() and ir_node.location in (STORAGE, TRANSIENT):
+        return False
+    return ir_node.mutable
+
+
 # Copy byte array word-for-word (including layout)
 # TODO make this a private function
 def make_byte_array_copier(dst, src):
