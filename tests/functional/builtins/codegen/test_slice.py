@@ -555,7 +555,6 @@ def foo(cs: String[64]) -> uint256:
     # use `a` to exercise the path with `<address>.code`
     a: address = self
     s = slice({adhoc_loc}, self.bar(), 3)
-    
     return self.counter
     """
 
