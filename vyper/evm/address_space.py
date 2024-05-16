@@ -27,6 +27,7 @@ class AddrSpace:
     load_op: str
     # TODO maybe make positional instead of defaulting to None
     store_op: Optional[str] = None
+    has_copy_opcode: bool = True  # has a dedicated opcode to copy to memory
 
     @property
     def word_addressable(self) -> bool:
@@ -43,8 +44,8 @@ class AddrSpace:
 # MEMORY = Memory()
 
 MEMORY = AddrSpace("memory", 32, "mload", "mstore")
-STORAGE = AddrSpace("storage", 1, "sload", "sstore")
-TRANSIENT = AddrSpace("transient", 1, "tload", "tstore")
+STORAGE = AddrSpace("storage", 1, "sload", "sstore", has_copy_opcode=False)
+TRANSIENT = AddrSpace("transient", 1, "tload", "tstore", has_copy_opcode=False)
 CALLDATA = AddrSpace("calldata", 32, "calldataload")
 # immutables address space: "immutables" section of memory
 # which is read-write in deploy code but then gets turned into

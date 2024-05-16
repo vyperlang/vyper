@@ -150,7 +150,7 @@ def make_byte_array_copier(dst, src):
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        no_copy_opcode = any(loc.word_addressable for loc in (src.location, dst.location))
+        no_copy_opcode = any(not loc.has_copy_opcode for loc in (src.location, dst.location))
         is_memory_copy = dst.location == src.location == MEMORY
         batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
         if src.typ.maxlen <= 32 and (no_copy_opcode or batch_uses_identity):
@@ -936,7 +936,7 @@ def _complex_make_setter(left, right):
 
         # locations with no dedicated copy opcode
         # (i.e. storage and transient storage)
-        if any(loc.word_addressable for loc in (left.location, right.location)):
+        if any(not loc.has_copy_opcode for loc in (left.location, right.location)):
             if _opt_codesize():
                 # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
