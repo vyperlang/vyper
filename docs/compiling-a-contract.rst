@@ -144,11 +144,11 @@ When you compile your contract code, you can specify the target Ethereum Virtual
 .. note::
    If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised and compilation will not continue.
 
-For instance, the adding the following pragma to a contract indicates that it should be compiled for the "shanghai" fork of the EVM.
+For instance, the adding the following pragma to a contract indicates that it should be compiled for the "cancun" fork of the EVM.
 
 .. code-block:: vyper
 
-   #pragma evm-version shanghai
+   #pragma evm-version cancun
 
 .. warning::
 
@@ -237,7 +237,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "shanghai",  // EVM version to compile for. Can be london, paris, shanghai or cancun (default).
+            "evmVersion": "cancun",  // EVM version to compile for. Can be london, paris, shanghai or cancun (default).
             // optional, optimization mode
             // defaults to "gas". can be one of "gas", "codesize", "none",
             // false  and true (the last two are for backwards compatibility).
