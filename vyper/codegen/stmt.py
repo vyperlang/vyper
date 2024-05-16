@@ -196,6 +196,9 @@ class Stmt:
                 s.arg: Expr.parse_value_expr(s.value, self.context) for s in range_call.keywords
             }
 
+        # sanity check that the following `end - start` is a valid operation
+        assert start.typ == end.typ == target_type
+
         if "bound" in kwargs:
             with end.cache_when_complex("end") as (b1, end):
                 # note: the check for rounds<=rounds_bound happens in asm
