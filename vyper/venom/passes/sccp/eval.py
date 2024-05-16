@@ -46,6 +46,16 @@ def _wrap_binop(operation):
     return wrapper
 
 
+def _wrap_unop(operation):
+    def wrapper(ops: list[IROperand]) -> int:
+        value = _signed_to_unsigned(ops[0].value)
+        ret = operation(value)
+        assert isinstance(ret, int)
+        return ret & SizeLimits.MAX_UINT256
+
+    return wrapper
+
+
 def _evm_signextend(ops: list[IROperand]) -> int:
     value = ops[0].value
     nbytes = ops[1].value
@@ -121,11 +131,11 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
     "or": _wrap_binop(operator.or_),
     "and": _wrap_binop(operator.and_),
     "xor": _wrap_binop(operator.xor),
-    "not": _evm_not,
-    "signextend": _evm_signextend,
-    "iszero": _evm_iszero,
-    "shr": _evm_shr,
-    "shl": _evm_shl,
-    "sar": _evm_sar,
+    "not": _wrap_unop(_evm_not),
+    "signextend": _wrap_binop(_evm_signextend),
+    "iszero": _wrap_unop(_evm_iszero),
+    "shr": _wrap_binop(_evm_shr),
+    "shl": _wrap_binop(_evm_shl),
+    "sar": _wrap_signed_binop(_evm_sar),
     "store": lambda ops: ops[0].value,
 }
