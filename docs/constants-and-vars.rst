@@ -32,6 +32,7 @@ Name                  Type             Value
 ``tx.origin``         ``address``      Sender of the transaction (full call chain)
 ``tx.gasprice``       ``uint256``      Gas price of current transaction in wei
 ===================== ================ =========================================================
+
 .. note::
 
     ``block.prevrandao`` is an alias for the ``block.difficulty`` opcode. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
