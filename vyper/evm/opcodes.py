@@ -14,7 +14,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 _evm_versions = ("london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
-DEFAULT_EVM_VERSION = "shanghai"
+DEFAULT_EVM_VERSION = "cancun"
 
 
 # opcode as hex value
