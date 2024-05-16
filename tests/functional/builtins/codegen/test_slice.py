@@ -538,20 +538,28 @@ def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
         c.do_slice()
 
 
-def test_slice_length_eval_once(get_contract):
-    code = """
-l: DynArray[uint256, 5]
+# tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`
+@pytest.mark.parametrize("adhoc_loc", ["msg.data", "self.code", "a.code"])
+def test_slice_start_eval_once(get_contract, adhoc_loc):
+    code = f"""
+counter: uint256
+
+@internal
+def bar() -> uint256:
+    self.counter += 1
+    return 1
 
 @external
 def foo(cs: String[64]) -> uint256:
-    self.l = [1, 1, 1, 1, 1]
-    assert len(self.l) == 5
-
     s: Bytes[64] = b""
-    s = slice(msg.data, self.l.pop(), 3)
-
-    return len(self.l)
+    # use `a` to exercise the path with `<address>.code`
+    a: address = self
+    s = slice({adhoc_loc}, self.bar(), 3)
+    
+    return self.counter
     """
+
     arg = "a" * 64
     c = get_contract(code)
-    assert c.foo(arg) == 4
+    # ensure that counter was incremented only once
+    assert c.foo(arg) == 1
