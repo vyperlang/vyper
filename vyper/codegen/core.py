@@ -150,10 +150,10 @@ def make_byte_array_copier(dst, src):
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        has_storage = any(loc.word_addressable for loc in (src.location, dst.location))
+        no_copy_opcode = any(loc.word_addressable for loc in (src.location, dst.location))
         is_memory_copy = dst.location == src.location == MEMORY
         batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
-        if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
+        if src.typ.maxlen <= 32 and (no_copy_opcode or batch_uses_identity):
             # it's cheaper to run two load/stores instead of copy_bytes
 
             ret = ["seq"]
