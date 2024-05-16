@@ -934,8 +934,9 @@ def _complex_make_setter(left, right):
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
 
-        has_storage = any(loc.word_addressable for loc in (left.location, right.location))
-        if has_storage:
+        # locations with no dedicated copy opcode
+        # (i.e. storage and transient storage)
+        if any(loc.word_addressable for loc in (left.location, right.location)):
             if _opt_codesize():
                 # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
