@@ -4,22 +4,23 @@ import pytest
 from eth.codecs import abi
 from eth_utils import keccak
 
+from tests.utils import ZERO_ADDRESS, decimal_to_int
 from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
 
-def _make_tx(w3, address, signature, values):
-    # helper function to broadcast transactions that fail clamping check
+def _make_tx(env, address, signature, values):
+    # helper function to create data that will fail runtime clamp
     sig = keccak(signature.encode()).hex()[:8]
     data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in values)
-    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
-def _make_abi_encode_tx(w3, address, signature, input_types, values):
+def _make_abi_encode_tx(env, address, signature, input_types, values):
     # helper function to broadcast transactions where data is constructed from abi_encode
     sig = keccak(signature.encode()).hex()[:8]
     data = abi.encode(input_types, values).hex()
-    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
 def _make_dynarray_data(offset, length, values):
@@ -28,26 +29,26 @@ def _make_dynarray_data(offset, length, values):
     return data
 
 
-def _make_invalid_dynarray_tx(w3, address, signature, data):
+def _make_invalid_dynarray_tx(env, address, signature, data):
     sig = keccak(signature.encode()).hex()[:8]
-    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+    env.message_call(address, data=f"0x{sig}{data}")
 
 
-def test_bytes_clamper(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper(tx_failed, get_contract):
     clamper_test_code = """
 @external
 def foo(s: Bytes[3]) -> Bytes[3]:
     return s
     """
 
-    c = get_contract_with_gas_estimation(clamper_test_code)
+    c = get_contract(clamper_test_code)
     assert c.foo(b"ca") == b"ca"
     assert c.foo(b"cat") == b"cat"
     with tx_failed():
         c.foo(b"cate")
 
 
-def test_bytes_clamper_multiple_slots(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper_multiple_slots(tx_failed, get_contract):
     clamper_test_code = """
 @external
 def foo(s: Bytes[40]) -> Bytes[40]:
@@ -55,7 +56,7 @@ def foo(s: Bytes[40]) -> Bytes[40]:
     """
 
     data = b"this is exactly forty characters long!!!"
-    c = get_contract_with_gas_estimation(clamper_test_code)
+    c = get_contract(clamper_test_code)
 
     assert c.foo(data[:30]) == data[:30]
     assert c.foo(data) == data
@@ -63,7 +64,7 @@ def foo(s: Bytes[40]) -> Bytes[40]:
         c.foo(data + b"!")
 
 
-def test_bytes_clamper_on_init(tx_failed, get_contract_with_gas_estimation):
+def test_bytes_clamper_on_init(tx_failed, get_contract):
     clamper_test_code = """
 foo: Bytes[3]
 
@@ -76,15 +77,15 @@ def get_foo() -> Bytes[3]:
     return self.foo
     """
 
-    c = get_contract_with_gas_estimation(clamper_test_code, *[b"cat"])
+    c = get_contract(clamper_test_code, b"cat")
     assert c.get_foo() == b"cat"
 
     with tx_failed():
-        get_contract_with_gas_estimation(clamper_test_code, *[b"cats"])
+        get_contract(clamper_test_code, b"cats")
 
 
 @pytest.mark.parametrize("n", list(range(1, 33)))
-def test_bytes_m_clamper_passing(w3, get_contract, n):
+def test_bytes_m_clamper_passing(env, get_contract, n):
     values = [b"\xff" * (i + 1) for i in range(n)]
 
     code = f"""
@@ -100,7 +101,7 @@ def foo(s: bytes{n}) -> bytes{n}:
 
 
 @pytest.mark.parametrize("n", list(range(1, 32)))  # bytes32 always passes
-def test_bytes_m_clamper_failing(w3, get_contract, tx_failed, n):
+def test_bytes_m_clamper_failing(env, get_contract, tx_failed, n):
     values = []
     values.append(b"\x00" * n + b"\x80")  # just one bit set
     values.append(b"\xff" * n + b"\x80")  # n*8 + 1 bits set
@@ -119,13 +120,13 @@ def foo(s: bytes{n}) -> bytes{n}:
     c = get_contract(code)
     for v in values:
         # munge for `_make_tx`
+        int_value = int.from_bytes(v, byteorder="big")
         with tx_failed():
-            int_value = int.from_bytes(v, byteorder="big")
-            _make_tx(w3, c.address, f"foo(bytes{n})", [int_value])
+            _make_tx(env, c.address, f"foo(bytes{n})", [int_value])
 
 
 @pytest.mark.parametrize("n", list(range(32)))
-def test_sint_clamper_passing(w3, get_contract, n):
+def test_sint_clamper_passing(env, get_contract, n):
     bits = 8 * (n + 1)
     lo, hi = int_bounds(True, bits)
     values = [-1, 0, 1, lo, hi]
@@ -141,7 +142,7 @@ def foo(s: int{bits}) -> int{bits}:
 
 
 @pytest.mark.parametrize("n", list(range(31)))  # int256 does not clamp
-def test_sint_clamper_failing(w3, tx_failed, get_contract, n):
+def test_sint_clamper_failing(env, tx_failed, get_contract, n):
     bits = 8 * (n + 1)
     lo, hi = int_bounds(True, bits)
     values = [-(2**255), 2**255 - 1, lo - 1, hi + 1]
@@ -154,11 +155,11 @@ def foo(s: int{bits}) -> int{bits}:
     c = get_contract(code)
     for v in values:
         with tx_failed():
-            _make_tx(w3, c.address, f"foo(int{bits})", [v])
+            _make_tx(env, c.address, f"foo(int{bits})", [v])
 
 
 @pytest.mark.parametrize("value", [True, False])
-def test_bool_clamper_passing(w3, get_contract, value):
+def test_bool_clamper_passing(env, get_contract, value):
     code = """
 @external
 def foo(s: bool) -> bool:
@@ -170,7 +171,7 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("value", [2, 3, 4, 8, 16, 2**256 - 1])
-def test_bool_clamper_failing(w3, tx_failed, get_contract, value):
+def test_bool_clamper_failing(env, tx_failed, get_contract, value):
     code = """
 @external
 def foo(s: bool) -> bool:
@@ -179,11 +180,11 @@ def foo(s: bool) -> bool:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(bool)", [value])
+        _make_tx(env, c.address, "foo(bool)", [value])
 
 
 @pytest.mark.parametrize("value", [0] + [2**i for i in range(5)])
-def test_flag_clamper_passing(w3, get_contract, value):
+def test_flag_clamper_passing(env, get_contract, value):
     code = """
 flag Roles:
     USER
@@ -202,7 +203,7 @@ def foo(s: Roles) -> Roles:
 
 
 @pytest.mark.parametrize("value", [2**i for i in range(5, 256)])
-def test_flag_clamper_failing(w3, tx_failed, get_contract, value):
+def test_flag_clamper_failing(env, tx_failed, get_contract, value):
     code = """
 flag Roles:
     USER
@@ -218,11 +219,11 @@ def foo(s: Roles) -> Roles:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(uint256)", [value])
+        _make_tx(env, c.address, "foo(uint256)", [value])
 
 
 @pytest.mark.parametrize("n", list(range(32)))
-def test_uint_clamper_passing(w3, get_contract, n):
+def test_uint_clamper_passing(env, get_contract, n):
     bits = 8 * (n + 1)
     values = [0, 1, 2**bits - 1]
     code = f"""
@@ -237,7 +238,7 @@ def foo(s: uint{bits}) -> uint{bits}:
 
 
 @pytest.mark.parametrize("n", list(range(31)))  # uint256 has no failing cases
-def test_uint_clamper_failing(w3, tx_failed, get_contract, n):
+def test_uint_clamper_failing(env, tx_failed, get_contract, n):
     bits = 8 * (n + 1)
     values = [-1, -(2**255), 2**bits]
     code = f"""
@@ -248,24 +249,18 @@ def foo(s: uint{bits}) -> uint{bits}:
     c = get_contract(code)
     for v in values:
         with tx_failed():
-            _make_tx(w3, c.address, f"foo(uint{bits})", [v])
+            _make_tx(env, c.address, f"foo(uint{bits})", [v])
 
 
 @pytest.mark.parametrize(
-    "value,expected",
+    "address",
     [
-        ("0x0000000000000000000000000000000000000000", None),
-        (
-            "0x0000000000000000000000000000000000000001",
-            "0x0000000000000000000000000000000000000001",
-        ),
-        (
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-        ),
+        ZERO_ADDRESS,
+        "0x0000000000000000000000000000000000000001",
+        "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
     ],
 )
-def test_address_clamper_passing(w3, get_contract, value, expected):
+def test_address_clamper_passing(get_contract, address):
     code = """
 @external
 def foo(s: address) -> address:
@@ -273,11 +268,11 @@ def foo(s: address) -> address:
     """
 
     c = get_contract(code)
-    assert c.foo(value) == expected
+    assert c.foo(address) == address
 
 
 @pytest.mark.parametrize("value", [2**160, 2**256 - 1])
-def test_address_clamper_failing(w3, tx_failed, get_contract, value):
+def test_address_clamper_failing(env, tx_failed, get_contract, value):
     code = """
 @external
 def foo(s: address) -> address:
@@ -286,7 +281,7 @@ def foo(s: address) -> address:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(address)", [value])
+        _make_tx(env, c.address, "foo(address)", [value])
 
 
 @pytest.mark.parametrize(
@@ -317,7 +312,7 @@ def foo(s: decimal) -> decimal:
 
     c = get_contract(code)
 
-    assert c.foo(Decimal(value)) == Decimal(value)
+    assert c.foo(decimal_to_int(value)) == decimal_to_int(value)
 
 
 @pytest.mark.parametrize(
@@ -329,7 +324,7 @@ def foo(s: decimal) -> decimal:
         -187072209578355573530071658587684226515959365500929,  # - (2 ** 127 - 1e-10)
     ],
 )
-def test_decimal_clamper_failing(w3, tx_failed, get_contract, value):
+def test_decimal_clamper_failing(env, tx_failed, get_contract, value):
     code = """
 @external
 def foo(s: decimal) -> decimal:
@@ -339,11 +334,11 @@ def foo(s: decimal) -> decimal:
     c = get_contract(code)
 
     with tx_failed():
-        _make_tx(w3, c.address, "foo(fixed168x10)", [value])
+        _make_tx(env, c.address, "foo(int168)", [value])
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_array_clamper_passing(w3, get_contract, value):
+def test_int128_array_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
@@ -359,7 +354,7 @@ def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(5))
-def test_int128_array_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_int128_array_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external
@@ -372,11 +367,11 @@ def foo(b: int128[5]) -> int128[5]:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(int128[5])", values)
+        _make_tx(env, c.address, "foo(int128[5])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_array_looped_clamper_passing(w3, get_contract, value):
+def test_int128_array_looped_clamper_passing(get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
@@ -391,7 +386,7 @@ def foo(a: uint256, b: int128[10], c: uint256) -> int128[10]:
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(10))
-def test_int128_array_looped_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_int128_array_looped_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     code = """
 @external
 def foo(b: int128[10]) -> int128[10]:
@@ -403,11 +398,11 @@ def foo(b: int128[10]) -> int128[10]:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(int128[10])", values)
+        _make_tx(env, c.address, "foo(int128[10])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_multidimension_array_clamper_passing(w3, get_contract, value):
+def test_multidimension_array_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
@@ -417,12 +412,12 @@ def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
     # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
     d = [[[[value] * 6] * 3] * 1] * 8
     c = get_contract(code)
-    assert c.foo(2**127, d, 2**127, call={"gasPrice": 0}) == d
+    assert c.foo(2**127, d, 2**127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(12))
-def test_multidimension_array_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_multidimension_array_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     code = """
 @external
 def foo(b: int128[6][1][2]) -> int128[6][1][2]:
@@ -434,11 +429,11 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(w3, c.address, "foo(int128[6][1][2]])", values)
+        _make_tx(env, c.address, "foo(int128[6][1][2]])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_dynarray_clamper_passing(w3, get_contract, value):
+def test_int128_dynarray_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
@@ -454,7 +449,7 @@ def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(5))
-def test_int128_dynarray_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_int128_dynarray_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external
@@ -470,11 +465,11 @@ def foo(b: int128[5]) -> int128[5]:
 
     data = _make_dynarray_data(32, 5, values)
     with tx_failed():
-        _make_invalid_dynarray_tx(w3, c.address, signature, data)
+        _make_invalid_dynarray_tx(env, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_int128_dynarray_looped_clamper_passing(w3, get_contract, value):
+def test_int128_dynarray_looped_clamper_passing(get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
@@ -488,7 +483,7 @@ def foo(a: uint256, b: DynArray[int128, 10], c: uint256) -> DynArray[int128, 10]
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(10))
-def test_int128_dynarray_looped_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_int128_dynarray_looped_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     code = """
 @external
 def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
@@ -503,12 +498,12 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
     data = _make_dynarray_data(32, 10, values)
     signature = "foo(int128[])"
     with tx_failed():
-        _make_invalid_dynarray_tx(w3, c.address, signature, data)
+        _make_invalid_dynarray_tx(env, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
 @pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
-def test_multidimension_dynarray_clamper_passing(w3, get_contract, value):
+def test_multidimension_dynarray_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(
@@ -521,12 +516,12 @@ def foo(
     # Out of gas exception if outermost length is 6 and greater
     d = [[[[value] * 5] * 6] * 7] * 8
     c = get_contract(code)
-    assert c.foo(2**127, d, 2**127, call={"gasPrice": 0}) == d
+    assert c.foo(2**127, d, 2**127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(4))
-def test_multidimension_dynarray_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_multidimension_dynarray_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     code = """
 @external
 def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]:
@@ -547,11 +542,11 @@ def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]
 
     c = get_contract(code)
     with tx_failed():
-        _make_invalid_dynarray_tx(w3, c.address, signature, data)
+        _make_invalid_dynarray_tx(env, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_dynarray_list_clamper_passing(w3, get_contract, value):
+def test_dynarray_list_clamper_passing(get_contract, value):
     code = """
 @external
 def foo(
@@ -568,7 +563,7 @@ def foo(
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(10))
-def test_dynarray_list_clamper_failing(w3, tx_failed, get_contract, bad_value, idx):
+def test_dynarray_list_clamper_failing(env, tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external
@@ -587,4 +582,4 @@ def foo(b: DynArray[int128[5], 2]) -> DynArray[int128[5], 2]:
     c = get_contract(code)
     signature = "foo(int128[5][])"
     with tx_failed():
-        _make_invalid_dynarray_tx(w3, c.address, signature, data)
+        _make_invalid_dynarray_tx(env, c.address, signature, data)

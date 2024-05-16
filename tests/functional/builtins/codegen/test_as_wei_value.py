@@ -1,6 +1,9 @@
-from decimal import Decimal
-
 import pytest
+from eth_utils import to_wei
+
+from tests.utils import decimal_to_int
+from vyper.semantics.types import DecimalT
+from vyper.utils import quantize, round_towards_zero
 
 wei_denoms = {
     "femtoether": 3,
@@ -61,11 +64,14 @@ def test_wei_decimal(get_contract, tx_failed, denom, multiplier):
 def foo(a: decimal) -> uint256:
     return as_wei_value(a, "{denom}")
     """
-
     c = get_contract(code)
-    value = Decimal((2**127 - 1) / (10**multiplier))
 
-    assert c.foo(value) == value * (10**multiplier)
+    denom_int = 10**multiplier
+    # TODO: test with more values
+    _, hi = DecimalT().ast_bounds
+    value = quantize(hi / denom_int)
+
+    assert c.foo(decimal_to_int(value)) == round_towards_zero(value * denom_int)
 
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
@@ -95,7 +101,7 @@ def foo(a: {data_type}) -> uint256:
     assert c.foo(0) == 0
 
 
-def test_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: uint8) -> uint8: nonpayable
@@ -108,11 +114,11 @@ def foo(a: Foo) -> uint256:
     c1 = side_effects_contract("uint8")
     c2 = get_contract(code)
 
-    assert c2.foo(c1.address) == w3.to_wei(7, "ether")
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert c2.foo(c1.address) == to_wei(7, "ether")
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
-def test_internal_call(w3, get_contract_with_gas_estimation):
+def test_internal_call(get_contract):
     code = """
 @external
 def foo() -> uint256:
@@ -122,7 +128,5 @@ def foo() -> uint256:
 def bar() -> uint8:
     return 7
     """
-
-    c = get_contract_with_gas_estimation(code)
-
-    assert c.foo() == w3.to_wei(7, "ether")
+    c = get_contract(code)
+    assert c.foo() == to_wei(7, "ether")

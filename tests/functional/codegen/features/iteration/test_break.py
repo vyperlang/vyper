@@ -1,11 +1,10 @@
-from decimal import Decimal
-
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.exceptions import StructureException
 
 
-def test_break_test(get_contract_with_gas_estimation):
+def test_break_test(get_contract):
     break_test = """
 @external
 def foo(n: decimal) -> int128:
@@ -19,17 +18,17 @@ def foo(n: decimal) -> int128:
     return output
     """
 
-    c = get_contract_with_gas_estimation(break_test)
+    c = get_contract(break_test)
 
-    assert c.foo(Decimal("1")) == 0
-    assert c.foo(Decimal("2")) == 3
-    assert c.foo(Decimal("10")) == 10
-    assert c.foo(Decimal("200")) == 23
+    assert c.foo(decimal_to_int("1")) == 0
+    assert c.foo(decimal_to_int("2")) == 3
+    assert c.foo(decimal_to_int("10")) == 10
+    assert c.foo(decimal_to_int("200")) == 23
 
     print("Passed for-loop break test")
 
 
-def test_break_test_2(get_contract_with_gas_estimation):
+def test_break_test_2(get_contract):
     break_test_2 = """
 @external
 def foo(n: decimal) -> int128:
@@ -48,16 +47,16 @@ def foo(n: decimal) -> int128:
     return output
     """
 
-    c = get_contract_with_gas_estimation(break_test_2)
-    assert c.foo(Decimal("1")) == 0
-    assert c.foo(Decimal("2")) == 3
-    assert c.foo(Decimal("10")) == 10
-    assert c.foo(Decimal("200")) == 23
-    assert c.foo(Decimal("4000000")) == 66
+    c = get_contract(break_test_2)
+    assert c.foo(decimal_to_int("1")) == 0
+    assert c.foo(decimal_to_int("2")) == 3
+    assert c.foo(decimal_to_int("10")) == 10
+    assert c.foo(decimal_to_int("200")) == 23
+    assert c.foo(decimal_to_int("4000000")) == 66
     print("Passed for-loop break test 2")
 
 
-def test_break_test_3(get_contract_with_gas_estimation):
+def test_break_test_3(get_contract):
     break_test_3 = """
 @external
 def foo(n: int128) -> int128:
@@ -76,7 +75,7 @@ def foo(n: int128) -> int128:
     return output
     """
 
-    c = get_contract_with_gas_estimation(break_test_3)
+    c = get_contract(break_test_3)
     assert c.foo(1) == 0
     assert c.foo(2) == 3
     assert c.foo(10) == 10
@@ -119,5 +118,5 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)

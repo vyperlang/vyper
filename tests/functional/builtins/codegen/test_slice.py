@@ -14,7 +14,7 @@ def _generate_bytes(length):
     return bytes(list(range(length)))
 
 
-def test_basic_slice(get_contract_with_gas_estimation):
+def test_basic_slice(get_contract):
     code = """
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
@@ -23,7 +23,7 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
@@ -37,7 +37,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 def _fail_contract(code, opt_level, exceptions):
     settings = Settings(optimize=opt_level)
     with pytest.raises(exceptions):
-        compile_code(code, settings)
+        compile_code(code, settings=settings)
 
 
 @pytest.mark.parametrize("use_literal_start", (True, False))
@@ -166,7 +166,12 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     """
 
     def _get_contract():
-        return get_contract(code, bytesdata, override_opt_level=opt_level)
+        if "__init__" in code:
+            # eth-tester used to ignore constructor arguments if no constructor was defined
+            # now we raise an exception, so only call the constructor if it exists
+            # TODO: Refactor so we don't rely on searching the source code.
+            return get_contract(code, bytesdata, override_opt_level=opt_level)
+        return get_contract(code, override_opt_level=opt_level)
 
     # length bound is the container size; input_bound is the bound on the input
     # (which can be different, if the input is a literal)
@@ -237,12 +242,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2**256 - 1, ""]
-    assert c.foo(7, 5) == [2**256 - 1, "world"]
-    assert c.foo(0, 5) == [2**256 - 1, "hello"]
-    assert c.foo(0, 1) == [2**256 - 1, "h"]
-    assert c.foo(11, 1) == [2**256 - 1, "d"]
+    assert c.foo(0, 12) == (2**256 - 1, "hello, world")
+    assert c.foo(12, 0) == (2**256 - 1, "")
+    assert c.foo(7, 5) == (2**256 - 1, "world")
+    assert c.foo(0, 5) == (2**256 - 1, "hello")
+    assert c.foo(0, 1) == (2**256 - 1, "h")
+    assert c.foo(11, 1) == (2**256 - 1, "d")
 
 
 def test_slice_storage_bytes32(get_contract):
@@ -259,7 +264,7 @@ def dice() -> Bytes[1]:
     assert c.dice() == b"A"
 
 
-def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
+def test_slice_immutable_length_arg(get_contract):
     code = """
 LENGTH: immutable(uint256)
 
@@ -271,7 +276,7 @@ def __init__():
 def do_slice(inp: Bytes[50]) -> Bytes[50]:
     return slice(inp, 0, LENGTH)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"abcde", x
 

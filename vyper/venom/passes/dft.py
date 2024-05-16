@@ -1,11 +1,12 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFG
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
 class DFTPass(IRPass):
+    function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
 
@@ -22,13 +23,15 @@ class DFTPass(IRPass):
                 # if the instruction is a terminator, we need to place
                 # it at the end of the basic block
                 # along with all the instructions that "lead" to it
-                if uses_this.opcode in BB_TERMINATORS:
-                    offset = len(bb.instructions)
                 self._process_instruction_r(bb, uses_this, offset)
 
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
+        self.inst_order_num += 1
+
+        if inst.opcode in BB_TERMINATORS:
+            offset = len(bb.instructions)
 
         if inst.opcode == "phi":
             # phi instructions stay at the beginning of the basic block
@@ -45,11 +48,10 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target, offset)
 
-        self.inst_order_num += 1
         self.inst_order[inst] = self.inst_order_num + offset
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.ctx.append_basic_block(bb)
+        self.function.append_basic_block(bb)
 
         for inst in bb.instructions:
             inst.fence_id = self.fence_id
@@ -66,15 +68,14 @@ class DFTPass(IRPass):
 
         bb.instructions.sort(key=lambda x: self.inst_order[x])
 
-    def _run_pass(self, ctx: IRFunction) -> None:
-        self.ctx = ctx
-        self.dfg = DFG.build_dfg(ctx)
+    def run_pass(self) -> None:
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-        basic_blocks = ctx.basic_blocks
-        ctx.basic_blocks = []
+        basic_blocks = list(self.function.get_basic_blocks())
 
+        self.function.clear_basic_blocks()
         for bb in basic_blocks:
             self._process_basic_block(bb)
