@@ -13,34 +13,31 @@ from vyper.venom.basicblock import IROperand
 
 
 def _unsigned_to_signed(value: int) -> int:
-    if value <= SizeLimits.MAX_INT256:
-        return value  # fast exit
-    else:
-        return unsigned_to_signed(value, 256)
+    assert isinstance(value, int)
+    return unsigned_to_signed(value, 256)
 
 
 def _signed_to_unsigned(value: int) -> int:
-    if value >= 0:
-        return value  # fast exit
-    else:
-        return signed_to_unsigned(value, 256)
+    assert isinstance(value, int)
+    return signed_to_unsigned(value, 256)
 
 
 def _wrap_signed_binop(operation):
     def wrapper(ops: list[IROperand]) -> int:
+        assert len(ops) == 2
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
-        return _signed_to_unsigned(int(operation(first, second)))
+        return _signed_to_unsigned(operation(first, second))
 
     return wrapper
 
 
 def _wrap_binop(operation):
     def wrapper(ops: list[IROperand]) -> int:
+        assert len(ops) == 2
         first = _signed_to_unsigned(ops[1].value)
         second = _signed_to_unsigned(ops[0].value)
         ret = operation(first, second)
-        assert isinstance(ret, int)
         return ret & SizeLimits.MAX_UINT256
 
     return wrapper
@@ -48,22 +45,21 @@ def _wrap_binop(operation):
 
 def _wrap_unop(operation):
     def wrapper(ops: list[IROperand]) -> int:
+        assert len(ops) == 1
         value = _signed_to_unsigned(ops[0].value)
         ret = operation(value)
-        assert isinstance(ret, int)
         return ret & SizeLimits.MAX_UINT256
 
     return wrapper
 
 
-def _evm_signextend(ops: list[IROperand]) -> int:
-    value = ops[0].value
-    nbytes = ops[1].value
-
+def _evm_signextend(value, nbytes) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
 
     if nbytes > 31:
         return value
+
+    assert nbytes >= 0
 
     sign_bit = 1 << (nbytes * 8 + 7)
     if value & sign_bit:
@@ -80,31 +76,27 @@ def _evm_iszero(ops: list[IROperand]) -> int:
     return int(value == 0)  # 1 if True else 0
 
 
-def _evm_shr(ops: list[IROperand]) -> int:
-    value = ops[0].value
-    shift_len = ops[1].value
+def _evm_shr(value: int, shift_len: int) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    assert shift_len >= 0
     return value >> shift_len
 
 
-def _evm_shl(ops: list[IROperand]) -> int:
-    value = ops[0].value
-    shift_len = ops[1].value
+def _evm_shl(value: int, shift_len: int) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
     if shift_len >= 256:
         return 0
+    assert shift_len >= 0
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
 
-def _evm_sar(ops: list[IROperand]) -> int:
-    value = _unsigned_to_signed(ops[0].value)
+def _evm_sar(value: int, shift_len: int) -> int:
     assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256, "Value out of bounds"
-    shift_len = ops[1].value
+    assert shift_len >= 0
     return value >> shift_len
 
 
-def _evm_not(ops: list[IROperand]) -> int:
-    value = ops[0].value
+def _evm_not(value: int) -> int:
     assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
     return SizeLimits.MAX_UINT256 ^ value
 
