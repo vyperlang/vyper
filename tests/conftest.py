@@ -57,7 +57,7 @@ def pytest_addoption(parser):
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
-    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    to_drop = ("archive", "archive_b64", "solc_json")
     for s in to_drop:
         del output_formats[s]
 
