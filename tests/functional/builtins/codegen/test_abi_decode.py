@@ -548,6 +548,45 @@ def f(x: Bytes[32 * 5]):
     env.message_call(c.address, data=data)
 
 
+def test_abi_decode_child_head_points_to_parent(tx_failed, get_contract):
+    # data isn't strictly encoded and the head for the inner array
+    # skipts the corresponding payload and points to other valid section of the parent buffer
+    code = """
+@external
+def run(x: Bytes[14 * 32]):
+    y: Bytes[14 * 32] = x
+    decoded_y1: DynArray[DynArray[DynArray[uint256, 2], 1], 2] = _abi_decode(
+        y,
+        DynArray[DynArray[DynArray[uint256, 2], 1], 2]
+    )
+    """
+    c = get_contract(code)
+    # encode [[[1, 1]], [[2, 2]]] and modify the head for [1, 1]
+    # to actually point to [2, 2]
+    payload = (
+        0x20,  # top-level array head
+        0x02,  # top-level array length
+        0x40,  # head of DAr[DAr[DAr, uint256]]][0]
+        0xE0,  # head of DAr[DAr[DAr, uint256]]][1]
+        0x01,  # DAr[DAr[DAr, uint256]]][0] length
+        # head of DAr[DAr[DAr, uint256]]][0][0]
+        # points to DAr[DAr[DAr, uint256]]][1][0]
+        0x20 * 6,
+        0x02,  # DAr[DAr[DAr, uint256]]][0][0] length
+        0x01,  # DAr[DAr[DAr, uint256]]][0][0][0]
+        0x01,  # DAr[DAr[DAr, uint256]]][0][0][1]
+        0x01,  # DAr[DAr[DAr, uint256]]][1] length
+        0x20,  # DAr[DAr[DAr, uint256]]][1][0] head
+        0x02,  # DAr[DAr[DAr, uint256]]][1][0] length
+        0x02,  # DAr[DAr[DAr, uint256]]][1][0][0]
+        0x02,  # DAr[DAr[DAr, uint256]]][1][0][1]
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    c.run(data)
+
+
 def test_abi_decode_nonstrict_head_oob(tx_failed, get_contract):
     # data isn't strictly encoded and (non_strict_head + len(DynArray[..][2])) > parent_static_sz
     # thus decoding the data pointed to by the head would cause an OOB read
