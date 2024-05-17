@@ -57,3 +57,7 @@ CALLDATA = AddrSpace("calldata", 32, "calldataload", None, "calldatacopy")
 IMMUTABLES = AddrSpace("immutables", 32, "iload", "istore")
 # data addrspace: "data" section of runtime code, read-only.
 DATA = AddrSpace("data", 32, "dload", None, "dloadbytes")
+
+
+def legal_in_staticcall(location: AddrSpace):
+    return location not in (STORAGE, TRANSIENT)

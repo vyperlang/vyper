@@ -8,6 +8,7 @@ from vyper.evm.address_space import (
     STORAGE,
     TRANSIENT,
     AddrSpace,
+    legal_in_staticcall,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
@@ -139,7 +140,7 @@ def address_space_to_data_location(s: AddrSpace) -> DataLocation:
 def writeable(context, ir_node):
     assert ir_node.is_pointer  # sanity check
 
-    if context.is_constant() and ir_node.location in (STORAGE, TRANSIENT):
+    if context.is_constant() and not legal_in_staticcall(ir_node.location):
         return False
     return ir_node.mutable
 
