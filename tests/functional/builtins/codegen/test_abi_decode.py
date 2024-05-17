@@ -506,7 +506,7 @@ def f(x: Bytes[32 * 3]):
         0x60,  # parent array length
         # parent payload - this word will be considered as the head of the abi-encoded inner array
         # and it will be added to base ptr leading to an arithmetic overflow
-        2 ** 256 - 0x60,
+        2**256 - 0x60,
     )
     data += _abi_payload_from_words(payload)
 
@@ -572,7 +572,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x20 * 4 + 0x20 * 3,  # inner array1 head
         0x20 * 8 + 0x20 * 3,  # inner array2 head
         0x60,  # DynArray[Bytes[96], 3][0] length
-        *_replicate(0x01, 3), # DynArray[Bytes[96], 3][0] data
+        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][0] data
         0x60,  # DynArray[Bytes[96], 3][1] length
         *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][1]  data
         # the invalid head points here + 1B (thus the length is 0x60)
@@ -616,7 +616,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x00,  # DynArray[..][2] length
         (0x03).to_bytes(1, "big"),
         (0x00).to_bytes(31, "big"),
-        *_replicate(0x01, 2)  # DynArray[..][2] data
+        *_replicate(0x01, 2),  # DynArray[..][2] data
     )
 
     data = _abi_payload_from_words(payload)
@@ -635,11 +635,7 @@ def run(x: Bytes[3 * 32]):
     """
     c = get_contract(code)
 
-    payload = (
-        0x80,
-        0x20,
-        0x01
-    )
+    payload = (0x80, 0x20, 0x01)
     data = _abi_payload_from_words(payload)
 
     with tx_failed():
@@ -669,7 +665,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x60,  # DynArray[Bytes[96], 3][1] length
         *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][1] data
         0x60,  # DynArray[Bytes[96], 3][2] length
-        *_replicate(0x01, 3)  # DynArray[Bytes[96], 3][2] data
+        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][2] data
     )
 
     data = _abi_payload_from_words(payload)
@@ -708,7 +704,7 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x60,  # DynArray[Bytes[96], 3][1] length
         *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][1] data
         0x60,  # DynArray[Bytes[96], 3][2] length
-        *_replicate(0x01, 3)  # DynArray[Bytes[96], 3][2] data
+        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][2] data
     )
 
     data += _abi_payload_from_words(payload)
@@ -746,7 +742,7 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x03,  # DynArray[..][1] length
         *_replicate(0x01, 3),  # DynArray[..][1] data
         0x03,  # DynArray[..][2] length
-        *_replicate(0x01, 3)  # DynArray[..][2] data
+        *_replicate(0x01, 3),  # DynArray[..][2] data
     )
 
     data += _abi_payload_from_words(payload)
@@ -778,14 +774,14 @@ def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         # distance to y2 from y1 is 160
         160 + 0x20 + 0x20 * 3,  # points to DynArray[..][0] length
         160 + 0x20 + 0x20 * 4 + 0x20 * 3,  # points to DynArray[..][1] length
-        160 + 0x20 + 0x20 * 8 + 0x20 * 3  # points to DynArray[..][2] length
+        160 + 0x20 + 0x20 * 8 + 0x20 * 3,  # points to DynArray[..][2] length
     )
 
     data1 = _abi_payload_from_words(payload)
 
     payload = (
         # (960 + (2**256 - 160)) % 2**256 == 800, ie will roundtrip to y1
-        2 ** 256 - 160,  # points to y1
+        2**256 - 160,  # points to y1
         0x03,  # DynArray length (not used)
         0x20 * 3,  # inner array0 head
         0x20 * 4 + 0x20 * 3,  # inner array1 head
@@ -795,7 +791,7 @@ def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         0x03,  # DynArray[..][1] length
         *_replicate(0x02, 3),  # DynArray[..][1] data
         0x03,  # DynArray[..][2] length
-        *_replicate(0x03, 3)  # DynArray[..][2] data
+        *_replicate(0x03, 3),  # DynArray[..][2] data
     )
 
     data2 = _abi_payload_from_words(payload)
