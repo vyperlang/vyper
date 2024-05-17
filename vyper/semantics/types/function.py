@@ -27,7 +27,6 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
-    location_from_decl,
     uses_state,
     validate_expected_type,
 )
@@ -462,11 +461,8 @@ class ContractFunctionT(VyperType):
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
 
-        data_loc = location_from_decl(node)
-
-        assert data_loc not in (DataLocation.MEMORY, DataLocation.CALLDATA)
-
-        type_ = type_from_annotation(node.annotation, data_loc)
+        # calculated by caller (ModuleAnalyzer.visit_VariableDecl)
+        type_ = node.target._metadata["varinfo"].typ
 
         arguments, return_type = type_.getter_signature
         args = []
