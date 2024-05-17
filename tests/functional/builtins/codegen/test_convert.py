@@ -667,7 +667,9 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, experimental_codegen, tx_failed, i_typ, o_typ, val):
+def test_conversion_failures(
+    get_contract, assert_compile_failed, experimental_codegen, tx_failed, i_typ, o_typ, val
+):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).

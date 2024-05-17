@@ -53,7 +53,7 @@ def _evm_signextend(ops: list[IROperand]) -> int:
 
     if not 0 <= value <= SizeLimits.MAX_UINT256:
         raise StaticAssertionException("Value out of bounds")
-    
+
     if nbytes > 31:
         return value
 
@@ -78,7 +78,7 @@ def _evm_shr(ops: list[IROperand]) -> int:
     shift_len = ops[1].value
     if not 0 <= value <= SizeLimits.MAX_UINT256:
         raise StaticAssertionException("Value out of bounds")
-    
+
     return value >> shift_len
 
 
