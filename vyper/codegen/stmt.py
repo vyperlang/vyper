@@ -313,18 +313,18 @@ class Stmt:
     def _get_target(self, target):
         _dbg_expr = target
 
-        if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
+        if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:  # pragma: nocover
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).ir_node
             items = target.args
-            if any(not writeable(self.context, item) for item in items):
+            if any(not writeable(self.context, item) for item in items):  # pragma: nocover
                 raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_pointer_expr(target, self.context)
-        if not writeable(self.context, target):
+        if not writeable(self.context, target):  # pragma: nocover
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
