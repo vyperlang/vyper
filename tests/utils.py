@@ -28,3 +28,5 @@ def parse_and_fold(source_code):
 def decimal_to_int(*args):
     s = decimal.Decimal(*args)
     return round_towards_zero(s / DECIMAL_EPSILON)
+
+
