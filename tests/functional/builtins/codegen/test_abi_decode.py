@@ -474,7 +474,7 @@ def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_cod
     assert_compile_failed(lambda: get_contract(bad_code), exception)
 
 
-def _abi_payload_from_words(payload: tuple[int | bytes, ...]) -> bytes:
+def _abi_payload_from_tuple(payload: tuple[int | bytes, ...]) -> bytes:
     return b"".join(p.to_bytes(32, "big") if isinstance(p, int) else p for p in payload)
 
 
@@ -508,7 +508,7 @@ def f(x: Bytes[32 * 3]):
         # and it will be added to base ptr leading to an arithmetic overflow
         2**256 - 0x60,
     )
-    data += _abi_payload_from_words(payload)
+    data += _abi_payload_from_tuple(payload)
 
     with tx_failed():
         env.message_call(c.address, data=data)
@@ -543,7 +543,7 @@ def f(x: Bytes[32 * 5]):
         *_replicate(0x03, 2),
     )
 
-    data += _abi_payload_from_words(payload)
+    data += _abi_payload_from_tuple(payload)
 
     env.message_call(c.address, data=data)
 
@@ -583,7 +583,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x03, 2),
     )
 
-    data = _abi_payload_from_words(payload)
+    data = _abi_payload_from_tuple(payload)
 
     with tx_failed():
         c.run(data)
@@ -619,7 +619,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x01, 2),  # DynArray[..][2] data
     )
 
-    data = _abi_payload_from_words(payload)
+    data = _abi_payload_from_tuple(payload)
 
     with tx_failed():
         c.run(data)
@@ -636,7 +636,7 @@ def run(x: Bytes[3 * 32]):
     c = get_contract(code)
 
     payload = (0x80, 0x20, 0x01)
-    data = _abi_payload_from_words(payload)
+    data = _abi_payload_from_tuple(payload)
 
     with tx_failed():
         c.run(data)
@@ -668,7 +668,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][2] data
     )
 
-    data = _abi_payload_from_words(payload)
+    data = _abi_payload_from_tuple(payload)
 
     with tx_failed():
         c.run(data)
@@ -707,7 +707,7 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][2] data
     )
 
-    data += _abi_payload_from_words(payload)
+    data += _abi_payload_from_tuple(payload)
 
     with tx_failed():
         env.message_call(c.address, data=data)
@@ -745,7 +745,7 @@ def f(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x01, 3),  # DynArray[..][2] data
     )
 
-    data += _abi_payload_from_words(payload)
+    data += _abi_payload_from_tuple(payload)
 
     with tx_failed():
         env.message_call(c.address, data=data)
@@ -777,7 +777,7 @@ def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         160 + 0x20 + 0x20 * 8 + 0x20 * 3,  # points to DynArray[..][2] length
     )
 
-    data1 = _abi_payload_from_words(payload)
+    data1 = _abi_payload_from_tuple(payload)
 
     payload = (
         # (960 + (2**256 - 160)) % 2**256 == 800, ie will roundtrip to y1
@@ -794,7 +794,7 @@ def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         *_replicate(0x03, 3),  # DynArray[..][2] data
     )
 
-    data2 = _abi_payload_from_words(payload)
+    data2 = _abi_payload_from_tuple(payload)
 
     with tx_failed():
         c.run(data1, data2)
