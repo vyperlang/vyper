@@ -241,44 +241,46 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     # allocate a buffer for the return value
     buf = context.new_internal_variable(dst_typ)
 
-    # `msg.data` by `calldatacopy`
-    if sub.value == "~calldata":
-        node = [
-            "seq",
-            check_buffer_overflow_ir(start, length, "calldatasize"),
-            ["mstore", buf, length],
-            ["calldatacopy", add_ofst(buf, 32), start, length],
-            buf,
-        ]
-
-    # `self.code` by `codecopy`
-    elif sub.value == "~selfcode":
-        node = [
-            "seq",
-            check_buffer_overflow_ir(start, length, "codesize"),
-            ["mstore", buf, length],
-            ["codecopy", add_ofst(buf, 32), start, length],
-            buf,
-        ]
-
-    # `<address>.code` by `extcodecopy`
-    else:
-        assert sub.value == "~extcode" and len(sub.args) == 1
-        node = [
-            "with",
-            "_extcode_address",
-            sub.args[0],
-            [
+    with scope_multi((start, length), ("start", "length")) as (b1, (start, length)):
+        # `msg.data` by `calldatacopy`
+        if sub.value == "~calldata":
+            node = [
                 "seq",
-                check_buffer_overflow_ir(start, length, ["extcodesize", "_extcode_address"]),
+                check_buffer_overflow_ir(start, length, "calldatasize"),
                 ["mstore", buf, length],
-                ["extcodecopy", "_extcode_address", add_ofst(buf, 32), start, length],
+                ["calldatacopy", add_ofst(buf, 32), start, length],
                 buf,
-            ],
-        ]
+            ]
 
-    assert isinstance(length.value, int)  # mypy hint
-    return IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
+        # `self.code` by `codecopy`
+        elif sub.value == "~selfcode":
+            node = [
+                "seq",
+                check_buffer_overflow_ir(start, length, "codesize"),
+                ["mstore", buf, length],
+                ["codecopy", add_ofst(buf, 32), start, length],
+                buf,
+            ]
+
+        # `<address>.code` by `extcodecopy`
+        else:
+            assert sub.value == "~extcode" and len(sub.args) == 1
+            node = [
+                "with",
+                "_extcode_address",
+                sub.args[0],
+                [
+                    "seq",
+                    check_buffer_overflow_ir(start, length, ["extcodesize", "_extcode_address"]),
+                    ["mstore", buf, length],
+                    ["extcodecopy", "_extcode_address", add_ofst(buf, 32), start, length],
+                    buf,
+                ],
+            ]
+
+        assert isinstance(length.value, int)  # mypy hint
+        ret = IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
+        return b1.resolve(ret)
 
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
@@ -1805,9 +1807,15 @@ class CreateFromBlueprint(_CreateBase):
             if len(ctor_args) != 1 or not isinstance(ctor_args[0].typ, BytesT):
                 raise StructureException("raw_args must be used with exactly 1 bytes argument")
 
-            argbuf = bytes_data_ptr(ctor_args[0])
-            argslen = get_bytearray_length(ctor_args[0])
-            bufsz = ctor_args[0].typ.maxlen
+            with ctor_args[0].cache_when_complex("arg") as (b1, arg):
+                argbuf = bytes_data_ptr(arg)
+                argslen = get_bytearray_length(arg)
+                bufsz = arg.typ.maxlen
+                return b1.resolve(
+                    self._helper(
+                        argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure
+                    )
+                )
         else:
             # encode the varargs
             to_encode = ir_tuple_from_args(ctor_args)
@@ -1820,7 +1828,11 @@ class CreateFromBlueprint(_CreateBase):
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
             argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+            return self._helper(
+                argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure
+            )
 
+    def _helper(self, argbuf, bufsz, target, value, salt, argslen, code_offset, revert_on_failure):
         # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
         # then copy the abi encoded buffer to past-the-end of the initcode
         # (since the abi encoder could write to fresh memory).
@@ -2107,7 +2119,8 @@ class Sqrt(BuiltinFunctionT):
 
         arg = args[0]
         # TODO: reify decimal and integer sqrt paths (see isqrt)
-        sqrt_code = """
+        with arg.cache_when_complex("x") as (b1, arg):
+            sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
 
@@ -2122,33 +2135,34 @@ else:
             break
         y = z
         z = (x / z + z) / 2.0
-        """
+            """
 
-        x_type = DecimalT()
-        placeholder_copy = ["pass"]
-        # Steal current position if variable is already allocated.
-        if arg.value == "mload":
-            new_var_pos = arg.args[0]
-        # Other locations need to be copied.
-        else:
-            new_var_pos = context.new_internal_variable(x_type)
-            placeholder_copy = ["mstore", new_var_pos, arg]
-        # Create input variables.
-        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Dictionary to update new (i.e. typecheck) namespace
-        variables_2 = {"x": VarInfo(DecimalT())}
-        # Generate inline IR.
-        new_ctx, sqrt_ir = generate_inline_function(
-            code=sqrt_code,
-            variables=variables,
-            variables_2=variables_2,
-            memory_allocator=context.memory_allocator,
-        )
-        return IRnode.from_list(
-            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-            typ=DecimalT(),
-            location=MEMORY,
-        )
+            x_type = DecimalT()
+            placeholder_copy = ["pass"]
+            # Steal current position if variable is already allocated.
+            if arg.value == "mload":
+                new_var_pos = arg.args[0]
+            # Other locations need to be copied.
+            else:
+                new_var_pos = context.new_internal_variable(x_type)
+                placeholder_copy = ["mstore", new_var_pos, arg]
+            # Create input variables.
+            variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+            # Dictionary to update new (i.e. typecheck) namespace
+            variables_2 = {"x": VarInfo(DecimalT())}
+            # Generate inline IR.
+            new_ctx, sqrt_ir = generate_inline_function(
+                code=sqrt_code,
+                variables=variables,
+                variables_2=variables_2,
+                memory_allocator=context.memory_allocator,
+            )
+            ret = IRnode.from_list(
+                ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
+                typ=DecimalT(),
+                location=MEMORY,
+            )
+            return b1.resolve(ret)
 
 
 class ISqrt(BuiltinFunctionT):
