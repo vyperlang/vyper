@@ -20,6 +20,8 @@ class AddrSpace:
         load_op: the opcode for loading a word from this address space
         store_op: the opcode for storing a word to this address space
             (an address space is read-only if store_op is None)
+        copy_op: the opcode for batch-copying from this address space
+            to memory
     """
 
     name: str
