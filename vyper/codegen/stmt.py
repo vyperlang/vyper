@@ -234,12 +234,8 @@ class Stmt:
             # rounds < 0.
             # if we ever want to remove that, we need to manually add the assertion
             # where it makes sense.
-            return b1.resolve(
-                IRnode.from_list(
-                    ["repeat", i, start, rounds, rounds_bound, loop_body],
-                    error_msg="range() bounds check",
-                )
-            )
+            loop = ["repeat", i, start, rounds, rounds_bound, loop_body]
+            return b1.resolve(IRnode.from_list(loop, error_msg="range() bounds check"))
 
     def _parse_For_list(self):
         with self.context.range_scope():
