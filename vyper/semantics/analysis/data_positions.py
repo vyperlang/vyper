@@ -161,7 +161,7 @@ def set_storage_slots_with_overrides(
         # Expect to find this variable within the storage layout override
         if GLOBAL_NONREENTRANT_KEY not in storage_layout_overrides:
             raise StorageLayoutException(
-                f"Could not find storage_slot for {variable_name}. "
+                f"Could not find storage_slot for {GLOBAL_NONREENTRANT_KEY}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
@@ -169,7 +169,9 @@ def set_storage_slots_with_overrides(
         reentrant_slot = storage_layout_overrides[GLOBAL_NONREENTRANT_KEY]["slot"]
         # prevent other storage variables from using the same slot
         if reserved_slots.occupied_slots.get(reentrant_slot) != GLOBAL_NONREENTRANT_KEY:
-            reserved_slots.reserve_slot_range(reentrant_slot, NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY)
+            reserved_slots.reserve_slot_range(
+                reentrant_slot, NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY
+            )
 
         fn_t.set_reentrancy_key_position(VarOffset(reentrant_slot))
 
