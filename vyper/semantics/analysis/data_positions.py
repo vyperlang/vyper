@@ -150,6 +150,9 @@ def set_storage_slots_with_overrides(
     ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
     reserved_slots = OverridingStorageAllocator()
 
+    if len(vyper_module.get_children(vy_ast.InitializesDecl)) != 0:
+        raise StorageLayoutException("storage layout override of modules not supported")
+
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         fn_t = node._metadata["func_type"]
