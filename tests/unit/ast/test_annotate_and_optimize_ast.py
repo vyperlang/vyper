@@ -62,5 +62,5 @@ def test_it_rewrites_unary_subtractions():
     function_def = contract_ast.body[2]
     return_stmt = function_def.body[0]
 
-    assert isinstance(return_stmt.value, python_ast.Num)
-    assert return_stmt.value.n == -1
+    assert isinstance(return_stmt.value, python_ast.Constant)
+    assert return_stmt.value.value == -1

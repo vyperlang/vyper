@@ -22,10 +22,10 @@ from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, sha256sum
 
 if TYPE_CHECKING:
-    from vyper.semantics.analysis.base import ModuleInfo
+    from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -127,7 +127,7 @@ class InterfaceT(_UserType):
                 continue
 
             if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
+                unimplemented.append(type_._pp_signature)
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
@@ -331,6 +331,8 @@ class ModuleT(VyperType):
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
+        self.add_member("__interface__", self.interface)
+
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
     # search path, symlinked vs normalized path, etc.)
@@ -372,6 +374,15 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.ImplementsDecl)
 
     @cached_property
+    def implemented_interfaces(self):
+        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+
+        # a module implicitly implements module.__interface__.
+        ret.append(self.interface)
+
+        return ret
+
+    @cached_property
     def interfaces(self) -> dict[str, InterfaceT]:
         ret = {}
         for i in self.interface_defs:
@@ -400,6 +411,39 @@ class ModuleT(VyperType):
                 continue
             ret[info.alias] = module_info
         return ret
+
+    @cached_property
+    def reachable_imports(self) -> list["ImportInfo"]:
+        """
+        Return (recursively) reachable imports from this module as a list in
+        depth-first (descendants-first) order.
+        """
+        ret = []
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+
+            # NOTE: this needs to be redone if interfaces can import other interfaces
+            if not isinstance(info.typ, InterfaceT):
+                ret.extend(info.typ.typ.reachable_imports)
+
+            ret.append(info)
+
+        return ret
+
+    @cached_property
+    def integrity_sum(self) -> str:
+        acc = [sha256sum(self._module.full_source_code)]
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+
+            if isinstance(info.typ, InterfaceT):
+                # NOTE: this needs to be redone if interfaces can import other interfaces
+                acc.append(info.compiler_input.sha256sum)
+            else:
+                assert isinstance(info.typ.typ, ModuleT)
+                acc.append(info.typ.typ.integrity_sum)
+
+        return sha256sum("".join(acc))
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
         for s in self.imported_modules.values():

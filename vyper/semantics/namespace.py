@@ -93,7 +93,7 @@ class Namespace(dict):
             prev_decl = getattr(prev, "decl_node", None)
             msg = f"'{attr}' has already been declared"
             if prev_decl is None:
-                msg += " as a {prev}"
+                msg += f" as a {prev}"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 

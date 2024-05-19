@@ -14,7 +14,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 _evm_versions = ("london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
-DEFAULT_EVM_VERSION = "shanghai"
+DEFAULT_EVM_VERSION = "cancun"
 
 
 # opcode as hex value
@@ -75,6 +75,8 @@ OPCODES: OpcodeMap = {
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
     "BASEFEE": (0x48, 0, 1, 2),
+    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3)),
+    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),

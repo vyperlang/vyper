@@ -62,69 +62,58 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+    # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
+    # it is annoying that we need to duplicate them, but it is necessary
+    # to avoid repeating defaults for every "include" in the matrix.
+    name: "${{ matrix.os && matrix.os != 'ubuntu' && format('{0}-', matrix.os) || '' }}\
+      py${{ matrix.python-version[1] || '311' }}\
+      -opt-${{ matrix.opt-mode || 'gas' }}\
+      ${{ matrix.debug && '-debug' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      -${{ matrix.evm-version || 'cancun' }}\
+      -${{ matrix.evm-backend || 'revm' }}"
     strategy:
       matrix:
-        python-version: [["3.11", "311"]]
-        opt-mode: ["gas", "none", "codesize"]
+        # declare all variables used in the "include" section here! Conflicting jobs get overwritten by GitHub actions.
+        os: [ubuntu]
+        python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
+        opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [shanghai]
+        evm-version: [cancun]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
-        memorymock: [false]
+        evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: london
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
-            evm-version: paris
+          - evm-version: london
+          - evm-version: paris
+          - evm-version: shanghai
 
-          # redundant rule, for clarity
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
+          # test py-evm
+          - evm-backend: py-evm
             evm-version: shanghai
 
-          - python-version: ["3.11", "311"]
-            debug: false
-            opt-mode: gas
+          - evm-backend: py-evm
             evm-version: cancun
 
           # test experimental pipeline
-          - python-version: ["3.11", "311"]
+          - experimental-codegen: true
             opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            experimental-codegen: true
-          # TODO: test experimental_codegen + -Ocodesize
-
-          # run with `--memorymock`, but only need to do it one configuration
-          # TODO: consider removing the memorymock tests
-          - python-version: ["3.11", "311"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-            memorymock: true
+          - experimental-codegen: true
+            opt-mode: none
+          - experimental-codegen: true
+            opt-mode: codesize
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
-
           - python-version: ["3.12", "312"]
-            opt-mode: gas
-            debug: false
-            evm-version: shanghai
 
-
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}${{ matrix.experimental-codegen && '-experimental' || '' }}-${{ matrix.evm-version }}
+          # os-specific rules
+          - os: windows
+          - os: macos
 
     steps:
     - uses: actions/checkout@v4
@@ -132,10 +121,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
 
     - name: Install dependencies
@@ -145,32 +134,31 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      run: |
-        pytest \
-          -m "not fuzzing" \
-          --optimize ${{ matrix.opt-mode }} \
-          --evm-version ${{ matrix.evm-version }} \
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          ${{ matrix.memorymock && '--memorymock' || '' }} \
-          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
-          --cov-branch \
-          --cov-report xml:coverage.xml \
-          --cov=vyper \
-          tests/
+      run: >
+        pytest
+        -m "not fuzzing"
+        --optimize ${{ matrix.opt-mode || 'gas' }}
+        --evm-version ${{ matrix.evm-version || 'cancun' }}
+        --evm-backend ${{ matrix.evm-backend || 'revm' }}
+        ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
+        ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        --cov-branch
+        --cov-report xml:coverage.xml
+        --cov=vyper
+        tests/
 
     - name: Upload Coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
-
 
   core-tests-success:
     if: always()
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
-    needs: tests
+    needs: [tests]
     steps:
       - name: Check tests tests all succeeded
         if: ${{ needs.tests.result != 'success' }}
@@ -220,7 +208,7 @@ jobs:
           tests/
 
     - name: Upload Coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
