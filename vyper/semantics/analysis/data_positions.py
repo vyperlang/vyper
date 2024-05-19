@@ -181,8 +181,11 @@ def set_storage_slots_with_overrides(
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         # Ignore immutable parameters
-        if node.get("annotation.func.id") == "immutable":
+        if node.is_immutable:
             continue
+
+        if node.is_transient:
+            raise StorageLayoutException("transient storage layout overrides not supported")
 
         varinfo = node.target._metadata["varinfo"]
 
