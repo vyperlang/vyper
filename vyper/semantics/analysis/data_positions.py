@@ -152,29 +152,26 @@ def set_storage_slots_with_overrides(
 
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["func_type"]
+        fn_t = node._metadata["func_type"]
 
         # Ignore functions without non-reentrant
-        if not type_.nonreentrant:
+        if not fn_t.nonreentrant:
             continue
 
-        variable_name = GLOBAL_NONREENTRANT_KEY
-
         # Expect to find this variable within the storage layout override
-        if variable_name in storage_layout_overrides:
-            reentrant_slot = storage_layout_overrides[variable_name]["slot"]
-            # Ensure that this slot has not been used, and prevents other storage variables
-            # from using the same slot
-            reserved_slots.reserve_slot_range(reentrant_slot, NONREENTRANT_KEY_SIZE, variable_name)
-
-            type_.set_reentrancy_key_position(VarOffset(reentrant_slot))
-            break
-        else:
+        if GLOBAL_NONREENTRANT_KEY not in storage_layout_overrides:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
+
+        reentrant_slot = storage_layout_overrides[GLOBAL_NONREENTRANT_KEY]["slot"]
+        # prevent other storage variables from using the same slot
+        if reserved_slots.occupied_slots.get(reentrant_slot) != GLOBAL_NONREENTRANT_KEY:
+            reserved_slots.reserve_slot_range(reentrant_slot, NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY)
+
+        fn_t.set_reentrancy_key_position(VarOffset(reentrant_slot))
 
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
@@ -185,20 +182,19 @@ def set_storage_slots_with_overrides(
         varinfo = node.target._metadata["varinfo"]
 
         # Expect to find this variable within the storage layout overrides
-        if node.target.id in storage_layout_overrides:
-            var_slot = storage_layout_overrides[node.target.id]["slot"]
-            storage_length = varinfo.typ.storage_size_in_words
-            # Ensure that all required storage slots are reserved, and prevents other variables
-            # from using these slots
-            reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
-            varinfo.set_position(VarOffset(var_slot))
-
-        else:
+        if node.target.id not in storage_layout_overrides:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
+
+        var_slot = storage_layout_overrides[node.target.id]["slot"]
+        storage_length = varinfo.typ.storage_size_in_words
+        # Ensure that all required storage slots are reserved, and prevents other variables
+        # from using these slots
+        reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
+        varinfo.set_position(VarOffset(var_slot))
 
     return ret
 
