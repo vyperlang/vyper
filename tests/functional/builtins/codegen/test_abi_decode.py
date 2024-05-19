@@ -921,7 +921,8 @@ def foo():
 
 def test_abi_decode_extcall_truncate_returndata2(tx_failed, get_contract):
     # return more data than expected
-    # after truncation the data is invalid
+    # after truncation the data is invalid because the length is too big
+    # wrt to the static size of the buffer
     code = """
 @external
 def bar() -> (uint256, uint256, uint256, uint256):
@@ -937,3 +938,104 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_abi_decode_extcall_return_nodata(tx_failed, get_contract):
+    code = """
+@external
+def bar():
+    return
+
+interface A:
+    def bar() -> Bytes[32]: nonpayable
+
+@external
+def foo():
+    x:Bytes[32] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_abi_decode_extcall_array_oob(tx_failed, get_contract):
+    # same as in test_abi_decode_extcall_oob
+    # DynArray[..][1] head isn't strict and points 1B over
+    # thus the 1st B of 2**(5+248) is considered as the length (32)
+    # thus we try to decode 1B over the buffer end
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256):
+    return (
+        32, # DynArray head
+        2,  # DynArray length
+        32 * 2,  # DynArray[..][0] head
+        32 * 2 + 32 * 2 + 1, # DynArray[..][1] head
+        32, # DynArray[..][0] length
+        0,  # DynArray[..][0] data
+        0,  # DynArray[..][1] length
+        2**(5+248) # DynArray[..][1] length (and data)
+    )
+
+interface A:
+    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+
+@external
+def run():
+    x: DynArray[Bytes[32], 2] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+
+    with tx_failed():
+        c.run()
+
+
+def test_abi_decode_extcall_array_oob_with_truncate(tx_failed, get_contract):
+    # same as in test_abi_decode_extcall_oob but we also return more data than expected
+    # DynArray[..][1] head isn't strict and points 1B over
+    # thus the 1st B of 2**(5+248) is considered as the length (32)
+    # thus we try to decode 1B over the buffer end
+    code = """
+@external
+def bar() -> (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256):
+    return (
+        32, # DynArray head
+        2,  # DynArray length
+        32 * 2,  # DynArray[..][0] head
+        32 * 2 + 32 * 2 + 1, # DynArray[..][1] head
+        32, # DynArray[..][0] length
+        0,  # DynArray[..][0] data
+        0,  # DynArray[..][1] length
+        2**(5+248), # DynArray[..][1] length (and data)
+        0   # extra data
+    )
+
+interface A:
+    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+
+@external
+def run():
+    x: DynArray[Bytes[32], 2] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+
+    with tx_failed():
+        c.run()
+
+
+def test_abi_decode_extcall_zero_len_array(get_contract):
+    code = """
+@external
+def bar() -> (uint256, uint256):
+    return 32, 0
+
+interface A:
+    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+
+@external
+def run():
+    x: DynArray[Bytes[32], 2] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+
+    c.run()
