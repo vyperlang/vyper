@@ -323,3 +323,37 @@ initializes: a_library
             input_bundle=input_bundle,
             storage_layout_override=override,
         )
+
+
+def test_module_collision2(make_input_bundle):
+    # test module storage layout, with initializes in an imported module
+    # note code repetition with test_storage_layout.py; maybe refactor to
+    # some fixtures
+    lib1 = """
+supply: uint256
+    """
+    code = """
+import lib1
+
+counter: uint256
+
+initializes: lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    override = {
+        "counter": {"slot": 15, "type": "uint256", "n_slots": 1},
+        "lib1": {"supply": {"slot": 15, "type": "uint256", "n_slots": 1}},
+    }
+
+    with pytest.raises(
+        StorageLayoutException,
+        match="Storage collision! Tried to assign 'lib1.supply' to"
+        " slot 15 but it has already been reserved by 'counter'",
+    ):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            input_bundle=input_bundle,
+            storage_layout_override=override,
+        )
