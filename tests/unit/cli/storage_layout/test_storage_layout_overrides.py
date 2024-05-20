@@ -134,6 +134,26 @@ def foo():
         )
 
 
+def test_override_missing_nonreentrant_key():
+    code = """
+@nonreentrant
+@external
+def foo():
+    pass
+    """
+
+    storage_layout_override = {}
+
+    exception_regex = re.escape(
+        "Could not find storage_slot for $.nonreentrant_key."
+        " Have you used the correct storage layout file?"
+    )
+    with pytest.raises(StorageLayoutException, match=exception_regex):
+        compile_code(
+            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        )
+
+
 def test_incomplete_overrides():
     code = """
 name: public(String[64])
