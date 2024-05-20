@@ -8,7 +8,9 @@ def test_simple():
     venom = ir_node_to_venom(ir_node)
     assert venom is not None
 
-    bb = venom.basic_blocks[0]
+    fn = list(venom.functions.values())[0]
+
+    bb = fn.entry
     assert bb.instructions[0].opcode == "calldatasize"
     assert bb.instructions[1].opcode == "calldatacopy"
 

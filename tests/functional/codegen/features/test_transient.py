@@ -1,14 +1,12 @@
 import pytest
 
+from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
 from vyper.exceptions import EvmVersionException, VyperException
 
 pytestmark = pytest.mark.requires_evm_version("cancun")
 
 
-# with eth-tester, each call happens in an isolated transaction and so we need to
-# test get/set within a single contract call. (we should remove this restriction
-# in the future by migrating away from eth-tester).
 def test_transient_compiles():
     getter_code = """
 my_map: public(transient(HashMap[address, uint256]))
@@ -52,14 +50,14 @@ def setter(k: address, v: uint256):
         ("uint256", 42, 0),
         ("int256", -(2**200), 0),
         ("int128", -(2**126), 0),
-        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", None),
+        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", ZERO_ADDRESS),
         ("bytes32", b"deadbeef" * 4, b"\x00" * 32),
         ("bool", True, False),
         ("String[10]", "Vyper hiss", ""),
         ("Bytes[10]", b"Vyper hiss", b""),
     ],
 )
-def test_value_storage_retrieval(typ, value, zero, get_contract):
+def test_value_storage_retrieval(typ, value, zero, get_contract, env):
     code = f"""
 bar: public(transient({typ}))
 
@@ -72,13 +70,17 @@ def foo(a: {typ}) -> {typ}:
     c = get_contract(code)
     assert c.bar() == zero
     assert c.foo(value) == value
+    env.clear_transient_storage()
+
     assert c.bar() == zero
     assert c.foo(value) == value
+    env.clear_transient_storage()
+
     assert c.bar() == zero
 
 
 @pytest.mark.parametrize("val", [0, 1, 2**256 - 1])
-def test_usage_in_constructor(get_contract, val):
+def test_usage_in_constructor(get_contract, val, env):
     code = """
 A: transient(uint256)
 a: public(uint256)
@@ -98,10 +100,12 @@ def a1() -> uint256:
 
     c = get_contract(code, val)
     assert c.a() == val
+    env.clear_transient_storage()
+
     assert c.a1() == 0
 
 
-def test_multiple_transient_values(get_contract):
+def test_multiple_transient_values(get_contract, env):
     code = """
 a: public(transient(uint256))
 b: public(transient(address))
@@ -124,14 +128,16 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
 
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code)
-    assert c.foo(*values) == list(values)
+    assert c.foo(*values) == values
+    env.clear_transient_storage()
+
     assert c.a() == 0
-    assert c.b() is None
+    assert c.b() == ZERO_ADDRESS
     assert c.c() == ""
-    assert c.foo(*values) == list(values)
+    assert c.foo(*values) == values
 
 
-def test_struct_transient(get_contract):
+def test_struct_transient(get_contract, env):
     code = """
 struct MyStruct:
     a: uint256
@@ -155,11 +161,13 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
 
     c = get_contract(code)
     assert c.foo(*values) == values
-    assert c.my_struct() == (0, 0, None, 0)
+    env.clear_transient_storage()
+
+    assert c.my_struct() == (0, 0, ZERO_ADDRESS, 0)
     assert c.foo(*values) == values
 
 
-def test_complex_struct_transient(get_contract):
+def test_complex_struct_transient(get_contract, env):
     code = """
 struct MyStruct:
     a: address
@@ -184,11 +192,13 @@ def foo(_a: address, _b: MyStruct2, _c: DynArray[DynArray[uint256, 3], 3]) -> My
 
     c = get_contract(code)
     assert c.foo(*values) == values
-    assert c.my_struct() == (None, ([],), [])
+    env.clear_transient_storage()
+
+    assert c.my_struct() == (ZERO_ADDRESS, ([],), [])
     assert c.foo(*values) == values
 
 
-def test_complex_transient_modifiable(get_contract):
+def test_complex_transient_modifiable(get_contract, env):
     code = """
 struct MyStruct:
     a: uint256
@@ -207,11 +217,13 @@ def foo(a: uint256) -> MyStruct:
 
     c = get_contract(code)
     assert c.foo(1) == (2,)
+    env.clear_transient_storage()
+
     assert c.my_struct() == (0,)
     assert c.foo(1) == (2,)
 
 
-def test_list_transient(get_contract):
+def test_list_transient(get_contract, env):
     code = """
 my_list: public(transient(uint256[3]))
 
@@ -224,12 +236,14 @@ def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
 
     c = get_contract(code)
     assert c.foo(*values) == list(values)
+    env.clear_transient_storage()
+
     for i in range(3):
         assert c.my_list(i) == 0
     assert c.foo(*values) == list(values)
 
 
-def test_hashmap_transient(get_contract):
+def test_hashmap_transient(get_contract, env):
     code = """
 my_map: public(transient(HashMap[uint256, uint256]))
 
@@ -242,10 +256,11 @@ def foo(k: uint256, v: uint256) -> uint256:
     for v in range(5):
         for k in range(5):
             assert c.foo(k, v) == v
+            env.clear_transient_storage()
             assert c.my_map(k) == 0
 
 
-def test_complex_hashmap_transient(get_contract):
+def test_complex_hashmap_transient(get_contract, env):
     code = """
 struct MyStruct:
     a: uint256
@@ -266,17 +281,18 @@ def do_side_effects():
         self.my_res[i] = self.my_map[i]
     """
     c = get_contract(code)
-    c.do_side_effects(transact={})
+    c.do_side_effects()
     for i in range(2):
         assert c.my_res(i)[0] == i
         assert c.my_map(i)[0] == 0
+        env.clear_transient_storage()
+
         for j in range(3):
-            print(c.my_res(i)[1])
             assert c.my_res(i)[1][j] == i + j
             assert c.my_map(i)[1] == []
 
 
-def test_dynarray_transient(get_contract, tx_failed):
+def test_dynarray_transient(get_contract, tx_failed, env):
     code = """
 my_list: public(transient(DynArray[uint256, 3]))
 
@@ -294,9 +310,13 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == list(values)
+    env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0)
     assert c.get_idx_two(*values) == values[2]
+    env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0)
 
@@ -323,7 +343,7 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     assert c.get_idx_two(*values) == expected_values[2][2]
 
 
-def test_nested_dynarray_transient(get_contract, tx_failed):
+def test_nested_dynarray_transient(get_contract, tx_failed, env):
     set_list = """
     self.my_list = [
         [[x, y, z], [y, z, x], [z, y, x]],
@@ -369,18 +389,24 @@ def get_idx_two_using_getter(x: int128, y: int128, z: int128) -> int128:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == expected_values
+    env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two(*values) == expected_values[2][2][2]
+    env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
     assert c.get_idx_two_using_getter(*values) == expected_values[2][2][2]
+    env.clear_transient_storage()
+
     with tx_failed():
         c.my_list(0, 0, 0)
 
 
 @pytest.mark.parametrize("n", range(5))
-def test_internal_function_with_transient(get_contract, n):
+def test_internal_function_with_transient(get_contract, n, env):
     code = """
 @internal
 def foo() -> uint256:
@@ -400,11 +426,13 @@ def bar(x: uint256) -> uint256:
 
     c = get_contract(code)
     assert c.bar(n) == n + 2
+    env.clear_transient_storage()
+
     assert c.val() == 0
     assert c.bar(n) == n + 2
 
 
-def test_nested_internal_function_transient(get_contract):
+def test_nested_internal_function_transient(get_contract, env):
     code = """
 d: public(uint256)
 x: public(transient(uint256))
@@ -426,10 +454,12 @@ def b():
 
     c = get_contract(code)
     assert c.d() == 2
+    env.clear_transient_storage()
+
     assert c.x() == 0
 
 
-def test_view_function_transient(get_contract):
+def test_view_function_transient(get_contract, env):
     c1 = """
 x: transient(uint256)
 
@@ -460,6 +490,8 @@ def bar(i: uint256, a: address) -> uint256:
 
     value = 333
     assert c2.bar(value, c1.address) == value
+    env.clear_transient_storage()
+
     assert c1.get_x() == 0
 
 
@@ -496,7 +528,7 @@ def foo() -> (uint256, uint256):
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     c = get_contract(main, input_bundle=input_bundle)
-    assert c.foo() == [3, 10]
+    assert c.foo() == (3, 10)
 
 
 def test_complex_modules_transient(get_contract, make_input_bundle):
@@ -537,4 +569,4 @@ def foo() -> (uint256[3], uint256, uint256, uint256):
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     c = get_contract(main, input_bundle=input_bundle)
-    assert c.foo() == [[1, 2, 3], 1, 2, 42]
+    assert c.foo() == ([1, 2, 3], 1, 2, 42)
