@@ -180,11 +180,11 @@ def set_storage_slots_with_overrides(
 
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-        # Ignore immutable parameters
-        if node.location != DataLocation.STORAGE:
-            continue
-
+        # Ignore immutables and transient variables
         varinfo = node.target._metadata["varinfo"]
+
+        if not varinfo.is_storage:
+            continue
 
         # Expect to find this variable within the storage layout overrides
         if node.target.id not in storage_layout_overrides:
@@ -266,7 +266,7 @@ def _allocate_layout_r(
         if not varinfo.is_state_variable():
             continue
 
-        if no_storage and varinfo.location == DataLocation.STORAGE:
+        if no_storage and varinfo.is_storage:
             continue
 
         allocator = allocators.get_allocator(varinfo.location)

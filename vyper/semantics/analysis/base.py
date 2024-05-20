@@ -208,6 +208,10 @@ class VarInfo:
         return self.typ.get_size_in(self.location)
 
     @property
+    def is_storage(self):
+        return self.location == DataLocation.STORAGE
+
+    @property
     def is_transient(self):
         return self.location == DataLocation.TRANSIENT
 
