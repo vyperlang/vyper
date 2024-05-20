@@ -250,7 +250,7 @@ def _allocate_layout_r(
         allocators.allocate_global_nonreentrancy_slot()
 
     # tag functions with the global nonreentrant key
-    if not no_storage and get_reentrancy_key_location() == DataLocation.STORAGE:
+    if not no_storage or get_reentrancy_key_location() == DataLocation.STORAGE:
         _allocate_nonreentrant_keys(vyper_module, allocators)
 
     for node in _get_allocatable(vyper_module):
