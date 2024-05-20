@@ -194,7 +194,7 @@ class VarInfo:
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
-            raise CompilerPanic("Position was already assigned")
+            raise CompilerPanic(f"Position was already assigned: {self}")
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 

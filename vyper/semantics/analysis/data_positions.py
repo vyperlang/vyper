@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -24,7 +24,7 @@ def set_data_positions(
     if storage_layout_overrides is not None:
         # allocate code layout with no overrides
         _allocate_layout_r(vyper_module, no_storage=True)
-        set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
+        _allocate_with_overrides(vyper_module, storage_layout_overrides)
     else:
         _allocate_layout_r(vyper_module)
 
@@ -139,20 +139,47 @@ class OverridingStorageAllocator:
         self.occupied_slots[slot] = var_name
 
 
-def set_storage_slots_with_overrides(
-    vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout
-) -> StorageLayout:
+def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
+    tmp = layout
+    qualified_path = ".".join(path)
+
+    for segment in path:
+        if segment not in tmp:
+            raise StorageLayoutException(
+                f"Could not find storage slot for {qualified_path}. "
+                "Have you used the correct storage layout file?",
+                node,
+            )
+        tmp = tmp[segment]
+
+    try:
+        ret = tmp["slot"]
+    except KeyError as e:
+        raise StorageLayoutException(f"no storage slot for {qualified_path}", node) from e
+
+    return ret
+
+
+def _allocate_with_overrides(vyper_module: vy_ast.Module, layout: StorageLayout):
     """
     Set storage layout given a layout override file.
-    Returns the layout as a dict of variable name -> variable info
-    (Doesn't handle modules)
     """
-    ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
-    reserved_slots = OverridingStorageAllocator()
+    allocator = OverridingStorageAllocator()
 
-    if len(vyper_module.get_children(vy_ast.InitializesDecl)) != 0:
-        raise StorageLayoutException("storage layout override of modules not supported")
+    nonreentrant_slot = None
+    if GLOBAL_NONREENTRANT_KEY in layout:
+        nonreentrant_slot = layout[GLOBAL_NONREENTRANT_KEY]["slot"]
 
+    _allocate_with_overrides_r(vyper_module, layout, allocator, nonreentrant_slot, [])
+
+
+def _allocate_with_overrides_r(
+    vyper_module: vy_ast.Module,
+    layout: StorageLayout,
+    allocator: OverridingStorageAllocator,
+    global_nonreentrant_slot: Optional[int],
+    path: list[str],
+):
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         fn_t = node._metadata["func_type"]
@@ -162,24 +189,32 @@ def set_storage_slots_with_overrides(
             continue
 
         # Expect to find this variable within the storage layout override
-        if GLOBAL_NONREENTRANT_KEY not in storage_layout_overrides:
+        if global_nonreentrant_slot is None:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {GLOBAL_NONREENTRANT_KEY}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
 
-        reentrant_slot = storage_layout_overrides[GLOBAL_NONREENTRANT_KEY]["slot"]
         # prevent other storage variables from using the same slot
-        if reserved_slots.occupied_slots.get(reentrant_slot) != GLOBAL_NONREENTRANT_KEY:
-            reserved_slots.reserve_slot_range(
-                reentrant_slot, NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY
+        if allocator.occupied_slots.get(global_nonreentrant_slot) != GLOBAL_NONREENTRANT_KEY:
+            allocator.reserve_slot_range(
+                global_nonreentrant_slot, NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY
             )
 
-        fn_t.set_reentrancy_key_position(VarOffset(reentrant_slot))
+        fn_t.set_reentrancy_key_position(VarOffset(global_nonreentrant_slot))
 
-    # Iterate through variables
-    for node in vyper_module.get_children(vy_ast.VariableDecl):
+    for node in _get_allocatable(vyper_module):
+        if isinstance(node, vy_ast.InitializesDecl):
+            module_info = node._metadata["initializes_info"].module_info
+
+            sub_path = [*path, module_info.alias]
+            _allocate_with_overrides_r(
+                module_info.module_node, layout, allocator, global_nonreentrant_slot, sub_path
+            )
+            continue
+
+        # Iterate through variables
         # Ignore immutables and transient variables
         varinfo = node.target._metadata["varinfo"]
 
@@ -187,21 +222,17 @@ def set_storage_slots_with_overrides(
             continue
 
         # Expect to find this variable within the storage layout overrides
-        if node.target.id not in storage_layout_overrides:
-            raise StorageLayoutException(
-                f"Could not find storage_slot for {node.target.id}. "
-                "Have you used the correct storage layout file?",
-                node,
-            )
+        varname = node.target.id
+        varpath = [*path, varname]
+        qualified_varname = ".".join(varpath)
 
-        var_slot = storage_layout_overrides[node.target.id]["slot"]
+        var_slot = _fetch_path(varpath, layout, node)
+
         storage_length = varinfo.typ.storage_size_in_words
-        # Ensure that all required storage slots are reserved, and prevents other variables
-        # from using these slots
-        reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
+        # Ensure that all required storage slots are reserved, and
+        # prevent other variables from using these slots
+        allocator.reserve_slot_range(var_slot, storage_length, qualified_varname)
         varinfo.set_position(VarOffset(var_slot))
-
-    return ret
 
 
 def _get_allocatable(vyper_module: vy_ast.Module) -> list[vy_ast.VyperNode]:
@@ -256,7 +287,7 @@ def _allocate_layout_r(
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
             module_info = node._metadata["initializes_info"].module_info
-            _allocate_layout_r(module_info.module_node, allocators)
+            _allocate_layout_r(module_info.module_node, allocators, no_storage)
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
