@@ -31,6 +31,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    EvmVersionException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -88,7 +89,7 @@ class Expr:
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        return IRnode.from_list(self.expr.n, typ=typ)
+        return IRnode.from_list(self.expr.value, typ=typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -132,8 +133,8 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
-        bytez = self.expr.s
-        bytez_length = len(self.expr.s)
+        bytez = self.expr.value
+        bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
@@ -167,17 +168,7 @@ class Expr:
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
-            var = self.context.vars[self.expr.id]
-            ret = IRnode.from_list(
-                var.pos,
-                typ=var.typ,
-                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
-                encoding=var.encoding,
-                annotation=self.expr.id,
-                mutable=var.mutable,
-            )
-            ret._referenced_variables = {var}
-            return ret
+            return self.context.lookup_var(self.expr.id).as_ir_node()
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
@@ -286,6 +277,12 @@ class Expr:
                 return IRnode.from_list(["gaslimit"], typ=UINT256_T)
             elif key == "block.basefee":
                 return IRnode.from_list(["basefee"], typ=UINT256_T)
+            elif key == "block.blobbasefee":
+                if not version_check(begin="cancun"):
+                    raise EvmVersionException(
+                        "`block.blobbasefee` is not available pre-cancun", self.expr
+                    )
+                return IRnode.from_list(["blobbasefee"], typ=UINT256_T)
             elif key == "block.prevhash":
                 return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ=BYTES32_T)
             elif key == "tx.origin":
@@ -348,7 +345,7 @@ class Expr:
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
             # folded value instead of calling reduced() here?
-            index = self.expr.slice.reduced().n
+            index = self.expr.slice.reduced().value
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")
@@ -494,7 +491,7 @@ class Expr:
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
     @staticmethod
-    def _signed_to_unsigned_comparision_op(op):
+    def _signed_to_unsigned_comparison_op(op):
         translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
@@ -554,7 +551,7 @@ class Expr:
             if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
-                op = self._signed_to_unsigned_comparision_op(op)
+                op = self._signed_to_unsigned_comparison_op(op)
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):

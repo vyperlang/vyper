@@ -10,11 +10,13 @@ from vyper.compiler.input_bundle import (
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    PathLike,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
+    CompilerPanic,
     DuplicateImport,
     EvmVersionException,
     ExceptionList,
@@ -398,7 +400,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # two ASTs produced from the same source
         ast_of = self.input_bundle._cache._ast_of
         if file.source_id not in ast_of:
-            ast_of[file.source_id] = _parse_and_fold_ast(file)
+            ast_of[file.source_id] = _parse_ast(file)
 
         return ast_of[file.source_id]
 
@@ -870,7 +872,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         raise ModuleNotFound(module_str, hint=hint) from err
 
 
-def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
+def _parse_ast(file: FileInput) -> vy_ast.Module:
     module_path = file.resolved_path  # for error messages
     try:
         # try to get a relative path, to simplify the error message
@@ -886,8 +888,8 @@ def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
-        module_path=str(module_path),
-        resolved_path=str(file.resolved_path),
+        module_path=module_path.as_posix(),
+        resolved_path=file.resolved_path.as_posix(),
     )
     return ret
 
@@ -906,13 +908,17 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 BUILTIN_PREFIXES = ["ethereum.ercs"]
 
 
+# TODO: could move this to analysis/common.py or something
 def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
 
+_builtins_cache: dict[PathLike, tuple[CompilerInput, ModuleT]] = {}
+
+
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
-    if not _is_builtin(module_str):
-        raise ModuleNotFound(module_str)
+    if not _is_builtin(module_str):  # pragma: nocover
+        raise CompilerPanic("unreachable!")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
@@ -933,6 +939,13 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, In
 
     path = _import_to_path(level, remapped_module).with_suffix(".vyi")
 
+    # builtins are globally the same, so we can safely cache them
+    # (it is also *correct* to cache them, so that types defined in builtins
+    # compare correctly using pointer-equality.)
+    if path in _builtins_cache:
+        file, module_t = _builtins_cache[path]
+        return file, module_t.interface
+
     try:
         file = input_bundle.load_file(path)
         assert isinstance(file, FileInput)  # mypy hint
@@ -946,9 +959,10 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, In
             hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
         raise ModuleNotFound(module_str, hint=hint) from e
 
-    # TODO: it might be good to cache this computation
-    interface_ast = _parse_and_fold_ast(file)
+    interface_ast = _parse_ast(file)
 
     with override_global_namespace(Namespace()):
         module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
+
+    _builtins_cache[path] = file, module_t
     return file, module_t.interface

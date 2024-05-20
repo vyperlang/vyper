@@ -401,7 +401,8 @@ def append_dyn_array(darray_node, elem_node):
             )
 
             # store new length
-            ret.append(STORE(darray_node, ["add", len_, 1]))
+            ret.append(ensure_eval_once("append_dynarray", STORE(darray_node, ["add", len_, 1])))
+
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
@@ -415,7 +416,7 @@ def pop_dyn_array(darray_node, return_popped_item):
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
             # store new length
-            ret.append(STORE(darray_node, new_len))
+            ret.append(ensure_eval_once("pop_dynarray", STORE(darray_node, new_len)))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
@@ -596,7 +597,7 @@ def _get_element_ptr_mapping(parent, key):
     key = unwrap_location(key)
 
     if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
-        raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
+        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
 

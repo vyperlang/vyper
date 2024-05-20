@@ -1,12 +1,12 @@
 import pytest
-from eth_tester.exceptions import TransactionFailed
+from eth_utils import to_bytes
 
 from vyper import compiler
 from vyper.exceptions import StructureException, TypeMismatch
 from vyper.utils import method_id
 
 
-def test_variable_assignment(get_contract, keccak):
+def test_variable_assignment(get_contract):
     code = """
 @external
 def foo() -> Bytes[4]:
@@ -31,7 +31,7 @@ def foo(_value: uint256) -> uint256:
     assert contract.foo(42) == 42
 
 
-def test_get_full_calldata(get_contract, keccak, w3):
+def test_get_full_calldata(get_contract):
     code = """
 @external
 def foo(bar: uint256) -> Bytes[36]:
@@ -41,9 +41,9 @@ def foo(bar: uint256) -> Bytes[36]:
     contract = get_contract(code)
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
-    selector_hex = method_id("foo(uint256)")  # 2fbebd38
-    encoded_42 = (42).to_bytes(32, "big")
-    expected_result = selector_hex + encoded_42
+    foo_method_id = method_id("foo(uint256)")  # 2fbebd38
+    encoded_42 = to_bytes(42)  # 2a
+    expected_result = foo_method_id + b"\0" * 31 + encoded_42
 
     assert contract.foo(42) == expected_result
 
@@ -73,10 +73,10 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == [2**256 - 1, method_id("foo()"), 2**256 - 1]
+    assert contract.foo() == (2**256 - 1, method_id("foo()"), 2**256 - 1)
 
 
-def test_assignment_to_storage(w3, get_contract, keccak):
+def test_assignment_to_storage(get_contract, keccak):
     code = """
 cache: public(Bytes[4])
 
@@ -84,10 +84,8 @@ cache: public(Bytes[4])
 def foo():
     self.cache = slice(msg.data, 0, 4)
 """
-    acct = w3.eth.accounts[0]
     contract = get_contract(code)
-
-    contract.foo(transact={"from": acct})
+    contract.foo()
     assert contract.cache() == method_id("foo()")
 
 
@@ -158,7 +156,7 @@ def test_invalid_usages_compile_error(bad_code):
         compiler.compile_code(bad_code[0])
 
 
-def test_runtime_failure_bounds_check(get_contract):
+def test_runtime_failure_bounds_check(get_contract, tx_failed):
     code = """
 @external
 def foo(_value: uint256) -> uint256:
@@ -167,6 +165,5 @@ def foo(_value: uint256) -> uint256:
 """
 
     contract = get_contract(code)
-
-    with pytest.raises(TransactionFailed):
+    with tx_failed():
         contract.foo(42)
