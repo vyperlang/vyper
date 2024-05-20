@@ -1039,3 +1039,24 @@ def run():
     c = get_contract(code)
 
     c.run()
+
+
+def test_abi_decode_extcall_zero_len_array2(get_contract):
+    code = """
+@external
+def bar() -> (uint256, uint256):
+    return 0, 0
+
+interface A:
+    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+
+@external
+def run() -> uint256:
+    x: DynArray[Bytes[32], 2] = extcall A(self).bar()
+    return len(x)
+    """
+    c = get_contract(code)
+
+    length = c.run()
+
+    assert length == 0
