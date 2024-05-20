@@ -37,4 +37,4 @@ class RemoveUnusedVariablesPass(IRPass):
 
             # Remove the rest
             del bb.instructions[i - 1]
-            i -= 2
+            i = max(0, i - 2)
