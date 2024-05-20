@@ -149,3 +149,30 @@ symbol: public(String[32])"""
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override
         )
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_override_with_immutables_and_transient():
+    code = """
+some_local: transient(uint256)
+some_immutable: immutable(uint256)
+name: public(String[64])
+
+@deploy
+def __init__():
+    some_immutable = 5
+    """
+
+    storage_layout_override = {"name": {"slot": 10, "type": "String[64]", "n_slots": 3}}
+
+    out = compile_code(
+        code, output_formats=["layout"], storage_layout_override=storage_layout_override
+    )
+
+    expected_output = {
+        "storage_layout": storage_layout_override,
+        "transient_storage_layout": {"some_local": {"slot": 1, "type": "uint256", "n_slots": 1}},
+        "code_layout": {"some_immutable": {"offset": 0, "type": "uint256", "length": 32}},
+    }
+
+    assert out["layout"] == expected_output
