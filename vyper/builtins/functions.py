@@ -49,6 +49,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
+    UnknownType,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import Modifiability, VarInfo
@@ -2230,7 +2231,10 @@ class Empty(TypenameFoldedFunctionT):
     _id = "empty"
 
     def _try_fold(self, node):
-        type_ = self.fetch_call_return(node)
+        try:
+            type_ = self.fetch_call_return(node)
+        except UnknownType:
+            raise UnfoldableNode
 
         # special handling for dynamic arrays to catch indexing of zero arrays
         if not isinstance(type_, DArrayT):
