@@ -23,7 +23,7 @@ def set_data_positions(
     """
     if storage_layout_overrides is not None:
         # allocate code layout with no overrides
-        _allocate_layout_r(vyper_module, immutables_only=True)
+        _allocate_layout_r(vyper_module, no_storage=True)
         set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
     else:
         _allocate_layout_r(vyper_module)
@@ -145,7 +145,7 @@ def set_storage_slots_with_overrides(
     """
     Set storage layout given a layout override file.
     Returns the layout as a dict of variable name -> variable info
-    (Doesn't handle modules, or transient storage)
+    (Doesn't handle modules)
     """
     ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
     reserved_slots = OverridingStorageAllocator()
@@ -181,11 +181,8 @@ def set_storage_slots_with_overrides(
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         # Ignore immutable parameters
-        if node.is_immutable:
+        if node.location != DataLocation.STORAGE:
             continue
-
-        if node.is_transient:
-            raise StorageLayoutException("transient storage layout overrides not supported")
 
         varinfo = node.target._metadata["varinfo"]
 
@@ -240,7 +237,7 @@ def _allocate_nonreentrant_keys(vyper_module, allocators):
 
 
 def _allocate_layout_r(
-    vyper_module: vy_ast.Module, allocators: Allocators = None, immutables_only=False
+    vyper_module: vy_ast.Module, allocators: Allocators = None, no_storage=False
 ):
     """
     Parse module-level Vyper AST to calculate the layout of storage variables.
@@ -253,7 +250,7 @@ def _allocate_layout_r(
         allocators.allocate_global_nonreentrancy_slot()
 
     # tag functions with the global nonreentrant key
-    if not immutables_only:
+    if not no_storage and get_reentrancy_key_location() == DataLocation.STORAGE:
         _allocate_nonreentrant_keys(vyper_module, allocators)
 
     for node in _get_allocatable(vyper_module):
@@ -269,7 +266,7 @@ def _allocate_layout_r(
         if not varinfo.is_state_variable():
             continue
 
-        if immutables_only and not varinfo.is_immutable:
+        if no_storage and varinfo.location == DataLocation.STORAGE:
             continue
 
         allocator = allocators.get_allocator(varinfo.location)
