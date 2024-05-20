@@ -37,4 +37,11 @@ class RemoveUnusedVariablesPass(IRPass):
 
             # Remove the rest
             del bb.instructions[i - 1]
-            i = max(0, i - 2)
+
+            # backtrack to the *previous* instruction, in case we removed
+            # an instruction which had prevented the previous instruction
+            # from being removed
+            i -= 2
+
+            # don't go beyond 0 though
+            i = max(0, i)
