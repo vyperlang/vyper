@@ -288,8 +288,7 @@ def foo() -> uint256:
 
 
 def test_module_collision(make_input_bundle):
-    # test module storage layout, with initializes in an imported module
-    # note code repetition with test_storage_layout.py; maybe refactor to
+    # test collisions between modules which are "siblings" in the import tree
     # some fixtures
     lib1 = """
 supply: uint256
@@ -326,9 +325,7 @@ initializes: a_library
 
 
 def test_module_collision2(make_input_bundle):
-    # test module storage layout, with initializes in an imported module
-    # note code repetition with test_storage_layout.py; maybe refactor to
-    # some fixtures
+    # test "parent-child" collisions
     lib1 = """
 supply: uint256
     """
