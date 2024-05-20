@@ -2229,6 +2229,15 @@ class ISqrt(BuiltinFunctionT):
 class Empty(TypenameFoldedFunctionT):
     _id = "empty"
 
+    def _try_fold(self, node):
+        type_ = self.fetch_call_return(node)
+
+        # special handling for dynamic arrays to catch indexing of zero arrays
+        if not isinstance(type_, DArrayT):
+            raise UnfoldableNode
+
+        return vy_ast.List.from_node(node, elements=[])
+
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
         if isinstance(type_, HashMapT):
