@@ -191,7 +191,7 @@ def _allocate_with_overrides_r(
         # Expect to find this variable within the storage layout override
         if global_nonreentrant_slot is None:
             raise StorageLayoutException(
-                f"Could not find storage_slot for {GLOBAL_NONREENTRANT_KEY}. "
+                f"Could not find storage slot for {GLOBAL_NONREENTRANT_KEY}. "
                 "Have you used the correct storage layout file?",
                 node,
             )

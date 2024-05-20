@@ -145,7 +145,7 @@ def foo():
     storage_layout_override = {}
 
     exception_regex = re.escape(
-        "Could not find storage_slot for $.nonreentrant_key."
+        "Could not find storage slot for $.nonreentrant_key."
         " Have you used the correct storage layout file?"
     )
     with pytest.raises(StorageLayoutException, match=exception_regex):
@@ -163,7 +163,7 @@ symbol: public(String[32])"""
 
     with pytest.raises(
         StorageLayoutException,
-        match="Could not find storage_slot for symbol. "
+        match="Could not find storage slot for symbol. "
         "Have you used the correct storage layout file?",
     ):
         compile_code(
@@ -196,3 +196,130 @@ def __init__():
     }
 
     assert out["layout"] == expected_output
+
+
+def test_override_modules(make_input_bundle):
+    # test module storage layout, with initializes in an imported module
+    # note code repetition with test_storage_layout.py; maybe refactor to
+    # some fixtures
+    lib1 = """
+supply: uint256
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@deploy
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+    lib2 = """
+import lib1
+
+initializes: lib1
+
+counter: uint256
+storage_variable: uint256
+immutable_variable: immutable(uint256)
+
+@deploy
+def __init__(s: uint256):
+    immutable_variable = s
+    lib1.__init__()
+
+@internal
+def decimals() -> uint8:
+    return lib1.DECIMALS
+    """
+    code = """
+import lib1 as a_library
+import lib2
+
+counter: uint256  # test shadowing
+some_immutable: immutable(DynArray[uint256, 10])
+
+# for fun: initialize lib2 in front of lib1
+initializes: lib2
+
+counter2: uint256
+
+uses: a_library
+
+@deploy
+def __init__():
+    some_immutable = [1, 2, 3]
+
+    lib2.__init__(17)
+
+@external
+def foo() -> uint256:
+    return a_library.supply
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    override = {
+        "counter": {"slot": 5, "type": "uint256", "n_slots": 1},
+        "lib2": {
+            "lib1": {"supply": {"slot": 12, "type": "uint256", "n_slots": 1}},
+            "storage_variable": {"slot": 34, "type": "uint256", "n_slots": 1},
+            "counter": {"slot": 15, "type": "uint256", "n_slots": 1},
+        },
+        "counter2": {"slot": 171, "type": "uint256", "n_slots": 1},
+    }
+    out = compile_code(
+        code, output_formats=["layout"], input_bundle=input_bundle, storage_layout_override=override
+    )
+
+    expected_output = {
+        "storage_layout": override,
+        "code_layout": {
+            "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
+            "lib2": {
+                "lib1": {
+                    "SYMBOL": {"length": 64, "offset": 352, "type": "String[32]"},
+                    "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
+                },
+                "immutable_variable": {"length": 32, "offset": 448, "type": "uint256"},
+            },
+        },
+    }
+    # adjust_storage_layout_for_cancun(expected_output)
+
+    assert out["layout"] == expected_output
+
+
+def test_module_collision(make_input_bundle):
+    # test module storage layout, with initializes in an imported module
+    # note code repetition with test_storage_layout.py; maybe refactor to
+    # some fixtures
+    lib1 = """
+supply: uint256
+    """
+    lib2 = """
+counter: uint256
+    """
+    code = """
+import lib1 as a_library
+import lib2
+
+# for fun: initialize lib2 in front of lib1
+initializes: lib2
+initializes: a_library
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    override = {
+        "lib2": {"counter": {"slot": 15, "type": "uint256", "n_slots": 1}},
+        "a_library": {"supply": {"slot": 15, "type": "uint256", "n_slots": 1}},
+    }
+
+    with pytest.raises(
+        StorageLayoutException,
+        match="Storage collision! Tried to assign 'a_library.supply' to"
+        " slot 15 but it has already been reserved by 'lib2.counter'",
+    ):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            input_bundle=input_bundle,
+            storage_layout_override=override,
+        )
