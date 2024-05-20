@@ -839,6 +839,26 @@ def run(x1: Bytes[4 * 32], x2: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
         c.run(data1, data2)
 
 
+def test_abi_decode_merge_head_and_length(get_contract):
+    # compress head and length into 33B
+    code = """
+@external
+def run(x: Bytes[32 * 2 + 8 * 32]) -> uint256:
+    y: Bytes[32 * 2 + 8 * 32] = x
+    decoded_y1: Bytes[256] = _abi_decode(y, Bytes[256])
+    return len(decoded_y1)
+    """
+    c = get_contract(code)
+
+    payload = (0x01, (0x00).to_bytes(1, "big"), *_replicate(0x00, 8))
+
+    data = _abi_payload_from_tuple(payload)
+
+    length = c.run(data)
+
+    assert length == 256
+
+
 def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):
     # the head returned from the extcall is set to invalid value of 480
     code = """
