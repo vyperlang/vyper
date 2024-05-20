@@ -354,3 +354,35 @@ initializes: lib1
             input_bundle=input_bundle,
             storage_layout_override=override,
         )
+
+
+def test_module_overlap(make_input_bundle):
+    # test a collision which only overlaps on one word
+    lib1 = """
+supply: uint256[2]
+    """
+    code = """
+import lib1
+
+counter: uint256[2]
+
+initializes: lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    override = {
+        "counter": {"slot": 15, "type": "uint256[2]", "n_slots": 2},
+        "lib1": {"supply": {"slot": 16, "type": "uint256[2]", "n_slots": 2}},
+    }
+
+    with pytest.raises(
+        StorageLayoutException,
+        match="Storage collision! Tried to assign 'lib1.supply' to"
+        " slot 16 but it has already been reserved by 'counter'",
+    ):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            input_bundle=input_bundle,
+            storage_layout_override=override,
+        )
