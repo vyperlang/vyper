@@ -281,6 +281,7 @@ def _allocate_layout_r(
         allocators.allocate_global_nonreentrancy_slot()
 
     # tag functions with the global nonreentrant key
+    # `no_storage` is slightly confusing, maybe should be `if not overrides`
     if not no_storage:
         _allocate_nonreentrant_keys(vyper_module, allocators)
 
