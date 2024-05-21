@@ -397,7 +397,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # add the modules that the module initialized, these are already
             # checked in the recursion.
-            initialized = initialized_module.module_t.initialized_modules
+            initialized = initialized_module.module_t
             already_initialized.update(
                 s.module_info.module_t for s in initialized.initialized_modules
             )
