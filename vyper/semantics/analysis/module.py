@@ -331,7 +331,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # don't call `__init__()` for modules which don't have
         # `__init__()` function
         for m in should_initialize.copy():
-            if not any(f.is_constructor for f in m.functions.values()):
+            if m.init_function is None:
                 del should_initialize[m]
 
         init_calls = []
