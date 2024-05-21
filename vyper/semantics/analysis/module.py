@@ -627,13 +627,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.target, vy_ast.Name)
         name = node.target.id
 
-        if node.is_public:
-            # generate function type and add to metadata
-            # we need this when building the public getter
-            func_t = ContractFunctionT.getter_from_VariableDecl(node)
-            node._metadata["getter_type"] = func_t
-            self._add_exposed_function(func_t, node)
-
         # TODO: move this check to local analysis
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
@@ -654,7 +647,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 raise ImmutableViolation(message, node)
 
-        data_loc = (
+        location = (
             DataLocation.CODE
             if node.is_immutable
             else DataLocation.UNSET
@@ -672,7 +665,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else Modifiability.MODIFIABLE
         )
 
-        type_ = type_from_annotation(node.annotation, data_loc)
+        type_ = type_from_annotation(node.annotation, location)
 
         if node.is_transient and not version_check(begin="cancun"):
             raise EvmVersionException("`transient` is not available pre-cancun", node.annotation)
@@ -680,12 +673,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         var_info = VarInfo(
             type_,
             decl_node=node,
-            location=data_loc,
+            location=location,
             modifiability=modifiability,
             is_public=node.is_public,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
+
+        if node.is_public:
+            # generate function type and add to metadata
+            # we need this when building the public getter
+            func_t = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = func_t
+            self._add_exposed_function(func_t, node)
 
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
