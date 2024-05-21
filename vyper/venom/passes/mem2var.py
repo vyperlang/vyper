@@ -46,8 +46,7 @@ class Mem2Var(IRPass):
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
         else:
-            work_instructions = [inst.opcode in ["mstore", "mload", "return"] for inst in uses]
-            if all(work_instructions):
+            if all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
                 var_name = f"addr{var.name}_{self.var_name_count}"
                 self.var_name_count += 1
                 for inst in uses:
@@ -71,9 +70,9 @@ class Mem2Var(IRPass):
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
         uses = dfg.get_uses(var)
-        work_instructions = [inst.opcode in ["mstore", "mload", "return"] for inst in uses]
-
-        if len(work_instructions) > self.OPS_THREASHOLD and all(work_instructions):
+        work_instructions = [inst.opcode in ["mstore", "mload"] for inst in uses]
+        count = sum(work_instructions)
+        if count > self.OPS_THREASHOLD and count == len(work_instructions):
             bb = palloca_inst.parent
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
