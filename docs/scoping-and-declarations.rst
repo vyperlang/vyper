@@ -123,8 +123,6 @@ Module Scope
 
 Variables and other items declared outside of a code block (functions, constants, event and struct definitions, ...), are visible even before they were declared. This means you can use module-scoped items before they are declared.
 
-An exception to this rule is that you can only call functions that have already been declared.
-
 Accessing Module Scope from Functions
 *************************************
 
