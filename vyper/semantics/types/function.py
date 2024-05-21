@@ -755,9 +755,7 @@ def _parse_decorators(
             raise StructureException("Bad decorator syntax", decorator)
 
     if function_visibility is None:
-        raise FunctionDeclarationException(
-            f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", funcdef
-        )
+        function_visibility = FunctionVisibility.INTERNAL
 
     if state_mutability is None:
         # default to nonpayable
