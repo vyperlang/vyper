@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -10,7 +10,7 @@ fail_list = [
 def foo():
     send(1, 2)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -18,7 +18,7 @@ def foo():
 def foo():
     send(0x1234567890123456789012345678901234567890, 2.5)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -26,7 +26,7 @@ def foo():
 def foo():
     send(0x1234567890123456789012345678901234567890, 0x1234567890123456789012345678901234567890)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -65,7 +65,7 @@ def foo():
 def foo():
     send(0x1234567890123456789012345678901234567890, 5, gas=1.5)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -73,7 +73,7 @@ def foo():
 def foo():
     send(0x1234567890123456789012345678901234567890, 5, gas=-2)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

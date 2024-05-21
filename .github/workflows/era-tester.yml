@@ -27,22 +27,22 @@ jobs:
         echo "ERA_VYPER_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-vyper/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
 
     - name: Checkout
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
 
     - name: Rust setup
-      uses: actions-rs/toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: nightly-2022-11-03
 
     - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
 
     - name: Get cache
       id: get-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -64,13 +64,14 @@ jobs:
         sed -i 's/ssh:\/\/git@/https:\/\//g' .gitmodules
         git submodule init
         git submodule update
-        sudo apt install cmake ninja-build clang-13 lld-13 parallel pkg-config lld
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build clang-13 lld-13 parallel pkg-config lld
         cargo install compiler-llvm-builder
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
 
     - name: Save cache
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       if: steps.get-cache.outputs.cache-hit != 'true'
       with:
         path: |

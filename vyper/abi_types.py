@@ -109,35 +109,6 @@ class ABI_Bool(ABI_GIntM):
         return "bool"
 
 
-# fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
-#   M % 8 ==0, and 0 < N <= 80, which denotes the value v as v / (10 ** N).
-# ufixed<M>x<N>: unsigned variant of fixed<M>x<N>.
-# fixed, ufixed: synonyms for fixed128x18, ufixed128x18 respectively.
-#   For computing the function selector, fixed128x18 and ufixed128x18 have to be used.
-class ABI_FixedMxN(ABIType):
-    def __init__(self, m_bits, n_places, signed):
-        if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise InvalidABIType("Invalid M for FixedMxN")
-        if not (0 < n_places and n_places <= 80):
-            raise InvalidABIType("Invalid N for FixedMxN")
-
-        self.m_bits = m_bits
-        self.n_places = n_places
-        self.signed = signed
-
-    def is_dynamic(self):
-        return False
-
-    def static_size(self):
-        return 32
-
-    def selector_name(self):
-        return ("" if self.signed else "u") + f"fixed{self.m_bits}x{self.n_places}"
-
-    def is_complex_type(self):
-        return False
-
-
 # bytes<M>: binary type of M bytes, 0 < M <= 32.
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):

@@ -1,14 +1,19 @@
+from collections import namedtuple
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
+from vyper.compiler.settings import OptimizationLevel
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
+x: public(uint256)
+
 @internal
 def _baz(a: int128) -> int128:
     b: int128 = a
-    for i in range(2, 5):
+    for i: int128 in range(2, 5):
         b *=  i
-        if b > 31337:
+        if b > 31336 + 1:
             break
     return b
 
@@ -27,20 +32,35 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map():
+def test_jump_map(optimize, experimental_codegen):
     source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    assert len([v for v in jump_map.values() if v == "o"]) == 1
+    expected_jumps = 1
+    if optimize == OptimizationLevel.NONE:
+        # some jumps which don't get optimized out when optimizer is off
+        # (slightly different behavior depending if venom pipeline is enabled):
+        if not experimental_codegen:
+            expected_jumps = 3
+        else:
+            expected_jumps = 2
+
+    assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == 2
 
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
+        if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
+            continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
+        if pc not in pos_map:
+            assert optimize == OptimizationLevel.NONE
+            continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")
 
@@ -82,22 +102,19 @@ def update_foo():
 
 
 def test_compress_source_map():
-    code = """
-@external
-def foo() -> uint256:
-    return 42
-    """
+    # mock the required VyperNode fields in compress_source_map
+    # fake_node = namedtuple("fake_node", ("lineno", "col_offset", "end_lineno", "end_col_offset"))
+    fake_node = namedtuple("fake_node", ["src"])
+
     compressed = _compress_source_map(
-        code, {"0": None, "2": (2, 0, 4, 13), "3": (2, 0, 2, 8), "5": (2, 0, 2, 8)}, {"3": "o"}, 2
+        {2: fake_node("-1:-1:-1"), 3: fake_node("1:45"), 5: fake_node("45:49")}, {3: "o"}, 6
     )
-    assert compressed == "-1:-1:2:-;1:45;:8::o;"
+    assert compressed == "-1:-1:-1;-1:-1:-1;-1:-1:-1;1:45:o;-1:-1:-1;45:49"
 
 
 def test_expand_source_map():
-    compressed = "-1:-1:0:-;;13:42:1;:21;::0:o;:::-;1::1;"
+    compressed = "13:42:1;:21;::0:o;:::-;1::1;"
     expanded = [
-        [-1, -1, 0, "-"],
-        [-1, -1, 0, None],
         [13, 42, 1, None],
         [13, 21, 1, None],
         [13, 21, 0, "o"],
@@ -105,3 +122,38 @@ def test_expand_source_map():
         [1, 21, 1, None],
     ]
     assert expand_source_map(compressed) == expanded
+
+
+def _construct_node_id_map(ast_struct):
+    if isinstance(ast_struct, dict):
+        ret = {}
+        if "node_id" in ast_struct:
+            ret[ast_struct["node_id"]] = ast_struct
+        for item in ast_struct.values():
+            ret.update(_construct_node_id_map(item))
+        return ret
+
+    elif isinstance(ast_struct, list):
+        ret = {}
+        for item in ast_struct:
+            ret.update(_construct_node_id_map(item))
+        return ret
+
+    else:
+        return {}
+
+
+def test_node_id_map():
+    code = TEST_CODE
+    out = compile_code(code, output_formats=["annotated_ast_dict", "source_map", "ir"])
+    assert out["source_map"]["pc_ast_map_item_keys"] == ("source_id", "node_id")
+
+    pc_ast_map = out["source_map"]["pc_ast_map"]
+
+    ast_node_map = _construct_node_id_map(out["annotated_ast_dict"])
+
+    for pc, (source_id, node_id) in pc_ast_map.items():
+        assert isinstance(pc, int), pc
+        assert isinstance(source_id, int), source_id
+        assert isinstance(node_id, int), node_id
+        assert node_id in ast_node_map

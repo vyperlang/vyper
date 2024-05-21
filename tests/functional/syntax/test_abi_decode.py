@@ -26,7 +26,7 @@ def bar(j: String[32]) -> bool:
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_abi_encode_fail(bad_code, exc):
+def test_abi_decode_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
@@ -41,5 +41,5 @@ def foo(x: Bytes[32]) -> uint256:
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_abi_encode_success(good_code):
+def test_abi_decode_success(good_code):
     assert compiler.compile_code(good_code) is not None

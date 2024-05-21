@@ -1,28 +1,24 @@
-import json
-import logging
-from functools import wraps
+from contextlib import contextmanager
+from random import Random
+from typing import Generator
 
 import hypothesis
 import pytest
-import web3.exceptions
-from eth_tester import EthereumTester, PyEVMBackend
-from eth_tester.exceptions import TransactionFailed
-from eth_utils import setup_DEBUG2_logging
-from eth_utils.toolz import compose
+from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
-from web3 import Web3
-from web3.contract import Contract
-from web3.providers.eth_tester import EthereumTesterProvider
 
+import vyper.evm.opcodes as evm_opcodes
+from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
+from tests.evm_backends.pyevm_env import PyEvmEnv
+from tests.evm_backends.revm_env import RevmEnv
+from tests.utils import working_directory
 from vyper import compiler
-from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
+from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
-
-# Import the base fixtures
-pytest_plugins = ["tests.fixtures.memorymock"]
+from vyper.utils import keccak256
 
 ############
 # PATCHING #
@@ -34,19 +30,6 @@ hypothesis.settings.register_profile("ci", deadline=None)
 hypothesis.settings.load_profile("ci")
 
 
-def set_evm_verbose_logging():
-    logger = logging.getLogger("eth.vm.computation.Computation")
-    setup_DEBUG2_logging()
-    logger.setLevel("DEBUG2")
-
-
-# Useful options to comment out whilst working:
-# set_evm_verbose_logging()
-#
-# from vdb import vdb
-# vdb.set_evm_opcode_debugger()
-
-
 def pytest_addoption(parser):
     parser.addoption(
         "--optimize",
@@ -55,24 +38,104 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
+    parser.addoption("--experimental-codegen", action="store_true")
+    parser.addoption("--tracing", action="store_true")
+
+    parser.addoption(
+        "--evm-version",
+        choices=list(evm_opcodes.EVM_VERSIONS.keys()),
+        default="cancun",
+        help="set evm version",
+    )
+
+    parser.addoption(
+        "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
+    )
 
 
 @pytest.fixture(scope="module")
+def output_formats():
+    output_formats = compiler.OUTPUT_FORMATS.copy()
+
+    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    for s in to_drop:
+        del output_formats[s]
+
+    return output_formats
+
+
+@pytest.fixture(scope="session")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
-    _set_debug_mode(debug)
+    return debug
+
+
+@pytest.fixture(scope="session")
+def experimental_codegen(pytestconfig):
+    ret = pytestconfig.getoption("experimental_codegen")
+    assert isinstance(ret, bool)
+    return ret
+
+
+@pytest.fixture(autouse=True)
+def check_venom_xfail(request, experimental_codegen):
+    if not experimental_codegen:
+        return
+
+    marker = request.node.get_closest_marker("venom_xfail")
+    if marker is None:
+        return
+
+    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
+    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
 
 
 @pytest.fixture
+def venom_xfail(request, experimental_codegen):
+    def _xfail(*args, **kwargs):
+        if not experimental_codegen:
+            return
+        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
+
+    return _xfail
+
+
+@pytest.fixture(scope="session")
+def evm_version(pytestconfig):
+    # note: configure the evm version that we emit code for.
+    # The env will read this fixture and apply the evm version there.
+    return pytestconfig.getoption("evm_version")
+
+
+@pytest.fixture(scope="session")
+def evm_backend(pytestconfig):
+    backend_str = pytestconfig.getoption("evm_backend")
+    return {"py-evm": PyEvmEnv, "revm": RevmEnv}[backend_str]
+
+
+@pytest.fixture(scope="session")
+def tracing(pytestconfig):
+    return pytestconfig.getoption("tracing")
+
+
+@pytest.fixture
+def chdir_tmp_path(tmp_path):
+    # this is useful for when you want imports to have relpaths
+    with working_directory(tmp_path):
+        yield
+
+
+# CMC 2024-03-01 this doesn't need to be a fixture
+@pytest.fixture
 def keccak():
-    return Web3.keccak
+    return keccak256
 
 
 @pytest.fixture
@@ -103,321 +166,100 @@ def make_input_bundle(tmp_path, make_file):
     return fn
 
 
-# TODO: remove me, this is just string.encode("utf-8").ljust()
-# only used in test_logging.py.
+# for tests which just need an input bundle, doesn't matter what it is
 @pytest.fixture
-def bytes_helper():
-    def bytes_helper(str, length):
-        return bytes(str, "utf-8") + bytearray(length - len(str))
-
-    return bytes_helper
-
-
-def _none_addr(datatype, data):
-    if datatype == "address" and int(data, base=16) == 0:
-        return (datatype, None)
-    else:
-        return (datatype, data)
-
-
-CONCISE_NORMALIZERS = (_none_addr,)
+def dummy_input_bundle():
+    return InputBundle([])
 
 
 @pytest.fixture(scope="module")
-def tester():
+def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
-    # (note: 2**63 - 1 is max that evm allows)
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10**10})
-    custom_genesis["base_fee_per_gas"] = 0
-    backend = PyEVMBackend(genesis_parameters=custom_genesis)
-    return EthereumTester(backend=backend)
-
-
-def zero_gas_price_strategy(web3, transaction_params=None):
-    return 0  # zero gas price makes testing simpler.
+    # (note: 2**63 - 1 is max that py-evm allows)
+    return 10**10
 
 
 @pytest.fixture(scope="module")
-def w3(tester):
-    w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
-    return w3
+def account_keys():
+    random = Random(b"vyper")
+    return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
-def get_compiler_gas_estimate(code, func):
-    sigs = compiler.phases.CompilerData(code).function_signatures
-    if func:
-        return compiler.utils.build_gas_estimates(sigs)[func] + 22000
-    else:
-        return sum(compiler.utils.build_gas_estimates(sigs).values()) + 22000
-
-
-def check_gas_on_chain(w3, tester, code, func=None, res=None):
-    gas_estimate = get_compiler_gas_estimate(code, func)
-    gas_actual = tester.get_block_by_number("latest")["gas_used"]
-    # Computed upper bound on the gas consumption should
-    # be greater than or equal to the amount of gas used
-    if gas_estimate < gas_actual:
-        raise Exception(f"Gas upper bound fail: bound {gas_estimate} actual {gas_actual}")
-
-    print(f"Function name: {func} - Gas estimate {gas_estimate}, Actual: {gas_actual}")
-
-
-def gas_estimation_decorator(w3, tester, fn, source_code, func):
-    def decorator(*args, **kwargs):
-        @wraps(fn)
-        def decorated_function(*args, **kwargs):
-            result = fn(*args, **kwargs)
-            if "transact" in kwargs:
-                check_gas_on_chain(w3, tester, source_code, func, res=result)
-            return result
-
-        return decorated_function(*args, **kwargs)
-
-    return decorator
-
-
-def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
-    func_definition = getattr(contract, func)
-    func_with_decorator = gas_estimation_decorator(w3, tester, func_definition, source_code, func)
-    setattr(contract, func, func_with_decorator)
-
-
-class VyperMethod:
-    ALLOWED_MODIFIERS = {"call", "estimateGas", "transact", "buildTransaction"}
-
-    def __init__(self, function, normalizers=None):
-        self._function = function
-        self._function._return_data_normalizers = normalizers
-
-    def __call__(self, *args, **kwargs):
-        return self.__prepared_function(*args, **kwargs)
-
-    def __prepared_function(self, *args, **kwargs):
-        if not kwargs:
-            modifier, modifier_dict = "call", {}
-            fn_abi = [
-                x
-                for x in self._function.contract_abi
-                if x.get("name") == self._function.function_identifier
-            ].pop()
-            # To make tests faster just supply some high gas value.
-            modifier_dict.update({"gas": fn_abi.get("gas", 0) + 500000})
-        elif len(kwargs) == 1:
-            modifier, modifier_dict = kwargs.popitem()
-            if modifier not in self.ALLOWED_MODIFIERS:
-                raise TypeError(f"The only allowed keyword arguments are: {self.ALLOWED_MODIFIERS}")
-        else:
-            raise TypeError(f"Use up to one keyword argument, one of: {self.ALLOWED_MODIFIERS}")
-        return getattr(self._function(*args), modifier)(modifier_dict)
-
-
-class VyperContract:
-    """
-    An alternative Contract Factory which invokes all methods as `call()`,
-    unless you add a keyword argument. The keyword argument assigns the prep method.
-    This call
-    > contract.withdraw(amount, transact={'from': eth.accounts[1], 'gas': 100000, ...})
-    is equivalent to this call in the classic contract:
-    > contract.functions.withdraw(amount).transact({'from': eth.accounts[1], 'gas': 100000, ...})
-    """
-
-    def __init__(self, classic_contract, method_class=VyperMethod):
-        classic_contract._return_data_normalizers += CONCISE_NORMALIZERS
-        self._classic_contract = classic_contract
-        self.address = self._classic_contract.address
-        protected_fn_names = [fn for fn in dir(self) if not fn.endswith("__")]
-
-        try:
-            fn_names = [fn["name"] for fn in self._classic_contract.functions._functions]
-        except web3.exceptions.NoABIFunctionsFound:
-            fn_names = []
-
-        for fn_name in fn_names:
-            # Override namespace collisions
-            if fn_name in protected_fn_names:
-                raise AttributeError(f"{fn_name} is protected!")
-            else:
-                _classic_method = getattr(self._classic_contract.functions, fn_name)
-                _concise_method = method_class(
-                    _classic_method, self._classic_contract._return_data_normalizers
-                )
-            setattr(self, fn_name, _concise_method)
-
-    @classmethod
-    def factory(cls, *args, **kwargs):
-        return compose(cls, Contract.factory(*args, **kwargs))
+@pytest.fixture(scope="module")
+def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
+    return evm_backend(
+        gas_limit=gas_limit,
+        tracing=tracing,
+        block_number=1,
+        evm_version=evm_version,
+        account_keys=account_keys,
+    )
 
 
 @pytest.fixture
-def get_contract_from_ir(w3, optimize):
+def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if optimize != OptimizationLevel.NONE:
+        if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
-        bytecode, _ = compile_ir.assembly_to_evm(
-            compile_ir.compile_to_assembly(ir, optimize=optimize)
-        )
-        abi = kwargs.get("abi") or []
-        c = w3.eth.contract(abi=abi, bytecode=bytecode)
-        deploy_transaction = c.constructor()
-        tx_hash = deploy_transaction.transact()
-        address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-        contract = w3.eth.contract(
-            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
-        )
-        return contract
+
+        assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
+        bytecode, _ = compile_ir.assembly_to_evm(assembly)
+
+        abi = kwargs.pop("abi", [])
+        return env.deploy(abi, bytecode, *args, **kwargs)
 
     return ir_compiler
 
 
-def _get_contract(
-    w3, source_code, optimize, *args, override_opt_level=None, input_bundle=None, **kwargs
-):
-    settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
-    settings.optimize = override_opt_level or optimize
-    out = compiler.compile_code(
-        source_code,
-        # test that metadata and natspecs get generated
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
-        settings=settings,
-        input_bundle=input_bundle,
-        show_gas_estimates=True,  # Enable gas estimates for testing
+@pytest.fixture(scope="module", autouse=True)
+def compiler_settings(optimize, experimental_codegen, evm_version, debug):
+    compiler.settings.DEFAULT_ENABLE_DECIMALS = True
+    settings = Settings(
+        optimize=optimize,
+        evm_version=evm_version,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
     )
-    parse_vyper_source(source_code)  # Test grammar.
-    json.dumps(out["metadata"])  # test metadata is json serializable
-    abi = out["abi"]
-    bytecode = out["bytecode"]
-    value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
-    c = w3.eth.contract(abi=abi, bytecode=bytecode)
-    deploy_transaction = c.constructor(*args)
-    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
-    tx_info.update(kwargs)
-    tx_hash = deploy_transaction.transact(tx_info)
-    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+    set_global_settings(settings)
+    return settings
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize):
+def get_contract(env, optimize, output_formats, compiler_settings):
     def fn(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        if "override_opt_level" in kwargs:
+            kwargs["compiler_settings"] = Settings(
+                **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
+            )
+        return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn
 
 
-@pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize):
-    def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, optimize, *args, **kwargs)
-        for abi_ in contract._classic_contract.functions.abi:
-            if abi_["type"] == "function":
-                set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
-        return contract
+@pytest.fixture(scope="module")
+def deploy_blueprint_for(env, output_formats):
+    def fn(source_code, *args, **kwargs):
+        # we don't pass any settings, but it will pick up the global settings
+        return env.deploy_blueprint(source_code, output_formats, *args, **kwargs)
 
-    return get_contract_with_gas_estimation
-
-
-@pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize):
-    def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
-
-    return get_contract_with_gas_estimation_for_constants
+    return fn
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize):
-    """
-    This fixture is used for Hypothesis tests to ensure that
-    the same contract is called over multiple runs of the test.
-    """
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
-    custom_genesis["base_fee_per_gas"] = 0
-    backend = PyEVMBackend(genesis_parameters=custom_genesis)
-    tester = EthereumTester(backend=backend)
-    w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
-
-    def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
-
-    return get_contract_module
-
-
-def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwargs):
-    settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
-    settings.optimize = optimize
-    out = compiler.compile_code(
-        source_code,
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
-        settings=settings,
-        show_gas_estimates=True,  # Enable gas estimates for testing
-    )
-    parse_vyper_source(source_code)  # Test grammar.
-    abi = out["abi"]
-    bytecode = HexBytes(initcode_prefix) + HexBytes(out["bytecode"])
-    bytecode_len = len(bytecode)
-    bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
-    # prepend a quick deploy preamble
-    deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
-    deploy_bytecode = HexBytes(deploy_preamble) + bytecode
-
-    deployer_abi = []  # just a constructor
-    c = w3.eth.contract(abi=deployer_abi, bytecode=deploy_bytecode)
-    deploy_transaction = c.constructor()
-    tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
-
-    tx_hash = deploy_transaction.transact(tx_info)
-    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-
-    # sanity check
-    assert w3.eth.get_code(address) == bytecode, (w3.eth.get_code(address), bytecode)
-
-    def factory(address):
-        return w3.eth.contract(
-            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
-        )
-
-    return w3.eth.contract(address, bytecode=deploy_bytecode), factory
-
-
-@pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, optimize):
-    def deploy_blueprint_for(source_code, *args, **kwargs):
-        return _deploy_blueprint_for(w3, source_code, optimize, *args, **kwargs)
-
-    return deploy_blueprint_for
+def get_logs(env):
+    return env.get_logs
 
 
 # TODO: this should not be a fixture.
 # remove me and replace all uses with `with pytest.raises`.
 @pytest.fixture
-def assert_compile_failed():
+def assert_compile_failed(tx_failed):
     def assert_compile_failed(function_to_test, exception=Exception):
-        with pytest.raises(exception):
+        with tx_failed(exception):
             function_to_test()
 
     return assert_compile_failed
-
-
-# TODO this should not be a fixture
-@pytest.fixture
-def search_for_sublist():
-    def search_for_sublist(ir, sublist):
-        _list = ir.to_list() if hasattr(ir, "to_list") else ir
-        if _list == sublist:
-            return True
-        if isinstance(_list, list):
-            for i in _list:
-                ret = search_for_sublist(i, sublist)
-                if ret is True:
-                    return ret
-        return False
-
-    return search_for_sublist
 
 
 @pytest.fixture
@@ -448,8 +290,7 @@ def foo(s: {ret_type}) -> {ret_type}:
     self.counter += 1
     return s
     """
-        contract = get_contract(code)
-        return contract
+        return get_contract(code)
 
     return generate
 
@@ -467,25 +308,36 @@ def assert_side_effects_invoked():
     return assert_side_effects_invoked
 
 
-@pytest.fixture
-def get_logs(w3):
-    def get_logs(tx_hash, c, event_name):
-        tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
-        return c._classic_contract.events[event_name]().process_receipt(tx_receipt)
-
-    return get_logs
-
-
-# TODO replace me with function like `with anchor_state()`
+# should probably be renamed since there is no longer a transaction object
 @pytest.fixture(scope="module")
-def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
-        snapshot_id = tester.take_snapshot()
+def tx_failed(env):
+    @contextmanager
+    def fn(exception=ExecutionReverted, exc_text=None):
         with pytest.raises(exception) as excinfo:
-            function_to_test()
-        tester.revert_to_snapshot(snapshot_id)
+            yield
+
         if exc_text:
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_tx_failed
+    return fn
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item) -> Generator:
+    marker = item.get_closest_marker("requires_evm_version")
+    if marker:
+        assert len(marker.args) == 1
+        version = marker.args[0]
+        if not evm_opcodes.version_check(begin=version):
+            item.add_marker(
+                pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
+            )
+
+    # Isolate tests by reverting the state of the environment after each test
+    env = item.funcargs.get("env")
+    if env:
+        with env.anchor():
+            yield
+    else:
+        yield

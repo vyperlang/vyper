@@ -1,22 +1,26 @@
-def test_throw_on_sending(w3, assert_tx_failed, get_contract_with_gas_estimation):
+from eth_utils import to_wei
+
+
+def test_throw_on_sending(env, tx_failed, get_contract):
     code = """
 x: public(int128)
 
-@external
+@deploy
 def __init__():
     self.x = 123
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.x() == 123
-    assert w3.eth.get_balance(c.address) == 0
-    assert_tx_failed(
-        lambda: w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(0.1, "ether")})
-    )
-    assert w3.eth.get_balance(c.address) == 0
+    assert env.get_balance(c.address) == 0
+    value = to_wei(0.1, "ether")
+    env.set_balance(env.deployer, value)
+    with tx_failed():
+        env.message_call(c.address, value=value, data=b"")  # call default function
+    assert env.get_balance(c.address) == 0
 
 
-def test_basic_default(w3, get_logs, get_contract_with_gas_estimation):
+def test_basic_default(env, get_logs, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -26,14 +30,15 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+    env.message_call(c.address, value=10**17, data=b"")  # call default function
+    (log,) = get_logs(c, "Sent")
+    assert env.deployer == log.args.sender
+    assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
-    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10**17}), c, "Sent")
-    assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.get_balance(c.address) == w3.to_wei(0.1, "ether")
 
-
-def test_basic_default_default_param_function(w3, get_logs, get_contract_with_gas_estimation):
+def test_basic_default_default_param_function(env, get_logs, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -49,14 +54,15 @@ def fooBar(a: int128 = 12345) -> int128:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+    env.message_call(c.address, value=10**17, data=b"")  # call default function
+    (log,) = get_logs(c, "Sent")
+    assert env.deployer == log.args.sender
+    assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
-    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10**17}), c, "Sent")
-    assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.get_balance(c.address) == w3.to_wei(0.1, "ether")
 
-
-def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_basic_default_not_payable(env, tx_failed, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -65,31 +71,33 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**17)
 
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10**17}))
+    with tx_failed():
+        env.message_call(c.address, value=10**17, data=b"")  # call default function
 
 
-def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
+def test_multi_arg_default(assert_compile_failed, get_contract):
     code = """
 @payable
 @external
 def __default__(arg1: int128):
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
-def test_always_public(assert_compile_failed, get_contract_with_gas_estimation):
+def test_always_public(assert_compile_failed, get_contract):
     code = """
 @internal
 def __default__():
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
-def test_always_public_2(assert_compile_failed, get_contract_with_gas_estimation):
+def test_always_public_2(assert_compile_failed, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -97,10 +105,10 @@ event Sent:
 def __default__():
     log Sent(msg.sender)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
+    assert_compile_failed(lambda: get_contract(code))
 
 
-def test_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+def test_zero_method_id(env, get_logs, get_contract, tx_failed):
     # test a method with 0x00000000 selector,
     # expects at least 36 bytes of calldata.
     code = """
@@ -124,10 +132,10 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(
-            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
-        )
-        return logs[0].args.sig
+        data = bytes.fromhex(hexstr.removeprefix("0x"))
+        env.message_call(c.address, value=0, data=data)
+        (log,) = get_logs(c, "Sent")
+        return log.args.sig
 
     assert 1 == _call_with_bytes("0x")
 
@@ -143,10 +151,11 @@ def __default__():
 
     for i in range(4, 36):
         # match the full 4 selector bytes, but revert due to malformed (short) calldata
-        assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * i))
+        with tx_failed():
+            _call_with_bytes(f"0x{'00' * i}")
 
 
-def test_another_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+def test_another_zero_method_id(env, get_logs, get_contract, tx_failed):
     # test another zero method id but which only expects 4 bytes of calldata
     code = """
 event Sent:
@@ -169,10 +178,10 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(
-            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
-        )
-        return logs[0].args.sig
+        data = bytes.fromhex(hexstr.removeprefix("0x"))
+        env.message_call(c.address, value=0, data=data, gas=10**6)
+        (log,) = get_logs(c, "Sent")
+        return log.args.sig
 
     assert 1 == _call_with_bytes("0x")
 
@@ -187,7 +196,7 @@ def __default__():
         assert 1 == _call_with_bytes("0x" + "00" * i)
 
 
-def test_partial_selector_match_trailing_zeroes(w3, get_logs, get_contract):
+def test_partial_selector_match_trailing_zeroes(env, get_logs, get_contract):
     code = """
 event Sent:
     sig: uint256
@@ -210,10 +219,10 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(
-            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
-        )
-        return logs[0].args.sig
+        data = bytes.fromhex(hexstr.removeprefix("0x"))
+        env.message_call(c.address, value=0, data=data)
+        (log,) = get_logs(c, "Sent")
+        return log.args.sig
 
     # check we can call default function
     assert 1 == _call_with_bytes("0x")

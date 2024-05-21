@@ -1,13 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    InvalidOperation,
-    InvalidType,
-    StructureException,
-    SyntaxException,
-    TypeMismatch,
-)
+from vyper.exceptions import InvalidOperation, StructureException, SyntaxException, TypeMismatch
 
 fail_list = [
     (
@@ -64,7 +58,7 @@ def foo() -> Bytes[10]:
     x = 0x1234567890123456789012345678901234567890
     return x
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -72,7 +66,7 @@ def foo() -> Bytes[10]:
 def foo() -> Bytes[10]:
     return "badmintonzz"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

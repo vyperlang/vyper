@@ -58,9 +58,17 @@ def test_attribute_not_member_type(build_node, namespace):
             get_possible_types_from_node(node)
 
 
+@pytest.mark.parametrize("op", ["+", "-", "*", "//", "%"])
+@pytest.mark.parametrize("left,right", INTEGER_LITERALS)
+def test_binop_ints(build_node, namespace, op, left, right):
+    node = build_node(f"{left}{op}{right}")
+    with namespace.enter_scope():
+        get_possible_types_from_node(node)
+
+
 @pytest.mark.parametrize("op", "+-*/%")
-@pytest.mark.parametrize("left,right", INTEGER_LITERALS + DECIMAL_LITERALS)
-def test_binop(build_node, namespace, op, left, right):
+@pytest.mark.parametrize("left,right", DECIMAL_LITERALS)
+def test_binop_decimal(build_node, namespace, op, left, right):
     node = build_node(f"{left}{op}{right}")
     with namespace.enter_scope():
         get_possible_types_from_node(node)

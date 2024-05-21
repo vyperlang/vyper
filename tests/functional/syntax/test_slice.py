@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -26,7 +26,7 @@ def foo(inp: int128) -> Bytes[3]:
 def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, 4.0, 3)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

@@ -34,7 +34,7 @@ def foo(inp: Bytes[32]) -> int128:
 def foo(inp: Bytes[32]) -> int128:
     return extract32(inp, -1, output_type=int128)
     """,
-        InvalidType,  # `start` cannot be negative
+        TypeMismatch,  # `start` cannot be negative
     ),
     (
         """
@@ -48,8 +48,8 @@ def foo(inp: Bytes[32]) -> bool:
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_extract32_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_extract32_fail(assert_compile_failed, get_contract, bad_code, exc):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)
 
 
 valid_list = [
@@ -80,5 +80,5 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_extract32_success(get_contract_with_gas_estimation, good_code):
-    assert get_contract_with_gas_estimation(good_code) is not None
+def test_extract32_success(get_contract, good_code):
+    assert get_contract(good_code) is not None

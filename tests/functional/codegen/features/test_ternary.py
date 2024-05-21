@@ -188,14 +188,14 @@ def test_ternary_tuple(get_contract, code, test):
     c = get_contract(code)
 
     x, y = 1, 2
-    assert c.foo(test, x, y) == ([x, y] if test else [y, x])
+    assert c.foo(test, x, y) == ((x, y) if test else (y, x))
 
 
 @pytest.mark.parametrize("test", [True, False])
 def test_ternary_immutable(get_contract, test):
     code = """
 IMM: public(immutable(uint256))
-@external
+@deploy
 def __init__(test: bool):
     IMM = 1 if test else 2
     """
@@ -269,7 +269,7 @@ def foo(t: bool):
     """
     c = get_contract(code)
 
-    c.foo(test, transact={})
+    c.foo(test)
     assert c.foo_retval() == (5 if test else 7)
 
     if test:
