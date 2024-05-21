@@ -476,13 +476,23 @@ class ModuleT(VyperType):
                 ret.append(used_module)
         return ret
 
-    @property
+    @cached_property
     def initialized_modules(self):
-        # modules which are initialized to
+        # modules which are initialized
         ret = []
         for node in self.initializes_decls:
             info = node._metadata["initializes_info"]
             ret.append(info)
+        return ret
+
+    @cached_property
+    def initialized_modules_recursed(self) -> OrderedSet["ModuleT"]:
+        # modules which are initialized, taking into account recursion
+        ret: OrderedSet = OrderedSet()
+        for info in self.initialized_modules:
+            module_t = info.module_info.module_t
+            ret |= module_t.initialized_modules_recursed
+            ret.add(module_t)
         return ret
 
     @cached_property

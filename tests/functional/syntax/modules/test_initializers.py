@@ -357,6 +357,7 @@ def __init__():
 
     assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
 
+
 def test_initializer_nested_order2(make_input_bundle):
     lib1 = """
 import lib4
@@ -423,7 +424,9 @@ def __init__():
     lib2.__init__()
     """
 
-    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3, "lib4.vy": lib4})
+    input_bundle = make_input_bundle(
+        {"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3, "lib4.vy": lib4}
+    )
 
     assert compile_code(main, input_bundle=input_bundle) is not None
 

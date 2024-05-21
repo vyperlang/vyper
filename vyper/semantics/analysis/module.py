@@ -398,9 +398,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # add the modules that the module initialized, these are already
             # checked in the recursion.
             initialized = initialized_module.module_t
-            already_initialized.update(
-                s.module_info.module_t for s in initialized.initialized_modules
-            )
+            already_initialized.update(initialized.initialized_modules_recursed)
 
         if len(should_initialize) > 0:
             err_list = ExceptionList()
