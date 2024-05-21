@@ -283,6 +283,57 @@ def __init__():
     assert e.value._message == expected
     assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
 
+def test_initializer_order_nested(make_input_bundle):
+    lib1 = """
+a: public(uint256)
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+a: uint256
+
+@deploy
+def __init__():
+    # not initialized when called
+    self.a = lib1.a
+    """
+    lib3 = """
+import lib1
+
+initializes: lib1
+
+a: uint256
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    lib1.__init__(0)
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib2[lib1 := lib1]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib3.__init__(0)
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
 
 def test_imported_as_different_names(make_input_bundle):
     lib1 = """
