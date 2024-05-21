@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import StructureException, SyntaxException
+from vyper.exceptions import SyntaxException
 
 
 def test_semicolon_prohibited(get_contract):
@@ -96,7 +96,7 @@ def test_evm_version_check(assert_compile_failed):
     assert compile_code(code, settings=Settings(evm_version="london")) is not None
     # should fail if compile options indicate different evm version
     # from source pragma
-    with pytest.raises(StructureException):
+    with pytest.raises(ValueError):
         compile_code(code, settings=Settings(evm_version="shanghai"))
 
 
@@ -107,9 +107,9 @@ def test_optimization_mode_check():
     assert compile_code(code, settings=Settings(optimize=None))
     # should fail if compile options indicate different optimization mode
     # from source pragma
-    with pytest.raises(StructureException):
+    with pytest.raises(ValueError):
         compile_code(code, settings=Settings(optimize=OptimizationLevel.GAS))
-    with pytest.raises(StructureException):
+    with pytest.raises(ValueError):
         compile_code(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
 
@@ -119,7 +119,7 @@ def test_optimization_mode_check_none():
     """
     assert compile_code(code, settings=Settings(optimize=None))
     # "none" conflicts with "gas"
-    with pytest.raises(StructureException):
+    with pytest.raises(ValueError):
         compile_code(code, settings=Settings(optimize=OptimizationLevel.GAS))
 
 

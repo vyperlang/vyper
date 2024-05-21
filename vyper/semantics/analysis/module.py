@@ -16,6 +16,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
+    CompilerPanic,
     DuplicateImport,
     EvmVersionException,
     ExceptionList,
@@ -620,13 +621,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.target, vy_ast.Name)
         name = node.target.id
 
-        if node.is_public:
-            # generate function type and add to metadata
-            # we need this when building the public getter
-            func_t = ContractFunctionT.getter_from_VariableDecl(node)
-            node._metadata["getter_type"] = func_t
-            self._add_exposed_function(func_t, node)
-
         # TODO: move this check to local analysis
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
@@ -647,7 +641,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 raise ImmutableViolation(message, node)
 
-        data_loc = (
+        location = (
             DataLocation.CODE
             if node.is_immutable
             else DataLocation.UNSET
@@ -665,7 +659,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else Modifiability.MODIFIABLE
         )
 
-        type_ = type_from_annotation(node.annotation, data_loc)
+        type_ = type_from_annotation(node.annotation, location)
 
         if node.is_transient and not version_check(begin="cancun"):
             raise EvmVersionException("`transient` is not available pre-cancun", node.annotation)
@@ -673,12 +667,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         var_info = VarInfo(
             type_,
             decl_node=node,
-            location=data_loc,
+            location=location,
             modifiability=modifiability,
             is_public=node.is_public,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
+
+        if node.is_public:
+            # generate function type and add to metadata
+            # we need this when building the public getter
+            func_t = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = func_t
+            self._add_exposed_function(func_t, node)
 
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
@@ -887,8 +888,8 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
-        module_path=str(module_path),
-        resolved_path=str(file.resolved_path),
+        module_path=module_path.as_posix(),
+        resolved_path=file.resolved_path.as_posix(),
     )
     return ret
 
@@ -907,6 +908,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 BUILTIN_PREFIXES = ["ethereum.ercs"]
 
 
+# TODO: could move this to analysis/common.py or something
 def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
@@ -915,8 +917,8 @@ _builtins_cache: dict[PathLike, tuple[CompilerInput, ModuleT]] = {}
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
-    if not _is_builtin(module_str):
-        raise ModuleNotFound(module_str)
+    if not _is_builtin(module_str):  # pragma: nocover
+        raise CompilerPanic("unreachable!")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
