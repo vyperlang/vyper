@@ -163,7 +163,11 @@ def _parse_args(argv):
         "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
     )
     parser.add_argument(
-        "--path", "-p", help="Add a path to the compiler's search path", action="append", dest="paths"
+        "--path",
+        "-p",
+        help="Add a path to the compiler's search path",
+        action="append",
+        dest="paths",
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
