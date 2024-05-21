@@ -13,6 +13,10 @@ class Mem2Var(IRPass):
     It does yet do any memory aliasing analysis, so it is conservative.
     """
 
+    # Number of memory operations over which we promote
+    # a palloca to a stack variable
+    OPS_THREASHOLD = 6
+
     function: IRFunction
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
@@ -41,23 +45,25 @@ class Mem2Var(IRPass):
             return
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
-        elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
-            var_name = f"addr{var.name}_{self.var_name_count}"
-            self.var_name_count += 1
-            for inst in uses:
-                if inst.opcode == "mstore":
-                    inst.opcode = "store"
-                    inst.output = IRVariable(var_name)
-                    inst.operands = [inst.operands[0]]
-                elif inst.opcode == "mload":
-                    inst.opcode = "store"
-                    inst.operands = [IRVariable(var_name)]
-                elif inst.opcode == "return":
-                    bb = inst.parent
-                    idx = bb.instructions.index(inst)
-                    bb.insert_instruction(
-                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
-                    )
+        else:
+            work_instructions = [inst.opcode in ["mstore", "mload", "return"] for inst in uses]
+            if all(work_instructions):
+                var_name = f"addr{var.name}_{self.var_name_count}"
+                self.var_name_count += 1
+                for inst in uses:
+                    if inst.opcode == "mstore":
+                        inst.opcode = "store"
+                        inst.output = IRVariable(var_name)
+                        inst.operands = [inst.operands[0]]
+                    elif inst.opcode == "mload":
+                        inst.opcode = "store"
+                        inst.operands = [IRVariable(var_name)]
+                    elif inst.opcode == "return":
+                        bb = inst.parent
+                        idx = bb.instructions.index(inst)
+                        bb.insert_instruction(
+                            IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
+                        )
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
@@ -65,7 +71,9 @@ class Mem2Var(IRPass):
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
         uses = dfg.get_uses(var)
-        if all([inst.opcode in ["mload", "mstore", "return"] for inst in uses]):
+        work_instructions = [inst.opcode in ["mstore", "mload", "return"] for inst in uses]
+
+        if len(work_instructions) > self.OPS_THREASHOLD and all(work_instructions):
             bb = palloca_inst.parent
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
