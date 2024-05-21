@@ -386,8 +386,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 if dep_t not in seen_initializers:
                     msg = f"Tried to initialize `{initialized_module.alias}`, "
-                    msg += f"but it depends on `{dep_info.alias}`, which has not "
-                    msg += "been initialized yet."
+                    msg += f"but it depends on `{dep_info.alias}`, which has "
+                    msg += "not been initialized yet."
                     hint = f"call `{dep_info.alias}.__init__()` before "
                     hint += f"`{initialized_module.alias}.__init__()`."
                     raise InitializerException(msg, call_node.func, hint=hint)
