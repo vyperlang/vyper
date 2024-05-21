@@ -24,7 +24,13 @@ The defined interface can then be used to make external calls, given a contract 
 
     @external
     def test(foobar: FooBar):
-        foobar.calculate()
+        extcall foobar.test1()
+
+    @external
+    def test2(foobar: FooBar) -> uint256:
+        return staticcall foobar.calculate()
+
+The ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls.
 
 The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:
 
@@ -38,7 +44,7 @@ The interface name can also be used as a type annotation for storage variables. 
 
     @external
     def test():
-        self.foobar_contract.calculate()
+        extcall self.foobar_contract.test1()
 
 Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
 
@@ -72,8 +78,8 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 
 .. code-block:: vyper
 
-    IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
-    IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
+    extcall IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
+    extcall IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
 .. warning::
 
@@ -84,43 +90,31 @@ Importing Interfaces
 
 Interfaces are imported with ``import`` or ``from ... import`` statements.
 
-Imported interfaces are written using standard Vyper syntax. The body of each function is ignored when the interface is imported. If you are defining a standalone interface, it is normally specified by using a ``pass`` statement:
+Imported interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix.
 
 .. code-block:: vyper
+    # my_interface.vyi
 
     @external
     def test1():
-        pass
+        ...
 
     @external
     def calculate() -> uint256:
-        pass
-
-You can also import a fully implemented contract and Vyper will automatically convert it to an interface. It is even possible for a contract to import itself to gain access to its own interface.
-
-.. code-block:: vyper
-
-    import greeter as Greeter
-
-    name: public(String[10])
-
-    @external
-    def __init__(_name: String[10]):
-        self.name = _name
-
-    @view
-    @external
-    def greet() -> String[16]:
-        return concat("Hello ", Greeter(msg.sender).name())
+        ...
 
 Imports via ``import``
 ----------------------
 
-With absolute ``import`` statements, you **must** include an alias as a name for the imported package. In the following example, failing to include ``as Foo`` will raise a compile error:
+You may import interfaces (defined in ``.vyi`` files) via ``import`` statements. You may use plain or ``as`` variants.
 
 .. code-block:: vyper
 
-    import contract.foo as Foo
+    # without an alias
+    import contract.foo
+
+    # with an alias
+    import contract.foo as bar
 
 Imports via ``from ... import``
 -------------------------------
@@ -133,7 +127,7 @@ Using ``from`` you can perform both absolute and relative imports. You may optio
     from contract import foo
 
     # with an alias
-    from contract import foo as Foo
+    from contract import foo as bar
 
 Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 
@@ -149,18 +143,24 @@ Searching For Interface Files
 
 When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
 
-When using the command line compiler, the root path defaults to the current working directory. You can change it with the ``-p`` flag:
+When using the command line compiler, the search path path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>_`. You can append to the search path with the ``-p`` flag:
 
 ::
 
     $ vyper my_project/contracts/my_contract.vy -p my_project
 
-In the above example, the ``my_project`` folder is set as the root path. A contract cannot perform a relative import that goes beyond the top-level folder.
+In the above example, the ``my_project`` folder is set as the root path.
+
+You can additionally disable the behavior of adding the syspath to the search path with the CLI flag ``--disable-sys-path``:
+
+::
+
+    $ vyper --disable-sys-path my_project/my_contract.vy
 
 Built-in Interfaces
 ===================
 
-Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``ethereum.ercs``:
+Vyper includes common built-in interfaces such as `IERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `IERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``ethereum.ercs``:
 
 .. code-block:: vyper
 
@@ -182,7 +182,7 @@ You can define an interface for your contract with the ``implements`` statement:
     implements: FooBarInterface
 
 
-This imports the defined interface from the vyper file at ``an_interface.vy`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
+This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
 .. note::
 
@@ -202,11 +202,11 @@ Vyper has a built-in format option to allow you to make your own Vyper interface
     @view
     @external
     def delegated(addr: address) -> bool:
-        pass
+        ...
 
     # ...
 
-If you want to do an external call to another contract, Vyper provides an external interface extract utility as well.
+If you want to export it as an inline interface, Vyper provides a utility to extract that as well.
 
 ::
 
@@ -220,4 +220,4 @@ If you want to do an external call to another contract, Vyper provides an extern
         def forwardWeight(delegate_with_weight_to_forward: address): nonpayable
         # ...
 
-The output can then easily be copy-pasted to be consumed.
+The output can then easily be copy-pasted directly in a regular vyper file.
