@@ -91,6 +91,12 @@ jobs:
           - evm-version: paris
           - evm-version: shanghai
 
+          # test pre-cancun with opt-codesize and opt-none
+          - evm-version: shanghai
+            opt-mode: none
+          - evm-version: shanghai
+            opt-mode: codesize
+
           # test py-evm
           - evm-backend: py-evm
             evm-version: shanghai
