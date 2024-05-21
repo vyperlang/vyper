@@ -318,7 +318,9 @@ def __init__(x: uint256):
     self.a = x
     lib1.__init__(0)
     """
-    main = """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    main1 = """
 import lib1
 import lib2
 import lib3
@@ -331,9 +333,29 @@ def __init__():
     lib3.__init__(0)
     lib2.__init__()
     """
-    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+    assert compile_code(main1, input_bundle=input_bundle) is not None
 
-    assert compile_code(main, input_bundle=input_bundle) is not None
+    main2 = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib2[lib1 := lib1]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib2.__init__()  # opposite order!
+    lib3.__init__(0)
+    """
+    with pytest.raises(InitializerException) as e:
+        compile_code(main2, input_bundle=input_bundle)
+
+    expected = "Tried to initialize `lib2`, but it depends on `lib1`, which "
+    expected += "has not been initialized yet."
+    assert e.value._message == expected
+
+    assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
 
 
 def test_imported_as_different_names(make_input_bundle):
