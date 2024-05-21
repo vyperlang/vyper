@@ -32,14 +32,19 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map(optimize):
+def test_jump_map(optimize, experimental_codegen):
     source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
     expected_jumps = 1
     if optimize == OptimizationLevel.NONE:
-        expected_jumps = 3  # some jumps get optimized out when optimizer is on
+        # some jumps which don't get optimized out when optimizer is off
+        # (slightly different behavior depending if venom pipeline is enabled):
+        if not experimental_codegen:
+            expected_jumps = 3
+        else:
+            expected_jumps = 2
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == 2

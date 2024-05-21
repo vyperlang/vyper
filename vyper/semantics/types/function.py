@@ -165,7 +165,11 @@ class ContractFunctionT(VyperType):
         return self._variable_reads | self._variable_writes
 
     def uses_state(self):
-        return self.nonreentrant or uses_state(self.get_variable_accesses())
+        return (
+            self.nonreentrant
+            or uses_state(self.get_variable_accesses())
+            or any(f.nonreentrant for f in self.reachable_internal_functions)
+        )
 
     def get_used_modules(self):
         # _used_modules is populated during analysis
@@ -456,7 +460,10 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
+
+        # calculated by caller (ModuleAnalyzer.visit_VariableDecl)
+        type_ = node.target._metadata["varinfo"].typ
+
         arguments, return_type = type_.getter_signature
         args = []
         for i, item in enumerate(arguments):

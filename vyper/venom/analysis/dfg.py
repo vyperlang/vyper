@@ -33,7 +33,7 @@ class DFGAnalysis(IRAnalysis):
         # %16 = iszero %15
         # dfg_outputs of %15 is (%15 = add %13 %14)
         # dfg_inputs of %15 is all the instructions which *use* %15, ex. [(%16 = iszero %15), ...]
-        for bb in self.function.basic_blocks:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 operands = inst.get_inputs()
                 res = inst.get_outputs()

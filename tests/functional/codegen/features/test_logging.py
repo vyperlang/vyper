@@ -747,6 +747,81 @@ def ioo(inp: Bytes[100]):
     print("Passed raw log tests")
 
 
+def test_raw_log_topic_double_eval(get_contract, get_logs):
+    t1 = "0x1111111111111111111111111111111111111111111111111111111111111111"
+    code = f"""
+x: bytes32
+c: public(uint256)
+
+@internal
+def bar() -> bytes32:
+    self.c += 1
+    return {t1}
+
+@external
+def foo():
+    self.x = {t1}
+    raw_log([self.bar(), self.bar()], b"")
+
+    """
+
+    c = get_contract(code)
+    c.foo()
+
+    assert c.c() == 2
+
+
+def test_raw_log_with_topics_in_storage_locs(get_contract, get_logs):
+    t1 = "0x1111111111111111111111111111111111111111111111111111111111111111"
+    t2 = "0x2222222222222222222222222222222222222222222222222222222222222222"
+    code = f"""
+x: bytes32
+@external
+def foo():
+    self.x = {t1}
+    raw_log([self.x], b"")
+    y: bytes32 = {t2}
+    raw_log([y], b"")
+    """
+
+    c = get_contract(code)
+    c.foo()
+    logs = get_logs(c, raw=True)
+
+    assert len(logs) == 2
+    assert logs[0][0][0] == int(t1, 16).to_bytes(32, "big")
+    assert logs[1][0][0] == int(t2, 16).to_bytes(32, "big")
+
+
+def test_raw_log_with_topics_in_storage_locs2(get_contract, get_logs):
+    t1 = "0x1111111111111111111111111111111111111111111111111111111111111111"
+    t2 = "0x2222222222222222222222222222222222222222222222222222222222222222"
+    t3 = "0x3333333333333333333333333333333333333333333333333333333333333333"
+    t4 = "0x4444444444444444444444444444444444444444444444444444444444444444"
+    code = f"""
+x: bytes32
+x2: bytes32
+
+@external
+def foo():
+    self.x = {t1}
+    self.x2 = {t2}
+    y: bytes32 = {t3}
+    y2: bytes32 = {t4}
+    raw_log([self.x, y, self.x2, y2], b"")
+
+    raw_log([y, self.x], b"")
+    """
+
+    c = get_contract(code)
+    c.foo()
+    logs = get_logs(c, raw=True)
+
+    assert len(logs) == 2
+    assert logs[0][0] == [int(t, 16).to_bytes(32, "big") for t in [t1, t3, t2, t4]]
+    assert logs[1][0] == [int(t, 16).to_bytes(32, "big") for t in [t3, t1]]
+
+
 def test_raw_call_bytes32_data(get_logs, get_contract):
     code = """
 b: uint256

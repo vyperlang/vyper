@@ -665,6 +665,45 @@ def test(target: address):
     assert test.foo() == 12
 
 
+def test_blueprint_evals_once_side_effects(get_contract, deploy_blueprint_for, env):
+    # test msize allocator does not get trampled by salt= kwarg
+    code = """
+foo: public(uint256)
+    """
+
+    deployer_code = """
+created_address: public(address)
+deployed: public(uint256)
+
+@external
+def get() -> Bytes[32]:
+    self.deployed += 1
+    return b''
+
+@external
+def create_(target: address):
+    self.created_address = create_from_blueprint(
+        target,
+        raw_call(self, method_id("get()"), max_outsize=32),
+        raw_args=True, code_offset=3
+    )
+    """
+
+    foo_contract = get_contract(code)
+    expected_runtime_code = env.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code)
+
+    d = get_contract(deployer_code)
+
+    d.create_(f.address)
+
+    test = FooContract(d.created_address())
+    assert env.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 0
+    assert d.deployed() == 1
+
+
 def test_create_copy_of_complex_kwargs(get_contract, env):
     # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
