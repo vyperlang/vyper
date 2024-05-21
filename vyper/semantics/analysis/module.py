@@ -335,10 +335,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 del should_initialize[m]
 
         init_calls = []
-        for f in self.ast.get_children(vy_ast.FunctionDef):
-            if f._metadata["func_type"].is_constructor:
-                init_calls = f.get_descendants(vy_ast.Call)
-                break
+        if module_t.init_function is not None:
+            init_calls = module_t.init_function.ast_def.get_descendants(vy_ast.Call)
 
         seen_initializers = {}
         for call_node in init_calls:
