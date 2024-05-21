@@ -1,7 +1,10 @@
+from typing import Optional
+
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
+from vyper.semantics.types.function import MemberFunctionT
 from vyper.semantics.types.subscriptable import TupleT
 
 
@@ -20,7 +23,7 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr, context, ptr: Optional[IRnode] = None):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
@@ -39,7 +42,10 @@ def ir_for_self_call(stmt_expr, context):
     default_vals_ir = [Expr(x, context).ir_node for x in default_vals]
 
     args_ir = pos_args_ir + default_vals_ir
-    assert len(args_ir) == len(func_t.arguments)
+    if isinstance(func_t, MemberFunctionT):
+        assert len(args_ir) == len(func_t.arg_types)
+    else:
+        assert len(args_ir) == len(func_t.arguments)
 
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
@@ -89,6 +95,9 @@ def ir_for_self_call(stmt_expr, context):
         copy_args = make_setter(args_dst, args_as_tuple)
 
     goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
+    if ptr is not None:
+        goto_op += [ptr]
+
     # pass return buffer to subroutine
     if return_buffer is not None:
         goto_op += [return_buffer]

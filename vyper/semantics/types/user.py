@@ -19,6 +19,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.function import MemberFunctionT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
@@ -324,14 +325,11 @@ class StructT(_UserType):
         return [k for (k, _v) in self.tuple_items()]
 
     def tuple_items(self):
-        return list(self.members.items())
+        return list(self.member_types.items())
 
     @cached_property
     def member_types(self):
-        """
-        Alias to match TupleT API without shadowing `members` on TupleT
-        """
-        return self.members
+        return {k: v for k, v in self.members.items() if not isinstance(v, MemberFunctionT)}
 
     @classmethod
     def from_StructDef(cls, base_node: vy_ast.StructDef) -> "StructT":
@@ -351,23 +349,30 @@ class StructT(_UserType):
         struct_name = base_node.name
         members: dict[str, VyperType] = {}
         for node in base_node.body:
-            if not isinstance(node, vy_ast.AnnAssign):
+            if not isinstance(node, (vy_ast.AnnAssign, vy_ast.FunctionDef)):
                 raise StructureException(
-                    "Struct declarations can only contain variable definitions", node
+                    "Struct declarations can only contain variable or function definitions", node
                 )
-            if node.value is not None:
-                raise StructureException("Cannot assign a value during struct declaration", node)
-            if not isinstance(node.target, vy_ast.Name):
-                raise StructureException("Invalid syntax for struct member name", node.target)
-            member_name = node.target.id
+            if isinstance(node, vy_ast.AnnAssign):
+                if node.value is not None:
+                    raise StructureException(
+                        "Cannot assign a value during struct declaration", node
+                    )
+                if not isinstance(node.target, vy_ast.Name):
+                    raise StructureException("Invalid syntax for struct member name", node.target)
+                member_name = node.target.id
+                typ = type_from_annotation(node.annotation)
+            else:
+                member_name = node.name
+                typ = MemberFunctionT.from_FunctionDef(struct_name, node)
 
             if member_name in members:
                 # TODO: add prev_decl
                 raise NamespaceCollision(
-                    f"struct member '{member_name}' has already been declared", node.value
+                    f"struct member '{member_name}' has already been declared", node
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            members[member_name] = typ
 
         return cls(struct_name, members, ast_def=base_node)
 
