@@ -141,7 +141,7 @@ Relative imports are possible by prepending dots to the contract name. A single 
 Searching For Interface Files
 -----------------------------
 
-When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
+When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
 
 When using the command line compiler, the search path path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>_`. You can append to the search path with the ``-p`` flag:
 

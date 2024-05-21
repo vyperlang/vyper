@@ -95,7 +95,6 @@ Importing Interfaces
 
 1. Interfaces defined in the ``interfaces`` field of the input JSON.
 2. Derived interfaces generated from contracts in the ``sources`` field of the input JSON.
-3. (Optional) The local filesystem, if a root path was explicitly declared via the ``-p`` flag.
 
 See :ref:`searching_for_imports` for more information on Vyper's import system.
 
