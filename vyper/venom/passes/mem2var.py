@@ -45,8 +45,7 @@ class Mem2Var(IRPass):
             return
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
-        else:
-            if all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
+        elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
                 var_name = f"addr{var.name}_{self.var_name_count}"
                 self.var_name_count += 1
                 for inst in uses:
