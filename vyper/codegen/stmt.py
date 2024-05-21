@@ -70,6 +70,8 @@ class Stmt:
 
         ret = ["seq"]
         overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        overlap |= len(dst.referenced_variables) > 0 and src.contains_risky_call
+        overlap |= dst.contains_risky_call and len(src.referenced_variables) > 0
         if overlap and not dst.typ._is_prim_word:
             # there is overlap between the lhs and rhs, and the type is
             # complex - i.e., it spans multiple words. for safety, we

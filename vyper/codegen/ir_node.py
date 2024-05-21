@@ -465,6 +465,11 @@ class IRnode:
         return ret
 
     @cached_property
+    def contains_risky_call(self):
+        is_risky_call = self.value in ("call", "delegatecall", "create", "create2")
+        return is_risky_call or any(x.contains_risky_call for x in self.args)
+
+    @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
