@@ -325,9 +325,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list.raise_if_not_empty()
 
     def validate_initialized_modules(self):
-        # check all `initializes:` modules have `__init__()` called exactly once
+        # check all `initializes:` modules have `__init__()` called exactly once,
+        # and check they are called in dependency order
         module_t = self.ast._metadata["type"]
         should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
         # don't call `__init__()` for modules which don't have
         # `__init__()` function
         for m in should_initialize.copy():
@@ -338,7 +340,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if module_t.init_function is not None:
             init_calls = module_t.init_function.ast_def.get_descendants(vy_ast.Call)
 
+        # map of seen __init__() function calls
         seen_initializers = {}
+
+        # modules which were already initialized in another module
+        already_initialized = OrderedSet()
+
         for call_node in init_calls:
             expr_info = call_node.func._expr_info
             if expr_info is None:
@@ -373,7 +380,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             initializer_info = should_initialize[initialized_module.module_t]
             for dep_info in initializer_info.dependencies:  # type: ModuleInfo
                 dep_t = dep_info.module_t
-                if dep_t not in seen_initializers and dep_t.init_function is not None:
+
+                if dep_t in already_initialized or dep_t.init_function is None:
+                    continue
+
+                if dep_t not in seen_initializers:
                     msg = f"Tried to initialize `{initialized_module.alias}`, "
                     msg += f"but it depends on `{dep_info.alias}`, which has not "
                     msg += "been initialized yet."
@@ -383,6 +394,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             del should_initialize[initialized_module.module_t]
             seen_initializers[initialized_module.module_t] = call_node.func
+
+            # add the modules that the module initialized, these are already
+            # checked in the recursion.
+            initialized = initialized_module.module_t.initialized_modules
+            already_initialized.update(
+                s.module_info.module_t for s in initialized.initialized_modules
+            )
 
         if len(should_initialize) > 0:
             err_list = ExceptionList()

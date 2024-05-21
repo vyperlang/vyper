@@ -283,6 +283,7 @@ def __init__():
     assert e.value._message == expected
     assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
 
+
 def test_initializer_order_nested(make_input_bundle):
     lib1 = """
 a: public(uint256)
