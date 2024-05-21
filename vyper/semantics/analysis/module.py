@@ -331,10 +331,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # don't call `__init__()` for modules which don't have
         # `__init__()` function
         for m in should_initialize.copy():
-            for f in m.functions.values():
-                if f.is_constructor:
-                    break
-            else:
+            if not any(f.is_constructor for f in m.functions.values()):
                 del should_initialize[m]
 
         init_calls = []
@@ -374,6 +371,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 hint = f"add `initializes: {initialized_module.alias}` "
                 hint += "as a top-level statement to your contract"
                 raise InitializerException(msg, call_node.func, hint=hint)
+
+            initializer_info = should_initialize[initialized_module.module_t]
+            for dep_info in initializer_info.dependencies:  # type: ModuleInfo
+                dep_t = dep_info.module_t
+                if dep_t not in seen_initializers and dep_t.init_function is not None:
+                    msg = f"Tried to initialize `{initialized_module.alias}`, "
+                    msg += f"but it depends on `{dep_info.alias}`, which has not "
+                    msg += "been initialized yet."
+                    hint = f"call `{dep_info.alias}.__init__()` before "
+                    hint += f"`{initialized_module.alias}.__init__()`."
+                    raise InitializerException(msg, call_node.func, hint=hint)
 
             del should_initialize[initialized_module.module_t]
             seen_initializers[initialized_module.module_t] = call_node.func

@@ -197,10 +197,10 @@ initializes: lib1
 
 @deploy
 def __init__():
-    lib2.__init__()
     # demonstrate we can call lib1.__init__ through lib2.lib1
     # (not sure this should be allowed, really.
     lib2.lib1.__init__()
+    lib2.__init__()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
@@ -236,6 +236,52 @@ def __init__():
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_initialize_wrong_order(make_input_bundle):
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def foo():
+    lib1.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(InitializerException) as e:
+        assert compile_code(main, input_bundle=input_bundle) is not None
+
+    expected = "Tried to initialize `lib2`, but it depends on `lib1`, "
+    expected += "which has not been initialized yet."
+    assert e.value._message == expected
+    assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
 
 
 def test_imported_as_different_names(make_input_bundle):
