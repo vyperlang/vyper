@@ -169,6 +169,10 @@ def _parse_args(argv):
         action="append",
         dest="paths",
     )
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
+
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
@@ -177,9 +181,6 @@ def _parse_args(argv):
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
-    parser.add_argument(
-        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
-    )
 
     args = parser.parse_args(argv)
 
