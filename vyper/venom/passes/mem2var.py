@@ -46,22 +46,22 @@ class Mem2Var(IRPass):
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
         elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
-                var_name = f"addr{var.name}_{self.var_name_count}"
-                self.var_name_count += 1
-                for inst in uses:
-                    if inst.opcode == "mstore":
-                        inst.opcode = "store"
-                        inst.output = IRVariable(var_name)
-                        inst.operands = [inst.operands[0]]
-                    elif inst.opcode == "mload":
-                        inst.opcode = "store"
-                        inst.operands = [IRVariable(var_name)]
-                    elif inst.opcode == "return":
-                        bb = inst.parent
-                        idx = bb.instructions.index(inst)
-                        bb.insert_instruction(
-                            IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
-                        )
+            var_name = f"addr{var.name}_{self.var_name_count}"
+            self.var_name_count += 1
+            for inst in uses:
+                if inst.opcode == "mstore":
+                    inst.opcode = "store"
+                    inst.output = IRVariable(var_name)
+                    inst.operands = [inst.operands[0]]
+                elif inst.opcode == "mload":
+                    inst.opcode = "store"
+                    inst.operands = [IRVariable(var_name)]
+                elif inst.opcode == "return":
+                    bb = inst.parent
+                    idx = bb.instructions.index(inst)
+                    bb.insert_instruction(
+                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
+                    )
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
