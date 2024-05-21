@@ -15,7 +15,7 @@ class Mem2Var(IRPass):
 
     # Number of memory operations over which we promote
     # a palloca to a stack variable
-    OPS_THREASHOLD = 6
+    OPS_THRESHOLD = 6
 
     function: IRFunction
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
@@ -71,7 +71,7 @@ class Mem2Var(IRPass):
         uses = dfg.get_uses(var)
         work_instructions = [inst.opcode in ["mstore", "mload"] for inst in uses]
         count = sum(work_instructions)
-        if count > self.OPS_THREASHOLD and count == len(work_instructions):
+        if count > self.OPS_THRESHOLD and count == len(work_instructions):
             bb = palloca_inst.parent
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
