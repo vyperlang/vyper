@@ -23,9 +23,10 @@ class Mem2Var(IRPass):
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.items():
-            if inst.opcode != "alloca":
-                continue
-            self._process_alloca_var(dfg, var)
+            if inst.opcode == "alloca":
+                self._process_alloca_var(dfg, var)
+            elif inst.opcode == "palloca":
+                self._process_palloca_var(dfg, inst, var)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -57,3 +58,34 @@ class Mem2Var(IRPass):
                     bb.insert_instruction(
                         IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
                     )
+
+    def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
+        """
+        Process alloca allocated variable. If it is only used by mstore/mload/return
+        instructions, it is promoted to a stack variable. Otherwise, it is left as is.
+        """
+        uses = dfg.get_uses(var)
+        if all([inst.opcode in ["mload", "mstore", "return"] for inst in uses]):
+            bb = palloca_inst.parent
+            var_name = f"addr{var.name}_{self.var_name_count}"
+            self.var_name_count += 1
+
+            palloca_inst.opcode = "mload"
+            palloca_inst.operands = [palloca_inst.operands[0]]
+            palloca_inst.output = IRVariable(var_name)
+
+            for inst in uses:
+                if inst.opcode == "mstore":
+                    inst.opcode = "store"
+                    inst.output = IRVariable(var_name)
+                    inst.operands = [inst.operands[0]]
+                elif inst.opcode == "mload":
+                    inst.opcode = "store"
+                    inst.operands = [IRVariable(var_name)]
+                elif inst.opcode == "return":
+                    idx = bb.instructions.index(inst)
+                    bb.insert_instruction(
+                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
+                    )
+        else:
+            palloca_inst.opcode = "store"
