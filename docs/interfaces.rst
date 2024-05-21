@@ -30,8 +30,6 @@ The defined interface can then be used to make external calls, given a contract 
     def test2(foobar: FooBar) -> uint256:
         return staticcall foobar.calculate()
 
-The ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls.
-
 The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:
 
 .. code-block:: vyper
@@ -46,7 +44,9 @@ The interface name can also be used as a type annotation for storage variables. 
     def test():
         extcall self.foobar_contract.test1()
 
-Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
+Specifying ``payable`` or ``nonpayable`` annotation in the interface indicates that the call made to the external contract will be able to alter storage, whereas ``view`` and ``pure`` calls will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
+
+The ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls. The keyword must match the visibility of the function, ``staticcall`` for ``pure`` and ``view`` functions, and ``extcall`` for ``payable`` and ``nonpayable`` functions. Additionally, the output of a ``staticcall`` must be assigned to a result.
 
 .. code-block:: vyper
 
@@ -58,10 +58,10 @@ Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made
 
     @external
     def test(foobar: FooBar):
-        foobar.calculate()  # cannot change storage
-        foobar.query()  # cannot change storage, but reads itself
-        foobar.update()  # storage can be altered
-        foobar.pay(value=1)  # storage can be altered, and value can be sent
+        s: uint256 = staticcall foobar.calculate()  # cannot change storage
+        s = staticcall foobar.query()  # cannot change storage, but reads itself
+        extcall foobar.update()  # storage can be altered
+        extcall foobar.pay(value=1)  # storage can be altered, and value can be sent
 
 Vyper offers the option to set the following additional keyword arguments when making external calls:
 
