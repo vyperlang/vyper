@@ -226,8 +226,14 @@ def _compile(
     )
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
-    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     if export_file:
+        export = {
+            "source_code": source_code,
+            "bytecode": out["bytecode"],
+            "layout": out["layout"],
+            "opcodes": out["opcodes"],
+        }
         with open(export_file, "w") as f:
-            f.write(out["bytecode"])
-    return out["abi"], bytecode
+            f.write(json.dumps(export, indent=2))
+
+    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
