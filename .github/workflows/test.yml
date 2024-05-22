@@ -44,6 +44,9 @@ jobs:
     - name: Install dependencies
       run: pip install .[test]
 
+    - name: Setup Graphviz for profiling tests
+      uses: ts-graphviz/setup-graphviz@v2
+
     - name: Debug dependencies
       run: pip freeze
 
@@ -70,8 +73,9 @@ jobs:
 
     - name: Upload profiling data
       uses: actions/upload-artifact@v2
+      if: always()
       with:
-        name: profiling
+        name: profiling-${{ matrix.python-version[1] }}-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
         path: prof/combined.svg
 
   core-tests-success:
