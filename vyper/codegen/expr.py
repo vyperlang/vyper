@@ -677,21 +677,22 @@ class Expr:
             return arg_ir
 
         if isinstance(func_t, MemberFunctionT):
-            darray = Expr(self.expr.func.value, self.context).ir_node
-            assert isinstance(darray.typ, DArrayT)
+            ptr = Expr(self.expr.func.value, self.context).ir_node
+
+            if isinstance(ptr.typ, StructT):
+                return self_call.ir_for_self_call(self.expr, self.context, ptr=ptr)
+
+            assert isinstance(ptr.typ, DArrayT)
             args = [Expr(x, self.context).ir_node for x in self.expr.args]
             if self.expr.func.attr == "pop":
                 # TODO consider moving this to builtins
-                darray = Expr(self.expr.func.value, self.context).ir_node
                 assert len(self.expr.args) == 0
                 return_item = not self.is_stmt
-                return pop_dyn_array(darray, return_popped_item=return_item)
+                return pop_dyn_array(ptr, return_popped_item=return_item)
             elif self.expr.func.attr == "append":
                 (arg,) = args
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
-                return append_dyn_array(darray, arg)
+                check_assign(dummy_node_for_type(ptr.typ.value_type), dummy_node_for_type(arg.typ))
+                return append_dyn_array(ptr, arg)
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
