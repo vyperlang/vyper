@@ -88,10 +88,5 @@ class Mem2Var(IRPass):
                 elif inst.opcode == "mload":
                     inst.opcode = "store"
                     inst.operands = [IRVariable(var_name)]
-                elif inst.opcode == "return":
-                    idx = bb.instructions.index(inst)
-                    bb.insert_instruction(
-                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
-                    )
         else:
             palloca_inst.opcode = "store"
