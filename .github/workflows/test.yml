@@ -157,7 +157,14 @@ jobs:
     - name: Upload bytecode
       uses: actions/upload-artifact@v2
       with:
-          name: vyper-bytecode
+          name: "vyper-bytecode-\
+            ${{ matrix.os && matrix.os != 'ubuntu' && format('{0}-', matrix.os) || '' }}\
+            py${{ matrix.python-version[1] || '311' }}\
+            -opt-${{ matrix.opt-mode || 'gas' }}\
+            ${{ matrix.debug && '-debug' || '' }}\
+            ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+            -${{ matrix.evm-version || 'cancun' }}\
+            -${{ matrix.evm-backend || 'revm' }}"
           path: /tmp/vyper-bytecode
 
     - name: Upload Coverage
