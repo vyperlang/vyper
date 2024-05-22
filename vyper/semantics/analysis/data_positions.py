@@ -25,6 +25,10 @@ def set_data_positions(
         # allocate code layout with no overrides
         _allocate_layout_r(vyper_module, no_storage=True)
         _allocate_with_overrides(vyper_module, storage_layout_overrides)
+
+        # sanity check that generated layout file is the same as the input.
+        roundtrip = generate_layout_export(vyper_module).get(_LAYOUT_KEYS[DataLocation.STORAGE], {})
+        assert roundtrip == storage_layout_overrides, roundtrip
     else:
         _allocate_layout_r(vyper_module)
 
@@ -188,6 +192,11 @@ def _allocate_with_overrides_r(
         if not fn_t.nonreentrant:
             continue
 
+        # if reentrancy keys get allocated in transient storage, we don't
+        # override them
+        if get_reentrancy_key_location() == DataLocation.TRANSIENT:
+            continue
+
         # Expect to find this variable within the storage layout override
         if global_nonreentrant_slot is None:
             raise StorageLayoutException(
@@ -253,7 +262,7 @@ _LAYOUT_KEYS = {
 }
 
 
-def _allocate_nonreentrant_keys(vyper_module, allocators):
+def _set_nonreentrant_keys(vyper_module, allocators):
     SLOT = allocators.get_global_nonreentrant_key_slot()
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
@@ -281,9 +290,8 @@ def _allocate_layout_r(
         allocators.allocate_global_nonreentrancy_slot()
 
     # tag functions with the global nonreentrant key
-    # `no_storage` is slightly confusing, maybe should be `if not overrides`
-    if not no_storage:
-        _allocate_nonreentrant_keys(vyper_module, allocators)
+    if not no_storage or get_reentrancy_key_location() == DataLocation.TRANSIENT:
+        _set_nonreentrant_keys(vyper_module, allocators)
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):

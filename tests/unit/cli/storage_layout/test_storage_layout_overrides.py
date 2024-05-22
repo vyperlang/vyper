@@ -3,9 +3,8 @@ import re
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
-
-from .utils import adjust_storage_layout_for_cancun
 
 
 def test_storage_layout_overrides():
@@ -68,6 +67,8 @@ def public_foo3():
         "baz": {"type": "Bytes[65]", "slot": 2, "n_slots": 4},
         "bar": {"type": "uint256", "slot": 6, "n_slots": 1},
     }
+    if version_check(begin="cancun"):
+        del storage_layout_override["$.nonreentrant_key"]
 
     expected_output = {"storage_layout": storage_layout_override}
 
@@ -75,7 +76,10 @@ def public_foo3():
         code, output_formats=["layout"], storage_layout_override=storage_layout_override
     )
 
-    adjust_storage_layout_for_cancun(expected_output, do_adjust_slots=False)
+    # adjust transient storage layout
+    expected_output["transient_storage_layout"] = {
+        "$.nonreentrant_key": {"n_slots": 1, "slot": 0, "type": "nonreentrant lock"}
+    }
 
     assert out["layout"] == expected_output
 
@@ -122,16 +126,25 @@ def test_override_nonreentrant_slot():
 def foo():
     pass
     """
-
     storage_layout_override = {"$.nonreentrant_key": {"slot": 2**256, "type": "nonreentrant key"}}
 
-    exception_regex = re.escape(
-        f"Invalid storage slot for var $.nonreentrant_key, out of bounds: {2**256}"
-    )
-    with pytest.raises(StorageLayoutException, match=exception_regex):
-        compile_code(
-            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+    if version_check(begin="cancun"):
+        del storage_layout_override["$.nonreentrant_key"]
+        assert (
+            compile_code(
+                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            )
+            is not None
         )
+
+    else:
+        exception_regex = re.escape(
+            f"Invalid storage slot for var $.nonreentrant_key, out of bounds: {2**256}"
+        )
+        with pytest.raises(StorageLayoutException, match=exception_regex):
+            compile_code(
+                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            )
 
 
 def test_override_missing_nonreentrant_key():
@@ -144,14 +157,24 @@ def foo():
 
     storage_layout_override = {}
 
-    exception_regex = re.escape(
-        "Could not find storage slot for $.nonreentrant_key."
-        " Have you used the correct storage layout file?"
-    )
-    with pytest.raises(StorageLayoutException, match=exception_regex):
-        compile_code(
-            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+    if version_check(begin="cancun"):
+        assert (
+            compile_code(
+                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            )
+            is not None
         )
+        # in cancun, nonreentrant key is allocated in transient storage and can't be overridden
+        return
+    else:
+        exception_regex = re.escape(
+            "Could not find storage slot for $.nonreentrant_key."
+            " Have you used the correct storage layout file?"
+        )
+        with pytest.raises(StorageLayoutException, match=exception_regex):
+            compile_code(
+                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            )
 
 
 def test_incomplete_overrides():
@@ -282,7 +305,6 @@ def foo() -> uint256:
             },
         },
     }
-    # adjust_storage_layout_for_cancun(expected_output)
 
     assert out["layout"] == expected_output
 
