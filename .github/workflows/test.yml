@@ -148,10 +148,17 @@ jobs:
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        --export-bytecode /tmp/vyper-bytecode
         --cov-branch
         --cov-report xml:coverage.xml
         --cov=vyper
         tests/
+
+    - name: Upload bytecode
+      uses: actions/upload-artifact@v2
+      with:
+          name: vyper-bytecode
+          path: /tmp/vyper-bytecode
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v3

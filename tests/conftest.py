@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from pathlib import Path
 from random import Random
 from typing import Generator
 
@@ -40,6 +41,7 @@ def pytest_addoption(parser):
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
     parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
+    parser.addoption("--export-bytecode")
 
     parser.addoption(
         "--evm-version",
@@ -123,6 +125,15 @@ def evm_backend(pytestconfig):
 @pytest.fixture(scope="session")
 def tracing(pytestconfig):
     return pytestconfig.getoption("tracing")
+
+
+@pytest.fixture(scope="session")
+def export_bytecode_path(pytestconfig):
+    path = pytestconfig.getoption("export_bytecode")
+    if path:
+        path = Path(path)
+        path.mkdir(exist_ok=True)
+    return path
 
 
 @pytest.fixture
@@ -226,12 +237,21 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
 
 
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats, compiler_settings):
+def get_contract(env, optimize, output_formats, compiler_settings, export_bytecode_path, request):
+    index = 0
+
     def fn(source_code, *args, **kwargs):
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
+        if export_bytecode_path:
+            nonlocal index
+            filename = Path(request.node.nodeid).with_suffix(f".{index:02d}.json")
+            export_path = export_bytecode_path / filename
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            kwargs["export_file"] = export_path
+            index += 1
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn

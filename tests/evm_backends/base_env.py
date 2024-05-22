@@ -72,11 +72,14 @@ class BaseEnv:
         *args,
         compiler_settings: Settings = None,
         input_bundle: InputBundle = None,
+        export_file: str = None,
         value: int = 0,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
+        abi, bytecode = _compile(
+            source_code, output_formats, input_bundle, compiler_settings, export_file
+        )
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy_blueprint(
@@ -211,6 +214,7 @@ def _compile(
     output_formats: dict[str, Callable[[CompilerData], str]],
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    export_file: str = None,  # export bytecode to a file
 ) -> tuple[list[dict], bytes]:
     out = compile_code(
         source_code,
@@ -222,4 +226,8 @@ def _compile(
     )
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
-    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    if export_file:
+        with open(export_file, "w") as f:
+            f.write(out["bytecode"])
+    return out["abi"], bytecode
