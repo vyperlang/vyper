@@ -125,10 +125,53 @@ This is best illustrated with an example:
 
 Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it.
 
-This design takes inspiration from (but is not directly related to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the language of type systems, module is initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
+This design takes inspiration from (but is not directly related to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the language of type systems, module initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
 
 * A module must be "used" or "initialized" before its state can be accessed in an import
 * A module may be "used" many times
-* A module which is used or its state touched must be initialized exactly once
+* A module which is "used" or its state touched must be "initialized" exactly once
 
 Whether to ``use`` or ``initialize`` a module is a choice which is left up to the library designer.
+
+Initializing a module with dependencies
+=======================================
+
+Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper's module system is designed to allow this, but it requires you make explicit the access to the imported module's state. The above ``ownable_2step.vy`` contract is an example of this. If you wanted to initialize the ``ownable_2step`` module, it would look something like this:
+
+.. code-block:: vyper
+
+    import ownable
+    import ownable_2step
+
+    initializes: ownable
+
+    # ownable is explicitly declared as a state dependency of `ownable_2step`
+    initializes: ownable_2step[ownable := ownable]
+
+    @deploy
+    def __init__():
+        ownable.__init__()
+        ownable_2step.__init__()
+
+    # export all external functions from ownable_2step
+    exports: ownable_2step.__interface__
+
+Exporting functions
+===================
+
+What if we want to export external functions from modules? This is accomplished using the ``exports`` keyword. In Vyper, functions can be exported individually or wholesale export all the functions in a module. The following are all ways of exporting functions from an imported module.
+
+.. code-block:: vyper
+
+    # export a single function from `ownable_2step`
+    exports: ownable_2step.transfer_ownership
+
+    # export multiple functions from `ownable_2step`, being explicit about
+    # which specific functions are being exported
+    exports: (
+        ownable_2step.transfer_ownership,
+        ownable_2step.accept_ownership,
+    )
+
+    # export all external functions from `ownable_2step`
+    exports: ownable_2step.__interface
