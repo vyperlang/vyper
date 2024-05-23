@@ -24,9 +24,10 @@ Visibility
 .. _function-visibility:
 
 You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in vyper:
+
     * **External**: exposed in the selector table, can be called by an external call into this contract
     * **Internal**: can be invoked only from within this contract. not available to external callers
-    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. Currently, only the :ref:`__init__() function <_init-function>` may be marked as ``@deploy``.
+    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. Currently, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
 
 
 External Functions
@@ -86,7 +87,7 @@ The ``__init__`` Function
 
 .. _init-function:
 
-The ``__init__`` function, also known as the constructor, is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage or immutable variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
+The ``__init__()`` function, also known as the constructor, is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage or immutable variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
 
 .. code-block:: vyper
 
