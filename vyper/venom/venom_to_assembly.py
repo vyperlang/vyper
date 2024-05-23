@@ -102,6 +102,19 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
+_COMMUTATIVE_INSTRUCTIONS = frozenset(
+    [
+        "add",
+        "mul",
+        "smul",
+        "or",
+        "xor",
+        "and",
+        "eq",
+    ]
+)
+
+
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
 
@@ -432,6 +445,13 @@ class VenomCompiler:
             target_stack_list = list(target_stack)
             self._stack_reorder(assembly, stack, target_stack_list)
 
+        if opcode in _COMMUTATIVE_INSTRUCTIONS:
+            cost_no_swap = self._reorder_cost(stack, operands)
+            operands[-1], operands[-2] = operands[-2], operands[-1]
+            cost_with_swap = self._reorder_cost(stack, operands)
+            if cost_with_swap > cost_no_swap:
+                operands[-1], operands[-2] = operands[-2], operands[-1]
+        
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
         self._stack_reorder(assembly, stack, operands)  # type: ignore
