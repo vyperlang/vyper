@@ -54,6 +54,66 @@ EVM Version
 
 The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
 
+Imports
+=======
+
+Import statements allow you to import :ref:`modules` or :ref:`interfaces` with the ``import`` or ``from ... import`` syntax.
+
+Imports via ``import``
+----------------------
+
+You may import modules (defined in ``.vy`` files) and interfaces (defined in ``.vyi`` or ``.json`` files) via ``import`` statements. You may use plain or ``as`` variants.
+
+.. code-block:: vyper
+
+    # without an alias
+    import my_package.foo
+
+    # with an alias
+    import my_package.foo as bar
+
+Imports via ``from ... import``
+-------------------------------
+
+Using ``from`` you can perform both absolute and relative imports. You may optionally include an alias - if you do not, the name of the interface will be the same as the file.
+
+.. code-block:: vyper
+
+    # without an alias
+    from my_package import foo
+
+    # with an alias
+    from my_package import foo as bar
+
+Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
+
+.. code-block:: vyper
+
+    from . import foo
+    from ..interfaces import baz
+
+.. _searching_for_imports:
+
+Searching For Imports
+-----------------------------
+
+When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
+
+When using the command line compiler, the search path path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>_`. You can append to the search path with the ``-p`` flag:
+
+::
+
+    $ vyper my_project/contracts/my_contract.vy -p my_project
+
+In the above example, the ``my_project`` folder is set as the root path.
+
+You can additionally disable the behavior of adding the syspath to the search path with the CLI flag ``--disable-sys-path``:
+
+::
+
+    $ vyper --disable-sys-path my_project/my_contract.vy
+
+When compiling from ``.vyz`` file or standard json input (TODO ref), the search path is already part of the bundle, it cannot be changed from the command line.
 
 .. _structure-state-variables:
 
@@ -90,6 +150,8 @@ Functions are executable units of code within a contract.
 Functions may be called internally or externally depending on their :ref:`visibility <function-visibility>`. Functions may accept input arguments and return variables in order to pass values between them.
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
+
+.. _modules:
 
 Modules
 ==========
@@ -150,6 +212,8 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
         log Payment(msg.value, msg.sender)
 
 See the :ref:`Event <event-logging>` documentation for more information.
+
+.. _interfaces:
 
 Interfaces
 ==========

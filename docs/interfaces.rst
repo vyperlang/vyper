@@ -85,81 +85,6 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 
    When ``skip_contract_check=True`` is used and the called function returns data (ex.: ``x: uint256 = SomeContract.foo(skip_contract_check=True)``, no guarantees are provided by the compiler as to the validity of the returned value. In other words, it is undefined behavior what happens if the called contract did not exist. In particular, the returned value might point to garbage memory. It is therefore recommended to only use ``skip_contract_check=True`` to call contracts which have been manually ensured to exist at the time of the call.
 
-Importing Interfaces
-====================
-
-Interfaces are imported with ``import`` or ``from ... import`` statements.
-
-Imported interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix.
-
-.. code-block:: vyper
-    # my_interface.vyi
-
-    @external
-    def test1():
-        ...
-
-    @external
-    def calculate() -> uint256:
-        ...
-
-Imports via ``import``
-----------------------
-
-You may import interfaces (defined in ``.vyi`` files) via ``import`` statements. You may use plain or ``as`` variants.
-
-.. code-block:: vyper
-
-    # without an alias
-    import my_package.foo
-
-    # with an alias
-    import my_package.foo as bar
-
-Imports via ``from ... import``
--------------------------------
-
-Using ``from`` you can perform both absolute and relative imports. You may optionally include an alias - if you do not, the name of the interface will be the same as the file.
-
-.. code-block:: vyper
-
-    # without an alias
-    from my_package import foo
-
-    # with an alias
-    from my_package import foo as bar
-
-Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
-
-.. code-block:: vyper
-
-    from . import foo
-    from ..interfaces import baz
-
-
-The concept of a package does not exist as a first-class construct in vyper as it does in python. That is, imports correspond 1:1 to files; you cannot import a directory which contains an ``__init__.vy`` file and get a module object which contains pointers to other modules.
-
-.. _searching_for_imports:
-
-Searching For Interface Files
------------------------------
-
-When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
-
-When using the command line compiler, the search path path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>_`. You can append to the search path with the ``-p`` flag:
-
-::
-
-    $ vyper my_project/contracts/my_contract.vy -p my_project
-
-In the above example, the ``my_project`` folder is set as the root path.
-
-You can additionally disable the behavior of adding the syspath to the search path with the CLI flag ``--disable-sys-path``:
-
-::
-
-    $ vyper --disable-sys-path my_project/my_contract.vy
-
 Built-in Interfaces
 ===================
 
@@ -190,6 +115,22 @@ This imports the defined interface from the vyper file at ``an_interface.vyi`` (
 .. note::
 
   Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future.
+
+Standalone Interfaces
+=====================
+
+Standalone interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix in order to be found by an import statement.
+
+.. code-block:: vyper
+    # my_interface.vyi
+
+    @external
+    def test1():
+        ...
+
+    @external
+    def calculate() -> uint256:
+        ...
 
 Extracting Interfaces
 =====================
