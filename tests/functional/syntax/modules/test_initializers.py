@@ -286,149 +286,58 @@ def __init__():
 
 def test_initializer_order_nested(make_input_bundle):
     lib1 = """
-a: public(uint256)
+import lib2
+import lib3
 
-@deploy
-@payable
-def __init__(x: uint256):
-    self.a = x
-    """
-    lib2 = """
-import lib1
-
-uses: lib1
-
-a: uint256
+uses: lib3
+initializes: lib2[lib3 := lib3]
 
 @deploy
 def __init__():
-    # not initialized when called
-    self.a = lib1.a
+    lib2.__init__()
+    lib3.counter += 1
     """
-    lib3 = """
-import lib1
+    lib2 = """
+import lib3
 
-initializes: lib1
+uses: lib3
 
-a: uint256
+counter: uint256
 
 @deploy
-@payable
-def __init__(x: uint256):
-    self.a = x
-    lib1.__init__(0)
+def __init__():
+    self.counter = 1
+
+@external
+def foo() ->uint256:
+    return lib3.counter
+    """
+    lib3 = """
+counter: uint256
+
+@deploy
+def __init__():
+    self.counter = 1
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
 
-    main1 = """
-import lib1
-import lib2
-import lib3
-
-initializes: lib2[lib1 := lib1]
-initializes: lib3
-
-@deploy
-def __init__():
-    lib3.__init__(0)
-    lib2.__init__()
-    """
-    assert compile_code(main1, input_bundle=input_bundle) is not None
-
-    main2 = """
-import lib1
-import lib2
-import lib3
-
-initializes: lib2[lib1 := lib1]
-initializes: lib3
-
-@deploy
-def __init__():
-    lib2.__init__()  # opposite order!
-    lib3.__init__(0)
-    """
-    with pytest.raises(InitializerException) as e:
-        compile_code(main2, input_bundle=input_bundle)
-
-    expected = "Tried to initialize `lib2`, but it depends on `lib1`, which "
-    expected += "has not been initialized yet."
-    assert e.value._message == expected
-
-    assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
-
-
-def test_initializer_nested_order2(make_input_bundle):
-    lib1 = """
-import lib4
-
-a: public(uint256)
-
-initializes: lib4
-
-@deploy
-@payable
-def __init__(x: uint256):
-    self.a = x
-    lib4.__init__(x)
-    """
-
-    lib2 = """
-import lib1
-import lib4
-
-uses: lib1
-uses: lib4
-
-a: uint256
-
-@deploy
-def __init__():
-    # not initialized when called
-    self.a = lib1.a + lib4.a
-    """
-
-    lib3 = """
-import lib1
-
-initializes: lib1
-
-a: uint256
-
-@deploy
-@payable
-def __init__(x: uint256):
-    self.a = x
-    lib1.__init__(0)
-    """
-    lib4 = """
-a: uint256
-
-@deploy
-@payable
-def __init__(x: uint256):
-    self.a = x
-    """
     main = """
 import lib1
-import lib2
 import lib3
-import lib4
 
-initializes: lib2[lib1 := lib1, lib4 := lib4]
+initializes: lib1[lib3 := lib3]
 initializes: lib3
 
 @deploy
 def __init__():
-    lib3.__init__(0)
-    lib2.__init__()
+    lib3.__init__()
+    lib1.__init__()
     """
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
 
-    input_bundle = make_input_bundle(
-        {"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3, "lib4.vy": lib4}
-    )
-
-    assert compile_code(main, input_bundle=input_bundle) is not None
+    assert e.value._message == "Cannot access `lib3` state from `__init__()` function!"
+    assert e.value._hint == "add `initializes: lib3` as a top-level statement to your contract"
 
 
 def test_imported_as_different_names(make_input_bundle):
