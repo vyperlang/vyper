@@ -460,7 +460,10 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
+
+        # calculated by caller (ModuleAnalyzer.visit_VariableDecl)
+        type_ = node.target._metadata["varinfo"].typ
+
         arguments, return_type = type_.getter_signature
         args = []
         for i, item in enumerate(arguments):
