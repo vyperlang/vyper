@@ -85,7 +85,13 @@ In order to use a module's state, it must be "initialized". A module can be init
 
 It is a compile-time error to invoke a module's ``__init__()`` function more than once!
 
-A module's state can be directly accessed (TK example)
+A module's state can be directly accessed just by prefixing the name of a variable with the module's alias, like follows:
+
+.. code-block:: vyper
+
+    @external
+    def get_owner() -> address:
+        return ownable.owner
 
 
 The ``uses`` statement
@@ -123,20 +129,27 @@ This is best illustrated with an example:
         self.owner = new_owner
         self.pending_owner = empty(address)
 
-Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it.
+Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it. Note that this is a valid module, but it is not a valid contract (that is, it cannot produce bytecode) because it does not initialize the ``ownable`` module. To make a valid contract, the user of the ``ownable_2step`` module would need to initialize the ``ownable`` module themselves (as in the next section: :ref:`initializing dependencies <init-dependencies>`).
 
-This design takes inspiration from (but is not directly related to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the language of type systems, module initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
+Whether to ``use`` or ``initialize`` a module is a choice which is left up to the library designer.
+
+Technical notes on the design
+-----------------------------
+
+This section contains some notes on the design from a language design perspective. It can be safely skipped if you are just interested in how to use modules, and not necessarily in programming language theory.
+
+The design of the module system takes inspiration from (but is not directly related to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the language of type systems, module initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
 
 * A module must be "used" or "initialized" before its state can be accessed in an import
 * A module may be "used" many times
 * A module which is "used" or its state touched must be "initialized" exactly once
 
-Whether to ``use`` or ``initialize`` a module is a choice which is left up to the library designer.
+.. _init-dependencies:
 
 Initializing a module with dependencies
 =======================================
 
-Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper's module system is designed to allow this, but it requires you make explicit the access to the imported module's state. The above ``ownable_2step.vy`` contract is an example of this. If you wanted to initialize the ``ownable_2step`` module, it would look something like this:
+Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper's module system is designed to allow this, but it requires you make explicit the access to the imported module's state. The above ``ownable_2step.vy`` contract is an example of this. If you wanted to initialize the ``ownable_2step`` module, it would use the special ``:=`` syntax, and look something like this:
 
 .. code-block:: vyper
 
