@@ -36,7 +36,7 @@ The interface name can also be used as a type annotation for storage variables. 
 
     foobar_contract: FooBar
 
-    @external
+    @deploy
     def __init__(foobar_address: address):
         self.foobar_contract = FooBar(foobar_address)
 

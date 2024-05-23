@@ -42,7 +42,7 @@ Variables can be marked as ``immutable`` during declaration:
 
     DATA: immutable(uint256)
 
-    @external
+    @deploy
     def __init__(_data: uint256):
         DATA = _data
 
@@ -159,9 +159,10 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
 
     a: immutable(bool)
 
-    @external
+    @deploy
     def __init__():
         a = True
+
     @external
     def foo(a:bool) -> bool:
         # input argument cannot have the same name as a constant or immutable variable

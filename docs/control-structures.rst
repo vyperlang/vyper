@@ -151,7 +151,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 Considerations
 **************
 
-Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
+Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this rolls back state changes, and thus will not succeed in receiving funds.
 
 Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
 
@@ -171,30 +171,27 @@ Lastly, although the default function receives no arguments, it can still access
 The ``__init__`` Function
 -------------------------
 
-``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
+``__init__`` is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
 
 .. code-block:: vyper
 
     owner: address
 
-    @external
+    @deploy
     def __init__():
         self.owner = msg.sender
-
-You cannot call to other contract functions from the initialization function.
 
 .. _function-decorators:
 
 Decorators Reference
 --------------------
 
-All functions must include one :ref:`visibility <function-visibility>` decorator (``@external`` or ``@internal``). The remaining decorators are optional.
-
 =============================== ===========================================================
 Decorator                       Description
 =============================== ===========================================================
 ``@external``                   Function can only be called externally
 ``@internal``                   Function can only be called within current contract
+``@deploy``                     Function is called only at deploy time
 ``@pure``                       Function does not read contract state or environment variables
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
