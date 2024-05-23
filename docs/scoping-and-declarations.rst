@@ -33,6 +33,8 @@ The compiler automatically creates getter functions for all public storage varia
 
 For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
+.. _immutable-variables:
+
 Declaring Immutable Variables
 -----------------------------
 

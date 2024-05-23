@@ -23,7 +23,11 @@ Functions may be called internally or externally depending on their :ref:`visibi
 Visibility
 ----------
 
-All functions must include exactly one visibility decorator.
+You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in vyper:
+    * **External**: exposed in the selector table, can be called by an external call into this contract
+    * **Internal**: can be invoked only from within this contract. not available to external callers
+    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. Currently, only the :ref:`__init__() function <_init-function>` may be marked as ``@deploy``.
+
 
 External Functions
 ******************
@@ -63,7 +67,29 @@ Internal functions (marked with the ``@internal`` decorator) are only accessible
         return self._times_two(amount)
 
 .. note::
-    Since calling an ``internal`` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps. Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are strongly recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
+   As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
+
+.. note::
+    Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
+
+
+.. _init-function:
+
+The ``__init__`` Function
+-------------------------
+
+The ``__init__`` function, also known as the constructor, is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage or immutable variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
+
+.. code-block:: vyper
+
+    owner: address
+
+    @deploy
+    def __init__():
+        self.owner = msg.sender
+
+Additionally, :ref:`immutable variables <_immutable-variables>` may only be set within the constructor.
+
 
 Mutability
 ----------
@@ -167,19 +193,6 @@ Lastly, although the default function receives no arguments, it can still access
     * the address of who is interacting with the contract (``msg.sender``)
     * the amount of ETH sent (``msg.value``)
     * the gas provided (``msg.gas``).
-
-The ``__init__`` Function
--------------------------
-
-``__init__`` is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
-
-.. code-block:: vyper
-
-    owner: address
-
-    @deploy
-    def __init__():
-        self.owner = msg.sender
 
 .. _function-decorators:
 
