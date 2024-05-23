@@ -44,10 +44,10 @@ A module can be imported using ``import`` or ``from ... import`` statements. The
 
 .. code-block:: vyper
 
-    import ownable               # accessible as ownable.<function>
-    import ownable as ow         # accessible as ow.<function>
-    from . import ownable        # accessible as ownable.<function>
-    from . import ownable as ow  # accessible as ow.<function>
+    import ownable               # accessible as `ownable`
+    import ownable as ow         # accessible as `ow`
+    from . import ownable        # accessible as `ownable`
+    from . import ownable as ow  # accessible as `ow`
 
 When importing using the ``as`` keyword, the module will be referred to by its alias in the rest of the contract.
 
