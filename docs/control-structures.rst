@@ -97,7 +97,7 @@ The ``__init__()`` function, also known as the constructor, is a special initial
     def __init__():
         self.owner = msg.sender
 
-Additionally, :ref:`immutable variables <_immutable-variables>` may only be set within the constructor.
+Additionally, :ref:`immutable variables <immutable-variables>` may only be set within the constructor.
 
 
 Mutability
