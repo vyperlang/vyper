@@ -252,7 +252,7 @@ The ``for`` statement is a control flow construct used to iterate over a value:
 
 .. code-block:: vyper
 
-    for i in <ITERABLE>:
+    for i: <TYPE> in <ITERABLE>:
         ...
 
 The iterated value can be a static array, a dynamic array, or generated from the built-in ``range`` function.
@@ -265,16 +265,16 @@ You can use ``for`` to iterate through the values of any array variable:
 .. code-block:: vyper
 
     foo: int128[3] = [4, 23, 42]
-    for i in foo:
+    for i: int128 in foo:
         ...
 
 In the above, example, the loop executes three times with ``i`` assigned the values of ``4``, ``23``, and then ``42``.
 
-You can also iterate over a literal array, as long as a common type can be determined for each item in the array:
+You can also iterate over a literal array, as long as the annotated type is valid for each item in the array:
 
 .. code-block:: vyper
 
-    for i in [4, 23, 42]:
+    for i: int128 in [4, 23, 42]:
         ...
 
 Some restrictions:
@@ -289,32 +289,32 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: vyper
 
-    for i in range(STOP):
+    for i: uint256 in range(STOP):
         ...
 
-``STOP`` is a literal integer greater than zero. ``i`` begins as zero and increments by one until it is equal to ``STOP``.
+``STOP`` is a literal integer greater than zero. ``i`` begins as zero and increments by one until it is equal to ``STOP``. ``i`` must be of the same type as ``STOP``.
 
 .. code-block:: vyper
 
-    for i in range(stop, bound=N):
+    for i: uint256 in range(stop, bound=N):
         ...
 
-Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. In certain cases, you may not have a guarantee that ``stop`` is less than ``N``, but still want to avoid the possibility of runtime reversion. To accomplish this, use the ``bound=`` keyword in combination with ``min(stop, N)`` as the argument to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for use cases like chunking up operations on larger arrays across multiple transactions.
+Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. In certain cases, you may not have a guarantee that ``stop`` is less than ``N``, but still want to avoid the possibility of runtime reversion. To accomplish this, use the ``bound=`` keyword in combination with ``min(stop, N)`` as the argument to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for use cases like chunking up operations on larger arrays across multiple transactions. ``i``, ``stop`` and ``N`` must be of the same type.
 
 Another use of range can be with ``START`` and ``STOP`` bounds.
 
 .. code-block:: vyper
 
-    for i in range(START, STOP):
+    for i: uint256 in range(START, STOP):
         ...
 
-Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
+Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``. ``i``, ``START`` and ``STOP`` must be of the same type.
 
 Finally, it is possible to use ``range`` with runtime `start` and `stop` values as long as a constant `bound` value is provided.
 In this case, Vyper checks at runtime that `end - start <= bound`.
-``N`` must be a compile-time constant.
+``N`` must be a compile-time constant. ``i``, ``stop`` and ``N`` must be of the same type.
 
 .. code-block:: vyper
 
-    for i in range(start, end, bound=N):
+    for i: uint256 in range(start, end, bound=N):
         ...
