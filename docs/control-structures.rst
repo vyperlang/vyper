@@ -210,7 +210,7 @@ Decorators Reference
 =============================== ===========================================================
 Decorator                       Description
 =============================== ===========================================================
-``@external``                   Function can only be called externally
+``@external``                   Function can only be called externally, it is part of the runtime selector table
 ``@internal``                   Function can only be called within current contract
 ``@deploy``                     Function is called only at deploy time
 ``@pure``                       Function does not read contract state or environment variables
