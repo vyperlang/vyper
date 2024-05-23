@@ -208,8 +208,14 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable]
-    ) -> None:
+        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable], dry_run: bool = False
+    ) -> int:
+        cost = 0
+
+        if dry_run:
+            stack = stack.copy()
+            assembly = None
+
         stack_ops_count = len(stack_ops)
 
         counts = Counter(stack_ops)
@@ -229,32 +235,8 @@ class VenomCompiler:
             if op == stack.peek(final_stack_depth):
                 continue
 
-            self.swap(assembly, stack, depth)
-            self.swap(assembly, stack, final_stack_depth)
-
-    def _reorder_cost(self, stack: StackModel, stack_ops: list[IRVariable]) -> int:
-        stack = stack.copy()
-        stack_ops_count = len(stack_ops)
-        counts = Counter(stack_ops)
-        cost = 0
-
-        for i in range(stack_ops_count):
-            op = stack_ops[i]
-            final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op, counts[op])
-            counts[op] -= 1
-
-            if depth == StackModel.NOT_IN_STACK:
-                raise CompilerPanic(f"Variable {op} not in stack")
-
-            if depth == final_stack_depth:
-                continue
-
-            if op == stack.peek(final_stack_depth):
-                continue
-
-            cost += self.swap(None, stack, depth)
-            cost += self.swap(None, stack, final_stack_depth)
+            cost += self.swap(assembly, stack, depth)
+            cost += self.swap(assembly, stack, final_stack_depth)
 
         return cost
 
@@ -446,9 +428,9 @@ class VenomCompiler:
             self._stack_reorder(assembly, stack, target_stack_list)
 
         if opcode in _COMMUTATIVE_INSTRUCTIONS:
-            cost_no_swap = self._reorder_cost(stack, operands)
+            cost_no_swap = self._stack_reorder(None, stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._reorder_cost(stack, operands)
+            cost_with_swap = self._stack_reorder(None, stack, operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
         
