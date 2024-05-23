@@ -65,7 +65,7 @@ The other functions cannot be used yet, because they touch the ``ownable`` modul
 Initializing a module
 =====================
 
-In order to use a module's state, it must be "initialized". A module can be initialized with the ``initializes`` keyword. This declares the module's location in the contract's :ref:`Storage Layout <compiler-storage-layout>`. It also creates a requirement to invoke the module's :ref:`__init__() <init-function>`, if it has one. This is a well-formedness requirement, since it does not make sense to access a module's state unless its ``__init__()`` function has been called.
+In order to use a module's state, it must be "initialized". A module can be initialized with the ``initializes`` keyword. This declares the module's location in the contract's :ref:`Storage Layout <compiler-storage-layout>`. It also creates a requirement to invoke the module's :ref:`__init__() function <init-function>`, if it has one. This is a well-formedness requirement, since it does not make sense to access a module's state unless its ``__init__()`` function has been called.
 
 .. code-block:: vyper
 
@@ -78,12 +78,12 @@ In order to use a module's state, it must be "initialized". A module can be init
         ownable.__init__()
 
     @external
-    def access_controlled_function():
+    def my_access_controlled_function():
         ownable._check_owner()  # reverts unless msg.sender == ownable.owner
 
         ... # do things that only the owner can do
 
-It is a compile-time error to invoke a module's ``__init__`` function more than once!
+It is a compile-time error to invoke a module's ``__init__()`` function more than once!
 
 A module's state can be directly accessed (TK example)
 
@@ -91,7 +91,7 @@ A module's state can be directly accessed (TK example)
 The ``uses`` statement
 ======================
 
-Another way of using a contract's state without directly initializing it is to use the ``uses`` keyword. This is a more advanced usage which is expected to be mostly utilized by library designers, which allows a module to use another module's state but defer its initialization to another module in the compilation tree (most likely a user of the library in question).
+Another way of using a contract's state without directly initializing it is to use the ``uses`` keyword. This is a more advanced usage which is expected to be mostly utilized by library designers. The ``uses`` statement allows a module to use another module's state but defer its initialization to another module in the compilation tree (most likely a user of the library in question).
 
 This is best illustrated with an example:
 
@@ -104,7 +104,7 @@ This is best illustrated with an example:
 
     # does not export ownable.transfer_ownership!
 
-    pending_owner: address  # TK explanation
+    pending_owner: address  # the pending owner in the 2-step transfer process
 
     @deploy
     def __init__():
@@ -121,15 +121,14 @@ This is best illustrated with an example:
         assert msg.sender == self.pending_owner
 
         self.owner = new_owner
+        self.pending_owner = empty(address)
 
 Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it.
 
-This design takes inspiration from (but is unrelated to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>_`. In the language of type systems, module is initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
+This design takes inspiration from (but is not directly related to) the rust language's `borrow checker <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the language of type systems, module is initialization is modeled as an affine constraint which is promoted to a linear constraint if the module's state is touched in the compilation target. In practice, what this means is:
 
 * A module must be "used" or "initialized" before its state can be accessed in an import
 * A module may be "used" many times
 * A module which is used or its state touched must be initialized exactly once
 
 Whether to ``use`` or ``initialize`` a module is a choice which is left up to the library designer.
-
-
