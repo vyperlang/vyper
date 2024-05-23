@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Any
+from typing import Any, Optional
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
@@ -102,17 +102,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_COMMUTATIVE_INSTRUCTIONS = frozenset(
-    [
-        "add",
-        "mul",
-        "smul",
-        "or",
-        "xor",
-        "and",
-        "eq",
-    ]
-)
+_COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
@@ -208,7 +198,11 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable], dry_run: bool = False
+        self,
+        assembly: Optional[list],
+        stack: StackModel,
+        stack_ops: list[IROperand],
+        dry_run: bool = False,
     ) -> int:
         cost = 0
 
@@ -433,10 +427,10 @@ class VenomCompiler:
             cost_with_swap = self._stack_reorder(None, stack, operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
-        
+
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)  # type: ignore
+        self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
