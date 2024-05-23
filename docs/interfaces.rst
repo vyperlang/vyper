@@ -111,10 +111,10 @@ You may import interfaces (defined in ``.vyi`` files) via ``import`` statements.
 .. code-block:: vyper
 
     # without an alias
-    import contract.foo
+    import my_package.foo
 
     # with an alias
-    import contract.foo as bar
+    import my_package.foo as bar
 
 Imports via ``from ... import``
 -------------------------------
@@ -124,10 +124,10 @@ Using ``from`` you can perform both absolute and relative imports. You may optio
 .. code-block:: vyper
 
     # without an alias
-    from contract import foo
+    from my_package import foo
 
     # with an alias
-    from contract import foo as bar
+    from my_package import foo as bar
 
 Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 
@@ -135,6 +135,9 @@ Relative imports are possible by prepending dots to the contract name. A single 
 
     from . import foo
     from ..interfaces import baz
+
+
+The concept of a package does not exist as a first-class construct in vyper as it does in python. That is, imports correspond 1:1 to files; you cannot import a directory which contains an ``__init__.vy`` file and get a module object which contains pointers to other modules.
 
 .. _searching_for_imports:
 
@@ -191,7 +194,7 @@ This imports the defined interface from the vyper file at ``an_interface.vyi`` (
 Extracting Interfaces
 =====================
 
-Vyper has a built-in format option to allow you to make your own Vyper interfaces easily.
+Vyper has a built-in format option to allow you to easily export a Vyper interface from a pre-existing contract.
 
 ::
 
