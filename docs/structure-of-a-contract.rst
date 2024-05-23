@@ -145,11 +145,13 @@ Modules
 A module is a set of function definitions and variable declarations which enables code reuse. Vyper favors code reuse through composition, rather than inheritance.
 
 Broadly speaking, a module contains:
+
 * function definitions
 * variable declarations
 * type definitions
 
 Therefore, a module encapsulates
+
 * functionality (types and functions)
 * and state (variables)
 
