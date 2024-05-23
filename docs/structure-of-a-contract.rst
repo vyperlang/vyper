@@ -91,6 +91,45 @@ Functions may be called internally or externally depending on their :ref:`visibi
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
 
+Modules
+==========
+
+A module is a set of function definitions and variable declarations which enables code reuse. Vyper favors code reuse through composition, rather than inheritance.
+
+Broadly speaking, a module contains:
+
+* function definitions
+* variable declarations
+* type definitions
+
+Therefore, a module encapsulates
+
+* functionality (types and functions)
+* and state (variables)
+
+Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This isa very powerful feature which allows you to assemble contracts via other contracts as building blocks.
+
+.. code-block:: vyper
+    # my_module.vy
+
+    def perform_some_computation() -> uint256:
+        return 5
+
+    @external
+    def some_external_function() -> uint256:
+        return 6
+
+.. code-block:: vyper
+    import my_module
+
+    exports: my_module.some_external_function
+
+    @external
+    def foo() -> uint256:
+        return my_module.perform_some_computation()
+
+Modules are opt-in by design. That is, any operations involving state or exposing external functions must be explicitly opted into using the ``exports``, ``uses`` or ``initializes`` keywords. See the :ref:`Modules <modules>` documentation for more information.
+
 Events
 ======
 
@@ -138,45 +177,6 @@ Once defined, an interface can then be used to make external calls to a given ad
         FooBar(some_address).calculate()
 
 See the :ref:`Interfaces <interfaces>` documentation for more information.
-
-Modules
-==========
-
-A module is a set of function definitions and variable declarations which enables code reuse. Vyper favors code reuse through composition, rather than inheritance.
-
-Broadly speaking, a module contains:
-
-* function definitions
-* variable declarations
-* type definitions
-
-Therefore, a module encapsulates
-
-* functionality (types and functions)
-* and state (variables)
-
-Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This isa very powerful feature which allows you to assemble contracts via other contracts as building blocks.
-
-.. code-block:: vyper
-    # my_module.vy
-
-    def perform_some_computation() -> uint256:
-        return 5
-
-    @external
-    def some_external_function() -> uint256:
-        return 6
-
-.. code-block:: vyper
-    import my_module
-
-    exports: my_module.some_external_function
-
-    @external
-    def foo() -> uint256:
-        return my_module.perform_some_computation()
-
-Modules are opt-in by design. That is, any operations involving state or exposing external functions must be explicitly opted into using the ``exports``, ``uses`` or ``initializes`` keywords. See the :ref:`Modules <modules>` documentation for more information.
 
 Structs
 =======
