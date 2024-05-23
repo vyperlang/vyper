@@ -219,6 +219,32 @@ class VenomCompiler:
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
+    def _reorder_cost(self, stack: StackModel, stack_ops: list[IRVariable]) -> int:
+        stack = stack.copy()
+        stack_ops_count = len(stack_ops)
+        counts = Counter(stack_ops)
+        cost = 0
+
+        for i in range(stack_ops_count):
+            op = stack_ops[i]
+            final_stack_depth = -(stack_ops_count - i - 1)
+            depth = stack.get_depth(op, counts[op])
+            counts[op] -= 1
+
+            if depth == StackModel.NOT_IN_STACK:
+                raise CompilerPanic(f"Variable {op} not in stack")
+
+            if depth == final_stack_depth:
+                continue
+
+            if op == stack.peek(final_stack_depth):
+                continue
+
+            cost += self.swap(None, stack, depth)
+            cost += self.swap(None, stack, final_stack_depth)
+
+        return cost
+
     def _emit_input_operands(
         self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
     ) -> None:
@@ -533,17 +559,20 @@ class VenomCompiler:
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack, depth):
+    def swap(self, assembly, stack, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
-            return
+            return 0
 
         stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
+        if assembly is not None:
+            assembly.append(_evm_swap_for(depth))
+        return 1
 
     def dup(self, assembly, stack, depth):
         stack.dup(depth)
-        assembly.append(_evm_dup_for(depth))
+        if assembly is not None:
+            assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
         self.swap(assembly, stack, stack.get_depth(op))
