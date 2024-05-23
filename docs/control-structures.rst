@@ -18,10 +18,10 @@ Functions are executable units of code within a contract. Functions may only be 
 
 Functions may be called internally or externally depending on their :ref:`visibility <function-visibility>`. Functions may accept input arguments and return variables in order to pass values between them.
 
-.. _function-visibility:
-
 Visibility
 ----------
+
+.. _function-visibility:
 
 You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in vyper:
     * **External**: exposed in the selector table, can be called by an external call into this contract
@@ -81,10 +81,10 @@ Or for internal functions which are defined in imported modules, they are invoke
     Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
 
 
-.. _init-function:
-
 The ``__init__`` Function
 -------------------------
+
+.. _init-function:
 
 The ``__init__`` function, also known as the constructor, is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage or immutable variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator the contract:
 
