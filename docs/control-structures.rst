@@ -54,17 +54,25 @@ A Vyper contract cannot call directly between two external functions. If you mus
 Internal Functions
 ******************
 
-Internal functions (marked with the ``@internal`` decorator) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` object:
+Internal functions (optionally marked with the ``@internal`` decorator) are only accessible from other functions within the same contract. They are invoked via the :ref:`self<constants-self>` object:
 
 .. code-block:: vyper
 
-    @internal
-    def _times_two(amount: uint256, two: uint256 = 2) -> uint256:
-        return amount * two
+    def _times_two(amount: uint256) -> uint256:
+        return amount * 2
 
     @external
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
+
+Or for internal functions which are defined in imported modules, they are invoked by prefixing the name of the module to the function name:
+
+.. code-block:: vyper
+    import calculator_library
+
+    @external
+    def calculate(amount: uint256) -> uint256:
+        return calculator_library._times_two(amount)
 
 .. note::
    As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
