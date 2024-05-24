@@ -1,3 +1,5 @@
+from venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
@@ -39,6 +41,13 @@ class DFTPass(IRPass):
             # bb.instructions.append(inst)
             self.inst_order[inst] = 0
             return
+
+        inputs = list(inst.get_inputs())
+        if inst.opcode in COMMUTATIVE_INSTRUCTIONS and len(inputs) == 2:
+            liveness_order = list(inst.liveness)
+            # higher index in liveness_order means shorter time to live
+            ttl = lambda item: -liveness_order.index(item)  # noqa: E731
+            inst.operands.sort(key=ttl)
 
         for op in inst.get_inputs():
             target = self.dfg.get_producing_instruction(op)
