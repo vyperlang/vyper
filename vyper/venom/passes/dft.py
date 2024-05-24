@@ -1,10 +1,9 @@
-from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
-
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
 
 class DFTPass(IRPass):
@@ -43,7 +42,7 @@ class DFTPass(IRPass):
             return
 
         inputs = list(inst.get_input_variables())
-        
+
         if inst.opcode in COMMUTATIVE_INSTRUCTIONS and len(inputs) == 2:
             liveness_order = list(inst.liveness)
             # higher index in liveness_order means shorter time to live
