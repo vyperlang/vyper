@@ -149,7 +149,7 @@ The design of the module system takes inspiration from (but is not directly rela
 Initializing a module with dependencies
 =======================================
 
-Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper's module system is designed to allow this, but it requires you make explicit the access to the imported module's state. The above ``ownable_2step.vy`` contract is an example of this. If you wanted to initialize the ``ownable_2step`` module, it would use the special ``:=`` syntax, and look something like this:
+Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper's module system is designed to allow this, but it requires you make explicit the access to the imported module's state. The above ``ownable_2step.vy`` contract is an example of this. If you wanted to initialize the ``ownable_2step`` module, it would use the special ``:=`` (aka "walrus") syntax, and look something like this:
 
 .. code-block:: vyper
 
@@ -172,7 +172,9 @@ Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper
 Exporting functions
 ===================
 
-What if we want to export external functions from modules? This is accomplished using the ``exports`` keyword. In Vyper, functions can be exported individually or wholesale export all the functions in a module. The following are all ways of exporting functions from an imported module.
+In Vyper, ``@external`` functions are not automatically exposed (i.e., included in the runtime code) in the importing contract. This is a safety feature, it means that any externally facing functionality must be explicitly defined in the top-level of the compilation target.
+
+So, exporting external functions from modules is accomplished using the ``exports`` keyword. In Vyper, functions can be exported individually, or, a wholesale export of all the functions in a module can be done. The following are all ways of exporting functions from an imported module.
 
 .. code-block:: vyper
 

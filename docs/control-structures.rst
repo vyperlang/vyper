@@ -23,11 +23,11 @@ Visibility
 
 .. _function-visibility:
 
-You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in vyper:
+You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in Vyper:
 
     * **External**: exposed in the selector table, can be called by an external call into this contract
-    * **Internal**: can be invoked only from within this contract. not available to external callers
-    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. Currently, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
+    * **Internal** (default): can be invoked only from within this contract. Not available to external callers
+    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
 
 
 External Functions
@@ -66,7 +66,7 @@ Internal functions (optionally marked with the ``@internal`` decorator) are only
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
-Or for internal functions which are defined in imported modules, they are invoked by prefixing the name of the module to the function name:
+Or for internal functions which are defined in :ref:`imported modules <modules>`, they are invoked by prefixing the name of the module to the function name:
 
 .. code-block:: vyper
     import calculator_library

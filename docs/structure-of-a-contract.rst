@@ -92,6 +92,8 @@ Relative imports are possible by prepending dots to the contract name. A single 
     from . import foo
     from ..interfaces import baz
 
+Further higher directories can be accessed with ``...``, ``....`` etc., as in Python.
+
 .. _searching_for_imports:
 
 Searching For Imports

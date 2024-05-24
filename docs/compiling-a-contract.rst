@@ -202,7 +202,7 @@ To help tooling detect whether two builds are the same, Vyper provides the ``-f 
 
 .. _vyper-archives:
 
-Vyper archives
+Vyper Archives
 ==============
 
 A Vyper archive is a compileable bundle of input sources and settings. Technically, it is a `ZIP file <https://en.wikipedia.org/wiki/ZIP_(file_format)>`_, with a special structure to make it useable as input to the compiler. It can use any suffix, but the convention is to use a ``.zip`` suffix or ``.vyz`` suffix. It must contain a ``MANIFEST/`` folder, with the following directory structure.
