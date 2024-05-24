@@ -391,7 +391,7 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phis = list(inst.get_inputs())
+            phis = list(inst.get_input_variables())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
