@@ -1,6 +1,6 @@
+import json
 from collections import defaultdict
 from typing import Generic, Optional, TypeVar
-import json
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
