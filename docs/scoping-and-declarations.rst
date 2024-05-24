@@ -231,7 +231,7 @@ In a ``for`` statement, the target variable exists within the scope of the loop.
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             pass
         i: bool = False
 
@@ -241,6 +241,6 @@ The following contract fails to compile because ``a`` has not been declared outs
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             a: int128 = i
         a += 3
