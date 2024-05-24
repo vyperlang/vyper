@@ -33,11 +33,10 @@ class BranchOptimizationPass(IRPass):
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []
+
         while True:
             inst = self.dfg.get_producing_instruction(op)
             if inst.opcode != "iszero":
-                break
-            if len(self.dfg.get_uses(inst.output)) != 1:
                 break
             op = inst.operands[0]
             chain.append(inst)
