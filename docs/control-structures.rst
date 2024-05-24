@@ -25,9 +25,9 @@ Visibility
 
 You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in Vyper:
 
-    * **External**: exposed in the selector table, can be called by an external call into this contract
-    * **Internal** (default): can be invoked only from within this contract. Not available to external callers
-    * **Deploy**: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
+    * ``@external``: exposed in the selector table, can be called by an external call into this contract
+    * ``@internal`` (default): can be invoked only from within this contract. Not available to external callers
+    * ``@deploy``: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
 
 
 External Functions
@@ -107,10 +107,10 @@ Mutability
 
 You can optionally declare a function's mutability by using a :ref:`decorator <function-decorators>`. There are four mutability levels:
 
-    * **Pure**: does not read from the contract state or any environment variables.
-    * **View**: may read from the contract state, but does not alter it.
-    * **Nonpayable**: may read from and write to the contract state, but cannot receive Ether.
-    * **Payable**: may read from and write to the contract state, and can receive Ether.
+    * ``@pure``: does not read from the contract state or any environment variables.
+    * ``@view``: may read from the contract state, but does not alter it.
+    * ``@nonpayable``: may read from and write to the contract state, but cannot receive Ether.
+    * ``@payable``: may read from and write to the contract state, and can receive Ether.
 
 .. code-block:: vyper
 
