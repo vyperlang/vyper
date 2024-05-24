@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import Generic, Optional, TypeVar
+import json
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -28,7 +29,11 @@ def set_data_positions(
 
         # sanity check that generated layout file is the same as the input.
         roundtrip = generate_layout_export(vyper_module).get(_LAYOUT_KEYS[DataLocation.STORAGE], {})
-        assert roundtrip == storage_layout_overrides, roundtrip
+        if roundtrip != storage_layout_overrides:
+            msg = "Computed storage layout does not match override file!\n"
+            msg += f"expected: {json.dumps(storage_layout_overrides)}\n\n"
+            msg += f"got:\n{json.dumps(roundtrip)}"
+            raise CompilerPanic(msg)
     else:
         _allocate_layout_r(vyper_module)
 
