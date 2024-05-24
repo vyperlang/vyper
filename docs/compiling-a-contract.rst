@@ -18,7 +18,7 @@ Vyper includes the following command-line scripts for compiling contracts:
 vyper
 -----
 
-``vyper`` provides command-line access to the compiler. It can generate various outputs including simple binaries, ASTs, interfaces and source mappings.
+``vyper`` provides CLI access to the compiler. It can generate various outputs including simple binaries, ASTs, interfaces and source mappings.
 
 To compile a contract:
 
@@ -122,7 +122,7 @@ Remix IDE
 Compiler Optimization Modes
 ===========================
 
-The vyper CLI tool accepts an optimization mode ``"none"``, ``"codesize"``, or ``"gas"`` (default). It can be set using the ``--optimize`` flag. For example, invoking ``vyper --optimize codesize MyContract.vy`` will compile the contract, optimizing for code size. As a rough summary of the differences between gas and codesize mode, in gas optimized mode, the compiler will try to generate bytecode which minimizes gas (up to a point), including:
+The Vyper CLI tool accepts an optimization mode ``"none"``, ``"codesize"``, or ``"gas"`` (default). It can be set using the ``--optimize`` flag. For example, invoking ``vyper --optimize codesize MyContract.vy`` will compile the contract, optimizing for code size. As a rough summary of the differences between gas and codesize mode, in gas optimized mode, the compiler will try to generate bytecode which minimizes gas (up to a point), including:
 
 * using a sparse selector table which optimizes for gas over codesize
 * inlining some constants, and
@@ -198,14 +198,14 @@ The following is a list of supported EVM versions, and changes in the compiler i
 Integrity Hash
 ==============
 
-To help tooling detect whether two builds are the same, vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports).
+To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports).
 
 .. _vyper-archives:
 
 Vyper archives
 ==============
 
-A vyper archive is a compileable bundle of input sources and settings. Technically, it is a `zip file <https://en.wikipedia.org/wiki/ZIP_(file_format)>`_, with a special structure to make it useable as input to the compiler. It can use any suffix, but the convention is to use a ``.zip`` suffix or ``.vyz`` suffix. It must contain a ``MANIFEST/`` folder, with the following directory structure.
+A Vyper archive is a compileable bundle of input sources and settings. Technically, it is a `ZIP file <https://en.wikipedia.org/wiki/ZIP_(file_format)>`_, with a special structure to make it useable as input to the compiler. It can use any suffix, but the convention is to use a ``.zip`` suffix or ``.vyz`` suffix. It must contain a ``MANIFEST/`` folder, with the following directory structure.
 
 ::
 
@@ -224,7 +224,7 @@ A vyper archive is a compileable bundle of input sources and settings. Technical
 * ``searchpaths`` is a newline-separated list of the search paths used on this compilation run
 * ``settings.json`` is a json representation of the settings used on this compilation run. It is 1:1 with ``cli_settings.txt``, but both are provided as they are convenient for different workflows (typically, manually vs automated).
 
-A vyper archive file can be produced by requesting the ``-f archive`` output format. The compiler can also produce the archive in base64 encoded form using the ``--base64`` flag. The vyper compiler can accept both ``.vyz`` and base64-encoded vyper archives directly as input.
+A Vyper archive file can be produced by requesting the ``-f archive`` output format. The compiler can also produce the archive in base64 encoded form using the ``--base64`` flag. The Vyper compiler can accept both ``.vyz`` and base64-encoded Vyper archives directly as input.
 
 .. code-block:: bash
 
