@@ -1,4 +1,4 @@
-from venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
