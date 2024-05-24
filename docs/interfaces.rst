@@ -48,6 +48,10 @@ Specifying ``payable`` or ``nonpayable`` annotation in the interface indicates t
 
 The ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls. The keyword must match the visibility of the function, ``staticcall`` for ``pure`` and ``view`` functions, and ``extcall`` for ``payable`` and ``nonpayable`` functions. Additionally, the output of a ``staticcall`` must be assigned to a result.
 
+.. warning::
+
+    If the signature in an interface does not match the actual signature of the called contract, you can get runtime errors or undefined behavior. For instance, if you accidentally mark a ``nonpayable`` function as ``view``, calling that function may result in the EVM reverting execution in the called contract.
+
 .. code-block:: vyper
 
     interface FooBar:
