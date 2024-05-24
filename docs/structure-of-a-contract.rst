@@ -166,8 +166,8 @@ Broadly speaking, a module contains:
 
 Therefore, a module encapsulates
 
-* functionality (types and functions)
-* and state (variables)
+* functionality (types and functions), and
+* state (variables)
 
 Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This is a very powerful feature which allows you to assemble contracts via other contracts as building blocks.
 
