@@ -99,7 +99,7 @@ Searching For Imports
 
 When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
 
-When using the command line compiler, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>_`. You can append to the search path with the ``-p`` flag:
+When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag:
 
 ::
 

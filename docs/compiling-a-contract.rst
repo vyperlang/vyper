@@ -13,6 +13,8 @@ Vyper includes the following command-line scripts for compiling contracts:
 
     The ``--help`` flag gives verbose explanations of how to use each of these scripts.
 
+.. _vyper-cli-command:
+
 vyper
 -----
 
