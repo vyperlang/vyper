@@ -1,7 +1,7 @@
-from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -32,7 +32,7 @@ class BranchOptimizationPass(IRPass):
                 term_inst.operands[1],
             ]
 
-    def _get_iszero_chain(self, op: IRVariable) -> list[IRInstruction]:
+    def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []
         while True:
             inst = self.dfg.get_producing_instruction(op)
@@ -42,9 +42,9 @@ class BranchOptimizationPass(IRPass):
                 break
             op = inst.operands[0]
             chain.append(inst)
-        
+
         return chain
-        
+
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
