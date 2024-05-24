@@ -21,7 +21,4 @@ Once you are ready to deploy your contract to a public test net or the main net,
   vyper -f abi yourFileName.vy
   # returns ABI
 
-* Use the remote compiler provided by the `Remix IDE <https://remix.ethereum.org>`_ to compile and deploy your contract on your net of choice. Remix also provides a JavaScript VM to test deploy your contract.
-
-.. note::
-   While the vyper version of the Remix IDE compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
+* Use the development environment provided at https://try.vyperlang.org to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with `Titanoboa <https://titanoboa.readthedocs.io/en/latest/overview.html>`_ pre-installed, and browser signer integration as well.
