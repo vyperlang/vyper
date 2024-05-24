@@ -113,7 +113,7 @@ You can additionally disable the behavior of adding the syspath to the search pa
 
     $ vyper --disable-sys-path my_project/my_contract.vy
 
-When compiling from ``.vyz`` file or standard json input (TODO ref), the search path is already part of the bundle, it cannot be changed from the command line.
+When compiling from a :ref:`.vyz archive file <vyper-archives>` or :ref:`standard json input <vyper-json>`, the search path is already part of the bundle, it cannot be changed from the command line.
 
 .. _structure-state-variables:
 

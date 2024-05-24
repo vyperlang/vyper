@@ -220,7 +220,7 @@ A vyper archive is a compileable bundle of input sources and settings. Technical
 * ``compiler_version`` is a text representation of the compiler version used to generate this archive
 * ``integrity`` is the :ref:`integrity hash <integrity-hash>` of the input contract
 * ``searchpaths`` is a newline separated list of the search paths used on this compilation run
-* ``settings.json`` is a json representation of the settings used on this compilation run. It is isomorphic with ``cli_settings.txt``, but both are provided as they are convenient for different workflows (typically, manually vs automated).
+* ``settings.json`` is a json representation of the settings used on this compilation run. It is 1:1 with ``cli_settings.txt``, but both are provided as they are convenient for different workflows (typically, manually vs automated).
 
 A vyper archive file can be produced by requesting the ``-f archive`` output format. The compiler can also produce the archive in base64 encoded form using the ``--base64`` flag. The vyper compiler can accept both ``.vyz`` and base64-encoded vyper archives directly as input.
 
