@@ -77,9 +77,10 @@ def public_foo3():
     )
 
     # adjust transient storage layout
-    expected_output["transient_storage_layout"] = {
-        "$.nonreentrant_key": {"n_slots": 1, "slot": 0, "type": "nonreentrant lock"}
-    }
+    if version_check(begin="cancun"):
+        expected_output["transient_storage_layout"] = {
+            "$.nonreentrant_key": {"n_slots": 1, "slot": 0, "type": "nonreentrant lock"}
+        }
 
     assert out["layout"] == expected_output
 
