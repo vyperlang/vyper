@@ -11,9 +11,6 @@ class BranchOptimizationPass(IRPass):
     def _optimize_branches(self) -> None:
         fn = self.function
         for bb in fn.get_basic_blocks():
-            if len(bb.instructions) == 1:
-                continue
-
             term_inst = bb.instructions[-1]
             if term_inst.opcode != "jnz":
                 continue
