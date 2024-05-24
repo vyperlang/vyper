@@ -51,8 +51,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 
 
