@@ -81,8 +81,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "eq",
         "iszero",
         "not",
-        "lg",
         "lt",
+        "gt",
         "slt",
         "sgt",
         "create",
@@ -454,10 +454,6 @@ class VenomCompiler:
                 inst.operands[0], IRVariable
             ), f"Expected IRVariable, got {inst.operands[0]}"
             assembly.append("JUMP")
-        elif opcode == "gt":
-            assembly.append("GT")
-        elif opcode == "lt":
-            assembly.append("LT")
         elif opcode == "invoke":
             target = inst.operands[0]
             assert isinstance(
@@ -495,8 +491,6 @@ class VenomCompiler:
                     "SHA3",
                 ]
             )
-        elif opcode == "ceil32":
-            assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
         elif opcode == "assert_unreachable":
@@ -527,6 +521,11 @@ class VenomCompiler:
         if inst.output is not None:
             if "call" in inst.opcode and inst.output not in next_liveness:
                 self.pop(assembly, stack)
+            elif inst.output in next_liveness:
+                # peek at next_liveness to find the next scheduled item,
+                # and optimistically swap with it
+                next_scheduled = list(next_liveness)[-1]
+                self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)
 

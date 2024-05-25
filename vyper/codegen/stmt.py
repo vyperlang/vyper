@@ -14,10 +14,11 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     make_setter,
     wrap_value_for_external_return,
+    writeable,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.evm.address_space import MEMORY, STORAGE
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -311,18 +312,18 @@ class Stmt:
     def _get_target(self, target):
         _dbg_expr = target
 
-        if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
+        if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:  # pragma: nocover
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).ir_node
-            for node in target.args:
-                if (node.location == STORAGE and self.context.is_constant()) or not node.mutable:
-                    raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
+            items = target.args
+            if any(not writeable(self.context, item) for item in items):  # pragma: nocover
+                raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_pointer_expr(target, self.context)
-        if (target.location == STORAGE and self.context.is_constant()) or not target.mutable:
+        if not writeable(self.context, target):  # pragma: nocover
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
