@@ -490,3 +490,20 @@ def foo() -> (uint256, DynArray[uint256, 3]):
     length, res = c.foo()
 
     assert (length, res) == (0, [1, 2])
+
+
+def test_for_range_stop_double_eval(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> (uint256, DynArray[uint256, 3]):
+    x:DynArray[uint256, 3] = [3, 3]
+    res: DynArray[uint256, 3] = empty(DynArray[uint256, 3])
+    for i:uint256 in range(x.pop(), bound = 3):
+        res.append(i)
+
+    return len(x), res
+    """
+    c = get_contract(code)
+    length, res = c.foo()
+
+    assert (length, res) == (1, [0, 1, 2])
