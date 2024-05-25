@@ -403,8 +403,7 @@ class ContractFunctionT(VyperType):
                 )
             if function_visibility != FunctionVisibility.DEPLOY:
                 raise FunctionDeclarationException(
-                    f"Constructor must be marked as `@deploy`, not `@{function_visibility}`",
-                    funcdef,
+                    "Constructor must be marked as `@deploy`", funcdef
                 )
             if return_type is not None:
                 raise FunctionDeclarationException(
