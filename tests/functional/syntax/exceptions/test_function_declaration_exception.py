@@ -19,16 +19,6 @@ def foo() -> int128:
     pass
     """,
     """
-def foo() -> int128:
-    q: int128 = 111
-    return q
-    """,
-    """
-q: int128
-def foo() -> int128:
-    return self.q
-    """,
-    """
 @external
 def test_func() -> int128:
     return (1, 2)
