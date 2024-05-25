@@ -190,7 +190,7 @@ This imports the defined interface from the vyper file at ``an_interface.vy`` (o
 
 .. note::
 
-  Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the top-level contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
+  Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the "implementing" contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
 
 
 Extracting Interfaces
