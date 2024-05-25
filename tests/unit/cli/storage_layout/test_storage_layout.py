@@ -364,3 +364,35 @@ def foo() -> uint256:
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
+
+
+def test_multiple_compile_codes(make_input_bundle):
+    # test calling compile_code multiple times with the same library allocated
+    # in different locations
+    lib = """
+x: uint256
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    main1 = """
+import lib
+
+initializes: lib
+t: uint256
+    """
+    main2 = """
+import lib
+
+t: uint256
+initializes: lib
+    """
+    out1 = compile_code(main1, input_bundle=input_bundle, output_formats=["layout"])
+    out2 = compile_code(main2, input_bundle=input_bundle, output_formats=["layout"])
+
+    layout1 = out1["layout"]["storage_layout"]["lib"]
+    layout2 = out2["layout"]["storage_layout"]["lib"]
+
+    assert layout1 != layout2  # for clarity
+
+    assert layout1 == {"x": {"slot": 0, "type": "uint256"}}
+    assert layout2 == {"x": {"slot": 1, "type": "uint256"}}
