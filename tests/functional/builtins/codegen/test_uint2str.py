@@ -2,11 +2,14 @@ import math
 
 import pytest
 
+from vyper.compiler import compile_code
+from vyper.exceptions import InvalidType, OverflowException
+
 VALID_BITS = list(range(8, 257, 8))
 
 
 @pytest.mark.parametrize("bits", VALID_BITS)
-def test_mkstr(get_contract_with_gas_estimation, bits):
+def test_mkstr(get_contract, bits):
     n_digits = math.ceil(bits * math.log(2) / math.log(10))
     code = f"""
 @external
@@ -14,7 +17,7 @@ def foo(inp: uint{bits}) -> String[{n_digits}]:
     return uint2str(inp)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     for i in [1, 2, 2**bits - 1, 0]:
         assert c.foo(i) == str(i), (i, c.foo(i))
 
@@ -37,3 +40,25 @@ def foo(x: uint{bits}) -> uint256:
     """
     c = get_contract(code)
     assert c.foo(2**bits - 1) == 0, bits
+
+
+def test_bignum_throws():
+    code = """
+@external
+def test():
+    a: String[78] = uint2str(2**256)
+    pass
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+def test_int_fails():
+    code = """
+@external
+def test():
+    a: String[78] = uint2str(-1)
+    pass
+    """
+    with pytest.raises(InvalidType):
+        compile_code(code)

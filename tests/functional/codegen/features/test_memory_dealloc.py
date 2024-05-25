@@ -12,7 +12,7 @@ def foo(target: address) -> uint256[2]:
     log Shimmy(empty(address), 3)
     amount: uint256 = 1
     flargen: uint256 = 42
-    Other(target).sendit()
+    extcall Other(target).sendit()
     return [amount, flargen]
     """
 
@@ -20,7 +20,7 @@ def foo(target: address) -> uint256[2]:
 
 @external
 def sendit() -> bool:
-     return True
+    return True
     """
 
     c = get_contract(code)

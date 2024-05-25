@@ -512,9 +512,7 @@ def generate_methods(draw, max_calldata_bytes):
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @pytest.mark.fuzzing
-def test_selector_table_fuzz(
-    max_calldata_bytes, opt_level, w3, get_contract, assert_tx_failed, get_logs
-):
+def test_selector_table_fuzz(max_calldata_bytes, opt_level, env, get_contract, tx_failed, get_logs):
     def abi_sig(func_id, calldata_words, n_default_args):
         params = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         params.extend(["uint256"] * n_default_args)
@@ -576,6 +574,7 @@ event _Return:
         """
 
         c = get_contract(code, override_opt_level=opt_level)
+        env.set_balance(env.deployer, 10**18)
 
         for func_id, mutability, n_calldata_words, n_strip_bytes, n_default_args in methods:
             funcname = f"foo{func_id}"
@@ -594,13 +593,13 @@ event _Return:
 
                 # do payable check
                 if mutability == "@payable":
-                    tx = func(*args, transact={"value": 1})
-                    (event,) = get_logs(tx, c, "_Return")
+                    func(*args, value=1)
+                    (event,) = get_logs(c, "_Return")
                     assert event.args.val == func_id
                 else:
                     hexstr = (method_id + argsdata).hex()
-                    txdata = {"to": c.address, "data": hexstr, "value": 1}
-                    assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
+                    with tx_failed():
+                        env.message_call(c.address, data=hexstr, value=1)
 
                 # now do calldatasize check
                 # strip some bytes
@@ -610,26 +609,29 @@ event _Return:
                 if n_calldata_words == 0 and j == 0:
                     # no args, hit default function
                     if default_fn_mutability == "":
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        with tx_failed():
+                            env.message_call(**tx_params)
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        tx = w3.eth.send_transaction(tx_params)
-                        logs = get_logs(tx, c, "CalledDefault")
+                        env.message_call(**tx_params)
+                        logs = get_logs(c, "CalledDefault")
                         assert len(logs) == 1
                     else:
-                        tx = w3.eth.send_transaction(tx_params)
+                        env.message_call(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
                         # so the logging is not tested.
                         if default_fn_mutability == "@nonpayable":
-                            logs = get_logs(tx, c, "CalledDefault")
+                            logs = get_logs(c, "CalledDefault")
                             assert len(logs) == 1
 
                         # check default function reverts
                         tx_params["value"] = 1
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        with tx_failed():
+                            env.message_call(**tx_params)
                 else:
-                    assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                    with tx_failed():
+                        env.message_call(**tx_params)
 
     _test()

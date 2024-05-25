@@ -1,4 +1,10 @@
-def test_state_accessor(get_contract_with_gas_estimation_for_constants):
+import pytest
+
+from vyper import compile_code
+from vyper.exceptions import OverflowException, TypeMismatch
+
+
+def test_state_accessor(get_contract):
     state_accessor = """
 y: HashMap[int128, int128]
 
@@ -12,13 +18,16 @@ def foo() -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation_for_constants(state_accessor)
-    c.oo(transact={})
+    c = get_contract(state_accessor)
+    c.oo()
     assert c.foo() == 5
 
 
-def test_getter_code(get_contract_with_gas_estimation_for_constants):
+def test_getter_code(get_contract):
     getter_code = """
+interface V:
+    def foo(): nonpayable
+
 struct W:
     a: uint256
     b: int128[7]
@@ -36,8 +45,9 @@ c: public(constant(uint256)) = 1
 d: public(immutable(uint256))
 e: public(immutable(uint256[2]))
 f: public(constant(uint256[2])) = [3, 7]
+g: public(constant(V)) = V(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 
-@external
+@deploy
 def __init__():
     self.x = as_wei_value(7, "wei")
     self.y[1] = 9
@@ -54,7 +64,7 @@ def __init__():
     e = [2, 3]
     """
 
-    c = get_contract_with_gas_estimation_for_constants(getter_code)
+    c = get_contract(getter_code)
     assert c.x() == 7
     assert c.y(1) == 9
     assert c.z() == b"cow"
@@ -70,6 +80,7 @@ def __init__():
     assert c.d() == 1729
     assert c.e(0) == 2
     assert [c.f(i) for i in range(2)] == [3, 7]
+    assert c.g() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
 
 
 def test_getter_mutability(get_contract):
@@ -82,14 +93,43 @@ potatoes: public(HashMap[uint256, HashMap[bytes32, uint256[4]]])
 nyoro: public(constant(uint256)) = 2
 kune: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     kune = 2
 """
 
     contract = get_contract(code)
 
-    for item in contract._classic_contract.abi:
+    for item in contract.abi:
         if item["type"] == "constructor":
             continue
         assert item["stateMutability"] == "view"
+
+
+@pytest.mark.parametrize(
+    "typ,index,expected_error",
+    [
+        ("uint256", "-1", TypeMismatch),
+        ("uint256", "0-1", TypeMismatch),
+        ("uint256", "0-1+1", TypeMismatch),
+        ("uint256", "2**256", OverflowException),
+        ("uint256", "2**256 // 2", OverflowException),
+        ("uint256", "2 * 2**255", OverflowException),
+        ("int256", "-2**255", TypeMismatch),
+        ("int256", "-2**256", OverflowException),
+        ("int256", "2**255", TypeMismatch),
+        ("int256", "2**256 - 5", OverflowException),
+        ("int256", "2 * 2**254", TypeMismatch),
+        ("int8", "*".join(["2"] * 7), TypeMismatch),
+    ],
+)
+def test_hashmap_index_checks(typ, index, expected_error):
+    code = f"""
+m: HashMap[{typ}, uint256]
+
+@external
+def foo():
+    self.m[{index}] = 2
+    """
+    with pytest.raises(expected_error):
+        compile_code(code)

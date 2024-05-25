@@ -8,7 +8,7 @@ fail_list = [
         """
 @external
 def foo() -> int128:
-    pass
+    pass  # missing return
     """,
         FunctionDeclarationException,
     ),
@@ -18,6 +18,7 @@ def foo() -> int128:
 def foo() -> int128:
     if False:
         return 123
+    # missing return
     """,
         FunctionDeclarationException,
     ),
@@ -27,19 +28,10 @@ def foo() -> int128:
 def test() -> int128:
     if 1 == 1 :
         return 1
-        if True:
+        if True:  # unreachable
             return 0
     else:
         assert msg.sender != msg.sender
-    """,
-        FunctionDeclarationException,
-    ),
-    (
-        """
-@internal
-def valid_address(sender: address) -> bool:
-    selfdestruct(sender)
-    return True
     """,
         StructureException,
     ),
@@ -48,7 +40,16 @@ def valid_address(sender: address) -> bool:
 @internal
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
-    a: address = sender
+    return True  # unreachable
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def valid_address(sender: address) -> bool:
+    selfdestruct(sender)
+    a: address = sender  # unreachable
     """,
         StructureException,
     ),
@@ -58,7 +59,7 @@ def valid_address(sender: address) -> bool:
 def valid_address(sender: address) -> bool:
     if sender == empty(address):
         selfdestruct(sender)
-        _sender: address = sender
+        _sender: address = sender  # unreachable
     else:
         return False
     """,
@@ -69,7 +70,7 @@ def valid_address(sender: address) -> bool:
 @internal
 def foo() -> bool:
     raw_revert(b"vyper")
-    return True
+    return True  # unreachable
     """,
         StructureException,
     ),
@@ -78,7 +79,7 @@ def foo() -> bool:
 @internal
 def foo() -> bool:
     raw_revert(b"vyper")
-    x: uint256 = 3
+    x: uint256 = 3  # unreachable
     """,
         StructureException,
     ),
@@ -88,10 +89,66 @@ def foo() -> bool:
 def foo(x: uint256) -> bool:
     if x == 2:
         raw_revert(b"vyper")
-        a: uint256 = 3
+        a: uint256 = 3  # unreachable
     else:
         return False
     """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo():
+    return
+    return  # unreachable
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    if block.number % 2 == 0:
+        return 5
+    elif block.number % 3 == 0:
+        return 6
+    else:
+        return 10
+    return 0  # unreachable
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(10):
+        if i == 11:
+            return 1
+        """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(9):
+        if i == 11:
+            return 1
+    if block.number % 2 == 0:
+        return 1
+        """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(10):
+        return 1
+        pass  # unreachable
+    return 5
+        """,
         StructureException,
     ),
 ]
@@ -154,7 +211,6 @@ def test() -> int128:
     else:
         x = keccak256(x)
         return 1
-    return 1
     """,
     """
 @external
@@ -163,6 +219,13 @@ def foo() -> int128:
         return 123
     else:
         raw_revert(b"vyper")
+    """,
+    """
+@external
+def foo() -> int128:
+    for i: uint256 in range(1):
+        return 1
+    return 0
     """,
 ]
 

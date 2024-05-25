@@ -38,7 +38,7 @@ class FreeMemory:
 
 class MemoryAllocator:
     """
-    Low-level memory alloctor. Used to allocate and de-allocate memory slots.
+    Low-level memory allocator. Used to allocate and de-allocate memory slots.
 
     This object should not be accessed directly. Memory allocation happens via
     declaring variables within `Context`.

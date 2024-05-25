@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, InvalidType, StructureException, TypeMismatch
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 
 fail_list = [
     (
@@ -11,7 +11,7 @@ def foo():
     x: int128[3] = [1, 2, 3]
     x = 4
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -20,7 +20,7 @@ def foo():
     x: int128[3] = [1, 2, 3]
     x = [4, 5, 6, 7]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -28,7 +28,7 @@ def foo():
 def foo() -> int128[2]:
     return [3, 5, 7]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -36,7 +36,7 @@ def foo() -> int128[2]:
 def foo() -> int128[2]:
     return [3]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -94,7 +94,7 @@ bar: int128[3]
 def foo():
     self.bar = []
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -121,7 +121,7 @@ bar: int128[3][3]
 def foo():
     self.bar = 5
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -130,7 +130,7 @@ bar: int128[3][3]
 def foo():
     self.bar = [2, 5]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -139,7 +139,7 @@ bar: int128[3]
 def foo():
     self.bar = [1, 2, 3, 4]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -148,7 +148,7 @@ bar: int128[3]
 def foo():
     self.bar = [1, 2]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -157,7 +157,7 @@ b: int128[5]
 def foo():
     self.b[0] = 7.5
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -176,7 +176,7 @@ def foo()->bool[2]:
     a[0] = 1
     return a
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -186,7 +186,7 @@ def foo()->bool[2]:
     a[0] = 1
     return a
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -306,7 +306,7 @@ def foo():
 @external
 def foo():
     x: DynArray[uint256, 3] = [1, 2, 3]
-    for i in [[], []]:
+    for i: DynArray[uint256, 3] in [[], []]:
         x = i
     """,
 ]

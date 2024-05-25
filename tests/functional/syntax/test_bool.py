@@ -2,18 +2,15 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import InvalidOperation, SyntaxException, TypeMismatch
 
 fail_list = [
-    (
-        """
+    """
 @external
 def foo():
     x: bool = True
     x = 5
     """,
-        InvalidType,
-    ),
     (
         """
 @external
@@ -22,22 +19,19 @@ def foo():
     """,
         SyntaxException,
     ),
-    (
-        """
+    """
 @external
 def foo():
     x: bool = True
     x = 129
     """,
-        InvalidType,
-    ),
     (
         """
 @external
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
     """,
-        TypeMismatch,
+        InvalidOperation,
     ),
     """
 @external
@@ -63,15 +57,12 @@ def foo(a: address) -> bool:
     """,
         InvalidOperation,
     ),
-    (
-        """
+    """
 @external
 def test(a: address) -> bool:
     assert(a)
     return True
     """,
-        TypeMismatch,
-    ),
 ]
 
 
@@ -161,13 +152,13 @@ def test_bool_success(good_code):
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_string_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_string_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: String[{length}]) -> bool:
     return xs {op} ""
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":
@@ -188,13 +179,13 @@ def foo(xs: String[{length}]) -> bool:
     ],
 )
 @pytest.mark.parametrize("op", ["==", "!="])
-def test_empty_bytes_comparison(get_contract_with_gas_estimation, length, value, result, op):
+def test_empty_bytes_comparison(get_contract, length, value, result, op):
     contract = f"""
 @external
 def foo(xs: Bytes[{length}]) -> bool:
     return b"" {op} xs
     """
-    c = get_contract_with_gas_estimation(contract)
+    c = get_contract(contract)
     if op == "==":
         assert c.foo(value) == result
     elif op == "!=":

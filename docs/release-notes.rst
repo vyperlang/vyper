@@ -14,6 +14,14 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.4.0b1 ("Nagini")
+*******************
+
+Date released: TBD
+==================
+
+v0.4.0 represents a major overhaul to the Vyper language. Notably, it overhauls the import system and adds support for code reuse. It also adds a new, experimental backend to Vyper which lays the foundation for improved analysis, optimization and integration with third party tools.
+
 v0.3.10 ("Black Adder")
 ***********************
 
@@ -51,7 +59,7 @@ Notable fixes:
 - update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
 - fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
 - fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
-- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`__)
 
 Other docs updates, chores and fixes:
 -------------------------------------
@@ -164,7 +172,7 @@ Other docs updates, chores and fixes:
 - fix docs of ``blockhash`` to reflect revert behaviour (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
 - improvements to compiler error messages (`#3121 <https://github.com/vyperlang/vyper/pull/3121>`_, `#3134 <https://github.com/vyperlang/vyper/pull/3134>`_, `#3312 <https://github.com/vyperlang/vyper/pull/3312>`_, `#3304 <https://github.com/vyperlang/vyper/pull/3304>`_, `#3240 <https://github.com/vyperlang/vyper/pull/3240>`_, `#3264 <https://github.com/vyperlang/vyper/pull/3264>`_, `#3343 <https://github.com/vyperlang/vyper/pull/3343>`_, `#3307 <https://github.com/vyperlang/vyper/pull/3307>`_, `#3313 <https://github.com/vyperlang/vyper/pull/3313>`_ and `#3215 <https://github.com/vyperlang/vyper/pull/3215>`_)
 
-These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
+These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`__. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
 New Contributors:
 
@@ -346,7 +354,7 @@ Notable Fixes:
 * Referencing immutables in constructor (`#2627 <https://github.com/vyperlang/vyper/pull/2627>`_)
 * Arrays of interfaces in for loops (`#2699 <https://github.com/vyperlang/vyper/pull/2699>`_)
 
-Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`_.
+Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`__.
 
 Special thanks to @tserg for typechecker fixes and significant testing of new features! Additional contributors to this release include @abdullathedruid, @hi-ogawa, @skellet0r, @fubuloubu, @onlymaresia, @SwapOperator, @hitsuzen-eth, @Sud0u53r, @davidhq.
 
@@ -600,7 +608,7 @@ Fixes:
 
 - Memory corruption issue when performing function calls inside a tuple or another function call (`#2186 <https://github.com/vyperlang/vyper/pull/2186>`_)
 - Incorrect function output when using multidimensional arrays (`#2184 <https://github.com/vyperlang/vyper/pull/2184>`_)
-- Reduced ambiguity bewteen ``address`` and ``Bytes[20]`` (`#2191 <https://github.com/vyperlang/vyper/pull/2191>`_)
+- Reduced ambiguity between ``address`` and ``Bytes[20]`` (`#2191 <https://github.com/vyperlang/vyper/pull/2191>`_)
 
 v0.2.5
 ******
@@ -684,7 +692,7 @@ Breaking changes:
 - ``@public`` and ``@private`` function decorators have been renamed to ``@external`` and ``@internal`` (VIP `#2065 <https://github.com/vyperlang/vyper/issues/2065>`_)
 - The ``@constant`` decorator has been renamed to ``@view`` (VIP `#2040 <https://github.com/vyperlang/vyper/issues/2040>`_)
 - Type units have been removed (VIP `#1881 <https://github.com/vyperlang/vyper/issues/1881>`_)
-- Event declaraion syntax now resembles that of struct declarations (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
+- Event declaration syntax now resembles that of struct declarations (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
 - ``log`` is now a statement (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
 - Mapping declaration syntax changed to ``HashMap[key_type, value_type]`` (VIP `#1969 <https://github.com/vyperlang/vyper/issues/1969>`_)
 - Interfaces are now declared via the ``interface`` keyword instead of ``contract`` (VIP `#1825 <https://github.com/vyperlang/vyper/issues/1825>`_)
@@ -823,7 +831,7 @@ Some of the bug and stability fixes:
 - Fixed stack valency issues in if and for statements (`#1665 <https://github.com/vyperlang/vyper/pull/1665>`_)
 - Prevent overflow when using ``sqrt`` on certain datatypes (`#1679 <https://github.com/vyperlang/vyper/pull/1679>`_)
 - Prevent shadowing of internal variables (`#1601 <https://github.com/vyperlang/vyper/pull/1601>`_)
-- Reject unary substraction on unsigned types  (`#1638 <https://github.com/vyperlang/vyper/pull/1638>`_)
+- Reject unary subtraction on unsigned types  (`#1638 <https://github.com/vyperlang/vyper/pull/1638>`_)
 - Disallow ``orelse`` syntax in ``for`` loops (`#1633 <https://github.com/vyperlang/vyper/pull/1633>`_)
 - Increased clarity and efficiency of zero-padding (`#1605 <https://github.com/vyperlang/vyper/pull/1605>`_)
 
@@ -928,7 +936,7 @@ Here is the old changelog:
 * **2019.03.04**: ``create_with_code_of`` has been renamed to ``create_forwarder_to``. (`#1177 <https://github.com/vyperlang/vyper/issues/1177>`_)
 * **2019.02.14**: Assigning a persistent contract address can only be done using the ``bar_contact = ERC20(<address>)`` syntax.
 * **2019.02.12**: ERC20 interface has to be imported using ``from vyper.interfaces import ERC20`` to use.
-* **2019.01.30**: Byte array literals need to be annoted using ``b""``, strings are represented as `""`.
+* **2019.01.30**: Byte array literals need to be annotated using ``b""``, strings are represented as `""`.
 * **2018.12.12**: Disallow use of ``None``, disallow use of ``del``, implemented ``clear()`` built-in function.
 * **2018.11.19**: Change mapping syntax to use ``map()``. (`VIP564 <https://github.com/vyperlang/vyper/issues/564>`_)
 * **2018.10.02**: Change the convert style to use types instead of string. (`VIP1026 <https://github.com/vyperlang/vyper/issues/1026>`_)

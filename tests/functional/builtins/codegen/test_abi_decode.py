@@ -1,8 +1,8 @@
-from decimal import Decimal
-
 import pytest
 from eth.codecs import abi
 
+from tests.evm_backends.base_env import EvmError, ExecutionReverted
+from tests.utils import decimal_to_int
 from vyper.exceptions import ArgumentException, StructureException
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
@@ -35,18 +35,18 @@ def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
 
 @external
 def abi_decode_struct(x: Bytes[544]) -> Human:
-    human: Human = Human({
-        name: "",
-        pet: Animal({
-            name: "",
-            address_: empty(address),
-            id_: 0,
-            is_furry: False,
-            price: 0.0,
-            data: [0, 0, 0],
-            metadata: 0x0000000000000000000000000000000000000000000000000000000000000000
-        })
-    })
+    human: Human = Human(
+        name="",
+        pet=Animal(
+            name="",
+            address_=empty(address),
+            id_=0,
+            is_furry=False,
+            price=0.0,
+            data=[0, 0, 0],
+            metadata=0x0000000000000000000000000000000000000000000000000000000000000000
+        )
+    )
     human = _abi_decode(x, Human)
     return human
     """
@@ -54,22 +54,28 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     c = get_contract(contract)
 
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
-    args = (TEST_ADDR, -1, True, Decimal("-123.4"), test_bytes32)
-    encoding = "(address,int128,bool,fixed168x10,bytes32)"
+    args = (TEST_ADDR, -1, True, decimal_to_int("-123.4"), test_bytes32)
+    encoding = "(address,int128,bool,int168,bytes32)"
     encoded = abi.encode(encoding, args)
-    assert tuple(c.abi_decode(encoded)) == (TEST_ADDR, -1, True, Decimal("-123.4"), test_bytes32)
+    assert tuple(c.abi_decode(encoded)) == (
+        TEST_ADDR,
+        -1,
+        True,
+        decimal_to_int("-123.4"),
+        test_bytes32,
+    )
 
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
-        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", TEST_ADDR, 123, True, decimal_to_int("123.4"), [123, 456, 789], test_bytes32),
     )
-    args = tuple([human_tuple[0]] + list(human_tuple[1]))
-    human_t = "((string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32)))"
+
+    human_t = "((string,(string,address,int128,bool,int168,uint256[3],bytes32)))"
     human_encoded = abi.encode(human_t, (human_tuple,))
-    assert tuple(c.abi_decode_struct(human_encoded)) == (
+    assert c.abi_decode_struct(human_encoded) == (
         "foobar",
-        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", TEST_ADDR, 123, True, decimal_to_int("123.4"), [123, 456, 789], test_bytes32),
     )
 
 
@@ -86,9 +92,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
         ([123, 456, 789], 160, "DynArray[uint256, 3]", "(uint256[])", True),
     ],
 )
-def test_abi_decode_single(
-    w3, get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple
-):
+def test_abi_decode_single(get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple):
     contract = f"""
 @external
 def foo(x: Bytes[{input_len}]) -> {output_typ}:
@@ -224,7 +228,7 @@ def test_side_effects_evaluation(get_contract):
     contract_1 = """
 counter: uint256
 
-@external
+@deploy
 def __init__():
     self.counter = 0
 
@@ -244,7 +248,7 @@ interface Foo:
 def foo(addr: address) -> (uint256, String[5]):
     a: uint256 = 0
     b: String[5] = ""
-    a, b = _abi_decode(Foo(addr).get_counter(), (uint256, String[5]), unwrap_tuple=False)
+    a, b = _abi_decode(extcall Foo(addr).get_counter(), (uint256, String[5]), unwrap_tuple=False)
     return a, b
     """
 
@@ -270,7 +274,7 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     c = get_contract(code)
     bs = [1, 2, 3]
     encoded = abi.encode("(uint256[])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_private_nested_dynarray(get_contract):
@@ -294,7 +298,7 @@ def foo(bs: Bytes[1696]) -> (uint256, DynArray[DynArray[DynArray[uint256, 3], 3]
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
     encoded = abi.encode("(uint256[][][])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_return(get_contract):
@@ -331,7 +335,7 @@ def abi_decode(x: Bytes[32]) -> uint256:
         b"\x01" * 96,  # Length of byte array is beyond size bound of output type
     ],
 )
-def test_clamper(get_contract, assert_tx_failed, input_):
+def test_clamper(get_contract, tx_failed, input_):
     contract = """
 @external
 def abi_decode(x: Bytes[96]) -> (uint256, uint256):
@@ -341,10 +345,11 @@ def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with tx_failed():
+        c.abi_decode(input_)
 
 
-def test_clamper_nested_uint8(get_contract, assert_tx_failed):
+def test_clamper_nested_uint8(get_contract, tx_failed):
     # check that _abi_decode clamps on word-types even when it is in a nested expression
     # decode -> validate uint8 -> revert if input >= 256 -> cast back to uint256
     contract = """
@@ -355,10 +360,11 @@ def abi_decode(x: uint256) -> uint256:
     """
     c = get_contract(contract)
     assert c.abi_decode(255) == 255
-    assert_tx_failed(lambda: c.abi_decode(256))
+    with tx_failed():
+        c.abi_decode(256)
 
 
-def test_clamper_nested_bytes(get_contract, assert_tx_failed):
+def test_clamper_nested_bytes(get_contract, tx_failed):
     # check that _abi_decode clamps dynamic even when it is in a nested expression
     # decode -> validate Bytes[20] -> revert if len(input) > 20 -> convert back to -> add 1
     contract = """
@@ -369,7 +375,8 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
     """
     c = get_contract(contract)
     assert c.abi_decode(abi.encode("(bytes)", (b"bc",))) == b"abc"
-    assert_tx_failed(lambda: c.abi_decode(abi.encode("(bytes)", (b"a" * 22,))))
+    with tx_failed():
+        c.abi_decode(abi.encode("(bytes)", (b"a" * 22,)))
 
 
 @pytest.mark.parametrize(
@@ -381,7 +388,7 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
         ("Bytes[5]", b"\x01" * 192),
     ],
 )
-def test_clamper_dynamic(get_contract, assert_tx_failed, output_typ, input_):
+def test_clamper_dynamic(get_contract, tx_failed, output_typ, input_):
     contract = f"""
 @external
 def abi_decode(x: Bytes[192]) -> {output_typ}:
@@ -390,7 +397,8 @@ def abi_decode(x: Bytes[192]) -> {output_typ}:
     return a
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with tx_failed():
+        c.abi_decode(input_)
 
 
 @pytest.mark.parametrize(
@@ -414,15 +422,17 @@ def abi_decode(x: Bytes[160]) -> uint256:
 
 
 @pytest.mark.parametrize(
-    "output_typ1,output_typ2,input_",
+    "output_typ1,output_typ2,input_,error,error_property",
     [
-        ("DynArray[uint256, 3]", "uint256", b""),
-        ("DynArray[uint256, 3]", "uint256", b"\x01" * 128),
-        ("Bytes[5]", "address", b""),
-        ("Bytes[5]", "address", b"\x01" * 128),
+        ("DynArray[uint256, 3]", "uint256", b"", ExecutionReverted, ""),
+        ("DynArray[uint256, 3]", "uint256", b"\x01" * 128, EvmError, "OUT_OF_GAS_ERROR"),
+        ("Bytes[5]", "address", b"", ExecutionReverted, ""),
+        ("Bytes[5]", "address", b"\x01" * 128, EvmError, "OUT_OF_GAS_ERROR"),
     ],
 )
-def test_clamper_dynamic_tuple(get_contract, assert_tx_failed, output_typ1, output_typ2, input_):
+def test_clamper_dynamic_tuple(
+    get_contract, tx_failed, output_typ1, output_typ2, input_, error, error_property, env
+):
     contract = f"""
 @external
 def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
@@ -432,7 +442,8 @@ def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with tx_failed(error, exc_text=getattr(env, error_property, None)):
+        c.abi_decode(input_)
 
 
 FAIL_LIST = [

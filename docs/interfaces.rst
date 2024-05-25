@@ -12,7 +12,7 @@ Interfaces can be added to contracts either through inline definition, or by imp
 
 The ``interface`` keyword is used to define an inline external interface:
 
-.. code-block:: python
+.. code-block:: vyper
 
     interface FooBar:
         def calculate() -> uint256: view
@@ -20,7 +20,7 @@ The ``interface`` keyword is used to define an inline external interface:
 
 The defined interface can then be used to make external calls, given a contract address:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def test(foobar: FooBar):
@@ -28,7 +28,7 @@ The defined interface can then be used to make external calls, given a contract 
 
 The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:
 
-.. code-block:: python
+.. code-block:: vyper
 
     foobar_contract: FooBar
 
@@ -42,7 +42,7 @@ The interface name can also be used as a type annotation for storage variables. 
 
 Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
 
-.. code-block:: python
+.. code-block:: vyper
 
     interface FooBar:
         def calculate() -> uint256: pure
@@ -70,10 +70,10 @@ Keyword                         Description
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
 
-.. code-block:: python
+.. code-block:: vyper
 
-    ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
-    ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
+    IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
+    IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
 .. warning::
 
@@ -86,7 +86,7 @@ Interfaces are imported with ``import`` or ``from ... import`` statements.
 
 Imported interfaces are written using standard Vyper syntax. The body of each function is ignored when the interface is imported. If you are defining a standalone interface, it is normally specified by using a ``pass`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def test1():
@@ -98,7 +98,7 @@ Imported interfaces are written using standard Vyper syntax. The body of each fu
 
 You can also import a fully implemented contract and Vyper will automatically convert it to an interface. It is even possible for a contract to import itself to gain access to its own interface.
 
-.. code-block:: python
+.. code-block:: vyper
 
     import greeter as Greeter
 
@@ -118,7 +118,7 @@ Imports via ``import``
 
 With absolute ``import`` statements, you **must** include an alias as a name for the imported package. In the following example, failing to include ``as Foo`` will raise a compile error:
 
-.. code-block:: python
+.. code-block:: vyper
 
     import contract.foo as Foo
 
@@ -127,7 +127,7 @@ Imports via ``from ... import``
 
 Using ``from`` you can perform both absolute and relative imports. You may optionally include an alias - if you do not, the name of the interface will be the same as the file.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # without an alias
     from contract import foo
@@ -137,7 +137,7 @@ Using ``from`` you can perform both absolute and relative imports. You may optio
 
 Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 
-.. code-block:: python
+.. code-block:: vyper
 
     from . import foo
     from ..interfaces import baz
@@ -160,13 +160,13 @@ In the above example, the ``my_project`` folder is set as the root path. A contr
 Built-in Interfaces
 ===================
 
-Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``vyper.interfaces``:
+Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``ethereum.ercs``:
 
-.. code-block:: python
+.. code-block:: vyper
 
-    from vyper.interfaces import ERC20
+    from ethereum.ercs import IERC20
 
-    implements: ERC20
+    implements: IERC20
 
 You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ repo.
 
@@ -175,7 +175,7 @@ Implementing an Interface
 
 You can define an interface for your contract with the ``implements`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
     import an_interface as FooBarInterface
 

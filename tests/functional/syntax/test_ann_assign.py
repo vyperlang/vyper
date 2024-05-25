@@ -4,7 +4,7 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     InvalidAttribute,
-    InvalidType,
+    TypeMismatch,
     UndeclaredDefinition,
     UnknownAttribute,
     VariableDeclarationException,
@@ -41,7 +41,7 @@ def test():
 def test():
     a: int128 = 33.33
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -50,7 +50,7 @@ def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     return 235357
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -59,10 +59,10 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1.2, b: 1})
+    s: S = S(a=1.2, b=1)
     return s.a
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -71,7 +71,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1})
+    s: S = S(a=1)
     """,
         VariableDeclarationException,
     ),
@@ -82,7 +82,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({b: 1.2, a: 1})
+    s: S = S(b=1.2, a=1)
     """,
         InvalidAttribute,
     ),
@@ -93,7 +93,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1, b: 1.2, c: 1, d: 33, e: 55})
+    s: S = S(a=1, b=1.2, c=1, d=33, e=55)
     return s.a
     """,
         UnknownAttribute,
@@ -105,7 +105,7 @@ def foo() -> bool:
     a: uint256 = -1
     return True
 """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -114,7 +114,7 @@ def foo() -> bool:
     a: uint256[2] = [13, -42]
     return True
 """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -123,7 +123,7 @@ def foo() -> bool:
     a: int128 = 170141183460469231731687303715884105728
     return True
 """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

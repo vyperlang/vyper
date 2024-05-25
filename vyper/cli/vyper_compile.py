@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -8,15 +9,11 @@ from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
+import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
+from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import (
-    VYPER_TRACEBACK_LIMIT,
-    OptimizationLevel,
-    Settings,
-    _set_debug_mode,
-)
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -27,13 +24,16 @@ bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
-source_map         - Vyper source map
+source_map         - Vyper source map of deployable bytecode
+source_map_runtime - Vyper source map of runtime bytecode
 method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
+metadata           - Contract metadata (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
-ast                - AST in JSON format
+ast                - AST (not yet annotated) in JSON format
+annotated_ast      - Annotated AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -42,6 +42,8 @@ ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
 asm                - Output the EVM assembly of the deployable bytecode
+archive            - Output the build as an archive file
+solc_json          - Output the build in solc json format
 """
 
 combined_json_outputs = [
@@ -51,6 +53,7 @@ combined_json_outputs = [
     "abi",
     "layout",
     "source_map",
+    "source_map_runtime",
     "method_identifiers",
     "userdoc",
     "devdoc",
@@ -63,7 +66,22 @@ def _parse_cli_args():
 
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
+        compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
+        return
+
+    if output_formats == ("archive",):
+        for contract_data in compiled.values():
+            assert list(contract_data.keys()) == ["archive"]
+            out = contract_data["archive"]
+            if f.isatty() and isinstance(out, bytes):
+                raise RuntimeError(
+                    "won't write raw bytes to a tty! (if you want to base64"
+                    " encode the archive, you can try `-f archive` in"
+                    " conjunction with `--base64`)"
+                )
+            else:
+                f.write(out)
         return
 
     for contract_data in compiled.values():
@@ -87,9 +105,7 @@ def _parse_args(argv):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
@@ -104,13 +120,19 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION}). "
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
         "note: cancun support is EXPERIMENTAL",
-        choices=list(EVM_VERSIONS),
+        choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "--base64",
+        help="Base64 encode the output (only valid in conjunction with `-f archive`",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-O",
         "--optimize",
         help="Optimization flag (defaults to 'gas')",
         choices=["gas", "codesize", "none"],
@@ -125,6 +147,7 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
@@ -136,11 +159,23 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
-        "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
+        "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
+    )
+    parser.add_argument(
+        "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
+    parser.add_argument(
+        "--experimental-codegen",
+        help="The compiler use the new IR codegen. This is an experimental feature.",
+        action="store_true",
+        dest="experimental_codegen",
+    )
+    parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
 
     args = parser.parse_args(argv)
 
@@ -161,8 +196,11 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
-    if args.debug:
-        _set_debug_mode(True)
+    if args.base64 and output_formats != ("archive",):
+        raise ValueError("Cannot use `--base64` except with `-f archive`")
+
+    if args.base64:
+        output_formats = ("archive_b64",)
 
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
@@ -177,25 +215,42 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
+    if args.experimental_codegen:
+        settings.experimental_codegen = args.experimental_codegen
+
+    if args.debug:
+        settings.debug = args.debug
+
+    if args.enable_decimals:
+        settings.enable_decimals = args.enable_decimals
+
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
+
+    include_sys_path = not args.disable_sys_path
 
     compiled = compile_files(
         args.input_files,
         output_formats,
-        args.root_folder,
+        args.paths,
+        include_sys_path,
         args.show_gas_estimates,
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
     )
 
+    mode = "w"
+    if output_formats == ("archive",):
+        mode = "wb"
+
     if args.output_path:
-        with open(args.output_path, "w") as f:
+        with open(args.output_path, mode) as f:
             _cli_helper(f, output_formats, compiled)
     else:
-        f = sys.stdout
-        _cli_helper(f, output_formats, compiled)
+        # https://stackoverflow.com/a/54073813
+        with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
+            _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
@@ -217,20 +272,41 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
+def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Path]:
+    # given `paths` input, get the full search path, including
+    # the system search path.
+    paths = paths or []
+
+    # lowest precedence search path is always sys path
+    # note python sys path uses opposite resolution order from us
+    # (first in list is highest precedence; we give highest precedence
+    # to the last in the list)
+    search_paths = []
+    if include_sys_path:
+        search_paths = [Path(p) for p in reversed(sys.path)]
+
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
+
+    for p in paths:
+        path = Path(p).resolve(strict=True)
+        search_paths.append(path)
+
+    return search_paths
+
+
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
-    root_folder: str = ".",
+    paths: list[str] = None,
+    include_sys_path: bool = True,
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
-    root_path = Path(root_folder).resolve()
-    if not root_path.exists():
-        raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
-
-    input_bundle = FilesystemInputBundle([root_path])
+    search_paths = get_search_paths(paths, include_sys_path)
+    input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -239,14 +315,25 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
+    # formats which can only be requested as a single output format
+    for c in ("solc_json", "archive"):
+        if c in output_formats and len(output_formats) > 1:
+            raise ValueError(f"If using {c} it must be the only output format requested")
+
+    translate_map = {
+        "abi_python": "abi",
+        "json": "abi",
+        "ast": "ast_dict",
+        "annotated_ast": "annotated_ast_dict",
+        "ir_json": "ir_dict",
+    }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
             raise ValueError(
-                "provided {len(storage_layout_paths)} storage "
-                "layouts, but {len(input_files)} source files"
+                f"provided {len(storage_layout_paths)} storage "
+                f"layouts, but {len(input_files)} source files"
             )
 
     ret: dict[Any, Any] = {}
@@ -255,6 +342,23 @@ def compile_files(
 
     for file_name in input_files:
         file_path = Path(file_name)
+
+        try:
+            # try to compile in zipfile mode if it's a zip file, falling back
+            # to regular mode if it's not.
+            # we allow this instead of requiring a different mode (like
+            # `--zip`) so that verifier pipelines do not need a different
+            # workflow for archive files and single-file contracts.
+            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            ret[file_path] = output
+            continue
+        except NotZipInput:
+            pass
+
+        # note compile_from_zip also reads the file contents, so this
+        # is slightly inefficient (and also maybe allows for some very
+        # rare, strange race conditions if the file changes in between
+        # the two reads).
         file = input_bundle.load_file(file_path)
         assert isinstance(file, FileInput)  # mypy hint
 
@@ -264,10 +368,8 @@ def compile_files(
             with open(storage_file_path) as sfh:
                 storage_layout_override = json.load(sfh)
 
-        output = vyper.compile_code(
-            file.source_code,
-            contract_name=str(file.path),
-            source_id=file.source_id,
+        output = vyper.compile_from_file_input(
+            file,
             input_bundle=input_bundle,
             output_formats=final_formats,
             exc_handler=exc_handler,

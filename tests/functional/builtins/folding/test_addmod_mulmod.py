@@ -2,8 +2,7 @@ import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
-from vyper.builtins import functions as vy_fn
+from tests.utils import parse_and_fold
 
 st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
@@ -22,8 +21,8 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({a}, {b}, {c})")
+    vyper_ast = parse_and_fold(f"{fn_name}({a}, {b}, {c})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(a, b, c) == new_node.value
