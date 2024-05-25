@@ -62,7 +62,7 @@ class SimpleAllocator:
         self._slot = starting_slot
         self._max_slot = max_slot
 
-    def allocate_slot(self, n, var_name, node=None):
+    def allocate_slot(self, n, node=None):
         ret = self._slot
         if self._slot + n >= self._max_slot:
             raise StorageLayoutException(
@@ -74,7 +74,7 @@ class SimpleAllocator:
         return ret
 
     def allocate_global_nonreentrancy_slot(self):
-        slot = self.allocate_slot(NONREENTRANT_KEY_SIZE, GLOBAL_NONREENTRANT_KEY)
+        slot = self.allocate_slot(NONREENTRANT_KEY_SIZE)
         assert slot == self._starting_slot
         return slot
 
@@ -320,7 +320,7 @@ def _allocate_layout_r(
         # CMC 2021-07-23 note that HashMaps get assigned a slot here
         # using the same allocator (even though there is not really
         # any risk of physical overlap)
-        offset = allocator.allocate_slot(size, node.target.id, node)
+        offset = allocator.allocate_slot(size, node)
         varinfo.set_position(VarOffset(offset))
 
 
