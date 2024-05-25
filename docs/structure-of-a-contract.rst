@@ -105,7 +105,7 @@ When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to
 
 ::
 
-    $ vyper my_project/contracts/my_contract.vy -p my_project
+    $ vyper my_project/contracts/my_contract.vy -p ../path/to/other_project
 
 In the above example, the ``my_project`` folder is set as the root path.
 
