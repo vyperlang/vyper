@@ -93,6 +93,9 @@ class CompilerData:
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
         self.expected_integrity_sum = integrity_sum
 
+        # ast cache, hitchhike onto the input_bundle object
+        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
+
     @cached_property
     def source_code(self):
         return self.file_input.source_code
