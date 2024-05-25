@@ -27,7 +27,7 @@ def test_simple_jump_case(iszero_count):
     jnz_input = op3
 
     for _ in range(iszero_count):
-        jnz_input = bb.append_instruction("iszero", jnz_input)  
+        jnz_input = bb.append_instruction("iszero", jnz_input)
 
     bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
 
@@ -43,11 +43,12 @@ def test_simple_jump_case(iszero_count):
 
     iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
     removed_iszeros = iszero_count - len(iszeros)
-    
+
     assert removed_iszeros % 2 == 0
     assert len(iszeros) % 2 == iszero_count % 2
-    
-@pytest.mark.parametrize("interleave_point", range(1,5))
+
+
+@pytest.mark.parametrize("interleave_point", range(1, 5))
 def test_interleaved_case(interleave_point):
     iszeros_after_interleave_point = interleave_point // 2
     ctx = IRContext()
@@ -67,10 +68,10 @@ def test_interleaved_case(interleave_point):
     op3_inv = bb.append_instruction("iszero", op3)
     jnz_input = op3_inv
     for _ in range(interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)  
+        jnz_input = bb.append_instruction("iszero", jnz_input)
     bb.append_instruction("mstore", jnz_input, p1)
     for _ in range(iszeros_after_interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)  
+        jnz_input = bb.append_instruction("iszero", jnz_input)
     bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
 
     br1.append_instruction("add", op3, 10)
@@ -80,20 +81,11 @@ def test_interleaved_case(interleave_point):
 
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
-    print(ctx)
-    AlgebraicOptimizationPass(ac, fn).run_pass()    
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    
-    print("-----------------")
-    print(ctx)
 
     assert bb.instructions[-1].opcode == "jnz"
     if (interleave_point + iszeros_after_interleave_point) % 2 == 0:
         assert bb.instructions[-1].operands[0] == op3_inv
     else:
         assert bb.instructions[-1].operands[0] == op3
-        
-if __name__ == '__main__':
-     test_interleaved_case(5)
-
-
