@@ -349,8 +349,6 @@ class ContractFunctionT(VyperType):
                 "function body in an interface can only be `...`!", funcdef
             )
 
-        assert function_visibility is not None  # mypy hint
-
         return cls(
             funcdef.name,
             positional_args,
@@ -418,9 +416,6 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
-
-        # sanity check
-        assert function_visibility is not None
 
         return cls(
             funcdef.name,
@@ -702,7 +697,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[Optional[FunctionVisibility], StateMutability, bool]:
+) -> tuple[FunctionVisibility, StateMutability, bool]:
     function_visibility = None
     state_mutability = None
     nonreentrant_node = None
@@ -767,8 +762,6 @@ def _parse_decorators(
     if state_mutability == StateMutability.PURE and nonreentrant_node is not None:
         raise StructureException("Cannot use reentrancy guard on pure functions", nonreentrant_node)
 
-    # assert function_visibility is not None  # mypy
-    # assert state_mutability is not None  # mypy
     nonreentrant = nonreentrant_node is not None
     return function_visibility, state_mutability, nonreentrant
 
