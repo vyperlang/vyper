@@ -8,6 +8,7 @@ from vyper.evm.address_space import (
     STORAGE,
     TRANSIENT,
     AddrSpace,
+    legal_in_staticcall,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
@@ -136,6 +137,14 @@ def address_space_to_data_location(s: AddrSpace) -> DataLocation:
     raise CompilerPanic("unreachable!")  # pragma: nocover
 
 
+def writeable(context, ir_node):
+    assert ir_node.is_pointer  # sanity check
+
+    if context.is_constant() and not legal_in_staticcall(ir_node.location):
+        return False
+    return ir_node.mutable
+
+
 # Copy byte array word-for-word (including layout)
 # TODO make this a private function
 def make_byte_array_copier(dst, src):
@@ -150,12 +159,9 @@ def make_byte_array_copier(dst, src):
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        has_storage = STORAGE in (src.location, dst.location)
-        is_memory_copy = dst.location == src.location == MEMORY
-        batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
-        if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
+        if src.typ.maxlen <= 32 and not copy_opcode_available(dst, src):
+            # if there is no batch copy opcode available,
             # it's cheaper to run two load/stores instead of copy_bytes
-
             ret = ["seq"]
             # store length word
             len_ = get_bytearray_length(src)
@@ -401,7 +407,8 @@ def append_dyn_array(darray_node, elem_node):
             )
 
             # store new length
-            ret.append(STORE(darray_node, ["add", len_, 1]))
+            ret.append(ensure_eval_once("append_dynarray", STORE(darray_node, ["add", len_, 1])))
+
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
@@ -415,7 +422,7 @@ def pop_dyn_array(darray_node, return_popped_item):
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
             # store new length
-            ret.append(STORE(darray_node, new_len))
+            ret.append(ensure_eval_once("pop_dynarray", STORE(darray_node, new_len)))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
@@ -913,6 +920,15 @@ def make_setter(left, right):
     return _complex_make_setter(left, right)
 
 
+# locations with no dedicated copy opcode
+# (i.e. storage and transient storage)
+def copy_opcode_available(left, right):
+    if left.location == MEMORY and right.location == MEMORY:
+        return version_check(begin="cancun")
+
+    return left.location == MEMORY and right.location.has_copy_opcode
+
+
 def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
@@ -934,8 +950,10 @@ def _complex_make_setter(left, right):
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
 
-        has_storage = STORAGE in (left.location, right.location)
-        if has_storage:
+        # special logic for identity precompile (pre-cancun) in the else branch
+        mem2mem = left.location == right.location == MEMORY
+
+        if not copy_opcode_available(left, right) and not mem2mem:
             if _opt_codesize():
                 # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
@@ -982,7 +1000,7 @@ def _complex_make_setter(left, right):
                     base_unroll_cost + (nth_word_cost * (n_words - 1)) >= identity_base_cost
                 )
 
-            # calldata to memory, code to memory, cancun, or codesize -
+            # calldata to memory, code to memory, cancun, or opt-codesize -
             # batch copy is always better.
             else:
                 should_batch_copy = True

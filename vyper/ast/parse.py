@@ -235,7 +235,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         if node.body:
             n = node.body[0]
-            if isinstance(n, python_ast.Expr) and isinstance(n.value, python_ast.Str):
+            if (
+                isinstance(n, python_ast.Expr)
+                and isinstance(n.value, python_ast.Constant)
+                and isinstance(n.value.value, str)
+            ):
                 self.generic_visit(n.value)
                 n.value.ast_type = "DocStr"
                 del node.body[0]
@@ -470,13 +474,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         is_sub = isinstance(node.op, python_ast.USub)
-        is_num = (
-            hasattr(node.operand, "n")
-            and not isinstance(node.operand.n, bool)
-            and isinstance(node.operand.n, (int, Decimal))
-        )
+        is_num = hasattr(node.operand, "value") and isinstance(node.operand.value, (int, Decimal))
         if is_sub and is_num:
-            node.operand.n = 0 - node.operand.n
+            node.operand.value = 0 - node.operand.value
             node.operand.col_offset = node.col_offset
             node.operand.node_source_code = node.node_source_code
             return node.operand

@@ -9,38 +9,16 @@ from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
-from vyper.exceptions import StructureException
+from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
-
-
-def _merge_one(lhs, rhs, helpstr):
-    if lhs is not None and rhs is not None and lhs != rhs:
-        raise StructureException(
-            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
-        )
-    return lhs if rhs is None else rhs
-
-
-# TODO: does this belong as a method under Settings?
-def _merge_settings(cli: Settings, pragma: Settings):
-    ret = Settings()
-    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
-    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
-    ret.experimental_codegen = _merge_one(
-        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
-    )
-    ret.enable_decimals = _merge_one(cli.enable_decimals, pragma.enable_decimals, "enable-decimals")
-
-    return ret
 
 
 class CompilerData:
@@ -78,6 +56,7 @@ class CompilerData:
         file_input: FileInput | str,
         input_bundle: InputBundle = None,
         settings: Settings = None,
+        integrity_sum: str = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
@@ -101,7 +80,7 @@ class CompilerData:
 
         if isinstance(file_input, str):
             file_input = FileInput(
-                source_code=file_input,
+                contents=file_input,
                 source_id=-1,
                 path=DEFAULT_CONTRACT_PATH,
                 resolved_path=DEFAULT_CONTRACT_PATH,
@@ -110,10 +89,9 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.settings = settings or Settings()
+        self.original_settings = settings
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
-
-        _ = self._generate_ast  # force settings to be calculated
+        self.expected_integrity_sum = integrity_sum
 
     @cached_property
     def source_code(self):
@@ -132,24 +110,36 @@ class CompilerData:
         settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
-            module_path=str(self.contract_path),
-            resolved_path=str(self.file_input.resolved_path),
+            module_path=self.contract_path.as_posix(),
+            resolved_path=self.file_input.resolved_path.as_posix(),
         )
 
-        self.settings = _merge_settings(self.settings, settings)
-        if self.settings.optimize is None:
-            self.settings.optimize = OptimizationLevel.default()
+        if self.original_settings:
+            og_settings = self.original_settings
+            settings = merge_settings(og_settings, settings)
+            assert self.original_settings == og_settings  # be paranoid
+        else:
+            # merge with empty Settings(), doesn't do much but it does
+            # remove the compiler version
+            settings = merge_settings(Settings(), settings)
 
-        if self.settings.experimental_codegen is None:
-            self.settings.experimental_codegen = False
+        if settings.optimize is None:
+            settings.optimize = OptimizationLevel.default()
 
-        # note self.settings.compiler_version is erased here as it is
-        # not used after pre-parsing
-        return ast
+        if settings.experimental_codegen is None:
+            settings.experimental_codegen = False
+
+        return settings, ast
+
+    @cached_property
+    def settings(self):
+        settings, _ = self._generate_ast
+        return settings
 
     @cached_property
     def vyper_module(self):
-        return self._generate_ast
+        _, ast = self._generate_ast
+        return ast
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
@@ -172,6 +162,18 @@ class CompilerData:
         required for a compilation target.
         """
         module_t = self.annotated_vyper_module._metadata["type"]
+
+        expected = self.expected_integrity_sum
+
+        if expected is not None and module_t.integrity_sum != expected:
+            # warn for now. strict/relaxed mode was considered but it costs
+            # interface and testing complexity to add another feature flag.
+            vyper_warn(
+                f"Mismatched integrity sum! Expected {expected}"
+                f" but got {module_t.integrity_sum}."
+                " (This likely indicates a corrupted archive)"
+            )
+
         validate_compilation_target(module_t)
         return self.annotated_vyper_module
 

@@ -37,8 +37,8 @@ def test_bitwise_opcodes():
     assert "SHR" in opcodes
 
 
-def test_test_bitwise(get_contract_with_gas_estimation):
-    c = get_contract_with_gas_estimation(code)
+def test_test_bitwise(get_contract):
+    c = get_contract(code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     assert c._bitwise_and(x, y) == (x & y)
@@ -52,7 +52,7 @@ def test_test_bitwise(get_contract_with_gas_estimation):
             assert c._shl(t, s) == (t << s) % (2**256)
 
 
-def test_signed_shift(get_contract_with_gas_estimation):
+def test_signed_shift(get_contract):
     code = """
 @external
 def _sar(x: int256, y: uint256) -> int256:
@@ -62,7 +62,7 @@ def _sar(x: int256, y: uint256) -> int256:
 def _shl(x: int256, y: uint256) -> int256:
     return x << y
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     cases = [x, y, -x, -y]
@@ -168,5 +168,5 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_shift_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_shift_fail(get_contract, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)

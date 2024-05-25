@@ -11,12 +11,9 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import (
-    calculate_cfg,
-    calculate_dup_requirements,
-    calculate_liveness,
-    input_vars_from,
-)
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.dup_requirements import DupRequirementsAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -25,7 +22,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.function import IRFunction
+from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -84,8 +81,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "eq",
         "iszero",
         "not",
-        "lg",
         "lt",
+        "gt",
         "slt",
         "sgt",
         "create",
@@ -97,6 +94,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "delegatecall",
         "codesize",
         "basefee",
+        "blobhash",
         "blobbasefee",
         "prevrandao",
         "difficulty",
@@ -126,12 +124,13 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctxs: list[IRFunction]
+    ctxs: list[IRContext]
     label_counter = 0
     visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
+    liveness_analysis: LivenessAnalysis
 
-    def __init__(self, ctxs: list[IRFunction]):
+    def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
         self.label_counter = 0
         self.visited_instructions = OrderedSet()
@@ -145,22 +144,17 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
-        # Before emitting the assembly, we need to make sure that the
-        # CFG is normalized. Calling calculate_cfg() will denormalize IR (reset)
-        # so it should not be called after calling NormalizationPass().run_pass().
-        # Liveness is then computed for the normalized IR, and we can proceed to
-        # assembly generation.
-        # This is a side-effect of how dynamic jumps are temporarily being used
-        # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
-            NormalizationPass().run_pass(ctx)
-            calculate_cfg(ctx)
-            calculate_liveness(ctx)
-            calculate_dup_requirements(ctx)
+            for fn in ctx.functions.values():
+                ac = IRAnalysesCache(fn)
 
-            assert ctx.normalized, "Non-normalized CFG!"
+                NormalizationPass(ac, fn).run_pass()
+                self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
+                ac.request_analysis(DupRequirementsAnalysis)
 
-            self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
+                assert fn.normalized, "Non-normalized CFG!"
+
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
@@ -320,7 +314,7 @@ class VenomCompiler:
         to_pop = OrderedSet[IRVariable]()
         for in_bb in basicblock.cfg_in:
             # inputs is the input variables we need from in_bb
-            inputs = input_vars_from(in_bb, basicblock)
+            inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
 
             # layout is the output stack layout for in_bb (which works
             # for all possible cfg_outs from the in_bb).
@@ -404,7 +398,7 @@ class VenomCompiler:
             # prepare stack for jump into another basic block
             assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
-            target_stack = input_vars_from(inst.parent, b)
+            target_stack = self.liveness_analysis.input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
             # NOTE: stack in general can contain multiple copies of the same variable,
             # however we are safe in the case of jmp/djmp/jnz as it's not going to
@@ -460,10 +454,6 @@ class VenomCompiler:
                 inst.operands[0], IRVariable
             ), f"Expected IRVariable, got {inst.operands[0]}"
             assembly.append("JUMP")
-        elif opcode == "gt":
-            assembly.append("GT")
-        elif opcode == "lt":
-            assembly.append("LT")
         elif opcode == "invoke":
             target = inst.operands[0]
             assert isinstance(
@@ -501,8 +491,6 @@ class VenomCompiler:
                     "SHA3",
                 ]
             )
-        elif opcode == "ceil32":
-            assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
         elif opcode == "assert_unreachable":
@@ -533,6 +521,11 @@ class VenomCompiler:
         if inst.output is not None:
             if "call" in inst.opcode and inst.output not in next_liveness:
                 self.pop(assembly, stack)
+            elif inst.output in next_liveness:
+                # peek at next_liveness to find the next scheduled item,
+                # and optimistically swap with it
+                next_scheduled = list(next_liveness)[-1]
+                self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)
 

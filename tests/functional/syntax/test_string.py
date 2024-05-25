@@ -54,5 +54,5 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code,exc", invalid_list)
-def test_string_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_string_fail(assert_compile_failed, get_contract, bad_code, exc):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)

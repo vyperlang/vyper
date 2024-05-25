@@ -43,6 +43,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "sstore",
         "dstore",
         "istore",
+        "tstore",
         "dloadbytes",
         "calldatacopy",
         "mcopy",
