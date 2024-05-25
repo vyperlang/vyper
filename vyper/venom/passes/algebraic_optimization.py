@@ -38,7 +38,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         while True:
             inst = self.dfg.get_producing_instruction(op)
-            if inst.opcode != "iszero":
+            if inst is None or inst.opcode != "iszero":
                 break
             op = inst.operands[0]
             chain.append(inst)
