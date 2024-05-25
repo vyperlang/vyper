@@ -109,7 +109,7 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
 
     * ``@pure``: does not read from the contract state or any environment variables.
     * ``@view``: may read from the contract state, but does not alter it.
-    * ``@nonpayable``: may read from and write to the contract state, but cannot receive Ether.
+    * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
     * ``@payable``: may read from and write to the contract state, and can receive Ether.
 
 .. code-block:: vyper

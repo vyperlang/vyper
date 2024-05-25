@@ -67,7 +67,7 @@ You may import modules (defined in ``.vy`` files) and interfaces (defined in ``.
 .. code-block:: vyper
 
     # without an alias
-    import my_package.foo
+    import foo
 
     # with an alias
     import my_package.foo as bar
@@ -163,7 +163,7 @@ A module is a set of function definitions and variable declarations which enable
 Broadly speaking, a module contains:
 
 * function definitions
-* variable declarations
+* state variable declarations
 * type definitions
 
 Therefore, a module encapsulates

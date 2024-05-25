@@ -33,7 +33,7 @@ The simplest way to define a module is to write a contract. In Vyper, any contra
 
         self.owner = new_owner
 
-This contract basically has two bits of functionality which can be reused upon import, the ``_check_owner()`` function and the ``update_owner()`` function. The ``_check_owner()`` is an internal function which can be used as a helper to check ownership in importing modules, while the ``update_owner()`` is an external function which an importing module can export as an externally facing piece of functionality.
+This contract basically has two bits of functionality which can be reused upon import, the ``_check_owner()`` function and the ``update_owner()`` function. The ``_check_owner()`` is an internal function which can be used as a helper to check ownership in importing modules, while the ``update_owner()`` is an external function which an importing module can itself :ref:`export <exporting-functions>` as an externally facing piece of functionality.
 
 You can use this module's functionality simply by importing it, however any functionality that you do not use from a module will not be included in the final compilation target. For example, if you don't use the ``initializes`` statement to declare a module's location in the storage layout, you cannot use its state. Similarly, if you don't explicitly ``export`` an external function from a module, it will not appear in the runtime code.
 
@@ -168,6 +168,8 @@ Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper
 
     # export all external functions from ownable_2step
     exports: ownable_2step.__interface__
+
+.. _exporting-functions:
 
 Exporting functions
 ===================
