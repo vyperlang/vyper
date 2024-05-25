@@ -47,7 +47,8 @@ def test_simple_jump_case(iszero_count):
     assert removed_iszeros % 2 == 0
     assert len(iszeros) == iszero_count % 2
 
-@pytest.mark.parametrize("iszero_count", range(1,5))
+
+@pytest.mark.parametrize("iszero_count", range(1, 5))
 def test_simple_bool_cast_case(iszero_count):
     ctx = IRContext()
     fn = ctx.create_function("_global")
@@ -76,13 +77,14 @@ def test_simple_bool_cast_case(iszero_count):
     MakeSSA(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    
+
     iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
     removed_iszeros = iszero_count - len(iszeros)
 
     assert removed_iszeros % 2 == 0
-    assert len(iszeros) in [1,2]
+    assert len(iszeros) in [1, 2]
     assert len(iszeros) % 2 == iszero_count % 2
+
 
 @pytest.mark.parametrize("interleave_point", range(1, 5))
 def test_interleaved_case(interleave_point):

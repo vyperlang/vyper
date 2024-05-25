@@ -41,9 +41,8 @@ class AlgebraicOptimizationPass(IRPass):
                         if len(iszero_chain) <= 1:
                             continue
                         idx = len(iszero_chain) % 2 + 1
-                        out_var = iszero_chain[-idx-1].operands[0]
+                        out_var = iszero_chain[-idx - 1].operands[0]
                         use_inst.replace_operands({inst.output: out_var})
-                        
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []
