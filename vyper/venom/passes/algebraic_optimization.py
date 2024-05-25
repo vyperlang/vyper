@@ -30,8 +30,11 @@ class AlgebraicOptimizationPass(IRPass):
                     out_var = iszero_chain[-1].output
 
                 for use_inst in self.dfg.get_uses(inst.output):
-                    if use_inst.opcode != "iszero":
-                        use_inst.replace_operands({inst.output: out_var})
+                    if use_inst.opcode == "iszero":
+                        continue
+                    elif use_inst.opcode != "jnz" and len(iszero_chain) <= 1:
+                        continue
+                    use_inst.replace_operands({inst.output: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []
