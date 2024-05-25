@@ -30,11 +30,20 @@ class AlgebraicOptimizationPass(IRPass):
                     out_var = iszero_chain[-1].output
 
                 for use_inst in self.dfg.get_uses(inst.output):
+                    # We don't modify iszero instructions
                     if use_inst.opcode == "iszero":
                         continue
-                    elif use_inst.opcode != "jnz" and len(iszero_chain) <= 1:
-                        continue
-                    use_inst.replace_operands({inst.output: out_var})
+                    # Instructions that don't expect a boolean value
+                    # can't be optimized fully as iszero might be a boolean cast
+                    elif use_inst.opcode in ["jnz"]:
+                        use_inst.replace_operands({inst.output: out_var})
+                    else:
+                        if len(iszero_chain) <= 1:
+                            continue
+                        idx = len(iszero_chain) % 2 + 1
+                        out_var = iszero_chain[-idx-1].operands[0]
+                        use_inst.replace_operands({inst.output: out_var})
+                        
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []

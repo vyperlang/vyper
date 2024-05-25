@@ -45,8 +45,44 @@ def test_simple_jump_case(iszero_count):
     removed_iszeros = iszero_count - len(iszeros)
 
     assert removed_iszeros % 2 == 0
-    assert len(iszeros) % 2 == iszero_count % 2
+    assert len(iszeros) == iszero_count % 2
 
+@pytest.mark.parametrize("iszero_count", range(1,5))
+def test_simple_bool_cast_case(iszero_count):
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+
+    p1 = bb.append_instruction("param")
+    op1 = bb.append_instruction("store", p1)
+    op2 = bb.append_instruction("store", 64)
+    op3 = bb.append_instruction("add", op1, op2)
+    jnz_input = op3
+
+    for _ in range(iszero_count):
+        jnz_input = bb.append_instruction("iszero", jnz_input)
+
+    bb.append_instruction("mstore", jnz_input, p1)
+    bb.append_instruction("jmp", br1.label)
+
+    br1.append_instruction("add", op3, 10)
+    br1.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    
+    iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
+    removed_iszeros = iszero_count - len(iszeros)
+
+    assert removed_iszeros % 2 == 0
+    assert len(iszeros) in [1,2]
+    assert len(iszeros) % 2 == iszero_count % 2
 
 @pytest.mark.parametrize("interleave_point", range(1, 5))
 def test_interleaved_case(interleave_point):
@@ -89,3 +125,6 @@ def test_interleaved_case(interleave_point):
         assert bb.instructions[-1].operands[0] == op3_inv
     else:
         assert bb.instructions[-1].operands[0] == op3
+
+
+test_simple_bool_cast_case(5)
