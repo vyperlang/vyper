@@ -189,4 +189,4 @@ So, exporting external functions from modules is accomplished using the ``export
     )
 
     # export all external functions from `ownable_2step`
-    exports: ownable_2step.__interface
+    exports: ownable_2step.__interface__
