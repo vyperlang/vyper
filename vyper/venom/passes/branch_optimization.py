@@ -17,11 +17,8 @@ class BranchOptimizationPass(IRPass):
 
             prev_inst = self.dfg.get_producing_instruction(term_inst.operands[0])
             if prev_inst.opcode == "iszero":
-                term_inst.operands = [
-                    prev_inst.operands[0],
-                    term_inst.operands[2],
-                    term_inst.operands[1],
-                ]
+                new_cond = prev_inst.operands[0]
+                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
