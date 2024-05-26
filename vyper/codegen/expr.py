@@ -696,10 +696,7 @@ class Expr:
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
 
-        ret = self_call.ir_for_self_call(self.expr, self.context)
-        func_info = self.expr.func._expr_info
-        ret._referenced_variables = set(s.variable for s in func_info._reads | func_info._writes)
-        return ret
+        return self_call.ir_for_self_call(self.expr, self.context)
 
     @classmethod
     def handle_external_call(cls, expr, context):
