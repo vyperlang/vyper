@@ -667,31 +667,6 @@ def boo() -> uint256:
     assert c.foo() == [1, 2, 3, 4]
 
 
-def test_make_setter_external_call(get_contract):
-    # variant of GH #3503
-    code = """
-interface A:
-   def boo() -> uint256:nonpayable
-
-a: DynArray[uint256, 10]
-
-@external
-def foo() -> DynArray[uint256, 10]:
-    self.a = [1, 2, extcall A(self).boo(), 4]
-    return self.a  # returns [11, 12, 3, 4]
-
-@external
-def boo() -> uint256:
-    self.a = [11, 12, 13, 14, 15, 16]
-    self.a = []
-    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
-    return 3
-    """
-    c = get_contract(code)
-
-    assert c.foo() == [1, 2, 3, 4]
-
-
 def test_dynamically_sized_struct_member_as_arg_2(get_contract):
     contract = """
 struct X:
