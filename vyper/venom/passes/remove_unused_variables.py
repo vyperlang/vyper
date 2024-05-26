@@ -5,6 +5,9 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class RemoveUnusedVariablesPass(IRPass):
+    """
+    This pass removes instructions that produce output that is never used.
+    """
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
 
@@ -22,9 +25,6 @@ class RemoveUnusedVariablesPass(IRPass):
             self._process_instruction(inst)
 
     def _process_instruction(self, inst):
-        """
-        Process an instruction.
-        """
         if inst.output is None:
             return
         if inst.volatile:
