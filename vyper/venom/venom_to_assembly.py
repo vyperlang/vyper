@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Any, Optional
+from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
