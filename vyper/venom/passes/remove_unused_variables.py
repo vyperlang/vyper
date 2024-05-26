@@ -8,6 +8,7 @@ class RemoveUnusedVariablesPass(IRPass):
     """
     This pass removes instructions that produce output that is never used.
     """
+
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
 
