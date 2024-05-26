@@ -22,10 +22,9 @@ class DFGAnalysis(IRAnalysis):
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
 
-    def remove_use(self, op: IRVariable, inst: IRInstruction) -> list[IRInstruction]:
+    def remove_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.get(op, [])
         uses.remove(inst)
-        return uses
 
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
