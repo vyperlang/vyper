@@ -17,7 +17,6 @@ class BranchOptimizationPass(IRPass):
 
             prev_inst = self.dfg.get_producing_instruction(term_inst.operands[0])
             if prev_inst.opcode == "iszero":
-                prev_inst.parent.remove_instruction(prev_inst)
                 term_inst.operands = [
                     prev_inst.operands[0],
                     term_inst.operands[2],
