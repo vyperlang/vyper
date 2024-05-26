@@ -11,7 +11,6 @@ from vyper.exceptions import ArgumentException, CallViolation
 
 def test_selfcall_code(get_contract):
     selfcall_code = """
-@internal
 def _foo() -> int128:
     return 3
 
@@ -28,7 +27,6 @@ def bar() -> int128:
 
 def test_selfcall_code_2(get_contract, keccak):
     selfcall_code_2 = """
-@internal
 def _double(x: int128) -> int128:
     return x * 2
 
@@ -36,7 +34,6 @@ def _double(x: int128) -> int128:
 def returnten() -> int128:
     return self._double(5)
 
-@internal
 def _hashy(x: bytes32) -> bytes32:
     return keccak256(x)
 
