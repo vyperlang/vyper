@@ -2528,6 +2528,7 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     valid = data[:266]
     env.message_call(c1.address, data=valid)
 
+
 def test_make_setter_external_call(get_contract):
     # variant of GH #3503
     code = """
@@ -2551,6 +2552,7 @@ def boo() -> uint256:
     c = get_contract(code)
 
     assert c.foo() == [1, 2, 3, 4]
+
 
 def test_make_setter_external_call2(get_contract):
     # variant of GH #3503
