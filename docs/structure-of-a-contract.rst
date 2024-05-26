@@ -101,13 +101,17 @@ Searching For Imports
 
 When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
 
-When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag:
+When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag, e.g.:
 
 ::
 
     $ vyper my_project/contracts/my_contract.vy -p ../path/to/other_project
 
 In the above example, the ``my_project`` folder is set as the root path.
+
+.. note::
+
+    Including the python syspath on the search path means that any Vyper module in the current ``virtualenv`` is discoverable by the Vyper compiler, and Vyper packages can be published to and installed from PyPI and accessed via ``import`` statements with no additional configuration. Keep in mind that best practice is always to install packages *within* a ``virtualenv`` and not globally!
 
 You can additionally disable the behavior of adding the syspath to the search path with the CLI flag ``--disable-sys-path``:
 

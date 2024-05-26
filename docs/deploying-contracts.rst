@@ -21,4 +21,16 @@ Once you are ready to deploy your contract to a public test net or the main net,
   vyper -f abi yourFileName.vy
   # returns ABI
 
-* Use the development environment provided at https://try.vyperlang.org to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with `Titanoboa <https://titanoboa.readthedocs.io/en/latest/overview.html>`_ pre-installed, and browser signer integration as well.
+* Use `Titanoboa <https://github.com/vyperlang/titanoboa/?tab=readme-ov-file#network-mode>`_:
+
+.. code-block:: python
+
+    import boa
+    boa.set_network_env(<RPC URL>)
+    from eth_account import Account
+    # in a real codebase, always load private keys safely from an encrypted store!
+    boa.env.add_account(Account(<a private key>))
+    deployer = boa.load_partial("yourFileName.vy")
+    deployer.deploy()
+
+* Use the development environment provided at https://try.vyperlang.org to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with Titanoboa pre-installed, and browser signer integration as well.
