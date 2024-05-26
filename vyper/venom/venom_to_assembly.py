@@ -198,17 +198,13 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self,
-        assembly: Optional[list],
-        stack: StackModel,
-        stack_ops: list[IROperand],
-        dry_run: bool = False,
+        self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
     ) -> int:
         cost = 0
 
         if dry_run:
+            assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
-            assembly = None
 
         stack_ops_count = len(stack_ops)
 
@@ -422,9 +418,9 @@ class VenomCompiler:
             self._stack_reorder(assembly, stack, target_stack_list)
 
         if opcode in COMMUTATIVE_INSTRUCTIONS:
-            cost_no_swap = self._stack_reorder(None, stack, operands, dry_run=True)
+            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._stack_reorder(None, stack, operands, dry_run=True)
+            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
@@ -561,14 +557,12 @@ class VenomCompiler:
             return 0
 
         stack.swap(depth)
-        if assembly is not None:
-            assembly.append(_evm_swap_for(depth))
+        assembly.append(_evm_swap_for(depth))
         return 1
 
     def dup(self, assembly, stack, depth):
         stack.dup(depth)
-        if assembly is not None:
-            assembly.append(_evm_dup_for(depth))
+        assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
         self.swap(assembly, stack, stack.get_depth(op))
