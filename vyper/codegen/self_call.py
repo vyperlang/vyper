@@ -110,4 +110,5 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
+    o.self_call_t = func_t
     return o
