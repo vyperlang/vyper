@@ -14,8 +14,8 @@ class RemoveUnusedVariablesPass(IRPass):
         work_list = OrderedSet()
         self.work_list = work_list
 
-        for bb in self.function.get_basic_blocks():
-            work_list.addmany(bb.instructions)
+        for _, inst in self.dfg.outputs.items():
+            work_list.add(inst)
 
         while len(work_list) > 0:
             inst = work_list.pop()
