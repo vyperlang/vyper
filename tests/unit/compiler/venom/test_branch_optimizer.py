@@ -1,12 +1,8 @@
-import pytest
-
-from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 
 
 def test_simple_jump_case():
