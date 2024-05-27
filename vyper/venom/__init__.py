@@ -6,7 +6,6 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
