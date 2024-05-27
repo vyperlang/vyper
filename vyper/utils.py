@@ -45,8 +45,15 @@ class OrderedSet(Generic[_T]):
     def first(self):
         return next(iter(self))
 
+    def pop(self):
+        return self._data.popitem()[0]
+
     def add(self, item: _T) -> None:
         self._data[item] = None
+
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
 
     def remove(self, item: _T) -> None:
         del self._data[item]
