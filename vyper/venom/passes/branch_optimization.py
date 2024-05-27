@@ -1,4 +1,3 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
@@ -20,9 +19,11 @@ class BranchOptimizationPass(IRPass):
                 new_cond = prev_inst.operands[0]
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
 
+                # Since the DFG update is simple we do in place to avoid invalidating the DFG
+                self.dfg.remove_use(prev_inst.output, term_inst)
+                self.dfg.add_use(new_cond, term_inst)
+
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self._optimize_branches()
-
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
