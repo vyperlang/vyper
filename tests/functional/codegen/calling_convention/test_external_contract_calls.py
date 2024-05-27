@@ -2527,3 +2527,58 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
     valid = data[:266]
     env.message_call(c1.address, data=valid)
+
+
+def test_make_setter_external_call(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo() -> uint256:nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, extcall A(self).boo(), 4]
+    return self.a  # returns [11, 12, 3, 4]
+
+@external
+def boo() -> uint256:
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+
+
+def test_make_setter_external_call2(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo(): nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, self.baz(), 4]
+    return self.a # returns [11, 12, 3, 4]
+
+
+@internal
+def baz() -> uint256:
+    extcall A(self).boo()
+    return 3
+
+@external
+def boo():
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
