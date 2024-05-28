@@ -1,0 +1,9 @@
+# https://docs.codecov.com/docs/codecovyml-reference
+coverage:
+  status:
+    project:
+      default:
+        # basic
+        #target: auto
+        threshold: 0.5%
+        #base: auto 
