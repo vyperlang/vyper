@@ -236,7 +236,7 @@ class IRInstruction:
         """
         return (op for op in self.operands if not isinstance(op, IRLabel))
 
-    def get_inputs(self) -> Iterator[IRVariable]:
+    def get_input_variables(self) -> Iterator[IRVariable]:
         """
         Get all input operands for instruction.
         """
@@ -477,7 +477,7 @@ class IRBasicBlock:
     def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
         uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
         for inst in self.instructions:
-            for op in inst.get_inputs():
+            for op in inst.get_input_variables():
                 if op not in uses:
                     uses[op] = OrderedSet()
                 uses[op].add(inst)
