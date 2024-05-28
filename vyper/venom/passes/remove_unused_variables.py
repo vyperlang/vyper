@@ -34,7 +34,7 @@ class RemoveUnusedVariablesPass(IRPass):
         if len(uses) > 0:
             return
 
-        for operand in inst.get_inputs():
+        for operand in inst.get_input_variables():
             self.dfg.remove_use(operand, inst)
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
