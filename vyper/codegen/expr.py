@@ -695,6 +695,7 @@ class Expr:
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
+
         return self_call.ir_for_self_call(self.expr, self.context)
 
     @classmethod

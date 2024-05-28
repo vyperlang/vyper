@@ -28,6 +28,7 @@ class _FuncIRInfo:
     func_t: ContractFunctionT
     gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
+    func_ir: Optional["InternalFuncIR"] = None
 
     @property
     def visibility(self):
@@ -55,6 +56,10 @@ class _FuncIRInfo:
             assert frame_info == self.frame_info
         else:
             self.frame_info = frame_info
+
+    def set_func_ir(self, func_ir: "InternalFuncIR") -> None:
+        assert self.func_t.is_internal or self.func_t.is_deploy
+        self.func_ir = func_ir
 
     @property
     # common entry point for external function with kwargs

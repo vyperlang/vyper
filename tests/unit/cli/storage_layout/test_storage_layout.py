@@ -1,21 +1,6 @@
 from vyper.compiler import compile_code
-from vyper.evm.opcodes import version_check
 
-
-def _adjust_storage_layout_for_cancun(layout):
-    def _go(layout):
-        for _varname, item in layout.items():
-            if "slot" in item and isinstance(item["slot"], int):
-                item["slot"] -= 1
-            else:
-                # recurse to submodule
-                _go(item)
-
-    if version_check(begin="cancun"):
-        layout["transient_storage_layout"] = {
-            "$.nonreentrant_key": layout["storage_layout"].pop("$.nonreentrant_key")
-        }
-        _go(layout["storage_layout"])
+from .utils import adjust_storage_layout_for_cancun
 
 
 def test_storage_layout():
@@ -55,19 +40,18 @@ def public_foo3():
     pass
     """
 
-    out = compile_code(code, output_formats=["layout"])
-
     expected = {
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "foo": {"slot": 1, "type": "HashMap[address, uint256]"},
-            "arr": {"slot": 2, "type": "DynArray[uint256, 3]"},
-            "baz": {"slot": 6, "type": "Bytes[65]"},
-            "bar": {"slot": 10, "type": "uint256"},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
+            "foo": {"slot": 1, "type": "HashMap[address, uint256]", "n_slots": 1},
+            "arr": {"slot": 2, "type": "DynArray[uint256, 3]", "n_slots": 4},
+            "baz": {"slot": 6, "type": "Bytes[65]", "n_slots": 4},
+            "bar": {"slot": 10, "type": "uint256", "n_slots": 1},
         }
     }
-    _adjust_storage_layout_for_cancun(expected)
+    adjust_storage_layout_for_cancun(expected)
 
+    out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected
 
 
@@ -88,12 +72,9 @@ def __init__():
             "SYMBOL": {"length": 64, "offset": 0, "type": "String[32]"},
             "DECIMALS": {"length": 32, "offset": 64, "type": "uint8"},
         },
-        "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "name": {"slot": 1, "type": "String[32]"},
-        },
+        "storage_layout": {"name": {"slot": 1, "type": "String[32]", "n_slots": 2}},
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -137,13 +118,12 @@ def __init__():
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "counter2": {"slot": 2, "type": "uint256"},
-            "a_library": {"supply": {"slot": 3, "type": "uint256"}},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "counter2": {"slot": 2, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 3, "type": "uint256", "n_slots": 1}},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -187,13 +167,12 @@ def __init__():
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "a_library": {"supply": {"slot": 2, "type": "uint256"}},
-            "counter2": {"slot": 3, "type": "uint256"},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},
+            "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -271,14 +250,14 @@ def bar():
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "lib2": {"storage_variable": {"slot": 2, "type": "uint256"}},
-            "counter2": {"slot": 3, "type": "uint256"},
-            "a_library": {"supply": {"slot": 4, "type": "uint256"}},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock", "n_slots": 1},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "lib2": {"storage_variable": {"slot": 2, "type": "uint256", "n_slots": 1}},
+            "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 4, "type": "uint256", "n_slots": 1}},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
@@ -351,16 +330,15 @@ def foo() -> uint256:
             },
         },
         "storage_layout": {
-            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
             "lib2": {
-                "lib1": {"supply": {"slot": 2, "type": "uint256"}},
-                "storage_variable": {"slot": 3, "type": "uint256"},
+                "lib1": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},
+                "storage_variable": {"slot": 3, "type": "uint256", "n_slots": 1},
             },
-            "counter2": {"slot": 4, "type": "uint256"},
+            "counter2": {"slot": 4, "type": "uint256", "n_slots": 1},
         },
     }
-    _adjust_storage_layout_for_cancun(expected_layout)
+    adjust_storage_layout_for_cancun(expected_layout)
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
