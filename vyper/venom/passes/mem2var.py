@@ -72,7 +72,6 @@ class Mem2Var(IRPass):
         work_instructions = [inst.opcode in ["mstore", "mload"] for inst in uses]
         count = sum(work_instructions)
         if count > self.OPS_THRESHOLD and count == len(work_instructions):
-            bb = palloca_inst.parent
             var_name = f"addr{var.name}_{self.var_name_count}"
             self.var_name_count += 1
 
