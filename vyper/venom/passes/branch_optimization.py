@@ -20,6 +20,7 @@ class BranchOptimizationPass(IRPass):
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
 
                 # Since the DFG update is simple we do in place to avoid invalidating the DFG
+                # and having to recompute it (which is expensive(er))
                 self.dfg.remove_use(prev_inst.output, term_inst)
                 self.dfg.add_use(new_cond, term_inst)
 
