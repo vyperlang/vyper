@@ -1,4 +1,5 @@
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
@@ -28,11 +29,26 @@ def test_simple_jump_case():
     br2.append_instruction("add", op3, p1)
     br2.append_instruction("stop")
 
+    term_inst = bb.instructions[-1]
+
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
+
+    old_dfg = ac.request_analysis(DFGAnalysis)
+    assert term_inst not in old_dfg.get_uses(op3), "jnz not using the old condition"
+    assert term_inst in old_dfg.get_uses(jnz_input), "jnz using the new condition"
+
     BranchOptimizationPass(ac, fn).run_pass()
 
-    assert bb.instructions[-1].opcode == "jnz"
-    assert bb.instructions[-1].operands[0] == op3
-    assert bb.instructions[-1].operands[1] == br2.label
-    assert bb.instructions[-1].operands[2] == br1.label
+    # Test that the jnz targets are inverted and
+    # the jnz condition updated
+    assert term_inst.opcode == "jnz"
+    assert term_inst.operands[0] == op3
+    assert term_inst.operands[1] == br2.label
+    assert term_inst.operands[2] == br1.label
+
+    # Test that the dfg is updated correctly
+    dfg = ac.request_analysis(DFGAnalysis)
+    assert dfg is old_dfg, "DFG should not be invalidated by BranchOptimizationPass"
+    assert term_inst in dfg.get_uses(op3), "jnz not using the new condition"
+    assert term_inst not in dfg.get_uses(jnz_input), "jnz still using the old condition"
