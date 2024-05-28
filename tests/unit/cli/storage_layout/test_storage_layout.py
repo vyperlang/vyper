@@ -1,4 +1,5 @@
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 
 from .utils import adjust_storage_layout_for_cancun
 
@@ -364,13 +365,18 @@ import lib
 t: uint256
 initializes: lib
     """
-    out1 = compile_code(main1, input_bundle=input_bundle, output_formats=["layout"])
-    out2 = compile_code(main2, input_bundle=input_bundle, output_formats=["layout"])
+    out1 = compile_code(main1, input_bundle=input_bundle, output_formats=["layout"])["layout"]
+    out2 = compile_code(main2, input_bundle=input_bundle, output_formats=["layout"])["layout"]
 
-    layout1 = out1["layout"]["storage_layout"]["lib"]
-    layout2 = out2["layout"]["storage_layout"]["lib"]
+    layout1 = out1["storage_layout"]["lib"]
+    layout2 = out2["storage_layout"]["lib"]
 
     assert layout1 != layout2  # for clarity
 
-    assert layout1 == {"x": {"slot": 0, "type": "uint256"}}
-    assert layout2 == {"x": {"slot": 1, "type": "uint256"}}
+    if version_check(begin="cancun"):
+        start_slot = 0
+    else:
+        start_slot = 1
+
+    assert layout1 == {"x": {"slot": start_slot, "type": "uint256", "n_slots": 1}}
+    assert layout2 == {"x": {"slot": start_slot + 1, "type": "uint256", "n_slots": 1}}
