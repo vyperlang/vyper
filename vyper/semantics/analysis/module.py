@@ -199,10 +199,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self.module_t: Optional[ModuleT] = None
 
-        # ast cache, hitchhike onto the input_bundle object
-        if not hasattr(self.input_bundle._cache, "_ast_of"):
-            self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
-
     def analyze_module_body(self):
         # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
