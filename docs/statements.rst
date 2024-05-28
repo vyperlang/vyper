@@ -15,7 +15,7 @@ The ``break`` statement terminates the nearest enclosing ``for`` loop.
 
 .. code-block:: vyper
 
-    for i in [1, 2, 3, 4, 5]:
+    for i: uint256 in [1, 2, 3, 4, 5]:
         if i == a:
             break
 
@@ -28,7 +28,7 @@ The ``continue`` statement begins the next cycle of the nearest enclosing ``for`
 
 .. code-block:: vyper
 
-    for i in [1, 2, 3, 4, 5]:
+    for i: uint256 in [1, 2, 3, 4, 5]:
         if i != a:
             continue
         ...
