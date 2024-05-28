@@ -22,6 +22,10 @@ class DFGAnalysis(IRAnalysis):
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
 
+    def add_use(self, op: IRVariable, inst: IRInstruction):
+        uses = self._dfg_inputs.setdefault(op, [])
+        uses.append(inst)
+
     def remove_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.get(op, [])
         uses.remove(inst)
