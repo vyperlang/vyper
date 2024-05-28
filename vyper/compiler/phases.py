@@ -12,6 +12,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -92,6 +93,9 @@ class CompilerData:
         self.original_settings = settings
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
         self.expected_integrity_sum = integrity_sum
+
+        # ast cache, hitchhike onto the input_bundle object
+        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
 
     @cached_property
     def source_code(self):
@@ -180,7 +184,9 @@ class CompilerData:
     @cached_property
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
-        return set_data_positions(module_ast, self.storage_layout_override)
+        set_data_positions(module_ast, self.storage_layout_override)
+
+        return generate_layout_export(module_ast)
 
     @property
     def global_ctx(self) -> ModuleT:

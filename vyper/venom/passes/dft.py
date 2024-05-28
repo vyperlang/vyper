@@ -40,7 +40,7 @@ class DFTPass(IRPass):
             self.inst_order[inst] = 0
             return
 
-        for op in inst.get_inputs():
+        for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
             if target.parent != inst.parent or target.fence_id != inst.fence_id:

@@ -22,6 +22,14 @@ class DFGAnalysis(IRAnalysis):
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
 
+    def add_use(self, op: IRVariable, inst: IRInstruction):
+        uses = self._dfg_inputs.setdefault(op, [])
+        uses.append(inst)
+
+    def remove_use(self, op: IRVariable, inst: IRInstruction):
+        uses = self._dfg_inputs.get(op, [])
+        uses.remove(inst)
+
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
         return self._dfg_outputs
@@ -35,7 +43,7 @@ class DFGAnalysis(IRAnalysis):
         # dfg_inputs of %15 is all the instructions which *use* %15, ex. [(%16 = iszero %15), ...]
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                operands = inst.get_inputs()
+                operands = inst.get_input_variables()
                 res = inst.get_outputs()
 
                 for op in operands:
