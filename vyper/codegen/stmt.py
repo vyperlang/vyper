@@ -13,6 +13,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     get_type_for_exact_size,
     make_setter,
+    potential_overlap,
     wrap_value_for_external_return,
     writeable,
 )
@@ -70,10 +71,7 @@ class Stmt:
         dst = self._get_target(self.stmt.target)
 
         ret = ["seq"]
-        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
-        overlap |= len(dst.referenced_variables) > 0 and src.contains_risky_call
-        overlap |= dst.contains_risky_call and len(src.referenced_variables) > 0
-        if overlap and not dst.typ._is_prim_word:
+        if potential_overlap(dst, src):
             # there is overlap between the lhs and rhs, and the type is
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.

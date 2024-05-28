@@ -18,7 +18,9 @@ from vyper.codegen.core import (
     is_flag_type,
     is_numeric_type,
     is_tuple_like,
+    make_setter,
     pop_dyn_array,
+    potential_overlap,
     sar,
     shl,
     shr,
@@ -691,7 +693,16 @@ class Expr:
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
                 )
-                return append_dyn_array(darray, arg)
+
+                ret = ["seq"]
+                if potential_overlap(darray, arg):
+                    tmp = self.context.new_internal_variable(arg.typ)
+                    tmp = IRnode.from_list(tmp, typ=arg.typ, location=MEMORY)
+                    ret.append(make_setter(tmp, arg))
+                    arg = tmp
+
+                ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
