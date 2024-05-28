@@ -9,6 +9,7 @@ from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.mem2var import Mem2Var
@@ -49,6 +50,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 
