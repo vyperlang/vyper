@@ -3,7 +3,5 @@ coverage:
   status:
     project:
       default:
-        # basic
-        #target: auto
+        # set threshold given noise in the coverage from fuzzing
         threshold: 0.5%
-        #base: auto 
