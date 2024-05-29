@@ -170,7 +170,11 @@ class Expr:
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
-            return self.context.lookup_var(self.expr.id).as_ir_node()
+            ret = self.context.lookup_var(self.expr.id).as_ir_node()
+            varinfo = self.expr._expr_info.var_info
+            assert varinfo is not None
+            ret._referenced_variables = {varinfo}
+            return ret
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
