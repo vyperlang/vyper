@@ -14,6 +14,7 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
+    check_buffer_overflow_ir,
     check_external_call,
     clamp,
     clamp2,
@@ -232,18 +233,6 @@ class Convert(BuiltinFunctionT):
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-# make sure we don't overrun the source buffer, checking for overflow:
-# valid inputs satisfy:
-#   `assert !(start+length > src_len || start+length < start`
-def _make_slice_bounds_check(start, length, src_len):
-    with start.cache_when_complex("start") as (b1, start):
-        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
-            arithmetic_overflow = ["lt", end, start]
-            buffer_oob = ["gt", end, src_len]
-            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
-            return b1.resolve(b2.resolve(["assert", ok]))
-
-
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
@@ -257,7 +246,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
         if sub.value == "~calldata":
             node = [
                 "seq",
-                _make_slice_bounds_check(start, length, "calldatasize"),
+                check_buffer_overflow_ir(start, length, "calldatasize"),
                 ["mstore", buf, length],
                 ["calldatacopy", add_ofst(buf, 32), start, length],
                 buf,
@@ -267,7 +256,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
         elif sub.value == "~selfcode":
             node = [
                 "seq",
-                _make_slice_bounds_check(start, length, "codesize"),
+                check_buffer_overflow_ir(start, length, "codesize"),
                 ["mstore", buf, length],
                 ["codecopy", add_ofst(buf, 32), start, length],
                 buf,
@@ -282,7 +271,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
                 sub.args[0],
                 [
                     "seq",
-                    _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
+                    check_buffer_overflow_ir(start, length, ["extcodesize", "_extcode_address"]),
                     ["mstore", buf, length],
                     ["extcodecopy", "_extcode_address", add_ofst(buf, 32), start, length],
                     buf,
@@ -456,7 +445,7 @@ class Slice(BuiltinFunctionT):
 
             ret = [
                 "seq",
-                _make_slice_bounds_check(start, length, src_len),
+                check_buffer_overflow_ir(start, length, src_len),
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
@@ -2539,7 +2528,11 @@ class ABIDecode(BuiltinFunctionT):
 
             # sanity check buffer size for wrapped output type will not buffer overflow
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
-            ret.append(make_setter(output_buf, to_decode))
+
+            # pass a buffer bound to make_setter so appropriate oob
+            # validation is performed
+            buf_bound = add_ofst(data_ptr, data_len)
+            ret.append(make_setter(output_buf, to_decode, hi=buf_bound))
 
             ret.append(output_buf)
             # finalize. set the type and location for the return buffer.

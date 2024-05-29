@@ -103,6 +103,7 @@ def compile_from_file_input(
         output_formats = ("bytecode",)
 
     # make IR output the same between runs
+    # TODO: move this to CompilerData.__init__()
     codegen.reset_names()
 
     compiler_data = CompilerData(
