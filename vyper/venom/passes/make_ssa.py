@@ -20,7 +20,7 @@ class MakeSSA(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
-        # Request liveness analysis so the `in_vars` field is valid
+        # Request liveness analysis so the `liveness_in_vars` field is valid
         self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self._add_phi_nodes()
@@ -58,7 +58,7 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        if var not in basic_block.in_vars:
+        if var not in basic_block.liveness_in_vars:
             return
 
         args: list[IROperand] = []
