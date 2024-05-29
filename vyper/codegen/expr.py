@@ -176,7 +176,7 @@ class Expr:
         assert varinfo is not None
 
         # local variable
-        if varinfo.is_local_variable():
+        if varname in self.context.vars:
             ret = self.context.lookup_var(varname).as_ir_node()
             ret._referenced_variables = {varinfo}
             return ret

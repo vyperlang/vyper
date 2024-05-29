@@ -204,9 +204,6 @@ class VarInfo:
         # variable (it is magic), so we ignore it here.
         return self.location not in non_state_locations and not isinstance(self.typ, SelfT)
 
-    def is_local_variable(self):
-        return self.location in (DataLocation.MEMORY, DataLocation.CALLDATA)
-
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)
 
