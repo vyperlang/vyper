@@ -31,7 +31,7 @@ class AlgebraicOptimizationPass(IRPass):
                         # We keep iszero instuctions as is
                         continue
                     if opcode in ("jnz",):
-                        # instructions that accept an integer as input:
+                        # instructions that accept a truthy value as input:
                         # we can remove up to all the iszero instructions
                         keep_count = 1 - iszero_count % 2
                     else:
