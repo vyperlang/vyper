@@ -1,6 +1,7 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -19,12 +20,17 @@ class MakeSSA(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
+        # Request liveness analysis so the `in_vars` field is valid
+        self.analyses_cache.request_analysis(LivenessAnalysis)
+
         self._add_phi_nodes()
 
         self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
         self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(fn.entry)
         self._remove_degenerate_phis(fn.entry)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _add_phi_nodes(self):
         """
