@@ -24,9 +24,9 @@ class AlgebraicOptimizationPass(IRPass):
                 if iszero_count == 0:
                     continue
 
-                for use_inst in self.dfg.get_uses(inst.output):                    
+                for use_inst in self.dfg.get_uses(inst.output):
                     opcode = use_inst.opcode
-                    
+
                     if opcode == "iszero":
                         # We keep iszero instuctions as is
                         continue
@@ -41,12 +41,12 @@ class AlgebraicOptimizationPass(IRPass):
 
                     if keep_count >= iszero_count:
                         continue
-                        
+
                     out_var = iszero_chain[keep_count].operands[0]
                     use_inst.replace_operands({inst.output: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
-        chain = []
+        chain: list[IRInstruction] = []
 
         while True:
             inst = self.dfg.get_producing_instruction(op)
