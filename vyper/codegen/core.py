@@ -1152,8 +1152,7 @@ def clamp_dyn_array(ir_node, hi=None):
 
     assert (hi is not None) == _dirty_read_risk(ir_node)
 
-    # if the subtype is dynamic, the check will be performed in the recursion
-    if hi is not None and not t.abi_type.subtyp.is_dynamic():
+    if hi is not None:
         assert t.count < 2**64  # sanity check
 
         # note: this add does not risk arithmetic overflow because
