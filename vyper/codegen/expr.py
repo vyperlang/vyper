@@ -167,21 +167,24 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-        if self.expr.id == "self":
+        varname = self.expr.id
+
+        if varname == "self":
             return IRnode.from_list(["address"], typ=AddressT())
-        elif self.expr.id in self.context.vars:
-            ret = self.context.lookup_var(self.expr.id).as_ir_node()
-            varinfo = self.expr._expr_info.var_info
-            assert varinfo is not None
+
+        varinfo = self.expr._expr_info.var_info
+        assert varinfo is not None
+
+        # local variable
+        if varinfo.is_local_variable():
+            ret = self.context.lookup_var(varname).as_ir_node()
             ret._referenced_variables = {varinfo}
             return ret
 
-        elif (varinfo := self.expr._expr_info.var_info) is not None:
-            if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+        if varinfo.is_constant:
+            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
-            assert varinfo.is_immutable, "not an immutable!"
-
+        if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
 
             location = data_location_to_address_space(
@@ -192,11 +195,13 @@ class Expr:
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=location,
-                annotation=self.expr.id,
+                annotation=varname,
                 mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # x.y or x[5]
     def parse_Attribute(self):
