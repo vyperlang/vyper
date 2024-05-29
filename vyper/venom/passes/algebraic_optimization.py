@@ -28,10 +28,15 @@ class AlgebraicOptimizationPass(IRPass):
                     opcode = use_inst.opcode
                     
                     if opcode == "iszero":
-                        keep_count = iszero_count
+                        # We keep iszero instuctions as is
+                        continue
                     if opcode in ("jnz",):
+                        # instructions that accept an integer as input:
+                        # we can remove up to all the iszero instructions
                         keep_count = 1 - iszero_count % 2
                     else:
+                        # instructions that accept a boolean as input:
+                        # we need to keep at least one or two iszero instructions
                         keep_count = 1 + iszero_count % 2
 
                     if keep_count >= iszero_count:
