@@ -53,8 +53,9 @@ class AlgebraicOptimizationPass(IRPass):
             if inst is None or inst.opcode != "iszero":
                 break
             op = inst.operands[0]
-            chain.insert(0, inst)
+            chain.append(inst)
 
+        chain.reverse()
         return chain
 
     def run_pass(self):
