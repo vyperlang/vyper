@@ -1162,7 +1162,7 @@ def clamp_dyn_array(ir_node, hi=None):
         # if the subtype is dynamic, the length check is performed in
         # the recursion, UNLESS the count is zero. here we perform the
         # check all the time, but it could maybe be optimized out in the
-        # make_setter loop (in the case that runtime count > 0).
+        # make_setter loop (in the common case that runtime count > 0).
         len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
 
     return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")
