@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 
@@ -66,6 +67,9 @@ class DFGAnalysis(IRAnalysis):
 
         lines.append("}")
         return "\n".join(lines)
+
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def __repr__(self) -> str:
         return self.as_graph()

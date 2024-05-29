@@ -509,7 +509,7 @@ class IRBasicBlock:
         return len(self.cfg_out) == 0
 
     @property
-    def in_vars(self) -> OrderedSet[IRVariable]:
+    def liveness_in_vars(self) -> OrderedSet[IRVariable]:
         for inst in self.instructions:
             if inst.opcode != "phi":
                 return inst.liveness
