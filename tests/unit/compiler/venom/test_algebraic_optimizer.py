@@ -127,6 +127,3 @@ def test_interleaved_case(interleave_point):
         assert bb.instructions[-1].operands[0] == op3_inv
     else:
         assert bb.instructions[-1].operands[0] == op3
-
-
-test_simple_bool_cast_case(5)
