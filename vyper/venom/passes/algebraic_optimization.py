@@ -35,7 +35,7 @@ class AlgebraicOptimizationPass(IRPass):
                         # we can remove up to all the iszero instructions
                         keep_count = 1 - iszero_count % 2
                     else:
-                        # instructions that accept a boolean as input:
+                        # all other instructions:
                         # we need to keep at least one or two iszero instructions
                         keep_count = 1 + iszero_count % 2
 
