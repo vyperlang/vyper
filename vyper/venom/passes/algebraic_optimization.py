@@ -1,5 +1,5 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IROperand
 from vyper.venom.passes.base_pass import IRPass
 
@@ -64,4 +64,4 @@ class AlgebraicOptimizationPass(IRPass):
         self._optimize_iszero_chains()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
