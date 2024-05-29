@@ -1080,3 +1080,34 @@ def run() -> uint256:
     length = c.run()
 
     assert length == 0
+
+
+def test_abi_decode_top_level_head_oob(tx_failed, get_contract):
+    code = """
+@external
+def run(x: Bytes[256], y: uint256):
+    player_lost: bool = empty(bool)
+
+    if y == 1:
+        player_lost = True
+
+    decoded: DynArray[Bytes[1], 2] = empty(DynArray[Bytes[1], 2])
+    decoded = _abi_decode(x, DynArray[Bytes[1], 2])
+    """
+    c = get_contract(code)
+
+    payload = (
+        # 0x100,
+        0x0100,
+        *_replicate(0x00, 7),
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    # correctly raises bc the base case validation is triggered
+    with tx_failed():
+        c.run(data, 1)
+
+    # incorrectly doesn't raise bc the base case validation isn't triggered
+    with tx_failed():
+        c.run(data, 0)
