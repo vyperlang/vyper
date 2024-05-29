@@ -20,29 +20,25 @@ class AlgebraicOptimizationPass(IRPass):
                     continue
 
                 iszero_chain = self._get_iszero_chain(inst.operands[0])
-                if len(iszero_chain) == 0:
+                iszero_count = len(iszero_chain)
+                if iszero_count == 0:
                     continue
 
-                if len(iszero_chain) % 2 == 1:
-                    out_var = iszero_chain[-1].operands[0]
-                else:
-                    assert iszero_chain[-1].output is not None  # help mypy
-                    out_var = iszero_chain[-1].output
-
-                for use_inst in self.dfg.get_uses(inst.output):
-                    # We don't modify iszero instructions
-                    if use_inst.opcode == "iszero":
-                        continue
-                    # Instructions that don't expect a boolean value
-                    # can't be optimized fully as iszero might be a boolean cast
-                    elif use_inst.opcode in ["jnz"]:
-                        use_inst.replace_operands({inst.output: out_var})
+                for use_inst in self.dfg.get_uses(inst.output):                    
+                    opcode = use_inst.opcode
+                    
+                    if opcode == "iszero":
+                        keep_count = iszero_count
+                    if opcode in ("jnz",):
+                        keep_count = 1 - iszero_count % 2
                     else:
-                        if len(iszero_chain) <= 1:
-                            continue
-                        idx = len(iszero_chain) % 2 + 1
-                        out_var = iszero_chain[-idx - 1].operands[0]
-                        use_inst.replace_operands({inst.output: out_var})
+                        keep_count = 1 + iszero_count % 2
+
+                    if keep_count >= iszero_count:
+                        continue
+                        
+                    out_var = iszero_chain[keep_count].operands[0]
+                    use_inst.replace_operands({inst.output: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain = []
@@ -52,7 +48,7 @@ class AlgebraicOptimizationPass(IRPass):
             if inst is None or inst.opcode != "iszero":
                 break
             op = inst.operands[0]
-            chain.append(inst)
+            chain.insert(0, inst)
 
         return chain
 
