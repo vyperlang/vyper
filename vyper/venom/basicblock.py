@@ -517,7 +517,7 @@ class IRBasicBlock:
         # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
-        return self.instructions[-1].opcode in BB_TERMINATORS
+        return self.instructions[-1].is_bb_terminator
 
     @property
     def is_terminal(self) -> bool:
