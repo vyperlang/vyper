@@ -23,7 +23,6 @@ class Mem2Var(IRPass):
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.items():
