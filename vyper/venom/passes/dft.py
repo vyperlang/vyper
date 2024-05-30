@@ -2,6 +2,8 @@ from dataclasses import asdict, dataclass
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -138,8 +140,6 @@ class DFTPass(IRPass):
         self.inst_order[inst] = self.inst_order_num + offset
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.function.append_basic_block(bb)
-
         for inst in bb.instructions:
             inst.fence = self.fence  # type: ignore
             self.fence = _compute_fence(inst.opcode, self.fence)
@@ -162,6 +162,7 @@ class DFTPass(IRPass):
 
         basic_blocks = list(self.function.get_basic_blocks())
 
-        self.function.clear_basic_blocks()
         for bb in basic_blocks:
             self._process_basic_block(bb)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
