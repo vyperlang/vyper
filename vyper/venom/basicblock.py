@@ -197,7 +197,6 @@ class IRInstruction:
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
-    fence_id: int
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -215,7 +214,6 @@ class IRInstruction:
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
-        self.fence_id = -1
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
