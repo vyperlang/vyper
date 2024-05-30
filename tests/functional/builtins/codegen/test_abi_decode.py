@@ -1100,11 +1100,11 @@ def run(x: Bytes[256], y: uint256):
 
     data = _abi_payload_from_tuple(payload)
 
-    # correctly raises bc the base case validation is triggered
+    # raises bc the validation is triggered in make_setter recursion loop
     with tx_failed():
         c.run(data, 1)
 
-    # incorrectly doesn't raise bc the base case validation isn't triggered
+    # doesn't raise in case the validation isn't triggered in recursion
     with tx_failed():
         c.run(data, 0)
 
