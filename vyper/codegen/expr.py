@@ -18,7 +18,9 @@ from vyper.codegen.core import (
     is_flag_type,
     is_numeric_type,
     is_tuple_like,
+    make_setter,
     pop_dyn_array,
+    potential_overlap,
     sar,
     shl,
     shr,
@@ -165,17 +167,24 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-        if self.expr.id == "self":
+        varname = self.expr.id
+
+        if varname == "self":
             return IRnode.from_list(["address"], typ=AddressT())
-        elif self.expr.id in self.context.vars:
-            return self.context.lookup_var(self.expr.id).as_ir_node()
 
-        elif (varinfo := self.expr._expr_info.var_info) is not None:
-            if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+        varinfo = self.expr._expr_info.var_info
+        assert varinfo is not None
 
-            assert varinfo.is_immutable, "not an immutable!"
+        # local variable
+        if varname in self.context.vars:
+            ret = self.context.lookup_var(varname).as_ir_node()
+            ret._referenced_variables = {varinfo}
+            return ret
 
+        if varinfo.is_constant:
+            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
+        if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
 
             location = data_location_to_address_space(
@@ -186,11 +195,13 @@ class Expr:
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=location,
-                annotation=self.expr.id,
+                annotation=varname,
                 mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -691,7 +702,16 @@ class Expr:
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
                 )
-                return append_dyn_array(darray, arg)
+
+                ret = ["seq"]
+                if potential_overlap(darray, arg):
+                    tmp = self.context.new_internal_variable(arg.typ)
+                    tmp = IRnode.from_list(tmp, typ=arg.typ, location=MEMORY)
+                    ret.append(make_setter(tmp, arg))
+                    arg = tmp
+
+                ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
