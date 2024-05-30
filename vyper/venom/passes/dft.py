@@ -40,6 +40,7 @@ reads = {
     "log": "memory",
     "revert": "memory",
     "return": "memory",
+    "sha3": "memory",
 }
 
 
