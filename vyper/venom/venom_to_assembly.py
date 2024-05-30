@@ -305,7 +305,7 @@ class VenomCompiler:
         for i, inst in enumerate(bb.instructions):
             if inst.opcode != "param":
                 break
-            if inst.volatile and i + 1 < len(bb.instructions):
+            if inst.is_volatile and i + 1 < len(bb.instructions):
                 liveness = bb.instructions[i + 1].liveness
                 if inst.output is not None and inst.output not in liveness:
                     depth = stack.get_depth(inst.output)
