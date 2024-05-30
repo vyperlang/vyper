@@ -102,11 +102,9 @@ def _can_reorder(inst1, inst2):
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_order: dict[IRInstruction, int]
-    inst_order_num: int
     fence: Fence
 
-    def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction, offset: int = 0):
+    def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
         for op in inst.get_outputs():
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
             uses = self.dfg.get_uses(op)
@@ -115,23 +113,16 @@ class DFTPass(IRPass):
                 if not _can_reorder(inst, uses_this):
                     continue
 
-                # if the instruction is a terminator, we need to place
-                # it at the end of the basic block
-                # along with all the instructions that "lead" to it
-                self._process_instruction_r(bb, uses_this, offset)
+                self._process_instruction_r(bb, uses_this)
 
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
-        self.inst_order_num += 1
 
-        if inst.is_bb_terminator:
-            offset = len(bb.instructions)
-
-        if inst.opcode in ("phi", "param"):
-            # phi and param instructions stay at the beginning of the basic
+        if inst.opcode == "phi":
+            # phi instructions stay at the beginning of the basic
             # block and no input processing is needed
-            self.inst_order[inst] = 0
+            bb.instructions.append(inst)
             return
 
         for op in inst.get_input_variables():
@@ -139,25 +130,28 @@ class DFTPass(IRPass):
             assert target is not None, f"no producing instruction for {op}"
             if not _can_reorder(target, inst):
                 continue
+            self._process_instruction_r(bb, target)
 
-            self._process_instruction_r(bb, target, offset)
-
-        self.inst_order[inst] = self.inst_order_num + offset
+        if not inst.is_bb_terminator:
+            bb.instructions.append(inst)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        # preprocess, compute fence for every instruction
         for inst in bb.instructions:
             inst.fence = self.fence  # type: ignore
             self.fence = _compute_fence(inst.opcode, self.fence)
 
-        # We go throught the instructions and calculate the order in which they should be executed
-        # based on the data flow graph. This order is stored in the inst_order dictionary.
-        # We then sort the instructions based on this order.
-        self.inst_order = {}
-        self.inst_order_num = 0
-        for inst in bb.instructions:
+        term_inst = bb.instructions[-1]
+
+        instructions = bb.instructions.copy()
+
+        bb.instructions.clear()
+
+        for inst in instructions:
             self._process_instruction_r(bb, inst)
 
-        bb.instructions.sort(key=lambda x: self.inst_order[x])
+        # force terminating instruction to come after everything else in the block
+        bb.instructions.append(term_inst)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
