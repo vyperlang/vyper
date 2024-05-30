@@ -1096,11 +1096,7 @@ def run(x: Bytes[256], y: uint256):
     """
     c = get_contract(code)
 
-    payload = (
-        # 0x100,
-        0x0100,
-        *_replicate(0x00, 7),
-    )
+    payload = (0x0100, *_replicate(0x00, 7))
 
     data = _abi_payload_from_tuple(payload)
 
@@ -1111,3 +1107,24 @@ def run(x: Bytes[256], y: uint256):
     # incorrectly doesn't raise bc the base case validation isn't triggered
     with tx_failed():
         c.run(data, 0)
+
+
+def test_abi_decode_dynarray_complex(env, tx_failed, get_contract):
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+
+@external
+def run(x: Bytes[32 * 8]):
+    y: Bytes[32 * 8] = x
+    decoded_y1: DynArray[Point, 3] = _abi_decode(y, DynArray[Point, 3])
+    """
+    c = get_contract(code)
+
+    payload = (0x20, 0x03, *_replicate(0x03, 3))
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
