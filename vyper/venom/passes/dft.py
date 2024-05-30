@@ -129,10 +129,9 @@ class DFTPass(IRPass):
         if inst.is_bb_terminator:
             offset = len(bb.instructions)
 
-        if inst.opcode == "phi":
-            # phi instructions stay at the beginning of the basic block
-            # and no input processing is needed
-            # bb.instructions.append(inst)
+        if inst.opcode in ("phi", "param"):
+            # phi and param instructions stay at the beginning of the basic
+            # block and no input processing is needed
             self.inst_order[inst] = 0
             return
 
