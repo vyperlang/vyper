@@ -55,7 +55,7 @@ class DFTPass(IRPass):
 
         for inst in bb.instructions:
             inst.fence_id = self.fence_id
-            if inst.volatile:
+            if inst.is_volatile:
                 self.fence_id += 1
 
         # We go throught the instructions and calculate the order in which they should be executed

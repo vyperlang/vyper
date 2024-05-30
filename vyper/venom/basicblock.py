@@ -235,7 +235,7 @@ class IRInstruction:
         self.error_msg = None
 
     @property
-    def volatile(self) -> bool:
+    def is_volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS
 
     @property
