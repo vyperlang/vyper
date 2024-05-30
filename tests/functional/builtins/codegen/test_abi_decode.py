@@ -1128,3 +1128,51 @@ def run(x: Bytes[32 * 8]):
 
     with tx_failed():
         c.run(data)
+
+
+def test_abi_decode_dynarray_complex2(env, tx_failed, get_contract):
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+    z: uint256
+
+
+@external
+def run(x: Bytes[32 * 8]):
+    y: Bytes[32 * 11] = x
+    decoded_y1: DynArray[Point, 2] = _abi_decode(y, DynArray[Point, 2])
+    """
+    c = get_contract(code)
+
+    payload = (
+        0xC0,  # points to the 1st 0x01 word (ie the length)
+        *_replicate(0x03, 5),
+        *_replicate(0x01, 2),
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_empty_toplevel_dynarray(tx_failed, get_contract):
+    code = """
+@external
+def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    assert len(y) == 2 * 32
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y,
+        DynArray[DynArray[uint256, 3], 3]
+    )
+    assert len(decoded_y1) == 0
+    """
+    c = get_contract(code)
+
+    payload = (0x20, 0x00)  # DynArray head  # DynArray length
+
+    data = _abi_payload_from_tuple(payload)
+
+    c.run(data)
