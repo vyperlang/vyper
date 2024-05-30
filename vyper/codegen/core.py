@@ -901,9 +901,32 @@ def _abi_payload_size(ir_node):
     raise CompilerPanic("unreachable")  # pragma: nocover
 
 
+def potential_overlap(left, right):
+    """
+    Return true if make_setter(left, right) could potentially trample
+    src or dst during evaluation.
+    """
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.referenced_variables) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
+        return True
+
+    if left.contains_risky_call and len(right.referenced_variables) > 0:
+        return True
+
+    return False
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, hi=None):
     check_assign(left, right)
+
+    if potential_overlap(left, right):
+        raise CompilerPanic("overlap between src and dst!")
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.
