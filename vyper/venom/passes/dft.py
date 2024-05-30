@@ -1,7 +1,6 @@
 from dataclasses import asdict, dataclass
 
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
@@ -79,16 +78,21 @@ def get_writes(opcode):
     return ret
 
 
+def _intersect(tuple1, tuple2):
+    ret = []
+    for s in tuple1:
+        if s in tuple2:
+            ret.append(s)
+    return tuple(ret)
+
+
 def _can_reorder(inst1, inst2):
     if inst1.parent != inst2.parent:
         return False
 
-    effects = (
-        get_reads(inst1.opcode)
-        + get_reads(inst2.opcode)
-        + get_writes(inst1.opcode)
-        + get_writes(inst2.opcode)
-    )
+    effects = _intersect(get_writes(inst1.opcode), get_writes(inst2.opcode))
+    # is this required?
+    effects += _intersect(get_reads(inst2.opcode), get_writes(inst1.opcode))
 
     for eff in effects:
         if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):  # type: ignore
@@ -163,9 +167,7 @@ class DFTPass(IRPass):
         self.fence = Fence()
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-        basic_blocks = list(self.function.get_basic_blocks())
-
-        for bb in basic_blocks:
+        for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
