@@ -1,10 +1,10 @@
 from dataclasses import asdict, dataclass
 
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -119,7 +119,7 @@ class DFTPass(IRPass):
         self.visited_instructions.add(inst)
         self.inst_order_num += 1
 
-        if inst.opcode in BB_TERMINATORS:
+        if inst.is_bb_terminator:
             offset = len(bb.instructions)
 
         if inst.opcode == "phi":

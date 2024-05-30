@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import BB_TERMINATORS, CFG_ALTERING_INSTRUCTIONS
+from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS
 
 
 class CFGAnalysis(IRAnalysis):
@@ -18,9 +18,7 @@ class CFGAnalysis(IRAnalysis):
         for bb in fn.get_basic_blocks():
             assert len(bb.instructions) > 0, "Basic block should not be empty"
             last_inst = bb.instructions[-1]
-            assert (
-                last_inst.opcode in BB_TERMINATORS
-            ), f"Last instruction should be a terminator {bb}"
+            assert last_inst.is_bb_terminator, f"Last instruction should be a terminator {bb}"
 
             for inst in bb.instructions:
                 if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
