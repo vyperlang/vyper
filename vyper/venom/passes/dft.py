@@ -91,7 +91,6 @@ def _can_reorder(inst1, inst2):
         return False
 
     effects = _intersect(get_writes(inst1.opcode), get_writes(inst2.opcode))
-    # is this required?
     effects += _intersect(get_reads(inst2.opcode), get_writes(inst1.opcode))
 
     for eff in effects:
