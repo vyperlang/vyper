@@ -889,11 +889,14 @@ def _dirty_read_risk(ir_node):
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
-
     OFFSET = DYNAMIC_ARRAY_OVERHEAD * SCALE
 
     if isinstance(ir_node.typ, DArrayT):
-        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), SCALE]]
+        # the amount of size each value occupies in static section
+        # (the amount of size it occupies in the dynamic section is handled in
+        # make_setter recursion)
+        item_size = ir_node.typ.value_type.abi_type.embedded_static_size()
+        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), item_size]]
 
     if isinstance(ir_node.typ, _BytestringT):
         return ["add", OFFSET, get_bytearray_length(ir_node)]
