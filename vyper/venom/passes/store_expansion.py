@@ -2,7 +2,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRVariable, IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -47,4 +47,3 @@ class StoreExpansionPass(IRPass):
                     inst.parent.insert_instruction(new_inst, insertion_idx)
                     insertion_idx += 1
                     use_inst.operands[i] = new_var
-

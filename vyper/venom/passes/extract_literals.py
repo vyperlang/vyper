@@ -9,6 +9,7 @@ class ExtractLiteralsPass(IRPass):
     """
     This pass extracts literals so that they can be reordered by the DFT pass
     """
+
     def run_pass(self):
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
