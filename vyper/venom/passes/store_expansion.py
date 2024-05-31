@@ -36,7 +36,7 @@ class StoreExpansionPass(IRPass):
 
         insertion_idx = idx + 1
 
-        for use_inst in uses:
+        for use_inst in uses[1:]:
             if use_inst.parent != inst.parent:
                 pass
                 #continue
