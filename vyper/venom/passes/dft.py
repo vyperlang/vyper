@@ -124,11 +124,6 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
-        if inst.opcode == "phi":
-            # phi instructions stay at the beginning of the basic
-            # block and no input processing is needed
-            return
-
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
@@ -155,7 +150,7 @@ class DFTPass(IRPass):
 
         instructions = bb.instructions.copy()
 
-        bb.instructions.clear()
+        # put phi instructions first
         bb.instructions = [inst for inst in instructions if inst.opcode == "phi"]
 
         for inst in instructions:
