@@ -90,10 +90,17 @@ def _can_reorder(inst1, inst2):
     if inst1.parent != inst2.parent:
         return False
 
-    if len(_intersect(get_writes(inst1.opcode), get_writes(inst2.opcode))) > 0:
-        return False
-    if len(_intersect(get_reads(inst2.opcode), get_writes(inst1.opcode))) > 0:
-        return False
+    for eff in get_reads(inst1.opcode):
+        #if eff in get_writes(inst2.opcode):
+        #    return False
+        if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):
+            return False
+
+    for eff in get_reads(inst2.opcode):
+        #if eff in get_writes(inst1.opcode):
+        #    return False
+        if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):
+            return False
 
     return True
 
