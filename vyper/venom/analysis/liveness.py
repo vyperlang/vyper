@@ -1,4 +1,4 @@
-from collections import deque
+from collections import OrderedDict
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -16,29 +16,22 @@ class LivenessAnalysis(IRAnalysis):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
 
-        self._worklist = deque()
-        self._visited = OrderedSet()
+        self._worklist = OrderedSet()
 
-        for bb in self.function.get_basic_blocks():
-            # seed the worklist with leaves of the DFS traversal
-            if len(bb.cfg_out) == 0:
-                self._worklist.append(bb)
+        self._worklist.addmany(self.function.get_basic_blocks())
 
         while len(self._worklist) > 0:
             changed = False
-            bb = self._worklist.popleft()
+            bb = next(iter(self._worklist))  # fifo
+            self._worklist.remove(bb)
             changed |= self._calculate_out_vars(bb)
             changed |= self._calculate_liveness(bb)
             # recompute liveness for basic blocks pointing into
             # this basic block
-            if changed or bb not in self._visited:
-                self._worklist.extend(bb.cfg_in)
-
-            self._visited.add(bb)
-
-        # sanity check
-        to_check = OrderedSet(self.function.get_basic_blocks())
-        assert self._visited == to_check, "bad traversal"
+            if changed:
+                # queue semantics: add them all to the end
+                self._worklist.dropmany(bb.cfg_in)
+                self._worklist.addmany(bb.cfg_in)
 
     def _reset_liveness(self) -> None:
         for bb in self.function.get_basic_blocks():
