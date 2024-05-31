@@ -120,7 +120,6 @@ class DFTPass(IRPass):
         if inst.opcode == "phi":
             # phi instructions stay at the beginning of the basic
             # block and no input processing is needed
-            bb.instructions.append(inst)
             return
 
         for op in inst.get_input_variables():
@@ -130,7 +129,7 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target)
 
-        if not inst.is_bb_terminator:
+        if not inst.is_bb_terminator and inst.opcode != "phi":
             bb.instructions.append(inst)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
@@ -150,6 +149,7 @@ class DFTPass(IRPass):
         instructions = bb.instructions.copy()
 
         bb.instructions.clear()
+        bb.instructions = [inst for inst in instructions if inst.opcode == "phi"]
 
         for inst in instructions:
             self._process_instruction_r(bb, inst)
