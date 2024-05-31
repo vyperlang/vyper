@@ -131,9 +131,6 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target)
 
-        if not inst.is_bb_terminator and inst.opcode != "phi":
-            bb.instructions.append(inst)
-
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         # preprocess, compute fence for every instruction
         for inst in bb.instructions:
@@ -150,14 +147,17 @@ class DFTPass(IRPass):
 
         instructions = bb.instructions.copy()
 
-        # put phi instructions first
-        bb.instructions = [inst for inst in instructions if inst.opcode == "phi"]
-
         for inst in instructions:
             self._process_instruction_r(bb, inst)
 
-        # force terminating instruction to come after everything else in the block
-        bb.instructions.append(term_inst)
+        def key(inst):
+            if inst.opcode == "phi":
+                return 0
+            if inst.is_bb_terminator:
+                return 2
+            return 1
+
+        bb.instructions.sort(key=key)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
