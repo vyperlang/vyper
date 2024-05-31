@@ -138,8 +138,14 @@ class DFTPass(IRPass):
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         # preprocess, compute fence for every instruction
         for inst in bb.instructions:
-            inst.fence = self.fence  # type: ignore
             self.fence = _compute_fence(inst.opcode, self.fence)
+            inst.fence = self.fence  # type: ignore
+
+            if False:
+                print("ENTER")
+                print(inst)
+                print(inst.fence)
+                print()
 
         term_inst = bb.instructions[-1]
 
