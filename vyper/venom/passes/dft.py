@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 
 from vyper.utils import OrderedSet
@@ -51,54 +52,74 @@ class Fence:
     immutables: int = 0
 
 
-def _compute_fence(opcode: str, fence: Fence) -> Fence:
-    if opcode not in writes:
-        return fence
+# effects graph
+class EffectsG:
+    def __init__(self):
+        self._graph = defaultdict(list)
 
-    effects = get_writes(opcode)
+    def analyze(self, bb):
+        fence = Fence()
 
-    tmp = asdict(fence)
-    for eff in effects:
-        tmp[eff] += 1
+        groups = {}
+        terms = {}
 
-    return Fence(**tmp)
+        for inst in bb.instructions:
+            reads = _get_reads(inst.opcode)
+            writes = _get_writes(inst.opcode)
+            for eff in reads:
+                fence_id = getattr(fence, eff)
+                group = groups.setdefault((eff, fence_id), [])
+                group.append(inst)
+
+            # collect writes in a separate dict
+            for eff in writes:
+                fence_id = getattr(fence, eff)
+                assert (eff, fence_id) not in terms
+                terms[(eff, fence_id)] = inst
+
+            fence = _compute_fence(inst.opcode, fence)
+
+        for (effect, fence_id), write_inst in terms.items():
+            reads = groups.get((effect, fence_id), [])
+            self._graph[write_inst].extend(reads)
+
+            prev_id = fence_id - 1
+            if (prev_write := terms.get((effect, prev_id))) is not None:
+                self._graph[write_inst].append(prev_write)
+
+            next_reads = groups.get((effect, fence_id + 1), [])
+            for inst in next_reads:
+                self._graph[inst].append(write_inst)
+
+    def required_by(self, inst):
+        return self._graph.get(inst, [])
 
 
-def get_reads(opcode):
+def _get_reads(opcode):
     ret = reads.get(opcode, ())
     if not isinstance(ret, tuple):
         ret = (ret,)
     return ret
 
 
-def get_writes(opcode):
+def _get_writes(opcode):
     ret = writes.get(opcode, ())
     if not isinstance(ret, tuple):
         ret = (ret,)
     return ret
 
 
-def _intersect(tuple1, tuple2):
-    ret = []
-    for s in tuple1:
-        if s in tuple2:
-            ret.append(s)
-    return tuple(ret)
+def _compute_fence(opcode: str, fence: Fence) -> Fence:
+    if opcode not in writes:
+        return fence
 
+    effects = _get_writes(opcode)
 
-def _can_reorder(inst1, inst2):
-    if inst1.parent != inst2.parent:
-        return False
+    tmp = asdict(fence)
+    for eff in effects:
+        tmp[eff] += 1
 
-    for eff in get_reads(inst1.opcode) + get_writes(inst1.opcode):
-        if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):
-            return False
-
-    for eff in get_reads(inst2.opcode) + get_writes(inst2.opcode):
-        if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):
-            return False
-
-    return True
+    return Fence(**tmp)
 
 
 class DFTPass(IRPass):
@@ -111,7 +132,7 @@ class DFTPass(IRPass):
             uses = self.dfg.get_uses(op)
 
             for uses_this in uses:
-                if not _can_reorder(inst, uses_this):
+                if uses_this.parent != inst.parent:
                     continue
 
                 self._process_instruction_r(bb, uses_this)
@@ -120,29 +141,23 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
+        for target in self._effects_g.required_by(inst):
+            self._process_instruction_r(bb, target)
+
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
-            if not _can_reorder(target, inst):
+            if target.parent != inst.parent:
                 continue
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        # preprocess, compute fence for every instruction
-        for inst in bb.instructions:
-            inst.fence = self.fence  # type: ignore
-            self.fence = _compute_fence(inst.opcode, self.fence)
-
-            if False:
-                print("ENTER")
-                print(inst)
-                print(inst.fence)
-                print()
+        self._effects_g = EffectsG()
+        self._effects_g.analyze(bb)
 
         instructions = bb.instructions.copy()
-
         bb.instructions.clear()
 
         # start with out liveness
@@ -154,6 +169,8 @@ class DFTPass(IRPass):
 
         for inst in instructions:
             self._process_instruction_r(bb, inst)
+
+        assert len(bb.instructions) == len(instructions), (instructions, bb)
 
         def key(inst):
             if inst.opcode == "phi":
