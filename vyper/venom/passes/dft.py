@@ -90,12 +90,10 @@ def _can_reorder(inst1, inst2):
     if inst1.parent != inst2.parent:
         return False
 
-    effects = _intersect(get_writes(inst1.opcode), get_writes(inst2.opcode))
-    effects += _intersect(get_reads(inst2.opcode), get_writes(inst1.opcode))
-
-    for eff in effects:
-        if getattr(inst1.fence, eff) != getattr(inst2.fence, eff):  # type: ignore
-            return False
+    if len(_intersect(get_writes(inst1.opcode), get_writes(inst2.opcode))) > 0:
+        return False
+    if len(_intersect(get_reads(inst2.opcode), get_writes(inst1.opcode))) > 0:
+        return False
 
     return True
 
@@ -138,8 +136,8 @@ class DFTPass(IRPass):
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         # preprocess, compute fence for every instruction
         for inst in bb.instructions:
-            self.fence = _compute_fence(inst.opcode, self.fence)
             inst.fence = self.fence  # type: ignore
+            self.fence = _compute_fence(inst.opcode, self.fence)
 
             if False:
                 print("ENTER")
