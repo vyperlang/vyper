@@ -131,6 +131,8 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target)
 
+        bb.instructions.append(inst)
+
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         # preprocess, compute fence for every instruction
         for inst in bb.instructions:
@@ -143,9 +145,16 @@ class DFTPass(IRPass):
                 print(inst.fence)
                 print()
 
-        term_inst = bb.instructions[-1]
-
         instructions = bb.instructions.copy()
+
+        bb.instructions.clear()
+
+        # start with out liveness
+        for var in bb.out_vars:
+            inst = self.dfg.get_producing_instruction(var)
+            if inst.parent != bb:
+                continue
+            self._process_instruction_r(bb, inst)
 
         for inst in instructions:
             self._process_instruction_r(bb, inst)
@@ -161,6 +170,7 @@ class DFTPass(IRPass):
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)  # use out_vars
 
         self.fence = Fence()
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
