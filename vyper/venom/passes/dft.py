@@ -31,7 +31,7 @@ reads = {
     "sload": "storage",
     "tload": "transient",
     "iload": "immutables",
-    "mstore": "memory",
+    "mload": "memory",
     "mcopy": "memory",
     "call": _ALL,
     "delegatecall": _ALL,
