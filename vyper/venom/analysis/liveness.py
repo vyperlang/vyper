@@ -17,19 +17,18 @@ class LivenessAnalysis(IRAnalysis):
         self._reset_liveness()
 
         self._worklist = OrderedSet()
-
         self._worklist.addmany(self.function.get_basic_blocks())
 
         while len(self._worklist) > 0:
             changed = False
-            bb = next(iter(self._worklist))  # fifo
+            bb = next(iter(self._worklist))  # fifo "popleft"
             self._worklist.remove(bb)
             changed |= self._calculate_out_vars(bb)
             changed |= self._calculate_liveness(bb)
             # recompute liveness for basic blocks pointing into
             # this basic block
             if changed:
-                # queue semantics: add them all to the end
+                # queue semantics: add to end of worklist
                 self._worklist.dropmany(bb.cfg_in)
                 self._worklist.addmany(bb.cfg_in)
 
