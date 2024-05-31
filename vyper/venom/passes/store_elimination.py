@@ -27,7 +27,6 @@ class StoreElimination(IRPass):
                 continue
             self._process_store(dfg, inst, var, inst.operands[0])
 
-        self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
