@@ -1,4 +1,3 @@
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral
@@ -9,6 +8,7 @@ class ExtractLiteralsPass(IRPass):
     """
     This pass extracts literals so that they can be reordered by the DFT pass
     """
+
     def run_pass(self):
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
