@@ -171,7 +171,7 @@ Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper
     # export all external functions from ownable_2step
     exports: ownable_2step.__interface__
 
-.. note::
+.. warning::
     In normal usage, you should make sure that ``__init__()`` functions are called in dependency order. In the above example, you can get unexpected behavior if ``ownable_2step.__init__()`` is called before ``ownable.__init__()``! The compiler may enforce this behavior in the future.
 
 .. _exporting-functions:
