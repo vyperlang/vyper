@@ -158,7 +158,8 @@ class DFTPass(IRPass):
                 self._process_instruction_r(bb, use)
 
         for target in self._effects_g.downstream_of(inst):
-            self._process_instruction_r(bb, target)
+            pass
+            #self._process_instruction_r(bb, target)
 
         if inst in self.started:
             return
