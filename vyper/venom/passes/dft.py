@@ -186,7 +186,7 @@ class DFTPass(IRPass):
         bb.instructions = [inst for inst in bb.instructions if inst.opcode in ("phi","param")]
 
         # start with out liveness
-        for var in bb.out_vars:
+        for var in reversed(list(bb.out_vars)):
             inst = self.dfg.get_producing_instruction(var)
             self._process_instruction_r(bb, inst)
 
