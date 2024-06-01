@@ -197,11 +197,11 @@ The following are all ways of exporting functions from an imported module.
         ownable_2step.accept_ownership,
     )
 
-    # export all functions defined in IERC20
-    exports: token.IERC20
+    # export all IERC20 functions from `base_token`
+    exports: base_token.IERC20
 
     # export all external functions from `ownable_2step`
     exports: ownable_2step.__interface__
 
 .. note::
-    Any exported interfaces must be implemented by the module. For example, in the above example, ``token`` must ``implement`` ``IERC20``, or else the compiler will raise an error.
+    Any exported interfaces must be implemented by the module. For example, in the above example, ``base_token`` must ``implement`` ``IERC20``, or else the compiler will raise an error.
