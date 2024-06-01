@@ -101,8 +101,9 @@ class EffectsG:
 
         # invert the graph, go the other way
         for inst, dependencies in self._graph.items():
+            # sanity check the graph
+            assert inst not in dependencies, inst
             for target in dependencies:
-                assert target != inst, inst
                 self._outputs[target].append(inst)
 
     def required_by(self, inst):
@@ -145,15 +146,19 @@ class DFTPass(IRPass):
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
         if inst in self.done:
             return
+
         for op in inst.get_outputs():
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
             uses = self.dfg.get_uses(op)
 
-            for uses_this in uses:
-                if uses_this.parent != inst.parent:
+            for use in uses:
+                if use.parent != inst.parent:
                     continue
 
-                self._process_instruction_r(bb, uses_this)
+                self._process_instruction_r(bb, use)
+
+        for target in self._effects_g.downstream_of(inst):
+            self._process_instruction_r(bb, target)
 
         if inst in self.started:
             return
