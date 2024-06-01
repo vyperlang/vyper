@@ -141,7 +141,6 @@ def _compute_fence(opcode: str, fence: Fence) -> Fence:
 
 class DFTPass(IRPass):
     function: IRFunction
-    fence: Fence
 
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
         if inst in self.done:
@@ -205,7 +204,6 @@ class DFTPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.analyses_cache.request_analysis(LivenessAnalysis)  # use out_vars
 
-        self.fence = Fence()
         self.started: OrderedSet[IRInstruction] = OrderedSet()
         self.done: OrderedSet[IRInstruction] = OrderedSet()
 
