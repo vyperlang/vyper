@@ -3,6 +3,7 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
+    BadChecksumAddress,
     InvalidAttribute,
     TypeMismatch,
     UndeclaredDefinition,
@@ -124,6 +125,14 @@ def foo() -> bool:
     return True
 """,
         TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+    x: address = 0x6b175474e89094c44da98b954eedeac495271d0F
+    """,
+        BadChecksumAddress,
     ),
 ]
 

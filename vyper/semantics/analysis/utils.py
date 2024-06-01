@@ -3,6 +3,7 @@ from typing import Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -24,7 +25,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode, int_to_fourbytes
+from vyper.utils import int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -324,7 +325,16 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
-        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
+
+        msg = f"Could not determine type for literal value '{node.value}'"
+        if isinstance(node, vy_ast.Hex) and len(node.value) == 42:
+            # call `validate_literal` to add a hint on address checksum mismatch
+            try:
+                AddressT().validate_literal(node)
+            except BadChecksumAddress as e:
+                raise InvalidLiteral(msg, node, hint=e.args[0])
+
+        raise InvalidLiteral(msg, node)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
@@ -582,7 +592,14 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    try:
+        given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    except InvalidLiteral as i:
+        # call `validate_literal` for its side effect of throwing an exception for
+        # address checksum mismatch only if the expected type is an address
+        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and len(node.value) == 42:
+            AddressT().validate_literal(node)
+        raise i
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
@@ -621,7 +638,9 @@ def validate_expected_type(node, expected_type):
 
         suggestion_str = ""
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
-            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+            # call `validate_literal` for its side effect of throwing an exception for
+            # address checksum mismatch
+            AddressT().validate_literal(node)
 
         raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
