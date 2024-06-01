@@ -144,6 +144,8 @@ class DFTPass(IRPass):
     function: IRFunction
 
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
+        if inst.parent != bb:
+            return
         if inst in self.done:
             return
 
@@ -152,9 +154,6 @@ class DFTPass(IRPass):
             uses = self.dfg.get_uses(op)
 
             for use in uses:
-                if use.parent != inst.parent:
-                    continue
-
                 self._process_instruction_r(bb, use)
 
         for target in self._effects_g.downstream_of(inst):
@@ -174,8 +173,6 @@ class DFTPass(IRPass):
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
-            if target.parent != inst.parent:
-                continue
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)
@@ -191,8 +188,6 @@ class DFTPass(IRPass):
         # start with out liveness
         for var in bb.out_vars:
             inst = self.dfg.get_producing_instruction(var)
-            if inst.parent != bb:
-                continue
             self._process_instruction_r(bb, inst)
 
         for inst in instructions:
