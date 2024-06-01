@@ -322,16 +322,23 @@ class ModuleT(VyperType):
 
         for i in self.import_stmts:
             import_info = i._metadata["import_info"]
-            self.add_member(import_info.alias, import_info.typ)
 
             if hasattr(import_info.typ, "module_t"):
-                self._helper.add_member(import_info.alias, TYPE_T(import_info.typ))
+                module_info = import_info.typ
+                # get_expr_info uses ModuleInfo
+                self.add_member(import_info.alias, module_info)
+                # type_from_annotation uses TYPE_T
+                self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
+            else:  # interfaces
+                self.add_member(import_info.alias, TYPE_T(import_info.typ))
 
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
-        self.add_member("__interface__", self.interface)
+        # can use module.__interface__ in call position
+        self.add_member("__interface__", TYPE_T(self.interface))
+        self._helper.add_member("__interface__", TYPE_T(self.interface))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
