@@ -60,7 +60,7 @@ class EffectsG:
     def analyze(self, bb):
         fence = Fence()
 
-        groups = {}
+        read_groups = {}
         terms = {}
 
         for inst in bb.instructions:
@@ -68,7 +68,7 @@ class EffectsG:
             writes = _get_writes(inst.opcode)
             for eff in reads:
                 fence_id = getattr(fence, eff)
-                group = groups.setdefault((eff, fence_id), [])
+                group = read_groups.setdefault((eff, fence_id), [])
                 group.append(inst)
 
             # collect writes in a separate dict
@@ -80,16 +80,22 @@ class EffectsG:
             fence = _compute_fence(inst.opcode, fence)
 
         for (effect, fence_id), write_inst in terms.items():
-            reads = groups.get((effect, fence_id), [])
+            reads = read_groups.get((effect, fence_id), [])
             self._graph[write_inst].extend(reads)
 
-            prev_id = fence_id - 1
-            if (prev_write := terms.get((effect, prev_id))) is not None:
-                self._graph[write_inst].append(prev_write)
+            next_id = fence_id + 1
 
-            next_reads = groups.get((effect, fence_id + 1), [])
+            next_write = terms.get((effect, next_id))
+            if next_write is not None:
+                self._graph[next_write].append(write_inst)
+
+            next_reads = read_groups.get((effect, next_id), [])
             for inst in next_reads:
                 self._graph[inst].append(write_inst)
+
+        #print(read_groups)
+        #print(terms)
+        #print(self._graph)
 
     def required_by(self, inst):
         return self._graph.get(inst, [])
@@ -127,6 +133,8 @@ class DFTPass(IRPass):
     fence: Fence
 
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
+        if inst in self.done:
+            return
         for op in inst.get_outputs():
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
             uses = self.dfg.get_uses(op)
@@ -137,9 +145,9 @@ class DFTPass(IRPass):
 
                 self._process_instruction_r(bb, uses_this)
 
-        if inst in self.visited_instructions:
+        if inst in self.started:
             return
-        self.visited_instructions.add(inst)
+        self.started.add(inst)
 
         for target in self._effects_g.required_by(inst):
             self._process_instruction_r(bb, target)
@@ -152,6 +160,7 @@ class DFTPass(IRPass):
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)
+        self.done.add(inst)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self._effects_g = EffectsG()
@@ -186,7 +195,8 @@ class DFTPass(IRPass):
         self.analyses_cache.request_analysis(LivenessAnalysis)  # use out_vars
 
         self.fence = Fence()
-        self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
+        self.started: OrderedSet[IRInstruction] = OrderedSet()
+        self.done: OrderedSet[IRInstruction] = OrderedSet()
 
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
