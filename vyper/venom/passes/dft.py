@@ -57,6 +57,9 @@ class EffectsG:
     def __init__(self):
         self._graph = defaultdict(list)
 
+        # not sure if this will be useful
+        self._outputs = defaultdict(list)
+
     def analyze(self, bb):
         fence = Fence()
 
@@ -93,12 +96,20 @@ class EffectsG:
             for inst in next_reads:
                 self._graph[inst].append(write_inst)
 
+        # invert the graph, go the other way
+        for inst, dependencies in self._graph.items():
+            for target in dependencies:
+                self._outputs[target].append(inst)
+
         #print(read_groups)
         #print(terms)
         #print(self._graph)
 
     def required_by(self, inst):
         return self._graph.get(inst, [])
+
+    def downstream_of(self, inst):
+        return self._outputs.get(inst, [])
 
 
 def _get_reads(opcode):
