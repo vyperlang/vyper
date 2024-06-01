@@ -1385,7 +1385,7 @@ def foo():
     assert e.value.annotations[0].lineno == 6
 
 
-def test_global_initialize_missed_import_hint(make_input_bundle):
+def test_global_initialize_missed_import_hint(make_input_bundle, chdir_tmp_path):
     lib1 = """
 import lib2
 import lib3
@@ -1413,4 +1413,7 @@ initializes: lib1
     """
 
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
-    compile_code(main, input_bundle=input_bundle)
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "module `lib3.vy` is used but never initialized!"
+    assert e.value._hint is None
