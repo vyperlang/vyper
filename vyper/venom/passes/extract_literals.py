@@ -1,4 +1,3 @@
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral

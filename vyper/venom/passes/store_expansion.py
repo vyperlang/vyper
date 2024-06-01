@@ -1,8 +1,7 @@
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -13,7 +12,6 @@ class StoreExpansionPass(IRPass):
     """
 
     def run_pass(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for bb in self.function.get_basic_blocks():
@@ -38,13 +36,14 @@ class StoreExpansionPass(IRPass):
 
         for use_inst in uses[1:]:
             if use_inst.parent != inst.parent:
-                pass
-                #continue
+                continue
 
+            prev = var
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:
                     new_var = self.function.get_next_variable()
-                    new_inst = IRInstruction("store", [var], new_var)
+                    new_inst = IRInstruction("store", [prev], new_var)
                     inst.parent.insert_instruction(new_inst, insertion_idx)
                     insertion_idx += 1
                     use_inst.operands[i] = new_var
+                    prev = new_var
