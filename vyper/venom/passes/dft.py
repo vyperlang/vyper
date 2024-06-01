@@ -164,6 +164,9 @@ class DFTPass(IRPass):
             return
         self.started.add(inst)
 
+        if inst.opcode in ("phi", "param"):
+            return
+
         for target in self._effects_g.required_by(inst):
             self._process_instruction_r(bb, target)
 
@@ -182,7 +185,7 @@ class DFTPass(IRPass):
         self._effects_g.analyze(bb)
 
         instructions = bb.instructions.copy()
-        bb.instructions.clear()
+        bb.instructions = [inst for inst in bb.instructions if inst.opcode in ("phi","param")]
 
         # start with out liveness
         for var in bb.out_vars:
@@ -197,8 +200,6 @@ class DFTPass(IRPass):
         assert len(bb.instructions) == len(instructions), (instructions, bb)
 
         def key(inst):
-            if inst.opcode == "phi":
-                return 0
             if inst.is_bb_terminator:
                 return 2
             return 1
