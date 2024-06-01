@@ -84,7 +84,10 @@ class EffectsG:
 
         for (effect, fence_id), write_inst in terms.items():
             reads = read_groups.get((effect, fence_id), [])
-            self._graph[write_inst].extend(reads)
+            for read in reads:
+                if read == write_inst:
+                    continue
+                self._graph[write_inst].append(read)
 
             next_id = fence_id + 1
 
@@ -99,6 +102,7 @@ class EffectsG:
         # invert the graph, go the other way
         for inst, dependencies in self._graph.items():
             for target in dependencies:
+                assert target != inst, inst
                 self._outputs[target].append(inst)
 
     def required_by(self, inst):
