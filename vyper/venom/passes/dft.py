@@ -156,10 +156,6 @@ class DFTPass(IRPass):
             for use in uses:
                 self._process_instruction_r(bb, use)
 
-        for target in self._effects_g.downstream_of(inst):
-            pass
-            #self._process_instruction_r(bb, target)
-
         if inst in self.started:
             return
         self.started.add(inst)
@@ -167,12 +163,12 @@ class DFTPass(IRPass):
         if inst.opcode in ("phi", "param"):
             return
 
-        for target in self._effects_g.required_by(inst):
-            self._process_instruction_r(bb, target)
-
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
+            self._process_instruction_r(bb, target)
+
+        for target in self._effects_g.required_by(inst):
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)
@@ -183,12 +179,15 @@ class DFTPass(IRPass):
         self._effects_g.analyze(bb)
 
         instructions = bb.instructions.copy()
-        bb.instructions = [inst for inst in bb.instructions if inst.opcode in ("phi","param")]
+        bb.instructions = [inst for inst in bb.instructions if inst.opcode in ("phi", "param")]
 
         # start with out liveness
-        for var in reversed(list(bb.out_vars)):
-            inst = self.dfg.get_producing_instruction(var)
-            self._process_instruction_r(bb, inst)
+        if len(bb.cfg_out) > 0:
+            next_bb = next(iter(bb.cfg_out))
+            target_stack = self.liveness.input_vars_from(bb, next_bb)
+            for var in reversed(list(target_stack)):
+                inst = self.dfg.get_producing_instruction(var)
+                self._process_instruction_r(bb, inst)
 
         for inst in instructions:
             self._process_instruction_r(bb, inst)
@@ -204,7 +203,7 @@ class DFTPass(IRPass):
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.analyses_cache.request_analysis(LivenessAnalysis)  # use out_vars
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)  # use out_vars
 
         self.started: OrderedSet[IRInstruction] = OrderedSet()
         self.done: OrderedSet[IRInstruction] = OrderedSet()
