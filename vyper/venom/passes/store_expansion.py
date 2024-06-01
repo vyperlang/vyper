@@ -36,7 +36,8 @@ class StoreExpansionPass(IRPass):
 
         for use_inst in uses[1:]:
             if use_inst.parent != inst.parent:
-                continue
+                #continue  # improves codesize
+                pass
 
             prev = var
             for i, operand in enumerate(use_inst.operands):
