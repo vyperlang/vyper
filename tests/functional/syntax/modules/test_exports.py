@@ -384,6 +384,27 @@ exports: lib1.ifoo
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
 
+def test_no_export_unimplemented_inline_interface(make_input_bundle):
+    lib1 = """
+interface ifoo:
+    def do_xyz(): nonpayable
+
+# technically implements ifoo, but missing `implements: ifoo`
+
+@external
+def do_xyz():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(InterfaceViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
+
 
 def test_export_selector_conflict(make_input_bundle):
     ifoo = """
