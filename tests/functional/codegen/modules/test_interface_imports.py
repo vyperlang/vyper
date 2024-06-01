@@ -50,11 +50,38 @@ def foo() -> bool:
     # check that this typechecks both directions
     a: lib1.IERC20 = IERC20(msg.sender)
     b: lib2.IERC20 = IERC20(msg.sender)
+    c: IERC20 = lib1.IERC20(msg.sender)  # allowed in call position
 
     # return the equality so we can sanity check it
-    return a == b
+    return a == b and b == c
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.foo() is True
+
+def test_intrinsic_interface(get_contract, make_input_bundle):
+    lib = """
+@external
+@view
+def foo() -> uint256:
+    if msg.sender == self:
+        return 4
+    else:
+        return 5
+    """
+    main = """
+import lib
+
+exports: lib.__interface__
+
+@external
+@view
+def bar() -> uint256:
+    return staticcall lib.__interface__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.foo() == 5
+    assert c.bar() == 4
