@@ -101,10 +101,6 @@ class EffectsG:
             for target in dependencies:
                 self._outputs[target].append(inst)
 
-        #print(read_groups)
-        #print(terms)
-        #print(self._graph)
-
     def required_by(self, inst):
         return self._graph.get(inst, [])
 
