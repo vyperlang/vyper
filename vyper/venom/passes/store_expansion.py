@@ -1,4 +1,3 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
@@ -36,7 +35,7 @@ class StoreExpansionPass(IRPass):
 
         for use_inst in uses[1:]:
             if use_inst.parent != inst.parent:
-                #continue  # improves codesize
+                # continue  # improves codesize
                 pass
 
             prev = var
