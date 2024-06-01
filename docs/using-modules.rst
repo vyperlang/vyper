@@ -204,4 +204,4 @@ The following are all ways of exporting functions from an imported module.
     exports: ownable_2step.__interface__
 
 .. note::
-    Any exported interfaces must be implemented by the module. For example, in the above example, ``base_token`` must ``implement`` ``IERC20``, or else the compiler will raise an error.
+    Any exported interfaces must be implemented by the module. For example, in the above example, ``base_token`` must contain ``implements: IERC20``, or else the compiler will raise an error.
