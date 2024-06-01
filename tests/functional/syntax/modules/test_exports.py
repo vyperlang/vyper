@@ -384,6 +384,7 @@ exports: lib1.ifoo
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
 
+
 def test_no_export_unimplemented_inline_interface(make_input_bundle):
     lib1 = """
 interface ifoo:

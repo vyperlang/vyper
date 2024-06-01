@@ -60,11 +60,13 @@ def foo() -> bool:
 
     assert c.foo() is True
 
+
 def test_intrinsic_interface(get_contract, make_input_bundle):
     lib = """
 @external
 @view
 def foo() -> uint256:
+    # detect self call
     if msg.sender == self:
         return 4
     else:
