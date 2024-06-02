@@ -495,6 +495,8 @@ def f(x: Bytes[32 * 3]):
     decoded_y1: Bytes[32] = _abi_decode(y, Bytes[32])
     a = b"bar"
     decoded_y2: Bytes[32] = _abi_decode(y, Bytes[32])
+    # original POC:
+    # assert decoded_y1 != decoded_y2
     """
     c = get_contract(code)
 
