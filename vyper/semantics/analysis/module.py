@@ -325,8 +325,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list.raise_if_not_empty()
 
     def validate_initialized_modules(self):
-        # check all `initializes:` modules have `__init__()` called exactly
-        # once, and check they are called in dependency order
+        # check all `initializes:` modules have `__init__()` called exactly once,
+        # and check they are called in dependency order
         module_t = self.ast._metadata["type"]
         should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
 

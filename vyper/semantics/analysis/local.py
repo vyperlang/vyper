@@ -253,7 +253,7 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
     return ret
 
 
-def check_module_uses(node: vy_ast.ExprNode, is_deploy: bool = False) -> Optional[ModuleInfo]:
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     """
     validate module usage, and that if we use lib1.lib2.<state>, that
     lib1 at least `uses` lib2.
@@ -266,32 +266,19 @@ def check_module_uses(node: vy_ast.ExprNode, is_deploy: bool = False) -> Optiona
     if len(module_infos) == 0:
         return None
 
-    level = ModuleOwnership.USES
-    if is_deploy:
-        level = ModuleOwnership.INITIALIZES
-
     for module_info in module_infos:
-        if module_info.ownership < level:
-            # cannot touch state of `used` modules in ctor
-            if is_deploy:
-                msg = f"Cannot access `{module_info.alias}` state from "
-                msg += "`__init__()` function!"
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!\n  note that"
+            # CMC 2024-04-12 add UX note about nonreentrant. might be nice
+            # in the future to be more specific about exactly which state is
+            # used, although that requires threading a bit more context into
+            # this function.
+            msg += " use of the `@nonreentrant` decorator is also considered"
+            msg += " state access"
 
-                hint = f"add `initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-            else:
-                msg = f"Cannot access `{module_info.alias}` state!\n  note that"
-                # CMC 2024-04-12 add UX note about nonreentrant. might be nice
-                # in the future to be more specific about exactly which state is
-                # used, although that requires threading a bit more context into
-                # this function.
-                msg += " use of the `@nonreentrant` decorator is also"
-                msg += " considered state access"
-
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
             raise ImmutableViolation(msg, hint=hint)
 
     # the leftmost- referenced module
@@ -465,7 +452,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         info._writes.add(var_access)
 
     def _handle_module_access(self, target: vy_ast.ExprNode):
-        root_module_info = check_module_uses(target, self.func.is_deploy)
+        root_module_info = check_module_uses(target)
 
         if root_module_info is not None:
             # log the access
