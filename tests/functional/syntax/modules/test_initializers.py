@@ -114,6 +114,59 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+# test multiple uses in different nodes of the import tree
+def test_distant_use_initialize(make_input_bundle):
+    lib3 = """
+counter: uint256
+
+@deploy
+def __init__():
+    self.counter = 1
+    """
+    lib2 = """
+import lib3
+
+uses: lib3
+
+counter: uint256
+
+@deploy
+def __init__():
+    self.counter = 1
+
+@external
+def foo() ->uint256:
+    return lib3.counter
+    """
+    lib1 = """
+import lib2
+import lib3
+
+uses: lib3
+initializes: lib2[lib3 := lib3]
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib3.counter += 1
+    """
+    main = """
+import lib1
+import lib3
+
+initializes: lib1[lib3 := lib3]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib3.__init__()
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 def test_initialize_multi_line_uses(make_input_bundle):
     lib1 = """
 counter: uint256
