@@ -272,6 +272,7 @@ class ModuleT(VyperType):
 
     _attribute_in_annotation = True
     _invalid_locations = (
+        DataLocation.STORAGE,
         DataLocation.CALLDATA,
         DataLocation.CODE,
         DataLocation.MEMORY,
