@@ -339,9 +339,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # map of seen __init__() function calls
         seen_initializers = {}
 
-        # modules which were already initialized in another module
-        already_initialized = OrderedSet()
-
         for call_node in init_calls:
             expr_info = call_node.func._expr_info
             if expr_info is None:
@@ -373,28 +370,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 hint += "as a top-level statement to your contract"
                 raise InitializerException(msg, call_node.func, hint=hint)
 
-            initializer_info = should_initialize[initialized_module.module_t]
-            for dep_info in initializer_info.dependencies:  # type: ModuleInfo
-                dep_t = dep_info.module_t
-
-                if dep_t in already_initialized or dep_t.init_function is None:
-                    continue
-
-                if dep_t not in seen_initializers:
-                    msg = f"Tried to initialize `{initialized_module.alias}`, "
-                    msg += f"but it depends on `{dep_info.alias}`, which has "
-                    msg += "not been initialized yet."
-                    hint = f"call `{dep_info.alias}.__init__()` before "
-                    hint += f"`{initialized_module.alias}.__init__()`."
-                    raise InitializerException(msg, call_node.func, hint=hint)
-
             del should_initialize[initialized_module.module_t]
             seen_initializers[initialized_module.module_t] = call_node.func
-
-            # add the modules that the module initialized, these are already
-            # checked in the recursion.
-            initialized = initialized_module.module_t
-            already_initialized.update(initialized.initialized_modules_recursed)
 
         if len(should_initialize) > 0:
             err_list = ExceptionList()

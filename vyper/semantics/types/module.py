@@ -487,16 +487,6 @@ class ModuleT(VyperType):
         return ret
 
     @cached_property
-    def initialized_modules_recursed(self) -> OrderedSet["ModuleT"]:
-        # modules which are initialized, taking into account recursion
-        ret: OrderedSet = OrderedSet()
-        for info in self.initialized_modules:
-            module_t = info.module_info.module_t
-            ret |= module_t.initialized_modules_recursed
-            ret.add(module_t)
-        return ret
-
-    @cached_property
     def exposed_functions(self):
         # return external functions that are exposed in the runtime
         ret = []
