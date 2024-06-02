@@ -13,6 +13,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     get_type_for_exact_size,
     make_setter,
+    potential_overlap,
     wrap_value_for_external_return,
     writeable,
 )
@@ -70,8 +71,7 @@ class Stmt:
         dst = self._get_target(self.stmt.target)
 
         ret = ["seq"]
-        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
-        if overlap and not dst.typ._is_prim_word:
+        if potential_overlap(dst, src):
             # there is overlap between the lhs and rhs, and the type is
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.
@@ -200,44 +200,43 @@ class Stmt:
         # sanity check that the following `end - start` is a valid operation
         assert start.typ == end.typ == target_type
 
-        if "bound" in kwargs:
-            with end.cache_when_complex("end") as (b1, end):
-                # note: the check for rounds<=rounds_bound happens in asm
-                # generation for `repeat`.
-                clamped_start = clamp_le(start, end, target_type.is_signed)
-                rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
-            rounds_bound = kwargs.pop("bound").int_value()
-        else:
-            rounds = end.int_value() - start.int_value()
-            rounds_bound = rounds
+        with start.cache_when_complex("start") as (b1, start):
+            if "bound" in kwargs:
+                with end.cache_when_complex("end") as (b2, end):
+                    # note: the check for rounds<=rounds_bound happens in asm
+                    # generation for `repeat`.
+                    clamped_start = clamp_le(start, end, target_type.is_signed)
+                    rounds = b2.resolve(IRnode.from_list(["sub", end, clamped_start]))
+                rounds_bound = kwargs.pop("bound").int_value()
+            else:
+                rounds = end.int_value() - start.int_value()
+                rounds_bound = rounds
 
-        assert len(kwargs) == 0  # sanity check stray keywords
+            assert len(kwargs) == 0  # sanity check stray keywords
 
-        if rounds_bound < 1:  # pragma: nocover
-            raise TypeCheckFailure("unreachable: unchecked 0 bound")
+            if rounds_bound < 1:  # pragma: nocover
+                raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
-        varname = self.stmt.target.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
-        iptr = self.context.new_variable(varname, target_type)
+            varname = self.stmt.target.target.id
+            i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
+            iptr = self.context.new_variable(varname, target_type)
 
-        self.context.forvars[varname] = True
+            self.context.forvars[varname] = True
 
-        loop_body = ["seq"]
-        # store the current value of i so it is accessible to userland
-        loop_body.append(["mstore", iptr, i])
-        loop_body.append(parse_body(self.stmt.body, self.context))
+            loop_body = ["seq"]
+            # store the current value of i so it is accessible to userland
+            loop_body.append(["mstore", iptr, i])
+            loop_body.append(parse_body(self.stmt.body, self.context))
 
-        # NOTE: codegen for `repeat` inserts an assertion that
-        # (gt rounds_bound rounds). note this also covers the case where
-        # rounds < 0.
-        # if we ever want to remove that, we need to manually add the assertion
-        # where it makes sense.
-        ir_node = IRnode.from_list(
-            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
-        )
-        del self.context.forvars[varname]
+            del self.context.forvars[varname]
 
-        return ir_node
+            # NOTE: codegen for `repeat` inserts an assertion that
+            # (gt rounds_bound rounds). note this also covers the case where
+            # rounds < 0.
+            # if we ever want to remove that, we need to manually add the assertion
+            # where it makes sense.
+            loop = ["repeat", i, start, rounds, rounds_bound, loop_body]
+            return b1.resolve(IRnode.from_list(loop, error_msg="range() bounds check"))
 
     def _parse_For_list(self):
         with self.context.range_scope():

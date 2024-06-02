@@ -194,7 +194,7 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src):
+def _dynarray_make_setter(dst, src, hi=None):
     assert isinstance(src.typ, DArrayT)
     assert isinstance(dst.typ, DArrayT)
 
@@ -208,6 +208,9 @@ def _dynarray_make_setter(dst, src):
     # before we clobber the length word.
 
     if src.value == "multi":
+        # validation is only performed on unsafe data, but we are dealing with
+        # a literal here.
+        assert hi is None
         ret = ["seq"]
         # handle literals
 
@@ -258,6 +261,7 @@ def _dynarray_make_setter(dst, src):
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
                     get_element_ptr(src, i, array_bounds_check=False),
+                    hi=hi,
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
@@ -449,7 +453,7 @@ def _mul(x, y):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
+def _getelemptr_abi_helper(parent, member_t, ofst):
     member_abi_t = member_t.abi_type
 
     # ABI encoding has length word and then pretends length is not there
@@ -462,9 +466,10 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
 
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
-        # TODO optimize special case: first dynamic item
-        # offset is statically known.
         ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
+        if _dirty_read_risk(ofst_ir):
+            # check no arithmetic overflow
+            ofst_ir = ["seq", ["assert", ["ge", ofst_ir, parent]], ofst_ir]
 
     return IRnode.from_list(
         ofst_ir,
@@ -476,7 +481,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
 
 
 # TODO simplify this code, especially the ABI decoding
-def _get_element_ptr_tuplelike(parent, key):
+def _get_element_ptr_tuplelike(parent, key, hi=None):
     typ = parent.typ
     assert is_tuple_like(typ)
 
@@ -487,7 +492,7 @@ def _get_element_ptr_tuplelike(parent, key):
         index = attrs.index(key)
         annotation = key
     else:
-        # TupleT
+        assert isinstance(typ, TupleT)
         assert isinstance(key, int)
         subtype = typ.member_types[key]
         attrs = list(typ.tuple_keys())
@@ -872,9 +877,63 @@ def needs_clamp(t, encoding):
     raise CompilerPanic("unreachable")  # pragma: nocover
 
 
+# when abi encoded data is user provided and lives in memory,
+# we risk either reading oob of the buffer or oob of the payload data.
+# in these cases, we need additional validation.
+def _dirty_read_risk(ir_node):
+    return ir_node.encoding == Encoding.ABI and ir_node.location == MEMORY
+
+
+# child elements which have dynamic length, and could overflow the buffer
+# even if the start of the item is in-bounds.
+def _abi_payload_size(ir_node):
+    SCALE = ir_node.location.word_scale
+    assert SCALE == 32  # we must be in some byte-addressable region, like memory
+
+    OFFSET = DYNAMIC_ARRAY_OVERHEAD * SCALE
+
+    if isinstance(ir_node.typ, DArrayT):
+        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), SCALE]]
+
+    if isinstance(ir_node.typ, _BytestringT):
+        return ["add", OFFSET, get_bytearray_length(ir_node)]
+
+    raise CompilerPanic("unreachable")  # pragma: nocover
+
+
+def potential_overlap(left, right):
+    """
+    Return true if make_setter(left, right) could potentially trample
+    src or dst during evaluation.
+    """
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.referenced_variables) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
+        return True
+
+    if left.contains_risky_call and len(right.referenced_variables) > 0:
+        return True
+
+    return False
+
+
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right):
+def make_setter(left, right, hi=None):
     check_assign(left, right)
+
+    if potential_overlap(left, right):
+        raise CompilerPanic("overlap between src and dst!")
+
+    # we need bounds checks when decoding from memory, otherwise we can
+    # get oob reads.
+    #
+    # the caller is responsible for calculating the bound;
+    # sanity check that there is a bound if there is dirty read risk
+    assert (hi is not None) == _dirty_read_risk(right)
 
     # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
@@ -892,7 +951,7 @@ def make_setter(left, right):
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
                 copier = make_byte_array_copier(left, right)
-                ret = b.resolve(["seq", clamp_bytestring(right), copier])
+                ret = b.resolve(["seq", clamp_bytestring(right, hi=hi), copier])
         else:
             ret = make_byte_array_copier(left, right)
 
@@ -907,8 +966,8 @@ def make_setter(left, right):
         # TODO rethink/streamline the clamp_basetype logic
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right)
-                ret = b.resolve(["seq", clamp_dyn_array(right), copier])
+                copier = _dynarray_make_setter(left, right, hi=hi)
+                ret = b.resolve(["seq", clamp_dyn_array(right, hi=hi), copier])
         else:
             ret = _dynarray_make_setter(left, right)
 
@@ -917,7 +976,7 @@ def make_setter(left, right):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right)
+    return _complex_make_setter(left, right, hi=hi)
 
 
 # locations with no dedicated copy opcode
@@ -929,7 +988,7 @@ def copy_opcode_available(left, right):
     return left.location == MEMORY and right.location.has_copy_opcode
 
 
-def _complex_make_setter(left, right):
+def _complex_make_setter(left, right, hi=None):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
@@ -1013,13 +1072,14 @@ def _complex_make_setter(left, right):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
             r_i = get_element_ptr(right, k, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i))
+            ret.append(make_setter(l_i, r_i, hi=hi))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
 def ensure_in_memory(ir_var, context):
-    """Ensure a variable is in memory. This is useful for functions
+    """
+    Ensure a variable is in memory. This is useful for functions
     which expect to operate on memory variables.
     """
     if ir_var.location == MEMORY:
@@ -1085,19 +1145,47 @@ def sar(bits, x):
     return ["sar", bits, x]
 
 
-def clamp_bytestring(ir_node):
+def clamp_bytestring(ir_node, hi=None):
     t = ir_node.typ
     if not isinstance(t, _BytestringT):  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
-    ret = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
-    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
+
+    # check if byte array length is within type max
+    with get_bytearray_length(ir_node).cache_when_complex("length") as (b1, length):
+        len_check = ["assert", ["le", length, t.maxlen]]
+
+        assert (hi is not None) == _dirty_read_risk(ir_node)
+        if hi is not None:
+            assert t.maxlen < 2**64  # sanity check
+
+            # note: this add does not risk arithmetic overflow because
+            # length is bounded by maxlen.
+            item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
+
+            len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
+
+        return IRnode.from_list(b1.resolve(len_check), error_msg=f"{ir_node.typ} bounds check")
 
 
-def clamp_dyn_array(ir_node):
+def clamp_dyn_array(ir_node, hi=None):
     t = ir_node.typ
     assert isinstance(t, DArrayT)
-    ret = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
-    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
+
+    len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
+
+    assert (hi is not None) == _dirty_read_risk(ir_node)
+
+    # if the subtype is dynamic, the check will be performed in the recursion
+    if hi is not None and not t.abi_type.subtyp.is_dynamic():
+        assert t.count < 2**64  # sanity check
+
+        # note: this add does not risk arithmetic overflow because
+        # length is bounded by count * elemsize.
+        item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
+
+        len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
+
+    return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")
 
 
 # clampers for basetype
@@ -1211,3 +1299,15 @@ def clamp2(lo, arg, hi, signed):
         LE = "sle" if signed else "le"
         ret = ["seq", ["assert", ["and", [GE, arg, lo], [LE, arg, hi]]], arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+# make sure we don't overrun the source buffer, checking for overflow:
+# valid inputs satisfy:
+#   `assert !(start+length > src_len || start+length < start)`
+def check_buffer_overflow_ir(start, length, src_len):
+    with start.cache_when_complex("start") as (b1, start):
+        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
+            arithmetic_overflow = ["lt", end, start]
+            buffer_oob = ["gt", end, src_len]
+            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            return b1.resolve(b2.resolve(["assert", ok]))

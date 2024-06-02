@@ -119,7 +119,14 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         return_buf = context.new_internal_variable(wrapped_return_t)
 
         # note: make_setter does ABI decoding and clamps
-        unpacker.append(make_setter(return_buf, buf))
+
+        payload_bound = IRnode.from_list(
+            ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
+        )
+        with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
+            unpacker.append(
+                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
+            )
     else:
         return_buf = buf
 
