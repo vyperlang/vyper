@@ -12,6 +12,8 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "call",
         "staticcall",
         "delegatecall",
+        "create",
+        "create2",
         "invoke",
         "sload",
         "sstore",
@@ -34,6 +36,15 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "ret",
         "jmp",
         "jnz",
+        "djmp",
+        "log",
+        "selfdestruct",
+        "invalid",
+        "revert",
+        "assert",
+        "assert_unreachable",
+        "stop",
+        "exit",
     ]
 )
 
@@ -41,7 +52,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
         "mstore",
         "sstore",
-        "dstore",
         "istore",
         "tstore",
         "dloadbytes",
@@ -65,6 +75,10 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "log",
         "exit",
     ]
+)
+
+assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
+    NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
@@ -221,8 +235,12 @@ class IRInstruction:
         self.error_msg = None
 
     @property
-    def volatile(self) -> bool:
+    def is_volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS
+
+    @property
+    def is_bb_terminator(self) -> bool:
+        return self.opcode in BB_TERMINATORS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
@@ -499,7 +517,7 @@ class IRBasicBlock:
         # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
-        return self.instructions[-1].opcode in BB_TERMINATORS
+        return self.instructions[-1].is_bb_terminator
 
     @property
     def is_terminal(self) -> bool:

@@ -495,8 +495,8 @@ def f(x: Bytes[32 * 3]):
     decoded_y1: Bytes[32] = _abi_decode(y, Bytes[32])
     a = b"bar"
     decoded_y2: Bytes[32] = _abi_decode(y, Bytes[32])
-
-    assert decoded_y1 != decoded_y2
+    # original POC:
+    # assert decoded_y1 != decoded_y2
     """
     c = get_contract(code)
 
@@ -1043,7 +1043,7 @@ def run():
         c.run()
 
 
-def test_abi_decode_extcall_zero_len_array(get_contract):
+def test_abi_decode_extcall_empty_array(get_contract):
     code = """
 @external
 def bar() -> (uint256, uint256):
@@ -1059,6 +1059,59 @@ def run():
     c = get_contract(code)
 
     c.run()
+
+
+def test_abi_decode_extcall_complex_empty_dynarray(get_contract):
+    # 5th word of the payload points to the last word of the payload
+    # which is considered the length of the Point.y array
+    # because the length is 0, the decoding should succeed
+    code = """
+struct Point:
+    x: uint256
+    y: DynArray[uint256, 2]
+    z: uint256
+
+@external
+def bar() -> (uint256, uint256, uint256, uint256, uint256, uint256):
+    return 32, 1, 32, 1, 64, 0
+
+interface A:
+    def bar() -> DynArray[Point, 2]: nonpayable
+
+@external
+def run():
+    x: DynArray[Point, 2] = extcall A(self).bar()
+    assert len(x) == 1 and len(x[0].y) == 0
+    """
+    c = get_contract(code)
+
+    c.run()
+
+
+def test_abi_decode_extcall_complex_empty_dynarray2(tx_failed, get_contract):
+    # top-level head points 1B over the runtime buffer end
+    # thus the decoding should fail although the length is 0
+    code = """
+struct Point:
+    x: uint256
+    y: DynArray[uint256, 2]
+    z: uint256
+
+@external
+def bar() -> (uint256, uint256):
+    return 33, 0
+
+interface A:
+    def bar() -> DynArray[Point, 2]: nonpayable
+
+@external
+def run():
+    x: DynArray[Point, 2] = extcall A(self).bar()
+    """
+    c = get_contract(code)
+
+    with tx_failed():
+        c.run()
 
 
 def test_abi_decode_extcall_zero_len_array2(get_contract):
@@ -1080,3 +1133,193 @@ def run() -> uint256:
     length = c.run()
 
     assert length == 0
+
+
+def test_abi_decode_top_level_head_oob(tx_failed, get_contract):
+    code = """
+@external
+def run(x: Bytes[256], y: uint256):
+    player_lost: bool = empty(bool)
+
+    if y == 1:
+        player_lost = True
+
+    decoded: DynArray[Bytes[1], 2] = empty(DynArray[Bytes[1], 2])
+    decoded = _abi_decode(x, DynArray[Bytes[1], 2])
+    """
+    c = get_contract(code)
+
+    # head points over the buffer end
+    payload = (0x0100, *_replicate(0x00, 7))
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data, 1)
+
+    with tx_failed():
+        c.run(data, 0)
+
+
+def test_abi_decode_dynarray_complex_insufficient_data(env, tx_failed, get_contract):
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+
+@external
+def run(x: Bytes[32 * 8]):
+    y: Bytes[32 * 8] = x
+    decoded_y1: DynArray[Point, 3] = _abi_decode(y, DynArray[Point, 3])
+    """
+    c = get_contract(code)
+
+    # runtime buffer has insufficient size - we decode 3 points, but provide only
+    # 3 * 32B of payload
+    payload = (0x20, 0x03, *_replicate(0x03, 3))
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_dynarray_complex2(env, tx_failed, get_contract):
+    # point head to the 1st 0x01 word (ie the length)
+    # but size of the point is 3 * 32B, thus we'd decode 2B over the buffer end
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+    z: uint256
+
+
+@external
+def run(x: Bytes[32 * 8]):
+    y: Bytes[32 * 11] = x
+    decoded_y1: DynArray[Point, 2] = _abi_decode(y, DynArray[Point, 2])
+    """
+    c = get_contract(code)
+
+    payload = (
+        0xC0,  # points to the 1st 0x01 word (ie the length)
+        *_replicate(0x03, 5),
+        *_replicate(0x01, 2),
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_complex_empty_dynarray(env, tx_failed, get_contract):
+    # point head to the last word of the payload
+    # this will be the length, but because it's set to 0, the decoding should succeed
+    code = """
+struct Point:
+    x: uint256
+    y: DynArray[uint256, 2]
+    z: uint256
+
+
+@external
+def run(x: Bytes[32 * 16]):
+    y: Bytes[32 * 16] = x
+    decoded_y1: DynArray[Point, 2] = _abi_decode(y, DynArray[Point, 2])
+    assert len(decoded_y1) == 1 and len(decoded_y1[0].y) == 0
+    """
+    c = get_contract(code)
+
+    payload = (
+        0x20,
+        0x01,
+        0x20,
+        0x01,
+        0xA0,  # points to the last word of the payload
+        0x04,
+        0x02,
+        0x02,
+        0x00,  # length is 0, so decoding should succeed
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    c.run(data)
+
+
+def test_abi_decode_complex_arithmetic_overflow(tx_failed, get_contract):
+    # inner head roundtrips due to arithmetic overflow
+    code = """
+struct Point:
+    x: uint256
+    y: DynArray[uint256, 2]
+    z: uint256
+
+
+@external
+def run(x: Bytes[32 * 16]):
+    y: Bytes[32 * 16] = x
+    decoded_y1: DynArray[Point, 2] = _abi_decode(y, DynArray[Point, 2])
+    """
+    c = get_contract(code)
+
+    payload = (
+        0x20,
+        0x01,
+        0x20,
+        0x01,  # both Point.x and Point.y length
+        2**256 - 0x20,  # points to the "previous" word of the payload
+        0x04,
+        0x02,
+        0x02,
+        0x00,
+    )
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
+
+
+def test_abi_decode_empty_toplevel_dynarray(get_contract):
+    code = """
+@external
+def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    assert len(y) == 2 * 32
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y,
+        DynArray[DynArray[uint256, 3], 3]
+    )
+    assert len(decoded_y1) == 0
+    """
+    c = get_contract(code)
+
+    payload = (0x20, 0x00)  # DynArray head, DynArray length
+
+    data = _abi_payload_from_tuple(payload)
+
+    c.run(data)
+
+
+def test_abi_decode_invalid_toplevel_dynarray_head(tx_failed, get_contract):
+    # head points 1B over the bounds of the runtime buffer
+    code = """
+@external
+def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
+    y: Bytes[2 * 32 + 3 * 32 + 3 * 32 * 4] = x
+    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+        y,
+        DynArray[DynArray[uint256, 3], 3]
+    )
+    """
+    c = get_contract(code)
+
+    # head points 1B over the bounds of the runtime buffer
+    payload = (0x21, 0x00)  # DynArray head, DynArray length
+
+    data = _abi_payload_from_tuple(payload)
+
+    with tx_failed():
+        c.run(data)
