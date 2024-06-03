@@ -1324,6 +1324,7 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
     with tx_failed():
         c.run(data)
 
+
 def test_nested_invalid_dynarray_head(get_contract, tx_failed):
     code = """
 @nonpayable
@@ -1347,12 +1348,12 @@ def bar(x:Bytes[320]):
 
     encoded = (
         0xE0,  # head of the dynarray
-        0x00, # 0x20
-        0x00, # 0x40
-        0x00, # 0x60
-        0x00, # 0x80
-        0x00, # 0xA0
-        0x00, # 0xC0
+        0x00,  # 0x20
+        0x00,  # 0x40
+        0x00,  # 0x60
+        0x00,  # 0x80
+        0x00,  # 0xA0
+        0x00,  # 0xC0
         0x02,  # len of outer
     )
     inner = (
