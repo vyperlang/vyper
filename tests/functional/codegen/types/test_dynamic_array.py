@@ -1865,3 +1865,25 @@ def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
     c = get_contract(code)
     with tx_failed():
         c.should_revert()
+
+
+def test_dynarray_make_setter_overlap(get_contract):
+    # GH 4056, variant of GH 3503
+    code = """
+a: DynArray[DynArray[uint256, 10], 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a.append([1, 2, self.boo(), 4])
+    return self.a[0] # returns [11, 12, 3, 4]
+
+@internal
+def boo() -> uint256:
+    self.a.append([11, 12, 13, 14, 15, 16])
+    self.a.pop()
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4]

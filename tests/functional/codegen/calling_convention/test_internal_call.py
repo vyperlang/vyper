@@ -11,7 +11,6 @@ from vyper.exceptions import ArgumentException, CallViolation
 
 def test_selfcall_code(get_contract):
     selfcall_code = """
-@internal
 def _foo() -> int128:
     return 3
 
@@ -28,7 +27,6 @@ def bar() -> int128:
 
 def test_selfcall_code_2(get_contract, keccak):
     selfcall_code_2 = """
-@internal
 def _double(x: int128) -> int128:
     return x * 2
 
@@ -36,7 +34,6 @@ def _double(x: int128) -> int128:
 def returnten() -> int128:
     return self._double(5)
 
-@internal
 def _hashy(x: bytes32) -> bytes32:
     return keccak256(x)
 
@@ -622,6 +619,49 @@ def bar() -> Bytes[6]:
     c = get_contract(contract)
 
     assert c.bar() == b"hello"
+
+
+def test_make_setter_internal_call(get_contract):
+    # cf. GH #3503
+    code = """
+a:DynArray[uint256,2]
+
+@external
+def foo() -> DynArray[uint256,2]:
+    # Initial value
+    self.a = [1, 2]
+    self.a = [self.bar(1), self.bar(0)]
+    return self.a
+
+@internal
+def bar(i: uint256) -> uint256:
+    return self.a[i]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [2, 1]
+
+
+def test_make_setter_internal_call2(get_contract):
+    # cf. GH #3503
+    code = """
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, self.boo(), 4]
+    return self.a # returns [11, 12, 3, 4]
+
+@internal
+def boo() -> uint256:
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
 
 
 def test_dynamically_sized_struct_member_as_arg_2(get_contract):

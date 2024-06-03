@@ -81,8 +81,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "eq",
         "iszero",
         "not",
-        "lg",
         "lt",
+        "gt",
         "slt",
         "sgt",
         "create",
@@ -101,6 +101,9 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "invalid",
     ]
 )
+
+COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
+
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
@@ -195,8 +198,14 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable]
-    ) -> None:
+        self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
+    ) -> int:
+        cost = 0
+
+        if dry_run:
+            assert len(assembly) == 0, "Dry run should not work on assembly"
+            stack = stack.copy()
+
         stack_ops_count = len(stack_ops)
 
         counts = Counter(stack_ops)
@@ -216,8 +225,10 @@ class VenomCompiler:
             if op == stack.peek(final_stack_depth):
                 continue
 
-            self.swap(assembly, stack, depth)
-            self.swap(assembly, stack, final_stack_depth)
+            cost += self.swap(assembly, stack, depth)
+            cost += self.swap(assembly, stack, final_stack_depth)
+
+        return cost
 
     def _emit_input_operands(
         self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
@@ -294,7 +305,7 @@ class VenomCompiler:
         for i, inst in enumerate(bb.instructions):
             if inst.opcode != "param":
                 break
-            if inst.volatile and i + 1 < len(bb.instructions):
+            if inst.is_volatile and i + 1 < len(bb.instructions):
                 liveness = bb.instructions[i + 1].liveness
                 if inst.output is not None and inst.output not in liveness:
                     depth = stack.get_depth(inst.output)
@@ -376,7 +387,7 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phis = list(inst.get_inputs())
+            phis = list(inst.get_input_variables())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
@@ -406,9 +417,16 @@ class VenomCompiler:
             target_stack_list = list(target_stack)
             self._stack_reorder(assembly, stack, target_stack_list)
 
+        if opcode in COMMUTATIVE_INSTRUCTIONS:
+            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            operands[-1], operands[-2] = operands[-2], operands[-1]
+            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            if cost_with_swap > cost_no_swap:
+                operands[-1], operands[-2] = operands[-2], operands[-1]
+
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)  # type: ignore
+        self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
@@ -454,10 +472,6 @@ class VenomCompiler:
                 inst.operands[0], IRVariable
             ), f"Expected IRVariable, got {inst.operands[0]}"
             assembly.append("JUMP")
-        elif opcode == "gt":
-            assembly.append("GT")
-        elif opcode == "lt":
-            assembly.append("LT")
         elif opcode == "invoke":
             target = inst.operands[0]
             assert isinstance(
@@ -495,8 +509,6 @@ class VenomCompiler:
                     "SHA3",
                 ]
             )
-        elif opcode == "ceil32":
-            assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
         elif opcode == "assert_unreachable":
@@ -527,6 +539,11 @@ class VenomCompiler:
         if inst.output is not None:
             if "call" in inst.opcode and inst.output not in next_liveness:
                 self.pop(assembly, stack)
+            elif inst.output in next_liveness:
+                # peek at next_liveness to find the next scheduled item,
+                # and optimistically swap with it
+                next_scheduled = list(next_liveness)[-1]
+                self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)
 
@@ -534,13 +551,14 @@ class VenomCompiler:
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack, depth):
+    def swap(self, assembly, stack, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
-            return
+            return 0
 
         stack.swap(depth)
         assembly.append(_evm_swap_for(depth))
+        return 1
 
     def dup(self, assembly, stack, depth):
         stack.dup(depth)

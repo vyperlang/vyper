@@ -102,6 +102,6 @@ Custom constants can be defined at a global level in Vyper. To define a constant
     TOTAL_SUPPLY: constant(uint256) = 10000000
     total_supply: public(uint256)
 
-    @external
+    @deploy
     def __init__():
         self.total_supply = TOTAL_SUPPLY

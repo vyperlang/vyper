@@ -71,7 +71,7 @@ jobs:
       -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version || 'shanghai' }}\
+      -${{ matrix.evm-version || 'cancun' }}\
       -${{ matrix.evm-backend || 'revm' }}"
     strategy:
       matrix:
@@ -80,7 +80,7 @@ jobs:
         python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
         opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [shanghai]  # note: when upgrading, check the "include" section below for conflicting jobs
+        evm-version: [cancun]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
         evm-backend: [revm]
 
@@ -89,15 +89,24 @@ jobs:
           # test default settings with 3.11 across all supported evm versions
           - evm-version: london
           - evm-version: paris
-          - evm-version: cancun
+          - evm-version: shanghai
 
-          # py-evm rules
+          # test pre-cancun with opt-codesize and opt-none
+          - evm-version: shanghai
+            opt-mode: none
+          - evm-version: shanghai
+            opt-mode: codesize
+
+          # test py-evm
           - evm-backend: py-evm
+            evm-version: shanghai
+
           - evm-backend: py-evm
             evm-version: cancun
 
           # test experimental pipeline
           - experimental-codegen: true
+            opt-mode: gas
           - experimental-codegen: true
             opt-mode: none
           - experimental-codegen: true
@@ -135,7 +144,7 @@ jobs:
         pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
-        --evm-version ${{ matrix.evm-version || 'shanghai' }}
+        --evm-version ${{ matrix.evm-version || 'cancun' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
