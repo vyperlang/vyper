@@ -58,12 +58,6 @@ class DFTPass(IRPass):
 
         self.inst_order[inst] = self.inst_order_num + offset
 
-    def _assign_fences_dummy(self, bb: IRBasicBlock) -> None:
-        for inst in bb.instructions:
-            inst.fence_id = self.fence_id
-            if inst.is_volatile:
-                self.fence_id += 1
-
     def _assign_fences(self, bb: IRBasicBlock) -> None:
         self.visited = OrderedSet()
         self.fence_id = 1
@@ -87,9 +81,6 @@ class DFTPass(IRPass):
 
         self._assign_fences(bb)
 
-        # We go throught the instructions and calculate the order in which they should be executed
-        # based on the data flow graph. This order is stored in the inst_order dictionary.
-        # We then sort the instructions based on this order.
         self.inst_order = {}
         self.inst_order_num = 0
         for inst in bb.instructions:
