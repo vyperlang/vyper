@@ -1323,3 +1323,45 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
 
     with tx_failed():
         c.run(data)
+
+def test_nested_invalid_dynarray_head(get_contract, tx_failed):
+    code = """
+@nonpayable
+@external
+def foo(x:Bytes[320]):
+    if True:
+        a: Bytes[320-32] = b''
+        b:uint256 = 32
+    x_mem: Bytes[320] = x
+    # fake_head: uint256 = 32
+    y: DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
+
+@nonpayable
+@external
+def bar(x:Bytes[320]):
+    x_mem: Bytes[320] = x
+    # fake_head: uint256 = 32
+    y:DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
+    """
+    c = get_contract(code)
+
+    encoded = (
+        0xE0,  # head of the dynarray
+        0x00, # 0x20
+        0x00, # 0x40
+        0x00, # 0x60
+        0x00, # 0x80
+        0x00, # 0xA0
+        0x00, # 0xC0
+        0x02,  # len of outer
+    )
+    inner = (
+        0x0,  # head
+        # 0x0,  # head2
+    )
+
+    encoded = _abi_payload_from_tuple(encoded + inner)
+    with tx_failed():
+        c.foo(encoded)  # revert
+    with tx_failed():
+        c.bar(encoded)  # return [[],[]]
