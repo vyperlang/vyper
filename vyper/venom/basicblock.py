@@ -337,10 +337,17 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        if self.liveness:
-            return f"{s: <30} # {self.liveness}"
+        from vyper.venom.analysis.analysis import IRAnalysesCache
+        from vyper.venom.analysis.liveness import LivenessAnalysis
 
-        return s
+        if hasattr(self, "parent"):
+            fn = self.parent.parent
+            ac = IRAnalysesCache(fn)
+            ac.force_analysis(LivenessAnalysis)
+
+        fence = self.fence_id if self.fence_id != -1 else ""
+
+        return f"{s: <30} # {fence} {self.liveness}"
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
