@@ -1,3 +1,4 @@
+from collections import deque
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -11,40 +12,35 @@ class DFTPass(IRPass):
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
 
-    def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction, offset: int = 0):
+    def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
+        if inst in self.visited_instructions:
+            return
+        self.visited_instructions.add(inst)
+
         for op in inst.get_outputs():
-            assert isinstance(op, IRVariable), f"expected variable, got {op}"
             uses = self.dfg.get_uses(op)
 
+            forward_instructions = []
             for uses_this in uses:
                 if uses_this.parent != inst.parent:
                     # don't reorder across basic block boundaries
                     continue
 
-                if inst.fence_id != 0 and uses_this.fence_id != inst.fence_id:
+                if uses_this.fence_id != inst.fence_id:
                     # don't reorder across fence boundaries
                     continue
+                
+                self._process_instruction_r(forward_instructions, uses_this)
 
-                # if the instruction is a terminator, we need to place
-                # it at the end of the basic block
-                # along with all the instructions that "lead" to it
-                self._process_instruction_r(bb, uses_this, offset)
-
-        if inst in self.visited_instructions:
-            return
-        self.visited_instructions.add(inst)
-        self.inst_order_num += 1
-
-        if inst.is_bb_terminator:
-            offset = len(bb.instructions)
-
-        if inst.opcode == "phi":
-            # phi instructions stay at the beginning of the basic block
-            # and no input processing is needed
-            # bb.instructions.append(inst)
-            self.inst_order[inst] = 0
-            return
-
+            instructions.extend(forward_instructions)            
+        
+        # if inst.opcode == "phi":
+        #     # phi instructions stay at the beginning of the basic block
+        #     # and no input processing is needed
+        #     # bb.instructions.append(inst)
+        #     self.instructions.appendleft(inst)
+        #     return
+        
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
@@ -54,9 +50,9 @@ class DFTPass(IRPass):
             if target.fence_id != inst.fence_id:
                 # don't reorder across fence boundaries
                 continue
-            self._process_instruction_r(bb, target, offset)
-
-        self.inst_order[inst] = self.inst_order_num + offset
+            self._process_instruction_r(instructions, target)
+# SPLIT THE IN SEPARATE LISTS PER FENCE
+        instructions.append(inst)        
 
     def _assign_fences(self, bb: IRBasicBlock) -> None:
         self.visited = OrderedSet()
@@ -71,11 +67,21 @@ class DFTPass(IRPass):
         self.visited.add(inst)
 
         inst.fence_id = self.fence_id
+
+        for op in inst.get_outputs():
+            uses = self.dfg.get_uses(op)
+            for uses_this in uses:
+                if uses_this.parent != inst.parent:
+                    continue
+                self._assign_fences_r(uses_this)
         
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
+            if target.parent != inst.parent:
+                continue
+
             self._assign_fences_r(target)
-            
+
         if inst.is_volatile:
             self.fence_id += 1
 
@@ -85,11 +91,16 @@ class DFTPass(IRPass):
         self._assign_fences(bb)
 
         self.inst_order = {}
-        self.inst_order_num = 0
-        for inst in bb.instructions:
-            self._process_instruction_r(bb, inst)
+        self.inst_order_num = len(bb.instructions)
 
-        bb.instructions.sort(key=lambda x: self.inst_order[x])
+        self.instructions = deque()
+
+        for inst in reversed(bb.instructions):
+            instructions = []
+            self._process_instruction_r(instructions, inst)
+            self.instructions.extendleft(reversed(instructions))
+
+        bb.instructions = list(self.instructions)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
