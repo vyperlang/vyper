@@ -16,8 +16,12 @@ class DFTPass(IRPass):
             uses = self.dfg.get_uses(op)
 
             for uses_this in uses:
-                if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
-                    # don't reorder across basic block or fence boundaries
+                if uses_this.parent != inst.parent:
+                    # don't reorder across basic block boundaries
+                    continue
+
+                if inst.fence_id != 0 and uses_this.fence_id != inst.fence_id:
+                    # don't reorder across fence boundaries
                     continue
 
                 # if the instruction is a terminator, we need to place
@@ -43,8 +47,11 @@ class DFTPass(IRPass):
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
-            if target.parent != inst.parent or target.fence_id != inst.fence_id:
-                # don't reorder across basic block or fence boundaries
+            if target.parent != inst.parent:
+                # don't reorder across basic block boundaries
+                continue
+            if target.fence_id != 0 and target.fence_id < inst.fence_id:
+                # don't reorder across fence boundaries
                 continue
             self._process_instruction_r(bb, target, offset)
 
@@ -54,6 +61,9 @@ class DFTPass(IRPass):
         self.function.append_basic_block(bb)
 
         for inst in bb.instructions:
+            if inst.opcode in ["caller", "calldatasize", "callvalue"]:
+                inst.fence_id = 0
+                continue
             inst.fence_id = self.fence_id
             if inst.is_volatile:
                 self.fence_id += 1
@@ -71,7 +81,7 @@ class DFTPass(IRPass):
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        self.fence_id = 0
+        self.fence_id = 1
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         basic_blocks = list(self.function.get_basic_blocks())
