@@ -60,6 +60,7 @@ class DFTPass(IRPass):
 
     def _assign_fences(self, bb: IRBasicBlock) -> None:
         self.visited = OrderedSet()
+        bb.instructions[-1].fence_id = 0
         self.fence_id = 1
         for inst in reversed(bb.instructions[:-1]):
             self._assign_fences_r(inst)
@@ -70,11 +71,13 @@ class DFTPass(IRPass):
         self.visited.add(inst)
 
         inst.fence_id = self.fence_id
-        if inst.is_volatile:
-            self.fence_id += 1
+        
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             self._assign_fences_r(target)
+            
+        if inst.is_volatile:
+            self.fence_id += 1
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self.function.append_basic_block(bb)
