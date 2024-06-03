@@ -6,6 +6,7 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -38,7 +39,7 @@ def generate_assembly_experimental(
     compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
-
+count = 0
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
@@ -58,6 +59,14 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 
+    # global count
+    # if count == 1:
+    #     dft = ac.request_analysis(DFGAnalysis)
+    #     print(dft)
+
+    #     import sys
+    #     sys.exit(1)
+    # count += 1
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
