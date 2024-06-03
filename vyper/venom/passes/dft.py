@@ -1,5 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -50,23 +51,41 @@ class DFTPass(IRPass):
             if target.parent != inst.parent:
                 # don't reorder across basic block boundaries
                 continue
-            if target.fence_id != 0 and target.fence_id < inst.fence_id:
+            if target.fence_id != inst.fence_id:
                 # don't reorder across fence boundaries
                 continue
             self._process_instruction_r(bb, target, offset)
 
         self.inst_order[inst] = self.inst_order_num + offset
 
-    def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.function.append_basic_block(bb)
-
+    def _assign_fences_dummy(self, bb: IRBasicBlock) -> None:
         for inst in bb.instructions:
-            if inst.opcode in ["caller", "calldatasize", "callvalue"]:
-                inst.fence_id = 0
-                continue
             inst.fence_id = self.fence_id
             if inst.is_volatile:
                 self.fence_id += 1
+
+    def _assign_fences(self, bb: IRBasicBlock) -> None:
+        self.visited = OrderedSet()
+        self.fence_id = 1
+        for inst in reversed(bb.instructions[:-1]):
+            self._assign_fences_r(inst)
+
+    def _assign_fences_r(self, inst: IRInstruction) -> None:
+        if inst in self.visited:
+            return
+        self.visited.add(inst)
+
+        inst.fence_id = self.fence_id
+        if inst.is_volatile:
+            self.fence_id += 1
+        for op in inst.get_input_variables():
+            target = self.dfg.get_producing_instruction(op)
+            self._assign_fences_r(target)
+
+    def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        self.function.append_basic_block(bb)
+
+        self._assign_fences(bb)
 
         # We go throught the instructions and calculate the order in which they should be executed
         # based on the data flow graph. This order is stored in the inst_order dictionary.
@@ -80,6 +99,7 @@ class DFTPass(IRPass):
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.analyses_cache.force_analysis(LivenessAnalysis)
 
         self.fence_id = 1
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
