@@ -1366,3 +1366,46 @@ def bar(x:Bytes[320]):
         c.foo(encoded)  # revert
     with tx_failed():
         c.bar(encoded)  # return [[],[]]
+
+
+def test_static_outer_type_invalid_heads(get_contract, tx_failed):
+    code = """
+@nonpayable
+@external
+def foo(x:Bytes[320]):
+    if True:
+        a: Bytes[320-32] = b''
+        b:uint256 = 32
+    x_mem: Bytes[320] = x
+    y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
+
+@nonpayable
+@external
+def bar(x:Bytes[320]):
+    if True:
+        a: Bytes[160] = b''
+        # write stuff here to make the call revert in case decode do
+        # an out of bound access:
+        b: uint256 = 32
+    x_mem: Bytes[320] = x
+    y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
+    """
+    c = get_contract(code)
+
+    encoded = (
+        0x80,  # head of the static array
+        0x00,  # garbage to pass the ABI min_size check
+        0x00,  # garbage to pass the ABI min_size check
+        0x00,  # garbage to pass the ABI min_size check
+    )
+    inner = (
+        0x00,  # head of the first dynarray
+        # 0x00,  # head of the second dynarray
+    )
+
+    encoded = _abi_payload_from_tuple(encoded + inner)
+
+    with tx_failed():
+        c.foo(encoded)
+    with tx_failed():
+        c.bar(encoded)
