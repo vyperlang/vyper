@@ -211,4 +211,5 @@ class DFTPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        # for repr
+        self.analyses_cache.force_analysis(LivenessAnalysis)
