@@ -980,7 +980,7 @@ def make_setter(left, right, hi=None):
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
     ret = ["seq"]
-    if needs_clamp(right.typ, right.encoding):
+    if hi is not None:
         item_end = add_ofst(right, right.typ.abi_type.static_size())
         len_check = ["assert", ["le", item_end, hi]]
         ret.append(len_check)
