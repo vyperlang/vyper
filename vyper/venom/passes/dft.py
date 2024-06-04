@@ -71,17 +71,16 @@ class DFTPass(IRPass):
         self.visited = OrderedSet()
         bb.instructions[-1].fence_id = 0
         self._add_to_group(bb.instructions[-1])
-        self.fence_id = 1
 
         for inst in reversed(bb.instructions[:-1]):
-            self._assign_fences_r(inst)
+            self._assign_fences_r(inst, 1)
 
-    def _assign_fences_r(self, inst: IRInstruction) -> None:
+    def _assign_fences_r(self, inst: IRInstruction, fence_id: int) -> None:
         if inst in self.visited:
             return
         self.visited.add(inst)
 
-        inst.fence_id = self.fence_id
+        inst.fence_id = fence_id
         self._add_to_group(inst)
 
         for op in inst.get_outputs():
@@ -89,17 +88,20 @@ class DFTPass(IRPass):
             for uses_this in uses:
                 if uses_this.parent != inst.parent:
                     continue
-                self._assign_fences_r(uses_this)
+                self._assign_fences_r(uses_this, fence_id)
         
+        
+
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             if target.parent != inst.parent:
                 continue
 
-            self._assign_fences_r(target)
+            self._assign_fences_r(target, fence_id)
 
         if inst.is_volatile:
-            self.fence_id += 1
+            fence_id += 1
+        
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self.function.append_basic_block(bb)
@@ -127,13 +129,12 @@ class DFTPass(IRPass):
         #     self._process_instruction_r(instructions, inst)
         #     self.instructions.extendleft(reversed(instructions))
 
-        #bb.instructions = list(self.instructions)
+        bb.instructions = list(self.instructions)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.analyses_cache.force_analysis(LivenessAnalysis)
 
-        self.fence_id = 1
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         basic_blocks = list(self.function.get_basic_blocks())
