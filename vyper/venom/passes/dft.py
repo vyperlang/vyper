@@ -52,6 +52,7 @@ class Fence:
     memory: int = 0
     transient: int = 0
     immutables: int = 0
+    balance: int = 0
 
 
 # effects graph
