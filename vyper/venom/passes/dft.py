@@ -8,7 +8,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-_ALL = ("storage", "transient", "memory", "immutables")
+_ALL = ("storage", "transient", "memory", "immutables", "balance")
 
 writes = {
     "sstore": "storage",
@@ -37,6 +37,8 @@ reads = {
     "call": _ALL,
     "delegatecall": _ALL,
     "staticcall": _ALL,
+    "balance": "balance",
+    "selfbalance": "balance",
     "log": "memory",
     "revert": "memory",
     "return": "memory",
