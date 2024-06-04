@@ -153,7 +153,7 @@ class DFTPass(IRPass):
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
             uses = self.dfg.get_uses(op)
 
-            for use in uses:
+            for use in reversed(uses):
                 self._process_instruction_r(bb, use)
 
         if inst in self.started:
