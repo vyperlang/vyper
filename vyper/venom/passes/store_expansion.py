@@ -15,7 +15,7 @@ class StoreExpansionPass(IRPass):
 
         for bb in self.function.get_basic_blocks():
             for idx, inst in enumerate(bb.instructions):
-                if inst.opcode != "store":
+                if inst.output is None:
                     continue
 
                 self._process_inst(dfg, inst, idx)
@@ -35,8 +35,7 @@ class StoreExpansionPass(IRPass):
 
         for use_inst in uses[1:]:
             if use_inst.parent != inst.parent:
-                # continue  # improves codesize
-                pass
+                continue  # improves codesize
 
             prev = var
             for i, operand in enumerate(use_inst.operands):
