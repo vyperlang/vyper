@@ -979,7 +979,14 @@ def make_setter(left, right, hi=None):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right, hi=hi)
+    ret = ["seq"]
+    if needs_clamp(right.typ, right.encoding):
+        item_end = add_ofst(right, right.typ.abi_type.static_size())
+        len_check = ["assert", ["le", item_end, hi]]
+        ret.append(len_check)
+
+    ret.append(_complex_make_setter(left, right, hi=hi))
+    return IRnode.from_list(ret)
 
 
 # locations with no dedicated copy opcode
