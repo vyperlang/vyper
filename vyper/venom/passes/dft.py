@@ -1,4 +1,5 @@
 from collections import deque
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -11,16 +12,16 @@ class DFTPass(IRPass):
     function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
+    inst_groups: dict[int, list[IRInstruction]]
+
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        super().__init__(analyses_cache, function)
+        self.inst_groups = {}
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
-        self.visited_instructions.add(inst)
-
         for op in inst.get_outputs():
             uses = self.dfg.get_uses(op)
 
-            forward_instructions = []
             for uses_this in uses:
                 if uses_this.parent != inst.parent:
                     # don't reorder across basic block boundaries
@@ -30,9 +31,9 @@ class DFTPass(IRPass):
                     # don't reorder across fence boundaries
                     continue
                 
-                self._process_instruction_r(forward_instructions, uses_this)
+                self._process_instruction_r(instructions, uses_this)
 
-            instructions.extend(forward_instructions)            
+            #instructions.extend(forward_instructions)            
         
         # if inst.opcode == "phi":
         #     # phi instructions stay at the beginning of the basic block
@@ -40,6 +41,10 @@ class DFTPass(IRPass):
         #     # bb.instructions.append(inst)
         #     self.instructions.appendleft(inst)
         #     return
+
+        if inst in self.visited_instructions:
+            return
+        self.visited_instructions.add(inst)
         
         for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
@@ -51,13 +56,23 @@ class DFTPass(IRPass):
                 # don't reorder across fence boundaries
                 continue
             self._process_instruction_r(instructions, target)
-# SPLIT THE IN SEPARATE LISTS PER FENCE
+
         instructions.append(inst)        
 
+    def _add_to_group(self, inst: IRInstruction) -> None:
+        group = self.inst_groups.get(inst.fence_id)
+        if group is None:
+            self.inst_groups[inst.fence_id] = [inst]
+        else:
+            group.append(inst)
+
     def _assign_fences(self, bb: IRBasicBlock) -> None:
+        self.inst_groups = {}
         self.visited = OrderedSet()
         bb.instructions[-1].fence_id = 0
+        self._add_to_group(bb.instructions[-1])
         self.fence_id = 1
+
         for inst in reversed(bb.instructions[:-1]):
             self._assign_fences_r(inst)
 
@@ -67,6 +82,7 @@ class DFTPass(IRPass):
         self.visited.add(inst)
 
         inst.fence_id = self.fence_id
+        self._add_to_group(inst)
 
         for op in inst.get_outputs():
             uses = self.dfg.get_uses(op)
@@ -95,12 +111,23 @@ class DFTPass(IRPass):
 
         self.instructions = deque()
 
-        for inst in reversed(bb.instructions):
-            instructions = []
-            self._process_instruction_r(instructions, inst)
-            self.instructions.extendleft(reversed(instructions))
+        instructions_per_group = {}
+        for i, group in self.inst_groups.items():
+            instructions_per_group[i] = deque()
+            for inst in group:
+                instructions = []
+                self._process_instruction_r(instructions, inst)    
+                instructions_per_group[i].extendleft(reversed(instructions))
 
-        bb.instructions = list(self.instructions)
+        for i, group in reversed(instructions_per_group.items()):
+            self.instructions.extend(group)
+
+        # for inst in reversed(bb.instructions):
+        #     instructions = []
+        #     self._process_instruction_r(instructions, inst)
+        #     self.instructions.extendleft(reversed(instructions))
+
+        #bb.instructions = list(self.instructions)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
