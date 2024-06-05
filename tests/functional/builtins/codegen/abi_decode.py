@@ -89,7 +89,8 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         # abi string doesn't actually define string decoder, so we
         # just bytecast the output
         if isinstance(abi_t, ABI_String):
-            ret = ret.decode("raw_unicode_escape")
+            # match eth-stdlib, since that's what we check against
+            ret = ret.decode(errors="surrogateescape")
 
         return ret
 
