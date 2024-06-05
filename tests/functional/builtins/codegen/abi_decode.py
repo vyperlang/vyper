@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from vyper.abi_types import (
     ABI_Address,
@@ -12,6 +12,9 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.utils import int_bounds, unsigned_to_signed
+
+if TYPE_CHECKING:
+    from vyper.semantics.types import VyperType
 
 
 class DecodeError(Exception):
@@ -30,7 +33,11 @@ def _read_int(payload, ofst):
     return int.from_bytes(_strict_slice(payload, ofst, 32))
 
 
-# abi_decode spec implementation
+# vyper abi_decode spec implementation
+def spec_decode(typ: "VyperType", payload: bytes):
+    return _decode_r(typ.abi_type, 0, payload)
+
+
 def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
     if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
         # is this check necessary?
