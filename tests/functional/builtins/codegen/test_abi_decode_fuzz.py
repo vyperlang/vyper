@@ -132,9 +132,9 @@ def _mutate(draw, payload, max_mutations=5):
 
 @st.composite
 def payload_from(draw, typ):
-    typ = calculate_type_for_external_return(typ)
-    data = draw(data_for_type(typ))
-    schema = typ.abi_type.selector()
+    wrapped_type = calculate_type_for_external_return(typ)
+    data = draw(data_for_type(wrapped_type))
+    schema = wrapped_type.abi_type.selector_name()
     payload = abi.encode(schema, data)
 
     return draw(_mutate(payload))
@@ -142,7 +142,8 @@ def payload_from(draw, typ):
 
 @given(typ=vyper_type())
 def test_abi_decode_fuzz(typ, get_contract, tx_failed):
-    bound = typ.abi_type.size_bound()
+    wrapped_type = calculate_type_for_external_return(typ)
+    bound = wrapped_type.abi_type.size_bound()
     type_str = repr(typ)  # annotation in vyper code
     code = f"""
 @external
@@ -152,7 +153,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     """
     c = get_contract(code)
 
-    @given(data=payload_from(vyper_type))
+    @given(data=payload_from(typ))
     def _fuzz(data):
         try:
             expected = spec_decode(typ, data)
