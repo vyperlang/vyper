@@ -79,7 +79,7 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         if length > bound:
             raise DecodeError("bytes too large")
 
-        ret = _strict_slice(abi_t, current_offset, length)
+        ret = _strict_slice(payload, current_offset, length)
 
         # abi string doesn't actually define string decoder, so we
         # just bytecast the output
@@ -115,12 +115,13 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         return ret
 
     if isinstance(abi_t, ABI_BytesM):
-        ret = _strict_slice(abi_t, current_offset, 32)
+        ret = _strict_slice(payload, current_offset, 32)
         m = abi_t.m_bytes
         assert 1 <= m <= 32  # internal sanity check
-        if ret[:m] != b"\x00" * m:
+        # BytesM is right-padded with zeroes
+        if ret[m:] != b"\x00" * (32 - m):
             raise DecodeError(f"invalid bytes{m}")
-        return ret[m:]
+        return ret[:m]
 
     raise RuntimeError("unreachable")
 

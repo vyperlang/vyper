@@ -129,8 +129,12 @@ def _mutate(draw, payload, max_mutations=5):
         # for the mutation position, we can use any index in the payload,
         # but we bias it towards indices of nonzero bytes.
         any_ix = st.integers(min_value=0, max_value=len(ret) - 1)
-        nonzero_ix = st.sampled_from([i for i, s in enumerate(ret) if s != 0])
-        ix = draw(st.one_of(any_ix, nonzero_ix))
+        nonzero_indexes = [i for i, s in enumerate(ret) if s != 0]
+        if len(nonzero_indexes) > 0:
+            nonzero_ix = st.sampled_from(nonzero_indexes)
+            ix = draw(st.one_of(any_ix, nonzero_ix))
+        else:
+            ix = draw(any_ix)
 
         if action == "a":
             ret.insert(ix, draw(byte))
