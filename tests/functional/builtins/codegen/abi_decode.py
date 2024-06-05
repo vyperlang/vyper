@@ -40,10 +40,6 @@ def spec_decode(typ: "VyperType", payload: bytes):
 
 
 def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
-    if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
-        # is this check necessary?
-        raise DecodeError("bad payload size")
-
     if isinstance(abi_t, ABI_Tuple):
         return tuple(_decode_multi_r(abi_t.subtypes, current_offset, payload))
 
