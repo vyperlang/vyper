@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Iterable
 
 from vyper.abi_types import (
     ABI_Address,
+    ABI_Bool,
     ABI_Bytes,
     ABI_BytesM,
     ABI_DynamicArray,
@@ -74,9 +75,14 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         head = _read_int(abi_t, current_offset)
         current_offset += head
         length = _read_int(abi_t, current_offset)
+        bound = abi_t.bytes_bound
+        if length > bound:
+            raise DecodeError("bytes too large")
+
         ret = _strict_slice(abi_t, current_offset, length)
 
-        # abi string doesn't actually define unicode decoder, just bytecast
+        # abi string doesn't actually define string decoder, so we
+        # just bytecast the output
         if isinstance(abi_t, ABI_String):
             ret = ret.decode("raw_unicode_escape")
 
@@ -101,6 +107,11 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         if isinstance(abi_t, ABI_Address):
             return ret.to_bytes(20, "big")
 
+        if isinstance(abi_t, ABI_Bool):
+            if ret not in (0,1):
+                raise DecodeError("invalid bool")
+            return ret
+
         return ret
 
     if isinstance(abi_t, ABI_BytesM):
@@ -123,7 +134,9 @@ def _decode_multi_r(types: Iterable[ABIType], current_offset: int, payload: byte
         else:
             ofst = current_offset
 
-        ret.append(_decode_r(sub_t, ofst, payload))
+        item =_decode_r(sub_t, ofst, payload)
+
+        ret.append(item)
         current_offset += sub_t.embedded_static_size()
 
     return ret
