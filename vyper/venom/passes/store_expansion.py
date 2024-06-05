@@ -33,15 +33,15 @@ class StoreExpansionPass(IRPass):
 
         insertion_idx = idx + 1
 
-        for use_inst in uses[1:]:
+        prev = var
+        for use_inst in uses[:-1]:
             if use_inst.parent != inst.parent:
                 continue  # improves codesize
 
-            prev = var
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:
                     new_var = self.function.get_next_variable()
-                    new_inst = IRInstruction("store", [prev], new_var)
+                    new_inst = IRInstruction("store", [var], new_var)
                     inst.parent.insert_instruction(new_inst, insertion_idx)
                     insertion_idx += 1
                     use_inst.operands[i] = new_var
