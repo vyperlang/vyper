@@ -103,7 +103,7 @@ def data_for_type(draw, typ):
 
 @st.composite
 def _mutate(draw, payload, max_mutations=5):
-    n_mutations = draw(st.integers(min_size=0, max_size=max_mutations))
+    n_mutations = draw(st.integers(min_value=0, max_value=max_mutations))
 
     # we do point mutations, add/edit/delete up to max_mutations.
 
