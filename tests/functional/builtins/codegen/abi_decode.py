@@ -57,9 +57,9 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         subtyp = abi_t.subtyp
         bound = abi_t.elems_bound
         # "head" terminology from abi spec
-        head = _read_int(abi_t, current_offset)
+        head = _read_int(payload, current_offset)
         current_offset += head
-        n = _read_int(abi_t, current_offset)
+        n = _read_int(payload, current_offset)
         subtypes = [subtyp] * n
         if n > bound:
             raise DecodeError("Dynarray too large")
@@ -72,9 +72,9 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
     assert not abi_t.is_complex_type()
 
     if isinstance(abi_t, ABI_Bytes):
-        head = _read_int(abi_t, current_offset)
+        head = _read_int(payload, current_offset)
         current_offset += head
-        length = _read_int(abi_t, current_offset)
+        length = _read_int(payload, current_offset)
         bound = abi_t.bytes_bound
         if length > bound:
             raise DecodeError("bytes too large")
