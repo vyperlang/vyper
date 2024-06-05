@@ -108,7 +108,7 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
             return ret.to_bytes(20, "big")
 
         if isinstance(abi_t, ABI_Bool):
-            if ret not in (0,1):
+            if ret not in (0, 1):
                 raise DecodeError("invalid bool")
             return ret
 
@@ -134,7 +134,7 @@ def _decode_multi_r(types: Iterable[ABIType], current_offset: int, payload: byte
         else:
             ofst = current_offset
 
-        item =_decode_r(sub_t, ofst, payload)
+        item = _decode_r(sub_t, ofst, payload)
 
         ret.append(item)
         current_offset += sub_t.embedded_static_size()
