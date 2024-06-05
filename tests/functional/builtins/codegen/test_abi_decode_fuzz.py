@@ -3,6 +3,7 @@ import pytest
 from eth.codecs import abi
 from hypothesis import given
 
+from vyper.codegen.core import calculate_type_for_external_return
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -131,8 +132,9 @@ def _mutate(draw, payload, max_mutations=5):
 
 @st.composite
 def payload_from(draw, typ):
+    typ = calculate_type_for_external_return(typ)
     data = draw(data_for_type(typ))
-    schema = f"({typ.abi_type.selector()})"
+    schema = typ.abi_type.selector()
     payload = abi.encode(schema, data)
 
     return draw(_mutate(payload))
