@@ -1332,16 +1332,14 @@ def test_nested_invalid_dynarray_head(get_contract, tx_failed):
 def foo(x:Bytes[320]):
     if True:
         a: Bytes[320-32] = b''
-        b:uint256 = 32
+        b:uint256 = 32 # make the word following the buffer x_mem dirty to make a potential OOB revert
     x_mem: Bytes[320] = x
-    # fake_head: uint256 = 32
     y: DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
 
 @nonpayable
 @external
 def bar(x:Bytes[320]):
     x_mem: Bytes[320] = x
-    # fake_head: uint256 = 32
     y:DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
     """
     c = get_contract(code)
