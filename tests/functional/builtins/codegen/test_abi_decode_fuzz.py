@@ -1,7 +1,7 @@
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import given
+from hypothesis import given, note
 
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.semantics.types import (
@@ -173,6 +173,10 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
 
     @given(data=payload_from(typ))
     def _fuzz(data):
+        note(f"type: {typ}")
+        note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
+        note(code)
+
         try:
             expected = spec_decode(typ, data)
             assert expected == c.run(data)
