@@ -99,10 +99,10 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
             ret = unsigned_to_signed(ret, 256, strict=True)
 
         # bounds check
-        lo, hi = int_bounds(signed=abi_t.signed, bits=abi_t.bits)
+        lo, hi = int_bounds(signed=abi_t.signed, bits=abi_t.m_bits)
         if not (lo <= ret <= hi):
             u = "" if abi_t.signed else "u"
-            raise DecodeError(f"invalid {u}int{abi_t.bits}")
+            raise DecodeError(f"invalid {u}int{abi_t.m_bits}")
 
         if isinstance(abi_t, ABI_Address):
             return ret.to_bytes(20, "big")

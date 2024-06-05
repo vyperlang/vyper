@@ -103,6 +103,9 @@ def data_for_type(draw, typ):
 
 @st.composite
 def _mutate(draw, payload, max_mutations=5):
+    if len(payload) == 0:
+        return
+
     n_mutations = draw(st.integers(min_value=0, max_value=max_mutations))
 
     # we do point mutations, add/edit/delete up to max_mutations.
@@ -116,13 +119,17 @@ def _mutate(draw, payload, max_mutations=5):
     ret = bytearray(payload)
 
     for _ in range(n_mutations):
+        if len(ret) == 0:
+            # bail out. could we maybe be smarter, like only add here?
+            break
+
         # add, edit, delete
         action = draw(st.sampled_from(["a", "e", "d"]))
 
         # for the mutation position, we can use any index in the payload,
         # but we bias it towards indices of nonzero bytes.
-        any_ix = st.integers(min_size=0, max_size=len(ret))
-        nonzero_ix = st.sampled_from([s for s in payload if s != 0])
+        any_ix = st.integers(min_value=0, max_value=len(ret) - 1)
+        nonzero_ix = st.sampled_from([i for i, s in enumerate(ret) if s != 0])
         ix = draw(st.one_of(any_ix, nonzero_ix))
 
         if action == "a":
@@ -131,8 +138,10 @@ def _mutate(draw, payload, max_mutations=5):
             ret[ix] = draw(byte)
         elif action == "d":
             ret.pop(ix)
+        else:
+            raise RuntimeError("unreachable")
 
-    return ret
+    return bytes(ret)
 
 
 @st.composite
