@@ -55,9 +55,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    # reorder and prepare for stack scheduling
+    DFTPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
     ExtractLiteralsPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 
 
