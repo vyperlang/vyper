@@ -27,8 +27,9 @@ pytestmark = pytest.mark.fuzzing
 
 
 possible_types = [t for t in _get_primitive_types().values() if t != HashMapT and t != DecimalT()]
-
 possible_types_no_nesting = [t for t in possible_types if t not in _get_sequence_types().values()]
+
+MAX_MUTATIONS = 5
 
 
 @st.composite
@@ -102,7 +103,7 @@ def data_for_type(draw, typ):
 
 
 @st.composite
-def _mutate(draw, payload, max_mutations=5):
+def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
     if len(payload) == 0:
         return
 
@@ -161,7 +162,10 @@ def payload_from(draw, typ):
 @given(typ=vyper_type())
 def test_abi_decode_fuzz(typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
-    bound = wrapped_type.abi_type.size_bound()
+
+    # add max_mutations bytes worth of padding so we don't just get caught
+    # by bytes length check at function entry
+    bound = wrapped_type.abi_type.size_bound() + MAX_MUTATIONS
     type_str = repr(typ)  # annotation in vyper code
     code = f"""
 @external

@@ -25,9 +25,10 @@ class DecodeError(Exception):
 def _strict_slice(payload, start, length):
     if start < 0:
         raise DecodeError("OOB")
-    if start + length > len(payload):
+    end = start+length
+    if end > len(payload):
         raise DecodeError("OOB")
-    return payload[start:start+length]
+    return payload[start : end]
 
 
 def _read_int(payload, ofst):
