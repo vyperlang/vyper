@@ -58,13 +58,14 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         bound = abi_t.elems_bound
         # "head" terminology from abi spec
         head = _read_int(payload, current_offset)
+
         current_offset += head
         n = _read_int(payload, current_offset)
-        subtypes = [subtyp] * n
         if n > bound:
             raise DecodeError("Dynarray too large")
 
         # offsets in dynarray start from after the length word
+        subtypes = [subtyp] * n
         current_offset += 32
         return _decode_multi_r(subtypes, current_offset, payload)
 
@@ -79,6 +80,7 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         if length > bound:
             raise DecodeError("bytes too large")
 
+        current_offset += 32  # size of length word
         ret = _strict_slice(payload, current_offset, length)
 
         # abi string doesn't actually define string decoder, so we
@@ -126,18 +128,20 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
     raise RuntimeError("unreachable")
 
 
-def _decode_multi_r(types: Iterable[ABIType], current_offset: int, payload: bytes) -> list:
+def _decode_multi_r(types: Iterable[ABIType], outer_offset: int, payload: bytes) -> list:
     ret = []
+    static_ofst = outer_offset
+
     for sub_t in types:
         if sub_t.is_dynamic():
-            head = _read_int(payload, current_offset)
-            ofst = current_offset + head
+            head = _read_int(payload, static_ofst)
+            ofst = outer_offset + head
         else:
-            ofst = current_offset
+            ofst = static_ofst
 
         item = _decode_r(sub_t, ofst, payload)
 
         ret.append(item)
-        current_offset += sub_t.embedded_static_size()
+        static_ofst += sub_t.embedded_static_size()
 
     return ret
