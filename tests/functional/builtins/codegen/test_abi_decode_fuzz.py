@@ -118,7 +118,12 @@ def _mutate(draw, payload, max_mutations=5):
     for _ in range(n_mutations):
         # add, edit, delete
         action = draw(st.sampled_from(["a", "e", "d"]))
-        ix = draw(st.integers(min_size=0, max_size=len(ret)))
+
+        # for the mutation position, we can use any index in the payload,
+        # but we bias it towards indices of nonzero bytes.
+        any_ix = st.integers(min_size=0, max_size=len(ret))
+        nonzero_ix = st.sampled_from([s for s in payload if s != 0])
+        ix = draw(st.one_of(any_ix, nonzero_ix))
 
         if action == "a":
             ret.insert(ix, draw(byte))
