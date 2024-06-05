@@ -334,7 +334,7 @@ class TupleT(VyperType):
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+        return "(" + "".join(f"{t}, " for t in self.member_types) + ")"
 
     @property
     def length(self):
