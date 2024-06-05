@@ -42,7 +42,7 @@ def spec_decode(typ: "VyperType", payload: bytes):
 
 def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
     if isinstance(abi_t, ABI_Tuple):
-        return tuple(_decode_multi_r(abi_t.subtypes, current_offset, payload))
+        return tuple(_decode_multi_r(abi_t.subtyps, current_offset, payload))
 
     if isinstance(abi_t, ABI_StaticArray):
         subtyp = abi_t.subtyp
