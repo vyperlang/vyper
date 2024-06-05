@@ -25,10 +25,10 @@ class DecodeError(Exception):
 def _strict_slice(payload, start, length):
     if start < 0:
         raise DecodeError("OOB")
-    end = start+length
+    end = start + length
     if end > len(payload):
         raise DecodeError("OOB")
-    return payload[start : end]
+    return payload[start:end]
 
 
 def _read_int(payload, ofst):
@@ -37,14 +37,15 @@ def _read_int(payload, ofst):
 
 # vyper abi_decode spec implementation
 def spec_decode(typ: "VyperType", payload: bytes):
-    return _decode_r(typ.abi_type, 0, payload)
+    abi_t = typ.abi_type
+
+    if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
+        raise DecodeError("bad payload size")
+
+    return _decode_r(abi_t, 0, payload)
 
 
 def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
-    if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
-        # is this check necessary?
-        raise DecodeError("bad payload size")
-
     if isinstance(abi_t, ABI_Tuple):
         return tuple(_decode_multi_r(abi_t.subtyps, current_offset, payload))
 
@@ -108,7 +109,7 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
             raise DecodeError(f"invalid {u}int{abi_t.m_bits}")
 
         if isinstance(abi_t, ABI_Address):
-            return ret.to_bytes(20, "big")
+            return "0x" + ret.to_bytes(20, "big").hex()
 
         if isinstance(abi_t, ABI_Bool):
             if ret not in (0, 1):
