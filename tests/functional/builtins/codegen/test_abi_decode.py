@@ -1376,9 +1376,6 @@ def test_static_outer_type_invalid_heads(get_contract, tx_failed):
 @nonpayable
 @external
 def foo(x:Bytes[320]):
-    if True:
-        a: Bytes[320-32] = b''
-        b:uint256 = 32
     x_mem: Bytes[320] = x
     y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
 
@@ -1389,7 +1386,7 @@ def bar(x:Bytes[320]):
         a: Bytes[160] = b''
         # write stuff here to make the call revert in case decode do
         # an out of bound access:
-        b: uint256 = 32
+        fake_head: uint256 = 32
     x_mem: Bytes[320] = x
     y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
     """
