@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Iterable
+from eth_utils import to_checksum_address
 
 from vyper.abi_types import (
     ABI_Address,
@@ -109,7 +110,7 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
             raise DecodeError(f"invalid {u}int{abi_t.m_bits}")
 
         if isinstance(abi_t, ABI_Address):
-            return "0x" + ret.to_bytes(20, "big").hex()
+            return to_checksum_address(ret.to_bytes(20, "big"))
 
         if isinstance(abi_t, ABI_Bool):
             if ret not in (0, 1):
