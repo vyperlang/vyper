@@ -180,6 +180,8 @@ def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
             ix2 = draw(st_ix)
             ix, ix2 = _sort2(ix, ix2)
             ix2 += 1
+            # max splice is 64 bytes, due to MAX_BUFFER_SIZE limitation in st.binary
+            ix2 = ix + (ix2 % 64)
             length = ix2 - ix
             substr = draw(st.binary(min_size=length, max_size=length))
             ret[ix:ix2] = substr
