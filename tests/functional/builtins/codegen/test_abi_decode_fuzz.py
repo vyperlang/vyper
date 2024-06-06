@@ -1,7 +1,7 @@
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import given, note, settings
+from hypothesis import HealthCheck, given, note, settings
 
 from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
@@ -184,7 +184,18 @@ def payload_from(draw, typ):
     return draw(_mutate(payload))
 
 
+_settings = dict(
+    report_multiple_bugs=False,
+    suppress_health_check=(
+        HealthCheck.data_too_large,
+        HealthCheck.too_slow,
+        HealthCheck.large_base_example,
+    ),
+)
+
+
 @given(typ=vyper_type())
+@settings(**_settings)
 def test_abi_decode_fuzz(typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
 
@@ -205,7 +216,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     c = get_contract(code)
 
     @given(data=payload_from(wrapped_type))
-    @settings(max_examples=1000)
+    @settings(max_examples=1000, **_settings)
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
