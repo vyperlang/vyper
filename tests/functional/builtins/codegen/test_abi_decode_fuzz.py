@@ -169,6 +169,7 @@ def test_abi_decode_fuzz(typ, get_contract, tx_failed):
     # TODO: intrinsic decode from staticcall/extcall
     # TODO: _abi_decode from other sources (staticcall/extcall?)
     # TODO: dirty the buffer
+    # TODO: check unwrap_tuple=False
     code = f"""
 @external
 def run(xs: Bytes[{bound}]) -> {type_str}:
