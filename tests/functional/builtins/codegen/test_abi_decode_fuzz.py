@@ -1,7 +1,7 @@
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import HealthCheck, Phase, given, note, settings, Verbosity, example, target
+from hypothesis import HealthCheck, Phase, Verbosity, example, given, note, settings, target
 
 from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
@@ -39,7 +39,7 @@ for t in _get_primitive_types().values():
 
 type_ctors_no_nesting = [t for t in type_ctors if t not in _get_sequence_types().values()]
 
-MAX_MUTATIONS = 4
+MAX_MUTATIONS = 33
 
 
 @st.composite
@@ -84,7 +84,7 @@ def vyper_type(draw, nesting=3, skip=None):
         return t(signed, bits)
 
     if t == BytesM_T:
-        m = draw(st.integers(min_value=1,max_value=32))
+        m = draw(st.integers(min_value=1, max_value=32))
         return t(m)
 
     raise RuntimeError("unreachable")
@@ -155,8 +155,9 @@ def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
     else:
         st_byte = st_any_byte
 
-    # add, edit, delete, splice, flip
-    actions = draw(st.lists(st.sampled_from("aedsf"), max_size=MAX_MUTATIONS))
+    # add, edit, delete, word, splice, flip
+    possible_actions = "aedwww"
+    actions = draw(st.lists(st.sampled_from(possible_actions), max_size=MAX_MUTATIONS))
 
     for action in actions:
         if len(ret) == 0:
@@ -181,6 +182,16 @@ def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
             ret[ix] = draw(st_byte)
         elif action == "d":
             ret.pop(ix)
+        elif action == "w":
+            # splice word
+            st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
+
+            # valid pointers, but maybe *just* out of bounds
+            st_poison = st.integers(min_value=-2 * len(ret), max_value=2 * len(ret)).map(
+                lambda x: x % (2**256)
+            )
+            word = draw(st.one_of(st_poison, st_uint256))
+            ret[ix - 31 : ix + 1] = word.to_bytes(32)
         elif action == "s":
             ix2 = draw(st_ix)
             ix, ix2 = _sort2(ix, ix2)
@@ -233,7 +244,8 @@ _settings = dict(
 
 @given(typ=vyper_type())
 @settings(max_examples=1000, **_settings)
-def test_abi_decode_fuzz(typ, get_contract, tx_failed):
+@example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
+def test_abi_decode_fuzz(typ, get_contract, tx_failed, env):
     wrapped_type = calculate_type_for_external_return(typ)
 
     target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
@@ -256,6 +268,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
 
     @given(data=payload_from(wrapped_type))
     @settings(max_examples=10000, **_settings)
+    # @example(data= b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xe0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
@@ -269,12 +282,14 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
                 assert isinstance(expected, tuple)
                 (expected,) = expected
 
+            note(f"expected {expected}")
             assert expected == c.run(data)
 
         except DecodeError:
             # note EvmError includes reverts *and* exceptional halts.
             # we can get OOG during abi decoding due to how
             # `_abi_payload_size()` works
+            note("expect failure")
             with tx_failed(EvmError):
                 c.run(data)
 
