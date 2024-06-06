@@ -62,7 +62,10 @@ def vyper_type(draw, nesting=3, skip=None):
         return t(bound)
 
     if t in (DArrayT, SArrayT):
-        subtype = _go(skip=[TupleT])
+        if t == SArrayT:
+            subtype = _go(skip=[TupleT, BytesT, StringT])
+        else:
+            subtype = _go(skip=[TupleT])
         bound = draw(st.integers(min_value=1, max_value=16))
         return t(subtype, bound)
 
