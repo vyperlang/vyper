@@ -1,7 +1,7 @@
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import HealthCheck, given, note, settings
+from hypothesis import HealthCheck, Phase, given, note, settings
 
 from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
@@ -190,6 +190,14 @@ _settings = dict(
         HealthCheck.data_too_large,
         HealthCheck.too_slow,
         HealthCheck.large_base_example,
+    ),
+    phases=(
+        Phase.explicit,
+        Phase.reuse,
+        Phase.generate,
+        Phase.target,
+        # Phase.shrink,  # can force long waiting for examples
+        # Phase.explain,  # not helpful here
     ),
 )
 
