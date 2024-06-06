@@ -26,9 +26,17 @@ from .abi_decode import DecodeError, spec_decode
 
 pytestmark = pytest.mark.fuzzing
 
+type_ctors = []
+for t in _get_primitive_types().values():
+    if t == HashMapT or t == DecimalT():
+        continue
+    if isinstance(t, VyperType):
+        t = t.__class__
+    if t in type_ctors:
+        continue
+    type_ctors.append(t)
 
-possible_types = [t for t in _get_primitive_types().values() if t != HashMapT and t != DecimalT()]
-possible_types_no_nesting = [t for t in possible_types if t not in _get_sequence_types().values()]
+type_ctors_no_nesting = [t for t in type_ctors if t not in _get_sequence_types().values()]
 
 MAX_MUTATIONS = 4
 
@@ -39,9 +47,9 @@ def vyper_type(draw, nesting=3):
     assert nesting >= 0
 
     if nesting == 0:
-        t = draw(st.sampled_from(possible_types_no_nesting))
+        t = draw(st.sampled_from(type_ctors_no_nesting))
     else:
-        t = draw(st.sampled_from(possible_types))
+        t = draw(st.sampled_from(type_ctors))
 
     def _go():
         return draw(vyper_type(nesting=nesting - 1))
@@ -62,8 +70,19 @@ def vyper_type(draw, nesting=3):
         subtypes = [_go() for _ in range(n)]
         return TupleT(subtypes)
 
-    assert isinstance(t, VyperType)
-    return t
+    if t in (BoolT, AddressT):
+        return t()
+
+    if t == IntegerT:
+        signed = draw(st.booleans())
+        bits = 8 * draw(st.integers(min_value=1, max_value=32))
+        return t(signed, bits)
+
+    if t == BytesM_T:
+        m = draw(st.integers(min_value=1,max_value=32))
+        return t(m)
+
+    raise RuntimeError("unreachable")
 
 
 @st.composite
@@ -102,6 +121,8 @@ def data_for_type(draw, typ):
     if isinstance(typ, AddressT):
         ret = draw(st.binary(min_size=20, max_size=20))
         return "0x" + ret.hex()
+
+    raise RuntimeError("unreachable")
 
 
 def _sort2(x, y):
