@@ -53,35 +53,28 @@ def _decode_r(abi_t: ABIType, current_offset: int, payload: bytes):
         return tuple(_decode_multi_r(abi_t.subtyps, current_offset, payload))
 
     if isinstance(abi_t, ABI_StaticArray):
-        subtyp = abi_t.subtyp
         n = abi_t.m_elems
-        subtypes = [subtyp] * n
+        subtypes = [abi_t.subtyp] * n
         return _decode_multi_r(subtypes, current_offset, payload)
 
     if isinstance(abi_t, ABI_DynamicArray):
-        subtyp = abi_t.subtyp
         bound = abi_t.elems_bound
-        # "head" terminology from abi spec
-        head = _read_int(payload, current_offset)
 
-        current_offset += head
         n = _read_int(payload, current_offset)
         if n > bound:
             raise DecodeError("Dynarray too large")
 
         # offsets in dynarray start from after the length word
-        subtypes = [subtyp] * n
         current_offset += 32
+        subtypes = [abi_t.subtyp] * n
         return _decode_multi_r(subtypes, current_offset, payload)
 
     # sanity check
     assert not abi_t.is_complex_type()
 
     if isinstance(abi_t, ABI_Bytes):
-        head = _read_int(payload, current_offset)
-        current_offset += head
-        length = _read_int(payload, current_offset)
         bound = abi_t.bytes_bound
+        length = _read_int(payload, current_offset)
         if length > bound:
             raise DecodeError("bytes too large")
 
@@ -140,6 +133,7 @@ def _decode_multi_r(types: Iterable[ABIType], outer_offset: int, payload: bytes)
 
     for sub_t in types:
         if sub_t.is_dynamic():
+            # "head" terminology from abi spec
             head = _read_int(payload, static_ofst)
             ofst = outer_offset + head
         else:
