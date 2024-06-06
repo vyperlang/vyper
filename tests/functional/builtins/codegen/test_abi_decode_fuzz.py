@@ -30,12 +30,14 @@ pytestmark = pytest.mark.fuzzing
 possible_types = [t for t in _get_primitive_types().values() if t != HashMapT and t != DecimalT()]
 possible_types_no_nesting = [t for t in possible_types if t not in _get_sequence_types().values()]
 
-MAX_MUTATIONS = 5
+MAX_MUTATIONS = 4
 
 
 @st.composite
 # max dynarray nesting
 def vyper_type(draw, nesting=3):
+    assert nesting >= 0
+
     if nesting == 0:
         t = draw(st.sampled_from(possible_types_no_nesting))
     else:
@@ -102,47 +104,71 @@ def data_for_type(draw, typ):
         return "0x" + ret.hex()
 
 
+def _sort2(x, y):
+    if x > y:
+        return y, x
+    return x, y
+
+
 @st.composite
 def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
+    # do point+bulk mutations,
+    # add/edit/delete/splice/flip up to max_mutations.
     if len(payload) == 0:
         return
 
-    n_mutations = draw(st.integers(min_value=0, max_value=max_mutations))
-
-    # we do point mutations, add/edit/delete up to max_mutations.
+    ret = bytearray(payload)
 
     # for add/edit, the new byte is any character, but we bias it towards
     # bytes already in the payload.
-    any_byte = st.integers(min_value=0, max_value=255)
-    existing_byte = st.sampled_from(list(payload))
-    byte = st.one_of(existing_byte, any_byte)
+    st_any_byte = st.integers(min_value=0, max_value=255)
+    payload_nonzeroes = list(x for x in payload if x != 0)
+    if len(payload_nonzeroes) > 0:
+        st_existing_byte = st.sampled_from(payload)
+        st_byte = st.one_of(st_existing_byte, st_any_byte)
+    else:
+        st_byte = st_any_byte
 
-    ret = bytearray(payload)
+    # add, edit, delete, splice, flip
+    actions = draw(st.lists(st.sampled_from("aedsf"), max_size=MAX_MUTATIONS))
 
-    for _ in range(n_mutations):
+    for action in actions:
         if len(ret) == 0:
             # bail out. could we maybe be smarter, like only add here?
             break
 
-        # add, edit, delete
-        action = draw(st.sampled_from(["a", "e", "d"]))
-
         # for the mutation position, we can use any index in the payload,
         # but we bias it towards indices of nonzero bytes.
-        any_ix = st.integers(min_value=0, max_value=len(ret) - 1)
+        st_any_ix = st.integers(min_value=0, max_value=len(ret) - 1)
         nonzero_indexes = [i for i, s in enumerate(ret) if s != 0]
         if len(nonzero_indexes) > 0:
-            nonzero_ix = st.sampled_from(nonzero_indexes)
-            ix = draw(st.one_of(any_ix, nonzero_ix))
+            st_nonzero_ix = st.sampled_from(nonzero_indexes)
+            st_ix = st.one_of(st_any_ix, st_nonzero_ix)
         else:
-            ix = draw(any_ix)
+            st_ix = st_any_ix
+
+        ix = draw(st_ix)
 
         if action == "a":
-            ret.insert(ix, draw(byte))
+            ret.insert(ix, draw(st_byte))
         elif action == "e":
-            ret[ix] = draw(byte)
+            ret[ix] = draw(st_byte)
         elif action == "d":
             ret.pop(ix)
+        elif action == "s":
+            ix2 = draw(st_ix)
+            ix, ix2 = _sort2(ix, ix2)
+            ix2 += 1
+            length = ix2 - ix
+            substr = draw(st.binary(min_size=length, max_size=length))
+            ret[ix:ix2] = substr
+        elif action == "f":
+            ix2 = draw(st_ix)
+            ix, ix2 = _sort2(ix, ix2)
+            ix2 += 1
+            for i in range(ix, ix2):
+                # flip the bits in the byte
+                ret[i] = 255 ^ ret[i]
         else:
             raise RuntimeError("unreachable")
 
