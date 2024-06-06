@@ -2482,7 +2482,7 @@ class ABIDecode(BuiltinFunctionT):
             wrapped_typ = calculate_type_for_external_return(output_typ)
 
         abi_size_bound = wrapped_typ.abi_type.size_bound()
-        abi_min_size = wrapped_typ.abi_type.min_size()
+        abi_min_size = wrapped_typ.abi_type.static_size()
 
         # Get the size of data
         input_max_len = data.typ.maxlen
