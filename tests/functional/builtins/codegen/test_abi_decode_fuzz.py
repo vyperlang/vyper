@@ -53,7 +53,7 @@ def vyper_type(draw, nesting=3, skip=None):
     else:
         t = draw(st.sampled_from([s for s in type_ctors if s not in skip]))
 
-    def _go(skip):
+    def _go(skip=skip):
         return draw(vyper_type(nesting=nesting - 1, skip=skip))
 
     if t in (BytesT, StringT):
