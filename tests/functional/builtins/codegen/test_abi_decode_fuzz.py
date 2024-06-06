@@ -3,7 +3,7 @@ import pytest
 from eth.codecs import abi
 from hypothesis import given, note
 
-from vyper.codegen.core import calculate_type_for_external_return
+from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -151,9 +151,8 @@ def _mutate(draw, payload, max_mutations=MAX_MUTATIONS):
 
 @st.composite
 def payload_from(draw, typ):
-    wrapped_type = calculate_type_for_external_return(typ)
-    data = draw(data_for_type(wrapped_type))
-    schema = wrapped_type.abi_type.selector_name()
+    data = draw(data_for_type(typ))
+    schema = typ.abi_type.selector_name()
     payload = abi.encode(schema, data)
 
     return draw(_mutate(payload))
@@ -175,15 +174,22 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     """
     c = get_contract(code)
 
-    @given(data=payload_from(typ))
+    @given(data=payload_from(wrapped_type))
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
         note(code)
 
         try:
-            expected = spec_decode(typ, data)
+            expected = spec_decode(wrapped_type, data)
+
+            # unwrap if necessary
+            if needs_external_call_wrap(typ):
+                assert isinstance(expected, tuple)
+                (expected,) = expected
+
             assert expected == c.run(data)
+
         except DecodeError:
             with tx_failed():
                 c.run(data)
