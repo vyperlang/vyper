@@ -30,7 +30,7 @@ class ExecutionResult:
     gas_used: int
 
 
-class EvmError(RuntimeError):
+class EvmError(Exception):
     """Exception raised when a call fails."""
 
 

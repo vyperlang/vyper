@@ -2,6 +2,7 @@ import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
 from hypothesis import given, note
+from tests.evm_backends.base_env import EvmError
 
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
 from vyper.semantics.types import (
@@ -194,7 +195,10 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
             assert expected == c.run(data)
 
         except DecodeError:
-            with tx_failed():
+            # note EvmError includes reverts *and* exceptional halts.
+            # we can get OOG during abi decoding due to how
+            # `_abi_payload_size()` works
+            with tx_failed(EvmError):
                 c.run(data)
 
     _fuzz()
