@@ -42,10 +42,9 @@ def _read_int(payload, ofst):
 def spec_decode(typ: "VyperType", payload: bytes):
     abi_t = typ.abi_type
 
-    if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
-        raise DecodeError(
-            f"bad payload size {abi_t.min_size()}, {len(payload)}, {abi_t.size_bound()}"
-        )
+    lo, hi = abi_t.static_size(), abi_t.size_bound()
+    if not (lo <= len(payload) <= hi):
+        raise DecodeError(f"bad payload size {lo}, {len(payload)}, {hi}")
 
     return _decode_r(abi_t, 0, payload)
 
