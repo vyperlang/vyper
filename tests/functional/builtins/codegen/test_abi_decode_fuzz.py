@@ -80,10 +80,9 @@ def data_for_type(draw, typ):
         return [_go(typ.value_type) for _ in range(n)]
 
     if isinstance(typ, StringT):
-        # full character range, don't care if valid unicode
-        characters = st.characters()
-
-        return draw(st.text(alphabet=characters, max_size=typ.length))
+        # technically the ABI spec doesn't say string has to be valid utf-8,
+        # but eth-stdlib won't encode invalid utf-8
+        return draw(st.text(max_size=typ.length))
 
     if isinstance(typ, BytesT):
         return draw(st.binary(max_size=typ.length))
