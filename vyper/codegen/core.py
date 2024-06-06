@@ -1164,11 +1164,12 @@ def clamp_bytestring(ir_node, hi=None):
         if hi is not None:
             assert t.maxlen < 2**64  # sanity check
 
-            # note: this add does not risk arithmetic overflow because
+            # NOTE: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
             # however(!) _abi_payload_size can OOG, since it loads the word
             # at `ir_node` to find the length of the bytearray, which could
             # be out-of-bounds.
+            # if we didn't get OOG, we could overflow in `add`.
             item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
             len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
@@ -1187,11 +1188,12 @@ def clamp_dyn_array(ir_node, hi=None):
     if hi is not None:
         assert t.count < 2**64  # sanity check
 
-        # note: this add does not risk arithmetic overflow because
+        # NOTE: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
         # however(!) _abi_payload_size can OOG, since it loads the word
         # at `ir_node` to find the length of the bytearray, which could
         # be out-of-bounds.
+        # if we didn't get OOG, we could overflow in `add`.
         item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
         # if the subtype is dynamic, the length check is performed in
