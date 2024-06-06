@@ -1,9 +1,9 @@
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import given, note
-from tests.evm_backends.base_env import EvmError
+from hypothesis import given, note, settings
 
+from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
 from vyper.semantics.types import (
     AddressT,
@@ -178,6 +178,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     c = get_contract(code)
 
     @given(data=payload_from(wrapped_type))
+    @settings(max_examples=1000)
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
