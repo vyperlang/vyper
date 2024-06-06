@@ -246,7 +246,7 @@ _settings = dict(
 @given(typ=vyper_type())
 @settings(max_examples=1000, **_settings)
 @example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
-def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, env):
+def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
 
     target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
