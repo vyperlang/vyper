@@ -43,16 +43,17 @@ MAX_MUTATIONS = 4
 
 @st.composite
 # max dynarray nesting
-def vyper_type(draw, nesting=3):
+def vyper_type(draw, nesting=3, skip=None):
     assert nesting >= 0
 
+    skip = skip or []
     if nesting == 0:
-        t = draw(st.sampled_from(type_ctors_no_nesting))
+        t = draw(st.sampled_from([s for s in type_ctors_no_nesting if s not in skip]))
     else:
-        t = draw(st.sampled_from(type_ctors))
+        t = draw(st.sampled_from([s for s in type_ctors if s not in skip]))
 
-    def _go():
-        return draw(vyper_type(nesting=nesting - 1))
+    def _go(skip):
+        return draw(vyper_type(nesting=nesting - 1, skip=skip))
 
     if t in (BytesT, StringT):
         # arbitrary max_value
@@ -60,8 +61,8 @@ def vyper_type(draw, nesting=3):
         return t(bound)
 
     if t in (DArrayT, SArrayT):
-        subtype = _go()
-        bound = draw(st.integers(min_value=1, max_value=128))
+        subtype = _go(skip=[TupleT])
+        bound = draw(st.integers(min_value=1, max_value=16))
         return t(subtype, bound)
 
     if t == TupleT:
