@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Iterable
+
 from eth_utils import to_checksum_address
 
 from vyper.abi_types import (
@@ -25,10 +26,11 @@ class DecodeError(Exception):
 
 def _strict_slice(payload, start, length):
     if start < 0:
-        raise DecodeError("OOB")
+        raise DecodeError(f"OOB {start}")
+
     end = start + length
     if end > len(payload):
-        raise DecodeError("OOB")
+        raise DecodeError(f"OOB {start} + {length} (=={end}) > {len(payload)}")
     return payload[start:end]
 
 
