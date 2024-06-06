@@ -166,6 +166,9 @@ def test_abi_decode_fuzz(typ, get_contract, tx_failed):
     # by bytes length check at function entry
     bound = wrapped_type.abi_type.size_bound() + MAX_MUTATIONS
     type_str = repr(typ)  # annotation in vyper code
+    # TODO: intrinsic decode from staticcall/extcall
+    # TODO: _abi_decode from other sources (staticcall/extcall?)
+    # TODO: dirty the buffer
     code = f"""
 @external
 def run(xs: Bytes[{bound}]) -> {type_str}:

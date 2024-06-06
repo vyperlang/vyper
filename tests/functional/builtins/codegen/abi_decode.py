@@ -43,7 +43,9 @@ def spec_decode(typ: "VyperType", payload: bytes):
     abi_t = typ.abi_type
 
     if not (abi_t.min_size() <= len(payload) <= abi_t.size_bound()):
-        raise DecodeError("bad payload size")
+        raise DecodeError(
+            f"bad payload size {abi_t.min_size()}, {len(payload)}, {abi_t.size_bound()}"
+        )
 
     return _decode_r(abi_t, 0, payload)
 
