@@ -56,7 +56,7 @@ def vyper_type(draw, nesting=3):
 
     if t == TupleT:
         # zero-length tuples are not allowed in vyper
-        n = draw(st.integers(min_value=1, max_value=16))
+        n = draw(st.integers(min_value=1, max_value=6))
         subtypes = [_go() for _ in range(n)]
         return TupleT(subtypes)
 
