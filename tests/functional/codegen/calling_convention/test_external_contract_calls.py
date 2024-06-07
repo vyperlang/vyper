@@ -2520,12 +2520,12 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     data = f"0x{sig}{encoded}"
 
     # Dynamic size is short by 1 byte
-    malformed = data[:264]
+    malformed = data[:136]
     with tx_failed():
         env.message_call(c1.address, data=malformed)
 
-    # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
-    valid = data[:266]
+    # Dynamic size is at least minimum (66 bytes * 2 + 2 (for 0x) = 266)
+    valid = data[:138]
     env.message_call(c1.address, data=valid)
 
 
