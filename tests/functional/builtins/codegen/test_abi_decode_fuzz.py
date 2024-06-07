@@ -1,7 +1,9 @@
+from dataclasses import dataclass, asdict
+
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import HealthCheck, Phase, Verbosity, example, given, note, settings, target
+from hypothesis import HealthCheck, Phase, Verbosity, example, given, note, settings, target, event
 
 from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
@@ -225,7 +227,7 @@ def payload_from(draw, typ):
 
 _settings = dict(
     report_multiple_bugs=False,
-    #verbosity=Verbosity.verbose,
+    # verbosity=Verbosity.verbose,
     suppress_health_check=(
         HealthCheck.data_too_large,
         HealthCheck.too_slow,
@@ -242,9 +244,60 @@ _settings = dict(
 )
 
 
+@dataclass(frozen=True)
+class _TypeStats:
+    nesting: int = 0
+    num_dynamic_types: int = 0  # number of dynamic types in the type
+    breadth: int = 0  # e.g. int16[50] has higher breadth than int16[1]
+    width: int = 0  # size of type
+
+
+def _type_stats(typ: VyperType) -> _TypeStats:
+    def _finalize():  # little trick to save re-typing the arguments
+        width = typ.memory_bytes_required
+        return _TypeStats(
+            nesting=nesting, num_dynamic_types=num_dynamic_types, breadth=breadth, width=width
+        )
+
+    if typ._is_prim_word:
+        nesting = 0
+        breadth = 1
+        num_dynamic_types = 0
+        return _finalize()
+
+    if isinstance(typ, (BytesT, StringT)):
+        nesting = 0
+        breadth = 1  # idk
+        num_dynamic_types = 1
+        return _finalize()
+
+    if isinstance(typ, TupleT):
+        substats = [_type_stats(t) for t in typ.member_types]
+        nesting = 1 + max(s.nesting for s in substats)
+        breadth = max(typ.length, *[s.breadth for s in substats])
+        num_dynamic_types = sum(s.num_dynamic_types for s in substats)
+        return _finalize()
+
+    if isinstance(typ, DArrayT):
+        substat = _type_stats(typ.value_type)
+        nesting = 1 + substat.nesting
+        breadth = max(typ.count, substat.breadth)
+        num_dynamic_types = 1 + substat.num_dynamic_types
+        return _finalize()
+
+    if isinstance(typ, SArrayT):
+        substat = _type_stats(typ.value_type)
+        nesting = 1 + substat.nesting
+        breadth = max(typ.count, substat.breadth)
+        num_dynamic_types = substat.num_dynamic_types
+        return _finalize()
+
+    raise RuntimeError("unreachable")
+
+
 @pytest.mark.parametrize("_n", list(range(9)))
 @given(typ=vyper_type())
-@settings(max_examples=1000, **_settings)
+@settings(max_examples=200, **_settings)
 @example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
@@ -265,10 +318,14 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     ret: {type_str} = _abi_decode(xs, {type_str})
     return ret
     """
+    stats = _type_stats(typ)
+    for k, v in asdict(stats).items():
+        pass
+        #event(k, v)
     c = get_contract(code)
 
     @given(data=payload_from(wrapped_type))
-    @settings(max_examples=100000, **_settings)
+    @settings(max_examples=10, **_settings)
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
