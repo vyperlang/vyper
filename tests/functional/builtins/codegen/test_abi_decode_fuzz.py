@@ -78,11 +78,12 @@ def vyper_type(draw, nesting=3, skip=None):
         bound = draw(st.integers(min_value=1, max_value=1024))
         return t(bound)
 
-    if t in (DArrayT, SArrayT):
-        if t == SArrayT:
-            subtype = _go(skip=[TupleT, BytesT, StringT])
-        else:
-            subtype = _go(skip=[TupleT])
+    if t == SArrayT:
+        subtype = _go(skip=[TupleT, BytesT, StringT])
+        bound = draw(st.integers(min_value=1, max_value=6))
+        return t(subtype, bound)
+    if t == DArrayT:
+        subtype = _go(skip=[TupleT])
         bound = draw(st.integers(min_value=1, max_value=16))
         return t(subtype, bound)
 
@@ -317,8 +318,12 @@ def _type_stats(typ: VyperType) -> _TypeStats:
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, env):
     wrapped_type = calculate_type_for_external_return(typ)
 
-    # no need to target really, there is already bias in the strategy
-    # hp.target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
+    stats = _type_stats(typ)
+    for k, v in asdict(stats).items():
+        pass
+        # event(k, v)
+    hp.target( stats.num_dynamic_types)
+    # hp.target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type()))
 
     # add max_mutations bytes worth of padding so we don't just get caught
     # by bytes length check at function entry
@@ -334,18 +339,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     ret: {type_str} = _abi_decode(xs, {type_str})
     return ret
     """
-    stats = _type_stats(typ)
-    for k, v in asdict(stats).items():
-        pass
-        # event(k, v)
-    try:
-        c = get_contract(code)
-    except EvmError as e:
-        # filter out contract size limit errors, these happen sometimes and
-        # are not really interesting
-        if env.contract_size_limit_error in str(e) or env.initcode_size_limit_error in str(e):
-            hp.assume(False)
-        raise e from None
+    c = get_contract(code)
 
     @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=1000, **_settings)
