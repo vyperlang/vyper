@@ -315,7 +315,8 @@ def _type_stats(typ: VyperType) -> _TypeStats:
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
 
-    target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
+    # no need to target really, there is already bias in the strategy
+    # target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
 
     # add max_mutations bytes worth of padding so we don't just get caught
     # by bytes length check at function entry
