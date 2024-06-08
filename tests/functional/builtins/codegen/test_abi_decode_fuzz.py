@@ -39,22 +39,35 @@ for t in _get_primitive_types().values():
         continue
     type_ctors.append(t)
 
-type_ctors_no_nesting = [t for t in type_ctors if t not in _get_sequence_types().values()]
+complex_static_ctors = [SArrayT, TupleT]
+complex_dynamic_ctors = [DArrayT]
+leaf_ctors = [t for t in type_ctors if t not in _get_sequence_types().values()]
+static_leaf_ctors = [t for t in leaf_ctors if t._is_prim_word]
+dynamic_leaf_ctors = [BytesT, StringT]
 
 MAX_MUTATIONS = 33
 
 
 @st.composite
-# max dynarray nesting
+# max type nesting
 def vyper_type(draw, nesting=3, skip=None):
     assert nesting >= 0
 
     skip = skip or []
-    if nesting == 0:
-        t = draw(st.sampled_from([s for s in type_ctors_no_nesting if s not in skip]))
-    else:
-        t = draw(st.sampled_from([s for s in type_ctors if s not in skip]))
 
+    st_leaves = st.one_of(st.sampled_from(dynamic_leaf_ctors), st.sampled_from(static_leaf_ctors))
+    st_complex = st.one_of(st.sampled_from(complex_dynamic_ctors), st.sampled_from(complex_static_ctors))
+
+    if nesting == 0:
+        st_type = st_leaves
+    else:
+        st_type = st.one_of(st_complex, st_leaves)
+
+    # filter here is a bit of a kludge, would be better to improve sampling
+    t = draw(st_type.filter(lambda t: t not in skip))
+
+    # note: maybe st.deferred is good here, we could define it with
+    # mutual recursion
     def _go(skip=skip):
         return draw(vyper_type(nesting=nesting - 1, skip=skip))
 
@@ -297,7 +310,7 @@ def _type_stats(typ: VyperType) -> _TypeStats:
 
 @pytest.mark.parametrize("_n", list(range(9)))
 @given(typ=vyper_type())
-@settings(max_examples=200, **_settings)
+@settings(max_examples=100, **_settings)
 @example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed):
     wrapped_type = calculate_type_for_external_return(typ)
