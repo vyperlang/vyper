@@ -494,6 +494,9 @@ def _convert_ir_bb(fn, ir, symbols):
         end = entry_block.append_instruction("add", start, end)
         if bound:
             bound = entry_block.append_instruction("add", start, bound)
+            xor_ret = entry_block.append_instruction("xor", counter_var, bound)
+            entry_block.append_instruction("assert", xor_ret)
+
         entry_block.append_instruction("jmp", cond_block.label)
 
         xor_ret = cond_block.append_instruction("xor", counter_var, end)
@@ -501,9 +504,6 @@ def _convert_ir_bb(fn, ir, symbols):
         fn.append_basic_block(cond_block)
 
         fn.append_basic_block(body_block)
-        if bound:
-            xor_ret = body_block.append_instruction("xor", counter_var, bound)
-            body_block.append_instruction("assert", xor_ret)
 
         emit_body_blocks()
         body_end = fn.get_basic_block()
