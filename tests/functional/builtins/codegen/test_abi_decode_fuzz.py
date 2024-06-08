@@ -343,7 +343,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     except EvmError as e:
         # filter out contract size limit errors, these happen sometimes and
         # are not really interesting
-        if env.contract_size_limit_error in str(e):
+        if env.contract_size_limit_error in str(e) or env.initcode_size_limit_error in str(e):
             hp.assume(False)
         raise e from None
 

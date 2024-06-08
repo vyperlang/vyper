@@ -210,6 +210,11 @@ class BaseEnv:
         """Expected error message when contract is over codesize limit"""
         raise NotImplementedError  # must be implemented by subclasses
 
+    @property
+    def initcode_size_limit_error(self) -> str:
+        """Expected error message when contract is over codesize limit"""
+        raise NotImplementedError  # must be implemented by subclasses
+
 
 def _compile(
     source_code: str,
