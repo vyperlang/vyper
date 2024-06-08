@@ -1,9 +1,9 @@
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
+import hypothesis as hp
 import hypothesis.strategies as st
 import pytest
 from eth.codecs import abi
-from hypothesis import HealthCheck, Phase, Verbosity, example, given, note, settings, target, event
 
 from tests.evm_backends.base_env import EvmError
 from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
@@ -56,7 +56,9 @@ def vyper_type(draw, nesting=3, skip=None):
     skip = skip or []
 
     st_leaves = st.one_of(st.sampled_from(dynamic_leaf_ctors), st.sampled_from(static_leaf_ctors))
-    st_complex = st.one_of(st.sampled_from(complex_dynamic_ctors), st.sampled_from(complex_static_ctors))
+    st_complex = st.one_of(
+        st.sampled_from(complex_dynamic_ctors), st.sampled_from(complex_static_ctors)
+    )
 
     if nesting == 0:
         st_type = st_leaves
@@ -240,17 +242,17 @@ def payload_from(draw, typ):
 
 _settings = dict(
     report_multiple_bugs=False,
-    # verbosity=Verbosity.verbose,
+    # verbosity=hp.Verbosity.verbose,
     suppress_health_check=(
-        HealthCheck.data_too_large,
-        HealthCheck.too_slow,
-        HealthCheck.large_base_example,
+        hp.HealthCheck.data_too_large,
+        hp.HealthCheck.too_slow,
+        hp.HealthCheck.large_base_example,
     ),
     phases=(
-        Phase.explicit,
-        Phase.reuse,
-        Phase.generate,
-        Phase.target,
+        hp.Phase.explicit,
+        hp.Phase.reuse,
+        hp.Phase.generate,
+        hp.Phase.target,
         # Phase.shrink,  # can force long waiting for examples
         # Phase.explain,  # not helpful here
     ),
@@ -309,14 +311,14 @@ def _type_stats(typ: VyperType) -> _TypeStats:
 
 
 @pytest.mark.parametrize("_n", list(range(10)))
-@given(typ=vyper_type())
-@settings(max_examples=100, **_settings)
-@example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
-def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed):
+@hp.given(typ=vyper_type())
+@hp.settings(max_examples=100, **_settings)
+@hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
+def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, env):
     wrapped_type = calculate_type_for_external_return(typ)
 
     # no need to target really, there is already bias in the strategy
-    # target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
+    # hp.target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type())
 
     # add max_mutations bytes worth of padding so we don't just get caught
     # by bytes length check at function entry
@@ -335,16 +337,23 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     stats = _type_stats(typ)
     for k, v in asdict(stats).items():
         pass
-        #event(k, v)
-    c = get_contract(code)
+        # event(k, v)
+    try:
+        c = get_contract(code)
+    except EvmError as e:
+        # filter out contract size limit errors, these happen sometimes and
+        # are not really interesting
+        if env.contract_size_limit_error in str(e):
+            hp.assume(False)
+        raise e from None
 
-    @given(data=payload_from(wrapped_type))
-    @settings(max_examples=1000, **_settings)
+    @hp.given(data=payload_from(wrapped_type))
+    @hp.settings(max_examples=1000, **_settings)
     def _fuzz(data):
-        note(f"type: {typ}")
-        note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
-        note(code)
-        note(data.hex())
+        hp.note(f"type: {typ}")
+        hp.note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
+        hp.note(code)
+        hp.note(data.hex())
 
         try:
             expected = spec_decode(wrapped_type, data)
@@ -354,14 +363,14 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
                 assert isinstance(expected, tuple)
                 (expected,) = expected
 
-            note(f"expected {expected}")
+            hp.note(f"expected {expected}")
             assert expected == c.run(data)
 
         except DecodeError:
             # note EvmError includes reverts *and* exceptional halts.
             # we can get OOG during abi decoding due to how
             # `_abi_payload_size()` works
-            note("expect failure")
+            hp.note("expect failure")
             with tx_failed(EvmError):
                 c.run(data)
 
