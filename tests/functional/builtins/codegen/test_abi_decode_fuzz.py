@@ -308,7 +308,7 @@ def _type_stats(typ: VyperType) -> _TypeStats:
     raise RuntimeError("unreachable")
 
 
-@pytest.mark.parametrize("_n", list(range(9)))
+@pytest.mark.parametrize("_n", list(range(10)))
 @given(typ=vyper_type())
 @settings(max_examples=100, **_settings)
 @example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
@@ -338,7 +338,7 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
     c = get_contract(code)
 
     @given(data=payload_from(wrapped_type))
-    @settings(max_examples=10, **_settings)
+    @settings(max_examples=1000, **_settings)
     def _fuzz(data):
         note(f"type: {typ}")
         note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
