@@ -1349,10 +1349,7 @@ def bar(x:Bytes[320]):
     """
     c = get_contract(code)
 
-    encoded = (
-        0x20,  # head of the dynarray
-        0x02,  # len of outer
-    )
+    encoded = (0x20, 0x02)  # head of the dynarray  # len of outer
     inner = (
         0x0,  # head1
         # 0x0,  # head2
@@ -1386,9 +1383,7 @@ def bar(x:Bytes[320]):
     """
     c = get_contract(code)
 
-    encoded = (
-        0x20,  # head of the static array
-    )
+    encoded = (0x20,)  # head of the static array
     inner = (
         0x00,  # head of the first dynarray
         # 0x00,  # head of the second dynarray
