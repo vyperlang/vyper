@@ -31,7 +31,7 @@ def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
     c: bool = False
     d: decimal = 0.0
     e: bytes32 = 0x0000000000000000000000000000000000000000000000000000000000000000
-    a, b, c, d, e = _abi_decode(x, (address, int128, bool, decimal, bytes32))
+    a, b, c, d, e = abi_decode(x, (address, int128, bool, decimal, bytes32))
     return a, b, c, d, e
 
 @external
@@ -48,7 +48,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
             metadata=0x0000000000000000000000000000000000000000000000000000000000000000
         )
     )
-    human = _abi_decode(x, Human)
+    human = abi_decode(x, Human)
     return human
     """
 
@@ -97,7 +97,7 @@ def test_abi_decode_single(get_contract, expected, input_len, output_typ, abi_ty
     contract = f"""
 @external
 def foo(x: Bytes[{input_len}]) -> {output_typ}:
-    a: {output_typ} = _abi_decode(x, {output_typ}, unwrap_tuple={unwrap_tuple})
+    a: {output_typ} = abi_decode(x, {output_typ}, unwrap_tuple={unwrap_tuple})
     return a
     """
     c = get_contract(contract)
@@ -135,7 +135,7 @@ def test_abi_decode_double(
 def foo(x: Bytes[{input_len}]) -> ({output_typ1}, {output_typ2}):
     a: {output_typ1} = empty({output_typ1})
     b: {output_typ2} = empty({output_typ2})
-    a, b = _abi_decode(x, ({output_typ1}, {output_typ2}), unwrap_tuple={unwrap_tuple})
+    a, b = abi_decode(x, ({output_typ1}, {output_typ2}), unwrap_tuple={unwrap_tuple})
     return a, b
     """
 
@@ -173,7 +173,7 @@ def test_abi_decode_nested_dynarray(get_contract, args, unwrap_tuple):
 @external
 def abi_decode(x: Bytes[{len}]) -> DynArray[DynArray[uint256, 3], 3]:
     a: DynArray[DynArray[uint256, 3], 3] = []
-    a = _abi_decode(x, DynArray[DynArray[uint256, 3], 3], unwrap_tuple={unwrap_tuple})
+    a = abi_decode(x, DynArray[DynArray[uint256, 3], 3], unwrap_tuple={unwrap_tuple})
     return a
     """
 
@@ -213,7 +213,7 @@ def test_abi_decode_nested_dynarray2(get_contract, args, unwrap_tuple):
 @external
 def abi_decode(x: Bytes[{len}]) -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
     a: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = []
-    a = _abi_decode(
+    a = abi_decode(
         x,
         DynArray[DynArray[DynArray[uint256, 3], 3], 3],
         unwrap_tuple={unwrap_tuple}
