@@ -2519,12 +2519,12 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     encoded = abi.encode(f"({typ}[],string)", val).hex()
     data = f"0x{sig}{encoded}"
 
-    # Dynamic size is short by 1 byte
+    # Static size is short by 1 byte
     malformed = data[:136]
     with tx_failed():
         env.message_call(c1.address, data=malformed)
 
-    # Dynamic size is at least minimum (66 bytes * 2 + 2 (for 0x) = 266)
+    # Static size is at least minimum ((4 + 64) bytes * 2 + 2 (for 0x) = 138)
     valid = data[:138]
     env.message_call(c1.address, data=valid)
 

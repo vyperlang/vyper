@@ -1350,17 +1350,11 @@ def bar(x:Bytes[320]):
     c = get_contract(code)
 
     encoded = (
-        0xE0,  # head of the dynarray
-        0x00,  # 0x20
-        0x00,  # 0x40
-        0x00,  # 0x60
-        0x00,  # 0x80
-        0x00,  # 0xA0
-        0x00,  # 0xC0
+        0x20,  # head of the dynarray
         0x02,  # len of outer
     )
     inner = (
-        0x0,  # head
+        0x0,  # head1
         # 0x0,  # head2
     )
 
@@ -1393,10 +1387,7 @@ def bar(x:Bytes[320]):
     c = get_contract(code)
 
     encoded = (
-        0x80,  # head of the static array
-        0x00,  # garbage to pass the ABI min_size check
-        0x00,  # garbage to pass the ABI min_size check
-        0x00,  # garbage to pass the ABI min_size check
+        0x20,  # head of the static array
     )
     inner = (
         0x00,  # head of the first dynarray
