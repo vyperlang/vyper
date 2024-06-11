@@ -357,7 +357,7 @@ class IRInstruction:
         # if hasattr(self, "parent"):
         #     fn = self.parent.parent
         #     ac = IRAnalysesCache(fn)
-        #     ac.force_analysis(LivenessAnalysis)
+        #     ac.request_analysis(LivenessAnalysis)
 
         fence = self.fence_id if self.fence_id != -1 else ""
 
@@ -500,6 +500,18 @@ class IRBasicBlock:
     def clear_instructions(self) -> None:
         self.instructions = []
 
+    @property
+    def non_phi_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.opcode != "phi")
+    
+    @property
+    def phi_instructions(self) -> Iterator[IRInstruction]:
+        for inst in self.instructions:
+            if inst.opcode == "phi":
+                yield inst
+            else:
+                return 
+        
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.

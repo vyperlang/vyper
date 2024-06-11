@@ -24,7 +24,7 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
             
-        for dep_inst in self.ida[inst]:
+        for dep_inst in reversed(self.ida[inst]):
             if dep_inst in self.visited_instructions:
                 continue
             self._process_instruction_r(instructions, dep_inst)
@@ -34,41 +34,44 @@ class DFTPass(IRPass):
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self.function.append_basic_block(bb)
 
-        self._calcualte_ida(bb)
-        self.instructions = deque()
+        self._calculate_ida(bb)
+        self.instructions = list(bb.phi_instructions)
 
         self._process_instruction_r(self.instructions, self.start)
-        self.instructions.pop()  # remove the start instruction
 
-        bb.instructions = list(self.instructions)
+        bb.instructions = self.instructions[:-1]
 
-    def _calcualte_ida(self, bb: IRBasicBlock) -> None:
+    def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
 
-        for inst in bb.instructions:
+        for inst in bb.non_phi_instructions:
             self.ida[inst] = list()
 
         self.start = IRInstruction("start", [])
         self.ida[self.start] = list()
         
-        for inst in bb.instructions:
+        for inst in bb.non_phi_instructions:
             outputs = inst.get_outputs()
             if len(outputs) == 0:
                 self.ida[self.start].append(inst)
                 continue
             for op in outputs:
                 uses = self.dfg.get_uses(op)
+                uses_count = 0
                 for uses_this in uses:
                     if uses_this.parent != inst.parent:
                         continue
                     self.ida[uses_this].append(inst)
+                    uses_count += 1
+                if uses_count == 0:
+                    self.ida[self.start].append(inst)
 
             if inst.is_volatile:
                 idx = bb.instructions.index(inst)
                 for inst2 in bb.instructions[idx + 1:]:
                     self.ida[inst2].append(inst)
 
-        self.ida[self.start].sort(key=lambda x: 1 if x.is_bb_terminator else 0)
+        self.ida[self.start].sort(key=lambda x: 0 if x.is_bb_terminator else 1)
 
     def ida_as_graph(self) -> str:
         lines = ["digraph ida_graph {"]
@@ -84,9 +87,6 @@ class DFTPass(IRPass):
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
-        #if self.function._basic_block_dict.get("5_if_exit") is not None:
-        #    self._calcualte_ida(self.function.get_basic_block("5_if_exit"))
 
         self.fence_id = 1
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
