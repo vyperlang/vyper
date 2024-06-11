@@ -320,6 +320,20 @@ class IRInstruction:
             if inst.ast_source:
                 return inst.ast_source
         return self.parent.parent.ast_source
+    
+    def str_short(self) -> str:
+        s = ""
+        if self.output:
+            s += f"{self.output} = "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands = reversed(operands)
+        s += ", ".join(
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        return s
+
 
     def __repr__(self) -> str:
         s = ""
@@ -340,10 +354,10 @@ class IRInstruction:
         from vyper.venom.analysis.analysis import IRAnalysesCache
         from vyper.venom.analysis.liveness import LivenessAnalysis
 
-        if hasattr(self, "parent"):
-            fn = self.parent.parent
-            ac = IRAnalysesCache(fn)
-            ac.force_analysis(LivenessAnalysis)
+        # if hasattr(self, "parent"):
+        #     fn = self.parent.parent
+        #     ac = IRAnalysesCache(fn)
+        #     ac.force_analysis(LivenessAnalysis)
 
         fence = self.fence_id if self.fence_id != -1 else ""
 
@@ -547,7 +561,7 @@ class IRBasicBlock:
         bb.cfg_out = self.cfg_out.copy()
         bb.out_vars = self.out_vars.copy()
         return bb
-
+    
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
