@@ -2507,7 +2507,9 @@ class ABIDecode(BuiltinFunctionT):
             ret = ["seq"]
 
             # NOTE: we could replace these 4 lines with
-            # `[assert [le, abi_min_size, data_len]]`
+            # `[assert [le, abi_min_size, data_len]]`. it depends on
+            # what we consider a "valid" payload.
+            # cf. test_abi_decode_max_size()
             if abi_min_size == abi_size_bound:
                 ret.append(["assert", ["eq", abi_min_size, data_len]])
             else:
