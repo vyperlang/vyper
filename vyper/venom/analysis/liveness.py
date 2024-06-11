@@ -55,6 +55,7 @@ class LivenessAnalysis(IRAnalysis):
         Returns True if out_vars changed
         """
         out_vars = bb.out_vars.copy()
+        bb.out_vars = OrderedSet()
         for out_bb in bb.cfg_out:
             target_vars = self.input_vars_from(bb, out_bb)
             bb.out_vars = bb.out_vars.union(target_vars)
