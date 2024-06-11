@@ -2331,7 +2331,7 @@ class Print(BuiltinFunctionT):
 
 
 class ABIEncode(BuiltinFunctionT):
-    _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
+    _id = "abi_encode"
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
     # explanation of ensure_tuple:
     # default is to force even a single value into a tuple,
@@ -2452,7 +2452,7 @@ class ABIEncode(BuiltinFunctionT):
 
 
 class ABIDecode(BuiltinFunctionT):
-    _id = "_abi_decode"
+    _id = "abi_decode"
     _inputs = [("data", BytesT.any()), ("output_type", TYPE_T.any())]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
@@ -2541,6 +2541,28 @@ class ABIDecode(BuiltinFunctionT):
             return b1.resolve(ret)
 
 
+class OldABIEncode(ABIEncode):
+    _warned = False
+    _id = "_abi_encode"
+
+    def _try_fold(self, node):
+        if not self.__class__._warned:
+            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
+            self.__class__._warned = True
+        super()._try_fold(node)
+
+
+class OldABIDecode(ABIDecode):
+    _warned = False
+    _id = "_abi_decode"
+
+    def _try_fold(self, node):
+        if not self.__class__._warned:
+            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
+            self.__class__._warned = True
+        super()._try_fold(node)
+
+
 class _MinMaxValue(TypenameFoldedFunctionT):
     def _try_fold(self, node):
         self._validate_arg_types(node)
@@ -2593,8 +2615,10 @@ class Epsilon(TypenameFoldedFunctionT):
 
 
 DISPATCH_TABLE = {
-    "_abi_encode": ABIEncode(),
-    "_abi_decode": ABIDecode(),
+    "abi_encode": ABIEncode(),
+    "abi_decode": ABIDecode(),
+    "_abi_encode": OldABIEncode(),
+    "_abi_decode": OldABIDecode(),
     "floor": Floor(),
     "ceil": Ceil(),
     "convert": Convert(),
