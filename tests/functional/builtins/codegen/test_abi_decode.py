@@ -1323,3 +1323,101 @@ def run(x: Bytes[2 * 32 + 3 * 32  + 3 * 32 * 4]):
 
     with tx_failed():
         c.run(data)
+
+
+def test_nested_invalid_dynarray_head(get_contract, tx_failed):
+    code = """
+@nonpayable
+@external
+def foo(x:Bytes[320]):
+    if True:
+        a: Bytes[320-32] = b''
+
+        # make the word following the buffer x_mem dirty to make a potential
+        # OOB revert
+        fake_head: uint256 = 32
+    x_mem: Bytes[320] = x
+
+    y: DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
+
+@nonpayable
+@external
+def bar(x:Bytes[320]):
+    x_mem: Bytes[320] = x
+
+    y:DynArray[DynArray[uint256, 2], 2] = _abi_decode(x_mem,DynArray[DynArray[uint256, 2], 2])
+    """
+    c = get_contract(code)
+
+    encoded = (0x20, 0x02)  # head of the dynarray  # len of outer
+    inner = (
+        0x0,  # head1
+        # 0x0,  # head2
+    )
+
+    encoded = _abi_payload_from_tuple(encoded + inner)
+    with tx_failed():
+        c.foo(encoded)  # revert
+    with tx_failed():
+        c.bar(encoded)  # return [[],[]]
+
+
+def test_static_outer_type_invalid_heads(get_contract, tx_failed):
+    code = """
+@nonpayable
+@external
+def foo(x:Bytes[320]):
+    x_mem: Bytes[320] = x
+    y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
+
+@nonpayable
+@external
+def bar(x:Bytes[320]):
+    if True:
+        a: Bytes[160] = b''
+        # write stuff here to make the call revert in case decode do
+        # an out of bound access:
+        fake_head: uint256 = 32
+    x_mem: Bytes[320] = x
+    y:DynArray[uint256, 2][2] = _abi_decode(x_mem,DynArray[uint256, 2][2])
+    """
+    c = get_contract(code)
+
+    encoded = (0x20,)  # head of the static array
+    inner = (
+        0x00,  # head of the first dynarray
+        # 0x00,  # head of the second dynarray
+    )
+
+    encoded = _abi_payload_from_tuple(encoded + inner)
+
+    with tx_failed():
+        c.foo(encoded)
+    with tx_failed():
+        c.bar(encoded)
+
+
+def test_abi_decode_max_size(get_contract, tx_failed):
+    # test case where the payload is "too large" than the max size
+    # of abi encoding the type. this can happen when the payload is
+    # "sparse" and has garbage bytes in between the static and dynamic
+    # sections
+    code = """
+@external
+def foo(a:Bytes[1000]):
+    v: DynArray[uint256, 1] = _abi_decode(a,DynArray[uint256, 1])
+    """
+    c = get_contract(code)
+
+    payload = (
+        0xA0,  # head
+        0x00,  # garbage
+        0x00,  # garbage
+        0x00,  # garbage
+        0x00,  # garbage
+        0x01,  # len
+        0x12,  # elem1
+    )
+
+    with tx_failed():
+        c.foo(_abi_payload_from_tuple(payload))

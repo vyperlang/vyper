@@ -86,9 +86,8 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     abi_return_t = wrapped_return_t.abi_type
 
-    min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
-    assert 0 < min_return_size <= max_return_size
+    assert 0 <= max_return_size
 
     ret_ofst = buf
     ret_len = max_return_size
@@ -102,15 +101,6 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     buf.annotation = f"{expr.node_source_code} returndata buffer"
 
     unpacker = ["seq"]
-
-    # revert when returndatasize is not in bounds
-    # (except when return_override is provided.)
-    if not call_kwargs.skip_contract_check:
-        assertion = IRnode.from_list(
-            ["assert", ["ge", "returndatasize", min_return_size]],
-            error_msg="returndatasize too small",
-        )
-        unpacker.append(assertion)
 
     assert isinstance(wrapped_return_t, TupleT)
 
