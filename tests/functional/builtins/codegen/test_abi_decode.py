@@ -1395,3 +1395,29 @@ def bar(x:Bytes[320]):
         c.foo(encoded)
     with tx_failed():
         c.bar(encoded)
+
+
+def test_abi_decode_max_size(get_contract, tx_failed):
+    # test case where the payload is "too large" than the max size
+    # of abi encoding the type. this can happen when the payload is
+    # "sparse" and has garbage bytes in between the static and dynamic
+    # sections
+    code = """
+@external
+def foo(a:Bytes[1000]):
+    v: DynArray[uint256, 1] = _abi_decode(a,DynArray[uint256, 1])
+    """
+    c = get_contract(code)
+
+    payload = (
+        0xA0,  # head
+        0x00,  # garbage
+        0x00,  # garbage
+        0x00,  # garbage
+        0x00,  # garbage
+        0x01,  # len
+        0x12,  # elem1
+    )
+
+    with tx_failed():
+        c.foo(_abi_payload_from_tuple(payload))
