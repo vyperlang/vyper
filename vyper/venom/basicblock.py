@@ -211,7 +211,6 @@ class IRInstruction:
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
-    fence_id: int
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -229,7 +228,6 @@ class IRInstruction:
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
-        self.fence_id = -1
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
@@ -320,7 +318,7 @@ class IRInstruction:
             if inst.ast_source:
                 return inst.ast_source
         return self.parent.parent.ast_source
-    
+
     def str_short(self) -> str:
         s = ""
         if self.output:
@@ -329,11 +327,11 @@ class IRInstruction:
         s += opcode
         operands = self.operands
         if opcode not in ["jmp", "jnz", "invoke"]:
-            operands = reversed(operands)
+            operands = list(reversed(operands))
         s += ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
+        )
         return s
-
 
     def __repr__(self) -> str:
         s = ""
@@ -351,17 +349,7 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        from vyper.venom.analysis.analysis import IRAnalysesCache
-        from vyper.venom.analysis.liveness import LivenessAnalysis
-
-        # if hasattr(self, "parent"):
-        #     fn = self.parent.parent
-        #     ac = IRAnalysesCache(fn)
-        #     ac.request_analysis(LivenessAnalysis)
-
-        fence = self.fence_id if self.fence_id != -1 else ""
-
-        return f"{s: <30} # {fence} {self.liveness}"
+        return f"{s: <30} # {self.liveness}"
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
@@ -503,19 +491,19 @@ class IRBasicBlock:
     @property
     def non_phi_instructions(self) -> Iterator[IRInstruction]:
         return (inst for inst in self.instructions if inst.opcode != "phi")
-    
+
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
             if inst.opcode == "phi":
                 yield inst
             else:
-                return 
-            
+                return
+
     @property
     def body_instructions(self) -> Iterator[IRInstruction]:
         return (inst for inst in self.instructions[:-1] if inst.opcode != "phi")
-        
+
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
@@ -577,7 +565,7 @@ class IRBasicBlock:
         bb.cfg_out = self.cfg_out.copy()
         bb.out_vars = self.out_vars.copy()
         return bb
-    
+
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"

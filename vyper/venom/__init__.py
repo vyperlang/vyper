@@ -39,7 +39,10 @@ def generate_assembly_experimental(
     compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
+
 count = 0
+
+
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
@@ -68,6 +71,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #     import sys
     #     sys.exit(1)
     # count += 1
+
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
