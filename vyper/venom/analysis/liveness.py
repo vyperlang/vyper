@@ -54,7 +54,7 @@ class LivenessAnalysis(IRAnalysis):
         Compute out_vars of basic block.
         Returns True if out_vars changed
         """
-        out_vars = bb.out_vars.copy()
+        out_vars = bb.out_vars
         bb.out_vars = OrderedSet()
         for out_bb in bb.cfg_out:
             target_vars = self.input_vars_from(bb, out_bb)
