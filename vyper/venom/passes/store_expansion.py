@@ -18,7 +18,7 @@ class StoreExpansionPass(IRPass):
                 if inst.output is None:
                     continue
 
-                #print("ENTER", inst)
+                # print("ENTER", inst)
                 self._process_inst(dfg, inst, idx)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)

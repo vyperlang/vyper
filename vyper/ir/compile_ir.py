@@ -1035,7 +1035,7 @@ def _stack_peephole_opts(assembly):
             del assembly[i]
         if assembly[i] == "DUP1" and assembly[i + 1] == "SWAP1":
             changed = True
-            del assembly[i+1]
+            del assembly[i + 1]
         i += 1
 
     return changed
