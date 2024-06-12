@@ -340,7 +340,8 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
 
     # add max_mutations bytes worth of padding so we don't just get caught
     # by bytes length check at function entry
-    bound = wrapped_type.abi_type.size_bound() + MAX_MUTATIONS
+    type_bound = wrapped_type.abi_type.size_bound()
+    buffer_bound = type_bound + MAX_MUTATIONS
     type_str = repr(typ)  # annotation in vyper code
     # TODO: intrinsic decode from staticcall/extcall
     # TODO: _abi_decode from other sources (staticcall/extcall?)
@@ -348,20 +349,22 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
     # TODO: check unwrap_tuple=False
     code = f"""
 @external
-def run(xs: Bytes[{bound}]) -> {type_str}:
+def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
     ret: {type_str} = _abi_decode(xs, {type_str})
     return ret
 
 interface Foo:
-    def foo(xs: Bytes[{bound}]) -> {type_str}: view  # STATICCALL
-    def bar(xs: Bytes[{bound}]) -> {type_str}: nonpayable  # CALL
+    def foo(xs: Bytes[{buffer_bound}]) -> {type_str}: view  # STATICCALL
+    def bar(xs: Bytes[{buffer_bound}]) -> {type_str}: nonpayable  # CALL
 
 @external
-def run2(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
+def run2(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
+    assert len(xs) <= {type_bound}
     return staticcall copier.foo(xs)
 
 @external
-def run3(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
+def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
+    assert len(xs) <= {type_bound}
     return (extcall copier.bar(xs))
     """
     c = get_contract(code)
