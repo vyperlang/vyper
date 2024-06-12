@@ -86,8 +86,9 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     abi_return_t = wrapped_return_t.abi_type
 
+    min_return_size = abi_return_t.static_size()
     max_return_size = abi_return_t.size_bound()
-    assert 0 <= max_return_size
+    assert 0 < min_return_size <= max_return_size
 
     ret_ofst = buf
     ret_len = max_return_size
@@ -118,6 +119,16 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
                 b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
             )
     else:
+        # revert when returndatasize is not in bounds
+        # (except when return_override is provided.)
+        # make_setter checks returndatasize, except when needs_clamp is False.
+        if not call_kwargs.skip_contract_check:
+            assertion = IRnode.from_list(
+                ["assert", ["ge", "returndatasize", min_return_size]],
+                error_msg="returndatasize too small",
+            )
+            unpacker.append(assertion)
+
         return_buf = buf
 
     if call_kwargs.default_return_value is not None:
