@@ -24,7 +24,7 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
             
-        for dep_inst in reversed(self.ida[inst]):
+        for dep_inst in self.ida[inst]:
             if dep_inst in self.visited_instructions:
                 continue
             self._process_instruction_r(instructions, dep_inst)
@@ -40,6 +40,7 @@ class DFTPass(IRPass):
         self._process_instruction_r(self.instructions, self.start)
 
         bb.instructions = self.instructions[:-1]
+        assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
@@ -49,9 +50,15 @@ class DFTPass(IRPass):
 
         self.start = IRInstruction("start", [])
         self.ida[self.start] = list()
-        
+
         for inst in bb.non_phi_instructions:
+            if inst.is_volatile:
+                idx = bb.instructions.index(inst)
+                for inst2 in bb.instructions[idx + 1:]:
+                    self.ida[inst2].append(inst)
+
             outputs = inst.get_outputs()
+            
             if len(outputs) == 0:
                 self.ida[self.start].append(inst)
                 continue
@@ -66,12 +73,11 @@ class DFTPass(IRPass):
                 if uses_count == 0:
                     self.ida[self.start].append(inst)
 
-            if inst.is_volatile:
-                idx = bb.instructions.index(inst)
-                for inst2 in bb.instructions[idx + 1:]:
-                    self.ida[inst2].append(inst)
+        # if bb.label.value == "1_then":
+        #     print(self.ida_as_graph())
+        #     import sys
+        #     sys.exit(1)
 
-        self.ida[self.start].sort(key=lambda x: 0 if x.is_bb_terminator else 1)
 
     def ida_as_graph(self) -> str:
         lines = ["digraph ida_graph {"]

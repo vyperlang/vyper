@@ -511,6 +511,10 @@ class IRBasicBlock:
                 yield inst
             else:
                 return 
+            
+    @property
+    def body_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions[:-1] if inst.opcode != "phi")
         
     def replace_operands(self, replacements: dict) -> None:
         """
