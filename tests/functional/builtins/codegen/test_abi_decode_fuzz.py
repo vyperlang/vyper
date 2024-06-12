@@ -311,18 +311,31 @@ def _type_stats(typ: VyperType) -> _TypeStats:
     raise RuntimeError("unreachable")
 
 
+@pytest.fixture(scope="module")
+def payload_copier(get_contract_from_ir):
+    # some contract which will return the buffer passed to it
+    # note: hardcode the location of the bytestring
+    ir = [
+        "with",
+        "length",
+        ["calldataload", 36],
+        ["seq", ["calldatacopy", 0, 68, "length"], ["return", 0, "length"]],
+    ]
+    return get_contract_from_ir(ir)
+
+
 @pytest.mark.parametrize("_n", list(range(10)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
 @hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
-def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, env):
+def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
     wrapped_type = calculate_type_for_external_return(typ)
 
     stats = _type_stats(typ)
     for k, v in asdict(stats).items():
         pass
         # event(k, v)
-    hp.target( stats.num_dynamic_types)
+    hp.target(stats.num_dynamic_types)
     # hp.target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type()))
 
     # add max_mutations bytes worth of padding so we don't just get caught
@@ -338,6 +351,18 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, env):
 def run(xs: Bytes[{bound}]) -> {type_str}:
     ret: {type_str} = _abi_decode(xs, {type_str})
     return ret
+
+interface Foo:
+    def foo(xs: Bytes[{bound}]) -> {type_str}: view  # STATICCALL
+    def bar(xs: Bytes[{bound}]) -> {type_str}: nonpayable  # CALL
+
+@external
+def run2(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
+    return staticcall copier.foo(xs)
+
+@external
+def run3(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
+    return (extcall copier.bar(xs))
     """
     c = get_contract(code)
 
@@ -359,6 +384,8 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
 
             hp.note(f"expected {expected}")
             assert expected == c.run(data)
+            assert expected == c.run2(data)
+            assert expected == c.run3(data)
 
         except DecodeError:
             # note EvmError includes reverts *and* exceptional halts.
@@ -367,5 +394,9 @@ def run(xs: Bytes[{bound}]) -> {type_str}:
             hp.note("expect failure")
             with tx_failed(EvmError):
                 c.run(data)
+            with tx_failed():
+                c.run2(data)
+            with tx_failed():
+                c.run3(data)
 
     _fuzz()
