@@ -1438,9 +1438,10 @@ def test_abi_decode_max_size(get_contract, tx_failed):
     # of abi encoding the type. this can happen when the payload is
     # "sparse" and has garbage bytes in between the static and dynamic
     # sections
-    code = """
+    buffer_sz = 1000
+    code = f"""
 @external
-def foo(a:Bytes[1000]):
+def foo(a:Bytes[{buffer_sz}]):
     v: DynArray[uint256, 1] = _abi_decode(a,DynArray[uint256, 1])
     """
     c = get_contract(code)
@@ -1456,4 +1457,4 @@ def foo(a:Bytes[1000]):
     )
 
     with tx_failed():
-        c.foo(_abi_payload_from_tuple(payload))
+        c.foo(_abi_payload_from_tuple(payload, buffer_sz))
