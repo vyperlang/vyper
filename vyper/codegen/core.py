@@ -895,10 +895,7 @@ def _abi_payload_size(ir_node):
         # the amount of size each value occupies in static section
         # (the amount of size it occupies in the dynamic section is handled in
         # make_setter recursion)
-        item_size = ir_node.typ.value_type.abi_type.static_size()
-        if item_size == 0:
-            # manual optimization; the mload cannot currently be optimized out
-            return ["add", OFFSET, 0]
+        item_size = ir_node.typ.value_type.abi_type.embedded_static_size()
         return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), item_size]]
 
     if isinstance(ir_node.typ, _BytestringT):
@@ -982,7 +979,15 @@ def make_setter(left, right, hi=None):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right, hi=hi)
+    with right.cache_when_complex("c_right") as (b1, right):
+        ret = ["seq"]
+        if hi is not None:
+            item_end = add_ofst(right, right.typ.abi_type.static_size())
+            len_check = ["assert", ["le", item_end, hi]]
+            ret.append(len_check)
+
+        ret.append(_complex_make_setter(left, right, hi=hi))
+        return b1.resolve(IRnode.from_list(ret))
 
 
 # locations with no dedicated copy opcode

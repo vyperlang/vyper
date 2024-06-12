@@ -468,14 +468,7 @@ def _convert_ir_bb(fn, ir, symbols):
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
 
         assert ir.args[3].is_literal, "repeat bound expected to be literal"
-
         bound = ir.args[3].value
-        if (
-            isinstance(end, IRLiteral)
-            and isinstance(start, IRLiteral)
-            and end.value + start.value <= bound
-        ):
-            bound = None
 
         body = ir.args[4]
 
@@ -491,9 +484,15 @@ def _convert_ir_bb(fn, ir, symbols):
 
         counter_var = entry_block.append_instruction("store", start)
         symbols[sym.value] = counter_var
+
+        if bound is not None:
+            # assert le end bound
+            invalid_end = entry_block.append_instruction("gt", bound, end)
+            valid_end = entry_block.append_instruction("iszero", invalid_end)
+            entry_block.append_instruction("assert", valid_end)
+
         end = entry_block.append_instruction("add", start, end)
-        if bound:
-            bound = entry_block.append_instruction("add", start, bound)
+
         entry_block.append_instruction("jmp", cond_block.label)
 
         xor_ret = cond_block.append_instruction("xor", counter_var, end)
@@ -501,9 +500,6 @@ def _convert_ir_bb(fn, ir, symbols):
         fn.append_basic_block(cond_block)
 
         fn.append_basic_block(body_block)
-        if bound:
-            xor_ret = body_block.append_instruction("xor", counter_var, bound)
-            body_block.append_instruction("assert", xor_ret)
 
         emit_body_blocks()
         body_end = fn.get_basic_block()
