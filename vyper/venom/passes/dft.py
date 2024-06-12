@@ -1,9 +1,8 @@
-from collections import deque
-from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -28,14 +27,14 @@ class DFTPass(IRPass):
         if len(children) > 0 and children[-1].is_bb_terminator:
             children[:-1] = reversed(children[:-1])
         else:
-            children = reversed(children)
+            children = list(reversed(children))
 
         for dep_inst in children:
             if dep_inst in self.visited_instructions:
                 continue
             self._process_instruction_r(instructions, dep_inst)
 
-        instructions.append(inst)     
+        instructions.append(inst)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self.function.append_basic_block(bb)
@@ -60,11 +59,11 @@ class DFTPass(IRPass):
         for inst in bb.non_phi_instructions:
             if inst.is_volatile:
                 idx = bb.instructions.index(inst)
-                for inst2 in bb.instructions[idx + 1:]:
+                for inst2 in bb.instructions[idx + 1 :]:
                     self.ida[inst2].append(inst)
 
             outputs = inst.get_outputs()
-            
+
             if len(outputs) == 0:
                 self.ida[self.start].append(inst)
                 continue
@@ -84,23 +83,9 @@ class DFTPass(IRPass):
         #     import sys
         #     sys.exit(1)
 
-
-    def ida_as_graph(self) -> str:
-        lines = ["digraph ida_graph {"]
-        for inst, deps in self.ida.items():
-            for dep in deps:
-                a = inst.str_short()
-                b = dep.str_short()
-                a=a.replace('%', '\\%')
-                b=b.replace('%', '\\%')
-                lines.append(f'"{a}" -> "{b}"')
-        lines.append("}")
-        return "\n".join(lines)
-
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        self.fence_id = 1
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         basic_blocks = list(self.function.get_basic_blocks())
@@ -110,3 +95,15 @@ class DFTPass(IRPass):
             self._process_basic_block(bb)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def ida_as_graph(self) -> str:
+        lines = ["digraph ida_graph {"]
+        for inst, deps in self.ida.items():
+            for dep in deps:
+                a = inst.str_short()
+                b = dep.str_short()
+                a = a.replace("%", "\\%")
+                b = b.replace("%", "\\%")
+                lines.append(f'"{a}" -> "{b}"')
+        lines.append("}")
+        return "\n".join(lines)
