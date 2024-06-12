@@ -468,7 +468,7 @@ class IRnode:
 
     @cached_property
     def contains_risky_call(self):
-        ret = self.value in ("call", "delegatecall", "create", "create2")
+        ret = self.value in ("call", "delegatecall", "staticcall", "create", "create2")
 
         for arg in self.args:
             ret |= arg.contains_risky_call
