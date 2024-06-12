@@ -2482,7 +2482,7 @@ class ABIDecode(BuiltinFunctionT):
             wrapped_typ = calculate_type_for_external_return(output_typ)
 
         abi_size_bound = wrapped_typ.abi_type.size_bound()
-        abi_min_size = wrapped_typ.abi_type.min_size()
+        abi_min_size = wrapped_typ.abi_type.static_size()
 
         # Get the size of data
         input_max_len = data.typ.maxlen
@@ -2506,6 +2506,10 @@ class ABIDecode(BuiltinFunctionT):
 
             ret = ["seq"]
 
+            # NOTE: we could replace these 4 lines with
+            # `[assert [le, abi_min_size, data_len]]`. it depends on
+            # what we consider a "valid" payload.
+            # cf. test_abi_decode_max_size()
             if abi_min_size == abi_size_bound:
                 ret.append(["assert", ["eq", abi_min_size, data_len]])
             else:
