@@ -321,7 +321,7 @@ def payload_copier(get_contract_from_ir):
         ["calldataload", 36],
         ["seq", ["calldatacopy", 0, 68, "length"], ["return", 0, "length"]],
     ]
-    return get_contract_from_ir(ir)
+    return get_contract_from_ir(["deploy", 0, ir, 0])
 
 
 @pytest.mark.parametrize("_n", list(range(10)))
@@ -384,8 +384,8 @@ def run3(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
 
             hp.note(f"expected {expected}")
             assert expected == c.run(data)
-            assert expected == c.run2(data)
-            assert expected == c.run3(data)
+            assert expected == c.run2(data, payload_copier.address)
+            assert expected == c.run3(data, payload_copier.address)
 
         except DecodeError:
             # note EvmError includes reverts *and* exceptional halts.
@@ -394,9 +394,9 @@ def run3(xs: Bytes[{bound}], copier: Foo) -> {type_str}:
             hp.note("expect failure")
             with tx_failed(EvmError):
                 c.run(data)
-            with tx_failed():
-                c.run2(data)
-            with tx_failed():
-                c.run3(data)
+            with tx_failed(EvmError):
+                c.run2(data, payload_copier.address)
+            with tx_failed(EvmError):
+                c.run3(data, payload_copier.address)
 
     _fuzz()
