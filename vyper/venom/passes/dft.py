@@ -23,8 +23,14 @@ class DFTPass(IRPass):
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
-            
-        for dep_inst in self.ida[inst]:
+
+        children = self.ida[inst]
+        if len(children) > 0 and children[-1].is_bb_terminator:
+            children[:-1] = reversed(children[:-1])
+        else:
+            children = reversed(children)
+
+        for dep_inst in children:
             if dep_inst in self.visited_instructions:
                 continue
             self._process_instruction_r(instructions, dep_inst)
@@ -73,7 +79,7 @@ class DFTPass(IRPass):
                 if uses_count == 0:
                     self.ida[self.start].append(inst)
 
-        # if bb.label.value == "1_then":
+        # if bb.label.value == "__main_entry":
         #     print(self.ida_as_graph())
         #     import sys
         #     sys.exit(1)
