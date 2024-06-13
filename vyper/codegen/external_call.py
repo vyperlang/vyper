@@ -119,7 +119,10 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         # in the future, this check could be moved outside of the branch, and
         # instead rely on the optimizer to optimize out the redundant check,
         # it would need the optimizer to do algebraic reductions (along the
-        # lines of `a>b and b>c and a>c` reduced to `a>b and b>c`.
+        # lines of `a>b and b>c and a>c` reduced to `a>b and b>c`).
+        # another thing we could do instead once we have the machinery is to
+        # simply always use make_setter instead of having this assertion, and
+        # rely on memory analyser to optimize out the memory movement.
         if not call_kwargs.skip_contract_check:
             assertion = IRnode.from_list(
                 ["assert", ["ge", "returndatasize", min_return_size]],
