@@ -2582,3 +2582,38 @@ def boo():
     c = get_contract(code)
 
     assert c.foo() == [1, 2, 3, 4]
+
+
+def test_make_setter_staticcall(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo() -> uint256 : view
+interface B:
+   def boo() -> uint256 : nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, staticcall A(self).boo(), 4]
+    return self.a  # bug returns [1, 2, 1, 4]
+
+@external
+def bar() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, extcall B(self).boo(), 4]
+    return self.a  # returns [1, 2, 3, 4]
+
+
+@external
+@view
+# @nonpayable
+def boo() -> uint256:
+    return self.a[0]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+    assert c.bar() == [1, 2, 3, 4]
