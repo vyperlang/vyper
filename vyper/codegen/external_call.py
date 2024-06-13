@@ -13,7 +13,6 @@ from vyper.codegen.core import (
     eval_once_check,
     get_type_for_exact_size,
     make_setter,
-    needs_clamp,
     unwrap_location,
     wrap_value_for_external_return,
 )
@@ -106,42 +105,15 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     assert isinstance(wrapped_return_t, TupleT)
 
     # unpack strictly
-    if not needs_clamp(wrapped_return_t, encoding):
-        # revert when returndatasize is not in bounds, except when
-        # skip_contract_check is enabled.
-        # NOTE: there is an optimization here: when needs_clamp is True,
-        # make_setter (implicitly) checks returndatasize during abi
-        # decoding.
-        # since make_setter is not called in this branch, we need to check
-        # returndatasize here, but we avoid a redundant check by only doing
-        # the returndatasize check inside of this branch (and not in the
-        # `needs_clamp==True` branch).
-        # in the future, this check could be moved outside of the branch, and
-        # instead rely on the optimizer to optimize out the redundant check,
-        # it would need the optimizer to do algebraic reductions (along the
-        # lines of `a>b and b>c and a>c` reduced to `a>b and b>c`).
-        # another thing we could do instead once we have the machinery is to
-        # simply always use make_setter instead of having this assertion, and
-        # rely on memory analyser to optimize out the memory movement.
-        if not call_kwargs.skip_contract_check:
-            assertion = IRnode.from_list(
-                ["assert", ["ge", "returndatasize", min_return_size]],
-                error_msg="returndatasize too small",
-            )
-            unpacker.append(assertion)
-        return_buf = buf
+    return_buf = context.new_internal_variable(wrapped_return_t)
 
-    else:
-        return_buf = context.new_internal_variable(wrapped_return_t)
-
+    payload_bound = IRnode.from_list(
+        ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
+    )
+    with payload_bound.cache_when_complex("payload_bound") as (b1, bound):
         # note: make_setter does ABI decoding and clamps
-        payload_bound = IRnode.from_list(
-            ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
-        )
-        with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
-            unpacker.append(
-                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
-            )
+        copy_ir = make_setter(return_buf, buf, hi=add_ofst(buf, bound))
+        unpacker.append(b1.resolve(copy_ir))
 
     if call_kwargs.default_return_value is not None:
         # if returndatasize == 0:
