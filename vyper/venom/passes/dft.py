@@ -198,14 +198,16 @@ class DFTPass(IRPass):
         for inst in instructions:
             self._process_instruction_r(bb, inst)
 
-        assert len(bb.instructions) == len(instructions), (instructions, bb)
-
         def key(inst):
             if inst.is_bb_terminator:
                 return 2
             return 1
 
         bb.instructions.sort(key=key)
+
+        # sanity check: the instructions we started with are the same
+        # as we have now
+        assert set(bb.instructions) == set(instructions), (instructions, bb)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
