@@ -514,7 +514,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     break
 
             if rhs is None:
-                hint = f"try importing {item.alias} first"
+                hint = f"try importing `{item.alias}` first "
+                hint += f"(located at `{item.module_t._module.path}`)"
             elif not isinstance(annotation, vy_ast.Subscript):
                 # it's `initializes: foo` instead of `initializes: foo[...]`
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
