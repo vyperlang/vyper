@@ -1273,7 +1273,7 @@ initializes: lib3
     assert e.value._hint == "add `lib3 := lib3` to its initializer list"
 
 
-def test_hint_for_missing_initializer_when_no_import(make_input_bundle):
+def test_hint_for_missing_initializer_when_no_import(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -1297,7 +1297,8 @@ initializes: lib2
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
-    assert e.value._hint == "try importing lib1 first"
+    hint = "try importing `lib1` first (located at `lib1.vy`)"
+    assert e.value._hint == hint
 
 
 @pytest.fixture
