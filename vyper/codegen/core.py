@@ -889,11 +889,14 @@ def _dirty_read_risk(ir_node):
 def _abi_payload_size(ir_node):
     SCALE = ir_node.location.word_scale
     assert SCALE == 32  # we must be in some byte-addressable region, like memory
-
     OFFSET = DYNAMIC_ARRAY_OVERHEAD * SCALE
 
     if isinstance(ir_node.typ, DArrayT):
-        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), SCALE]]
+        # the amount of size each value occupies in static section
+        # (the amount of size it occupies in the dynamic section is handled in
+        # make_setter recursion)
+        item_size = ir_node.typ.value_type.abi_type.embedded_static_size()
+        return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), item_size]]
 
     if isinstance(ir_node.typ, _BytestringT):
         return ["add", OFFSET, get_bytearray_length(ir_node)]
@@ -976,7 +979,15 @@ def make_setter(left, right, hi=None):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right, hi=hi)
+    with right.cache_when_complex("c_right") as (b1, right):
+        ret = ["seq"]
+        if hi is not None:
+            item_end = add_ofst(right, right.typ.abi_type.static_size())
+            len_check = ["assert", ["le", item_end, hi]]
+            ret.append(len_check)
+
+        ret.append(_complex_make_setter(left, right, hi=hi))
+        return b1.resolve(IRnode.from_list(ret))
 
 
 # locations with no dedicated copy opcode
@@ -1175,14 +1186,17 @@ def clamp_dyn_array(ir_node, hi=None):
 
     assert (hi is not None) == _dirty_read_risk(ir_node)
 
-    # if the subtype is dynamic, the check will be performed in the recursion
-    if hi is not None and not t.abi_type.subtyp.is_dynamic():
+    if hi is not None:
         assert t.count < 2**64  # sanity check
 
         # note: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
         item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
+        # if the subtype is dynamic, the length check is performed in
+        # the recursion, UNLESS the count is zero. here we perform the
+        # check all the time, but it could maybe be optimized out in the
+        # make_setter loop (in the common case that runtime count > 0).
         len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
 
     return IRnode.from_list(len_check, error_msg=f"{ir_node.typ} bounds check")

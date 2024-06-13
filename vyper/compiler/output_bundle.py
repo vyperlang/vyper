@@ -194,7 +194,7 @@ class SolcJSONWriter(OutputBundleWriter):
 
     def write_compilation_target(self, targets: list[str]):
         for target in targets:
-            self._output["settings"]["outputSelection"][target] = "*"
+            self._output["settings"]["outputSelection"][target] = ["*"]
 
     def write_version(self, version):
         self._output["compiler_version"] = version
