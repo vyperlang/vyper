@@ -219,13 +219,11 @@ class Stmt:
 
             varname = self.stmt.target.target.id
             i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
-            iptr = self.context.new_variable(varname, target_type)
 
-            self.context.forvars[varname] = True
+            assert varname not in forvars
+            self.context.forvars[varname] = i
 
             loop_body = ["seq"]
-            # store the current value of i so it is accessible to userland
-            loop_body.append(["mstore", iptr, i])
             loop_body.append(parse_body(self.stmt.body, self.context))
 
             del self.context.forvars[varname]
@@ -247,13 +245,8 @@ class Stmt:
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id
-        loop_var = IRnode.from_list(
-            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
-        )
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
-
-        self.context.forvars[varname] = True
 
         ret = ["seq"]
 
@@ -269,7 +262,10 @@ class Stmt:
 
         # set up the loop variable
         e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
+        assert varname not in self.context.forvars
+        self.context.forvars[varname] = e
+
+        body = parse_body(self.stmt.body, self.context)
 
         repeat_bound = iter_list.typ.count
         if isinstance(iter_list.typ, DArrayT):
