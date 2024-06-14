@@ -371,17 +371,12 @@ def run2(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     assert len(xs) <= {type_bound}
     return (extcall copier.bar(xs))
-
-@external
-def run4(xs: Bytes[{buffer_bound}]) -> {type_str}:
-    ret: {type_str} = abi_decode(xs, {type_str}, unwrap_tuple=False)
-    return ret
     """
     c = get_contract(code)
 
-    @hp.given(data=payload_from(wrapped_type), unwrapped_payload=payload_from(typ))
+    @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)
-    def _fuzz(data, unwrapped_payload):
+    def _fuzz(data):
         hp.note(f"type: {typ}")
         hp.note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
         hp.note(code)
@@ -412,15 +407,51 @@ def run4(xs: Bytes[{buffer_bound}]) -> {type_str}:
             with tx_failed(EvmError):
                 c.run3(data, payload_copier.address)
 
-        hp.note(unwrapped_payload.hex())
+    _fuzz()
+
+    # t1 = time.time()
+    # print(f"elapsed {t1 - t0}s")
+
+
+@pytest.mark.parametrize("_n", list(range(PARALLELISM)))
+@hp.given(typ=vyper_type())
+@hp.settings(max_examples=100, **_settings)
+@hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
+def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed):
+    # import time
+    # t0 = time.time()
+    # print("ENTER", typ)
+
+    stats = _type_stats(typ)
+    hp.target(stats.num_dynamic_types)
+
+    # add max_mutations bytes worth of padding so we don't just get caught
+    # by bytes length check at function entry
+    type_bound = typ.abi_type.size_bound()
+    buffer_bound = type_bound + MAX_MUTATIONS
+    type_str = repr(typ)  # annotation in vyper code
+
+    code = f"""
+@external
+def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
+    ret: {type_str} = abi_decode(xs, {type_str}, unwrap_tuple=False)
+    return ret
+    """
+    c = get_contract(code)
+
+    @hp.given(data=payload_from(typ))
+    @hp.settings(max_examples=100, **_settings)
+    def _fuzz(data):
+        hp.note(code)
+        hp.note(data.hex())
         try:
-            expected = spec_decode(typ, unwrapped_payload)
-            hp.note(f"unwrapped expected {expected}")
-            assert expected == c.run4(unwrapped_payload)
+            expected = spec_decode(typ, data)
+            hp.note(f"expected {expected}")
+            assert expected == c.run(data)
         except DecodeError:
-            hp.note("unwrapped expect failure")
+            hp.note("expect failure")
             with tx_failed(EvmError):
-                c.run4(unwrapped_payload)
+                c.run(data)
 
     _fuzz()
 
