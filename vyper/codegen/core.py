@@ -1097,7 +1097,7 @@ def ensure_in_memory(ir_var, context):
         return ir_var
 
     typ = ir_var.typ
-    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
+    buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
