@@ -118,12 +118,39 @@ class SimplifyCFGPass(IRPass):
 
         return count
 
+    def _strip_superfluous_instructions(self) -> int:
+        """
+        Strip superfluous instructions from basic blocks.
+        """
+        fn = self.function
+        worklist = list(fn.get_basic_blocks())
+        i = count = 0
+        while i < len(worklist):
+            bb = worklist[i]
+            i += 1
+
+            for inst in bb.instructions:
+                if inst.opcode == "nop":
+                    bb.remove_instruction(inst)
+                    count += 1
+                elif inst.opcode == "revert":
+                    # Remove all instructions after a revert unless the next instruction is an exit
+                    idx = bb.instructions.index(inst)
+                    if idx + 1 < len(bb.instructions) and bb.instructions[idx + 1].opcode != "exit":
+                        bb.instructions = bb.instructions[: idx + 1]
+                        count += 1
+
+        return count
+
     def run_pass(self):
         fn = self.function
         entry = fn.entry
 
-        for _ in range(fn.num_basic_blocks):
-            changes = self._optimize_empty_basicblocks()
+        max_iterations = sum([len(bb.instructions) for bb in fn.get_basic_blocks()])
+
+        for _ in range(max_iterations):
+            changes = self._strip_superfluous_instructions()
+            changes += self._optimize_empty_basicblocks()
             changes += fn.remove_unreachable_blocks()
             if changes == 0:
                 break

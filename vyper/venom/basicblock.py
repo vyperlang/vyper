@@ -4,7 +4,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "revert", "exit"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
