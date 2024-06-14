@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import hypothesis as hp
 import hypothesis.strategies as st
@@ -327,22 +327,20 @@ def payload_copier(get_contract_from_ir):
 PARALLELISM = 1  # increase on fuzzer box
 
 
-
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
 @hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
-    #import time
-    #t0 = time.time()
-    #print("ENTER", typ)
+    # import time
+    # t0 = time.time()
+    # print("ENTER", typ)
 
     wrapped_type = calculate_type_for_external_return(typ)
 
     stats = _type_stats(typ)
-    for k, v in asdict(stats).items():
-        pass
-        # event(k, v)
+    # for k, v in asdict(stats).items():
+    #     event(k, v)
     hp.target(stats.num_dynamic_types)
     # hp.target(typ.abi_type.is_dynamic() + typ.abi_type.is_complex_type()))
 
@@ -412,5 +410,5 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 
     _fuzz()
 
-    #t1 = time.time()
-    #print(f"elapsed {t1 - t0}s")
+    # t1 = time.time()
+    # print(f"elapsed {t1 - t0}s")

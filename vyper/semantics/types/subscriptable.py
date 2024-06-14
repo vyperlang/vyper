@@ -335,7 +335,7 @@ class TupleT(VyperType):
 
     def __repr__(self):
         if len(self.member_types) == 1:
-            t, = self.member_types
+            (t,) = self.member_types
             return f"({t},)"
         return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
