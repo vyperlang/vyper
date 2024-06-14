@@ -351,10 +351,7 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
     type_bound = wrapped_type.abi_type.size_bound()
     buffer_bound = type_bound + MAX_MUTATIONS
     type_str = repr(typ)  # annotation in vyper code
-    # TODO: intrinsic decode from staticcall/extcall
-    # TODO: _abi_decode from other sources (staticcall/extcall?)
     # TODO: dirty the buffer
-    # TODO: check unwrap_tuple=False
     code = f"""
 @external
 def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
@@ -374,12 +371,17 @@ def run2(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     assert len(xs) <= {type_bound}
     return (extcall copier.bar(xs))
+
+@external
+def run4(xs: Bytes[{buffer_bound}]) -> {type_str}:
+    ret: {type_str} = abi_decode(xs, {type_str}, unwrap_tuple=False)
+    return ret
     """
     c = get_contract(code)
 
-    @hp.given(data=payload_from(wrapped_type))
+    @hp.given(data=payload_from(wrapped_type), unwrapped_payload=payload_from(typ))
     @hp.settings(max_examples=100, **_settings)
-    def _fuzz(data):
+    def _fuzz(data, unwrapped_payload):
         hp.note(f"type: {typ}")
         hp.note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
         hp.note(code)
@@ -409,6 +411,16 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
                 c.run2(data, payload_copier.address)
             with tx_failed(EvmError):
                 c.run3(data, payload_copier.address)
+
+        hp.note(unwrapped_payload.hex())
+        try:
+            expected = spec_decode(typ, unwrapped_payload)
+            hp.note(f"unwrapped expected {expected}")
+            assert expected == c.run4(unwrapped_payload)
+        except DecodeError:
+            hp.note("unwrapped expect failure")
+            with tx_failed(EvmError):
+                c.run4(unwrapped_payload)
 
     _fuzz()
 
