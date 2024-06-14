@@ -18,6 +18,7 @@ from vyper.semantics.types import (
     IntegerT,
     SArrayT,
     StringT,
+    StructT,
     TupleT,
     VyperType,
     _get_primitive_types,
@@ -39,7 +40,7 @@ for t in _get_primitive_types().values():
         continue
     type_ctors.append(t)
 
-complex_static_ctors = [SArrayT, TupleT]
+complex_static_ctors = [SArrayT, TupleT, StructT]
 complex_dynamic_ctors = [DArrayT]
 leaf_ctors = [t for t in type_ctors if t not in _get_sequence_types().values()]
 static_leaf_ctors = [t for t in leaf_ctors if t._is_prim_word]
@@ -50,10 +51,12 @@ MAX_MUTATIONS = 33
 
 @st.composite
 # max type nesting
-def vyper_type(draw, nesting=3, skip=None):
+def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
     assert nesting >= 0
 
     skip = skip or []
+    if source_fragments is None:
+        source_fragments = []
 
     st_leaves = st.one_of(st.sampled_from(dynamic_leaf_ctors), st.sampled_from(static_leaf_ctors))
     st_complex = st.one_of(
@@ -71,39 +74,52 @@ def vyper_type(draw, nesting=3, skip=None):
     # note: maybe st.deferred is good here, we could define it with
     # mutual recursion
     def _go(skip=skip):
-        return draw(vyper_type(nesting=nesting - 1, skip=skip))
+        _, typ = draw(vyper_type(nesting=nesting - 1, skip=skip, source_fragments=source_fragments))
+        return typ
+
+    def finalize(typ):
+        return source_fragments, typ
 
     if t in (BytesT, StringT):
         # arbitrary max_value
         bound = draw(st.integers(min_value=1, max_value=1024))
-        return t(bound)
+        return finalize(t(bound))
 
     if t == SArrayT:
         subtype = _go(skip=[TupleT, BytesT, StringT])
         bound = draw(st.integers(min_value=1, max_value=6))
-        return t(subtype, bound)
+        return finalize(t(subtype, bound))
     if t == DArrayT:
         subtype = _go(skip=[TupleT])
         bound = draw(st.integers(min_value=1, max_value=16))
-        return t(subtype, bound)
+        return finalize(t(subtype, bound))
 
     if t == TupleT:
         # zero-length tuples are not allowed in vyper
         n = draw(st.integers(min_value=1, max_value=6))
         subtypes = [_go() for _ in range(n)]
-        return TupleT(subtypes)
+        return finalize(TupleT(subtypes))
+
+    if t == StructT:
+        n = draw(st.integers(min_value=1, max_value=6))
+        subtypes = {f"x{i}": _go() for i in range(n)}
+        _id = len(source_fragments)  # poor man's unique id
+        name = f"MyStruct{_id}"
+        typ = StructT(name, subtypes)
+        source_fragments.append(typ.def_source_str())
+        return finalize(StructT(name, subtypes))
 
     if t in (BoolT, AddressT):
-        return t()
+        return finalize(t())
 
     if t == IntegerT:
         signed = draw(st.booleans())
         bits = 8 * draw(st.integers(min_value=1, max_value=32))
-        return t(signed, bits)
+        return finalize(t(signed, bits))
 
     if t == BytesM_T:
         m = draw(st.integers(min_value=1, max_value=32))
-        return t(m)
+        return finalize(t(m))
 
     raise RuntimeError("unreachable")
 
@@ -115,6 +131,9 @@ def data_for_type(draw, typ):
 
     if isinstance(typ, TupleT):
         return tuple(_go(item_t) for item_t in typ.member_types)
+
+    if isinstance(typ, StructT):
+        return tuple(_go(item_t) for item_t in typ.tuple_members())
 
     if isinstance(typ, SArrayT):
         return [_go(typ.value_type) for _ in range(typ.length)]
@@ -294,6 +313,13 @@ def _type_stats(typ: VyperType) -> _TypeStats:
         num_dynamic_types = sum(s.num_dynamic_types for s in substats)
         return _finalize()
 
+    if isinstance(typ, StructT):
+        substats = [_type_stats(t) for t in typ.tuple_members()]
+        nesting = 1 + max(s.nesting for s in substats)
+        breadth = max(len(typ.member_types), *[s.breadth for s in substats])
+        num_dynamic_types = sum(s.num_dynamic_types for s in substats)
+        return _finalize()
+
     if isinstance(typ, DArrayT):
         substat = _type_stats(typ.value_type)
         nesting = 1 + substat.nesting
@@ -332,8 +358,8 @@ PARALLELISM = 1  # increase on fuzzer box
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
-@hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier, env):
+    source_fragments, typ = typ
     # import time
     # t0 = time.time()
     # print("ENTER", typ)
@@ -350,9 +376,13 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier, env):
     # by bytes length check at function entry
     type_bound = wrapped_type.abi_type.size_bound()
     buffer_bound = type_bound + MAX_MUTATIONS
-    type_str = repr(typ)  # annotation in vyper code
-    # TODO: dirty the buffer
+
+    preamble = "\n\n".join(source_fragments)
+    type_str = str(typ)  # annotation in vyper code
+
     code = f"""
+{preamble}
+
 @external
 def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
     ret: {type_str} = abi_decode(xs, {type_str})
@@ -377,13 +407,15 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     except EvmError as e:
         if env.contract_size_limit_error in str(e):
             hp.assume(False)
+    # print(code)
+    hp.note(code)
+    c = get_contract(code)
 
     @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)
     def _fuzz(data):
         hp.note(f"type: {typ}")
         hp.note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
-        hp.note(code)
         hp.note(data.hex())
 
         try:
