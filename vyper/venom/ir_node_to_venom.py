@@ -113,6 +113,8 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
+    _ = ir.unique_symbols  # run unique symbols check
+
     global _global_symbols
     _global_symbols = {}
 
