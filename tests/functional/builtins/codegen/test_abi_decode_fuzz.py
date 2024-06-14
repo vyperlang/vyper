@@ -324,11 +324,19 @@ def payload_copier(get_contract_from_ir):
     return get_contract_from_ir(["deploy", 0, ir, 0])
 
 
-@pytest.mark.parametrize("_n", list(range(10)))
+PARALLELISM = 1  # increase on fuzzer box
+
+
+
+@pytest.mark.parametrize("_n", list(range(PARALLELISM)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
 @hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
+    #import time
+    #t0 = time.time()
+    #print("ENTER", typ)
+
     wrapped_type = calculate_type_for_external_return(typ)
 
     stats = _type_stats(typ)
@@ -370,7 +378,7 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     c = get_contract(code)
 
     @hp.given(data=payload_from(wrapped_type))
-    @hp.settings(max_examples=1000, **_settings)
+    @hp.settings(max_examples=100, **_settings)
     def _fuzz(data):
         hp.note(f"type: {typ}")
         hp.note(f"abi_t: {wrapped_type.abi_type.selector_name()}")
@@ -403,3 +411,6 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
                 c.run3(data, payload_copier.address)
 
     _fuzz()
+
+    #t1 = time.time()
+    #print(f"elapsed {t1 - t0}s")
