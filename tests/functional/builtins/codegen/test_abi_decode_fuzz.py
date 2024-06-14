@@ -327,6 +327,8 @@ def payload_copier(get_contract_from_ir):
 PARALLELISM = 1  # increase on fuzzer box
 
 
+# NOTE: this is a heavy test. 100 types * 100 payloads per type can take
+# 3-4minutes on a regular CPU core.
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
@@ -356,7 +358,7 @@ def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
     code = f"""
 @external
 def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
-    ret: {type_str} = _abi_decode(xs, {type_str})
+    ret: {type_str} = abi_decode(xs, {type_str})
     return ret
 
 interface Foo:
