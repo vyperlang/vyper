@@ -333,7 +333,7 @@ PARALLELISM = 1  # increase on fuzzer box
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
 @hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
-def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier):
+def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier, env):
     # import time
     # t0 = time.time()
     # print("ENTER", typ)
@@ -377,7 +377,6 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     except EvmError as e:
         if env.contract_size_limit_error in str(e):
             hp.assume(False)
-
 
     @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)
