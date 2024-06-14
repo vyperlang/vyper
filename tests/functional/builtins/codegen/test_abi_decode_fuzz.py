@@ -452,8 +452,8 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
-@hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
 def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed, env):
+    source_fragments, typ = typ
     # import time
     # t0 = time.time()
     # print("ENTER", typ)
@@ -465,9 +465,13 @@ def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed, env):
     # by bytes length check at function entry
     type_bound = typ.abi_type.size_bound()
     buffer_bound = type_bound + MAX_MUTATIONS
-    type_str = repr(typ)  # annotation in vyper code
+
+    type_str = str(typ)  # annotation in vyper code
+    preamble = "\n\n".join(source_fragments)
 
     code = f"""
+{preamble}
+
 @external
 def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
     ret: {type_str} = abi_decode(xs, {type_str}, unwrap_tuple=False)
