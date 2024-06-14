@@ -86,7 +86,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     abi_return_t = wrapped_return_t.abi_type
 
-    min_return_size = abi_return_t.min_size()
+    min_return_size = abi_return_t.static_size()
     max_return_size = abi_return_t.size_bound()
     assert 0 < min_return_size <= max_return_size
 
@@ -103,25 +103,45 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     unpacker = ["seq"]
 
-    # revert when returndatasize is not in bounds
-    # (except when return_override is provided.)
-    if not call_kwargs.skip_contract_check:
-        assertion = IRnode.from_list(
-            ["assert", ["ge", "returndatasize", min_return_size]],
-            error_msg="returndatasize too small",
-        )
-        unpacker.append(assertion)
-
     assert isinstance(wrapped_return_t, TupleT)
 
     # unpack strictly
-    if needs_clamp(wrapped_return_t, encoding):
+    if not needs_clamp(wrapped_return_t, encoding):
+        # revert when returndatasize is not in bounds, except when
+        # skip_contract_check is enabled.
+        # NOTE: there is an optimization here: when needs_clamp is True,
+        # make_setter (implicitly) checks returndatasize during abi
+        # decoding.
+        # since make_setter is not called in this branch, we need to check
+        # returndatasize here, but we avoid a redundant check by only doing
+        # the returndatasize check inside of this branch (and not in the
+        # `needs_clamp==True` branch).
+        # in the future, this check could be moved outside of the branch, and
+        # instead rely on the optimizer to optimize out the redundant check,
+        # it would need the optimizer to do algebraic reductions (along the
+        # lines of `a>b and b>c and a>c` reduced to `a>b and b>c`).
+        # another thing we could do instead once we have the machinery is to
+        # simply always use make_setter instead of having this assertion, and
+        # rely on memory analyser to optimize out the memory movement.
+        if not call_kwargs.skip_contract_check:
+            assertion = IRnode.from_list(
+                ["assert", ["ge", "returndatasize", min_return_size]],
+                error_msg="returndatasize too small",
+            )
+            unpacker.append(assertion)
+        return_buf = buf
+
+    else:
         return_buf = context.new_internal_variable(wrapped_return_t)
 
         # note: make_setter does ABI decoding and clamps
-        unpacker.append(make_setter(return_buf, buf))
-    else:
-        return_buf = buf
+        payload_bound = IRnode.from_list(
+            ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
+        )
+        with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
+            unpacker.append(
+                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
+            )
 
     if call_kwargs.default_return_value is not None:
         # if returndatasize == 0:

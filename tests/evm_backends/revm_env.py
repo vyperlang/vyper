@@ -11,6 +11,8 @@ from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
 class RevmEnv(BaseEnv):
     invalid_opcode_error = "InvalidFEOpcode"
     out_of_gas_error = "OutOfGas"
+    contract_size_limit_error = "CreateContractSizeLimit"
+    initcode_size_limit_error = "CreateInitCodeSizeLimit"
 
     def __init__(
         self,

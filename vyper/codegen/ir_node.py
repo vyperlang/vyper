@@ -456,11 +456,25 @@ class IRnode:
 
     @cached_property
     def referenced_variables(self):
-        ret = set()
+        ret = getattr(self, "_referenced_variables", set())
+
         for arg in self.args:
             ret |= arg.referenced_variables
 
-        ret |= getattr(self, "_referenced_variables", set())
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.referenced_variables
+
+        return ret
+
+    @cached_property
+    def contains_risky_call(self):
+        ret = self.value in ("call", "delegatecall", "staticcall", "create", "create2")
+
+        for arg in self.args:
+            ret |= arg.contains_risky_call
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.contains_risky_call
 
         return ret
 

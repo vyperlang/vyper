@@ -2519,11 +2519,101 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     encoded = abi.encode(f"({typ}[],string)", val).hex()
     data = f"0x{sig}{encoded}"
 
-    # Dynamic size is short by 1 byte
-    malformed = data[:264]
+    # Static size is short by 1 byte
+    malformed = data[:136]
     with tx_failed():
         env.message_call(c1.address, data=malformed)
 
-    # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
-    valid = data[:266]
+    # Static size is at least minimum ((4 + 64) bytes * 2 + 2 (for 0x) = 138)
+    valid = data[:138]
     env.message_call(c1.address, data=valid)
+
+
+def test_make_setter_external_call(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo() -> uint256:nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, extcall A(self).boo(), 4]
+    return self.a  # returns [11, 12, 3, 4]
+
+@external
+def boo() -> uint256:
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+
+
+def test_make_setter_external_call2(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo(): nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, self.baz(), 4]
+    return self.a # returns [11, 12, 3, 4]
+
+
+@internal
+def baz() -> uint256:
+    extcall A(self).boo()
+    return 3
+
+@external
+def boo():
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+
+
+def test_make_setter_staticcall(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo() -> uint256 : view
+interface B:
+   def boo() -> uint256 : nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, staticcall A(self).boo(), 4]
+    return self.a  # bug returns [1, 2, 1, 4]
+
+@external
+def bar() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, extcall B(self).boo(), 4]
+    return self.a  # returns [1, 2, 3, 4]
+
+
+@external
+@view
+# @nonpayable
+def boo() -> uint256:
+    return self.a[0]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+    assert c.bar() == [1, 2, 3, 4]
