@@ -372,7 +372,12 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     assert len(xs) <= {type_bound}
     return (extcall copier.bar(xs))
     """
-    c = get_contract(code)
+    try:
+        c = get_contract(code)
+    except EvmError as e:
+        if env.contract_size_limit_error in str(e):
+            hp.assume(False)
+
 
     @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)
@@ -417,7 +422,7 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 @hp.given(typ=vyper_type())
 @hp.settings(max_examples=100, **_settings)
 @hp.example(typ=DArrayT(DArrayT(UINT256_T, 2), 2))
-def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed):
+def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed, env):
     # import time
     # t0 = time.time()
     # print("ENTER", typ)
@@ -437,7 +442,11 @@ def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
     ret: {type_str} = abi_decode(xs, {type_str}, unwrap_tuple=False)
     return ret
     """
-    c = get_contract(code)
+    try:
+        c = get_contract(code)
+    except EvmError as e:
+        if env.contract_size_limit_error in str(e):
+            hp.assume(False)
 
     @hp.given(data=payload_from(typ))
     @hp.settings(max_examples=100, **_settings)
