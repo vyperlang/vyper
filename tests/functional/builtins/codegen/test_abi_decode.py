@@ -8,7 +8,7 @@ from vyper.utils import method_id
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
-MSG_CALL_ABI_OVERHEAD_SZ = 4 + 2 * 32
+BUFFER_OVERHEAD = 4 + 2 * 32
 
 
 def test_abi_decode_complex(get_contract):
@@ -507,7 +507,7 @@ def f(x: Bytes[{buffer_sz}]):
 
     msg_call_overhead = (method_id("f(bytes)"), 0x20, 0x60)  # tuple head  # parent array length
 
-    data = _abi_payload_from_tuple(msg_call_overhead, MSG_CALL_ABI_OVERHEAD_SZ)
+    data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
     buffer_payload = (
         # parent payload - this word will be considered as the head of the abi-encoded inner array
@@ -539,7 +539,7 @@ def f(x: Bytes[{buffer_sz}]):
 
     msg_call_overhead = (method_id("f(bytes)"), 0x20, 0xA0)  # tuple head  # parent array length
 
-    data = _abi_payload_from_tuple(msg_call_overhead, MSG_CALL_ABI_OVERHEAD_SZ)
+    data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
     buffer_payload = (
         # head should be 0x20 but is 0x21 thus the data isn't strictly encoded
@@ -749,7 +749,7 @@ def f(x: Bytes[{buffer_sz}]):
         0x01E4,  # top-level bytes array length
     )
 
-    data = _abi_payload_from_tuple(msg_call_overhead, MSG_CALL_ABI_OVERHEAD_SZ)
+    data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
     buffer_payload = (
         0x20,  # DynArray head
@@ -792,7 +792,7 @@ def f(x: Bytes[{buffer_sz}]):
         0x01E4,  # top-level bytes array length
     )
 
-    data = _abi_payload_from_tuple(msg_call_overhead, MSG_CALL_ABI_OVERHEAD_SZ)
+    data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
     buffer_payload = (
         0x20,  # DynArray head
