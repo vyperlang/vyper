@@ -969,7 +969,7 @@ def foo() -> Bytes[32]:
     c = get_contract(code)
     res = c.foo()
 
-    assert res == (36).to_bytes(32, 'big')
+    assert res == (36).to_bytes(32, "big")
 
 
 def test_abi_decode_extcall_truncate_returndata2(tx_failed, get_contract):
@@ -1121,7 +1121,7 @@ def run() -> DynArray[Point, 2]:
 
     res = c.run()
 
-    assert res == [(1, [], 0),]
+    assert res == [(1, [], 0)]
 
 
 def test_abi_decode_extcall_complex_empty_dynarray2(tx_failed, get_contract):
@@ -1285,7 +1285,7 @@ def run(x: Bytes[{buffer_sz}]) -> DynArray[Point, 2]:
 
     res = c.run(data)
 
-    assert res == [(1, [], 4),]
+    assert res == [(1, [], 4)]
 
 
 def test_abi_decode_complex_arithmetic_overflow(tx_failed, get_contract):
@@ -1345,7 +1345,6 @@ def run(x: Bytes[{buffer_sz}]) -> DynArray[DynArray[uint256, 3], 3]:
     res = c.run(data)
 
     assert res == []
-
 
 
 def test_abi_decode_invalid_toplevel_dynarray_head(tx_failed, get_contract):
