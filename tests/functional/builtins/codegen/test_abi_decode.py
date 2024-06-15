@@ -1458,3 +1458,23 @@ def foo(a:Bytes[{buffer_sz}]):
 
     with tx_failed():
         c.foo(_abi_payload_from_tuple(payload, buffer_sz))
+
+
+# returndatasize check for uint256
+def test_returndatasize_check(get_contract, tx_failed):
+    code = """
+@external
+def bar():
+    pass
+
+interface A:
+    def bar() -> uint256: nonpayable
+
+@external
+def run() -> uint256:
+    return extcall A(self).bar()
+    """
+    c = get_contract(code)
+
+    with tx_failed():
+        c.run()
