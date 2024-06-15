@@ -24,7 +24,6 @@ from vyper.semantics.types import (
     _get_primitive_types,
     _get_sequence_types,
 )
-from vyper.semantics.types.shortcuts import UINT256_T
 
 from .abi_decode import DecodeError, spec_decode
 
