@@ -6,6 +6,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    ArrayIndexException,
     CallViolation,
     ExceptionList,
     FunctionDeclarationException,
@@ -919,6 +920,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # Arrays allow most int types as index: Take the least specific
             index_type = get_possible_types_from_node(node.slice).pop()
+
+        val = node.value.reduced()
+        if isinstance(val, vy_ast.List) and len(val.elements) == 0:
+            raise ArrayIndexException("Indexing into empty array is not allowed", node.value)
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
