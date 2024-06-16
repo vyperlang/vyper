@@ -96,10 +96,28 @@ class _BaseVyperException(Exception):
         return self._hint
 
     @property
+    def annotation_message(self):
+        annotation_list = []
+
+        if self.prev_decl is not None:
+            formatted_decl = self.format_annotation(self.prev_decl)
+            formatted_decl = f" (previously declared at):\n{formatted_decl}"
+            annotation_list.append(formatted_decl)
+
+        for value in self.annotations:
+            annotation_list.append(self.format_annotation(value))
+
+        annotation_list = [s for s in annotation_list if s is not None]
+        annotation_msg = "\n".join(annotation_list)
+        return annotation_msg
+
+    @property
     def message(self):
         msg = self._message
+        if self.annotations:
+            msg += f"\n\n{self.annotation_message}"
         if self.hint:
-            msg += f"\n\n  (hint: {self.hint})"
+            msg += f"\n  (hint: {self.hint})"
         return msg
 
     def format_annotation(self, value):
@@ -152,22 +170,8 @@ class _BaseVyperException(Exception):
         if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
-            else:
-                return self.message
 
-        annotation_list = []
-
-        if self.prev_decl is not None:
-            formatted_decl = self.format_annotation(self.prev_decl)
-            formatted_decl = f" (previously declared at):\n{formatted_decl}"
-            annotation_list.append(formatted_decl)
-
-        for value in self.annotations:
-            annotation_list.append(self.format_annotation(value))
-
-        annotation_list = [s for s in annotation_list if s is not None]
-        annotation_msg = "\n".join(annotation_list)
-        return f"{self.message}\n\n{annotation_msg}"
+        return self.message
 
 
 class VyperException(_BaseVyperException):
