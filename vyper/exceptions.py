@@ -97,6 +97,8 @@ class _BaseVyperException(Exception):
 
     @property
     def annotation_message(self):
+        msg = self._message
+        assert self.annotations is not None
         annotation_list = []
 
         if self.prev_decl is not None:
@@ -109,13 +111,15 @@ class _BaseVyperException(Exception):
 
         annotation_list = [s for s in annotation_list if s is not None]
         annotation_msg = "\n".join(annotation_list)
-        return annotation_msg
+        msg += f"\n\n{annotation_msg}"
+        if self.hint:
+            msg += f"\n  (hint: {self.hint})"
+
+        return msg
 
     @property
     def message(self):
         msg = self._message
-        if self.annotations:
-            msg += f"\n\n{self.annotation_message}"
         if self.hint:
             msg += f"\n  (hint: {self.hint})"
         return msg
@@ -170,8 +174,10 @@ class _BaseVyperException(Exception):
         if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
+            else:
+                return self.message
 
-        return self.message
+        return self.annotation_message
 
 
 class VyperException(_BaseVyperException):
