@@ -114,6 +114,8 @@ _external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
+    _ = ir.unique_symbols  # run unique symbols check
+
     global _global_symbols, _external_functions
     _global_symbols = {}
     _external_functions = {}
