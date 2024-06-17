@@ -107,16 +107,16 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = {}
+_global_symbols: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
-external_functions = {}
+_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
-    global _global_symbols, external_functions
+    global _global_symbols, _external_functions
     _global_symbols = {}
-    external_functions = {}
+    _external_functions = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -216,10 +216,6 @@ def _convert_ir_bb_list(fn, ir, symbols):
     return ret
 
 
-current_func = None
-var_list: list[str] = []
-
-
 def pop_source_on_return(func):
     @functools.wraps(func)
     def pop_source(*args, **kwargs):
@@ -234,7 +230,8 @@ def pop_source_on_return(func):
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list, _global_symbols, external_functions
+    # TODO: refactor these to not be globals
+    global _break_target, _continue_target, _global_symbols, _external_functions
 
     # keep a map from external functions to all possible entry points
 
@@ -390,8 +387,8 @@ def _convert_ir_bb(fn, ir, symbols):
         m = re.match(function_id_pattern, function_name)
         if m is not None:
             function_id = m.group(1)
-            _global_symbols = external_functions.setdefault(function_id, {})
- 
+            _global_symbols = _external_functions.setdefault(function_id, {})
+
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
