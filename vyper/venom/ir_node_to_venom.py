@@ -229,10 +229,14 @@ def pop_source_on_return(func):
     return pop_source
 
 
+external_functions = {}
+
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list, _global_symbols
+    global _break_target, _continue_target, current_func, var_list, _global_symbols, external_functions
+
+    # keep a map from external functions to all possible entry points
 
     ctx = fn.ctx
     fn.push_source(ir)
@@ -274,7 +278,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 return ret
             elif is_external:
-                _global_symbols = {}
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
                 _append_return_args(fn)
         else:
@@ -382,6 +385,13 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
+        function_id_pattern = r"external (\d+)"
+        function_name = ir.args[0].value
+        m = re.match(function_id_pattern, function_name)
+        if m is not None:
+            function_id = m.group(1)
+            _global_symbols = external_functions.setdefault(function_id, {})
+ 
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
