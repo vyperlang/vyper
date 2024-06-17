@@ -405,7 +405,8 @@ class IRnode:
         for arg in children:
             s = arg.unique_symbols
             non_uniques = ret.intersection(s)
-            assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
+            if len(non_uniques) != 0:  # pragma: nocover
+                raise CompilerPanic(f"non-unique symbols {non_uniques}")
             ret |= s
         return ret
 
