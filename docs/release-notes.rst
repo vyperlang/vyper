@@ -108,7 +108,7 @@ Venom
 * chore[venom]: fix output formatting of data segment in ``IRContext`` (`#4016 <https://github.com/vyperlang/vyper/pull/4016>`_)
 * feat[venom]: optimize mem2var and store/variable elimination pass sequences (`#4032 <https://github.com/vyperlang/vyper/pull/4032>`_)
 * fix[venom]: fix some sccp evaluations (`#4028 <https://github.com/vyperlang/vyper/pull/4028>`_)
-* fix[venom]: add ``unique_symbols`` check to venom pipeline (`#4149 https://github.com/vyperlang/vyper/pull/4149`_)
+* fix[venom]: add ``unique_symbols`` check to venom pipeline (`#4149 <https://github.com/vyperlang/vyper/pull/4149>`_)
 * feat[venom]: remove redundant store elimination pass (`#4036 <https://github.com/vyperlang/vyper/pull/4036>`_)
 * fix[venom]: remove some dead code in ``venom_to_assembly`` (`#4042 <https://github.com/vyperlang/vyper/pull/4042>`_)
 * feat[venom]: improve unused variable removal pass (`#4055 <https://github.com/vyperlang/vyper/pull/4055>`_)
