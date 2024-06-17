@@ -109,12 +109,14 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, Optional[IROperand]]
 _global_symbols: SymbolTable = {}
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
+external_functions = {}
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
-    global _global_symbols
+    global _global_symbols, external_functions
     _global_symbols = {}
+    external_functions = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -228,8 +230,6 @@ def pop_source_on_return(func):
 
     return pop_source
 
-
-external_functions = {}
 
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
