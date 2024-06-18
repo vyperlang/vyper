@@ -35,8 +35,17 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
+        if inst.is_phi:
+            return
+
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
-        #children = list((children))
+        
+        for dep_inst in self.ida[inst]:
+            if dep_inst in self.visited_instructions:
+                continue
+            if dep_inst in children:
+                continue
+            self._process_instruction_r(instructions, dep_inst)
 
         for dep_inst in children:
             if dep_inst in self.visited_instructions:
