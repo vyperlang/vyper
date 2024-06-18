@@ -120,6 +120,7 @@ def foo() -> bytes32:
     c = get_contract(extract32_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
 
+
 def test_extract32_order_of_eval_extcall(get_contract):
     slice_code = """
 var:DynArray[Bytes[96], 1]
@@ -141,4 +142,4 @@ def foo() -> bytes32:
     """
 
     c = get_contract(slice_code)
-    assert c.foo() == b'defghijklmnopqrstuvwxyz123456789'
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
