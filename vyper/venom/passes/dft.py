@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import time
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -9,6 +10,11 @@ from vyper.venom.passes.base_pass import IRPass
 import itertools
 import random
 
+@dataclass
+class Group:
+    group_id: int
+    root: IRInstruction
+    volatile: bool
 
 class DFTPass(IRPass):
     function: IRFunction
