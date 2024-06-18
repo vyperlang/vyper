@@ -579,7 +579,6 @@ def bar() -> uint256:
     self.var.pop()
     return 32
 
-s:bool
 @external
 def foo() -> Bytes[96]:
     self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
@@ -605,7 +604,6 @@ def bar() -> uint256:
     self.var.pop()
     return 3
 
-s:bool
 @external
 def foo() -> Bytes[96]:
     self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
