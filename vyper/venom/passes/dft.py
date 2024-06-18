@@ -35,8 +35,8 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
-        children = self.ida[inst]
-        children = list(reversed(children))
+        children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
+        #children = list((children))
 
         for dep_inst in children:
             if dep_inst in self.visited_instructions:
@@ -95,7 +95,7 @@ class DFTPass(IRPass):
         for g in self.groups:
             mark_group_volatile_r(g, g.root)
 
-        # if bb.label.value == "1_then":
+        # if bb.label.value == "3_then":
         #     print(self.ida_as_graph())
         #     import sys
         #     sys.exit(1)
