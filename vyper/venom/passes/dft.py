@@ -25,7 +25,6 @@ class DFTPass(IRPass):
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.inst_groups = {}
-        self.start = IRInstruction("start", [])
         random.seed(10)
 
     def _permutate(self, instructions: list[IRInstruction]):
@@ -37,17 +36,7 @@ class DFTPass(IRPass):
         self.visited_instructions.add(inst)
 
         children = self.ida[inst]
-        if inst.opcode == "start":
-            if len(children) > 0 and children[-1].is_bb_terminator:
-                leading = children[:-1]
-                random.shuffle(leading)
-                children[:-1] = leading
-                #children[:-1] = reversed(children[:-1])
-            else:
-                random.shuffle(children)
-        else:
-            children = list((children))
-            #random.shuffle(children)
+        children = list(reversed(children))
 
         for dep_inst in children:
             if dep_inst in self.visited_instructions:
@@ -62,9 +51,10 @@ class DFTPass(IRPass):
         self._calculate_ida(bb)
         self.instructions = list(bb.phi_instructions)
 
-        self._process_instruction_r(self.instructions, self.start)
+        for g in self.groups:
+            self._process_instruction_r(self.instructions, g.root)
 
-        bb.instructions = self.instructions[:-1]
+        bb.instructions = self.instructions #[:-1]
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
@@ -73,20 +63,14 @@ class DFTPass(IRPass):
         for inst in bb.non_phi_instructions:
             self.ida[inst] = list()
 
-        self.start = IRInstruction("start", [])
-        self.ida[self.start] = list()
         self.inst_groups = {}
+        self.groups = []
 
         for inst in bb.non_phi_instructions:
-            if inst.is_volatile:
-                idx = bb.instructions.index(inst)
-                for inst2 in bb.instructions[idx + 1 :]:
-                    self.ida[inst2].append(inst)
-
             outputs = inst.get_outputs()
 
             if len(outputs) == 0:
-                self.ida[self.start].append(inst)
+                self.groups.append(Group(len(self.groups), inst, False))
                 continue
             for op in outputs:
                 uses = self.dfg.get_uses(op)
@@ -97,7 +81,19 @@ class DFTPass(IRPass):
                     self.ida[uses_this].append(inst)
                     uses_count += 1
                 if uses_count == 0:
-                    self.ida[self.start].append(inst)
+                    self.groups.append(Group(len(self.groups), inst, False))
+
+        def mark_group_volatile_r(g: Group, inst: IRInstruction):
+            if g.volatile:
+                return
+            for inst in self.ida[inst]:
+                if inst.is_volatile:
+                    g.volatile = True
+                    return
+                mark_group_volatile_r(g, inst)
+
+        for g in self.groups:
+            mark_group_volatile_r(g, g.root)
 
         # if bb.label.value == "1_then":
         #     print(self.ida_as_graph())
