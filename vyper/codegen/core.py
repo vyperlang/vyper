@@ -1103,6 +1103,14 @@ def ensure_in_memory(ir_var, context):
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
 
 
+# TODO: refactor ensure_in_memory to use this function
+def create_memory_copy(ir_var, context):
+    typ = ir_var.typ
+    buf = context.new_internal_variable(typ)
+    do_copy = make_setter(buf, ir_var)
+    return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
+
+
 def eval_seq(ir_node):
     """Tries to find the "return" value of a `seq` statement, in order so
     that the value can be known without possibly evaluating side effects
