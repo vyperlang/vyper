@@ -1,5 +1,9 @@
 # TODO: rewrite the tests in type-centric way, parametrize array and indices types
 
+import pytest
+
+from vyper.exceptions import CompilerPanic
+
 
 def test_negative_ix_access(get_contract, tx_failed):
     # Arrays can't be accessed with negative indices
@@ -130,3 +134,26 @@ def foo():
     c.foo()
     for i in range(10):
         assert c.arr(i) == i
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap(get_contract):
+    code = """
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][self.bar()]
+
+
+@internal
+def bar() -> uint256:
+    self.a[0] = [b'yyy']
+    self.a.pop()
+    return 0
+    """
+    c = get_contract(code)
+    # tricky to get this right, for now we just panic instead of generating code
+    assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
