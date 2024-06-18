@@ -9,6 +9,7 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     LOAD,
+    potential_overlap,
     STORE,
     IRnode,
     add_ofst,
@@ -356,6 +357,9 @@ class Slice(BuiltinFunctionT):
             # copy_bytes works on pointers.
             assert is_bytes32, src
             src = ensure_in_memory(src, context)
+
+        if potential_overlap(src, start) or potential_overlap(src, length):
+            raise CompilerPanic("risky overlap")
 
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
@@ -861,6 +865,9 @@ class Extract32(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         bytez, index = args
         ret_type = kwargs["output_type"]
+
+        if potential_overlap(bytez, index):
+            raise CompilerPanic("risky overlap")
 
         def finalize(ret):
             annotation = "extract32"
