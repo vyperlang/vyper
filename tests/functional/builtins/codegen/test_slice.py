@@ -562,3 +562,27 @@ def foo(cs: String[64]) -> uint256:
     c = get_contract(code)
     # ensure that counter was incremented only once
     assert c.foo(arg) == 1
+
+
+def test_slice_order_of_eval(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 32
+
+s:bool
+@external
+def foo() -> Bytes[96]:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return slice(self.var[0], 3, extcall Bar(self).bar())
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
