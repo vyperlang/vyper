@@ -1441,11 +1441,17 @@ def get_lucky(gas_amount: uint256) -> int128:
         c2.get_lucky(50)  # too little gas.
 
 
-def test_skip_contract_check(get_contract):
+def test_skip_contract_check(get_contract, tx_failed):
     contract_2 = """
 @external
 @view
 def bar():
+    pass
+
+# include fallback for sanity, make sure we don't get trivially rejected in
+# selector table
+@external
+def __default__():
     pass
     """
     contract_1 = """
@@ -1454,9 +1460,10 @@ interface Bar:
     def baz(): nonpayable
 
 @external
-def call_bar(addr: address):
-    # would fail if returndatasize check were on
-    x: uint256 = staticcall Bar(addr).bar(skip_contract_check=True)
+def call_bar(addr: address) -> uint256:
+    # fails during abi decoding
+    return staticcall Bar(addr).bar(skip_contract_check=True)
+
 @external
 def call_baz():
     # some address with no code
@@ -1466,7 +1473,10 @@ def call_baz():
     """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c1.call_bar(c2.address)
+
+    with tx_failed():
+        c1.call_bar(c2.address)
+
     c1.call_baz()
 
 
