@@ -363,6 +363,9 @@ class Expr:
         else:
             raise TypeCheckFailure("unreachable")
 
+        if potential_overlap(sub, index) and index.contains_write:
+            raise CompilerPanic("risky overlap")
+
         ir_node = get_element_ptr(sub, index)
         ir_node.mutable = sub.mutable
         return ir_node
