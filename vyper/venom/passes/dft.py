@@ -1,3 +1,4 @@
+import time
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -5,18 +6,24 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+import itertools
+import random
 
 
 class DFTPass(IRPass):
     function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
-    inst_groups: dict[int, list[IRInstruction]]
+    inst_groups: dict[IRInstruction, int]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.inst_groups = {}
         self.start = IRInstruction("start", [])
+        random.seed(10)
+
+    def _permutate(self, instructions: list[IRInstruction]):
+        return random.shuffle(instructions)
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
@@ -24,10 +31,17 @@ class DFTPass(IRPass):
         self.visited_instructions.add(inst)
 
         children = self.ida[inst]
-        if len(children) > 0 and children[-1].is_bb_terminator:
-            children[:-1] = reversed(children[:-1])
+        if inst.opcode == "start":
+            if len(children) > 0 and children[-1].is_bb_terminator:
+                leading = children[:-1]
+                random.shuffle(leading)
+                children[:-1] = leading
+                #children[:-1] = reversed(children[:-1])
+            else:
+                random.shuffle(children)
         else:
-            children = list(reversed(children))
+            children = list((children))
+            #random.shuffle(children)
 
         for dep_inst in children:
             if dep_inst in self.visited_instructions:
@@ -55,6 +69,7 @@ class DFTPass(IRPass):
 
         self.start = IRInstruction("start", [])
         self.ida[self.start] = list()
+        self.inst_groups = {}
 
         for inst in bb.non_phi_instructions:
             if inst.is_volatile:
@@ -78,7 +93,7 @@ class DFTPass(IRPass):
                 if uses_count == 0:
                     self.ida[self.start].append(inst)
 
-        # if bb.label.value == "__main_entry":
+        # if bb.label.value == "1_then":
         #     print(self.ida_as_graph())
         #     import sys
         #     sys.exit(1)
