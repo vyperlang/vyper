@@ -909,6 +909,9 @@ def potential_overlap(left, right):
     Return true if make_setter(left, right) could potentially trample
     src or dst during evaluation.
     """
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
     if left.typ._is_prim_word and right.typ._is_prim_word:
         return False
 
