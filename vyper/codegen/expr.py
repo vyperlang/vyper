@@ -40,6 +40,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -85,6 +86,9 @@ class Expr:
             fn = getattr(self, fn_name)
             self.ir_node = fn()
             assert isinstance(self.ir_node, IRnode), self.ir_node
+
+        writes = set(access.variable for access in get_expr_writes(self.expr))
+        self.ir_node._writes = writes
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.ast_source = self.expr
@@ -363,7 +367,7 @@ class Expr:
         else:
             raise TypeCheckFailure("unreachable")
 
-        if potential_overlap(sub, index) and index.contains_write:
+        if potential_overlap(sub, index) and (sub.referenced_variables & index.variable_writes):
             raise CompilerPanic("risky overlap")
 
         ir_node = get_element_ptr(sub, index)

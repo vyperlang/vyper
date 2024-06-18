@@ -320,13 +320,11 @@ class Stmt:
             items = target.args
             if any(not writeable(self.context, item) for item in items):  # pragma: nocover
                 raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
-            target.mark_write()
             return target
 
         target = Expr.parse_pointer_expr(target, self.context)
         if not writeable(self.context, target):  # pragma: nocover
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
-        target.mark_write()
         return target
 
 

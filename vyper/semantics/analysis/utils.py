@@ -24,7 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode, int_to_fourbytes
+from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -681,3 +681,12 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
     info = get_expr_info(node)
     return info.modifiability <= modifiability
+
+
+def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
+    ret: OrderedSet = OrderedSet()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret = node._expr_info._writes
+    for c in node._children:
+        ret |= get_expr_writes(c)
+    return ret

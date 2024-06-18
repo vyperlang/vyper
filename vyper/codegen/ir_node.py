@@ -468,21 +468,16 @@ class IRnode:
         return ret
 
     @cached_property
-    def contains_write(self):
-        ret = getattr(self, "_write", False)
+    def variable_writes(self):
+        ret = getattr(self, "_writes", set())
 
-        ret |= any(arg.contains_write for arg in self.args)
+        for arg in self.args:
+            ret |= arg.variable_writes
 
         if getattr(self, "is_self_call", False):
-            ret |= self.invoked_function_ir.func_ir.contains_write
+            ret |= self.invoked_function_ir.func_ir.variable_writes
 
         return ret
-
-    def mark_write(self):
-        if self.is_pointer:
-            self._write = True
-        for arg in self.args:
-            arg.mark_write()
 
     @cached_property
     def contains_risky_call(self):
