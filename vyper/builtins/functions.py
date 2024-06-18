@@ -9,7 +9,6 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     LOAD,
-    potential_overlap,
     STORE,
     IRnode,
     add_ofst,
@@ -30,6 +29,7 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     ir_tuple_from_args,
     make_setter,
+    potential_overlap,
     promote_signed_int,
     sar,
     shl,
