@@ -98,3 +98,24 @@ def foq(inp: Bytes[32]) -> address:
 
     with tx_failed():
         c.foq(b"crow" * 8)
+
+
+def test_extract32_order_of_eval(get_contract):
+    extract32_code = """
+var:DynArray[Bytes[96], 1]
+
+@internal
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 3
+
+s:bool
+@external
+def foo() -> bytes32:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return extract32(self.var[0], self.bar(), output_type=bytes32)
+    """
+
+    c = get_contract(extract32_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
