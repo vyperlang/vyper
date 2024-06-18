@@ -5,7 +5,7 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.exceptions import ArgumentException, CompilerPanic, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -577,7 +577,6 @@ def bar() -> uint256:
     self.var.pop()
     return 32
 
-s:bool
 @external
 def foo() -> Bytes[96]:
     self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
@@ -601,7 +600,6 @@ def bar() -> uint256:
     self.var.pop()
     return 3
 
-s:bool
 @external
 def foo() -> Bytes[96]:
     self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
