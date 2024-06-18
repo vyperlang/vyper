@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic
 
 
 @pytest.mark.parametrize("location", ["storage", "transient"])
