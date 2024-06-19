@@ -76,7 +76,7 @@ class DFTPass(IRPass):
     def _get_group_order(self, bb: IRBasicBlock) -> list[Group]:
         exit_group = self.inst_groups[bb.instructions[-1]]
         groups = []
-        groups_visited = set()
+        groups_visited = set([exit_group])
         def _walk_group_r(group: Group):
             if group in groups_visited:
                 return
@@ -89,6 +89,9 @@ class DFTPass(IRPass):
 
             groups.append(group)
 
+        for g in self.groups:
+            _walk_group_r(g)
+        groups_visited.remove(exit_group)
         _walk_group_r(exit_group)
 
         return groups
@@ -137,10 +140,14 @@ class DFTPass(IRPass):
         for g in self.groups:
             self.gda[g] = OrderedSet()
 
-        for inst, next_inst in zip(non_phis, non_phis[1:]):
+        for inst, next_inst in reversed(list(zip(non_phis, non_phis[1:]))):
             if not inst.is_volatile:
                 continue
-            self.gda[self.inst_groups[next_inst]].add(self.inst_groups[inst]) 
+            if self.inst_groups[inst] == self.inst_groups[next_inst]:
+                continue
+            if self.inst_groups[next_inst] in self.gda.get(self.inst_groups[inst]):
+                continue
+            self.gda[self.inst_groups[next_inst]].add(self.inst_groups[inst])
 
         for inst in reversed(non_phis):
             if not inst.is_volatile:
@@ -150,6 +157,8 @@ class DFTPass(IRPass):
             for op in inst.get_input_variables():
                 uses = self.dfg.get_uses(op)
                 for uses_this in uses:
+                    if uses_this.is_volatile:
+                        continue
                     if uses_this.parent != inst.parent:
                         continue
                     uses_group = self.inst_groups[uses_this]
@@ -157,10 +166,10 @@ class DFTPass(IRPass):
                         continue
                     self.gda[g].add(uses_group)
 
-        if bb.label.value == "3_then":
-            print(self.ida_as_graph())
-            import sys
-            sys.exit(1)
+        # if bb.label.value == "1_then":
+        #     print(self.gda_as_graph())
+        #     import sys
+        #     sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
