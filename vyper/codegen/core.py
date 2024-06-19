@@ -909,9 +909,6 @@ def potential_overlap(left, right):
     Return true if make_setter(left, right) could potentially trample
     src or dst during evaluation.
     """
-    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
-        return False
-
     if left.typ._is_prim_word and right.typ._is_prim_word:
         return False
 
@@ -922,6 +919,26 @@ def potential_overlap(left, right):
         return True
 
     if left.contains_risky_call and len(right.referenced_variables) > 0:
+        return True
+
+    return False
+
+
+# similar to `potential_overlap()`, but compares left's _reads_ vs
+# right's _writes_.
+# TODO: `potential_overlap()` can probably be replaced by this function,
+# but all the cases need to be checked.
+def read_write_overlap(left, right):
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.variable_writes) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
         return True
 
     return False

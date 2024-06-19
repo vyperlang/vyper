@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     make_setter,
     pop_dyn_array,
     potential_overlap,
+    read_write_overlap,
     sar,
     shl,
     shr,
@@ -367,7 +368,7 @@ class Expr:
         else:
             raise TypeCheckFailure("unreachable")
 
-        if potential_overlap(sub, index) and (sub.referenced_variables & index.variable_writes):
+        if read_write_overlap(sub, index):
             raise CompilerPanic("risky overlap")
 
         ir_node = get_element_ptr(sub, index)
