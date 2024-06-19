@@ -89,12 +89,12 @@ class DFTPass(IRPass):
                 return
             groups_visited.add(group)
 
-            groups.append(group)
-
             for g in self.gda[group]:
                 if g in groups_visited:
                     continue
                 _walk_group_r(g)
+
+            groups.append(group)
 
         for g in self.groups:
             g.dependants = []
@@ -103,14 +103,17 @@ class DFTPass(IRPass):
             for dep in self.gda.get(g, []):
                 dep.dependants.append(g)
 
-        _walk_group_r(exit_group)
+        
+        groups_visited.add(exit_group)
         for g in self.groups:
             if len(g.dependants) == 0:
                 _walk_group_r(g)
         for g in self.groups:
             _walk_group_r(g)
+        groups_visited.remove(exit_group)
+        _walk_group_r(exit_group)
 
-        return reversed(groups)
+        return groups
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
