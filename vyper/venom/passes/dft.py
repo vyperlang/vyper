@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import time
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, find_cycles_in_directed_graph
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -186,6 +186,9 @@ class DFTPass(IRPass):
                     if g in self.gda.get(uses_group):
                         continue
                     self.gda[g].add(uses_group)
+
+        cycles = find_cycles_in_directed_graph(self.gda)
+                       
 
         # if bb.label.value == "1_then":
         #     print(self.ida_as_graph())
