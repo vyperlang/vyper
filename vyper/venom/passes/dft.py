@@ -107,6 +107,8 @@ class DFTPass(IRPass):
         for g in self.groups:
             if len(g.dependants) == 0:
                 _walk_group_r(g)
+        for g in self.groups:
+            _walk_group_r(g)
 
         return reversed(groups)
 
@@ -182,8 +184,8 @@ class DFTPass(IRPass):
                         continue
                     self.gda[g].add(uses_group)
 
-        # if bb.label.value == "13_if_exit":
-        #     print(self.gda_as_graph())
+        # if bb.label.value == "1_then":
+        #     print(self.ida_as_graph())
         #     import sys
         #     sys.exit(1)
 
