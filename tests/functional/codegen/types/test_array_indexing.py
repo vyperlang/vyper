@@ -183,3 +183,27 @@ def bar() -> uint256:
     """
     c = get_contract(code)
     assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_extcall2(get_contract):
+    code = """
+interface B:
+    def calculate_index() -> uint256: nonpayable
+
+a: HashMap[uint256, DynArray[uint256, 5]]
+
+@external
+def bar() -> uint256:
+    self.a[0] = [2]
+    return self.a[0][extcall B(self).calculate_index()]
+
+@external
+def calculate_index() -> uint256:
+    self.a[0] = [1]
+    return 0
+    """
+    c = get_contract(code)
+
+    assert c.bar() == 1
