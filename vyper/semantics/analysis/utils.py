@@ -684,9 +684,12 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
 
 def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
+    if "writes_r" in node._metadata:
+        return node._metadata["writes_r"]
     ret: OrderedSet = OrderedSet()
     if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
         ret = node._expr_info._writes
     for c in node._children:
         ret |= get_expr_writes(c)
+    node._metadata["writes_r"] = ret
     return ret
