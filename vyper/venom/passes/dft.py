@@ -125,15 +125,19 @@ class DFTPass(IRPass):
             self.ida[inst] = list()
 
         self.inst_groups = {}
-        self.groups = []
+        self.groups = [Group(0, non_phis[0], False)]
+        self.inst_groups[non_phis[0]] = self.groups[-1]
 
-        for inst in non_phis:
+        for inst in non_phis[1:]:
             outputs = inst.get_outputs()
 
             if len(outputs) == 0:
                 self.groups.append(Group(len(self.groups), inst, False))
                 self.inst_groups[inst] = self.groups[-1]
                 continue
+            if inst.is_volatile:
+                self.groups.append(Group(len(self.groups), inst, False))
+                self.inst_groups[inst] = self.groups[-1]
             for op in outputs:
                 uses = self.dfg.get_uses(op)
                 uses_count = 0
@@ -142,7 +146,7 @@ class DFTPass(IRPass):
                         continue
                     self.ida[uses_this].append(inst)
                     uses_count += 1
-                if uses_count == 0:
+                if uses_count == 0 and not inst.is_volatile:
                     self.groups.append(Group(len(self.groups), inst, False))
                     self.inst_groups[inst] = self.groups[-1]
 
@@ -169,31 +173,30 @@ class DFTPass(IRPass):
             self.gda[self.inst_groups[next_inst]].add(self.inst_groups[inst])
 
         for inst in reversed(non_phis):
-            if not inst.is_volatile:
-                continue
+            # if not inst.is_volatile:
+            #     continue
             g = self.inst_groups[inst]
             assert g is not None, f"Group not found for {inst}"
             for op in inst.get_input_variables():
-                uses = self.dfg.get_uses(op)
-                for uses_this in uses:
-                    # if uses_this.is_volatile:
-                    #     continue
-                    if uses_this.parent != inst.parent:
-                        continue
-                    uses_group = self.inst_groups[uses_this]
-                    if uses_group == g:
-                        continue
-                    if g in self.gda.get(uses_group):
-                        continue
-                    self.gda[g].add(uses_group)
+                prod = self.dfg.get_producing_instruction(op)
+                if prod.is_phi:
+                    continue
+                if prod.parent != inst.parent:
+                    continue
+                prod_group = self.inst_groups.get(prod)
+                assert prod_group is not None, f"Group not found for {prod}"
+                if prod_group == g:
+                    continue
+                if g in self.gda.get(prod_group):
+                    continue
+                self.gda[g].add(prod_group)
 
-        cycles = find_cycles_in_directed_graph(self.gda)
+        #cycles = find_cycles_in_directed_graph(self.gda)
                        
-
-        # if bb.label.value == "1_then":
-        #     print(self.ida_as_graph())
-        #     import sys
-        #     sys.exit(1)
+        if bb.label.value == "5_body":
+            print(self.gda_as_graph())
+            import sys
+            sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
