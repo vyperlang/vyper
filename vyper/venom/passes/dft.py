@@ -63,11 +63,31 @@ class DFTPass(IRPass):
         self._calculate_ida(bb)
         self.instructions = list(bb.phi_instructions)
 
-        for g in self.groups:
+        for g in self._get_group_order(bb):
             self._process_instruction_r(self.instructions, g.root)
 
         bb.instructions = self.instructions #[:-1]
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
+
+    def _get_group_order(self, bb: IRBasicBlock) -> list[Group]:
+        exit_group = self.inst_groups[bb.instructions[-1]]
+        groups = []
+        groups_visited = set()
+        def _walk_group_r(group: Group):
+            if group in groups_visited:
+                return
+            groups_visited.add(group)
+
+            for g in self.gda[group]:
+                if g in groups_visited:
+                    continue
+                _walk_group_r(g)
+
+            groups.append(group)
+
+        _walk_group_r(exit_group)
+
+        return groups
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
@@ -116,7 +136,7 @@ class DFTPass(IRPass):
         for inst, next_inst in zip(non_phis, non_phis[1:]):
             if not inst.is_volatile:
                 continue
-            self.gda[self.inst_groups[inst]].add(self.inst_groups[next_inst]) 
+            self.gda[self.inst_groups[next_inst]].add(self.inst_groups[inst]) 
 
         for inst in reversed(non_phis):
             if not inst.is_volatile:
@@ -131,12 +151,10 @@ class DFTPass(IRPass):
                         continue
                     self.gda[g].add(uses_group)
 
-        
-
-        if bb.label.value == "1_then":
-            print(self.gda_as_graph())
-            import sys
-            sys.exit(1)
+        # if bb.label.value == "1_then":
+        #     print(self.gda_as_graph())
+        #     import sys
+        #     sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
