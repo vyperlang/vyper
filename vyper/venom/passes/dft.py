@@ -76,25 +76,26 @@ class DFTPass(IRPass):
     def _get_group_order(self, bb: IRBasicBlock) -> list[Group]:
         exit_group = self.inst_groups[bb.instructions[-1]]
         groups = []
-        groups_visited = set([exit_group])
+        groups_visited = set()
         def _walk_group_r(group: Group):
             if group in groups_visited:
                 return
             groups_visited.add(group)
+
+            groups.append(group)
 
             for g in self.gda[group]:
                 if g in groups_visited:
                     continue
                 _walk_group_r(g)
 
-            groups.append(group)
-
+        _walk_group_r(exit_group)
         for g in self.groups:
             _walk_group_r(g)
-        groups_visited.remove(exit_group)
-        _walk_group_r(exit_group)
+        #groups_visited.remove(exit_group)
+        
 
-        return groups
+        return reversed(groups)
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
@@ -157,16 +158,18 @@ class DFTPass(IRPass):
             for op in inst.get_input_variables():
                 uses = self.dfg.get_uses(op)
                 for uses_this in uses:
-                    if uses_this.is_volatile:
-                        continue
+                    # if uses_this.is_volatile:
+                    #     continue
                     if uses_this.parent != inst.parent:
                         continue
                     uses_group = self.inst_groups[uses_this]
                     if uses_group == g:
                         continue
+                    if g in self.gda.get(uses_group):
+                        continue
                     self.gda[g].add(uses_group)
 
-        # if bb.label.value == "1_then":
+        # if bb.label.value == "3_then":
         #     print(self.gda_as_graph())
         #     import sys
         #     sys.exit(1)
@@ -190,6 +193,10 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
+                if s:=self.inst_groups.get(inst):
+                    a += f" {s.group_id}"
+                if s:=self.inst_groups.get(dep):
+                    b += f" {s.group_id}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
