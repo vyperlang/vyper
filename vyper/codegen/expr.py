@@ -357,6 +357,8 @@ class Expr:
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice, self.context)
+            if read_write_overlap(sub, index):
+                raise CompilerPanic("risky overlap")
 
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
@@ -367,9 +369,6 @@ class Expr:
                 raise TypeCheckFailure("unreachable")
         else:
             raise TypeCheckFailure("unreachable")
-
-        if read_write_overlap(sub, index):
-            raise CompilerPanic("risky overlap")
 
         ir_node = get_element_ptr(sub, index)
         ir_node.mutable = sub.mutable
