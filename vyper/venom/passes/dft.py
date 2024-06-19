@@ -16,11 +16,14 @@ class Group:
     root: IRInstruction
     volatile: bool
 
+    def __hash__(self) -> int:
+        return self.group_id
+
 class DFTPass(IRPass):
     function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
-    inst_groups: dict[IRInstruction, int]
+    inst_groups: dict[IRInstruction, Group]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
@@ -68,18 +71,22 @@ class DFTPass(IRPass):
 
     def _calculate_ida(self, bb: IRBasicBlock) -> None:
         self.ida = dict[IRInstruction, list[IRInstruction]]()
+        self.gda = dict[Group, OrderedSet[Group]]()
 
-        for inst in bb.non_phi_instructions:
+        non_phis = list(bb.non_phi_instructions)
+
+        for inst in non_phis:
             self.ida[inst] = list()
 
         self.inst_groups = {}
         self.groups = []
 
-        for inst in bb.non_phi_instructions:
+        for inst in non_phis:
             outputs = inst.get_outputs()
 
             if len(outputs) == 0:
                 self.groups.append(Group(len(self.groups), inst, False))
+                self.inst_groups[inst] = self.groups[-1]
                 continue
             for op in outputs:
                 uses = self.dfg.get_uses(op)
@@ -91,23 +98,45 @@ class DFTPass(IRPass):
                     uses_count += 1
                 if uses_count == 0:
                     self.groups.append(Group(len(self.groups), inst, False))
+                    self.inst_groups[inst] = self.groups[-1]
 
-        def mark_group_volatile_r(g: Group, inst: IRInstruction):
-            if g.volatile:
-                return
+        def mark_group_r(g: Group, inst: IRInstruction):
             for inst in self.ida[inst]:
-                if inst.is_volatile:
-                    g.volatile = True
-                    return
-                mark_group_volatile_r(g, inst)
+                if self.inst_groups.get(inst) is not None:
+                    continue
+                self.inst_groups[inst] = g
+                mark_group_r(g, inst)
 
         for g in self.groups:
-            mark_group_volatile_r(g, g.root)
+            mark_group_r(g, g.root)
 
-        # if bb.label.value == "3_then":
-        #     print(self.ida_as_graph())
-        #     import sys
-        #     sys.exit(1)
+        for g in self.groups:
+            self.gda[g] = OrderedSet()
+
+        for inst, next_inst in zip(non_phis, non_phis[1:]):
+            if not inst.is_volatile:
+                continue
+            self.gda[self.inst_groups[inst]].add(self.inst_groups[next_inst]) 
+
+        for inst in reversed(non_phis):
+            if not inst.is_volatile:
+                continue
+            g = self.inst_groups[inst]
+            assert g is not None, f"Group not found for {inst}"
+            for op in inst.get_input_variables():
+                uses = self.dfg.get_uses(op)
+                for uses_this in uses:
+                    uses_group = self.inst_groups[uses_this]
+                    if uses_group == g:
+                        continue
+                    self.gda[g].add(uses_group)
+
+        
+
+        if bb.label.value == "1_then":
+            print(self.gda_as_graph())
+            import sys
+            sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -128,6 +157,18 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
+                a = a.replace("%", "\\%")
+                b = b.replace("%", "\\%")
+                lines.append(f'"{a}" -> "{b}"')
+        lines.append("}")
+        return "\n".join(lines)
+    
+    def gda_as_graph(self) -> str:
+        lines = ["digraph gda_graph {"]
+        for g, deps in self.gda.items():
+            for dep in deps:
+                a = g.root.str_short()
+                b = dep.root.str_short()
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
