@@ -156,7 +156,7 @@ def bar() -> uint256:
     """
     c = get_contract(code)
     # tricky to get this right, for now we just panic instead of generating code
-    assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
 # to fix in future release
@@ -182,7 +182,7 @@ def bar() -> uint256:
     return 0
     """
     c = get_contract(code)
-    assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
 # to fix in future release
