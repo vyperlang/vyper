@@ -924,6 +924,26 @@ def potential_overlap(left, right):
     return False
 
 
+# similar to `potential_overlap()`, but compares left's _reads_ vs
+# right's _writes_.
+# TODO: `potential_overlap()` can probably be replaced by this function,
+# but all the cases need to be checked.
+def read_write_overlap(left, right):
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.variable_writes) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
+        return True
+
+    return False
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, hi=None):
     check_assign(left, right)

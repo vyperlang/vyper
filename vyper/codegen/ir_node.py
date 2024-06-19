@@ -468,6 +468,18 @@ class IRnode:
         return ret
 
     @cached_property
+    def variable_writes(self):
+        ret = getattr(self, "_writes", set())
+
+        for arg in self.args:
+            ret |= arg.variable_writes
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.variable_writes
+
+        return ret
+
+    @cached_property
     def contains_risky_call(self):
         ret = self.value in ("call", "delegatecall", "staticcall", "create", "create2")
 
