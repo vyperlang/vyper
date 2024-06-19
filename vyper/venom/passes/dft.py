@@ -40,7 +40,7 @@ class DFTPass(IRPass):
 
         if inst.is_phi:
             return
-
+        
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
         
         for dep_inst in self.ida[inst]:
@@ -51,7 +51,11 @@ class DFTPass(IRPass):
             self._process_instruction_r(instructions, dep_inst)
 
         for dep_inst in children:
+            if inst.parent != dep_inst.parent:
+                continue
             if dep_inst in self.visited_instructions:
+                continue
+            if self.inst_groups.get(dep_inst) != self.inst_groups.get(inst):
                 continue
             self._process_instruction_r(instructions, dep_inst)
 
@@ -146,15 +150,17 @@ class DFTPass(IRPass):
             for op in inst.get_input_variables():
                 uses = self.dfg.get_uses(op)
                 for uses_this in uses:
+                    if uses_this.parent != inst.parent:
+                        continue
                     uses_group = self.inst_groups[uses_this]
                     if uses_group == g:
                         continue
                     self.gda[g].add(uses_group)
 
-        # if bb.label.value == "1_then":
-        #     print(self.gda_as_graph())
-        #     import sys
-        #     sys.exit(1)
+        if bb.label.value == "3_then":
+            print(self.ida_as_graph())
+            import sys
+            sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
