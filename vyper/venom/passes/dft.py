@@ -13,8 +13,15 @@ import random
 @dataclass
 class Group:
     group_id: int
+    dependants: list["Group"]
     root: IRInstruction
     volatile: bool
+
+    def __init__(self, group_id: int, root: IRInstruction, volatile: bool):
+        self.group_id = group_id
+        self.dependants = []
+        self.root = root
+        self.volatile = volatile
 
     def __hash__(self) -> int:
         return self.group_id
@@ -89,11 +96,17 @@ class DFTPass(IRPass):
                     continue
                 _walk_group_r(g)
 
+        for g in self.groups:
+            g.dependants = []
+
+        for g in self.groups:
+            for dep in self.gda.get(g, []):
+                dep.dependants.append(g)
+
         _walk_group_r(exit_group)
         for g in self.groups:
-            _walk_group_r(g)
-        #groups_visited.remove(exit_group)
-        
+            if len(g.dependants) == 0:
+                _walk_group_r(g)
 
         return reversed(groups)
 
@@ -169,7 +182,7 @@ class DFTPass(IRPass):
                         continue
                     self.gda[g].add(uses_group)
 
-        # if bb.label.value == "3_then":
+        # if bb.label.value == "13_if_exit":
         #     print(self.gda_as_graph())
         #     import sys
         #     sys.exit(1)
@@ -209,6 +222,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = g.root.str_short()
                 b = dep.root.str_short()
+                a += f" {g.group_id}"
+                b += f" {dep.group_id}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
