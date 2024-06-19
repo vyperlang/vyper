@@ -591,3 +591,35 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def find_cycles_in_directed_graph(graph):
+    visit_state = {}                # Visit states: 0 = Not visited, 1 = Visiting, 2 = Visited
+    stack = []                      # Stack to keep track of the current path
+    all_cycles = []                 # List to store all detected cycles
+
+    def dfs(node):
+        vs = visit_state.get(node, 0)
+        if vs == 1:  # Cycle detected
+            cycle_index = stack.index(node)
+            cycle_nodes = stack[cycle_index:]
+            all_cycles.append(cycle_nodes)
+            return
+        elif vs == 2:  # Already fully visited
+            return
+
+        visit_state[node] = 1
+        stack.append(node)
+
+        for neighbor in graph.get(node, []):
+            dfs(neighbor)
+
+        stack.pop()
+        visit_state[node] = 2
+
+    for node in graph:
+        if visit_state.get(node, 0) == 0:
+            dfs(node)
+
+    return all_cycles
+
