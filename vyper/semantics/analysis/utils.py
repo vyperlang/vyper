@@ -683,6 +683,7 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
     return info.modifiability <= modifiability
 
 
+# TODO: move this into part of regular analysis in `local.py`
 def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
     if "writes_r" in node._metadata:
         return node._metadata["writes_r"]
