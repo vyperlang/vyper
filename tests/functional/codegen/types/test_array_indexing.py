@@ -157,3 +157,29 @@ def bar() -> uint256:
     c = get_contract(code)
     # tricky to get this right, for now we just panic instead of generating code
     assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_extcall(get_contract):
+    code = """
+
+interface Bar:
+    def bar() -> uint256: payable
+
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][extcall Bar(self).bar()]
+
+
+@external
+def bar() -> uint256:
+    self.a[0] = [b'yyy']
+    self.a.pop()
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == [b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
