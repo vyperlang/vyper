@@ -15,13 +15,13 @@ count = 0
 @dataclass
 class Group:
     group_id: int
-    dependants: list["Group"]
+    dependents: list["Group"]
     root: IRInstruction
     volatile: bool
 
     def __init__(self, group_id: int, root: IRInstruction, volatile: bool):
         self.group_id = group_id
-        self.dependants = []
+        self.dependents = []
         self.root = root
         self.volatile = volatile
 
@@ -101,15 +101,15 @@ class DFTPass(IRPass):
             groups.append(group)
 
         for g in self.groups:
-            g.dependants = []
+            g.dependents = []
 
         for g in self.groups:
             for dep in self.gda.get(g, []):
-                dep.dependants.append(g)
+                dep.dependents.append(g)
 
         groups_visited.add(exit_group)
         for g in self.groups:
-            if len(g.dependants) == 0:
+            if len(g.dependents) == 0:
                 _walk_group_r(g)
         for g in self.groups:
             _walk_group_r(g)
