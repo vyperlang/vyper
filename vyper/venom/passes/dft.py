@@ -163,6 +163,7 @@ class DFTPass(IRPass):
         for g in self.groups:
             self.gda[g] = OrderedSet()
 
+        last_volatile = None
         for inst, next_inst in reversed(list(zip(non_phis, non_phis[1:]))):
             if not inst.is_volatile:
                 continue
@@ -170,7 +171,13 @@ class DFTPass(IRPass):
                 continue
             if self.inst_groups[next_inst] in self.gda.get(self.inst_groups[inst]):
                 continue
-            self.gda[self.inst_groups[next_inst]].add(self.inst_groups[inst])
+            if last_volatile:
+                self.gda[self.inst_groups[last_volatile]].add(self.inst_groups[inst])
+            ga = self.inst_groups[next_inst]
+            gb = self.inst_groups[inst]
+            self.gda[ga].add(gb)
+            if inst.is_volatile:
+                last_volatile = inst
 
         for inst in reversed(non_phis):
             # if not inst.is_volatile:
@@ -191,12 +198,12 @@ class DFTPass(IRPass):
                     continue
                 self.gda[g].add(prod_group)
 
-        #cycles = find_cycles_in_directed_graph(self.gda)
+        cycles = find_cycles_in_directed_graph(self.gda)
                        
-        if bb.label.value == "5_body":
-            print(self.gda_as_graph())
-            import sys
-            sys.exit(1)
+        # if bb.label.value == "1_then":
+        #     print(self.gda_as_graph())
+        #     import sys
+        #     sys.exit(1)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)

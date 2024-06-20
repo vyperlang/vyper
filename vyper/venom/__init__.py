@@ -64,7 +64,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     dft = DFTPass(ac, fn)
     dft.run_pass()
     
-    # ac.force_analysis(LivenessAnalysis)
+    #ac.force_analysis(LivenessAnalysis)
     # global count
     # if count == 1:
     #     #dft = ac.request_analysis(DFGAnalysis)
