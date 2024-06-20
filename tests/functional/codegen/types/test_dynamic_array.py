@@ -8,6 +8,7 @@ from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
+    CompilerPanic,
     ImmutableViolation,
     OverflowException,
     StackTooDeep,
@@ -1887,3 +1888,18 @@ def boo() -> uint256:
 
     c = get_contract(code)
     assert c.foo() == [1, 2, 3, 4]
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+def test_dangling_reference(get_contract, tx_failed):
+    code = """
+a: DynArray[DynArray[uint256, 5], 5]
+
+@external
+def foo():
+    self.a = [[1]]
+    self.a.pop().append(2)
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
