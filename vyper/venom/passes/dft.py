@@ -35,7 +35,7 @@ class DFTPass(IRPass):
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.inst_groups = {}
-        random.seed(10)
+        random.seed(time.time())
 
     def _permutate(self, instructions: list[IRInstruction]):
         return random.shuffle(instructions)
@@ -89,7 +89,11 @@ class DFTPass(IRPass):
                 return
             groups_visited.add(group)
 
-            for g in self.gda[group]:
+            # for g in self.gda[group]:
+
+            neighbors = list(self.gda[group])
+            random.shuffle(neighbors)
+            for g in neighbors:
                 if g in groups_visited:
                     continue
                 _walk_group_r(g)
@@ -103,7 +107,6 @@ class DFTPass(IRPass):
             for dep in self.gda.get(g, []):
                 dep.dependants.append(g)
 
-        
         groups_visited.add(exit_group)
         for g in self.groups:
             if len(g.dependants) == 0:
@@ -111,6 +114,7 @@ class DFTPass(IRPass):
         for g in self.groups:
             _walk_group_r(g)
         groups_visited.remove(exit_group)
+
         _walk_group_r(exit_group)
 
         return groups
