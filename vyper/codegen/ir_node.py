@@ -482,12 +482,12 @@ class IRnode:
         return ret
 
     @property
-    def is_call(self):
+    def is_call_opcode(self):
         return self.value in ("call", "staticcall", "delegatecall")
 
     @property
     def is_precompile_call(self):
-        assert self.is_call
+        assert self.is_call_opcode
         target = self.args[1].value
         lo, hi = PRECOMPILE_RANGE
         return isinstance(target, int) and (lo <= target <= hi)
@@ -495,7 +495,7 @@ class IRnode:
     @cached_property
     def contains_risky_call(self):
         ret = self.value in ("create", "create2")
-        ret |= self.is_call and not self.is_precompile_call
+        ret |= self.is_call_opcode and not self.is_precompile_call
 
         for arg in self.args:
             ret |= arg.contains_risky_call
