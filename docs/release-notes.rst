@@ -197,6 +197,7 @@ Bugfixes
 * fix[ux]: fix compiler hang for large exponentiations (`#3893 <https://github.com/vyperlang/vyper/pull/3893>`_)
 * fix[lang]: allow type expressions inside pure functions (`#3906 <https://github.com/vyperlang/vyper/pull/3906>`_)
 * fix[ux]: raise ``VersionException`` with source info (`#3920 <https://github.com/vyperlang/vyper/pull/3920>`_)
+* fix[codegen]: fix false positive in risky call detection (`#4160 <https://github.com/vyperlang/vyper/pull/4160>`_)
 * fix[lang]: fix ``pow`` folding when args are not literals (`#3949 <https://github.com/vyperlang/vyper/pull/3949>`_)
 * fix[codegen]: fix some hardcoded references to ``STORAGE`` location (`#4015 <https://github.com/vyperlang/vyper/pull/4015>`_)
 
