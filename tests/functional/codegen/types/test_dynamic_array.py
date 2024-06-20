@@ -1937,6 +1937,7 @@ def foo() -> uint256:
     assert compile_code(code) is not None
 
 
+# should not trip risky overlap detector
 def test_risky_call_precompile2():
     code = """
 x: DynArray[uint256, 32]
