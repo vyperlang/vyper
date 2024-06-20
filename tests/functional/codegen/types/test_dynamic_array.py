@@ -1903,3 +1903,54 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+# should not trip risky overlap detector
+def test_risky_call_precompile():
+    code = """
+x: DynArray[uint256, 32]
+
+@deploy
+def __init__():
+    self.x = [1, 1, 1]
+
+@internal
+def bar() -> uint256:
+    self.x[0] = 1
+    return 0
+
+@external
+def foo() -> uint256:
+    self.x[
+        abi_decode(
+            slice(
+                concat(
+                    abi_encode(
+                        empty(uint256),
+                        method_id=method_id("foo()")),
+                    empty(bytes32)
+                ), 0, 32),
+            (uint256)
+        )] = self.bar()
+    return 0
+    """
+    assert compile_code(code) is not None
+
+
+def test_risky_call_precompile2():
+    code = """
+x: DynArray[uint256, 32]
+
+@internal
+def bar() -> uint256:
+    a: DynArray[uint256, 100] = []
+    b: DynArray[uint256, 100] = []
+    a = b
+    return 0
+
+@external
+def foo() -> uint256:
+    c: uint256 = self.x[self.bar()]
+    return 0
+    """
+    assert compile_code(code) is not None
