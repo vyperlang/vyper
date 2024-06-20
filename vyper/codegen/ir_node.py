@@ -13,8 +13,6 @@ from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.utils import VALID_IR_MACROS, ceil32
 
-PRECOMPILE_RANGE = (1, 10)
-
 # Set default string representation for ints in IR output.
 AS_HEX_DEFAULT = False
 
@@ -487,10 +485,18 @@ class IRnode:
 
     @property
     def is_precompile_call(self):
+        # whitelist for "safe" calls
         assert self.is_call_opcode
         target = self.args[1].value
-        lo, hi = PRECOMPILE_RANGE
-        return isinstance(target, int) and (lo <= target <= hi)
+        PRECOMPILES = (
+            0x01,  # builtin ecrecover
+            0x02,  # builtin sha256
+            0x04,  # identify precompile
+            0x06,  # builtin ecadd
+            0x07,  # builtin ecmul
+            0x000000000000000000636F6E736F6C652E6C6F67,  # builtin print
+        )
+        return isinstance(target, int) and target in PRECOMPILES
 
     @cached_property
     def contains_risky_call(self):
