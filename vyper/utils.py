@@ -594,9 +594,9 @@ def annotate_source_code(
 
 
 def find_cycles_in_directed_graph(graph):
-    visit_state = {}                # Visit states: 0 = Not visited, 1 = Visiting, 2 = Visited
-    stack = []                      # Stack to keep track of the current path
-    all_cycles = []                 # List to store all detected cycles
+    visit_state = {}  # Visit states: 0 = Not visited, 1 = Visiting, 2 = Visited
+    stack = []  # Stack to keep track of the current path
+    all_cycles = []  # List to store all detected cycles
 
     def dfs(node):
         vs = visit_state.get(node, 0)
@@ -622,4 +622,3 @@ def find_cycles_in_directed_graph(graph):
             dfs(node)
 
     return all_cycles
-

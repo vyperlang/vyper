@@ -239,7 +239,7 @@ class IRInstruction:
     @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
-    
+
     @property
     def is_phi(self) -> bool:
         return self.opcode == "phi"
