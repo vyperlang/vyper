@@ -1,16 +1,16 @@
+import random
 from dataclasses import dataclass
-import time
-from vyper.utils import OrderedSet, find_cycles_in_directed_graph
+
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-import itertools
-import random
 
 count = 0
+
 
 @dataclass
 class Group:
@@ -28,6 +28,7 @@ class Group:
     def __hash__(self) -> int:
         return self.group_id
 
+
 class DFTPass(IRPass):
     function: IRFunction
     inst_order: dict[IRInstruction, int]
@@ -37,7 +38,6 @@ class DFTPass(IRPass):
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.inst_groups = {}
-        random.seed(time.time())
 
     def _permutate(self, instructions: list[IRInstruction]):
         return random.shuffle(instructions)
@@ -49,9 +49,9 @@ class DFTPass(IRPass):
 
         if inst.is_phi:
             return
-        
+
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
-        
+
         for dep_inst in self.ida[inst]:
             if dep_inst in self.visited_instructions:
                 continue
@@ -79,22 +79,20 @@ class DFTPass(IRPass):
         for g in self._get_group_order(bb):
             self._process_instruction_r(self.instructions, g.root)
 
-        bb.instructions = self.instructions #[:-1]
+        bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _get_group_order(self, bb: IRBasicBlock) -> list[Group]:
         exit_group = self.inst_groups[bb.instructions[-1]]
         groups = []
         groups_visited = set()
+
         def _walk_group_r(group: Group):
             if group in groups_visited:
                 return
             groups_visited.add(group)
 
-            # for g in self.gda[group]:
-
             neighbors = list(self.gda[group])
-            random.shuffle(neighbors)
             for g in neighbors:
                 if g in groups_visited:
                     continue
@@ -131,7 +129,7 @@ class DFTPass(IRPass):
             self.ida[inst] = list()
 
         self.inst_groups = {}
-        self.groups = []
+        self.groups = list[Group]()
         # self.inst_groups[non_phis[0]] = self.groups[-1]
 
         for inst in non_phis:
@@ -156,8 +154,8 @@ class DFTPass(IRPass):
                     self.groups.append(Group(len(self.groups), inst, False))
                     self.inst_groups[inst] = self.groups[-1]
 
-        def mark_group_r(g: Group, inst: IRInstruction):
-            for inst in self.ida[inst]:
+        def mark_group_r(g: Group, instruction: IRInstruction):
+            for inst in self.ida[instruction]:
                 if self.inst_groups.get(inst) is not None:
                     continue
                 self.inst_groups[inst] = g
@@ -175,7 +173,7 @@ class DFTPass(IRPass):
                 continue
             if self.inst_groups[inst] == self.inst_groups[next_inst]:
                 continue
-            if self.inst_groups[next_inst] in self.gda.get(self.inst_groups[inst]):
+            if self.inst_groups[next_inst] in self.gda.get(self.inst_groups[inst], OrderedSet()):
                 continue
             if last_volatile:
                 self.gda[self.inst_groups[last_volatile]].add(self.inst_groups[inst])
@@ -200,13 +198,13 @@ class DFTPass(IRPass):
                 assert prod_group is not None, f"Group not found for {prod}"
                 if prod_group == g:
                     continue
-                if g in self.gda.get(prod_group):
+                if g in self.gda.get(prod_group, OrderedSet()):
                     continue
                 self.gda[g].add(prod_group)
 
-        cycles = find_cycles_in_directed_graph(self.gda)
+        # cycles = find_cycles_in_directed_graph(self.gda)
 
-        # global count   
+        # global count
         # if bb.label.value == "__main_entry" and count == 1:
         #     print(self.gda_as_graph())
         #     import sys
@@ -232,16 +230,16 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                if s:=self.inst_groups.get(inst):
+                if s := self.inst_groups.get(inst):
                     a += f" {s.group_id}"
-                if s:=self.inst_groups.get(dep):
+                if s := self.inst_groups.get(dep):
                     b += f" {s.group_id}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
         lines.append("}")
         return "\n".join(lines)
-    
+
     def gda_as_graph(self) -> str:
         lines = ["digraph gda_graph {"]
         for g, deps in self.gda.items():
