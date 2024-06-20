@@ -10,6 +10,8 @@ from vyper.venom.passes.base_pass import IRPass
 import itertools
 import random
 
+count = 0
+
 @dataclass
 class Group:
     group_id: int
@@ -129,10 +131,10 @@ class DFTPass(IRPass):
             self.ida[inst] = list()
 
         self.inst_groups = {}
-        self.groups = [Group(0, non_phis[0], False)]
-        self.inst_groups[non_phis[0]] = self.groups[-1]
+        self.groups = []
+        # self.inst_groups[non_phis[0]] = self.groups[-1]
 
-        for inst in non_phis[1:]:
+        for inst in non_phis:
             outputs = inst.get_outputs()
 
             if len(outputs) == 0:
@@ -203,11 +205,13 @@ class DFTPass(IRPass):
                 self.gda[g].add(prod_group)
 
         cycles = find_cycles_in_directed_graph(self.gda)
-                       
-        # if bb.label.value == "1_then":
+
+        # global count   
+        # if bb.label.value == "__main_entry" and count == 1:
         #     print(self.gda_as_graph())
         #     import sys
         #     sys.exit(1)
+        # count += 1
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
