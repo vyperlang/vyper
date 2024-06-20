@@ -200,6 +200,23 @@ Bugfixes
 * fix[lang]: fix ``pow`` folding when args are not literals (`#3949 <https://github.com/vyperlang/vyper/pull/3949>`_)
 * fix[codegen]: fix some hardcoded references to ``STORAGE`` location (`#4015 <https://github.com/vyperlang/vyper/pull/4015>`_)
 
+Patched security advisories (GHSAs)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Bounds check on built-in ``slice()`` function can be overflowed (`GHSA-9x7f-gwxq-6f2c <https://github.com/vyperlang/vyper/security/advisories/GHSA-9x7f-gwxq-6f2c>`_)
+* ``concat`` built-in can corrupt memory (`GHSA-2q8v-3gqq-4f8p <https://github.com/vyperlang/vyper/security/advisories/GHSA-2q8v-3gqq-4f8p>`_)
+* ``raw_call`` ``value=`` kwargs not disabled for static and delegate calls (`GHSA-x2c2-q32w-4w6m <https://github.com/vyperlang/vyper/security/advisories/GHSA-x2c2-q32w-4w6m>`_)
+* negative array index bounds checks (`GHSA-52xq-j7v9-v4v2 <https://github.com/vyperlang/vyper/security/advisories/GHSA-52xq-j7v9-v4v2>`_)
+* ``range(start, start + N)`` reverts for negative numbers (`GHSA-ppx5-q359-pvwj <https://github.com/vyperlang/vyper/security/advisories/GHSA-ppx5-q359-pvwj>`_)
+* incorrect topic logging in ``raw_log`` (`GHSA-xchq-w5r3-4wg3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-xchq-w5r3-4wg3>`_)
+* double eval of the ``slice`` start/length args in certain cases (`GHSA-r56x-j438-vw5m <https://github.com/vyperlang/vyper/security/advisories/GHSA-r56x-j438-vw5m>`_)
+* multiple eval of ``sqrt()`` built in argument (`GHSA-5jrj-52x8-m64h <https://github.com/vyperlang/vyper/security/advisories/GHSA-5jrj-52x8-m64h>`_)
+* double eval of raw_args in ``create_from_blueprint`` (`GHSA-3whq-64q2-qfj6 <https://github.com/vyperlang/vyper/security/advisories/GHSA-3whq-64q2-qfj6>`_)
+* ``sha3`` codegen bug (`GHSA-6845-xw22-ffxv <https://github.com/vyperlang/vyper/security/advisories/GHSA-6845-xw22-ffxv>`_)
+* ``extract32`` can read dirty memory (`GHSA-4hwq-4cpm-8vmx <https://github.com/vyperlang/vyper/security/advisories/GHSA-4hwq-4cpm-8vmx>`_)
+* ``_abi_decode`` Memory Overflow (`GHSA-9p8r-4xp4-gw5w <https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w>`_)
+* External calls can overflow return data to return input buffer (`GHSA-gp3w-2v2m-p686 <https://github.com/vyperlang/vyper/security/advisories/GHSA-gp3w-2v2m-p686>`_)
+
 Tooling
 -------
 * feat[tool]: archive format (`#3891 <https://github.com/vyperlang/vyper/pull/3891>`_)
