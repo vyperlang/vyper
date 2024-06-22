@@ -914,3 +914,19 @@ def foo() -> DynArray[uint256, 10]:
     """
     c = get_contract(code)
     assert c.foo() == [1, 2, 3, 4]
+
+
+def test_iterator_modification_func_arg(get_contract):
+    code = """
+@internal
+def boo(a: DynArray[uint256, 12] = [], b: DynArray[uint256, 12] = []) -> DynArray[uint256, 12]:
+    for i: uint256 in a:
+        b.append(i)
+    return b
+
+@external
+def foo() -> DynArray[uint256, 12]:
+    return self.boo([1, 2, 3])
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
