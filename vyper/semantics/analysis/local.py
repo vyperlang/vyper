@@ -317,7 +317,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, location=location, modifiability=modifiability
+                arg.typ, location=location, modifiability=modifiability, decl_node=arg
             )
 
         for node in self.fn_node.body:
