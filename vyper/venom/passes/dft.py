@@ -19,6 +19,7 @@ class Group:
     Ondering of instructions in the group is decided by the inputs/outputs
     dependencies.
     """
+
     group_id: int
     dependents: list["Group"]
     root: IRInstruction
@@ -162,7 +163,6 @@ class DFTPass(IRPass):
                 if uses_count == 0 and not inst.is_volatile:
                     self.groups.append(Group(len(self.groups), inst, False))
                     self.inst_groups[inst] = self.groups[-1]
-
 
         #
         # Fill self.inst_groups with the group of each instruction
