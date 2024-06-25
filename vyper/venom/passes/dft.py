@@ -184,8 +184,6 @@ class DFTPass(IRPass):
                 last_volatile = inst
 
         for inst in reversed(non_phis):
-            # if not inst.is_volatile:
-            #     continue
             g = self.inst_groups[inst]
             assert g is not None, f"Group not found for {inst}"
             for op in inst.get_input_variables():
