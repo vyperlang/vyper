@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
@@ -7,38 +8,20 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
 # 2. Fork versions aren't actually tied to anything. They are not a part of our
 #    official API. *DO NOT USE THE VALUES FOR ANYTHING IMPORTANT* besides versioning.
-# 3. When support for an older version is dropped, the numbers should *not* change to
-#    reflect it (i.e. dropping support for version 0 removes version 0 entirely).
-# 4. There can be multiple aliases to the same version number (but not the reverse).
-# 5. When supporting multiple chains, if a chain gets a fix first, it increments the
-#    number first.
-# 6. Yes, this will probably have to be rethought if there's ever conflicting support
-#    between multiple chains for a specific feature. Let's hope not.
-# 7. We support at a maximum 3 hard forks (for any given chain).
-EVM_VERSIONS: dict[str, int] = {
-    # ETH Forks
-    "byzantium": 0,
-    "constantinople": 1,
-    "petersburg": 1,
-    "istanbul": 2,
-    "berlin": 3,
-    "paris": 4,
-    "shanghai": 5,
-    "cancun": 6,
-    "eof": 7,
-    # ETC Forks
-    "atlantis": 0,
-    "agharta": 1,
-}
-DEFAULT_EVM_VERSION: str = "shanghai"
-active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
-_eof_enabled = False
+# 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
+#    (and may optionally have forward support for experimental/unreleased
+#    fork choice rules)
+_evm_versions = ("london", "paris", "shanghai", "cancun")
+EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
+DEFAULT_EVM_VERSION = "cancun"
+
+_eof_enabled = False
 
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (byzantium, constantinople, istanbul, berlin)
+# gas cost (london, paris, shanghai, cancun)
 OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
@@ -63,12 +46,12 @@ OPCODES: OpcodeMap = {
     "XOR": (0x18, 2, 1, 3),
     "NOT": (0x19, 1, 1, 3),
     "BYTE": (0x1A, 2, 1, 3),
-    "SHL": (0x1B, 2, 1, (None, 3)),
-    "SHR": (0x1C, 2, 1, (None, 3)),
-    "SAR": (0x1D, 2, 1, (None, 3)),
+    "SHL": (0x1B, 2, 1, 3),
+    "SHR": (0x1C, 2, 1, 3),
+    "SAR": (0x1D, 2, 1, 3),
     "SHA3": (0x20, 2, 1, 30),
     "ADDRESS": (0x30, 0, 1, 2),
-    "BALANCE": (0x31, 1, 1, (400, 400, 700)),
+    "BALANCE": (0x31, 1, 1, 700),
     "ORIGIN": (0x32, 0, 1, 2),
     "CALLER": (0x33, 0, 1, 2),
     "CALLVALUE": (0x34, 0, 1, 2),
@@ -78,11 +61,11 @@ OPCODES: OpcodeMap = {
     "CODESIZE": (0x38, 0, 1, 2),
     "CODECOPY": (0x39, 3, 0, 3),
     "GASPRICE": (0x3A, 0, 1, 2),
-    "EXTCODESIZE": (0x3B, 1, 1, (700, 700, 700, 2600)),
-    "EXTCODECOPY": (0x3C, 4, 0, (700, 700, 700, 2600)),
+    "EXTCODESIZE": (0x3B, 1, 1, 2600),
+    "EXTCODECOPY": (0x3C, 4, 0, 2600),
     "RETURNDATASIZE": (0x3D, 0, 1, 2),
     "RETURNDATACOPY": (0x3E, 3, 0, 3),
-    "EXTCODEHASH": (0x3F, 1, 1, (None, 400, 700, 2600)),
+    "EXTCODEHASH": (0x3F, 1, 1, 2600),
     "BLOCKHASH": (0x40, 1, 1, 20),
     "COINBASE": (0x41, 0, 1, 2),
     "TIMESTAMP": (0x42, 0, 1, 2),
@@ -90,14 +73,16 @@ OPCODES: OpcodeMap = {
     "DIFFICULTY": (0x44, 0, 1, 2),
     "PREVRANDAO": (0x44, 0, 1, 2),
     "GASLIMIT": (0x45, 0, 1, 2),
-    "CHAINID": (0x46, 0, 1, (None, None, 2)),
-    "SELFBALANCE": (0x47, 0, 1, (None, None, 5)),
-    "BASEFEE": (0x48, 0, 1, (None, None, None, 2)),
+    "CHAINID": (0x46, 0, 1, 2),
+    "SELFBALANCE": (0x47, 0, 1, 5),
+    "BASEFEE": (0x48, 0, 1, 2),
+    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3)),
+    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
     "MSTORE8": (0x53, 2, 0, 3),
-    "SLOAD": (0x54, 1, 1, (200, 200, 800, 2100)),
+    "SLOAD": (0x54, 1, 1, 2100),
     "SSTORE": (0x55, 2, 0, 20000),
     "JUMP": (0x56, 1, 0, 8),
     "JUMPI": (0x57, 2, 0, 10),
@@ -105,6 +90,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
+    "MCOPY": (0x5E, 3, 0, (None, None, None, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
     "RJUMP": (0x5C, 0, 0, (None, None, None, None, 2)),
     "RJUMPI": (0x5D, 1, 0, (None, None, None, None, 4)),
@@ -179,13 +165,13 @@ OPCODES: OpcodeMap = {
     "LOG3": (0xA3, 5, 0, 1500),
     "LOG4": (0xA4, 6, 0, 1875),
     "CREATE": (0xF0, 3, 1, 32000),
-    "CALL": (0xF1, 7, 1, (700, 700, 700, 2100)),
-    "CALLCODE": (0xF2, 7, 1, (700, 700, 700, 2100)),
+    "CALL": (0xF1, 7, 1, 2100),
+    "CALLCODE": (0xF2, 7, 1, 2100),
     "RETURN": (0xF3, 2, 0, 0),
-    "DELEGATECALL": (0xF4, 6, 1, (700, 700, 700, 2100)),
-    "CREATE2": (0xF5, 4, 1, (None, 32000)),
+    "DELEGATECALL": (0xF4, 6, 1, 2100),
+    "CREATE2": (0xF5, 4, 1, 32000),
     "SELFDESTRUCT": (0xFF, 1, 0, 25000),
-    "STATICCALL": (0xFA, 6, 1, (700, 700, 700, 2100)),
+    "STATICCALL": (0xFA, 6, 1, 2100),
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
@@ -193,8 +179,8 @@ OPCODES: OpcodeMap = {
     "CALLF": (0xB0, 0, 0, (None, None, None, None, 5)),
     "RETF": (0xB1, 0, 0, (None, None, None, None, 4)),
     "JUMPF": (0xB2, 0, 0, (None, None, None, None, 4)),
-    "TLOAD": (0xB3, 1, 1, 100),
-    "TSTORE": (0xB4, 2, 0, 100),
+    "TLOAD": (0x5C, 1, 1, (None, None, None, 100)),
+    "TSTORE": (0x5D, 2, 0, (None, None, None, 100)),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
@@ -232,19 +218,6 @@ IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 TERMINATING_OPCODES = ["STOP", "RETF", "RETURN", "REVERT", "INVALID"]
 
 
-def evm_wrapper(fn, *args, **kwargs):
-    def _wrapper(*args, **kwargs):
-        global active_evm_version
-        evm_version = kwargs.pop("evm_version", None) or DEFAULT_EVM_VERSION
-        active_evm_version = EVM_VERSIONS[evm_version]
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            active_evm_version = EVM_VERSIONS[DEFAULT_EVM_VERSION]
-
-    return _wrapper
-
-
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
     gas: OpcodeGasCost = value[3]
     if isinstance(gas, int):
@@ -270,8 +243,14 @@ _ir_opcodes: Dict[int, OpcodeRulesetMap] = {
 }
 
 
+def get_active_evm_version():
+    settings = get_global_settings()
+    evm_version_str = settings and settings.evm_version or DEFAULT_EVM_VERSION
+    return EVM_VERSIONS[evm_version_str]
+
+
 def get_opcodes() -> OpcodeRulesetMap:
-    return _evm_opcodes[active_evm_version]
+    return _evm_opcodes[get_active_evm_version()]
 
 
 def get_opcode(mnemonic: str) -> int:
@@ -279,7 +258,7 @@ def get_opcode(mnemonic: str) -> int:
 
 
 def get_ir_opcodes() -> OpcodeRulesetMap:
-    return _ir_opcodes[active_evm_version]
+    return _ir_opcodes[get_active_evm_version()]
 
 
 OPCODE_TO_MNEMONIC_MAP = {ruleset[0]: mnemonic for mnemonic, ruleset in get_opcodes().items()}
@@ -312,6 +291,8 @@ def get_opcode_metadata(mnem_or_op):
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
+    active_evm_version = get_active_evm_version()
+
     if begin is None and end is None:
         raise CompilerPanic("Either beginning or end fork ruleset must be set.")
     if begin is None:
