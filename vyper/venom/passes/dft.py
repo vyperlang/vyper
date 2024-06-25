@@ -14,6 +14,11 @@ count = 0
 
 @dataclass
 class Group:
+    """
+    A group of instructions that can be handled together in a DFT way.
+    Ondering of instructions in the group is decided by the inputs/outputs
+    dependencies.
+    """
     group_id: int
     dependents: list["Group"]
     root: IRInstruction
@@ -73,7 +78,7 @@ class DFTPass(IRPass):
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self.function.append_basic_block(bb)
 
-        self._calculate_ida(bb)
+        self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.phi_instructions)
 
         for g in self._get_group_order(bb):
@@ -119,8 +124,10 @@ class DFTPass(IRPass):
 
         return groups
 
-    def _calculate_ida(self, bb: IRBasicBlock) -> None:
+    def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
+        # ida: instruction dependency analysis
         self.ida = dict[IRInstruction, list[IRInstruction]]()
+        # gda: group dependency analysis
         self.gda = dict[Group, OrderedSet[Group]]()
 
         non_phis = list(bb.non_phi_instructions)
@@ -130,8 +137,10 @@ class DFTPass(IRPass):
 
         self.inst_groups = {}
         self.groups = list[Group]()
-        # self.inst_groups[non_phis[0]] = self.groups[-1]
 
+        #
+        # Calculate instruction groups and instruction dependencies
+        #
         for inst in non_phis:
             outputs = inst.get_outputs()
 
@@ -154,6 +163,10 @@ class DFTPass(IRPass):
                     self.groups.append(Group(len(self.groups), inst, False))
                     self.inst_groups[inst] = self.groups[-1]
 
+
+        #
+        # Fill self.inst_groups with the group of each instruction
+        #
         def mark_group_r(g: Group, instruction: IRInstruction):
             for inst in self.ida[instruction]:
                 if self.inst_groups.get(inst) is not None:
@@ -164,6 +177,9 @@ class DFTPass(IRPass):
         for g in self.groups:
             mark_group_r(g, g.root)
 
+        #
+        # Calculate inter-group dependencies
+        #
         for g in self.groups:
             self.gda[g] = OrderedSet()
 
@@ -210,10 +226,9 @@ class DFTPass(IRPass):
         # count += 1
 
     def run_pass(self) -> None:
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         basic_blocks = list(self.function.get_basic_blocks())
 
         self.function.clear_basic_blocks()
@@ -222,6 +237,9 @@ class DFTPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
+    #
+    # Graphviz output for debugging
+    #
     def ida_as_graph(self) -> str:
         lines = ["digraph ida_graph {"]
         for inst, deps in self.ida.items():
