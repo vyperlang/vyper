@@ -897,3 +897,36 @@ def foo():
         compile_code(main, input_bundle=input_bundle)
 
     assert e.value._message == "Cannot modify loop variable `queue`"
+
+
+def test_iterator_modification_memory(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 10]:
+    # check VarInfos are distinguished by decl_node when they have same type
+    alreadyDone: DynArray[uint256, 10] = []
+    _assets: DynArray[uint256, 10] = [1, 2, 3, 4, 3, 2, 1]
+    for a: uint256 in _assets:
+        if a in alreadyDone:
+            continue
+        alreadyDone.append(a)
+    return alreadyDone
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4]
+
+
+def test_iterator_modification_func_arg(get_contract):
+    code = """
+@internal
+def boo(a: DynArray[uint256, 12] = [], b: DynArray[uint256, 12] = []) -> DynArray[uint256, 12]:
+    for i: uint256 in a:
+        b.append(i)
+    return b
+
+@external
+def foo() -> DynArray[uint256, 12]:
+    return self.boo([1, 2, 3])
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
