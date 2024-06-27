@@ -61,6 +61,7 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
+        experimental_eof: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -249,12 +250,25 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        insert_compiler_metadata = not self.no_bytecode_metadata
-        return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
+        if self.experimental_eof:
+            return generate_EOFv1(self.assembly, no_bytecode_metadata=self.no_bytecode_metadata)
+        else:
+            return generate_bytecode(
+                self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+            )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
+        if self.experimental_eof:
+            return generate_EOFv1(
+                self.assembly_runtime, no_bytecode_metadata=self.no_bytecode_metadata
+            )
+        else:
+            return generate_bytecode(
+                self.assembly_runtime,
+                is_runtime=True,
+                no_bytecode_metadata=self.no_bytecode_metadata,
+            )
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -368,3 +382,14 @@ def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
     return compile_ir.assembly_to_evm(assembly, insert_compiler_metadata=insert_compiler_metadata)[
         0
     ]
+
+
+def generate_EOFv1(assembly: list, no_bytecode_metadata: bool = False) -> bytes:
+    bytecode, _ = compile_ir.assembly_to_evm(
+        assembly,
+        emit_headers=True,
+        disable_bytecode_metadata=no_bytecode_metadata,
+        eof_enabled=True,
+    )
+
+    return bytecode

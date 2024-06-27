@@ -182,6 +182,11 @@ def _parse_args(argv):
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--experimental-eof",
+        help="The compiler will emit EOFv1 formated bytecode",
+        action="store_true",
+    )
 
     args = parser.parse_args(argv)
 
@@ -244,6 +249,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.experimental_eof,
     )
 
     mode = "w"
