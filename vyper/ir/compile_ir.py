@@ -1127,38 +1127,6 @@ def generateEOFHeader(function_sizes, max_stack_heights) -> bytes:
     return header
 
 
-def generateEOFHeader(function_sizes, max_stack_heights) -> bytes:
-    code_sections_len = len(function_sizes)
-    header = b""
-    header += eof.MAGIC  # EOFv1 signature
-    header += bytes([eof.VERSION])
-
-    header += bytes([eof.S_TYPE])
-    header += (code_sections_len * 4).to_bytes(2, "big")
-
-    header += bytes([eof.S_CODE])
-    header += code_sections_len.to_bytes(2, "big")
-
-    for size in function_sizes:
-        header += size.to_bytes(2, "big")
-
-    header += bytes([eof.S_DATA])
-    header += bytes([0x0, 0x0])
-
-    header += bytes([0x0])  # Terminator
-
-    # Type section
-    for i in range(code_sections_len):
-        if i == 0:
-            header += bytes([0x0])  # inputs
-        else:
-            header += bytes([0x1])  # inputs
-        header += bytes([0x0])  # outputs
-        header += (max_stack_heights[i]).to_bytes(2, "big")  # max stack
-
-    return header
-
-
 def adjust_pc_maps(pc_maps, ofst):
     assert ofst >= 0
 
@@ -1253,20 +1221,27 @@ def _relocate_segments(assembly):
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm(assembly, pc_ofst=0, emit_headers=False, insert_compiler_metadata=False):
     bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, insert_compiler_metadata=insert_compiler_metadata
+        assembly,
+        pc_ofst=pc_ofst,
+        emit_headers=emit_headers,
+        insert_compiler_metadata=insert_compiler_metadata,
     )
     return bytecode, source_maps
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm_with_symbol_map(
+    assembly, pc_ofst=0, emit_headers=False, insert_compiler_metadata=False
+):
     """
     Assembles assembly into EVM
 
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
+    emit_headers: whether to generate EOFv1 headers. In legacy mode it
+                  will generate vyper version suffix
     insert_compiler_metadata: whether to append vyper metadata to output
                             (should be true for runtime code)
     """
@@ -1301,7 +1276,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
             assert ctor_mem_size is None
             ctor_mem_size = item[0].ctor_mem_size
 
-            runtime_code, runtime_map = assembly_to_evm(item[1:])
+            runtime_code, runtime_map = assembly_to_evm(item[1:], emit_headers=True)
 
             runtime_code_start, runtime_code_end = _runtime_code_offsets(
                 ctor_mem_size, len(runtime_code)
@@ -1354,7 +1329,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
 
                 symbol_map[item] = pc
             elif assembly[i + 1] in ("RJUMP", "RJUMPI", "CALLF"):
-                pc += CODE_OFST_SIZE  # highbyte lowbyte only
+                pc += SYMBOL_SIZE  # highbyte lowbyte only
             else:
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
@@ -1416,6 +1391,12 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
 
     ret = bytearray()
 
+    if is_eof_enabled() and emit_headers:
+        # generate header with placeholder function sizes
+        dummy_placeholder_data = [0] * (len(function_breaks) + 1)
+        header = generateEOFHeader(dummy_placeholder_data, dummy_placeholder_data)
+        ret.extend(header)
+
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
     to_skip = 0
@@ -1439,16 +1420,16 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
                 assert is_symbol(
                     sym
                 ), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
-                o += bytes([get_opcode(assembly[i + 1])])
+                ret.extend(bytes([get_opcode(assembly[i + 1])]))
 
                 if assembly[i + 1] == "CALLF":
                     function_id = function_breaks[symbol_map[sym]]
-                    o += bytes(function_id.to_bytes(2, "big", signed=True))
+                    ret.extend(bytes(function_id.to_bytes(2, "big", signed=True)))
                 else:
                     pc_post_instruction = instr_offsets[i] + 3
                     offset = symbol_map[sym] - pc_post_instruction
                     assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"
-                    o += bytes(offset.to_bytes(2, "big", signed=True))
+                    ret.extend(bytes(offset.to_bytes(2, "big", signed=True)))
                 to_skip = 1
             elif not is_symbol_map_indicator(assembly[i + 1]):
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=SYMBOL_SIZE))
@@ -1498,14 +1479,14 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
         for i, size in enumerate(function_sizes):
             max_stack_heights.append(
                 eof.calculate_max_stack_height(
-                    o[offset : offset + size], stack_height=0 if i == 0 else 1
+                    ret[offset : offset + size], stack_height=0 if i == 0 else 1
                 )
             )
             offset += size
 
         # Generate the final header and replace the placeholder
         header = generateEOFHeader(function_sizes, max_stack_heights)
-        o = header + o[len(header) :]
+        ret = header + ret[len(header) :]
 
     ret.extend(bytecode_suffix)
 

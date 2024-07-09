@@ -96,7 +96,7 @@ def ir_for_self_call(stmt_expr, context):
     # pass return label to subroutine
     if not is_eof_enabled():
         goto_op.append(["symbol", return_label])
-        
+
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
     if is_eof_enabled():

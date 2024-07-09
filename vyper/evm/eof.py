@@ -8,6 +8,7 @@ from vyper.evm.opcodes import (
     immediate_size,
 )
 from vyper.exceptions import VyperInternalException
+from vyper.utils import OrderedSet
 
 MAGIC = b"\xEF\x00"
 VERSION = 0x01
@@ -54,6 +55,9 @@ class FunctionType:
 class EOFReader:
     bytecode: bytes
 
+    code_sections: list[FunctionType]
+    data_sections: list[bytes]
+
     def __init__(self, bytecode: bytes):
         self.bytecode = bytecode
         self.bytecode_size = 0
@@ -64,14 +68,14 @@ class EOFReader:
     def get_code_segments(self):
         pass
 
-    def _verify_header(self) -> bool:
+    def _verify_header(self) -> None:
         if self.bytecode[:2] != MAGIC or self.bytecode[2] != VERSION:
             raise ValidationException(f"not an EOFv{VERSION} bytecode")
 
         code = self.bytecode
 
         # Process section headers
-        section_sizes = {S_TYPE: [], S_CODE: [], S_DATA: []}
+        section_sizes: dict[int, list[int]] = {S_TYPE: [], S_CODE: [], S_DATA: []}
         self.code_sections = []
         self.data_sections = []
         pos = 3
@@ -193,8 +197,8 @@ class EOFReader:
 
         opcode = 0
         pos = 0
-        rjumpdests = set()
-        immediates = set()
+        rjumpdests = set[int]()
+        immediates = OrderedSet[int]()
         while pos < len(code):
             # Ensure the opcode is valid
             opcode = code[pos]

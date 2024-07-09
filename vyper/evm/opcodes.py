@@ -254,7 +254,10 @@ def get_opcodes() -> OpcodeRulesetMap:
 
 
 def get_opcode(mnemonic: str) -> int:
-    return get_opcodes()[mnemonic.upper()][0]
+    opcode = get_opcodes()[mnemonic.upper()][0]
+    if opcode is None:
+        raise CompilerPanic(f"Opcode {mnemonic} not supported in current EVM version.")
+    return opcode
 
 
 def get_ir_opcodes() -> OpcodeRulesetMap:

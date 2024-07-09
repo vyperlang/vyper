@@ -249,7 +249,6 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
-        args.experimental_eof,
     )
 
     mode = "w"
