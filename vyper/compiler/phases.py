@@ -266,8 +266,7 @@ class CompilerData:
             )
         else:
             return generate_bytecode(
-                self.assembly_runtime,
-                insert_compiler_metadata=insert_compiler_metadata
+                self.assembly_runtime, insert_compiler_metadata=insert_compiler_metadata
             )
 
     @cached_property
@@ -386,10 +385,7 @@ def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
 
 def generate_EOFv1(assembly: list, insert_compiler_metadata: bool = True) -> bytes:
     bytecode, _ = compile_ir.assembly_to_evm(
-        assembly,
-        emit_headers=True,
-        insert_compiler_metadata=insert_compiler_metadata,
-        eof_enabled=True,
+        assembly, emit_headers=True, insert_compiler_metadata=insert_compiler_metadata
     )
 
     return bytecode

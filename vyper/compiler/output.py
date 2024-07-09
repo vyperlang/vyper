@@ -401,7 +401,7 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
     bytecode_sequence = deque(bytecode)
 
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
-    opcode_output: list[int] = []
+    opcode_output: list[str] = []
 
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
