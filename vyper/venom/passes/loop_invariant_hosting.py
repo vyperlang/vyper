@@ -1,8 +1,7 @@
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.analysis.loop_detection import LoopDetection
+from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
     CFG_ALTERING_INSTRUCTIONS,
@@ -20,24 +19,26 @@ class LoopInvariantHoisting(IRPass):
 
     function: IRFunction
     loops: dict[IRBasicBlock, list[IRBasicBlock]]
-    dfg : DFGAnalysis
+    dfg: DFGAnalysis
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        loops = self.analyses_cache.request_analysis(LoopDetection)
+        loops = self.analyses_cache.request_analysis(LoopDetectionAnalysis)
         self.loops = loops.loops
         while True:
             change = False
             for from_bb, loop in self.loops.items():
-                hoistable: list[tuple[IRBasicBlock, int, IRInstruction]] = self._get_hoistable_loop(from_bb, loop)
+                hoistable: list[tuple[IRBasicBlock, int, IRInstruction]] = self._get_hoistable_loop(
+                    from_bb, loop
+                )
                 if len(hoistable) == 0:
                     continue
                 change |= True
                 self._hoist(hoistable)
             if not change:
                 break
-            # I have this inside the loop because I dont need to 
+            # I have this inside the loop because I dont need to
             # invalidate if you dont hoist anything
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -48,7 +49,9 @@ class LoopInvariantHoisting(IRPass):
             bb_before: IRBasicBlock = loop_idx
             bb_before.insert_instruction(inst, index=len(bb_before.instructions) - 1)
 
-    def _get_hoistable_loop(self, from_bb : IRBasicBlock, loop : list[IRBasicBlock]) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
+    def _get_hoistable_loop(
+        self, from_bb: IRBasicBlock, loop: list[IRBasicBlock]
+    ) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
         result: list[tuple[IRBasicBlock, int, IRInstruction]] = []
         for bb_idx, bb in enumerate(loop):
             result.extend(self._get_hoistable_bb(bb, from_bb, bb_idx))
