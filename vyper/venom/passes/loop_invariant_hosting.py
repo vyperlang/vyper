@@ -24,14 +24,19 @@ class LoopInvariantHoisting(IRPass):
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        loops = self.analyses_cache.request_analysis(LoopDetection)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        loops = self.analyses_cache.request_analysis(LoopDetection)
         self.loops = loops.loops
         while True:
-            hoistable: list[tuple[IRBasicBlock, int, IRInstruction]] = self._get_hoistable()
-            if len(hoistable) == 0:
+            change = False
+            for from_bb, loop in self.loops.items():
+                hoistable: list[tuple[IRBasicBlock, int, IRInstruction]] = self._get_hoistable_loop(from_bb, loop)
+                if len(hoistable) == 0:
+                    continue
+                change |= True
+                self._hoist(hoistable)
+            if not change:
                 break
-            self._hoist(hoistable)
             # I have this inside the loop because I dont need to 
             # invalidate if you dont hoist anything
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -43,12 +48,10 @@ class LoopInvariantHoisting(IRPass):
             bb_before: IRBasicBlock = loop_idx
             bb_before.insert_instruction(inst, index=len(bb_before.instructions) - 1)
 
-    # returns touble of index of loop and instruction
-    def _get_hoistable(self) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
+    def _get_hoistable_loop(self, from_bb : IRBasicBlock, loop : list[IRBasicBlock]) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
         result: list[tuple[IRBasicBlock, int, IRInstruction]] = []
-        for from_bb, loop in self.loops.items():
-            for bb_idx, bb in enumerate(loop):
-                result.extend(self._get_hoistable_bb(bb, from_bb, bb_idx))
+        for bb_idx, bb in enumerate(loop):
+            result.extend(self._get_hoistable_bb(bb, from_bb, bb_idx))
         return result
 
     def _get_hoistable_bb(
@@ -75,6 +78,7 @@ class LoopInvariantHoisting(IRPass):
 
     def _in_bb(self, instruction: IRInstruction, bb: IRBasicBlock):
         for in_var in instruction.get_input_variables():
+            assert isinstance(in_var, IRVariable)
             source_ins = self.dfg._dfg_outputs[in_var]
             if source_ins in bb.instructions:
                 return True
