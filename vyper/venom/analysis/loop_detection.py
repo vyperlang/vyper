@@ -6,11 +6,12 @@ from vyper.venom.basicblock import IRBasicBlock
 
 class LoopDetectionAnalysis(IRAnalysis):
     """
-    Detects loops and computes basic blocks sets
-    which comprised these loops
+    Detects loops and computes basic blocks 
+    and the block which is before the loop
     """
 
-    # key = start of the loop (last bb not in the loop), value all the block that loop contains
+    # key = start of the loop (last bb not in the loop)
+    # value = all the block that loop contains
     loops: dict[IRBasicBlock, list[IRBasicBlock]]
 
     def analyze(self):

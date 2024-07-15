@@ -15,6 +15,10 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class LoopInvariantHoisting(IRPass):
+    """
+    This pass detects invariants in loops and hoists them above the loop body.
+    Any VOLATILE_INSTRUCTIONS, BB_TERMINATORS CFG_ALTERING_INSTRUCTIONS are ignored
+    """
     from typing import Iterator
 
     function: IRFunction
