@@ -12,34 +12,55 @@ class LoopDetectionAnalysis(IRAnalysis):
 
     # key = start of the loop (last bb not in the loop)
     # value = all the block that loop contains
-    loops: dict[IRBasicBlock, list[IRBasicBlock]]
+    loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+
+    done: OrderedSet[IRBasicBlock]
+    visited: OrderedSet[IRBasicBlock]
 
     def analyze(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        self.loops: dict[IRBasicBlock, list[IRBasicBlock]] = dict()
-        done = OrderedSet()
+        self.loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]] = dict()
+        self.done = OrderedSet()
+        self.visited = OrderedSet()
         entry = self.function.entry
-        self.dfs(entry, done, [])
+        self.dfs(entry)
 
     def invalidate(self):
         return super().invalidate()
 
-    def dfs(self, bb: IRBasicBlock, done: OrderedSet[IRBasicBlock], path: list[IRBasicBlock]):
-        if bb in path:
-            index = path.index(bb)
-            assert index >= 1, "Loop must have one basic block before it"
-            assert (
-                path[index - 1] not in self.loops.keys()
-            ), "From one basic block can start only one loop"
-            done.add(bb)
-            self.loops[path[index - 1]] = path[index:].copy()
+    def dfs(self, bb: IRBasicBlock, before : IRBasicBlock = None):
+        if bb in self.visited:
+            assert before is not None, "Loop must have one basic block before it"
+            loop = self.collect_path(before, bb)
+            in_bb = bb.cfg_in.difference({before})
+            assert len(in_bb) == 1, "Loop must have one input basic block"
+            input_bb = in_bb.first()
+            self.loops[input_bb] = loop
+            self.done.add(bb)
             return
 
-        path.append(bb)
-        for neighbour in bb.cfg_out:
-            if neighbour not in done:
-                self.dfs(neighbour, done, path)
-        path.pop()
+        self.visited.add(bb)
 
-        done.add(bb)
+        for neighbour in bb.cfg_out:
+            if neighbour not in self.done:
+                self.dfs(neighbour, bb)
+
+        self.done.add(bb)
         return
+    
+    def collect_path(self, bb_from : IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+        loop = OrderedSet()
+        collect_visit = OrderedSet()
+        self.collect_path_inner(bb_from, bb_to, loop, collect_visit)
+        return loop
+
+    def collect_path_inner(self, act_bb : IRBasicBlock, bb_to: IRBasicBlock, loop : OrderedSet[IRBasicBlock], collect_visit : OrderedSet[IRBasicBlock]):
+        if act_bb in collect_visit:
+            return
+        collect_visit.add(act_bb)
+        loop.add(act_bb)
+        if act_bb == bb_to:
+            return
+        
+        for before in act_bb.cfg_in:
+            self.collect_path_inner(before, bb_to, loop, collect_visit)

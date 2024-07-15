@@ -13,6 +13,8 @@ from vyper.venom.basicblock import (
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
+from vyper.utils import OrderedSet
+
 
 class LoopInvariantHoisting(IRPass):
     """
@@ -22,7 +24,7 @@ class LoopInvariantHoisting(IRPass):
     from typing import Iterator
 
     function: IRFunction
-    loops: dict[IRBasicBlock, list[IRBasicBlock]]
+    loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dfg: DFGAnalysis
 
     def run_pass(self):
@@ -33,7 +35,7 @@ class LoopInvariantHoisting(IRPass):
         while True:
             change = False
             for from_bb, loop in self.loops.items():
-                hoistable: list[tuple[IRBasicBlock, int, IRInstruction]] = self._get_hoistable_loop(
+                hoistable: list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]] = self._get_hoistable_loop(
                     from_bb, loop
                 )
                 if len(hoistable) == 0:
@@ -46,32 +48,31 @@ class LoopInvariantHoisting(IRPass):
             # invalidate if you dont hoist anything
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _hoist(self, hoistable: list[tuple[IRBasicBlock, int, IRInstruction]]):
-        for loop_idx, bb_idx, inst in hoistable:
-            loop = self.loops[loop_idx]
-            loop[bb_idx].remove_instruction(inst)
+    def _hoist(self, hoistable: list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]]):
+        for loop_idx, bb, inst in hoistable:
+            bb.remove_instruction(inst)
             bb_before: IRBasicBlock = loop_idx
             bb_before.insert_instruction(inst, index=len(bb_before.instructions) - 1)
 
     def _get_hoistable_loop(
-        self, from_bb: IRBasicBlock, loop: list[IRBasicBlock]
-    ) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
-        result: list[tuple[IRBasicBlock, int, IRInstruction]] = []
-        for bb_idx, bb in enumerate(loop):
-            result.extend(self._get_hoistable_bb(bb, from_bb, bb_idx))
+        self, from_bb: IRBasicBlock, loop: OrderedSet[IRBasicBlock]
+    ) -> list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]]:
+        result: list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]] = []
+        for bb in loop:
+            result.extend(self._get_hoistable_bb(bb, from_bb))
         return result
 
     def _get_hoistable_bb(
-        self, bb: IRBasicBlock, loop_idx: IRBasicBlock, bb_idx
-    ) -> list[tuple[IRBasicBlock, int, IRInstruction]]:
-        result: list[tuple[IRBasicBlock, int, IRInstruction]] = []
+        self, bb: IRBasicBlock, loop_idx: IRBasicBlock
+    ) -> list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]]:
+        result: list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]] = []
         for instruction in bb.instructions:
             if self._can_hoist_instruction(instruction, self.loops[loop_idx]):
-                result.append((loop_idx, bb_idx, instruction))
+                result.append((loop_idx, bb, instruction))
 
         return result
 
-    def _can_hoist_instruction(self, instruction: IRInstruction, loop: list[IRBasicBlock]) -> bool:
+    def _can_hoist_instruction(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
         if (
             instruction.opcode in VOLATILE_INSTRUCTIONS
             or instruction.opcode in BB_TERMINATORS
