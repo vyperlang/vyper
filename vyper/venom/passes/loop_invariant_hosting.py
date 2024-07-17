@@ -2,6 +2,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
+from vyper.venom.analysis.dup_requirements import DupRequirementsAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
     CFG_ALTERING_INSTRUCTIONS,
@@ -9,6 +10,7 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRVariable,
+    IRLiteral
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -77,17 +79,60 @@ class LoopInvariantHoisting(IRPass):
             instruction.opcode in VOLATILE_INSTRUCTIONS
             or instruction.opcode in BB_TERMINATORS
             or instruction.opcode in CFG_ALTERING_INSTRUCTIONS
+            or instruction.opcode == "returndatasize"
         ):
             return False
         for bb in loop:
             if self._in_bb(instruction, bb):
                 return False
+
+        if (
+            instruction.opcode == "store"
+            and len(instruction.operands) == 1
+            and isinstance(instruction.operands[0], IRLiteral)
+        ):
+            all_can = True
+            for used_instruction in self.dfg.get_uses(instruction.output):
+                if not self._can_hoist_instruction_ignore_stores(used_instruction, loop):
+                    all_can = False
+                    break
+            if not all_can:
+                return False
+
         return True
 
     def _in_bb(self, instruction: IRInstruction, bb: IRBasicBlock):
         for in_var in instruction.get_input_variables():
             assert isinstance(in_var, IRVariable)
             source_ins = self.dfg._dfg_outputs[in_var]
+            if source_ins in bb.instructions:
+                return True
+        return False
+
+    def _can_hoist_instruction_ignore_stores(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
+        if (
+            instruction.opcode in VOLATILE_INSTRUCTIONS
+            or instruction.opcode in BB_TERMINATORS
+            or instruction.opcode in CFG_ALTERING_INSTRUCTIONS
+            or instruction.opcode == "returndatasize"
+        ):
+            return False
+        for bb in loop:
+            if self._in_bb_ignore_store(instruction, bb):
+                return False
+        return True
+
+    def _in_bb_ignore_store(self, instruction: IRInstruction, bb: IRBasicBlock):
+        for in_var in instruction.get_input_variables():
+            assert isinstance(in_var, IRVariable)
+            source_ins = self.dfg._dfg_outputs[in_var]
+            if (
+                source_ins.opcode == "store"
+                and len(source_ins.operands) == 1
+                and isinstance(source_ins.operands[0], int)
+            ):
+                continue
+
             if source_ins in bb.instructions:
                 return True
         return False
