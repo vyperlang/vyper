@@ -6,7 +6,7 @@ from vyper.venom.basicblock import IRBasicBlock
 
 class LoopDetectionAnalysis(IRAnalysis):
     """
-    Detects loops and computes basic blocks 
+    Detects loops and computes basic blocks
     and the block which is before the loop
     """
 
@@ -28,7 +28,7 @@ class LoopDetectionAnalysis(IRAnalysis):
     def invalidate(self):
         return super().invalidate()
 
-    def dfs(self, bb: IRBasicBlock, before : IRBasicBlock = None):
+    def dfs(self, bb: IRBasicBlock, before: IRBasicBlock = None):
         if bb in self.visited:
             assert before is not None, "Loop must have one basic block before it"
             loop = self.collect_path(before, bb)
@@ -47,20 +47,26 @@ class LoopDetectionAnalysis(IRAnalysis):
 
         self.done.add(bb)
         return
-    
-    def collect_path(self, bb_from : IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+
+    def collect_path(self, bb_from: IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
         loop = OrderedSet()
         collect_visit = OrderedSet()
         self.collect_path_inner(bb_from, bb_to, loop, collect_visit)
         return loop
 
-    def collect_path_inner(self, act_bb : IRBasicBlock, bb_to: IRBasicBlock, loop : OrderedSet[IRBasicBlock], collect_visit : OrderedSet[IRBasicBlock]):
+    def collect_path_inner(
+        self,
+        act_bb: IRBasicBlock,
+        bb_to: IRBasicBlock,
+        loop: OrderedSet[IRBasicBlock],
+        collect_visit: OrderedSet[IRBasicBlock],
+    ):
         if act_bb in collect_visit:
             return
         collect_visit.add(act_bb)
         loop.add(act_bb)
         if act_bb == bb_to:
             return
-        
+
         for before in act_bb.cfg_in:
             self.collect_path_inner(before, bb_to, loop, collect_visit)

@@ -1,24 +1,13 @@
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
-from vyper.venom.analysis.dup_requirements import DupRequirementsAnalysis
-from vyper.venom.basicblock import (
-    BB_TERMINATORS,
-    CFG_ALTERING_INSTRUCTIONS,
-    VOLATILE_INSTRUCTIONS,
-    IRBasicBlock,
-    IRInstruction,
-    IRVariable,
-    IRLiteral
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-from vyper.utils import OrderedSet
-
-
-def _ignore_instruction(instruction : IRInstruction) -> bool:
+def _ignore_instruction(instruction: IRInstruction) -> bool:
     return (
         instruction.is_volatile
         or instruction.is_bb_terminator
@@ -26,18 +15,21 @@ def _ignore_instruction(instruction : IRInstruction) -> bool:
         or instruction.opcode == "phi"
     )
 
-def _is_correct_store(instruction : IRInstruction) -> bool:
+
+def _is_correct_store(instruction: IRInstruction) -> bool:
     return (
         instruction.opcode == "store"
         and len(instruction.operands) == 1
         and isinstance(instruction.operands[0], IRLiteral)
     )
 
+
 class LoopInvariantHoisting(IRPass):
     """
     This pass detects invariants in loops and hoists them above the loop body.
     Any VOLATILE_INSTRUCTIONS, BB_TERMINATORS CFG_ALTERING_INSTRUCTIONS are ignored
     """
+
     from typing import Iterator
 
     function: IRFunction
@@ -52,9 +44,9 @@ class LoopInvariantHoisting(IRPass):
         while True:
             change = False
             for from_bb, loop in self.loops.items():
-                hoistable: list[tuple[IRBasicBlock, IRBasicBlock, IRInstruction]] = self._get_hoistable_loop(
-                    from_bb, loop
-                )
+                hoistable: list[
+                    tuple[IRBasicBlock, IRBasicBlock, IRInstruction]
+                ] = self._get_hoistable_loop(from_bb, loop)
                 if len(hoistable) == 0:
                     continue
                 change |= True
@@ -89,7 +81,9 @@ class LoopInvariantHoisting(IRPass):
 
         return result
 
-    def _can_hoist_instruction(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
+    def _can_hoist_instruction(
+        self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]
+    ) -> bool:
         if _ignore_instruction(instruction):
             return False
         for bb in loop:
@@ -111,7 +105,9 @@ class LoopInvariantHoisting(IRPass):
                 return True
         return False
 
-    def _can_hoist_instruction_ignore_stores(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
+    def _can_hoist_instruction_ignore_stores(
+        self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]
+    ) -> bool:
         if _ignore_instruction(instruction):
             return False
         for bb in loop:
@@ -129,4 +125,3 @@ class LoopInvariantHoisting(IRPass):
             if source_ins in bb.instructions:
                 return True
         return False
-
