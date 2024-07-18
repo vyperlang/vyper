@@ -18,6 +18,21 @@ from vyper.venom.passes.base_pass import IRPass
 from vyper.utils import OrderedSet
 
 
+def _ignore_instruction(instruction : IRInstruction) -> bool:
+    return (
+        instruction.is_volatile
+        or instruction.is_bb_terminator
+        or instruction.opcode == "returndatasize"
+        or instruction.opcode == "phi"
+    )
+
+def _is_correct_store(instruction : IRInstruction) -> bool:
+    return (
+        instruction.opcode == "store"
+        and len(instruction.operands) == 1
+        and isinstance(instruction.operands[0], IRLiteral)
+    )
+
 class LoopInvariantHoisting(IRPass):
     """
     This pass detects invariants in loops and hoists them above the loop body.
@@ -75,29 +90,16 @@ class LoopInvariantHoisting(IRPass):
         return result
 
     def _can_hoist_instruction(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
-        if (
-            instruction.opcode in VOLATILE_INSTRUCTIONS
-            or instruction.opcode in BB_TERMINATORS
-            or instruction.opcode in CFG_ALTERING_INSTRUCTIONS
-            or instruction.opcode == "returndatasize"
-        ):
+        if _ignore_instruction(instruction):
             return False
         for bb in loop:
             if self._in_bb(instruction, bb):
                 return False
 
-        if (
-            instruction.opcode == "store"
-            and len(instruction.operands) == 1
-            and isinstance(instruction.operands[0], IRLiteral)
-        ):
-            all_can = True
+        if _is_correct_store(instruction):
             for used_instruction in self.dfg.get_uses(instruction.output):
                 if not self._can_hoist_instruction_ignore_stores(used_instruction, loop):
-                    all_can = False
-                    break
-            if not all_can:
-                return False
+                    return False
 
         return True
 
@@ -110,12 +112,7 @@ class LoopInvariantHoisting(IRPass):
         return False
 
     def _can_hoist_instruction_ignore_stores(self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]) -> bool:
-        if (
-            instruction.opcode in VOLATILE_INSTRUCTIONS
-            or instruction.opcode in BB_TERMINATORS
-            or instruction.opcode in CFG_ALTERING_INSTRUCTIONS
-            or instruction.opcode == "returndatasize"
-        ):
+        if _ignore_instruction(instruction):
             return False
         for bb in loop:
             if self._in_bb_ignore_store(instruction, bb):
@@ -126,13 +123,10 @@ class LoopInvariantHoisting(IRPass):
         for in_var in instruction.get_input_variables():
             assert isinstance(in_var, IRVariable)
             source_ins = self.dfg._dfg_outputs[in_var]
-            if (
-                source_ins.opcode == "store"
-                and len(source_ins.operands) == 1
-                and isinstance(source_ins.operands[0], int)
-            ):
+            if _is_correct_store(source_ins):
                 continue
 
             if source_ins in bb.instructions:
                 return True
         return False
+
