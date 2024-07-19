@@ -23,15 +23,12 @@ class LoopDetectionAnalysis(IRAnalysis):
         self.done = OrderedSet()
         self.visited = OrderedSet()
         entry = self.function.entry
-        self.dfs(entry)
+        self._dfs_r(entry)
 
-    def invalidate(self):
-        return super().invalidate()
-
-    def dfs(self, bb: IRBasicBlock, before: IRBasicBlock = None):
+    def _dfs_r(self, bb: IRBasicBlock, before: IRBasicBlock = None):
         if bb in self.visited:
             assert before is not None, "Loop must have one basic block before it"
-            loop = self.collect_path(before, bb)
+            loop = self._collect_path(before, bb)
             in_bb = bb.cfg_in.difference({before})
             assert len(in_bb) == 1, "Loop must have one input basic block"
             input_bb = in_bb.first()
@@ -43,18 +40,18 @@ class LoopDetectionAnalysis(IRAnalysis):
 
         for neighbour in bb.cfg_out:
             if neighbour not in self.done:
-                self.dfs(neighbour, bb)
+                self._dfs_r(neighbour, bb)
 
         self.done.add(bb)
         return
 
-    def collect_path(self, bb_from: IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
-        loop = OrderedSet()
-        collect_visit = OrderedSet()
-        self.collect_path_inner(bb_from, bb_to, loop, collect_visit)
+    def _collect_path(self, bb_from: IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+        loop: OrderedSet[IRBasicBlock] = OrderedSet()
+        collect_visit: OrderedSet[IRBasicBlock] = OrderedSet()
+        self._collect_path_r(bb_from, bb_to, loop, collect_visit)
         return loop
 
-    def collect_path_inner(
+    def _collect_path_r(
         self,
         act_bb: IRBasicBlock,
         bb_to: IRBasicBlock,
@@ -69,4 +66,4 @@ class LoopDetectionAnalysis(IRAnalysis):
             return
 
         for before in act_bb.cfg_in:
-            self.collect_path_inner(before, bb_to, loop, collect_visit)
+            self._collect_path_r(before, bb_to, loop, collect_visit)
