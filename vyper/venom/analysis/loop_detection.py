@@ -4,7 +4,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 
 
-class LoopDetectionAnalysis(IRAnalysis):
+class NaturalLoopDetectionAnalysis(IRAnalysis):
     """
     Detects loops and computes basic blocks
     and the block which is before the loop
@@ -25,15 +25,17 @@ class LoopDetectionAnalysis(IRAnalysis):
         entry = self.function.entry
         self._dfs_r(entry)
 
-    def _dfs_r(self, bb: IRBasicBlock, before: IRBasicBlock = None):
+    def _dfs_r(self, bb: IRBasicBlock, before: IRBasicBlock | None = None):
         if bb in self.visited:
-            assert before is not None, "Loop must have one basic block before it"
+            self.done.add(bb)
+            if before is None:
+                return
             loop = self._collect_path(before, bb)
             in_bb = bb.cfg_in.difference({before})
-            assert len(in_bb) == 1, "Loop must have one input basic block"
+            if len(in_bb) != 1:
+                return
             input_bb = in_bb.first()
             self.loops[input_bb] = loop
-            self.done.add(bb)
             return
 
         self.visited.add(bb)
@@ -43,7 +45,6 @@ class LoopDetectionAnalysis(IRAnalysis):
                 self._dfs_r(neighbour, bb)
 
         self.done.add(bb)
-        return
 
     def _collect_path(self, bb_from: IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
         loop: OrderedSet[IRBasicBlock] = OrderedSet()

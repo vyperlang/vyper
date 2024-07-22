@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
+from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -62,7 +62,7 @@ def test_loop_detection_analysis(depth, count):
     bb.append_instruction("ret")
 
     ac = IRAnalysesCache(fn)
-    analysis = ac.request_analysis(LoopDetectionAnalysis)
+    analysis = ac.request_analysis(NaturalLoopDetectionAnalysis)
     assert len(analysis.loops) == depth * count
 
 

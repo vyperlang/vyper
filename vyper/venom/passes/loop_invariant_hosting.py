@@ -2,13 +2,13 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
+from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
-def _ignore_instruction(instruction: IRInstruction) -> bool:
+def _ignore_instructions(instruction: IRInstruction) -> bool:
     return (
         instruction.is_volatile
         or instruction.is_bb_terminator
@@ -18,7 +18,7 @@ def _ignore_instruction(instruction: IRInstruction) -> bool:
     )
 
 
-def _is_correct_store(instruction: IRInstruction) -> bool:
+def _is_store(instruction: IRInstruction) -> bool:
     return instruction.opcode == "store"
 
 
@@ -35,7 +35,7 @@ class LoopInvariantHoisting(IRPass):
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        loops = self.analyses_cache.request_analysis(LoopDetectionAnalysis)
+        loops = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
         self.loop_analysis = loops.loops
         invalidate_dependant = False
         while True:
@@ -85,7 +85,7 @@ class LoopInvariantHoisting(IRPass):
         for var in inst.get_input_variables():
             source_inst = self.dfg.get_producing_instruction(var)
             assert isinstance(source_inst, IRInstruction)
-            if _is_correct_store(source_inst):
+            if _is_store(source_inst):
                 for bb in self.loop_analysis[loop_idx]:
                     if source_inst.parent == bb:
                         result.append(source_inst)
@@ -96,7 +96,7 @@ class LoopInvariantHoisting(IRPass):
     def _can_hoist_instruction_ignore_stores(
         self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]
     ) -> bool:
-        if _ignore_instruction(instruction) or _is_correct_store(instruction):
+        if _ignore_instructions(instruction) or _is_store(instruction):
             return False
         for bb in loop:
             if self._dependant_in_bb(instruction, bb):
@@ -110,7 +110,7 @@ class LoopInvariantHoisting(IRPass):
 
             # ignores stores since all stores are independant
             # and can be always hoisted
-            if _is_correct_store(source_ins):
+            if _is_store(source_ins):
                 continue
 
             if source_ins.parent == bb:
