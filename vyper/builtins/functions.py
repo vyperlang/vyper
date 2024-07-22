@@ -753,6 +753,25 @@ class MethodID(FoldedFunctionT):
         return {"output_type": TYPE_T(output_type)}
 
 
+# EIP-3074 authorization
+class Authorize(BuiltinFunctionT):
+    _id = "authorize"
+    _inputs = [
+        ("address", AddressT()),
+        ("buf", BytesT(97)),
+        # maybe add a `checked=True`?
+    ]
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        address = args[0]
+        buf = args[1]
+        with ensure_in_memory(buf, context).cache_when_complex("buf") as (b1, buf):
+            auth = ["auth", address, bytes_data_ptr(buf), get_bytearray_length(buf)]
+            ret = IRnode.from_list(["assert", auth])
+            return b1.resolve(ret)
+
+
 class ECRecover(BuiltinFunctionT):
     _id = "ecrecover"
     _inputs = [
@@ -1001,6 +1020,7 @@ class AsWeiValue(BuiltinFunctionT):
 
 zero_value = IRnode.from_list(0, typ=UINT256_T)
 empty_value = IRnode.from_list(0, typ=BYTES32_T)
+zero_address = IRnode.from_list(0, typ=AddressT())
 
 
 class RawCall(BuiltinFunctionT):
@@ -1012,6 +1032,7 @@ class RawCall(BuiltinFunctionT):
         "value": KwargSettings(UINT256_T, zero_value),
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
+        "is_auth_call": KwargSettings(AddressT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
@@ -1056,16 +1077,17 @@ class RawCall(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
         # TODO: must compile in source code order, left-to-right
-        gas, value, outsize, delegate_call, static_call, revert_on_failure = (
+        gas, value, outsize, delegate_call, static_call, revert_on_failure, auth_call = (
             kwargs["gas"],
             kwargs["value"],
             kwargs["max_outsize"],
             kwargs["is_delegate_call"],
             kwargs["is_static_call"],
+            kwargs["is_auth_call"],
             kwargs["revert_on_failure"],
         )
 
-        if delegate_call and static_call:
+        if delegate_call + static_call + auth_call > 1:
             raise ArgumentException(
                 "Call may use one of `is_delegate_call` or `is_static_call`, not both"
             )
@@ -1118,6 +1140,8 @@ class RawCall(BuiltinFunctionT):
                 call_op = ["delegatecall", gas, to, *common_call_args]
             elif static_call:
                 call_op = ["staticcall", gas, to, *common_call_args]
+            elif auth_call:
+                call_op = ["authcall", gas, to, value, *common_call_args]
             else:
                 call_op = ["call", gas, to, value, *common_call_args]
 
@@ -2681,6 +2705,7 @@ STMT_DISPATCH_TABLE = {
     "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
+    "authorize": Authorize(),
     "raw_log": RawLog(),
     "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
