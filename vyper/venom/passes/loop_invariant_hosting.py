@@ -3,7 +3,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.loop_detection import LoopDetectionAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -14,6 +14,7 @@ def _ignore_instruction(instruction: IRInstruction) -> bool:
         or instruction.is_bb_terminator
         or instruction.opcode == "returndatasize"
         or instruction.opcode == "phi"
+        or (instruction.opcode == "add" and isinstance(instruction.operands[1], IRLabel))
     )
 
 

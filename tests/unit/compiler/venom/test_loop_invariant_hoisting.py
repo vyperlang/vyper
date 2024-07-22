@@ -120,6 +120,7 @@ def test_loop_invariant_hoisting_dependant(depth, count):
             assert f"%add_var_b{loop_id}{d}" in assignments, repr(fn)
             assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
 
+
 def _unhoistable_body(fn, loop_id, depth):
     assert isinstance(fn, IRFunction)
     bb = fn.get_basic_block()
@@ -127,6 +128,7 @@ def _unhoistable_body(fn, loop_id, depth):
     bb.append_instruction("mload", 64, ret=add_var_a)
     add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
     bb.append_instruction("add", add_var_a, 2, ret=add_var_b)
+
 
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
@@ -152,4 +154,3 @@ def test_loop_invariant_hoisting_unhoistable(depth, count):
     for loop_id in range(count):
         for d in range(1, depth + 1):
             assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
-
