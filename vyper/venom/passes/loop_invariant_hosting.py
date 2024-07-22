@@ -8,13 +8,14 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
-def _ignore_instructions(instruction: IRInstruction) -> bool:
+def _ignore_instruction(instruction: IRInstruction) -> bool:
     return (
         instruction.is_volatile
         or instruction.is_bb_terminator
         or instruction.opcode == "returndatasize"
         or instruction.opcode == "phi"
         or (instruction.opcode == "add" and isinstance(instruction.operands[1], IRLabel))
+        or instruction.opcode == "store"
     )
 
 
@@ -96,7 +97,7 @@ class LoopInvariantHoisting(IRPass):
     def _can_hoist_instruction_ignore_stores(
         self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]
     ) -> bool:
-        if _ignore_instructions(instruction) or _is_store(instruction):
+        if _ignore_instruction(instruction):
             return False
         for bb in loop:
             if self._dependant_in_bb(instruction, bb):
