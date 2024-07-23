@@ -8,19 +8,19 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
-def _ignore_instruction(instruction: IRInstruction) -> bool:
+def _ignore_instruction(inst: IRInstruction) -> bool:
     return (
-        instruction.is_volatile
-        or instruction.is_bb_terminator
-        or instruction.opcode == "returndatasize"
-        or instruction.opcode == "phi"
-        or (instruction.opcode == "add" and isinstance(instruction.operands[1], IRLabel))
-        or instruction.opcode == "store"
+        inst.is_volatile
+        or inst.is_bb_terminator
+        or inst.opcode == "returndatasize"
+        or inst.opcode == "phi"
+        or (inst.opcode == "add" and isinstance(inst.operands[1], IRLabel))
+        or inst.opcode == "store"
     )
 
 
-def _is_store(instruction: IRInstruction) -> bool:
-    return instruction.opcode == "store"
+def _is_store(inst: IRInstruction) -> bool:
+    return inst.opcode == "store"
 
 
 class LoopInvariantHoisting(IRPass):
@@ -30,18 +30,18 @@ class LoopInvariantHoisting(IRPass):
     """
 
     function: IRFunction
-    loop_analysis: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dfg: DFGAnalysis
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         loops = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
-        self.loop_analysis = loops.loops
-        invalidate_dependant = False
+        self.loops = loops.loops
+        invalidate = False
         while True:
             change = False
-            for from_bb, loop in self.loop_analysis.items():
+            for from_bb, loop in self.loops.items():
                 hoistable: list[IRInstruction] = self._get_hoistable_loop(from_bb, loop)
                 if len(hoistable) == 0:
                     continue
@@ -49,10 +49,10 @@ class LoopInvariantHoisting(IRPass):
                 self._hoist(from_bb, hoistable)
             if not change:
                 break
-            invalidate_dependant = True
+            invalidate = True
 
         # only need to invalidate if you did some hoisting
-        if invalidate_dependant:
+        if invalidate:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _hoist(self, target_bb: IRBasicBlock, hoistable: list[IRInstruction]):
@@ -71,10 +71,10 @@ class LoopInvariantHoisting(IRPass):
 
     def _get_hoistable_bb(self, bb: IRBasicBlock, loop_idx: IRBasicBlock) -> list[IRInstruction]:
         result: list[IRInstruction] = []
-        for instruction in bb.instructions:
-            if self._can_hoist_instruction_ignore_stores(instruction, self.loop_analysis[loop_idx]):
-                result.extend(self._store_dependencies(instruction, loop_idx))
-                result.append(instruction)
+        for inst in bb.instructions:
+            if self._can_hoist_instruction_ignore_stores(inst, self.loops[loop_idx]):
+                result.extend(self._store_dependencies(inst, loop_idx))
+                result.append(inst)
 
         return result
 
@@ -87,7 +87,7 @@ class LoopInvariantHoisting(IRPass):
             source_inst = self.dfg.get_producing_instruction(var)
             assert isinstance(source_inst, IRInstruction)
             if _is_store(source_inst):
-                for bb in self.loop_analysis[loop_idx]:
+                for bb in self.loops[loop_idx]:
                     if source_inst.parent == bb:
                         result.append(source_inst)
         return result
@@ -95,19 +95,20 @@ class LoopInvariantHoisting(IRPass):
     # since the stores are always hoistable this ignores
     # stores in analysis (their are hoisted if some instrution is dependent on them)
     def _can_hoist_instruction_ignore_stores(
-        self, instruction: IRInstruction, loop: OrderedSet[IRBasicBlock]
+        self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock]
     ) -> bool:
-        if _ignore_instruction(instruction):
+        if _ignore_instruction(inst):
             return False
         for bb in loop:
-            if self._dependant_in_bb(instruction, bb):
+            if self._dependent_in_bb(inst, bb):
                 return False
         return True
 
-    def _dependant_in_bb(self, instruction: IRInstruction, bb: IRBasicBlock):
-        for in_var in instruction.get_input_variables():
+    def _dependent_in_bb(self, inst: IRInstruction, bb: IRBasicBlock):
+        for in_var in inst.get_input_variables():
             assert isinstance(in_var, IRVariable)
-            source_ins = self.dfg._dfg_outputs[in_var]
+            source_ins = self.dfg.get_producing_instruction(in_var)
+            assert isinstance(source_ins, IRInstruction)
 
             # ignores stores since all stores are independant
             # and can be always hoisted

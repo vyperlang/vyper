@@ -30,7 +30,7 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
             self.done.add(bb)
             if before is None:
                 return
-            loop = self._collect_path(before, bb)
+            loop = self._collect_loop_bbs(before, bb)
             in_bb = bb.cfg_in.difference({before})
             if len(in_bb) != 1:
                 return
@@ -46,25 +46,27 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
 
         self.done.add(bb)
 
-    def _collect_path(self, bb_from: IRBasicBlock, bb_to: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+    def _collect_loop_bbs(
+        self, bb_from: IRBasicBlock, bb_to: IRBasicBlock
+    ) -> OrderedSet[IRBasicBlock]:
         loop: OrderedSet[IRBasicBlock] = OrderedSet()
         collect_visit: OrderedSet[IRBasicBlock] = OrderedSet()
-        self._collect_path_r(bb_from, bb_to, loop, collect_visit)
+        self._collect_loop_bbs_r(bb_from, bb_to, loop, collect_visit)
         return loop
 
-    def _collect_path_r(
+    def _collect_loop_bbs_r(
         self,
-        act_bb: IRBasicBlock,
+        curr_bb: IRBasicBlock,
         bb_to: IRBasicBlock,
         loop: OrderedSet[IRBasicBlock],
-        collect_visit: OrderedSet[IRBasicBlock],
+        visit: OrderedSet[IRBasicBlock],
     ):
-        if act_bb in collect_visit:
+        if curr_bb in visit:
             return
-        collect_visit.add(act_bb)
-        loop.add(act_bb)
-        if act_bb == bb_to:
+        visit.add(curr_bb)
+        loop.add(curr_bb)
+        if curr_bb == bb_to:
             return
 
-        for before in act_bb.cfg_in:
-            self._collect_path_r(before, bb_to, loop, collect_visit)
+        for before in curr_bb.cfg_in:
+            self._collect_loop_bbs_r(before, bb_to, loop, visit)
