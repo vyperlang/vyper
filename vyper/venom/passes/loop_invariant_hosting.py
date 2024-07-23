@@ -86,10 +86,11 @@ class LoopInvariantHoisting(IRPass):
         for var in inst.get_input_variables():
             source_inst = self.dfg.get_producing_instruction(var)
             assert isinstance(source_inst, IRInstruction)
-            if _is_store(source_inst):
-                for bb in self.loops[loop_idx]:
-                    if source_inst.parent == bb:
-                        result.append(source_inst)
+            if not _is_store(source_inst):
+                continue
+            for bb in self.loops[loop_idx]:
+                if source_inst.parent == bb:
+                    result.append(source_inst)
         return result
 
     # since the stores are always hoistable this ignores
