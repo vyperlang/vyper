@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
     InvalidType,
@@ -421,3 +422,92 @@ from ethereum.ercs import {erc}
         compiler.compile_code(code)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+
+
+invalid_visibility_code = [
+    """
+import foo as Foo
+
+implements: Foo
+
+@external
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+
+implements: Foo
+
+@internal
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+
+implements: Foo
+
+def foobar():
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_visibility_code)
+def test_internal_visibility_in_interface(make_input_bundle, code):
+    interface_code = """
+@internal
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "Interface functions can only be marked as `@external`"
+
+
+external_visibility_interface = [
+    """
+@external
+def foobar():
+    ...
+
+def bar():
+    ...
+    """,
+    """
+def foobar():
+    ...
+
+@external
+def bar():
+    ...
+    """,
+]
+
+
+@pytest.mark.parametrize("iface", external_visibility_interface)
+def test_internal_implemenatation_of_external_interface(make_input_bundle, iface):
+    input_bundle = make_input_bundle({"foo.vyi": iface})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+
+@internal
+def foobar():
+    pass
+
+def bar():
+    pass
+    """
+
+    with pytest.raises(InterfaceViolation) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Implement all interface functions or fix visibility: bar(), foobar()"

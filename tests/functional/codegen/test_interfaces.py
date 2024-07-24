@@ -695,3 +695,34 @@ def test_call(a: address, b: {type_str}) -> {type_str}:
     make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
     c3 = get_contract(code, input_bundle=input_bundle)
     assert c3.test_call(c1.address, value) == value
+
+
+def test_interface_function_without_visibility(make_input_bundle, get_contract):
+    interface_code = """
+def foo() -> uint256:
+    ...
+
+@external
+def bar() -> uint256:
+    ...
+    """
+
+    code = """
+import a as FooInterface
+
+implements: FooInterface
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def bar() -> uint256:
+    return 1
+    """
+
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
+
+    c = get_contract(code, input_bundle=input_bundle)
+
+    assert c.foo() == c.bar() == 1
