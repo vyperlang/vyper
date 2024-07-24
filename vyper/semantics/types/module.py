@@ -117,8 +117,9 @@ class InterfaceT(_UserType):
 
             to_compare = fns_by_name[fn_name]
             assert isinstance(to_compare, ContractFunctionT)
+            assert isinstance(fn_type, ContractFunctionT)
 
-            return to_compare.implements(fn_type)
+            return fn_type.implements(to_compare)
 
         # check for missing functions
         for name, type_ in self.functions.items():
@@ -135,7 +136,7 @@ class InterfaceT(_UserType):
             # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions: {missing_str}", node
+                f"Implement all interface functions or fix visibility: {missing_str}", node
             )
 
     def to_toplevel_abi_dict(self) -> list[dict]:
