@@ -1,6 +1,6 @@
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IROperand
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -58,10 +58,21 @@ class AlgebraicOptimizationPass(IRPass):
         chain.reverse()
         return chain
 
+    def _handle_offsets(self):
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if (
+                    inst.opcode == "add"
+                    and isinstance(inst.operands[0], IRLiteral)
+                    and isinstance(inst.operands[1], IRLabel)
+                ):
+                    inst.opcode = "offset"
+
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self._optimize_iszero_chains()
+        self._handle_offsets()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)

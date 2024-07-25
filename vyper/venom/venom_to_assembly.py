@@ -401,6 +401,12 @@ class VenomCompiler:
                 stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
+        if opcode == "offset":
+            assembly.extend(["_OFST", f"_sym_{inst.operands[1].value}", inst.operands[0].value])
+            assert isinstance(inst.output, IROperand), "Offset must have output"
+            stack.push(inst.output)
+            return apply_line_numbers(inst, assembly)
+
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack)
 
@@ -423,6 +429,8 @@ class VenomCompiler:
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
+
+
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
