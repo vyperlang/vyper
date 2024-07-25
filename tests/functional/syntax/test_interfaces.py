@@ -510,4 +510,5 @@ def bar():
     with pytest.raises(InterfaceViolation) as e:
         compiler.compile_code(code, input_bundle=input_bundle)
 
-    assert e.value.message == "Implement all interface functions or fix visibility: bar(), foobar()"
+    assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+

@@ -107,7 +107,8 @@ class InterfaceT(_UserType):
     def validate_implements(
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
     ) -> None:
-        fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
+        # only external functions can implement interfaces
+        fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys() if fn_t.is_external}
 
         unimplemented = []
 
@@ -136,7 +137,7 @@ class InterfaceT(_UserType):
             # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Implement all interface functions or fix visibility: {missing_str}", node
+                f"Contract does not implement all interface functions: {missing_str}", node
             )
 
     def to_toplevel_abi_dict(self) -> list[dict]:
