@@ -331,8 +331,11 @@ class ContractFunctionT(VyperType):
             funcdef, is_interface=True
         )
 
-        assert function_visibility == FunctionVisibility.EXTERNAL
         assert not nonreentrant
+
+        # it's redundant to specify visibility in vyi - always should be external
+        function_visibility = function_visibility or FunctionVisibility.EXTERNAL
+        assert function_visibility == FunctionVisibility.EXTERNAL
 
         if funcdef.name == "__init__":
             raise FunctionDeclarationException("Constructors cannot appear in interfaces", funcdef)
@@ -378,6 +381,9 @@ class ContractFunctionT(VyperType):
         ContractFunctionT
         """
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
+
+        # it's redundant to specify internal visibility - it's implied by not being external
+        function_visibility = function_visibility or FunctionVisibility.INTERNAL
 
         positional_args, keyword_args = _parse_args(funcdef)
 
@@ -701,7 +707,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef, is_interface: bool = False
-) -> tuple[FunctionVisibility, StateMutability, bool]:
+) -> tuple[FunctionVisibility | None, StateMutability, bool]:
     function_visibility = None
     state_mutability = None
     nonreentrant_node = None
@@ -765,12 +771,6 @@ def _parse_decorators(
 
         else:
             raise StructureException("Bad decorator syntax", decorator)
-
-    if function_visibility is None:
-        if is_interface:
-            function_visibility = FunctionVisibility.EXTERNAL
-        else:
-            function_visibility = FunctionVisibility.INTERNAL
 
     if state_mutability is None:
         # default to nonpayable

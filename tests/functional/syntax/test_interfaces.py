@@ -511,4 +511,3 @@ def bar():
         compiler.compile_code(code, input_bundle=input_bundle)
 
     assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
-
