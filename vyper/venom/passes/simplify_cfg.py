@@ -21,7 +21,6 @@ class SimplifyCFGPass(IRPass):
         # Update CFG
         a.cfg_out = b.cfg_out
         if len(b.cfg_out) > 0:
-            #next_bb = b.cfg_out.first()
             for next_bb in b.cfg_out:
                 next_bb.remove_cfg_in(b)
                 next_bb.add_cfg_in(a)
