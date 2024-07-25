@@ -119,7 +119,7 @@ class InterfaceT(_UserType):
             assert isinstance(to_compare, ContractFunctionT)
             assert isinstance(fn_type, ContractFunctionT)
 
-            return fn_type.implements(to_compare)
+            return to_compare.implements(fn_type)
 
         # check for missing functions
         for name, type_ in self.functions.items():
