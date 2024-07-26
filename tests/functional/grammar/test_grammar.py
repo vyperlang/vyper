@@ -39,7 +39,7 @@ def test_basic_grammar_empty():
 
 def fix_terminal(terminal: str) -> str:
     # these throw exceptions in the grammar
-    for bad in ("\x00", "\\ ", "\x0c"):
+    for bad in ("\x00", "\\ ", "\x0c", "\x0d"):
         terminal = terminal.replace(bad, " ")
     return terminal
 
