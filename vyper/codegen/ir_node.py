@@ -405,7 +405,8 @@ class IRnode:
         for arg in children:
             s = arg.unique_symbols
             non_uniques = ret.intersection(s)
-            assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
+            if len(non_uniques) != 0:  # pragma: nocover
+                raise CompilerPanic(f"non-unique symbols {non_uniques}")
             ret |= s
         return ret
 
@@ -463,6 +464,18 @@ class IRnode:
 
         if getattr(self, "is_self_call", False):
             ret |= self.invoked_function_ir.func_ir.referenced_variables
+
+        return ret
+
+    @cached_property
+    def variable_writes(self):
+        ret = getattr(self, "_writes", set())
+
+        for arg in self.args:
+            ret |= arg.variable_writes
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.variable_writes
 
         return ret
 

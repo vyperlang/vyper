@@ -924,6 +924,26 @@ def potential_overlap(left, right):
     return False
 
 
+# similar to `potential_overlap()`, but compares left's _reads_ vs
+# right's _writes_.
+# TODO: `potential_overlap()` can probably be replaced by this function,
+# but all the cases need to be checked.
+def read_write_overlap(left, right):
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.variable_writes) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
+        return True
+
+    return False
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, hi=None):
     check_assign(left, right)
@@ -1169,8 +1189,12 @@ def clamp_bytestring(ir_node, hi=None):
         if hi is not None:
             assert t.maxlen < 2**64  # sanity check
 
-            # note: this add does not risk arithmetic overflow because
+            # NOTE: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
+            # however(!) _abi_payload_size can OOG, since it loads the word
+            # at `ir_node` to find the length of the bytearray, which could
+            # be out-of-bounds.
+            # if we didn't get OOG, we could overflow in `add`.
             item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
             len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
@@ -1189,8 +1213,12 @@ def clamp_dyn_array(ir_node, hi=None):
     if hi is not None:
         assert t.count < 2**64  # sanity check
 
-        # note: this add does not risk arithmetic overflow because
+        # NOTE: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
+        # however(!) _abi_payload_size can OOG, since it loads the word
+        # at `ir_node` to find the length of the bytearray, which could
+        # be out-of-bounds.
+        # if we didn't get OOG, we could overflow in `add`.
         item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
         # if the subtype is dynamic, the length check is performed in
