@@ -308,10 +308,10 @@ The following example describes the expected input format of ``vyper-json``. (Co
             //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object
             //    evm.bytecode.opcodes - Opcodes list
+            //    evm.bytecode.sourceMap - Source mapping (useful for debugging)
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
-            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
@@ -388,15 +388,37 @@ The following example describes the output format of ``vyper-json``. Comments ar
                             // The bytecode as a hex string.
                             "object": "00fe",
                             // Opcodes list (string)
-                            "opcodes": ""
+                            "opcodes": "",
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         "deployedBytecode": {
                             // The deployed bytecode as a hex string.
                             "object": "00fe",
                             // Deployed opcodes list (string)
                             "opcodes": "",
-                            // The deployed source mapping as a string.
-                            "sourceMap": ""
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         // The list of function hashes
                         "methodIdentifiers": {

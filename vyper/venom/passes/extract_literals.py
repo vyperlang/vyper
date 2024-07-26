@@ -20,7 +20,7 @@ class ExtractLiteralsPass(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode == "store":
+            if inst.opcode in ("store", "offset"):
                 i += 1
                 continue
 
