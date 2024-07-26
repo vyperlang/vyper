@@ -186,6 +186,9 @@ class Expr:
             ret._referenced_variables = {varinfo}
             return ret
 
+        if varname in self.context.forvars:
+            return self.context.forvars[varname]
+
         if varinfo.is_constant:
             return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
@@ -689,7 +692,7 @@ class Expr:
             (arg0,) = self.expr.args
             arg_ir = Expr(arg0, self.context).ir_node
 
-            assert arg_ir.typ == AddressT()
+            assert isinstance(arg_ir.typ, (AddressT, InterfaceT)), arg_ir.typ
             arg_ir.typ = self.expr._metadata["type"]
 
             return arg_ir
