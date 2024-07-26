@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
 
@@ -243,10 +242,7 @@ def safe_mul(x, y):
             # in the above sdiv check, if (r==-1 and l==-2**255),
             # -2**255<res> / -1<r> will return -2**255<l>.
             # need to check: not (r == -1 and l == -2**255)
-            if version_check(begin="constantinople"):
-                upper_bound = ["shl", 255, 1]
-            else:
-                upper_bound = -(2**255)
+            upper_bound = ["shl", 255, 1]
 
             check_x = ["ne", x, upper_bound]
             check_y = ["ne", ["not", y], 0]
@@ -290,10 +286,10 @@ def safe_div(x, y):
 
     if is_decimal_type(x.typ):
         lo, hi = typ.int_bounds
-        if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:
+        if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:  # pragma: nocover
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
-            raise UnimplementedException("safe_mul for decimal{typ.bits}x{typ.decimals}")
+            raise UnimplementedException(f"safe_mul for decimal{typ.bits}x{typ.decimals}")
         x = ["mul", x, typ.divisor]
 
     DIV = "sdiv" if typ.is_signed else "div"
@@ -301,10 +297,7 @@ def safe_div(x, y):
     with res.cache_when_complex("res") as (b1, res):
         # TODO: refactor this condition / push some things into the optimizer
         if typ.is_signed and typ.bits == 256:
-            if version_check(begin="constantinople"):
-                upper_bound = ["shl", 255, 1]
-            else:
-                upper_bound = -(2**255)
+            upper_bound = ["shl", 255, 1]
 
             if not x.is_literal and not y.is_literal:
                 ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
@@ -347,8 +340,7 @@ def safe_mod(x, y):
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:
 def safe_pow(x, y):
     typ = x.typ
-    if not is_integer_type(x.typ):
-        # type checker should have caught this
+    if not is_integer_type(x.typ):  # pragma: nocover
         raise TypeCheckFailure("non-integer pow")
 
     GE = "sge" if typ.is_signed else "ge"

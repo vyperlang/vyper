@@ -17,8 +17,11 @@ class _NodeMetadataJournal:
         self._node_updates: list[dict[tuple[int, str, Any], NodeMetadata]] = []
 
     def register_update(self, metadata, k):
+        KEY = (id(metadata), k)
+        if KEY in self._node_updates[-1]:
+            return
         prev = metadata.get(k, self._NOT_FOUND)
-        self._node_updates[-1][(id(metadata), k)] = (metadata, prev)
+        self._node_updates[-1][KEY] = (metadata, prev)
 
     @contextlib.contextmanager
     def enter(self):
@@ -48,7 +51,7 @@ class _NodeMetadataJournal:
 
         outer = self._node_updates[-1]
 
-        # register with previous frame in case inner gets commited
+        # register with previous frame in case inner gets committed
         # but outer needs to be rolled back
         for (_, k), (metadata, prev) in inner.items():
             if (id(metadata), k) not in outer:

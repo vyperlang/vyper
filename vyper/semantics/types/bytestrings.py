@@ -42,6 +42,9 @@ class _BytestringT(VyperType):
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
+    def _addl_dict_fields(self):
+        return {"length": self.length}
+
     @property
     def length(self):
         """
@@ -63,7 +66,7 @@ class _BytestringT(VyperType):
 
         if len(node.value) != self.length:
             # should always be constructed with correct length
-            # at the point that validate_literal is calle.d
+            # at the point that validate_literal is called
             raise CompilerPanic("unreachable")
 
     @property
@@ -71,7 +74,7 @@ class _BytestringT(VyperType):
         # the first slot (32 bytes) stores the actual length, and then we reserve
         # enough additional slots to store the data if it uses the max available length
         # because this data type is single-bytes, we make it so it takes the max 32 byte
-        # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
+        # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
 
         return 32 + ceil32(self.length)
 
@@ -123,7 +126,7 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
-        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
             )
@@ -132,7 +135,15 @@ class _BytestringT(VyperType):
             raise UnexpectedValue("Node id does not match type name")
 
         length = get_index_value(node.slice)  # type: ignore
-        # return cls._type(length, location, is_constant, is_public, is_immutable)
+
+        if length is None:
+            raise StructureException(
+                f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
+            )
+
+        # TODO: pass None to constructor after we redo length inference on bytestrings
+        length = length or 0
+
         return cls(length)
 
     @classmethod
@@ -145,6 +156,8 @@ class _BytestringT(VyperType):
 
 
 class BytesT(_BytestringT):
+    typeclass = "bytes"
+
     _id = "Bytes"
     _valid_literal = (vy_ast.Bytes,)
 
@@ -154,6 +167,8 @@ class BytesT(_BytestringT):
 
 
 class StringT(_BytestringT):
+    typeclass = "string"
+
     _id = "String"
     _valid_literal = (vy_ast.Str,)
 
