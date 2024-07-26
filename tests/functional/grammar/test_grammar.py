@@ -37,7 +37,7 @@ def test_basic_grammar_empty():
     assert len(tree.children) == 0
 
 
-def fix_terminal(terminal: str) -> bool:
+def fix_terminal(terminal: str) -> str:
     # these throw exceptions in the grammar
     for bad in ("\x00", "\\ ", "\x0c", "\x0d"):
         terminal = terminal.replace(bad, " ")
