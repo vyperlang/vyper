@@ -128,6 +128,7 @@ def test_interleaved_case(interleave_point):
     else:
         assert bb.instructions[-1].operands[0] == op3
 
+
 def test_offsets():
     ctx = IRContext()
     fn = ctx.create_function("_global")
@@ -164,18 +165,16 @@ def test_offsets():
     op16 = br2.append_instruction("iszero", op15)
     br2.append_instruction("return", p1, op16)
 
-
-
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    
+
     offset_count = 0
     for bb in fn.get_basic_blocks():
         for instruction in bb.instructions:
             assert instruction.opcode != "add"
             if instruction.opcode == "offset":
                 offset_count += 1
-    
+
     assert offset_count == 3

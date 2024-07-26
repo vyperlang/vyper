@@ -430,8 +430,6 @@ class VenomCompiler:
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
-
-
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
         self._stack_reorder(assembly, stack, operands)
