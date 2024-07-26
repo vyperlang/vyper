@@ -61,6 +61,9 @@ class AlgebraicOptimizationPass(IRPass):
     def _handle_offsets(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                # check if the instruction is of the form
+                # `add <ptr> <label>`
+                # this works only if store chains have been eliminated.
                 if (
                     inst.opcode == "add"
                     and isinstance(inst.operands[0], IRLiteral)
