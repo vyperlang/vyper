@@ -334,7 +334,9 @@ class ContractFunctionT(VyperType):
         assert not nonreentrant
 
         # it's redundant to specify visibility in vyi - always should be external
-        function_visibility = function_visibility or FunctionVisibility.EXTERNAL
+        if function_visibility is None:
+            function_visibility = FunctionVisibility.EXTERNAL
+
         assert function_visibility == FunctionVisibility.EXTERNAL
 
         if funcdef.name == "__init__":
@@ -383,7 +385,8 @@ class ContractFunctionT(VyperType):
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
         # it's redundant to specify internal visibility - it's implied by not being external
-        function_visibility = function_visibility or FunctionVisibility.INTERNAL
+        if function_visibility is None:
+            function_visibility = FunctionVisibility.INTERNAL
 
         positional_args, keyword_args = _parse_args(funcdef)
 
