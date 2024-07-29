@@ -260,13 +260,9 @@ class CompilerData:
     @cached_property
     def bytecode_runtime(self) -> bytes:
         if self.settings.experimental_eof:
-            return generate_EOFv1(
-                self.assembly_runtime, insert_compiler_metadata=False
-            )
+            return generate_EOFv1(self.assembly_runtime, insert_compiler_metadata=False)
         else:
-            return generate_bytecode(
-                self.assembly_runtime, insert_compiler_metadata=False
-            )
+            return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
