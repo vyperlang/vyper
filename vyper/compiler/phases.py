@@ -259,14 +259,13 @@ class CompilerData:
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        insert_compiler_metadata = not self.no_bytecode_metadata
         if self.settings.experimental_eof:
             return generate_EOFv1(
-                self.assembly_runtime, insert_compiler_metadata=insert_compiler_metadata
+                self.assembly_runtime, insert_compiler_metadata=False
             )
         else:
             return generate_bytecode(
-                self.assembly_runtime, insert_compiler_metadata=insert_compiler_metadata
+                self.assembly_runtime, insert_compiler_metadata=False
             )
 
     @cached_property
