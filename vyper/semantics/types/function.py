@@ -327,17 +327,25 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant = _parse_decorators(
-            funcdef, is_interface=True
-        )
+        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
-        assert not nonreentrant
+        if nonreentrant:
+            decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+            raise FunctionDeclarationException(
+                "`@nonreentrant` not allowed in interfaces", decorator
+            )
 
         # it's redundant to specify visibility in vyi - always should be external
         if function_visibility is None:
             function_visibility = FunctionVisibility.EXTERNAL
 
-        assert function_visibility == FunctionVisibility.EXTERNAL
+        if function_visibility != FunctionVisibility.EXTERNAL:
+            nonexternal = next(
+                d for d in funcdef.decorator_list if d.id in FunctionVisibility.values()
+            )
+            raise FunctionDeclarationException(
+                "Interface functions can only be marked as `@external`", nonexternal
+            )
 
         if funcdef.name == "__init__":
             raise FunctionDeclarationException("Constructors cannot appear in interfaces", funcdef)
@@ -430,6 +438,10 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
+            if nonreentrant:
+                decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+                msg = "`@nonreentrant` decorator disallowed on `__init__`"
+                raise FunctionDeclarationException(msg, decorator)
 
         return cls(
             funcdef.name,
@@ -713,7 +725,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 
 def _parse_decorators(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+    funcdef: vy_ast.FunctionDef,
 ) -> tuple[FunctionVisibility | None, StateMutability, bool]:
     function_visibility = None
     state_mutability = None
@@ -732,14 +744,6 @@ def _parse_decorators(
         if decorator.get("id") == "nonreentrant":
             if nonreentrant_node is not None:
                 raise StructureException("nonreentrant decorator is already set", nonreentrant_node)
-            if is_interface:
-                raise FunctionDeclarationException(
-                    "`@nonreentrant` not allowed in interfaces", funcdef
-                )
-
-            if funcdef.name == "__init__":
-                msg = "`@nonreentrant` decorator disallowed on `__init__`"
-                raise FunctionDeclarationException(msg, decorator)
 
             nonreentrant_node = decorator
 
@@ -750,11 +754,6 @@ def _parse_decorators(
                         f"Visibility is already set to: {function_visibility}",
                         decorator,
                         hint="only one visibility decorator is allowed per function",
-                    )
-
-                if is_interface and FunctionVisibility(decorator.id) != FunctionVisibility.EXTERNAL:
-                    raise FunctionDeclarationException(
-                        "Interface functions can only be marked as `@external`", decorator
                     )
 
                 function_visibility = FunctionVisibility(decorator.id)
