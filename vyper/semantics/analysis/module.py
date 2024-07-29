@@ -414,7 +414,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise StructureException(msg, node.annotation, hint=hint)
 
         # grab exposed functions
-        funcs = self._all_functions
+        funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
         type_.validate_implements(node, funcs)
 
         node._metadata["interface_type"] = type_

@@ -108,7 +108,7 @@ class InterfaceT(_UserType):
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
     ) -> None:
         # only external functions can implement interfaces
-        fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys() if fn_t.is_external}
+        fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
 
         unimplemented = []
 
@@ -117,8 +117,8 @@ class InterfaceT(_UserType):
                 return False
 
             to_compare = fns_by_name[fn_name]
-            assert isinstance(to_compare, ContractFunctionT)
-            assert isinstance(fn_type, ContractFunctionT)
+            assert to_compare.is_external
+            assert all(isinstance(f, ContractFunctionT) for f in [to_compare, fn_type])
 
             return to_compare.implements(fn_type)
 
