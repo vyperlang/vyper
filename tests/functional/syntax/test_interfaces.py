@@ -424,8 +424,16 @@ from ethereum.ercs import {erc}
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
 
 
-invalid_visibility_code = [
-    """
+def test_interface_body_check(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    return ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
 import foo as Foo
 
 implements: Foo
@@ -433,21 +441,69 @@ implements: Foo
 @external
 def foobar():
     pass
+"""
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "function body in an interface can only be `...`!"
+
+
+def test_interface_body_check2(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    ...
+
+@external
+def bar():
+    ...
+
+@external
+def baz():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo
+
+implements: foo
+
+@external
+def foobar():
+    pass
+
+@external
+def bar():
+    pass
+
+@external
+def baz():
+    pass
+"""
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+invalid_visibility_code = [
+    """
+import foo as Foo
+implements: Foo
+@external
+def foobar():
+    pass
     """,
     """
 import foo as Foo
-
 implements: Foo
-
 @internal
 def foobar():
     pass
     """,
     """
 import foo as Foo
-
 implements: Foo
-
 def foobar():
     pass
     """,
@@ -475,14 +531,12 @@ external_visibility_interface = [
 @external
 def foobar():
     ...
-
 def bar():
     ...
     """,
     """
 def foobar():
     ...
-
 @external
 def bar():
     ...
@@ -496,13 +550,10 @@ def test_internal_implemenatation_of_external_interface(make_input_bundle, iface
 
     code = """
 import foo as Foo
-
 implements: Foo
-
 @internal
 def foobar():
     pass
-
 def bar():
     pass
     """

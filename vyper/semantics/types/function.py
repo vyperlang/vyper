@@ -351,7 +351,11 @@ class ContractFunctionT(VyperType):
 
         return_type = _parse_return_type(funcdef)
 
-        if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
+        body = funcdef.body
+
+        if len(body) != 1 or not (
+            isinstance(body[0], vy_ast.Expr) and isinstance(body[0].value, vy_ast.Ellipsis)
+        ):
             raise FunctionDeclarationException(
                 "function body in an interface can only be `...`!", funcdef
             )
