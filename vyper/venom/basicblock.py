@@ -219,13 +219,11 @@ class IRLabel(IROperand):
     # (like a function name, try to preserve it in optimization passes)
     is_symbol: bool = False
     value: str
-    address: Optional[int] = None  # optional address override
 
-    def __init__(self, value: str, is_symbol: bool = False, address: Optional[int] = None) -> None:
+    def __init__(self, value: str, is_symbol: bool = False) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
         self.is_symbol = is_symbol
-        self.address = address
         super().__init__(value)
 
     _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")

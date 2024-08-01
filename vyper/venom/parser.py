@@ -68,7 +68,7 @@ VENOM_GRAMMAR = """
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
     DB: "db"
-    HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
+    HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")* DOUBLE_QUOTE
     CONST: SIGNED_INT | "0x" HEXDIGIT+
 
     # Constant expressions
@@ -263,6 +263,9 @@ class VenomTransformer(Transformer):
             # Skip NEWLINE tokens
             if hasattr(child, "type") and child.type == "NEWLINE":
                 continue
+            elif hasattr(child, "data") and child.data == "tag_list":
+                # Transform the tag_list tree
+                tags = self.transform(child)
             elif isinstance(child, list):  # tag_list returns a list
                 tags = child
 

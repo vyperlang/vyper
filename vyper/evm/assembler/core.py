@@ -4,6 +4,7 @@ from vyper.evm.assembler.constants import DUP_OFFSET, PUSH_OFFSET, SWAP_OFFSET
 from vyper.evm.assembler.instructions import (
     DATA_ITEM,
     JUMPDEST,
+    PC_RESET,
     PUSH,
     PUSH_N,
     PUSH_OFST,
@@ -259,6 +260,66 @@ def resolve_symbols(
         elif isinstance(item, Label):
             _add_to_symbol_map(symbol_map, item, pc)
 
+        elif isinstance(item, PC_RESET):
+            # PC_RESET resets the program counter for calculating jump destinations
+            # Store the actual position for the runtime label specifically
+            # This is used when PUSH_OFST references @runtime for CODECOPY
+            # PC_RESET itself doesn't generate bytecode
+            
+            # Store the actual PC before resetting for size calculations
+            actual_pc = pc
+            
+            # Look ahead to find runtime-related labels and store their actual positions
+            # These are used for size calculations (e.g., RUNTIME_SIZE)
+            j = i + 1
+            while j < len(assembly):
+                next_item = assembly[j]
+                if isinstance(next_item, JUMPDEST) and hasattr(next_item.label, 'label'):
+                    label_name = next_item.label.label
+                    if label_name == "runtime":
+                        # Store actual position for runtime offset calculations
+                        symbol_map[Label("__runtime_actual__")] = actual_pc
+                    elif label_name == "runtime_end":
+                        # Store actual position for size calculations
+                        # runtime_end actual position = current actual_pc + bytes until runtime_end
+                        # We need to count bytes from here to runtime_end
+                        bytes_to_end = 0
+                        for k in range(i + 1, j + 1):
+                            item_k = assembly[k]
+                            if isinstance(item_k, JUMPDEST):
+                                bytes_to_end += 1
+                            elif isinstance(item_k, (PUSHLABEL, PUSHLABELJUMPDEST)):
+                                bytes_to_end += 3  # PUSH2
+                            elif isinstance(item_k, PUSH_OFST):
+                                bytes_to_end += 3  # PUSH2
+                            elif isinstance(item_k, int):
+                                bytes_to_end += 1
+                            elif isinstance(item_k, str) and item_k in get_opcodes():
+                                bytes_to_end += 1
+                        symbol_map[Label("__runtime_end_actual__")] = actual_pc + bytes_to_end
+                        break
+                elif isinstance(next_item, Label):
+                    if next_item.label == "runtime_end":
+                        # Calculate actual position similarly
+                        bytes_to_end = 0
+                        for k in range(i + 1, j):
+                            item_k = assembly[k]
+                            if isinstance(item_k, JUMPDEST):
+                                bytes_to_end += 1
+                            elif isinstance(item_k, (PUSHLABEL, PUSHLABELJUMPDEST)):
+                                bytes_to_end += 3
+                            elif isinstance(item_k, PUSH_OFST):
+                                bytes_to_end += 3
+                            elif isinstance(item_k, int):
+                                bytes_to_end += 1
+                            elif isinstance(item_k, str) and item_k in get_opcodes():
+                                bytes_to_end += 1
+                        symbol_map[Label("__runtime_end_actual__")] = actual_pc + bytes_to_end
+                        break
+                j += 1
+            
+            pc = item.value  # Reset PC to specified value (usually 0)
+
         elif isinstance(item, (PUSHLABEL, PUSHLABELJUMPDEST)):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
@@ -269,21 +330,8 @@ def resolve_symbols(
             if isinstance(item.label, Label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             elif isinstance(item.label, CONSTREF):
-                # Check if this constant depends on labels
-                const_name = item.label.label
-                if const_name in label_dependent_consts:
-                    # Use fixed PUSH2 size for label-dependent constants
-                    pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
-                else:
-                    # For non-label-dependent constants, calculate actual size
-                    # Try to look up as a CONSTREF first
-                    if item.label in symbol_map:
-                        const = symbol_map[item.label]
-                        val = const + item.ofst
-                        pc += calc_push_size(val)
-                    else:
-                        # Treat it as a label-dependent reference using PUSH2 size
-                        pc += SYMBOL_SIZE + 1  # PUSH2
+                # Always use PUSH2 size for CONSTREFs for now
+                pc += SYMBOL_SIZE + 1  # PUSH2
             else:  # pragma: nocover
                 raise CompilerPanic(f"invalid ofst {item.label}")
 
@@ -419,10 +467,22 @@ def _resolve_push_ofst_value(item: PUSH_OFST, symbol_map: dict[SymbolKey, int]) 
     # Try to look up as a CONSTREF first
     if item.label in symbol_map:
         return symbol_map[item.label] + item.ofst
-    # If not found as CONSTREF, try as a Label
+    # If not found as CONSTREF, try as a Label (exact match)
     elif Label(const_name) in symbol_map:
+        # Special case: if this is the runtime label and we have stored its actual position,
+        # use the actual PC instead of the reset PC for offset calculations
+        if const_name == "runtime" and Label("__runtime_actual__") in symbol_map:
+            return symbol_map[Label("__runtime_actual__")] + item.ofst
         return symbol_map[Label(const_name)] + item.ofst
     else:
+        # Search for any Label with this name
+        for key in symbol_map:
+            if isinstance(key, Label) and key.label == const_name:
+                # Special case: if this is the runtime label and we have stored its actual position,
+                # use the actual PC instead of the reset PC for offset calculations
+                if const_name == "runtime" and Label("__runtime_actual__") in symbol_map:
+                    return symbol_map[Label("__runtime_actual__")] + item.ofst
+                return symbol_map[key] + item.ofst
         raise CompilerPanic(f"Unknown symbol: {const_name}")
 
 
@@ -496,6 +556,8 @@ def _assembly_to_evm(
             continue  # CONST operations do not show up in bytecode
         elif isinstance(item, Label):
             continue  # Label does not show up in bytecode
+        elif isinstance(item, PC_RESET):
+            continue  # PC_RESET does not show up in bytecode
 
         elif isinstance(item, (PUSHLABEL, PUSHLABELJUMPDEST)):
             # push a symbol to stack
@@ -513,20 +575,14 @@ def _assembly_to_evm(
             # PUSH_OFST (const foo) 32
             ofst = _resolve_push_ofst_value(item, symbol_map)
 
-            # Determine if we need fixed size or optimal size
-            use_fixed_size = isinstance(item.label, Label)
-            if isinstance(item.label, CONSTREF):
-                const_name = item.label.label
-                if const_name in label_dependent_consts:
-                    use_fixed_size = True
-                    # Validate the value fits in 16 bits
-                    if ofst > 0xFFFF:
-                        raise CompilerPanic(
-                            f"PUSH_OFST with label-dependent constant '{const_name}' "
-                            f"has value {ofst} which exceeds 16-bit limit"
-                        )
-
-            if use_fixed_size:
+            # Use fixed PUSH2 size for Labels and CONSTREFs to match symbol resolution
+            if isinstance(item.label, (Label, CONSTREF)):
+                # Validate the value fits in 16 bits
+                if ofst > 0xFFFF:
+                    label_name = item.label.label if isinstance(item.label, CONSTREF) else str(item.label)
+                    raise CompilerPanic(
+                        f"PUSH_OFST with '{label_name}' has value {ofst} which exceeds PUSH2 limit"
+                    )
                 bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
             else:
                 bytecode = _compile_push_instruction(PUSH(ofst))

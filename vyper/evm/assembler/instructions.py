@@ -47,6 +47,19 @@ class PUSH_OFST:
 
 
 @dataclass
+class PC_RESET:
+    """
+    Special instruction to reset PC counter for runtime code sections.
+    This allows jump destinations within the section to be calculated
+    relative to the reset point rather than absolute positions.
+    """
+    value: int = 0  # The value to reset PC to (usually 0)
+
+    def __repr__(self) -> str:
+        return f"PC_RESET {self.value}"
+
+
+@dataclass
 class DATA_ITEM:
     data: bytes | Label
 

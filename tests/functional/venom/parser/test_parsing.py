@@ -410,12 +410,12 @@ def test_labels_with_addresses():
     main_fn = ctx.get_function(IRLabel("main"))
     assert main_fn is not None
 
-    # Labels inside functions don't have addresses
+    # Labels inside functions are just regular labels
     main_bb = main_fn.get_basic_block("main")
-    assert main_bb.label.address is None
+    assert main_bb is not None
 
     other_bb = main_fn.get_basic_block("other_block")
-    assert other_bb.label.address is None
+    assert other_bb is not None
 
 
 def test_labels_with_addresses_used_in_function():
@@ -439,7 +439,7 @@ def test_labels_with_addresses_used_in_function():
     assert main_fn is not None
 
     other_bb = main_fn.get_basic_block("other_block")
-    assert other_bb.label.address is None
+    assert other_bb is not None
 
     add_inst = other_bb.instructions[0]
     assert add_inst.opcode == "add"

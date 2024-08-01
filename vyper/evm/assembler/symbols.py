@@ -49,10 +49,22 @@ class BaseConstOp:
             op_ref = CONSTREF(operand)
             if op_ref in symbol_map:
                 return symbol_map[op_ref]
-            # Try as Label
+            
+            # Special handling for runtime labels in size calculations
+            # Use actual positions for RUNTIME_SIZE calculation
+            if operand == "runtime" and Label("__runtime_actual__") in symbol_map:
+                return symbol_map[Label("__runtime_actual__")]
+            elif operand == "runtime_end" and Label("__runtime_end_actual__") in symbol_map:
+                return symbol_map[Label("__runtime_end_actual__")]
+            
+            # Try as Label - first try exact match
             label = Label(operand)
             if label in symbol_map:
                 return symbol_map[label]
+            # If not found, search for any Label with this name
+            for key in symbol_map:
+                if isinstance(key, Label) and key.label == operand:
+                    return symbol_map[key]
         elif isinstance(operand, int):
             return operand
         return None

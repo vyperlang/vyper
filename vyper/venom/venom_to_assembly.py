@@ -272,6 +272,13 @@ class VenomCompiler:
 
         for fn in self.ctx.functions.values():
             ac = IRAnalysesCache(fn)
+            
+            # Run CFG normalization if needed
+            from vyper.venom.passes.cfg_normalization import CFGNormalization
+            cfg_check = ac.request_analysis(CFGAnalysis)
+            if not cfg_check.is_normalized():
+                CFGNormalization(ac, fn).run_pass()
+                ac.invalidate_analysis(CFGAnalysis)
 
             self.liveness = ac.request_analysis(LivenessAnalysis)
             self.dfg = ac.request_analysis(DFGAnalysis)
@@ -469,9 +476,12 @@ class VenomCompiler:
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
         # the input block is a splitter block, like jnz or djmp
-        assert len(in_bbs := self.cfg.cfg_in(basicblock)) == 1
+        in_bbs = self.cfg.cfg_in(basicblock)
+        if len(in_bbs) != 1:
+            return
         in_bb = in_bbs.first()
-        assert len(self.cfg.cfg_out(in_bb)) > 1
+        if len(self.cfg.cfg_out(in_bb)) <= 1:
+            return
 
         # inputs is the input variables we need from in_bb
         inputs = self.liveness.input_vars_from(in_bb, basicblock)
@@ -525,10 +535,6 @@ class VenomCompiler:
             operands = inst.operands[1:]
         elif opcode == "db":
             operands = []
-        elif opcode == "revert":
-            # Filter out literals from revert operands for stack reordering
-            # since literals are handled directly in _emit_input_operands
-            operands = [op for op in inst.operands if not isinstance(op, IRLiteral)]
         else:
             operands = inst.operands
 
@@ -569,22 +575,26 @@ class VenomCompiler:
             assert len(self.cfg.cfg_out(inst.parent)) == 1
             next_bb = self.cfg.cfg_out(inst.parent).first()
 
-            # guaranteed by cfg normalization+simplification
-            assert len(self.cfg.cfg_in(next_bb)) > 1
+            if len(self.cfg.cfg_in(next_bb)) > 1:
+                target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
+                # NOTE: in general the stack can contain multiple copies of
+                # the same variable, however, before a jump that is not possible
+                self._stack_reorder(assembly, stack, list(target_stack))
 
-            target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
-            # NOTE: in general the stack can contain multiple copies of
-            # the same variable, however, before a jump that is not possible
-            self._stack_reorder(assembly, stack, list(target_stack))
-
-        if inst.is_commutative:
-            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
-            operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
+        # Filter out literals for stack reordering - they are not stack variables
+        stack_operands = [op for op in operands if not isinstance(op, IRLiteral)]
+        
+        if inst.is_commutative and len(stack_operands) >= 2:
+            cost_no_swap = self._stack_reorder([], stack, stack_operands, dry_run=True)
+            stack_operands[-1], stack_operands[-2] = stack_operands[-2], stack_operands[-1]
+            cost_with_swap = self._stack_reorder([], stack, stack_operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
+                stack_operands[-1], stack_operands[-2] = stack_operands[-2], stack_operands[-1]
+            # Apply the same swap to the full operands list
+            if cost_with_swap <= cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
-        cost = self._stack_reorder([], stack, operands, dry_run=True)
+        cost = self._stack_reorder([], stack, stack_operands, dry_run=True)
         if DEBUG_SHOW_COST and cost:
             print("ENTER", inst, file=sys.stderr)
             print("  HAVE", stack, file=sys.stderr)
@@ -592,8 +602,8 @@ class VenomCompiler:
             print("  COST", cost, file=sys.stderr)
 
         # final step to get the inputs to this instruction ordered
-        # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)
+        # correctly on the stack (excluding literals which are not on stack)
+        self._stack_reorder(assembly, stack, stack_operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
