@@ -413,7 +413,7 @@ class VyperNode:
 
     @property
     def is_leaf(self):
-        return not self._children
+        return len(self._children) == 0
 
     def get_folded_value(self) -> "ExprNode":
         """
