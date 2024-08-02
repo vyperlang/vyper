@@ -141,7 +141,7 @@ def foo(_topic: bytes32):
 @external
 @pure
 def foo(_topic: bytes32):
-    raw_log([_topic], b"")      
+    raw_log([_topic], b"")
     """,
     ],
 )
