@@ -71,7 +71,7 @@ def _pack_arguments(fn_type, args, context):
     pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
 
     if len(args) != 0:
-        pack_args.append(abi_encode(add_ofst(buf, 32), args_as_tuple, context, bufsz=buflen))
+        pack_args.append(abi_encode(add_ofst(buf, 32), args_as_tuple, context, bufsz=buflen - 32))
 
     return buf, pack_args, args_ofst, args_len
 
