@@ -54,6 +54,21 @@ def potato():
         analyze_module(vyper_module, dummy_input_bundle)
 
 
+def test_recursive_function_call(dummy_input_bundle):
+    code = """
+@external
+def foo():
+    self.bar()
+
+@internal
+def bar():
+    self.bar()
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(CallViolation):
+        analyze_module(vyper_module, dummy_input_bundle)
+
+
 def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
     code = """
 balanceOf: public(HashMap[address, uint256])
