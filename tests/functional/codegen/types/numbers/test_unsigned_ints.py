@@ -279,3 +279,52 @@ def foo():
         compile_code(code)
 
     assert e.value._hint == "did you mean `5 // 9`?"
+
+
+def test_invalid_div_augassign():
+    code = """
+@external
+def foo():
+    a: uint256 = 10
+    a /= (3 + 10) // (2 + 3)
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `a //= (3 + 10) // (2 + 3)`?"
+
+
+def test_invalid_div_with_parens():
+    code = """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / c
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `(a + b) // c`?"
+
+
+def test_invalid_div_with_parens2():
+    code = """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / (a + c)
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `(a + b) // (a + c)`?"
+
+
+def test_invalid_div_with_parens3():
+    code = """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + (c + b)) / (a + c)
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `(a + (c + b)) // (a + c)`?"
