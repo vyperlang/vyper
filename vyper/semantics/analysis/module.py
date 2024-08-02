@@ -161,6 +161,10 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
             message = " -> ".join([f.name for f in path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
+        if g == fn_t:
+            message = f"{g.name} -> {g.name}"
+            raise CallViolation(f"Contract contains recursion: {message}")
+
         _compute_reachable_set(g, path=path)
 
         g_reachable = g.reachable_internal_functions
