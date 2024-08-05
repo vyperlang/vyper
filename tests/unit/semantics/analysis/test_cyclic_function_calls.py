@@ -65,8 +65,10 @@ def bar():
     self.bar()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(CallViolation):
+    with pytest.raises(CallViolation) as e:
         analyze_module(vyper_module, dummy_input_bundle)
+
+    assert e.value.message == "Contract contains recursion: bar -> bar"
 
 
 def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
