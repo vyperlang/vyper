@@ -411,10 +411,6 @@ class VyperNode:
         """
         return "folded_value" in self._metadata
 
-    @property
-    def is_leaf(self):
-        return len(self._children) == 0
-
     def get_folded_value(self) -> "ExprNode":
         """
         Attempt to get the folded value, bubbling up UnfoldableNode if the node
