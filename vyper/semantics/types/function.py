@@ -726,7 +726,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[FunctionVisibility | None, StateMutability, bool]:
+) -> tuple[Optional[FunctionVisibility], StateMutability, bool]:
     function_visibility = None
     state_mutability = None
     nonreentrant_node = None
