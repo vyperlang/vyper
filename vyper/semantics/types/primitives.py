@@ -216,8 +216,8 @@ def _add_div_hint(node, e):
         return f"({source})" if isinstance(node, vy_ast.BinOp) else source
 
     if isinstance(node, vy_ast.BinOp):
-        e._hint = f"did you mean `{get_source(node.left)} "
-        e._hint += f"{suggested} {get_source(node.right)}`?"
+        e._hint = f"did you mean `{_get_source(node.left)} "
+        e._hint += f"{suggested} {_get_source(node.right)}`?"
     elif isinstance(node, vy_ast.AugAssign):
         e._hint = f"did you mean `{node.target.node_source_code} "
         e._hint += f"{suggested}= {node.value.node_source_code}`?"
