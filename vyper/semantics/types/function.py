@@ -519,6 +519,8 @@ class ContractFunctionT(VyperType):
         if not self.is_external:  # pragma: nocover
             raise CompilerPanic("unreachable!")
 
+        assert self.visibility == other.visibility
+
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
 
@@ -531,10 +533,7 @@ class ContractFunctionT(VyperType):
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
 
-        if self.mutability != other.mutability:
-            return False
-
-        return self.visibility == other.visibility
+        return self.mutability == other.mutability
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:
