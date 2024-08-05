@@ -118,7 +118,8 @@ class InterfaceT(_UserType):
 
             to_compare = fns_by_name[fn_name]
             assert to_compare.is_external
-            assert all(isinstance(f, ContractFunctionT) for f in [to_compare, fn_type])
+            assert isinstance(to_compare, ContractFunctionT)
+            assert isinstance(fn_type, ContractFunctionT)
 
             return to_compare.implements(fn_type)
 
