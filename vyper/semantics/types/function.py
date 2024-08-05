@@ -330,6 +330,7 @@ class ContractFunctionT(VyperType):
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
         if nonreentrant:
+            # TODO: refactor so parse_decorators returns the AST location
             decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
             raise FunctionDeclarationException(
                 "`@nonreentrant` not allowed in interfaces", decorator
