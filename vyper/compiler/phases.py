@@ -250,11 +250,19 @@ class CompilerData:
     @cached_property
     def bytecode(self) -> bytes:
         insert_compiler_metadata = not self.no_bytecode_metadata
-        return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
+        if self.settings.experimental_eof:
+            return generate_EOFv1(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
+        else:
+            return generate_bytecode(
+                self.assembly, insert_compiler_metadata=insert_compiler_metadata
+            )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
+        if self.settings.experimental_eof:
+            return generate_EOFv1(self.assembly_runtime, insert_compiler_metadata=False)
+        else:
+            return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -368,3 +376,11 @@ def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
     return compile_ir.assembly_to_evm(assembly, insert_compiler_metadata=insert_compiler_metadata)[
         0
     ]
+
+
+def generate_EOFv1(assembly: list, insert_compiler_metadata: bool = True) -> bytes:
+    bytecode, _ = compile_ir.assembly_to_evm(
+        assembly, emit_headers=True, insert_compiler_metadata=insert_compiler_metadata
+    )
+
+    return bytecode

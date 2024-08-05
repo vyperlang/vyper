@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output

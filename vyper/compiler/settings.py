@@ -52,6 +52,7 @@ class Settings:
     optimize: Optional[OptimizationLevel] = None
     evm_version: Optional[str] = None
     experimental_codegen: Optional[bool] = None
+    experimental_eof: Optional[bool] = None
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
 
@@ -61,6 +62,8 @@ class Settings:
             assert isinstance(self.optimize, OptimizationLevel)
         if self.experimental_codegen is not None:
             assert isinstance(self.experimental_codegen, bool)
+        if self.experimental_eof is not None:
+            assert isinstance(self.experimental_eof, bool)
         if self.debug is not None:
             assert isinstance(self.debug, bool)
         if self.enable_decimals is not None:
@@ -78,6 +81,8 @@ class Settings:
             ret.append(" --optimize " + str(self.optimize))
         if self.experimental_codegen is True:
             ret.append(" --experimental-codegen")
+        if self.experimental_eof is True:
+            ret.append(" --experimental-eof")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
         if self.debug is True:

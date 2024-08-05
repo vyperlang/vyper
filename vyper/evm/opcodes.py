@@ -16,6 +16,7 @@ EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 DEFAULT_EVM_VERSION = "cancun"
 
+_eof_enabled = False
 
 # opcode as hex value
 # number of values removed from stack
@@ -85,12 +86,15 @@ OPCODES: OpcodeMap = {
     "SSTORE": (0x55, 2, 0, 20000),
     "JUMP": (0x56, 1, 0, 8),
     "JUMPI": (0x57, 2, 0, 10),
-    "PC": (0x58, 0, 1, 2),
+    "PC": (0x58, 0, 1, (2, 2, 2, 2, None)),
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
     "MCOPY": (0x5E, 3, 0, (None, None, None, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
+    "RJUMP": (0x5C, 0, 0, (None, None, None, None, 2)),
+    "RJUMPI": (0x5D, 1, 0, (None, None, None, None, 4)),
+    "RJUMPV": (0x5E, 1, 0, (None, None, None, None, 4)),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
@@ -172,6 +176,9 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
+    "CALLF": (0xB0, 0, 0, (None, None, None, None, 5)),
+    "RETF": (0xB1, 0, 0, (None, None, None, None, 4)),
+    "JUMPF": (0xB2, 0, 0, (None, None, None, None, 4)),
     "TLOAD": (0x5C, 1, 1, (None, None, None, 100)),
     "TSTORE": (0x5D, 2, 0, (None, None, None, 100)),
 }
@@ -206,6 +213,9 @@ PSEUDO_OPCODES: OpcodeMap = {
 }
 
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+
+# Terminating opcodes for EOFv1 support
+TERMINATING_OPCODES = ["STOP", "RETF", "RETURN", "REVERT", "INVALID"]
 
 
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
@@ -243,8 +253,44 @@ def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[get_active_evm_version()]
 
 
+def get_opcode(mnemonic: str) -> int:
+    opcode = get_opcodes()[mnemonic.upper()][0]
+    if opcode is None:
+        raise CompilerPanic(f"Opcode {mnemonic} not supported in current EVM version.")
+    return opcode
+
+
 def get_ir_opcodes() -> OpcodeRulesetMap:
     return _ir_opcodes[get_active_evm_version()]
+
+
+OPCODE_TO_MNEMONIC_MAP = {ruleset[0]: mnemonic for mnemonic, ruleset in get_opcodes().items()}
+
+
+def get_mnemonic(opcode: int) -> str:
+    return OPCODE_TO_MNEMONIC_MAP[opcode]
+
+
+VALID_OPCODES = OPCODE_TO_MNEMONIC_MAP.keys()
+
+
+def immediate_size(op):
+    if isinstance(op, int):
+        op = get_mnemonic(op)
+
+    if op in ["RJUMP", "RJUMPI", "CALLF"]:
+        return 2
+    elif op[:4] == "PUSH":
+        return int(op[4:])
+    else:
+        return 0
+
+
+def get_opcode_metadata(mnem_or_op):
+    if isinstance(mnem_or_op, int):
+        mnem_or_op = get_mnemonic(mnem_or_op)
+
+    return get_opcodes()[mnem_or_op]
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
@@ -258,3 +304,12 @@ def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> boo
         begin_idx = EVM_VERSIONS[begin]
     end_idx = max(EVM_VERSIONS.values()) if end is None else EVM_VERSIONS[end]
     return begin_idx <= active_evm_version <= end_idx
+
+
+def set_eof_enabled(e: bool):
+    global _eof_enabled
+    _eof_enabled = e
+
+
+def is_eof_enabled() -> bool:
+    return _eof_enabled
