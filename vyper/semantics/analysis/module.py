@@ -157,8 +157,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
             continue
 
         if g in path:
-            cycle_start = path.index(g)
-            extended_path = path[cycle_start:] + [g]
+            extended_path = path + [g]
             message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
