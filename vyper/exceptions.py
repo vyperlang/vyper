@@ -96,7 +96,7 @@ class _BaseVyperException(Exception):
         return self._hint
 
     @property
-    def annotation_message(self):
+    def annotated_message(self):
         msg = self._message
         assert self.annotations is not None
         annotation_list = []
@@ -177,7 +177,7 @@ class _BaseVyperException(Exception):
             else:
                 return self.message
 
-        return self.annotation_message
+        return self.annotated_message
 
 
 class VyperException(_BaseVyperException):
