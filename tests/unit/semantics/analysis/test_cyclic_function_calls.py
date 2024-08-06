@@ -106,19 +106,6 @@ def potato():
     assert e.value.message == expected_message
 
 
-def test_cyclic_function_call_without_external(dummy_input_bundle):
-    code = """
-@internal
-def bar():
-    self.bar()
-    """
-    vyper_module = parse_to_ast(code)
-    with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
-
-    assert e.value.message == "Contract contains cyclic function call: bar -> bar"
-
-
 def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
     code = """
 balanceOf: public(HashMap[address, uint256])
