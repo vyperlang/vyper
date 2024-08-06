@@ -12,8 +12,27 @@ def foo():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(CallViolation):
+    with pytest.raises(CallViolation) as e:
         analyze_module(vyper_module, dummy_input_bundle)
+
+    assert e.value.message == "Contract contains cyclic function call: foo -> foo"
+
+
+def test_self_function_call2(dummy_input_bundle):
+    code = """
+@external
+def foo():
+    self.bar()
+
+@internal
+def bar():
+    self.bar()
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(CallViolation) as e:
+        analyze_module(vyper_module, dummy_input_bundle)
+
+    assert e.value.message == "Contract contains cyclic function call: bar -> bar"
 
 
 def test_cyclic_function_call(dummy_input_bundle):
@@ -27,8 +46,10 @@ def bar():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(CallViolation):
+    with pytest.raises(CallViolation) as e:
         analyze_module(vyper_module, dummy_input_bundle)
+
+    assert e.value.message == "Contract contains cyclic function call: foo -> bar -> foo"
 
 
 def test_multi_cyclic_function_call(dummy_input_bundle):
@@ -50,16 +71,43 @@ def potato():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(CallViolation):
+    with pytest.raises(CallViolation) as e:
         analyze_module(vyper_module, dummy_input_bundle)
 
+    expected_message = "Contract contains cyclic function call: foo -> bar -> baz -> potato -> foo"
 
-def test_recursive_function_call(dummy_input_bundle):
+    assert e.value.message == expected_message
+
+
+def test_multi_cyclic_function_call2(dummy_input_bundle):
     code = """
-@external
+@internal
 def foo():
     self.bar()
 
+@internal
+def bar():
+    self.baz()
+
+@internal
+def baz():
+    self.potato()
+
+@internal
+def potato():
+    self.bar()
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(CallViolation) as e:
+        analyze_module(vyper_module, dummy_input_bundle)
+
+    expected_message = "Contract contains cyclic function call: bar -> baz -> potato -> bar"
+
+    assert e.value.message == expected_message
+
+
+def test_cyclic_function_call_without_external(dummy_input_bundle):
+    code = """
 @internal
 def bar():
     self.bar()
@@ -68,7 +116,7 @@ def bar():
     with pytest.raises(CallViolation) as e:
         analyze_module(vyper_module, dummy_input_bundle)
 
-    assert e.value.message == "Contract contains recursion: bar -> bar"
+    assert e.value.message == "Contract contains cyclic function call: bar -> bar"
 
 
 def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
