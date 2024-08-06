@@ -1090,3 +1090,6 @@ Utilities
 .. note::
 
     Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.
+
+.. warning::
+    In Vyper, as of v0.4.0, the order of argument evaluation of builtins is not defined. That means that the compiler may choose to reorder evaluation of arguments. For example, ``extract32(x(), y())`` may yield unexpected results if ``x()`` and ``y()`` both touch the same data. For this reason, it is best to avoid calling functions with side-effects inside of builtins. For more information, see `GHSA-g2xh-c426-v8mf <https://github.com/vyperlang/vyper/security/advisories/GHSA-g2xh-c426-v8mf>`_ and `issue #4019 <https://github.com/vyperlang/vyper/issues/4019>`_.

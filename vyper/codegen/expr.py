@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     make_setter,
     pop_dyn_array,
     potential_overlap,
+    read_write_overlap,
     sar,
     shl,
     shr,
@@ -40,6 +41,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -85,6 +87,9 @@ class Expr:
             fn = getattr(self, fn_name)
             self.ir_node = fn()
             assert isinstance(self.ir_node, IRnode), self.ir_node
+
+        writes = set(access.variable for access in get_expr_writes(self.expr))
+        self.ir_node._writes = writes
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.ast_source = self.expr
@@ -264,7 +269,8 @@ class Expr:
                 return IRnode.from_list(["~calldata"], typ=BytesT(0))
             elif key == "msg.value" and self.context.is_payable:
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
-            elif key == "msg.gas":
+            elif key in ("msg.gas", "msg.mana"):
+                # NOTE: `msg.mana` is an alias for `msg.gas`
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
@@ -352,6 +358,8 @@ class Expr:
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice, self.context)
+            if read_write_overlap(sub, index):
+                raise CompilerPanic("risky overlap")
 
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
@@ -706,7 +714,6 @@ class Expr:
                 ret = ["seq"]
                 if potential_overlap(darray, arg):
                     tmp = self.context.new_internal_variable(arg.typ)
-                    tmp = IRnode.from_list(tmp, typ=arg.typ, location=MEMORY)
                     ret.append(make_setter(tmp, arg))
                     arg = tmp
 

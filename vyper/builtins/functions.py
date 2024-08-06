@@ -29,6 +29,7 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     ir_tuple_from_args,
     make_setter,
+    potential_overlap,
     promote_signed_int,
     sar,
     shl,
@@ -356,6 +357,9 @@ class Slice(BuiltinFunctionT):
             # copy_bytes works on pointers.
             assert is_bytes32, src
             src = ensure_in_memory(src, context)
+
+        if potential_overlap(src, start) or potential_overlap(src, length):
+            raise CompilerPanic("risky overlap")
 
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
@@ -862,6 +866,9 @@ class Extract32(BuiltinFunctionT):
         bytez, index = args
         ret_type = kwargs["output_type"]
 
+        if potential_overlap(bytez, index):
+            raise CompilerPanic("risky overlap")
+
         def finalize(ret):
             annotation = "extract32"
             ret = IRnode.from_list(ret, typ=ret_type, annotation=annotation)
@@ -1260,6 +1267,8 @@ class RawLog(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        context.check_is_not_constant(f"use {self._id}", expr)
+
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
         topics = [unwrap_location(topic) for topic in topics]

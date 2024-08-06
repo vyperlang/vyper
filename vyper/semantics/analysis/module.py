@@ -193,7 +193,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
         # keep track of exported functions to prevent duplicate exports
-        self._exposed_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+        self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         self._events: list[EventT] = []
 
@@ -414,7 +414,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise StructureException(msg, node.annotation, hint=hint)
 
         # grab exposed functions
-        funcs = self._exposed_functions
+        funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
         type_.validate_implements(node, funcs)
 
         node._metadata["interface_type"] = type_
@@ -514,7 +514,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     break
 
             if rhs is None:
-                hint = f"try importing {item.alias} first"
+                hint = f"try importing `{item.alias}` first "
+                hint += f"(located at `{item.module_t._module.path}`)"
             elif not isinstance(annotation, vy_ast.Subscript):
                 # it's `initializes: foo` instead of `initializes: foo[...]`
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
@@ -607,10 +608,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_exposed_function(self, func_t, node, relax=True):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
-        if not relax and (prev_decl := self._exposed_functions.get(func_t)) is not None:
+        if not relax and (prev_decl := self._all_functions.get(func_t)) is not None:
             raise StructureException("already exported!", node, prev_decl=prev_decl)
 
-        self._exposed_functions[func_t] = node
+        self._all_functions[func_t] = node
 
     def visit_VariableDecl(self, node):
         # postcondition of VariableDecl.validate
