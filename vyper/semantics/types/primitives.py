@@ -213,7 +213,10 @@ def _add_div_hint(node, e):
 
     def _get_source(node):
         source = node.node_source_code
-        return f"({source})" if isinstance(node, vy_ast.BinOp) else source
+        if isinstance(node, vy_ast.BinOp):
+            # parenthesize, to preserve precedence
+            return f"({source})"
+        return source
 
     if isinstance(node, vy_ast.BinOp):
         e._hint = f"did you mean `{_get_source(node.left)} "
