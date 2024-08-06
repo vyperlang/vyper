@@ -150,20 +150,17 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
     path = path or []
 
     path.append(fn_t)
-    root = path[0]
 
     for g in fn_t.called_functions:
         if g in fn_t.reachable_internal_functions:
             # already seen
             continue
 
-        if g == root:
-            message = " -> ".join([f.name for f in path])
+        if g in path:
+            cycle_start = path.index(g)
+            extended_path = path[cycle_start:] + [g]
+            message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
-
-        if g == fn_t:
-            message = f"{g.name} -> {g.name}"
-            raise CallViolation(f"Contract contains recursion: {message}")
 
         _compute_reachable_set(g, path=path)
 
