@@ -11,24 +11,21 @@ class SimplifyCFGPass(IRPass):
     def _merge_blocks(self, a: IRBasicBlock, b: IRBasicBlock):
         a.instructions.pop()
         for inst in b.instructions:
-            assert inst.opcode != "phi", "Not implemented yet"
-            if inst.opcode == "phi":
-                a.instructions.insert(0, inst)
-            else:
-                inst.parent = a
-                a.instructions.append(inst)
+            assert inst.opcode != "phi", f"Instruction should never be phi {inst}"
+            inst.parent = a
+            a.instructions.append(inst)
 
         # Update CFG
         a.cfg_out = b.cfg_out
         if len(b.cfg_out) > 0:
-            next_bb = b.cfg_out.first()
-            next_bb.remove_cfg_in(b)
-            next_bb.add_cfg_in(a)
+            for next_bb in b.cfg_out:
+                next_bb.remove_cfg_in(b)
+                next_bb.add_cfg_in(a)
 
-            for inst in next_bb.instructions:
-                if inst.opcode != "phi":
-                    break
-                inst.operands[inst.operands.index(b.label)] = a.label
+                for inst in next_bb.instructions:
+                    if inst.opcode != "phi":
+                        break
+                    inst.operands[inst.operands.index(b.label)] = a.label
 
         self.function.remove_basic_block(b)
 
