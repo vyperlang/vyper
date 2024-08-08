@@ -465,7 +465,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
