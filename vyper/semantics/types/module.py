@@ -76,6 +76,9 @@ class InterfaceT(_UserType):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
+    def __str__ (self):
+        return self._id
+
     def __repr__(self):
         return f"interface {self._id}"
 
