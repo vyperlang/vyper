@@ -6,6 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
@@ -746,3 +747,39 @@ def test(target: address) -> address:
     c.test(c.address, value=2)
     test1 = c.address
     assert env.get_code(test1) == bytecode
+
+
+def test_raw_create(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy_from_literal() -> address:
+    return raw_create({initcode})
+
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    return raw_create(s)
+
+@external
+def deploy_from_memory() -> address:
+    s: Bytes[1024] = {initcode}
+    return raw_create(s)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy_from_literal()
+    assert env.get_code(res) == runtime
+
+    res = deployer.deploy_from_memory()
+    assert env.get_code(res) == runtime
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime

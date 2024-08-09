@@ -1681,7 +1681,7 @@ class _CreateBase(BuiltinFunctionT):
 
 
 class RawCreate(_CreateBase):
-    _id = "create_minimal_proxy_to"
+    _id = "raw_create"
     _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
     _has_varargs = True
 
@@ -1700,13 +1700,11 @@ class RawCreate(_CreateBase):
 
         buf = context.new_internal_variable(get_type_for_exact_size(bufsz))
 
-        ret = []
+        ret = ["seq"]
 
         with scope_multi((initcode, value, salt), ("initcode", "value", "salt")) as (
             b1,
-            initcode,
-            value,
-            salt,
+            (initcode, value, salt),
         ):
             bytecode_len = get_bytearray_length(initcode)
 
