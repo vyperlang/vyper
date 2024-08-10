@@ -10,63 +10,59 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
     and the block which is before the loop
     """
 
-    # key = start of the loop (last bb not in the loop)
-    # value = all the block that loop contains
+    # key = loop header
+    # value = all the blocks that the loop contains
     loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-
-    done: OrderedSet[IRBasicBlock]
-    visited: OrderedSet[IRBasicBlock]
 
     def analyze(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        self.loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]] = dict()
-        self.done = OrderedSet()
-        self.visited = OrderedSet()
-        entry = self.function.entry
-        self._dfs_r(entry)
+        self.loops = self._find_natural_loops(self.function.entry)        
 
-    def _dfs_r(self, bb: IRBasicBlock, before: IRBasicBlock | None = None):
-        if bb in self.visited:
-            self.done.add(bb)
-            if before is None:
-                return
-            loop = self._collect_loop_bbs(before, bb)
-            in_bb = bb.cfg_in.difference({before})
-            if len(in_bb) != 1:
-                return
-            input_bb = in_bb.first()
-            self.loops[input_bb] = loop
-            return
+    # Could possibly reuse the dominator tree algorithm to find the back edges
+    # if it is already cached it will be faster. Still might need to separate the
+    # varius extra information that the dominator analysis provides 
+    # (like frontiers and immediate dominators)
+    def _find_back_edges(self, entry: IRBasicBlock) -> list[tuple[IRBasicBlock, IRBasicBlock]]:
+        back_edges = []
+        visited = OrderedSet()
+        stack = []
 
-        self.visited.add(bb)
+        def dfs(bb: IRBasicBlock):
+            visited.add(bb)
+            stack.append(bb)
 
-        for neighbour in bb.cfg_out:
-            if neighbour not in self.done:
-                self._dfs_r(neighbour, bb)
+            for succ in bb.cfg_out:
+                if succ not in visited:
+                    dfs(succ)
+                elif succ in stack:
+                    back_edges.append((bb, succ))
 
-        self.done.add(bb)
+            stack.pop()
 
-    def _collect_loop_bbs(
-        self, bb_from: IRBasicBlock, bb_to: IRBasicBlock
-    ) -> OrderedSet[IRBasicBlock]:
-        loop: OrderedSet[IRBasicBlock] = OrderedSet()
-        collect_visit: OrderedSet[IRBasicBlock] = OrderedSet()
-        self._collect_loop_bbs_r(bb_from, bb_to, loop, collect_visit)
-        return loop
+        dfs(entry)
 
-    def _collect_loop_bbs_r(
-        self,
-        curr_bb: IRBasicBlock,
-        bb_to: IRBasicBlock,
-        loop: OrderedSet[IRBasicBlock],
-        visit: OrderedSet[IRBasicBlock],
-    ):
-        if curr_bb in visit:
-            return
-        visit.add(curr_bb)
-        loop.add(curr_bb)
-        if curr_bb == bb_to:
-            return
+        return back_edges
+    
+    def _find_natural_loops(self, entry: IRBasicBlock) -> dict[IRBasicBlock, OrderedSet[IRBasicBlock]]:
+        back_edges = self._find_back_edges(entry)
+        natural_loops = {}
 
-        for before in curr_bb.cfg_in:
-            self._collect_loop_bbs_r(before, bb_to, loop, visit)
+        for u, v in back_edges:
+            # back edge: u -> v
+            loop = OrderedSet()
+            stack = [u]
+
+            while stack:
+                bb = stack.pop()
+                if bb in loop:
+                    continue
+                loop.add(bb)
+                for pred in bb.cfg_in:
+                    if pred != v:
+                        stack.append(pred)
+
+            loop.add(v)
+            natural_loops[v.cfg_in.first()] = loop
+
+        return natural_loops
+
