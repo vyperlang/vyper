@@ -4,7 +4,7 @@ from collections import deque
 from pathlib import PurePath
 
 import vyper.ast as vy_ast
-from vyper.ast import ast_to_dict
+from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
