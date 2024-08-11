@@ -1,3 +1,4 @@
+import copy
 import json
 
 from vyper import compiler
@@ -216,23 +217,26 @@ def foo():
     input_bundle = make_input_bundle({"lib1.vy": lib1, "main.vy": main})
 
     lib1_file = input_bundle.load_file("lib1.vy")
-    out = compiler.compile_from_file_input(
+    lib1_out = compiler.compile_from_file_input(
         lib1_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
-    lib1_ast = out["annotated_ast_dict"]["ast"]
+
+    lib1_ast = copy.deepcopy(lib1_out["annotated_ast_dict"]["ast"])
     lib1_sha256sum = lib1_ast.pop("source_sha256sum")
     assert lib1_sha256sum == lib1_file.sha256sum
     to_strip = NODE_SRC_ATTRIBUTES + ("resolved_path", "variable_reads", "variable_writes")
     _strip_source_annotations(lib1_ast, to_strip=to_strip)
 
     main_file = input_bundle.load_file("main.vy")
-    out = compiler.compile_from_file_input(
+    main_out = compiler.compile_from_file_input(
         main_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
-    main_ast = out["annotated_ast_dict"]["ast"]
+    main_ast = main_out["annotated_ast_dict"]["ast"]
     main_sha256sum = main_ast.pop("source_sha256sum")
     assert main_sha256sum == main_file.sha256sum
     _strip_source_annotations(main_ast, to_strip=to_strip)
+
+    assert main_out["annotated_ast_dict"]["imports"][0] == lib1_out["annotated_ast_dict"]["ast"]
 
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
