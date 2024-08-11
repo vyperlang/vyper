@@ -30,7 +30,7 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
     imported_module_infos = compiler_data.global_ctx.reachable_imports
-    unique_modules: dict[int, vy_ast.Module] = {}
+    unique_modules: dict[str, vy_ast.Module] = {}
     for info in imported_module_infos:
         if isinstance(info.typ, InterfaceT):
             ast = info.typ.decl_node
@@ -41,10 +41,13 @@ def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
             ast = info.typ.module_t._module
 
         assert isinstance(ast, vy_ast.Module)  # help mypy
-        if ast.source_id in unique_modules:
+        # use resolved_path for uniqueness, since Module objects can actually
+        # come from multiple InputBundles (particularly builtin interfaces),
+        # so source_id is not guaranteed to be unique.
+        if ast.resolved_path in unique_modules:
             # sanity check -- object equality
-            assert unique_modules[ast.source_id] is ast
-        unique_modules[ast.source_id] = ast
+            assert unique_modules[ast.resolved_path] is ast
+        unique_modules[ast.resolved_path] = ast
 
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
