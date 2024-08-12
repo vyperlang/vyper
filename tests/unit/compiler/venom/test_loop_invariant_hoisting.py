@@ -43,10 +43,12 @@ def _simple_body(fn, loop_id, depth):
 def _hoistable_body(fn, loop_id, depth):
     assert isinstance(fn, IRFunction)
     bb = fn.get_basic_block()
+    store_var = IRVariable(f"store_var{loop_id}{depth}")
     add_var_a = IRVariable(f"add_var_a{loop_id}{depth}")
-    bb.append_instruction("add", 1, 2, ret=add_var_a)
+    bb.append_instruction("store", 1, ret=store_var)
+    bb.append_instruction("add", 1, store_var, ret=add_var_a)
     add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
-    bb.append_instruction("add", add_var_a, 2, ret=add_var_b)
+    bb.append_instruction("add", store_var, add_var_a, ret=add_var_b)
 
 
 @pytest.mark.parametrize("depth", range(1, 4))
@@ -113,9 +115,10 @@ def test_loop_invariant_hoisting_dependant(depth, count):
     for bb in filter(lambda bb: bb.label.name.startswith("exit_top"), fn.get_basic_blocks()):
         assignments.extend(map(lambda x: x.value, bb.get_assignments()))
 
-    assert len(assignments) == depth * count * 3
+    assert len(assignments) == depth * count * 4
     for loop_id in range(count):
         for d in range(1, depth + 1):
+            assert f"%store_var{loop_id}{d}" in assignments, repr(fn)
             assert f"%add_var_a{loop_id}{d}" in assignments, repr(fn)
             assert f"%add_var_b{loop_id}{d}" in assignments, repr(fn)
             assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
