@@ -74,7 +74,11 @@ class SCCP(IRPass):
 
         # self._propagate_variables()
 
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        if self.cfg_dirty:
+            self.analyses_cache.force_analysis(CFGAnalysis)
+            self._fix_phi_nodes()
+        else:
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -328,6 +332,28 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
+
+    def _fix_phi_nodes(self):
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions.copy():
+                if inst.opcode == "phi":
+                    self._fix_phi_node_inst(inst)
+
+    def _fix_phi_node_inst(self, phi_inst: IRInstruction):
+        if len(phi_inst.parent.cfg_in) != 1:
+            return
+
+        src_bb: IRBasicBlock = phi_inst.parent.cfg_in.first()
+        assert isinstance(src_bb, IRBasicBlock)
+
+        from_src_bb = filter(lambda x: x[0] == src_bb.label, phi_inst.phi_operands)
+        operands = list(map(lambda x: x[1], from_src_bb))
+
+        assert len(operands) == 1
+        assert isinstance(operands[0], IRVariable)
+        assert phi_inst.output is not None
+        phi_inst.output.value = operands[0]
+        phi_inst.parent.remove_instruction(phi_inst)
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
