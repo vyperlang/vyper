@@ -783,3 +783,80 @@ def deploy_from_memory() -> address:
 
     res = deployer.deploy_from_calldata(initcode)
     assert env.get_code(res) == runtime
+
+
+def test_raw_create_double_eval(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+
+
+@deploy
+def __init__(x: uint256):
+    self.foo = x
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+interface Foo:
+    def foo() -> uint256: view
+
+a: DynArray[uint256, 10]
+counter: public(uint256)
+
+@deploy
+def __init__():
+    self.a.append(1)
+    self.a.append(2)
+
+def get_index() -> uint256:
+    self.counter += 1
+    return 0
+
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    res: address =  raw_create(s, self.a[self.get_index()])
+    assert staticcall Foo(res).foo() == 1
+    return res
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime
+
+    assert deployer.counter() == 1
+
+
+def test_raw_create_salt(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address:
+    return raw_create(s, arg, salt=salt)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+
+    assert env.get_code(res) == runtime
