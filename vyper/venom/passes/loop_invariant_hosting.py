@@ -3,7 +3,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -19,8 +19,11 @@ def _ignore_instruction(inst: IRInstruction) -> bool:
     )
 
 
-def _is_store(inst: IRInstruction) -> bool:
-    return inst.opcode == "store"
+# must check if it has as operand as literal because
+# there are cases when the store just moves value
+# from one variable to another
+def _is_correct_store(inst: IRInstruction) -> bool:
+    return inst.opcode == "store" and isinstance(inst.operands[0], IRLiteral)
 
 
 class LoopInvariantHoisting(IRPass):
@@ -86,7 +89,7 @@ class LoopInvariantHoisting(IRPass):
         for var in inst.get_input_variables():
             source_inst = self.dfg.get_producing_instruction(var)
             assert isinstance(source_inst, IRInstruction)
-            if not _is_store(source_inst):
+            if not _is_correct_store(source_inst):
                 continue
             for bb in self.loops[loop_idx]:
                 if source_inst.parent == bb:
@@ -113,7 +116,7 @@ class LoopInvariantHoisting(IRPass):
 
             # ignores stores since all stores are independant
             # and can be always hoisted
-            if _is_store(source_ins):
+            if _is_correct_store(source_ins):
                 continue
 
             if source_ins.parent == bb:
