@@ -537,7 +537,9 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if "call" in inst.opcode and inst.output not in next_liveness:
+            if (
+                "call" in inst.opcode or inst.opcode in ["mload"]
+            ) and inst.output not in next_liveness:
                 self.pop(assembly, stack)
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
