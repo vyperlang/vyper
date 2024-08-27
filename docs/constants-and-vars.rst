@@ -26,6 +26,7 @@ Name                  Type             Value
 ``chain.id``          ``uint256``      Chain ID
 ``msg.data``          ``Bytes``        Message data
 ``msg.gas``           ``uint256``      Remaining gas
+``msg.mana``          ``uint256``      Remaining gas (alias for ``msg.gas``)
 ``msg.sender``        ``address``      Sender of the message (current call)
 ``msg.value``         ``uint256``      Number of wei sent with the message
 ``tx.origin``         ``address``      Sender of the transaction (full call chain)
@@ -101,6 +102,6 @@ Custom constants can be defined at a global level in Vyper. To define a constant
     TOTAL_SUPPLY: constant(uint256) = 10000000
     total_supply: public(uint256)
 
-    @external
+    @deploy
     def __init__():
         self.total_supply = TOTAL_SUPPLY

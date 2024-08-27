@@ -36,7 +36,7 @@ class LivenessAnalysis(IRAnalysis):
         orig_liveness = bb.instructions[0].liveness.copy()
         liveness = bb.out_vars.copy()
         for instruction in reversed(bb.instructions):
-            ins = instruction.get_inputs()
+            ins = instruction.get_input_variables()
             outs = instruction.get_outputs()
 
             if ins or outs:
@@ -54,7 +54,8 @@ class LivenessAnalysis(IRAnalysis):
         Compute out_vars of basic block.
         Returns True if out_vars changed
         """
-        out_vars = bb.out_vars.copy()
+        out_vars = bb.out_vars
+        bb.out_vars = OrderedSet()
         for out_bb in bb.cfg_out:
             target_vars = self.input_vars_from(bb, out_bb)
             bb.out_vars = bb.out_vars.union(target_vars)

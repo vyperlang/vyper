@@ -194,7 +194,7 @@ class VarInfo:
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
-            raise CompilerPanic("Position was already assigned")
+            raise CompilerPanic(f"Position was already assigned: {self}")
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
@@ -206,6 +206,10 @@ class VarInfo:
 
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)
+
+    @property
+    def is_storage(self):
+        return self.location == DataLocation.STORAGE
 
     @property
     def is_transient(self):
@@ -253,7 +257,10 @@ class VarAccess:
         # map SUBSCRIPT_ACCESS to `"$subscript_access"` (which is an identifier
         # which can't be constructed by the user)
         path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
-        varname = var.decl_node.target.id
+        if isinstance(var.decl_node, vy_ast.arg):
+            varname = var.decl_node.arg
+        else:
+            varname = var.decl_node.target.id
 
         decl_node = var.decl_node.get_id_dict()
         ret = {"name": varname, "decl_node": decl_node, "access_path": path}

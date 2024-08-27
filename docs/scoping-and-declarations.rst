@@ -33,6 +33,8 @@ The compiler automatically creates getter functions for all public storage varia
 
 For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
+.. _immutable-variables:
+
 Declaring Immutable Variables
 -----------------------------
 
@@ -42,7 +44,7 @@ Variables can be marked as ``immutable`` during declaration:
 
     DATA: immutable(uint256)
 
-    @external
+    @deploy
     def __init__(_data: uint256):
         DATA = _data
 
@@ -123,8 +125,6 @@ Module Scope
 
 Variables and other items declared outside of a code block (functions, constants, event and struct definitions, ...), are visible even before they were declared. This means you can use module-scoped items before they are declared.
 
-An exception to this rule is that you can only call functions that have already been declared.
-
 Accessing Module Scope from Functions
 *************************************
 
@@ -161,9 +161,10 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
 
     a: immutable(bool)
 
-    @external
+    @deploy
     def __init__():
         a = True
+
     @external
     def foo(a:bool) -> bool:
         # input argument cannot have the same name as a constant or immutable variable
@@ -230,7 +231,7 @@ In a ``for`` statement, the target variable exists within the scope of the loop.
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             pass
         i: bool = False
 
@@ -240,6 +241,6 @@ The following contract fails to compile because ``a`` has not been declared outs
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             a: int128 = i
         a += 3

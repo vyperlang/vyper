@@ -76,6 +76,9 @@ class InterfaceT(_UserType):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
+    def __str__(self):
+        return self._id
+
     def __repr__(self):
         return f"interface {self._id}"
 
@@ -107,6 +110,7 @@ class InterfaceT(_UserType):
     def validate_implements(
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
     ) -> None:
+        # only external functions can implement interfaces
         fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
 
         unimplemented = []
@@ -116,7 +120,9 @@ class InterfaceT(_UserType):
                 return False
 
             to_compare = fns_by_name[fn_name]
+            assert to_compare.is_external
             assert isinstance(to_compare, ContractFunctionT)
+            assert isinstance(fn_type, ContractFunctionT)
 
             return to_compare.implements(fn_type)
 
@@ -272,6 +278,7 @@ class ModuleT(VyperType):
 
     _attribute_in_annotation = True
     _invalid_locations = (
+        DataLocation.STORAGE,
         DataLocation.CALLDATA,
         DataLocation.CODE,
         DataLocation.MEMORY,

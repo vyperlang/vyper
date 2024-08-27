@@ -371,8 +371,11 @@ class StructT(_UserType):
 
         return cls(struct_name, members, ast_def=base_node)
 
+    def __str__(self):
+        return f"{self._id}"
+
     def __repr__(self):
-        return f"{self._id} declaration object"
+        return f"{self._id} {self.members}"
 
     def _try_fold(self, node):
         if len(node.args) != 1:
@@ -383,6 +386,12 @@ class StructT(_UserType):
 
         # it can't be reduced, but this lets upstream code know it's constant
         return node
+
+    def def_source_str(self):
+        ret = f"struct {self._id}:\n"
+        for k, v in self.member_types.items():
+            ret += f"    {k}: {v}\n"
+        return ret
 
     @property
     def size_in_bytes(self):

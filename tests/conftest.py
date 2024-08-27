@@ -203,7 +203,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
