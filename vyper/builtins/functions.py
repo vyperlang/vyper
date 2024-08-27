@@ -1716,7 +1716,7 @@ class RawCreate(_CreateBase):
             argslen = abi_encode(
                 argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
             )
-            total_len = add_ofst(argbuf, argslen)
+            total_len = add_ofst(bytecode_len, argslen)
             ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
 
             return b1.resolve(IRnode.from_list(ret))
