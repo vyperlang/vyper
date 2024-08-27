@@ -1696,7 +1696,8 @@ class RawCreate(_CreateBase):
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
-        bufsz = initcode.typ.maxlen + to_encode.typ.abi_type.size_bound()
+        type_size_bound = to_encode.typ.abi_type.size_bound()
+        bufsz = initcode.typ.maxlen + type_size_bound
 
         buf = context.new_internal_variable(get_type_for_exact_size(bufsz))
 
@@ -1712,7 +1713,9 @@ class RawCreate(_CreateBase):
             ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
 
             argbuf = add_ofst(buf, bytecode_len)
-            argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+            argslen = abi_encode(
+                argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
+            )
             total_len = add_ofst(argbuf, argslen)
             ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
 
