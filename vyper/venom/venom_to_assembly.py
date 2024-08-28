@@ -147,7 +147,7 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
-        def bb_cleanup_needed(bb : IRBasicBlock) -> bool:
+        def bb_cleanup_needed(bb: IRBasicBlock) -> bool:
             for inst in bb.instructions:
                 # not sure if the exit is stricly necessery
                 # but I added it just to be sure
@@ -165,7 +165,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                cleanup_needed = any(map(lambda x : bb_cleanup_needed(x), fn.get_basic_blocks()))
+                cleanup_needed = any(map(lambda x: bb_cleanup_needed(x), fn.get_basic_blocks()))
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
 
@@ -283,7 +283,7 @@ class VenomCompiler:
             emitted_ops.add(op)
 
     def _generate_evm_for_basicblock_r(
-            self, asm: list, basicblock: IRBasicBlock, stack: StackModel, cleanup_needed : bool
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel, cleanup_needed: bool
     ) -> None:
         if basicblock in self.visited_basicblocks:
             return
@@ -306,7 +306,9 @@ class VenomCompiler:
         for i, inst in enumerate(main_insts):
             next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness))
+            asm.extend(
+                self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness)
+            )
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy(), cleanup_needed)
@@ -355,7 +357,11 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-            self, inst: IRInstruction, stack: StackModel, cleanup_needed : bool, next_liveness: OrderedSet = None
+        self,
+        inst: IRInstruction,
+        stack: StackModel,
+        cleanup_needed: bool,
+        next_liveness: OrderedSet = None,
     ) -> list[str]:
         assembly: list[str | int] = []
         next_liveness = next_liveness or OrderedSet()
