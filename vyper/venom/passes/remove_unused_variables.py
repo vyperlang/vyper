@@ -31,7 +31,7 @@ class RemoveUnusedVariablesPass(IRPass):
     def _process_instruction(self, inst):
         if inst.output is None:
             return
-        if (inst.opcode != "mload" and inst.is_volatile) or inst.is_bb_terminator:
+        if inst.is_volatile or inst.is_bb_terminator:
             return
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
