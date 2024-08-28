@@ -147,6 +147,14 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
+        def bb_cleanup_needed(bb : IRBasicBlock) -> bool:
+            for inst in bb.instructions:
+                # not sure if the exit is stricly necessery
+                # but I added it just to be sure
+                if inst.opcode in ["ret", "exit"]:
+                    return True
+            return False
+
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
@@ -157,7 +165,9 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+                cleanup_needed = any(map(lambda x : bb_cleanup_needed(x), fn.get_basic_blocks()))
+
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
@@ -273,7 +283,7 @@ class VenomCompiler:
             emitted_ops.add(op)
 
     def _generate_evm_for_basicblock_r(
-        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
+            self, asm: list, basicblock: IRBasicBlock, stack: StackModel, cleanup_needed : bool
     ) -> None:
         if basicblock in self.visited_basicblocks:
             return
@@ -289,17 +299,17 @@ class VenomCompiler:
         main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for inst in param_insts:
-            asm.extend(self._generate_evm_for_instruction(inst, stack))
+            asm.extend(self._generate_evm_for_instruction(inst, stack, False))
 
         self._clean_unused_params(asm, basicblock, stack)
 
         for i, inst in enumerate(main_insts):
             next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            asm.extend(self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness))
 
         for bb in basicblock.reachable:
-            self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(asm, bb, stack.copy(), cleanup_needed)
 
     def _clean_unused_params(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
         for i, inst in enumerate(bb.instructions):
@@ -345,7 +355,7 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
+            self, inst: IRInstruction, stack: StackModel, cleanup_needed : bool, next_liveness: OrderedSet = None
     ) -> list[str]:
         assembly: list[str | int] = []
         next_liveness = next_liveness or OrderedSet()
@@ -537,9 +547,7 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if (
-                "call" in inst.opcode or inst.opcode in ["mload"]
-            ) and inst.output not in next_liveness:
+            if cleanup_needed and inst.output not in next_liveness:
                 self.pop(assembly, stack)
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
