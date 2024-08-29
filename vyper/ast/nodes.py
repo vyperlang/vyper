@@ -1059,7 +1059,7 @@ class Div(Operator):
             raise OverflowException(msg, self) from None
 
 
-class FloorDiv(VyperNode):
+class FloorDiv(Operator):
     __slots__ = ()
     _description = "integer division"
     _pretty = "//"
@@ -1340,7 +1340,7 @@ class Assign(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class AnnAssign(VyperNode):
+class AnnAssign(Stmt):
     __slots__ = ("target", "annotation", "value")
 
 
