@@ -258,7 +258,7 @@ def compile_from_input_dict(
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
-    experimental_codegen = input_dict["settings"].get("experimentalCodegen", False)
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen", None)
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
