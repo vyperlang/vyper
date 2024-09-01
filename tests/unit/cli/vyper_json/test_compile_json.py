@@ -295,3 +295,18 @@ def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
     input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
     compile_from_input_dict(input_json)
+
+
+def test_experimental_codegen_default(input_json):
+    assert input_json["settings"]["experimentalCodegen"] is None
+    default_output = compile_from_input_dict(input_json)
+    input_json["source"]["contracts/foo.vy"]["content"] = "#pragma experimental_codegen\n\n" + FOO_CODE
+    pragma_output = compile_from_input_dict(input_json)
+    input_json["source"]["contracts/foo.vy"]["content"] = FOO_CODE
+    input_json["settings"]["experimentalCodegen"] = True
+    setting_true_output = compile_from_input_dict(input_json)
+    input_json["settings"]["experimentalCodegen"] = False
+    setting_false_output = compile_from_input_dict(input_json)
+    assert default_output == setting_false_output
+    assert pragma_output == setting_true_output
+    assert setting_false_output != setting_true_output
