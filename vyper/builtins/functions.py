@@ -2128,6 +2128,7 @@ class Sqrt(BuiltinFunctionT):
 
         arg = args[0]
         # TODO: reify decimal and integer sqrt paths (see isqrt)
+        # TODO: rewrite this in IR, or move it to pure vyper stdlib
         with arg.cache_when_complex("x") as (b1, arg):
             sqrt_code = """
 assert x >= 0.0
@@ -2156,7 +2157,11 @@ else:
                 new_var_pos = context.new_internal_variable(x_type)
                 placeholder_copy = ["mstore", new_var_pos, arg]
             # Create input variables.
-            variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+            variables = {
+                "x": VariableRecord(
+                    name="x", pos=new_var_pos, typ=x_type, system=True, mutable=False
+                )
+            }
             # Dictionary to update new (i.e. typecheck) namespace
             variables_2 = {"x": VarInfo(DecimalT())}
             # Generate inline IR.
