@@ -182,8 +182,14 @@ class Expr:
 
         # local variable
         if varname in self.context.vars:
-            ret = self.context.lookup_var(varname).as_ir_node()
+            var = self.context.lookup_var(varname)
+            ret = var.as_ir_node()
             ret._referenced_variables = {varinfo}
+
+            var.use_count += 1
+            if var.use_count == varinfo._use_count and var.location == MEMORY:
+                self.context.deallocate_variable(varname, var)
+
             return ret
 
         if varinfo.is_constant:
@@ -205,6 +211,7 @@ class Expr:
             )
             ret._referenced_variables = {varinfo}
             return ret
+
 
         raise CompilerPanic("unreachable")  # pragma: nocover
 

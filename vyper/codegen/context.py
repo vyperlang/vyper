@@ -40,6 +40,7 @@ class VariableRecord:
     defined_at: Any = None
     is_internal: bool = False
     alloca: Optional[Alloca] = None
+    use_count: int = 0
 
     # the following members are probably dead
     is_immutable: bool = False
@@ -201,7 +202,7 @@ class Context:
 
         # sanity check the type's size hasn't changed since allocation.
         n = var.typ.memory_bytes_required
-        assert n == var.size
+        assert n == var.size, var
 
         if self.settings.experimental_codegen:
             # do not deallocate at this stage because this will break

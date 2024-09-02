@@ -671,6 +671,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             var_access = _get_variable_access(node)
             if var_access is not None:
                 info._reads.add(var_access)
+                var_access.variable._use_count += 1
 
             if self.function_analyzer:
                 for s in self.function_analyzer.loop_variables:

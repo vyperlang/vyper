@@ -184,6 +184,7 @@ class VarInfo:
     def __post_init__(self):
         self.position = None
         self._modification_count = 0
+        self._use_count = 0
 
     @property
     def getter_ast(self) -> Optional[vy_ast.VyperNode]:
