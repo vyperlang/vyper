@@ -353,8 +353,8 @@ class SCCP(IRPass):
 
         visited.add(bb)
 
-        for bb in bb.cfg_out:
-            return self._fix_phi_bb_r(bb, visited)
+        for next_bb in bb.cfg_out:
+            self._fix_phi_bb_r(next_bb, visited)
 
     def _fix_phi_node_inst(self, phi_inst: IRInstruction):
         if len(phi_inst.parent.cfg_in) != 1:
