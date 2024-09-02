@@ -58,12 +58,14 @@ class SCCP(IRPass):
     work_list: list[WorkListItem]
     cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    cfg_phi_fix_needed: OrderedSet[IRBasicBlock]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
+        self.cfg_phi_fix_needed = OrderedSet()
 
     def run_pass(self):
         self.fn = self.function
@@ -309,6 +311,9 @@ class SCCP(IRPass):
                 inst.opcode = "jmp"
                 inst.operands = [target]
                 self.cfg_dirty = True
+                for bb in inst.parent.cfg_out:
+                    if bb.label == target:
+                        self.cfg_phi_fix_needed.add(bb)
 
         elif inst.opcode in ("assert", "assert_unreachable"):
             lat = self._eval_from_lattice(inst.operands[0])
@@ -334,10 +339,22 @@ class SCCP(IRPass):
                     inst.operands[i] = lat
 
     def _fix_phi_nodes(self):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions.copy():
-                if inst.opcode == "phi":
-                    self._fix_phi_node_inst(inst)
+        visited: OrderedSet[IRBasicBlock] = OrderedSet()
+        for bb in self.cfg_phi_fix_needed:
+            self._fix_phi_bb_r(bb, visited)
+
+    def _fix_phi_bb_r(self, bb: IRBasicBlock, visited: OrderedSet[IRBasicBlock]):
+        if bb in visited:
+            return
+
+        for inst in bb.instructions:
+            if inst.opcode == "phi":
+                self._fix_phi_node_inst(inst)
+
+        visited.add(bb)
+
+        for bb in bb.cfg_out:
+            return self._fix_phi_bb_r(bb, visited)
 
     def _fix_phi_node_inst(self, phi_inst: IRInstruction):
         if len(phi_inst.parent.cfg_in) != 1:
