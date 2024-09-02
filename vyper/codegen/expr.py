@@ -188,7 +188,7 @@ class Expr:
 
             var.use_count += 1
             if var.use_count == varinfo._use_count and var.location == MEMORY:
-                self.context.deallocate_variable(varname, var)
+                self.context.mark_for_deallocation(varname)
 
             return ret
 
@@ -211,7 +211,6 @@ class Expr:
             )
             ret._referenced_variables = {varinfo}
             return ret
-
 
         raise CompilerPanic("unreachable")  # pragma: nocover
 

@@ -346,6 +346,8 @@ def parse_body(code, context, ensure_terminated=False):
         ir = parse_stmt(stmt, context)
         ir_node.append(ir)
 
+        context.sweep()
+
     # force using the return routine / exit_to cleanup for end of function
     if ensure_terminated and context.return_type is None and not _is_terminated(code):
         ir_node.append(parse_stmt(vy_ast.Return(value=None), context))

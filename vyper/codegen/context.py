@@ -122,6 +122,8 @@ class Context:
 
         self.settings = get_global_settings()
 
+        self._to_deallocate = []
+
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
 
@@ -212,6 +214,16 @@ class Context:
             self.memory_allocator.deallocate_memory(var.pos, var.size)
 
         del self.vars[var.name]
+
+    def mark_for_deallocation(self, varname):
+        assert varname not in self._to_deallocate
+        self._to_deallocate.append(varname)
+
+    # "mark-and-sweep", haha
+    def sweep(self):
+        for varname in self._to_deallocate:
+            self.deallocate_variable(varname, self.vars[varname])
+        self._to_deallocate.clear()
 
     def _new_variable(
         self,
