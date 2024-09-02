@@ -225,9 +225,18 @@ class Context:
 
     # "mark-and-sweep", haha
     def sweep(self):
+        tmp = set()
         for varname in self._to_deallocate:
-            self.deallocate_variable(varname, self.vars[varname])
-        self._to_deallocate.clear()
+            var = self.vars[varname]
+            for s in self._scopes:
+                if s not in var.blockscopes:
+                    # defer deallocation until we hit the end of its scope
+                    tmp.add(varname)
+                    break
+            else:
+                self.deallocate_variable(varname, self.vars[varname])
+
+        self._to_deallocate = tmp
 
     def _new_variable(
         self,

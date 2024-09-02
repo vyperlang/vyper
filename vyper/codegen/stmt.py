@@ -34,12 +34,13 @@ class Stmt:
             fn = getattr(self, fn_name)
             with context.internal_memory_scope():
                 self.ir_node = fn()
-            context.sweep()
 
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
         self.ir_node.ast_source = self.stmt
+
+        context.sweep()
 
     def parse_Expr(self):
         return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
