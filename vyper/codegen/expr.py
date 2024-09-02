@@ -186,9 +186,9 @@ class Expr:
             ret = var.as_ir_node()
             ret._referenced_variables = {varinfo}
 
-            if var.use_count == varinfo._use_count and var.location == MEMORY:
+            last_use = self.expr._metadata.get("last_use", False)
+            if last_use and var.location == MEMORY:
                 self.context.mark_for_deallocation(varname)
-            var.use_count += 1
 
             return ret
 

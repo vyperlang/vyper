@@ -34,6 +34,7 @@ class Stmt:
             fn = getattr(self, fn_name)
             with context.internal_memory_scope():
                 self.ir_node = fn()
+            context.sweep()
 
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
@@ -345,8 +346,6 @@ def parse_body(code, context, ensure_terminated=False):
     for stmt in code:
         ir = parse_stmt(stmt, context)
         ir_node.append(ir)
-
-        context.sweep()
 
     # force using the return routine / exit_to cleanup for end of function
     if ensure_terminated and context.return_type is None and not _is_terminated(code):

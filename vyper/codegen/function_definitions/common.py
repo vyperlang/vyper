@@ -1,15 +1,36 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
+import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions
+
+if TYPE_CHECKING:
+    from vyper.semantics.analysis.base import VarInfo
+
+
+def analyse_last_use(fn_ast: vy_ast.FunctionDef):
+    counts: dict[VarInfo, int] = defaultdict(lambda: 0)
+    for stmt in fn_ast.body:
+        for expr in stmt.get_descendants(vy_ast.ExprNode):
+            info = expr._expr_info
+            if info is None:
+                continue
+            for r in info._reads:
+                counts[r.variable] += 1
+                if r.variable._use_count < counts[r.variable]:  # pragma: nocover
+                    raise CompilerPanic("unreachable!")
+                if r.variable._use_count == counts[r.variable]:
+                    expr._metadata["last_use"] = True
 
 
 @dataclass
@@ -113,6 +134,9 @@ def initialize_context(
     func_t: ContractFunctionT, module_ctx: ModuleT, is_ctor_context: bool = False
 ):
     init_ir_info(func_t)
+
+    assert isinstance(func_t.ast_def, vy_ast.FunctionDef)  # help mypy
+    analyse_last_use(func_t.ast_def)
 
     # calculate starting frame
     callees = func_t.called_functions

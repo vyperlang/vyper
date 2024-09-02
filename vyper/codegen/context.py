@@ -40,7 +40,6 @@ class VariableRecord:
     defined_at: Any = None
     is_internal: bool = False
     alloca: Optional[Alloca] = None
-    use_count: int = 0
     system: bool = False
 
     # the following members are probably dead
@@ -123,7 +122,7 @@ class Context:
 
         self.settings = get_global_settings()
 
-        self._to_deallocate = []
+        self._to_deallocate = set()
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
@@ -217,13 +216,12 @@ class Context:
         del self.vars[var.name]
 
     def mark_for_deallocation(self, varname):
-        assert varname not in self._to_deallocate
         # for variables get deallocated anyway
         if varname in self.forvars:
             return
         if self.vars[varname].system:
             return
-        self._to_deallocate.append(varname)
+        self._to_deallocate.add(varname)
 
     # "mark-and-sweep", haha
     def sweep(self):
