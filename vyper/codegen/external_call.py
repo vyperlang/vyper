@@ -71,7 +71,9 @@ def _pack_arguments(fn_type, args, context):
     pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
 
     if len(args) != 0:
-        pack_args.append(abi_encode(add_ofst(buf, 32), args_as_tuple, context, bufsz=buflen))
+        encode_buf = add_ofst(buf, 32)
+        encode_buflen = buflen - 32
+        pack_args.append(abi_encode(encode_buf, args_as_tuple, context, bufsz=encode_buflen))
 
     return buf, pack_args, args_ofst, args_len
 
@@ -107,8 +109,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     # unpack strictly
     if not needs_clamp(wrapped_return_t, encoding):
-        # revert when returndatasize is not in bounds, except when
-        # skip_contract_check is enabled.
+        # revert when returndatasize is not in bounds
         # NOTE: there is an optimization here: when needs_clamp is True,
         # make_setter (implicitly) checks returndatasize during abi
         # decoding.
@@ -123,14 +124,13 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         # another thing we could do instead once we have the machinery is to
         # simply always use make_setter instead of having this assertion, and
         # rely on memory analyser to optimize out the memory movement.
-        if not call_kwargs.skip_contract_check:
-            assertion = IRnode.from_list(
-                ["assert", ["ge", "returndatasize", min_return_size]],
-                error_msg="returndatasize too small",
-            )
-            unpacker.append(assertion)
-        return_buf = buf
+        assertion = IRnode.from_list(
+            ["assert", ["ge", "returndatasize", min_return_size]],
+            error_msg="returndatasize too small",
+        )
+        unpacker.append(assertion)
 
+        return_buf = buf
     else:
         return_buf = context.new_internal_variable(wrapped_return_t)
 

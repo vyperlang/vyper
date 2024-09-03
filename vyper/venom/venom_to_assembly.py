@@ -417,6 +417,12 @@ class VenomCompiler:
                 stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
+        if opcode == "offset":
+            assembly.extend(["_OFST", f"_sym_{inst.operands[1].value}", inst.operands[0].value])
+            assert isinstance(inst.output, IROperand), "Offset must have output"
+            stack.push(inst.output)
+            return apply_line_numbers(inst, assembly)
+
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack)
 
