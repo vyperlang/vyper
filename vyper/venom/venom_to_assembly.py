@@ -1,3 +1,4 @@
+from bisect import insort
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -235,8 +236,7 @@ class VenomCompiler:
 
             if len(positions[stack.peek(0)]) != 0:
                 positions[stack.peek(0)].remove(0)
-                positions[stack.peek(0)].append(depth)
-                positions[stack.peek(0)].sort()
+                insort(positions[stack.peek(0)], depth)
 
             cost += self.swap(assembly, stack, depth)
             if final_stack_depth in positions[stack.peek(final_stack_depth)]:
