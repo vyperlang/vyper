@@ -299,7 +299,7 @@ class VenomCompiler:
         main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for inst in param_insts:
-            asm.extend(self._generate_evm_for_instruction(inst, stack, False))
+            asm.extend(self._generate_evm_for_instruction(inst, stack, cleanup_needed))
 
         self._clean_unused_params(asm, basicblock, stack)
 
