@@ -553,7 +553,7 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if cleanup_needed and inst.output not in next_liveness:
+            if cleanup_needed and opcode != "param" and inst.output not in next_liveness:
                 self.pop(assembly, stack)
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
