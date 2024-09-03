@@ -1,5 +1,4 @@
-from collections import Counter
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
@@ -210,8 +209,8 @@ class VenomCompiler:
         stack_ops_count = len(stack_ops)
 
         counts = Counter(stack_ops)
-        
-        positions : dict[IROperand, list[int]]= defaultdict(lambda : [])
+
+        positions: dict[IROperand, list[int]] = defaultdict(lambda: [])
         for op in stack_ops:
             positions[op] = []
             for i in range(counts[op]):
@@ -221,7 +220,9 @@ class VenomCompiler:
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
             depth = positions[op].pop()  # type: ignore
-            assert depth not in range(-stack_ops_count + 1, final_stack_depth), f"{depth} : ({-stack_ops_count - 1}, {final_stack_depth})"
+            assert depth not in range(
+                -stack_ops_count + 1, final_stack_depth
+            ), f"{depth} : ({-stack_ops_count - 1}, {final_stack_depth})"
 
             if depth == StackModel.NOT_IN_STACK:
                 raise CompilerPanic(f"Variable {op} not in stack")
@@ -246,7 +247,9 @@ class VenomCompiler:
 
             cost += self.swap(assembly, stack, final_stack_depth)
 
-        assert len(stack_ops) == 0 or stack._stack[-len(stack_ops):] == stack_ops, f"Wrong stack {stack} {stack_ops}"
+        assert (
+            len(stack_ops) == 0 or stack._stack[-len(stack_ops) :] == stack_ops
+        ), f"Wrong stack {stack} {stack_ops}"
 
         return cost
 
