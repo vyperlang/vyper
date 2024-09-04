@@ -865,7 +865,7 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
 @pytest.mark.parametrize("constructor_reverts", [True, False])
 @pytest.mark.parametrize("use_value", [True, False])
 @pytest.mark.parametrize("revert_on_failure", [True, False, None])
-def test_raw_create_revert_on_failure(
+def test_raw_create_revert_value_kws(
     get_contract, env, tx_failed, constructor_reverts, revert_on_failure, use_value
 ):
     value = 1
