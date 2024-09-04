@@ -20,6 +20,7 @@ from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.passes.store_elimination import StoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.passes.common_subexpression_elimination import CSE
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -56,7 +57,17 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     BranchOptimizationPass(ac, fn).run_pass()
     ExtractLiteralsPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
+    CSE(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
+
+    #from vyper.venom.analysis.available_expression import AvailableExpressionAnalysis
+    #avail: AvailableExpressionAnalysis = ac.force_analysis(AvailableExpressionAnalysis)
+    #for (bb, data) in avail.lattice.data.items():
+        #print(bb.label)
+        #for (inst, varz) in data.data.items():
+            #print("\t", inst, varz)
+
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
