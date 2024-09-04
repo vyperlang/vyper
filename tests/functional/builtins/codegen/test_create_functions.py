@@ -860,3 +860,103 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
 
     assert env.get_code(res) == runtime
+
+
+def test_raw_create_value(get_contract, env):
+    value = 1
+    to_deploy_code = f"""
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__():
+    assert msg.value == {value}
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy() -> address:
+    return raw_create({initcode}, value={value})
+    """
+
+    deployer = get_contract(deployer_code)
+
+    env.set_balance(deployer.address, value)
+
+    res = deployer.deploy()
+    assert env.get_code(res) == runtime
+
+
+@pytest.mark.parametrize("constructor_reverts", [True, False])
+@pytest.mark.parametrize("revert_on_failure", [True, False])
+def test_raw_create_revert_on_failure(
+    get_contract, env, tx_failed, constructor_reverts, revert_on_failure
+):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(constructor_reverts: bool):
+    assert not constructor_reverts
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    initcode += abi.encode("(uint8)", (constructor_reverts,))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy() -> address:
+    return raw_create({initcode}, revert_on_failure={revert_on_failure})
+    """
+
+    deployer = get_contract(deployer_code)
+
+    if revert_on_failure and constructor_reverts:
+        with tx_failed():
+            deployer.deploy()
+    else:
+        res = deployer.deploy()
+        if constructor_reverts:
+            assert res == ZERO_ADDRESS
+            assert env.get_code(res) == b""
+        else:
+            assert env.get_code(res) == runtime
+
+
+def test_raw_create_dynamic_arg(get_contract, env):
+    array = [1, 2, 3]
+
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(a: DynArray[uint256, 10]):
+    for i: uint256 in range(1, 4):
+        assert a[i - 1] == i
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    initcode += abi.encode("(uint256[])", (array,))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy() -> address:
+    a: DynArray[uint256, 10] = {array}
+    return raw_create({initcode}, a)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy()
+
+    assert env.get_code(res) == runtime
