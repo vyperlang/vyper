@@ -862,47 +862,22 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-def test_raw_create_value(get_contract, env):
-    value = 1
-    to_deploy_code = f"""
-foo: public(uint256)
-
-@deploy
-@payable
-def __init__():
-    assert msg.value == {value}
-    """
-
-    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
-    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
-
-    deployer_code = f"""
-@external
-def deploy() -> address:
-    return raw_create({initcode}, value={value})
-    """
-
-    deployer = get_contract(deployer_code)
-
-    env.set_balance(deployer.address, value)
-
-    res = deployer.deploy()
-    assert env.get_code(res) == runtime
-
-
 @pytest.mark.parametrize("constructor_reverts", [True, False])
-@pytest.mark.parametrize("revert_on_failure", [True, False])
+@pytest.mark.parametrize("use_value", [True, False])
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
 def test_raw_create_revert_on_failure(
-    get_contract, env, tx_failed, constructor_reverts, revert_on_failure
+    get_contract, env, tx_failed, constructor_reverts, revert_on_failure, use_value
 ):
-    to_deploy_code = """
+    value = 1
+    value_assert = f"assert msg.value == {value}" if use_value else ""
+    to_deploy_code = f"""
 foo: public(uint256)
 
 @deploy
 @payable
 def __init__(constructor_reverts: bool):
     assert not constructor_reverts
+    {value_assert}
     """
 
     out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
@@ -910,15 +885,23 @@ def __init__(constructor_reverts: bool):
     initcode += abi.encode("(uint8)", (constructor_reverts,))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
+    value_kw = f", value={value}" if use_value else ""
+    revert_kw = f", revert_on_failure={revert_on_failure}" if revert_on_failure is not None else ""
     deployer_code = f"""
 @external
 def deploy() -> address:
-    return raw_create({initcode}, revert_on_failure={revert_on_failure})
+    return raw_create({initcode}{revert_kw}{value_kw})
     """
 
     deployer = get_contract(deployer_code)
+    env.set_balance(deployer.address, value)
 
-    if revert_on_failure and constructor_reverts:
+    if (
+        revert_on_failure
+        and constructor_reverts
+        or revert_on_failure is None
+        and constructor_reverts
+    ):
         with tx_failed():
             deployer.deploy()
     else:
