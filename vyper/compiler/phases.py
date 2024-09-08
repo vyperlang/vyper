@@ -158,7 +158,8 @@ class CompilerData:
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = generate_annotated_ast(self._resolve_imports[0])
+        module = self._resolve_imports[0]
+        analyze_module(module)
         nspec = natspec.parse_natspec(module)
         return nspec, module
 
@@ -276,26 +277,6 @@ class CompilerData:
         deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
 
         return deploy_bytecode + blueprint_bytecode
-
-
-def generate_annotated_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
-    """
-    Validates and annotates the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-
-    Returns
-    -------
-    vy_ast.Module
-        Annotated Vyper AST
-    """
-    # note: analyze_module does type inference on the AST
-    analyze_module(vyper_module)
-
-    return vyper_module
 
 
 def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:

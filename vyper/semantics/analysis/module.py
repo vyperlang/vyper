@@ -156,19 +156,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.namespace = namespace
         self.is_interface = is_interface
 
-        # keep track of imported modules to prevent duplicate imports
-        # TODO: move this to ImportAnalyzer
-        self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
-
         # keep track of exported functions to prevent duplicate exports
         self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         self._events: list[EventT] = []
 
         self.module_t: Optional[ModuleT] = None
-
-    def resolve_imports(self):
-        pass
 
     def analyze_module_body(self):
         # generate a `ModuleT` from the top-level node

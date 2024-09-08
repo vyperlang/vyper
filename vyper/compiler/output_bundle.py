@@ -159,7 +159,7 @@ class OutputBundleWriter:
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
-        self.write_integrity(self.bundle.compilation_target.integrity_sum)
+        self.write_integrity(self.compiler_data.resolved_imports.integrity_sum)
         self.write_sources(self.bundle.compiler_inputs)
 
 
