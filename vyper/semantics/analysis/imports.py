@@ -117,16 +117,6 @@ class ImportAnalyzer:
         with self.input_bundle.poke_search_path(self_search_path):
             return self._load_import_helper(node, level, module_str, alias)
 
-    def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
-        # cache ast if we have seen it before.
-        # this gives us the additional property of object equality on
-        # two ASTs produced from the same source
-        ast_of = self._ast_of
-        if file.source_id not in ast_of:
-            ast_of[file.source_id] = _parse_ast(file)
-
-        return ast_of[file.source_id]
-
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
@@ -185,6 +175,16 @@ class ImportAnalyzer:
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, hint=hint) from err
+
+    def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
+        # cache ast if we have seen it before.
+        # this gives us the additional property of object equality on
+        # two ASTs produced from the same source
+        ast_of = self._ast_of
+        if file.source_id not in ast_of:
+            ast_of[file.source_id] = _parse_ast(file)
+
+        return ast_of[file.source_id]
 
 
 def _parse_ast(file: FileInput) -> vy_ast.Module:

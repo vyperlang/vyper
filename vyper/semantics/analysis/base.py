@@ -121,11 +121,13 @@ class ModuleInfo(AnalysisResult):
 
 @dataclass(frozen=True)
 class ImportInfo(AnalysisResult):
-    typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
     compiler_input: CompilerInput  # to recover file info for ast export
-    node: vy_ast.VyperNode
+    parsed: Any  # (json) abi | AST
+
+    # TODO: is this field used?
+    node: vy_ast._ImportStmt  # the importing node
 
     def to_dict(self):
         ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
@@ -136,7 +138,6 @@ class ImportInfo(AnalysisResult):
         ret["file_sha256sum"] = self.compiler_input.sha256sum
 
         return ret
-
 
 # analysis result of InitializesDecl
 @dataclass
