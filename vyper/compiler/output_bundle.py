@@ -12,7 +12,7 @@ from vyper.compiler.input_bundle import CompilerInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.analysis.module import _is_builtin
+from vyper.semantics.analysis.imports import _is_builtin
 from vyper.utils import get_long_version
 
 # data structures and routines for constructing "output bundles",

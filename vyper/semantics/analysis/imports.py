@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Any, Iterator
 
-import vyper
+import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     ABIInput,
@@ -21,9 +21,13 @@ from vyper.exceptions import (
     ModuleNotFound,
     StructureException,
 )
+from vyper.semantics.analysis.base import ImportInfo
 
 """
-collect import statements and validate the import graph
+collect import statements and validate the import graph.
+this module is separated into its own pass so that we can resolve the import
+graph quickly (without doing semantic analysis) and for cleanliness, to
+segregate the I/O portion of semantic analysis into its own pass.
 """
 
 
@@ -32,17 +36,31 @@ class _ImportGraph:
     # the current path in the import graph traversal
     _path: list[vy_ast.Module] = field(default_factory=list)
 
+    # stack of dicts, each item in the stack is a dict keeping
+    # track of imports in the current module
+    _imports: list[dict] = field(default_factory=list)
+
+    @property
+    def imported_modules(self):
+        return self._imports[-1]
+
+    @property
+    def current_module(self):
+        return self._path[-1]
+
     def push_path(self, module_ast: vy_ast.Module) -> None:
         if module_ast in self._path:
             cycle = self._path + [module_ast]
             raise ImportCycle(" imports ".join(f'"{t.path}"' for t in cycle))
 
         self._path.append(module_ast)
+        self._imports.append({})
 
     def pop_path(self, expected: vy_ast.Module) -> None:
         popped = self._path.pop()
         if expected != popped:
             raise CompilerPanic("unreachable")
+        self._imports.pop()
 
     @contextlib.contextmanager
     def enter_path(self, module_ast: vy_ast.Module) -> Iterator[None]:
@@ -55,14 +73,19 @@ class _ImportGraph:
 
 class ImportAnalyzer:
     def __init__(self, input_bundle: InputBundle, graph: _ImportGraph):
+        self.input_bundle = input_bundle
         self.graph = graph
-        self._ast_of: dict[PathLike, vy_ast.Module] = {}
+        self._ast_of: dict[int, vy_ast.Module] = {}
 
         self.integrity_sum = None
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
         self.integrity_sum = self._calculate_integrity_sum(module_ast)
+
+    def _calculate_integrity_sum(self, module_ast: vy_ast.Module):
+        # TODO: stub
+        pass
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
         with self.graph.enter_path(module_ast):
@@ -104,15 +127,16 @@ class ImportAnalyzer:
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        node._metadata["compiler_input"] = compiler_input
-        node._metadata["imported_ast"] = ast
-        node._metadata["alias"] = alias
+        node._metadata["import_info"] = ImportInfo(
+            alias, qualified_module_name, compiler_input, ast
+        )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
     def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
         # the directory this (currently being analyzed) module is in
-        self_search_path = Path(self.ast.resolved_path).parent
+        ast = self.graph.current_module
+        self_search_path = Path(ast.resolved_path).parent
 
         with self.input_bundle.poke_search_path(self_search_path):
             return self._load_import_helper(node, level, module_str, alias)
@@ -125,11 +149,11 @@ class ImportAnalyzer:
 
         path = _import_to_path(level, module_str)
 
-        if path in self.graph._imported_modules:
-            previous_import_stmt = self._imported_modules[path]
+        if path in self.graph.imported_modules:
+            previous_import_stmt = self.graph.imported_modules[path]
             raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
 
-        self._imported_modules[path] = node
+        self.graph.imported_modules[path] = node
 
         err = None
 
@@ -258,8 +282,8 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     # (it is also *correct* to cache them, so that types defined in builtins
     # compare correctly using pointer-equality.)
     if path in _builtins_cache:
-        file, module_t = _builtins_cache[path]
-        return file, module_t.interface
+        file, ast = _builtins_cache[path]
+        return file, ast
 
     try:
         file = input_bundle.load_file(path)
@@ -282,9 +306,9 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     return file, interface_ast
 
 
-def resolve_imports(module_ast: vy_ast.Module):
+def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
     graph = _ImportGraph()
-    analyzer = ImportAnalyzer(graph)
+    analyzer = ImportAnalyzer(input_bundle, graph)
     analyzer.resolve_imports(module_ast)
 
     return analyzer

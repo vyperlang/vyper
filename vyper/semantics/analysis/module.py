@@ -2,13 +2,11 @@ from pathlib import PurePath
 from typing import Any, Optional
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import ABIInput, CompilerInput
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
     CompilerPanic,
-    DuplicateImport,
     EvmVersionException,
     ExceptionList,
     ImmutableViolation,
@@ -708,12 +706,37 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_ImportFrom(self, node):
         self._add_import(node)
 
-    def _add_import(self, node: vy_ast.VyperNode, alias: str) -> None:
-        compiler_input, module_info = self._load_import(node, alias)
-        node._metadata["import_info"] = ImportInfo(
-            module_info, alias, qualified_module_name, compiler_input, node
-        )
-        self.namespace[alias] = module_info
+    def _add_import(self, node: vy_ast.VyperNode) -> None:
+        import_info = node._metadata["import_info"]
+        # similar structure to import analyzer
+        module_info = self._load_import(node, import_info)
+
+        import_info._typ = module_info
+
+        self.namespace[import_info.alias] = module_info
+
+    def _load_import(self, node: vy_ast.VyperNode, import_info: ImportInfo) -> Any:
+        path = import_info.compiler_input.path
+        if path.suffix == ".vy":
+            module_ast = import_info.parsed
+            with override_global_namespace(Namespace()):
+                module_t = _analyze_module_r(module_ast, is_interface=False)
+                return ModuleInfo(module_t, import_info.alias)
+
+        if path.suffix == ".vyi":
+            module_ast = import_info.parsed
+            with override_global_namespace(Namespace()):
+                module_t = _analyze_module_r(module_ast, is_interface=True)
+
+                # TODO: return the whole module
+                return module_t.interface
+
+        if path.suffix == ".json":
+            abi = import_info.parsed
+            path = import_info.compiler_input.path
+            return InterfaceT.from_json_abi(str(path), abi)
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     def visit_InterfaceDef(self, node):
         interface_t = InterfaceT.from_InterfaceDef(node)
@@ -724,41 +747,3 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         struct_t = StructT.from_StructDef(node)
         node._metadata["struct_type"] = struct_t
         self.namespace[node.name] = struct_t
-
-    def _load_import_helper(
-        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> tuple[CompilerInput, Any]:
-        path = node._metadata["path"]
-
-        # this could conceivably be in the ImportGraph but no need at this point
-        if path in self._imported_modules:
-            previous_import_stmt = self._imported_modules[path]
-            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
-
-        self._imported_modules[path] = node
-
-        if path.suffix == "vy":
-            file = node._metadata["compiler_input"]
-            module_ast = node._metadata["ast"]
-            with override_global_namespace(Namespace()):
-                module_t = _analyze_module_r(module_ast, is_interface=False)
-
-                return file, ModuleInfo(module_t, alias)
-
-        if path.suffix == "vyi":
-            file = node._metadata["compiler_input"]
-            module_ast = node._metadata["ast"]
-            with override_global_namespace(Namespace()):
-                _analyze_module_r(module_ast, is_interface=True)
-                module_t = module_ast._metadata["type"]
-
-                # TODO: return the whole module
-                return file, module_t.interface
-
-        if path.suffix == "json":
-            file = node._metadata["compiler_input"]
-            module_ast = node._metadata["ast"]
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, InterfaceT.from_json_abi(str(file.path), file.abi)
-
-        raise CompilerPanic("unreachable")  # pragma: nocover

@@ -1,7 +1,7 @@
 import enum
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import CompilerInput
@@ -13,7 +13,7 @@ from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
     from vyper.semantics.types.function import ContractFunctionT
-    from vyper.semantics.types.module import InterfaceT, ModuleT
+    from vyper.semantics.types.module import ModuleT
 
 
 class FunctionVisibility(StringEnum):
@@ -119,15 +119,19 @@ class ModuleInfo(AnalysisResult):
         return hash(id(self.module_t))
 
 
-@dataclass(frozen=True)
+@dataclass
 class ImportInfo(AnalysisResult):
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
     compiler_input: CompilerInput  # to recover file info for ast export
     parsed: Any  # (json) abi | AST
+    _typ: Any = None  # type to be filled in during analysis
 
-    # TODO: is this field used?
-    node: vy_ast._ImportStmt  # the importing node
+    @property
+    def typ(self):
+        if self._typ is None:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
+        return self._typ
 
     def to_dict(self):
         ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
@@ -138,6 +142,7 @@ class ImportInfo(AnalysisResult):
         ret["file_sha256sum"] = self.compiler_input.sha256sum
 
         return ret
+
 
 # analysis result of InitializesDecl
 @dataclass
