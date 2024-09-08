@@ -1,4 +1,3 @@
-from pathlib import PurePath
 from typing import Any, Optional
 
 from vyper import ast as vy_ast

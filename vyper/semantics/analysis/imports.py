@@ -1,6 +1,5 @@
 import contextlib
 import os
-from vyper.utils import sha256sum
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Any, Iterator
@@ -23,6 +22,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.analysis.base import ImportInfo
+from vyper.utils import sha256sum
 
 """
 collect import statements and validate the import graph.
@@ -86,7 +86,7 @@ class ImportAnalyzer:
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
-        for s in module_ast.get_children(vy_ast._ImportStmt):
+        for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
             info = s._metadata["import_info"]
 
             if info.compiler_input.path.suffix in (".vyi", ".json"):

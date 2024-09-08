@@ -22,7 +22,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
-from vyper.utils import OrderedSet, sha256sum
+from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
     from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
