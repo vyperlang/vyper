@@ -1,5 +1,6 @@
 import contextlib
 import os
+from vyper.utils import sha256sum
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Any, Iterator
@@ -81,11 +82,20 @@ class ImportAnalyzer:
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
-        self.integrity_sum = self._calculate_integrity_sum(module_ast)
+        self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
 
-    def _calculate_integrity_sum(self, module_ast: vy_ast.Module):
-        # TODO: stub
-        pass
+    def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
+        acc = [sha256sum(module_ast.full_source_code)]
+        for s in module_ast.get_children(vy_ast._ImportStmt):
+            info = s._metadata["import_info"]
+
+            if info.compiler_input.path.suffix in (".vyi", ".json"):
+                # NOTE: this needs to be redone if interfaces can import other interfaces
+                acc.append(info.compiler_input.sha256sum)
+            else:
+                acc.append(self._calculate_integrity_sum_r(info.parsed))
+
+        return sha256sum("".join(acc))
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
         with self.graph.enter_path(module_ast):

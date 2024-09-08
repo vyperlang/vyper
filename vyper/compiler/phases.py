@@ -147,8 +147,18 @@ class CompilerData:
         return ast
 
     @cached_property
+    def _resolve_imports(self):
+        vyper_module = copy.deepcopy(self.vyper_module)
+        with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
+            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+
+    @cached_property
+    def resolved_imports(self):
+        return self._resolve_imports[1]
+
+    @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = generate_annotated_ast(self.vyper_module, self.input_bundle)
+        module = generate_annotated_ast(self._resolve_imports[0])
         nspec = natspec.parse_natspec(module)
         return nspec, module
 
@@ -268,7 +278,7 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
+def generate_annotated_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
     """
     Validates and annotates the Vyper AST.
 
@@ -282,10 +292,6 @@ def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundl
     vy_ast.Module
         Annotated Vyper AST
     """
-    vyper_module = copy.deepcopy(vyper_module)
-    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # TODO: move this to its own pass
-        resolve_imports(vyper_module, input_bundle)
     # note: analyze_module does type inference on the AST
     analyze_module(vyper_module)
 
