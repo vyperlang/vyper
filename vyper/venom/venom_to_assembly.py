@@ -214,7 +214,7 @@ class VenomCompiler:
         # positions stores the positions of relevant operands
         # on stack for example operand %82 is on positions [0, 3]
         # this operand could ocure even more deeper in the stack
-        # but only those that are needed/relevant in calculation 
+        # but only those that are needed/relevant in calculation
         # are considered
         positions: dict[IROperand, list[int]] = defaultdict(lambda: [])
         for op in stack_ops:
