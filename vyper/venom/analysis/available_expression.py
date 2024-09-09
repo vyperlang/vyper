@@ -11,6 +11,7 @@ from vyper.venom.basicblock import IROperand
 from vyper.venom.basicblock import BB_TERMINATORS
 from vyper.utils import OrderedSet
 from dataclasses import dataclass
+from collections import deque
 
 @dataclass
 class _Expression:
@@ -31,12 +32,12 @@ class _Expression:
 
     def __repr__(self) -> str:
         if self.opcode == "store":
-            assert len(self.operands) == 1
+            assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + " [ "
         for op in self.operands:
-            if self.opcode != "phi":
-                assert not isinstance(op, IRVariable)
+            #if self.opcode != "phi":
+                #assert not isinstance(op, IRVariable)
             res += repr(op) + " "
         res += "]"
         return res
@@ -52,10 +53,12 @@ class _Expression:
 class _BBLattice:
     data : dict[IRInstruction, OrderedSet[_Expression]]
     out : OrderedSet[_Expression]
+    in_cache: OrderedSet[_Expression] | None
 
     def __init__(self, bb : IRBasicBlock):
         self.data = dict()
         self.out = OrderedSet()
+        self.in_cache = None
         for inst in bb.instructions:
             self.data[inst] = OrderedSet()
 
@@ -92,44 +95,68 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.lattice = _FunctionLattice(function)
 
     def analyze(self, *args, **kwargs):
-        while True:
-            changed = False
-            for bb in self.function.get_basic_blocks():
-                changed |= self._handle_bb(bb)
+        worklist = deque()
+        worklist.append(self.function.entry)
+        while len(worklist) > 0:
+            bb : IRBasicBlock = worklist.popleft()
+            changed = self._handle_bb(bb)
 
-            if not changed:
-                break
+            if changed:
+                for out in bb.cfg_out:
+                    if out not in worklist:
+                        worklist.append(out)
     
     def _handle_bb(self, bb : IRBasicBlock) -> bool:
         available_expr : OrderedSet[_Expression] = OrderedSet()
         if len(bb.cfg_in) > 0:
-            available_expr  = self.lattice.data[bb.cfg_in.first()].out
-            for in_bb in bb.cfg_in:
-                available_expr = available_expr.union(self.lattice.data[in_bb].out)
+            available_expr = OrderedSet.intersection(*(self.lattice.data[in_bb].out for in_bb in bb.cfg_in))
         
+        if bb.label.name == "5_if_exit":
+            pass
+            print(bb.label)
+            print(type(available_expr))
+            print(type(available_expr._data))
+            print(len(available_expr))
+            print(available_expr)
+
         bb_lat = self.lattice.data[bb]
+        if bb_lat.in_cache is not None and available_expr == bb_lat.in_cache:
+            return False
+        bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if inst == "phi":
+            if bb.label.name == "5_if_exit":
+                print(inst)
+            if "call" in inst.opcode:
+                for expr in available_expr.copy():
+                    if "returndata" in expr.opcode:
+                        available_expr.remove(expr)
+                continue
+            if (inst.opcode in UNINTRESTING_OPCODES 
+                or inst.opcode in BB_TERMINATORS 
+                or inst.output == None):
                 continue
             inst_expr = self.get_expression(inst)
+            if inst.output is not None and inst.output.name == "%25":
+                print(available_expr)
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
                 change |= True
-            if inst_expr.opcode not in UNINTRESTING_OPCODES and inst_expr.opcode not in BB_TERMINATORS and "call" not in inst_expr.opcode and inst.output != None:
-                for expr in available_expr.copy():
-                    if expr.contains_expr(inst_expr):
-                        available_expr.remove(expr)
-                available_expr.add(inst_expr)
+            for expr in available_expr.copy():
+                if expr.contains_expr(inst_expr):
+                    available_expr.remove(expr)
+            available_expr.add(inst_expr)
 
         if available_expr != bb_lat.out:
             bb_lat.out = available_expr.copy()
             change |= True
-
+        
+        #if change:
+            #print(bb.label)
         return change
 
     def _get_operand(self, op : IROperand) -> _Expression | IROperand:
-        if isinstance(op, IRVariable):
+        if False and isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
             return self.get_expression(inst)
