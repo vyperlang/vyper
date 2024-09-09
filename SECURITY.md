@@ -26,16 +26,16 @@ we will add an entry to the list of security advisories for posterity and refere
 
 
 ## Bug Bounty Program
-- Vyper runs a bug bounty program via Ethereum Foundation.
-  - Bugs should be reported through the [Ethereum Foundation's bounty program](https://bounty.ethereum.org/).
+- Vyper runs a bug bounty program via the Ethereum Foundation.
+  - Bugs should be reported through the [Ethereum Foundation's bounty program](https://ethereum.org/bug-bounty).
 
 ### Scope
-- Rules from the Ethereum Foundation's bug bounty program apply. Here we further clarify the scope of the Vyper bounty program.
+- Rules from the Ethereum Foundation's bug bounty program apply; for any questions please reach out [here](mailto:bounty@ethereum.org). Here we further clarify the scope of the Vyper bounty program.
 - If a compiler bug affects production code, it is in scope.
   - This includes bugs in older compiler versions still used in production (excluding known issues).
 - If a compiler bug does not currently affect production but is likely to in the future, it is in scope.
   - This mainly applies to the latest compiler release (e.g., a new release is available but contracts are not yet deployed with it).
-  - Experimental features are out of scope, as they are not intended for production and are unlikely to affect production code.
+  - Experimental features (e.g. `--experimental-codegen`) are out of scope, as they are not intended for production and are unlikely to affect production code.
   - Bugs in older compiler versions are generally out of scope, as they are no longer used for new contracts.
 - If a vulnerability affects multiple contracts, the whitehat is eligible for only one payout (though the severity of the bug may increase).
 - Eligibility for project-specific bounties is independent of this bounty.
