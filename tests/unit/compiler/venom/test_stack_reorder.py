@@ -1,11 +1,10 @@
-from vyper.venom.context import IRContext
-from vyper.venom.venom_to_assembly import VenomCompiler
-
 from vyper.venom import generate_assembly_experimental
+from vyper.venom.context import IRContext
+
 
 def test_stack_reorder():
     """
-    Test to was created from the example in the 
+    Test to was created from the example in the
     issue https://github.com/vyperlang/vyper/issues/4215
     this example should fail with original stack reorder
     algorithm but succeed with new one
@@ -23,8 +22,7 @@ def test_stack_reorder():
     bb.append_instruction("staticcall", var0, var1, var2, var3, var4, var3)
 
     ret_val = bb.append_instruction("add", var4, var4)
-    
+
     bb.append_instruction("ret", ret_val)
 
     generate_assembly_experimental(ctx)
-
