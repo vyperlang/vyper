@@ -211,6 +211,11 @@ class VenomCompiler:
 
         counts = Counter(stack_ops)
 
+        # positions stores the positions of relevant operands
+        # on stack for example operand %82 is on positions [0, 3]
+        # this operand could ocure even more deeper in the stack
+        # but only those that are needed/relevant in calculation 
+        # are considered
         positions: dict[IROperand, list[int]] = defaultdict(lambda: [])
         for op in stack_ops:
             positions[op] = []
@@ -234,16 +239,21 @@ class VenomCompiler:
             if op == stack.peek(final_stack_depth):
                 continue
 
-            if len(positions[stack.peek(0)]) != 0:
-                positions[stack.peek(0)].remove(0)
-                insort(positions[stack.peek(0)], depth)
+            # moves the top item to original position
+            top_item_positions = positions[stack.peek(0)]
+            if len(top_item_positions) != 0:
+                top_item_positions.remove(0)
+                insort(top_item_positions, depth)
 
             cost += self.swap(assembly, stack, depth)
-            if final_stack_depth in positions[stack.peek(final_stack_depth)]:
-                positions[stack.peek(final_stack_depth)].remove(final_stack_depth)
-                positions[stack.peek(final_stack_depth)].insert(0, 0)
+
+            # moves the item from final position to top
+            final_item_positions = positions[stack.peek(final_stack_depth)]
+            if final_stack_depth in final_item_positions:
+                final_item_positions.remove(final_stack_depth)
+                final_item_positions.insert(0, 0)
             else:
-                positions[stack.peek(final_stack_depth)].insert(0, 0)
+                final_item_positions.insert(0, 0)
 
             cost += self.swap(assembly, stack, final_stack_depth)
 
