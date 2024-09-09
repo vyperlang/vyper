@@ -1273,7 +1273,7 @@ initializes: lib3
     assert e.value._hint == "add `lib3 := lib3` to its initializer list"
 
 
-def test_hint_for_missing_initializer_when_no_import(make_input_bundle):
+def test_hint_for_missing_initializer_when_no_import(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -1297,7 +1297,8 @@ initializes: lib2
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
-    assert e.value._hint == "try importing lib1 first"
+    hint = "try importing `lib1` first (located at `lib1.vy`)"
+    assert e.value._hint == hint
 
 
 @pytest.fixture
@@ -1383,3 +1384,37 @@ def foo():
     hint = f"add `uses: {lib}` or `initializes: {lib}` as a top-level statement to your contract"
     assert e.value._hint == hint
     assert e.value.annotations[0].lineno == 6
+
+
+def test_global_initialize_missed_import_hint(make_input_bundle, chdir_tmp_path):
+    lib1 = """
+import lib2
+import lib3
+
+initializes: lib2[
+    lib3 := lib3
+]
+    """
+    lib2 = """
+import lib3
+
+uses: lib3
+
+@external
+def set_some_mod():
+    a: uint256 = lib3.var
+    """
+    lib3 = """
+var: uint256
+    """
+    main = """
+import lib1
+
+initializes: lib1
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "module `lib3.vy` is used but never initialized!"
+    assert e.value._hint is None
