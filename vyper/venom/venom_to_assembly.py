@@ -165,7 +165,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                cleanup_needed = any(map(lambda x: bb_cleanup_needed(x), fn.get_basic_blocks()))
+                cleanup_needed = any((bb_cleanup_needed(bb) for bb in fn.get_basic_blocks()))
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
 
