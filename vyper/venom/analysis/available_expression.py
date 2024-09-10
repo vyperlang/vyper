@@ -17,7 +17,7 @@ from collections import deque
 class _Expression:
     first_inst : IRInstruction
     opcode: str
-    operands : list["_Expression | IROperand"]
+    operands : list[IROperand]
 
     def __eq__(self, other):
         if not isinstance(other, _Expression):
@@ -36,8 +36,6 @@ class _Expression:
             return repr(self.operands[0])
         res = self.opcode + " [ "
         for op in self.operands:
-            #if self.opcode != "phi":
-                #assert not isinstance(op, IRVariable)
             res += repr(op) + " "
         res += "]"
         return res
@@ -111,22 +109,12 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if len(bb.cfg_in) > 0:
             available_expr = OrderedSet.intersection(*(self.lattice.data[in_bb].out for in_bb in bb.cfg_in))
         
-        if bb.label.name == "5_if_exit":
-            pass
-            print(bb.label)
-            print(type(available_expr))
-            print(type(available_expr._data))
-            print(len(available_expr))
-            print(available_expr)
-
         bb_lat = self.lattice.data[bb]
         if bb_lat.in_cache is not None and available_expr == bb_lat.in_cache:
             return False
         bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if bb.label.name == "5_if_exit":
-                print(inst)
             if "call" in inst.opcode:
                 for expr in available_expr.copy():
                     if "returndata" in expr.opcode:
@@ -136,9 +124,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 or inst.opcode in BB_TERMINATORS 
                 or inst.output == None):
                 continue
-            inst_expr = self.get_expression(inst)
-            if inst.output is not None and inst.output.name == "%25":
-                print(available_expr)
+            inst_expr = self.get_expression(inst, available_expr)
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
                 change |= True
@@ -151,33 +137,18 @@ class AvailableExpressionAnalysis(IRAnalysis):
             bb_lat.out = available_expr.copy()
             change |= True
         
-        #if change:
-            #print(bb.label)
         return change
 
-    def _get_operand(self, op : IROperand) -> _Expression | IROperand:
-        if False and isinstance(op, IRVariable):
-            inst = self.dfg.get_producing_instruction(op)
-            assert inst is not None
-            return self.get_expression(inst)
-        return op
-
-    def get_expression(self, inst: IRInstruction) -> _Expression:
-        if inst in self.inst_to_expr.keys():
-            return self.inst_to_expr[inst]
-        if inst.opcode == "phi":
-            operands: list[_Expression | IROperand] = inst.operands.copy()
-        else:
-            operands = [self._get_operand(op) for op in inst.operands]
+    def get_expression(self, inst: IRInstruction, available_exprs : OrderedSet[_Expression] | None = None) -> _Expression:
+        if available_exprs is None:
+            available_exprs = self.lattice.data[inst.parent].data[inst]
+        operands: list[IROperand] = inst.operands.copy()
         expr = _Expression(inst, inst.opcode, operands)
-        for e in self.expressions:
-            if e == expr:
-                self.inst_to_expr[inst] = e
-                #print("yo", e)
-                return e
+        if expr in available_exprs:
+            for e in available_exprs:
+                if e == expr:
+                    return e
         
-        self.expressions.add(expr)
-        self.inst_to_expr[inst] = expr
         return expr
 
     def get_available(self, inst : IRInstruction) -> OrderedSet[_Expression]:

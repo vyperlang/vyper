@@ -39,7 +39,9 @@ class CSE(IRPass):
 
     def _replace(self, replace_dict : dict[IRInstruction, IRInstruction]):
         for (orig, to) in replace_dict.items():
-            print(orig.output, to.output)
+            while to in replace_dict.keys():
+                to = replace_dict[to]
+            #print(orig.output, to.output)
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst : IRInstruction, to_inst : IRInstruction):
@@ -55,13 +57,10 @@ class CSE(IRPass):
         visited.add(bb)
 
         for inst in bb.instructions:
-            #print("\t", inst)
             for i in range(len(inst.operands)):
                 op = inst.operands[i]
                 if op == orig:
-                    #print("yo")
                     inst.operands[i] = to
-                    #print(inst)
 
         for out in bb.cfg_out:
             self._replace_inst_r(out, orig, to, visited)

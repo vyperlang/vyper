@@ -62,23 +62,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #print(fn)
     DFTPass(ac, fn).run_pass()
 
-    """
-    from vyper.venom.analysis.available_expression import AvailableExpressionAnalysis
-    avail: AvailableExpressionAnalysis = ac.force_analysis(AvailableExpressionAnalysis)
-    for (bb, data) in avail.lattice.data.items():
-        print(bb.label, "out", data.out)
-        for (inst, varz) in data.data.items():
-            print("\t", inst, varz)
-    """
-
-    from vyper.venom.analysis.liveness import LivenessAnalysis
-    print("########")
-    print("########")
-    print("########")
-    print("########")
-    print("########")
-    ac.force_analysis(LivenessAnalysis)
-
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
