@@ -295,19 +295,12 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
-        main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+        param_insts = (inst for inst in basicblock.instructions if inst.opcode == "param")
+        main_insts = (inst for inst in basicblock.instructions if inst.opcode != "param")
+        all_inst = [x for one_iter in (param_insts, main_insts) for x in one_iter]
 
-        for i, inst in enumerate(param_insts):
-            next_liveness = (
-                param_insts[i + 1].liveness if i + 1 < len(param_insts) else main_insts[0].liveness
-            )
-            asm.extend(
-                self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness)
-            )
-
-        for i, inst in enumerate(main_insts):
-            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
+        for i, inst in enumerate(all_inst):
+            next_liveness = all_inst[i + 1].liveness if i + 1 < len(all_inst) else OrderedSet()
 
             asm.extend(
                 self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness)
