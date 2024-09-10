@@ -146,6 +146,9 @@ class _BaseVyperException(Exception):
         return node_msg
 
     def _add_hint(self, msg):
+        hint = self.hint
+        if hint is None:
+            return msg
         return msg + f"\n  (hint: {self.hint})"
 
     def __str__(self):
