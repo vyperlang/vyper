@@ -165,7 +165,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                cleanup_needed = any(map(lambda x: bb_cleanup_needed(x), fn.get_basic_blocks()))
+                cleanup_needed = any((bb_cleanup_needed(bb) for bb in fn.get_basic_blocks()))
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
 
@@ -298,10 +298,13 @@ class VenomCompiler:
         param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
         main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
-        for inst in param_insts:
-            asm.extend(self._generate_evm_for_instruction(inst, stack, cleanup_needed))
-
-        self._clean_unused_params(asm, basicblock, stack)
+        for i, inst in enumerate(param_insts):
+            next_liveness = (
+                param_insts[i + 1].liveness if i + 1 < len(param_insts) else main_insts[0].liveness
+            )
+            asm.extend(
+                self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness)
+            )
 
         for i, inst in enumerate(main_insts):
             next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
@@ -312,18 +315,6 @@ class VenomCompiler:
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy(), cleanup_needed)
-
-    def _clean_unused_params(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
-        for i, inst in enumerate(bb.instructions):
-            if inst.opcode != "param":
-                break
-            if inst.is_volatile and i + 1 < len(bb.instructions):
-                liveness = bb.instructions[i + 1].liveness
-                if inst.output is not None and inst.output not in liveness:
-                    depth = stack.get_depth(inst.output)
-                    if depth != 0:
-                        self.swap(asm, stack, depth)
-                    self.pop(asm, stack)
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -553,7 +544,10 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if cleanup_needed and opcode != "param" and inst.output not in next_liveness:
+            if cleanup_needed and inst.output not in next_liveness:
+                depth = stack.get_depth(inst.output)
+                if depth != 0:
+                    self.swap(assembly, stack, depth)
                 self.pop(assembly, stack)
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
