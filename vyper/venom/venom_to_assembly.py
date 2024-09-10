@@ -295,9 +295,7 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        param_insts = (inst for inst in basicblock.instructions if inst.opcode == "param")
-        main_insts = (inst for inst in basicblock.instructions if inst.opcode != "param")
-        all_insts = [x for one_iter in (param_insts, main_insts) for x in one_iter]
+        all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
         for i, inst in enumerate(all_insts):
             next_liveness = all_insts[i + 1].liveness if i + 1 < len(all_insts) else OrderedSet()
