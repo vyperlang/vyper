@@ -1171,7 +1171,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
              pcs by (no effect until we add deploy code source map)
     compiler_metadata: any compiler metadata to add. pass `None` to indicate
                        no metadata to be added (should always be `None` for
-                       runtime code)
+                       runtime code). the value is opaque, and will be passed
+                       directly to `cbor2.dumps()`.
     """
     line_number_map = {
         "breakpoints": set(),
