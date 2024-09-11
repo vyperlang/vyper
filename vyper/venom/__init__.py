@@ -6,6 +6,7 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -18,6 +19,7 @@ from vyper.venom.passes.mem2var import Mem2Var
 from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.stack2mem import Stack2Mem
 from vyper.venom.passes.store_elimination import StoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -57,6 +59,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     ExtractLiteralsPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
+    Stack2Mem(ac, fn).run_pass()
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:

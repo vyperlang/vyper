@@ -1,7 +1,7 @@
 from collections import Counter
 from typing import Any
 
-from vyper.exceptions import CompilerPanic, StackTooDeep
+from vyper.exceptions import CompilerPanic, UnreachableStackException
 from vyper.ir.compile_ir import (
     PUSH,
     DataHeader,
@@ -388,7 +388,7 @@ class VenomCompiler:
         if opcode == "phi":
             ret = inst.get_outputs()[0]
             phis = list(inst.get_input_variables())
-            depth = stack.get_phi_depth(phis)
+            depth, op = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
@@ -553,39 +553,40 @@ class VenomCompiler:
 
         return apply_line_numbers(inst, assembly)
 
-    def pop(self, assembly, stack, num=1):
+    def pop(self, assembly, stack: StackModel, num=1):
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack, depth) -> int:
+    def swap(self, assembly, stack: StackModel, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
             return 0
-
         stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
+        assembly.append(_evm_swap_for(depth, stack.top()))
         return 1
 
-    def dup(self, assembly, stack, depth):
+    def dup(self, assembly, stack: StackModel, depth):
         stack.dup(depth)
-        assembly.append(_evm_dup_for(depth))
+        assembly.append(_evm_dup_for(depth, stack.top()))
 
-    def swap_op(self, assembly, stack, op):
-        self.swap(assembly, stack, stack.get_depth(op))
+    def swap_op(self, assembly, stack: StackModel, op):
+        depth = stack.get_depth(op)
+        self.swap(assembly, stack, depth)
 
-    def dup_op(self, assembly, stack, op):
-        self.dup(assembly, stack, stack.get_depth(op))
+    def dup_op(self, assembly, stack: StackModel, op):
+        depth = stack.get_depth(op)
+        self.dup(assembly, stack, depth)
 
 
-def _evm_swap_for(depth: int) -> str:
+def _evm_swap_for(depth: int, op: IROperand) -> str:
     swap_idx = -depth
     if not (1 <= swap_idx <= 16):
-        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
+        raise UnreachableStackException(f"Unsupported swap depth {swap_idx} ({op})", op)
     return f"SWAP{swap_idx}"
 
 
-def _evm_dup_for(depth: int) -> str:
+def _evm_dup_for(depth: int, op: IROperand) -> str:
     dup_idx = 1 - depth
     if not (1 <= dup_idx <= 16):
-        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
+        raise UnreachableStackException(f"Unsupported dup depth {dup_idx} ({op})", op)
     return f"DUP{dup_idx}"
