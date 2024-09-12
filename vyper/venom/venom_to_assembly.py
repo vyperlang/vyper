@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
@@ -25,6 +25,9 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
+
+if TYPE_CHECKING:
+    from vyper.venom.function import IRFunction
 
 # instructions which map one-to-one from venom to EVM
 _ONE_TO_ONE_INSTRUCTIONS = frozenset(
@@ -118,6 +121,13 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     return ret  # type: ignore
 
 
+def _is_cleanup_needed(fn: IRFunction) -> bool:
+    for bb in fn.get_basic_blocks():
+        if bb.is_terminated and bb.instructions[-1].opcode == "ret":
+            return True
+    return False
+
+
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
 # There, recursing into the deploy instruction was by design, and
@@ -157,9 +167,8 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(
-                    asm, fn.entry, StackModel(), fn.is_cleanup_needed()
-                )
+                cleanup_needed = _is_cleanup_needed(fn)
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
