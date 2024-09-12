@@ -548,7 +548,7 @@ class VenomCompiler:
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
                 # and optimistically swap with it
-                next_scheduled = list(next_liveness)[-1]
+                next_scheduled = next_liveness.last()
                 self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)
