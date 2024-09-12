@@ -543,7 +543,7 @@ class VenomCompiler:
         if inst.output is not None:
             if cleanup_needed and inst.output not in next_liveness:
                 depth = stack.get_depth(inst.output)
-                assert depth == 0, "Depth cannot be 0"
+                assert depth == 0, "Depth must be 0"
                 self.pop(assembly, stack)
             elif inst.output in next_liveness:
                 # peek at next_liveness to find the next scheduled item,
