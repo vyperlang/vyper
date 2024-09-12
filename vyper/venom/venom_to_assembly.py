@@ -540,13 +540,12 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if cleanup_needed and inst.output not in next_liveness:
-                depth = stack.get_depth(inst.output)
-                assert depth == 0, "Depth must be 0"
+            if inst.output not in next_liveness:
                 self.pop(assembly, stack)
-            elif inst.output in next_liveness:
+            else:
                 # peek at next_liveness to find the next scheduled item,
                 # and optimistically swap with it
+                # TODO: implement OrderedSet.last()
                 next_scheduled = list(next_liveness)[-1]
                 self.swap_op(assembly, stack, next_scheduled)
 
