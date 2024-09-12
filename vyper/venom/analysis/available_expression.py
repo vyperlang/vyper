@@ -69,6 +69,46 @@ UNINTRESTING_OPCODES = [
     "assert",
 ]
 
+_ALL = ("storage", "transient", "memory", "immutables", "balance", "returndata")
+
+writes = {
+    "sstore": ("storage"),
+    "tstore": ("transient"),
+    "mstore": ("memory"),
+    "istore": ("immutables"),
+    "call": _ALL,
+    "delegatecall": _ALL,
+    "staticcall": ("memory"),
+    "create": _ALL,
+    "create2": _ALL,
+    "invoke": _ALL,  # could be smarter, look up the effects of the invoked function
+    "dloadbytes": ("memory"),
+    "returndatacopy": ("memory"),
+    "calldatacopy": ("memory"),
+    "codecopy": ("memory"),
+    "extcodecopy": ("memory"),
+    "mcopy": ("memory"),
+}
+reads = {
+    "sload": ("storage"),
+    "tload": ("transient"),
+    "iload": ("immutables"),
+    "mload": ("memory"),
+    "mcopy": ("memory"),
+    "call": _ALL,
+    "delegatecall": _ALL,
+    "staticcall": _ALL,
+    "returndatasize": ("returndata"),
+    "returndatacopy": ("returndata"),
+    "balance": ("balance"),
+    "selfbalance": ("balance"),
+    "log": ("memory"),
+    "revert": ("memory"),
+    "return": ("memory"),
+    "sha3": ("memory"),
+}
+
+
 class _FunctionLattice:
     data : dict[IRBasicBlock, _BBLattice]
 
@@ -115,11 +155,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
         bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if "call" in inst.opcode:
-                for expr in available_expr.copy():
-                    if "returndata" in expr.opcode:
-                        available_expr.remove(expr)
-                continue
             if (inst.opcode in UNINTRESTING_OPCODES 
                 or inst.opcode in BB_TERMINATORS 
                 or inst.output == None):
@@ -128,9 +163,15 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
                 change |= True
+
+            write_effects = writes.get(inst_expr.opcode, ())
             for expr in available_expr.copy():
                 if expr.contains_expr(inst_expr):
                     available_expr.remove(expr)
+                read_effects = reads.get(expr.opcode, ())
+                if any(eff in write_effects for eff in read_effects):
+                    available_expr.remove(expr)
+
             available_expr.add(inst_expr)
 
         if available_expr != bb_lat.out:

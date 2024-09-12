@@ -28,11 +28,9 @@ class CSE(IRPass):
         res : dict[IRInstruction, IRInstruction] = dict()
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                #print(inst)
                 inst_expr = self.available_expression_analysis.get_expression(inst)
                 avail = self.available_expression_analysis.get_available(inst) 
                 if inst_expr in avail:
-                    #print(inst, inst_expr)
                     res[inst] = inst_expr.first_inst
 
         return res
