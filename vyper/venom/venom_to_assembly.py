@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
@@ -23,11 +23,9 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
+from vyper.venom.function import IRFunction
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
-
-if TYPE_CHECKING:
-    from vyper.venom.function import IRFunction
 
 # instructions which map one-to-one from venom to EVM
 _ONE_TO_ONE_INSTRUCTIONS = frozenset(
