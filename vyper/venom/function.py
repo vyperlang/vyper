@@ -179,6 +179,14 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
+    def is_cleanup_needed(self) -> bool:
+        def _bb_cleanup_needed(bb: IRBasicBlock) -> bool:
+            if bb.is_terminated:
+                return bb.instructions[-1].opcode == "ret"
+            return False
+
+        return any(_bb_cleanup_needed(bb) for bb in self.get_basic_blocks())
+
     @property
     def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None

@@ -147,14 +147,6 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
-        def bb_cleanup_needed(bb: IRBasicBlock) -> bool:
-            for inst in bb.instructions:
-                # not sure if the exit is stricly necessery
-                # but I added it just to be sure
-                if inst.opcode in ["ret", "exit"]:
-                    return True
-            return False
-
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
@@ -165,9 +157,9 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                cleanup_needed = any((bb_cleanup_needed(bb) for bb in fn.get_basic_blocks()))
-
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
+                self._generate_evm_for_basicblock_r(
+                    asm, fn.entry, StackModel(), fn.is_cleanup_needed()
+                )
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
