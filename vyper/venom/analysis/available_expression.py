@@ -22,7 +22,8 @@ class _Expression:
     def __eq__(self, other):
         if not isinstance(other, _Expression):
             return False
-        return self.opcode == other.opcode and self.operands == other.operands
+        #return self.opcode == other.opcode and self.operands == other.operands and fi
+        return self.first_inst == other.first_inst
     
     def __hash__(self) -> int:
         res : int = hash(self.opcode)
@@ -185,10 +186,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
             available_exprs = self.lattice.data[inst.parent].data[inst]
         operands: list[IROperand] = inst.operands.copy()
         expr = _Expression(inst, inst.opcode, operands)
-        if expr in available_exprs:
-            for e in available_exprs:
-                if e == expr:
-                    return e
+        #if expr in available_exprs:
+        for e in available_exprs:
+            if e.opcode == expr.opcode and e.operands == expr.operands:
+                return e
         
         return expr
 

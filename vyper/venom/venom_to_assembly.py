@@ -156,7 +156,7 @@ class VenomCompiler:
                 ac.request_analysis(DupRequirementsAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
-                print(fn.name)
+                #print(fn.name)
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
@@ -348,7 +348,7 @@ class VenomCompiler:
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
-        print("\t", inst)
+        #print("\t", inst, stack)
         assembly: list[str | int] = []
         next_liveness = next_liveness or OrderedSet()
         opcode = inst.opcode
