@@ -121,7 +121,7 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
 
 def _is_cleanup_needed(fn: IRFunction) -> bool:
     for bb in fn.get_basic_blocks():
-        if bb.is_terminated and bb.instructions[-1].opcode == "ret":
+        if len(bb.instructions) > 0 and bb.instructions[-1].opcode == "ret":
             return True
     return False
 
