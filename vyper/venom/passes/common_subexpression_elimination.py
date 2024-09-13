@@ -44,9 +44,10 @@ class CSE(IRPass):
 
     def _replace_inst(self, orig_inst : IRInstruction, to_inst : IRInstruction):
         visited: OrderedSet[IRBasicBlock] = OrderedSet()
-        assert isinstance(orig_inst.output, IRVariable), f"not var {orig_inst}"
-        assert isinstance(to_inst.output, IRVariable), "not var"
-        self._replace_inst_r(orig_inst.parent, orig_inst.output, to_inst.output, visited)
+        if orig_inst.output is not None:
+            assert isinstance(orig_inst.output, IRVariable), f"not var {orig_inst}"
+            assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
+            self._replace_inst_r(orig_inst.parent, orig_inst.output, to_inst.output, visited)
         orig_inst.parent.remove_instruction(orig_inst)
 
     def _replace_inst_r(self, bb : IRBasicBlock, orig : IRVariable, to : IRVariable, visited : OrderedSet[IRBasicBlock]):

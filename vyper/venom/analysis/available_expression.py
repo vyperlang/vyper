@@ -157,14 +157,14 @@ class AvailableExpressionAnalysis(IRAnalysis):
         change = False
         for inst in bb.instructions:
             if (inst.opcode in UNINTRESTING_OPCODES 
-                or inst.opcode in BB_TERMINATORS 
-                or inst.output == None):
+                or inst.opcode in BB_TERMINATORS):
                 continue
-            inst_expr = self.get_expression(inst, available_expr)
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
                 change |= True
 
+
+            inst_expr = self.get_expression(inst, available_expr)
             write_effects = writes.get(inst_expr.opcode, ())
             for expr in available_expr.copy():
                 if expr.contains_expr(inst_expr):
@@ -173,7 +173,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 if any(eff in write_effects for eff in read_effects):
                     available_expr.remove(expr)
 
-            available_expr.add(inst_expr)
+            if "call" not in inst.opcode and inst.opcode != "invoke":
+                available_expr.add(inst_expr)
 
         if available_expr != bb_lat.out:
             bb_lat.out = available_expr.copy()
