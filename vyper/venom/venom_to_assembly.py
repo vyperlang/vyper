@@ -23,7 +23,6 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.function import IRFunction
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -119,13 +118,6 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     return ret  # type: ignore
 
 
-def _is_cleanup_needed(fn: IRFunction) -> bool:
-    for bb in fn.get_basic_blocks():
-        if len(bb.instructions) > 0 and bb.instructions[-1].opcode == "ret":
-            return True
-    return False
-
-
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
 # There, recursing into the deploy instruction was by design, and
@@ -165,8 +157,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                cleanup_needed = _is_cleanup_needed(fn)
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), cleanup_needed)
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
@@ -282,7 +273,7 @@ class VenomCompiler:
             emitted_ops.add(op)
 
     def _generate_evm_for_basicblock_r(
-        self, asm: list, basicblock: IRBasicBlock, stack: StackModel, cleanup_needed: bool
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
         if basicblock in self.visited_basicblocks:
             return
@@ -299,12 +290,10 @@ class VenomCompiler:
         for i, inst in enumerate(all_insts):
             next_liveness = all_insts[i + 1].liveness if i + 1 < len(all_insts) else OrderedSet()
 
-            asm.extend(
-                self._generate_evm_for_instruction(inst, stack, cleanup_needed, next_liveness)
-            )
+            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         for bb in basicblock.reachable:
-            self._generate_evm_for_basicblock_r(asm, bb, stack.copy(), cleanup_needed)
+            self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -338,11 +327,7 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self,
-        inst: IRInstruction,
-        stack: StackModel,
-        cleanup_needed: bool,
-        next_liveness: OrderedSet = None,
+        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
         assembly: list[str | int] = []
         next_liveness = next_liveness or OrderedSet()
