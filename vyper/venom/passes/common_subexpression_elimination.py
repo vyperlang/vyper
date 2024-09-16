@@ -39,7 +39,6 @@ class CSE(IRPass):
         for (orig, to) in replace_dict.items():
             while to in replace_dict.keys():
                 to = replace_dict[to]
-            #print(orig.output, to.output)
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst : IRInstruction, to_inst : IRInstruction):

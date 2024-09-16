@@ -22,7 +22,6 @@ class _Expression:
     def __eq__(self, other):
         if not isinstance(other, _Expression):
             return False
-        #return self.opcode == other.opcode and self.operands == other.operands and fi
         return self.first_inst == other.first_inst
     
     def __hash__(self) -> int:
@@ -61,13 +60,12 @@ class _BBLattice:
         for inst in bb.instructions:
             self.data[inst] = OrderedSet()
 
-UNINTRESTING_OPCODES = [
+_UNINTRESTING_OPCODES = [
     "store",
     "param",
     "offset",
     "phi",
     "nop",
-    "assert",
 ]
 
 _ALL = ("storage", "transient", "memory", "immutables", "balance", "returndata")
@@ -156,7 +154,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if (inst.opcode in UNINTRESTING_OPCODES 
+            if (inst.opcode in _UNINTRESTING_OPCODES 
                 or inst.opcode in BB_TERMINATORS):
                 continue
             if available_expr != bb_lat.data[inst]:
@@ -187,7 +185,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
             available_exprs = self.lattice.data[inst.parent].data[inst]
         operands: list[IROperand] = inst.operands.copy()
         expr = _Expression(inst, inst.opcode, operands)
-        #if expr in available_exprs:
         for e in available_exprs:
             if e.opcode == expr.opcode and e.operands == expr.operands:
                 return e
