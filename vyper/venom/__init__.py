@@ -58,12 +58,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     CSE(ac, fn).run_pass()
     ExtractLiteralsPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    #print(fn)
     DFTPass(ac, fn).run_pass()
-
-    from vyper.venom.analysis.liveness import LivenessAnalysis
-    ac.force_analysis(LivenessAnalysis)
-
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
