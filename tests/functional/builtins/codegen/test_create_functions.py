@@ -895,12 +895,9 @@ def deploy() -> address:
     deployer = get_contract(deployer_code)
     env.set_balance(deployer.address, value)
 
-    if (
-        revert_on_failure
-        and constructor_reverts
-        or revert_on_failure is None
-        and constructor_reverts
-    ):
+    expect_revert = constructor_reverts and revert_on_failure in (True, None)
+
+    if expect_revert:
         with tx_failed():
             deployer.deploy()
     else:
@@ -912,6 +909,8 @@ def deploy() -> address:
             assert env.get_code(res) == runtime
 
 
+# test that raw_create correctly interfaces with the abi encoder
+# and can handle dynamic arguments
 def test_raw_create_dynamic_arg(get_contract, env):
     array = [1, 2, 3]
 
