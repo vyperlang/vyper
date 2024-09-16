@@ -25,10 +25,7 @@ class _Expression:
         return self.first_inst == other.first_inst
     
     def __hash__(self) -> int:
-        res : int = hash(self.opcode)
-        for op in self.operands:
-            res ^= hash(op)
-        return res
+        return hash((self.opcode, *self.operands))
 
     def __repr__(self) -> str:
         if self.opcode == "store":
