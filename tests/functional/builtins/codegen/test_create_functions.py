@@ -882,7 +882,6 @@ def __init__(constructor_reverts: bool):
 
     out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    initcode += abi.encode("(uint8)", (constructor_reverts,))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
     value_kw = f", value={value}" if use_value else ""
@@ -890,7 +889,7 @@ def __init__(constructor_reverts: bool):
     deployer_code = f"""
 @external
 def deploy() -> address:
-    return raw_create({initcode}{revert_kw}{value_kw})
+    return raw_create({initcode},{constructor_reverts}{revert_kw}{value_kw})
     """
 
     deployer = get_contract(deployer_code)
@@ -928,7 +927,6 @@ def __init__(a: DynArray[uint256, 10]):
 
     out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    initcode += abi.encode("(uint256[])", (array,))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
     deployer_code = f"""
