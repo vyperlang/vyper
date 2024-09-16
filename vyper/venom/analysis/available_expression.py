@@ -57,7 +57,7 @@ class _BBLattice:
         for inst in bb.instructions:
             self.data[inst] = OrderedSet()
 
-_UNINTRESTING_OPCODES = [
+_UNINTERESTING_OPCODES = [
     "store",
     "param",
     "offset",
