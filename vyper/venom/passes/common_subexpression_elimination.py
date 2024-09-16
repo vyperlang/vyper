@@ -14,13 +14,14 @@ class CSE(IRPass):
         available_expression_analysis = self.analyses_cache.request_analysis(AvailableExpressionAnalysis)
         assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
         self.available_expression_analysis = available_expression_analysis
-
-        replace_dict = self._find_replaceble()
-        if len(replace_dict) == 0:
-            return
-        self._replace(replace_dict)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        
+        while True:
+            replace_dict = self._find_replaceble()
+            if len(replace_dict) == 0:
+                return
+            self._replace(replace_dict)
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     # return instruction and to which instruction it could
     # replaced by
