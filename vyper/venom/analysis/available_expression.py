@@ -151,7 +151,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if (inst.opcode in _UNINTRESTING_OPCODES 
+            if (inst.opcode in _UNINTERESTING_OPCODES 
                 or inst.opcode in BB_TERMINATORS):
                 continue
             if available_expr != bb_lat.data[inst]:
