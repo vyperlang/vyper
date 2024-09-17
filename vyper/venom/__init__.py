@@ -11,6 +11,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
+from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.extract_literals import ExtractLiteralsPass
 from vyper.venom.passes.make_ssa import MakeSSA
@@ -20,7 +21,6 @@ from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.passes.store_elimination import StoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
-from vyper.venom.passes.common_subexpression_elimination import CSE
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 

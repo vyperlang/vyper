@@ -1,7 +1,8 @@
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.extract_literals import ExtractLiteralsPass
-from vyper.venom.analysis.analysis import IRAnalysesCache
+
 
 def test_common_subexpression_elimination():
     ctx = IRContext()
@@ -13,7 +14,6 @@ def test_common_subexpression_elimination():
     sum_2 = bb.append_instruction("add", op, 10)
     bb.append_instruction("mul", sum_2, 10)
     bb.append_instruction("stop")
-    
 
     ac = IRAnalysesCache(fn)
     CSE(ac, fn).run_pass()
