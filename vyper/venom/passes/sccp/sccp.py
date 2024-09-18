@@ -342,19 +342,30 @@ class SCCP(IRPass):
     def _fix_phi_nodes(self):
         # fix basic blocks whose cfg in was changed
         # maybe this should really be done in _visit_phi
-        to_delete = set()
+        needs_sort = False
 
-        for bb in self.cfg_in_modified:
+        for bb in self.fn.get_basic_blocks():
             cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
+
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
+                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
 
-                if any(label not in cfg_in_labels for label in inst.get_label_operands()):
-                    to_delete.add(inst)
+        # move phi instructions to the top of the block
+        if needs_sort:
+            bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
-        if to_delete:
-            bb.instructions = [inst for inst in bb.instructions if inst not in to_delete]
+    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
+        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
+
+        if len(operands) != 1:
+            return False
+
+        assert inst.output is not None
+        inst.opcode = "store"
+        inst.operands = operands
+        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
