@@ -1,5 +1,8 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.available_expression import AvailableExpressionAnalysis
+from vyper.venom.analysis.available_expression import (
+    _UNINTERESTING_OPCODES,
+    AvailableExpressionAnalysis,
+)
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
@@ -30,6 +33,8 @@ class CSE(IRPass):
         res: dict[IRInstruction, IRInstruction] = dict()
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                if inst in _UNINTERESTING_OPCODES:
+                    continue
                 inst_expr = self.available_expression_analysis.get_expression(inst)
                 avail = self.available_expression_analysis.get_available(inst)
                 if inst_expr in avail:

@@ -5,15 +5,24 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IROperand
+from vyper.venom.basicblock import (
+    BB_TERMINATORS,
+    IRBasicBlock,
+    IRInstruction,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.context import IRFunction
+
+_MAX_DEPTH = 5
+_MIN_DEPTH = 2
 
 
 @dataclass
 class _Expression:
     first_inst: IRInstruction
     opcode: str
-    operands: list[IROperand]
+    operands: list["IROperand | _Expression"]
 
     def __eq__(self, other):
         if not isinstance(other, _Expression):
@@ -33,6 +42,23 @@ class _Expression:
         res += "]"
         return res
 
+    def same(self, other: "_Expression") -> bool:
+        if self.opcode != other.opcode:
+            return False
+        for self_op, other_op in zip(self.operands, other.operands):
+            if type(self_op) is not type(other_op):
+                return False
+            if isinstance(self_op, _Expression):
+                assert isinstance(other_op, _Expression)
+                if not self_op.same(other_op):
+                    return False
+            else:
+                assert isinstance(self_op, IROperand)
+                assert isinstance(other_op, IROperand)
+                if self_op != other_op:
+                    return False
+        return True
+
     def contains_expr(self, expr: "_Expression") -> bool:
         for op in self.operands:
             if op == expr:
@@ -40,6 +66,15 @@ class _Expression:
             if isinstance(op, _Expression) and op.contains_expr(expr):
                 return True
         return False
+
+    def get_depth(self) -> int:
+        max_depth = 0
+        for op in self.operands:
+            if isinstance(op, _Expression):
+                d = op.get_depth()
+                if d > max_depth:
+                    max_depth = d
+        return max_depth + 1
 
 
 class _BBLattice:
@@ -155,13 +190,17 @@ class AvailableExpressionAnalysis(IRAnalysis):
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = writes.get(inst_expr.opcode, ())
             for expr in available_expr.copy():
-                if expr.contains_expr(inst_expr):
-                    available_expr.remove(expr)
+                # if expr.contains_expr(inst_expr):
+                # available_expr.remove(expr)
                 read_effects = reads.get(expr.opcode, ())
                 if any(eff in write_effects for eff in read_effects):
                     available_expr.remove(expr)
 
-            if "call" not in inst.opcode and inst.opcode not in ["invoke", "log"]:
+            if (
+                "call" not in inst.opcode
+                and inst.opcode not in ["invoke", "log"]
+                and inst_expr.get_depth() in range(_MIN_DEPTH, _MAX_DEPTH + 1)
+            ):
                 available_expr.add(inst_expr)
 
         if available_expr != bb_lat.out:
@@ -170,15 +209,33 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         return change
 
+    def _get_operand(
+        self, op: IROperand, available_exprs: OrderedSet[_Expression], depth: int
+    ) -> IROperand | _Expression:
+        if depth > 0 and isinstance(op, IRVariable):
+            inst = self.dfg.get_producing_instruction(op)
+            assert inst is not None
+            return self.get_expression(inst, available_exprs, depth - 1)
+        return op
+
+    def _get_operands(
+        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression], depth: int = _MAX_DEPTH
+    ) -> list[IROperand | _Expression]:
+        return [self._get_operand(op, available_exprs, depth) for op in inst.operands]
+
     def get_expression(
-        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression] | None = None
+        self,
+        inst: IRInstruction,
+        available_exprs: OrderedSet[_Expression] | None = None,
+        depth: int = _MAX_DEPTH,
     ) -> _Expression:
         if available_exprs is None:
             available_exprs = self.lattice.data[inst.parent].data[inst]
-        operands: list[IROperand] = inst.operands.copy()
+        operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands)
         for e in available_exprs:
-            if e.opcode == expr.opcode and e.operands == expr.operands:
+            # if e.opcode == expr.opcode and e.operands == expr.operands:
+            if expr.same(e):
                 return e
 
         return expr
