@@ -104,10 +104,11 @@ class OrderedSet(Generic[_T]):
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
 
-        ret = sets[0].copy()
-        for e in sets[0]:
-            if any(e not in s for s in sets[1:]):
-                ret.remove(e)
+        tmp = sets[0]._data.items()
+        for s in sets[1:]:
+            tmp &= s._data.items()
+        ret = cls.__new__(cls)
+        ret._data = dict(tmp)
         return ret
 
 
