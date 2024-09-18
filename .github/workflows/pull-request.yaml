@@ -24,6 +24,7 @@ jobs:
         with:
           types: |
             feat
+            perf
             fix
             chore
             refactor
