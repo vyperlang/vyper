@@ -1,3 +1,5 @@
+from collections import deque
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
@@ -13,14 +15,19 @@ class LivenessAnalysis(IRAnalysis):
     def analyze(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
-        while True:
-            changed = False
-            for bb in self.function.get_basic_blocks():
-                changed |= self._calculate_out_vars(bb)
-                changed |= self._calculate_liveness(bb)
 
-            if not changed:
-                break
+        self._worklist = deque()
+        self._worklist.extend(self.function.get_basic_blocks())
+
+        while len(self._worklist) > 0:
+            changed = False
+            bb = self._worklist.popleft()
+            changed |= self._calculate_out_vars(bb)
+            changed |= self._calculate_liveness(bb)
+            # recompute liveness for basic blocks pointing into
+            # this basic block
+            if changed:
+                self._worklist.extend(bb.cfg_in)
 
     def _reset_liveness(self) -> None:
         for bb in self.function.get_basic_blocks():
