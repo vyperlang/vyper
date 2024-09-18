@@ -285,33 +285,15 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
-        main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+        all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
-        for inst in param_insts:
-            asm.extend(self._generate_evm_for_instruction(inst, stack))
-
-        self._clean_unused_params(asm, basicblock, stack)
-
-        for i, inst in enumerate(main_insts):
-            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
+        for i, inst in enumerate(all_insts):
+            next_liveness = all_insts[i + 1].liveness if i + 1 < len(all_insts) else OrderedSet()
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
-
-    def _clean_unused_params(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
-        for i, inst in enumerate(bb.instructions):
-            if inst.opcode != "param":
-                break
-            if inst.is_volatile and i + 1 < len(bb.instructions):
-                liveness = bb.instructions[i + 1].liveness
-                if inst.output is not None and inst.output not in liveness:
-                    depth = stack.get_depth(inst.output)
-                    if depth != 0:
-                        self.swap(asm, stack, depth)
-                    self.pop(asm, stack)
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -399,6 +381,12 @@ class VenomCompiler:
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
+            return apply_line_numbers(inst, assembly)
+
+        if opcode == "offset":
+            assembly.extend(["_OFST", f"_sym_{inst.operands[1].value}", inst.operands[0].value])
+            assert isinstance(inst.output, IROperand), "Offset must have output"
+            stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
@@ -537,12 +525,12 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            if "call" in inst.opcode and inst.output not in next_liveness:
+            if inst.output not in next_liveness:
                 self.pop(assembly, stack)
-            elif inst.output in next_liveness:
+            else:
                 # peek at next_liveness to find the next scheduled item,
                 # and optimistically swap with it
-                next_scheduled = list(next_liveness)[-1]
+                next_scheduled = next_liveness.last()
                 self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)

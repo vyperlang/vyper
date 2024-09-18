@@ -895,10 +895,7 @@ def _abi_payload_size(ir_node):
         # the amount of size each value occupies in static section
         # (the amount of size it occupies in the dynamic section is handled in
         # make_setter recursion)
-        item_size = ir_node.typ.value_type.abi_type.static_size()
-        if item_size == 0:
-            # manual optimization; the mload cannot currently be optimized out
-            return ["add", OFFSET, 0]
+        item_size = ir_node.typ.value_type.abi_type.embedded_static_size()
         return ["add", OFFSET, ["mul", get_dyn_array_count(ir_node), item_size]]
 
     if isinstance(ir_node.typ, _BytestringT):
@@ -922,6 +919,26 @@ def potential_overlap(left, right):
         return True
 
     if left.contains_risky_call and len(right.referenced_variables) > 0:
+        return True
+
+    return False
+
+
+# similar to `potential_overlap()`, but compares left's _reads_ vs
+# right's _writes_.
+# TODO: `potential_overlap()` can probably be replaced by this function,
+# but all the cases need to be checked.
+def read_write_overlap(left, right):
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.variable_writes) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
         return True
 
     return False
@@ -982,7 +999,15 @@ def make_setter(left, right, hi=None):
     # Complex Types
     assert isinstance(left.typ, (SArrayT, TupleT, StructT))
 
-    return _complex_make_setter(left, right, hi=hi)
+    with right.cache_when_complex("c_right") as (b1, right):
+        ret = ["seq"]
+        if hi is not None:
+            item_end = add_ofst(right, right.typ.abi_type.static_size())
+            len_check = ["assert", ["le", item_end, hi]]
+            ret.append(len_check)
+
+        ret.append(_complex_make_setter(left, right, hi=hi))
+        return b1.resolve(IRnode.from_list(ret))
 
 
 # locations with no dedicated copy opcode
@@ -1092,7 +1117,7 @@ def ensure_in_memory(ir_var, context):
         return ir_var
 
     typ = ir_var.typ
-    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
+    buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
@@ -1164,8 +1189,12 @@ def clamp_bytestring(ir_node, hi=None):
         if hi is not None:
             assert t.maxlen < 2**64  # sanity check
 
-            # note: this add does not risk arithmetic overflow because
+            # NOTE: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
+            # however(!) _abi_payload_size can OOG, since it loads the word
+            # at `ir_node` to find the length of the bytearray, which could
+            # be out-of-bounds.
+            # if we didn't get OOG, we could overflow in `add`.
             item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
             len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
@@ -1184,8 +1213,12 @@ def clamp_dyn_array(ir_node, hi=None):
     if hi is not None:
         assert t.count < 2**64  # sanity check
 
-        # note: this add does not risk arithmetic overflow because
+        # NOTE: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
+        # however(!) _abi_payload_size can OOG, since it loads the word
+        # at `ir_node` to find the length of the bytearray, which could
+        # be out-of-bounds.
+        # if we didn't get OOG, we could overflow in `add`.
         item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
         # if the subtype is dynamic, the length check is performed in
