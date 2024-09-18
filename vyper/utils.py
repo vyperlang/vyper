@@ -25,9 +25,10 @@ class OrderedSet(Generic[_T]):
     """
 
     def __init__(self, iterable=None):
-        self._data = dict()
-        if iterable is not None:
-            self.update(iterable)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self)
