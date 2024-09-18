@@ -862,7 +862,8 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# test raw_create with all combinations of value and revert_on_failure kwargs (including not present at all)
+# test raw_create with all combinations of value and revert_on_failure kwargs
+# (including not present at all)
 # additionally parametrize whether the constructor reverts or not
 @pytest.mark.parametrize("constructor_reverts", [True, False])
 @pytest.mark.parametrize("use_value", [True, False])
