@@ -189,7 +189,7 @@ class DFTPass(IRPass):
 
         # start with out liveness
         if len(bb.cfg_out) > 0:
-            next_bb = next(iter(bb.cfg_out))
+            next_bb = bb.cfg_out.first()
             target_stack = self.liveness.input_vars_from(bb, next_bb)
             for var in reversed(list(target_stack)):
                 inst = self.dfg.get_producing_instruction(var)
