@@ -530,8 +530,7 @@ class VenomCompiler:
             else:
                 # peek at next_liveness to find the next scheduled item,
                 # and optimistically swap with it
-                # TODO: implement OrderedSet.last()
-                next_scheduled = list(next_liveness)[-1]
+                next_scheduled = next_liveness.last()
                 self.swap_op(assembly, stack, next_scheduled)
 
         return apply_line_numbers(inst, assembly)
