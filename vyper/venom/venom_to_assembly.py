@@ -396,7 +396,7 @@ class VenomCompiler:
         if opcode in ["jnz", "djmp", "jmp"]:
             # prepare stack for jump into another basic block
             assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
-            b = next(iter(inst.parent.cfg_out))
+            b = inst.parent.cfg_out.first()
             target_stack = self.liveness_analysis.input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
             # NOTE: stack in general can contain multiple copies of the same variable,
@@ -446,7 +446,7 @@ class VenomCompiler:
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
-            # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
+            # assert if_zero_label == inst.parent.cfg_out.first().label
 
             assembly.append(f"_sym_{if_zero_label.value}")
             assembly.append("JUMP")
