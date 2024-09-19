@@ -393,7 +393,7 @@ class VenomCompiler:
         self._emit_input_operands(assembly, inst, operands, stack)
 
         # Step 3: Reorder stack before join points
-        if opcode =="jmp":
+        if opcode == "jmp":
             # after cfg normalization, join points are represented by jmp instructions
             # prepare stack for jump into another basic block
             assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
