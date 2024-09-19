@@ -1,3 +1,4 @@
+from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
@@ -12,35 +13,45 @@ class StoreExpansionPass(IRPass):
 
     def run_pass(self):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        liveness = self.analyses_cache.force_analysis(LivenessAnalysis)
 
         for bb in self.function.get_basic_blocks():
+            if len(bb.instructions) == 0:
+                continue
+
+            for var in bb.instructions[0].liveness:
+                self._process_var(dfg, bb, var, 0)
+
             for idx, inst in enumerate(bb.instructions):
                 if inst.output is None:
                     continue
 
-                # print("ENTER", inst)
-                self._process_inst(dfg, inst, idx)
+                self._process_var(dfg, bb, inst.output, idx + 1)
+
+            bb.instructions.sort(key=lambda inst: inst.opcode not in ("phi", "param"))
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _process_inst(self, dfg, inst, idx):
+    def _process_var(self, dfg, bb, var, idx):
         """
-        Process store instruction. If the variable is only used by a load instruction,
-        forward the variable to the load instruction.
+        Process a variable, allocating a new variable for each use
+        and copying it to the new instruction
         """
-        var = inst.output
         uses = dfg.get_uses(var)
 
-        insertion_idx = idx + 1
+        _cache = {}
 
         for use_inst in uses:
-            if use_inst.parent != inst.parent:
-                continue  # improves codesize
+            if use_inst.opcode == "phi":
+                continue
+            if use_inst.parent != bb:
+                continue
 
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:
                     new_var = self.function.get_next_variable()
                     new_inst = IRInstruction("store", [var], new_var)
-                    inst.parent.insert_instruction(new_inst, insertion_idx)
+                    bb.insert_instruction(new_inst, idx)
                     use_inst.operands[i] = new_var

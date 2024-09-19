@@ -279,6 +279,12 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
+        import sys
+        #print(basicblock, file=sys.stderr)
+
+        ref = asm
+        asm = []
+
         # assembly entry point into the block
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
@@ -292,8 +298,13 @@ class VenomCompiler:
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
+        #print(" ".join(map(str, asm)), file=sys.stderr)
+        #print("\n", file=sys.stderr)
+
+        ref.extend(asm)
+
         for bb in basicblock.reachable:
-            self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -553,6 +564,7 @@ class VenomCompiler:
         assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
+        assert stack.get_depth(op) is not StackModel.NOT_IN_STACK, op
         self.swap(assembly, stack, stack.get_depth(op))
 
     def dup_op(self, assembly, stack, op):
