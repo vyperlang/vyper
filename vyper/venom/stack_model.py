@@ -27,12 +27,6 @@ class StackModel:
         assert isinstance(op, IROperand), f"{type(op)}: {op}"
         self._stack.append(op)
 
-    def top(self) -> IROperand:
-        """
-        Returns the top of the stack map.
-        """
-        return self._stack[-1]
-
     def pop(self, num: int = 1) -> None:
         del self._stack[len(self._stack) - num :]
 
@@ -72,23 +66,30 @@ class StackModel:
 
     def peek(self, depth: int) -> IROperand:
         """
-        Returns the top of the stack map.
+        Returns the depth-th element from the top of the stack.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot peek non-in-stack depth"
+        assert depth <= 0, "Cannot peek positive depth"
         return self._stack[depth - 1]
 
     def poke(self, depth: int, op: IROperand) -> None:
         """
-        Pokes an operand at the given depth in the stack map.
+        Pokes an operand at the given depth in the stack.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot poke non-in-stack depth"
-        assert depth <= 0, "Bad depth"
+        assert depth <= 0, "Cannot poke positive depth"
         assert isinstance(op, IROperand), f"{type(op)}: {op}"
         self._stack[depth - 1] = op
 
+    def top(self) -> IROperand:
+        """
+        Returns the top of the stack.
+        """
+        return self.peek(0)
+
     def dup(self, depth: int) -> None:
         """
-        Duplicates the operand at the given depth in the stack map.
+        Duplicates the operand at the given depth in the stack.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot dup non-existent operand"
         assert depth <= 0, "Cannot dup positive depth"
@@ -96,7 +97,7 @@ class StackModel:
 
     def swap(self, depth: int) -> None:
         """
-        Swaps the operand at the given depth in the stack map with the top of the stack.
+        Swaps the operand at the given depth in the stack with the top of the stack.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot swap non-existent operand"
         assert depth < 0, "Cannot swap positive depth"
