@@ -402,6 +402,7 @@ class VenomCompiler:
             assert len(inst.parent.cfg_out) == 1
             next_bb = inst.parent.cfg_out.first()
 
+            # guaranteed by cfg normalization+simplification
             assert next_bb.is_join_point
 
             target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
