@@ -26,6 +26,10 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
+DEBUG_SHOW_COST = True
+if DEBUG_SHOW_COST:
+    import sys
+
 # instructions which map one-to-one from venom to EVM
 _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     [
@@ -278,8 +282,8 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
-        #import sys
-        # print(basicblock, file=sys.stderr)
+        if DEBUG_SHOW_COST:
+            print(basicblock, file=sys.stderr)
 
         ref = asm
         asm = []
@@ -297,8 +301,9 @@ class VenomCompiler:
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
-        # print(" ".join(map(str, asm)), file=sys.stderr)
-        # print("\n", file=sys.stderr)
+        if DEBUG_SHOW_COST:
+            print(" ".join(map(str, asm)), file=sys.stderr)
+            print("\n", file=sys.stderr)
 
         ref.extend(asm)
 
@@ -426,6 +431,13 @@ class VenomCompiler:
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
+
+        cost = self._stack_reorder([], stack, operands, dry_run=True)
+        if DEBUG_SHOW_COST and cost:
+            print("ENTER", inst, file=sys.stderr)
+            print("  HAVE", stack, file=sys.stderr)
+            print("  WANT", operands, file=sys.stderr)
+            print("  COST", cost, file=sys.stderr)
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
