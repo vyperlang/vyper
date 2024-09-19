@@ -394,10 +394,13 @@ class VenomCompiler:
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
-            # after cfg normalization, join points are represented by jmp instructions
             # prepare stack for jump into another basic block
-            assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
-            b = next(iter(inst.parent.cfg_out))
+            # we only need to reorder stack before join points, which after
+            # cfg simplification and normalization, join points are represented
+            # by jmp instructions.
+            assert isinstance(inst.parent.cfg_out, OrderedSet)
+            assert len(inst.parent.cfg_out) == 1
+            b = inst.parent.cfg_out.first()
             target_stack = self.liveness_analysis.input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
             # NOTE: stack in general can contain multiple copies of the same variable,

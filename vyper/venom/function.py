@@ -148,13 +148,17 @@ class IRFunction:
     def normalized(self) -> bool:
         """
         Check if function is normalized. A function is normalized if in the
-        CFG, no basic block simultaneously has multiple inputs and outputs.
+        CFG, no basic block simultaneously has multiple inputs and outputs,
+        and no basic block has a single input/output.
         That is, a basic block can be jumped to *from* multiple blocks, or it
         can jump *to* multiple blocks, but it cannot simultaneously do both.
         Having a normalized CFG makes calculation of stack layout easier when
         emitting assembly.
         """
         for bb in self.get_basic_blocks():
+            if len(bb.cfg_in) == 1 and len(bb.cfg_out) == 1:
+                return False
+
             # Ignore if there are no multiple predecessors
             if len(bb.cfg_in) <= 1:
                 continue
