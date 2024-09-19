@@ -1255,7 +1255,13 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "x"},
+            "target": {
+                "ast_type": "Name",
+                "id": "x",
+                "variable_reads": [
+                    {"name": "x", "decl_node": {"node_id": 15, "source_id": 0}, "access_path": []}
+                ],
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",
@@ -1300,7 +1306,13 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "x"},
+            "target": {
+                "ast_type": "Name",
+                "id": "x",
+                "variable_reads": [
+                    {"name": "x", "decl_node": {"node_id": 35, "source_id": 0}, "access_path": []}
+                ],
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",
@@ -1317,7 +1329,13 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "y"},
+            "target": {
+                "ast_type": "Name",
+                "id": "y",
+                "variable_reads": [
+                    {"name": "y", "decl_node": {"node_id": 44, "source_id": 0}, "access_path": []}
+                ],
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",

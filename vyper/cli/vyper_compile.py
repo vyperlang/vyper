@@ -121,8 +121,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
-        "note: cancun support is EXPERIMENTAL",
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )

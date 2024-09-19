@@ -305,7 +305,7 @@ def bar():
     extcall Foo(msg.sender)
     """,
         StructureException,
-        "Function `type(interface Foo)` cannot be called without assigning the result",
+        "Function `type(Foo)` cannot be called without assigning the result",
         None,
     ),
 ]
