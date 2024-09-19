@@ -151,7 +151,6 @@ class VenomCompiler:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
                 ac.request_analysis(DupRequirementsAnalysis)
 

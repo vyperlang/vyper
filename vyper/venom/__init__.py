@@ -10,6 +10,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
+from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.extract_literals import ExtractLiteralsPass
@@ -54,6 +55,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    NormalizationPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
