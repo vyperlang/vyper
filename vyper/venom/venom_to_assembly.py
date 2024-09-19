@@ -401,11 +401,13 @@ class VenomCompiler:
             assert isinstance(inst.parent.cfg_out, OrderedSet)
             assert len(inst.parent.cfg_out) == 1
             next_bb = inst.parent.cfg_out.first()
-            if next_bb.is_join_point:
-                target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
-                # NOTE: in general the stack can contain multiple copies of
-                # the same variable, however, before a jump that is not possible
-                self._stack_reorder(assembly, stack, list(target_stack))
+
+            assert next_bb.is_join_point
+
+            target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
+            # NOTE: in general the stack can contain multiple copies of
+            # the same variable, however, before a jump that is not possible
+            self._stack_reorder(assembly, stack, list(target_stack))
 
         if opcode in COMMUTATIVE_INSTRUCTIONS:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
