@@ -403,7 +403,7 @@ class VenomCompiler:
             next_bb = inst.parent.cfg_out.first()
 
             # guaranteed by cfg normalization+simplification
-            assert next_bb.is_join_point
+            assert len(next_bb.cfg_in) > 1
 
             target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
             # NOTE: in general the stack can contain multiple copies of

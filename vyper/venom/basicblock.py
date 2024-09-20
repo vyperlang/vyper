@@ -502,11 +502,6 @@ class IRBasicBlock:
         return uses
 
     @property
-    # potential refactor: move this to CFGAnalysis
-    def is_join_point(self):
-        return len(self.cfg_in) > 1
-
-    @property
     def is_empty(self) -> bool:
         """
         Check if the basic block is empty, i.e. it has no instructions.
