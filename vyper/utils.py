@@ -58,6 +58,7 @@ class OrderedSet(Generic[_T]):
     def add(self, item: _T) -> None:
         self._data[item] = None
 
+    # NOTE to refactor: duplicate of self.update()
     def addmany(self, iterable):
         for item in iterable:
             self._data[item] = None
