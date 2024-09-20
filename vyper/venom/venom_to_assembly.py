@@ -392,18 +392,23 @@ class VenomCompiler:
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack)
 
-        # Step 3: Reorder stack
-        if opcode in ["jnz", "djmp", "jmp"]:
-            # prepare stack for jump into another basic block
-            assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
-            b = next(iter(inst.parent.cfg_out))
-            target_stack = self.liveness_analysis.input_vars_from(inst.parent, b)
-            # TODO optimize stack reordering at entry and exit from basic blocks
-            # NOTE: stack in general can contain multiple copies of the same variable,
-            # however we are safe in the case of jmp/djmp/jnz as it's not going to
-            # have multiples.
-            target_stack_list = list(target_stack)
-            self._stack_reorder(assembly, stack, target_stack_list)
+        # Step 3: Reorder stack before join points
+        if opcode == "jmp":
+            # prepare stack for jump into a join point
+            # we only need to reorder stack before join points, which after
+            # cfg normalization, join points can only be led into by
+            # jmp instructions.
+            assert isinstance(inst.parent.cfg_out, OrderedSet)
+            assert len(inst.parent.cfg_out) == 1
+            next_bb = inst.parent.cfg_out.first()
+
+            # guaranteed by cfg normalization+simplification
+            assert len(next_bb.cfg_in) > 1
+
+            target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
+            # NOTE: in general the stack can contain multiple copies of
+            # the same variable, however, before a jump that is not possible
+            self._stack_reorder(assembly, stack, list(target_stack))
 
         if opcode in COMMUTATIVE_INSTRUCTIONS:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
