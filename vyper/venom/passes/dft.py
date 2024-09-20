@@ -180,7 +180,14 @@ class DFTPass(IRPass):
         bb.instructions.append(inst)
         self.done.add(inst)
 
-    def _process_basic_block(self, bb: IRBasicBlock) -> None:
+    def _process_basic_block_r(self, bb: IRBasicBlock) -> None:
+        if bb in self.visited_bbs:
+            return
+        for next_bb in bb.cfg_out:
+            self._process_basic_block_r(next_bb)
+            self.liveness._calculate_out_vars(next_bb)
+            self.liveness._calculate_liveness(next_bb)
+
         self._effects_g = EffectsG()
         self._effects_g.analyze(bb)
 
@@ -188,8 +195,8 @@ class DFTPass(IRPass):
         bb.instructions = [inst for inst in bb.instructions if inst.opcode in ("phi", "param")]
 
         # start with out liveness
-        if len(bb.cfg_out) > 0:
-            next_bb = bb.cfg_out.first()
+        for next_bb in bb.cfg_out:
+            break
             target_stack = self.liveness.input_vars_from(bb, next_bb)
             for var in reversed(list(target_stack)):
                 inst = self.dfg.get_producing_instruction(var)
@@ -208,6 +215,7 @@ class DFTPass(IRPass):
         # sanity check: the instructions we started with are the same
         # as we have now
         assert set(bb.instructions) == set(instructions), (instructions, bb)
+        self.visited_bbs.add(bb)
 
     def run_pass(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -216,8 +224,8 @@ class DFTPass(IRPass):
         self.started: OrderedSet[IRInstruction] = OrderedSet()
         self.done: OrderedSet[IRInstruction] = OrderedSet()
 
-        for bb in self.function.get_basic_blocks():
-            self._process_basic_block(bb)
+        self.visited_bbs = OrderedSet()
+        self._process_basic_block_r(self.function.entry)
 
         # for repr
         self.analyses_cache.force_analysis(LivenessAnalysis)
