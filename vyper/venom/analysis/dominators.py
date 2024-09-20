@@ -1,5 +1,4 @@
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock
@@ -17,10 +16,10 @@ class DominatorTreeAnalysis(IRAnalysis):
     entry_block: IRBasicBlock
     dfs_order: dict[IRBasicBlock, int]
     dfs_walk: list[IRBasicBlock]
-    dominators: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    dominators: dict[IRBasicBlock, set[IRBasicBlock]]
     immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
-    dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    dominated: dict[IRBasicBlock, set[IRBasicBlock]]
+    dominator_frontiers: dict[IRBasicBlock, set[IRBasicBlock]]
 
     def analyze(self):
         """
@@ -37,7 +36,7 @@ class DominatorTreeAnalysis(IRAnalysis):
 
         self.analyses_cache.request_analysis(CFGAnalysis)
 
-        self._compute_dfs(self.entry_block, OrderedSet())
+        self._compute_dfs(self.entry_block, set())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
@@ -58,9 +57,9 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         Compute dominators
         """
-        basic_blocks = list(self.dfs_order.keys())
-        self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
-        self.dominators[self.entry_block] = OrderedSet([self.entry_block])
+        basic_blocks = set(self.dfs_order.keys())
+        self.dominators = {bb: basic_blocks.copy() for bb in basic_blocks}
+        self.dominators[self.entry_block] = set([self.entry_block])
         changed = True
         count = len(basic_blocks) ** 2  # TODO: find a proper bound for this
         while changed:
@@ -74,7 +73,7 @@ class DominatorTreeAnalysis(IRAnalysis):
                 preds = bb.cfg_in
                 if len(preds) == 0:
                     continue
-                new_dominators = OrderedSet.intersection(*[self.dominators[pred] for pred in preds])
+                new_dominators = set.intersection(*(self.dominators[pred] for pred in preds))
                 new_dominators.add(bb)
                 if new_dominators != self.dominators[bb]:
                     self.dominators[bb] = new_dominators
@@ -92,7 +91,7 @@ class DominatorTreeAnalysis(IRAnalysis):
             doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
             self.immediate_dominators[bb] = doms[1]
 
-        self.dominated = {bb: OrderedSet() for bb in self.dfs_walk}
+        self.dominated = {bb: set() for bb in self.dfs_walk}
         for dom, target in self.immediate_dominators.items():
             self.dominated[target].add(dom)
 
@@ -101,7 +100,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         Compute dominance frontier
         """
         basic_blocks = self.dfs_walk
-        self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
+        self.dominator_frontiers = {bb: set() for bb in basic_blocks}
 
         for bb in self.dfs_walk:
             if len(bb.cfg_in) > 1:
@@ -111,11 +110,11 @@ class DominatorTreeAnalysis(IRAnalysis):
                         self.dominator_frontiers[runner].add(bb)
                         runner = self.immediate_dominators[runner]
 
-    def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> OrderedSet[IRBasicBlock]:
+    def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> set[IRBasicBlock]:
         """
         Compute dominance frontier of a set of basic blocks.
         """
-        df = OrderedSet[IRBasicBlock]()
+        df = set[IRBasicBlock]()
         for bb in basic_blocks:
             df.update(self.dominator_frontiers[bb])
         return df

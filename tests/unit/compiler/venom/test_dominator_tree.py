@@ -1,7 +1,6 @@
 from typing import Optional
 
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.dominators import DominatorTreeAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
@@ -54,11 +53,11 @@ def test_deminator_frontier_calculation():
     df = dom.dominator_frontiers
 
     assert len(df[bb1]) == 0, df[bb1]
-    assert df[bb2] == OrderedSet({bb2}), df[bb2]
-    assert df[bb3] == OrderedSet({bb3, bb6}), df[bb3]
-    assert df[bb4] == OrderedSet({bb6}), df[bb4]
-    assert df[bb5] == OrderedSet({bb3, bb6}), df[bb5]
-    assert df[bb6] == OrderedSet({bb2}), df[bb6]
+    assert df[bb2] == {bb2}, df[bb2]
+    assert df[bb3] == {bb3, bb6}, df[bb3]
+    assert df[bb4] == {bb6}, df[bb4]
+    assert df[bb5] == {bb3, bb6}, df[bb5]
+    assert df[bb6] == {bb2}, df[bb6]
     assert len(df[bb7]) == 0, df[bb7]
 
 
