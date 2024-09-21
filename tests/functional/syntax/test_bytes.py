@@ -50,18 +50,24 @@ def foo(x: Bytes[100]) -> int128:
 def foo(x: int128) -> Bytes[75]:
     return x
     """,
-    """
+    (
+        """
 @external
 def foo() -> Bytes[10]:
     x: Bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
     """,
-    """
+        TypeMismatch,
+    ),
+    (
+        """
 @external
 def foo() -> Bytes[10]:
     return "badmintonzz"
     """,
+        TypeMismatch,
+    ),
     (
         """
 @external

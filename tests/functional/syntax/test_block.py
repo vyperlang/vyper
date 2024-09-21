@@ -26,7 +26,7 @@ def foo() -> int128[2]:
 def foo() -> decimal:
     x: int128 = as_wei_value(5, "finney")
     y: int128 = block.timestamp + 50
-    return x / y
+    return x // y
     """,
     (
         """
@@ -63,8 +63,8 @@ struct Y:
     y: int128
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
-    b: Y = Y({y: 5})
+    a: X = X(x=block.timestamp)
+    b: Y = Y(y=5)
     a.x = b.y
     """,
     """
@@ -106,7 +106,7 @@ def add_record():
 def foo() -> uint256:
     x: uint256 = as_wei_value(5, "finney")
     y: uint256 = block.timestamp + 50 - block.timestamp
-    return x / y
+    return x // y
     """,
     """
 @external
@@ -123,7 +123,7 @@ struct X:
     x: uint256
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
+    a: X = X(x=block.timestamp)
     a.x = block.gaslimit
     a.x = block.basefee
     a.x = 5
@@ -138,7 +138,7 @@ def foo():
     """
 @external
 def foo():
-    x: uint256 = block.prevrandao + 185
+    x: bytes32 = block.prevrandao
     if tx.origin == self:
         y: Bytes[35] = concat(block.prevhash, b"dog")
     """,
@@ -152,4 +152,32 @@ def foo() -> uint256:
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
+    assert compiler.compile_code(good_code) is not None
+
+
+valid_list = [
+    """
+@external
+def foo() -> uint256:
+    return block.blobbasefee
+    """,
+    """
+@external
+def foo() -> uint256:
+    a: uint256 = 5
+    a = block.blobbasefee
+    return a
+    """,
+    """
+@external
+def foo() -> uint256:
+    a: uint256 = block.blobbasefee
+    return a
+    """,
+]
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("good_code", valid_list)
+def test_block_blob_success(good_code):
     assert compiler.compile_code(good_code) is not None

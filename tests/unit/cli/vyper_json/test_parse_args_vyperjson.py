@@ -13,7 +13,7 @@ import contracts.ibar as IBar
 
 @external
 def foo(a: address) -> bool:
-    return IBar(a).bar(1)
+    return extcall IBar(a).bar(1)
 """
 
 BAR_CODE = """

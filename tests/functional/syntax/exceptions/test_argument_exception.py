@@ -1,13 +1,13 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import ArgumentException
 
 fail_list = [
     """
 @external
 def foo():
-    x = as_wei_value(5, "vader")
+    x: uint256 = as_wei_value(5, "vader")
     """,
     """
 @external
@@ -80,13 +80,13 @@ def foo():
     """
 @external
 def foo():
-    for i in range():
+    for i: uint256 in range():
         pass
     """,
     """
 @external
 def foo():
-    for i in range(1, 2, 3, 4):
+    for i: uint256 in range(1, 2, 3, 4):
         pass
     """,
 ]
@@ -95,4 +95,4 @@ def foo():
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_function_declaration_exception(bad_code):
     with pytest.raises(ArgumentException):
-        compiler.compile_code(bad_code)
+        compile_code(bad_code)

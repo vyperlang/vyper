@@ -5,7 +5,7 @@ Contributing
 
 Help is always appreciated!
 
-To get started, you can try `installing Vyper <https://vyper.readthedocs.io/en/latest/installing-vyper.html>`_ in order to familiarize
+To get started, you can try `installing Vyper <installing-vyper.html>`_ in order to familiarize
 yourself with the components of Vyper and the build process. Also, it may be
 useful to become well-versed at writing smart-contracts in Vyper.
 

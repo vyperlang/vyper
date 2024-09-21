@@ -25,8 +25,6 @@ The compilation process includes the following broad phases:
 
 1. In [`vyper.ast`](../ast), the source code is parsed and converted to an
 abstract syntax tree.
-1. In [`vyper.ast.folding`](../ast/folding.py), literal Vyper AST nodes are
-evaluated and replaced with the resulting values.
 1. The [`GlobalContext`](../codegen/global_context.py) object is generated from the
 Vyper AST, analyzing and organizing the nodes prior to IR generation.
 1. In [`vyper.codegen.module`](../codegen/module.py), the contextualized nodes are

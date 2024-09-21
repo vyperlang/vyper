@@ -1,17 +1,6 @@
-import contextlib
 from typing import Tuple
 
-from vyper.exceptions import StructureException, VyperException
-
-
-@contextlib.contextmanager
-def tag_exceptions(node):
-    try:
-        yield
-    except VyperException as e:
-        if not e.annotations and not e.lineno:
-            raise e.with_annotation(node) from None
-        raise e from None
+from vyper.exceptions import StructureException, tag_exceptions
 
 
 class VyperNodeVisitorBase:

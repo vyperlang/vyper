@@ -45,6 +45,16 @@ def test_star():
     assert result == {PurePath("foo.vy"): expected, PurePath("bar.vy"): expected}
 
 
+def test_ast():
+    input_json = {
+        "sources": {"foo.vy": ""},
+        "settings": {"outputSelection": {"foo.vy": ["ast", "annotated_ast"]}},
+    }
+    expected = sorted([TRANSLATE_MAP[k] for k in ["ast", "annotated_ast"]])
+    result = get_output_formats(input_json)
+    assert result == {PurePath("foo.vy"): expected}
+
+
 def test_evm():
     input_json = {
         "sources": {"foo.vy": ""},

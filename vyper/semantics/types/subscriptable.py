@@ -41,11 +41,12 @@ class _SubscriptableT(VyperType):
 
 
 class HashMapT(_SubscriptableT):
-    _id = "HashMap"
+    typeclass = "hashmap"
+    _id = "HashMap"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     _equality_attrs = ("key_type", "value_type")
 
-    # disallow everything but storage
+    # disallow everything but storage or transient
     _invalid_locations = (
         DataLocation.UNSET,
         DataLocation.CALLDATA,
@@ -71,9 +72,8 @@ class HashMapT(_SubscriptableT):
     def from_annotation(cls, node: vy_ast.Subscript) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or len(node.slice.value.elements) != 2
+            or not isinstance(node.slice, vy_ast.Tuple)
+            or len(node.slice.elements) != 2
         ):
             raise StructureException(
                 (
@@ -83,11 +83,12 @@ class HashMapT(_SubscriptableT):
                 node,
             )
 
-        k_ast, v_ast = node.slice.value.elements
-        key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
+        k_ast, v_ast = node.slice.elements
+        key_type = type_from_annotation(k_ast)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
+        # TODO: thread through actual location - might also be TRANSIENT
         value_type = type_from_annotation(v_ast, DataLocation.STORAGE)
 
         return cls(key_type, value_type)
@@ -112,7 +113,7 @@ class _SequenceT(_SubscriptableT):
             raise InvalidType("Array length is invalid")
 
         if length >= 2**64:
-            warnings.warn("Use of large arrays can be unsafe!")
+            warnings.warn("Use of large arrays can be unsafe!", stacklevel=2)
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -127,6 +128,8 @@ class _SequenceT(_SubscriptableT):
     def validate_index_type(self, node):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
+
+        node = node.reduced()
 
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -152,6 +155,10 @@ class SArrayT(_SequenceT):
     """
     Static array type
     """
+
+    typeclass = "static_array"
+
+    _id = "$SArray"
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -198,7 +205,7 @@ class SArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
-        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
@@ -218,9 +225,12 @@ class DArrayT(_SequenceT):
     Dynamic array type
     """
 
+    typeclass = "dynamic_array"
+
     _valid_literal = (vy_ast.List,)
     _as_array = True
-    _id = "DynArray"
+
+    _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -280,21 +290,17 @@ class DArrayT(_SequenceT):
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(err_msg, node)
 
-        if (
-            not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or len(node.slice.value.elements) != 2
-        ):
+        if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.value.elements[1]
+        length_node = node.slice.elements[1].reduced()
 
         if not isinstance(length_node, vy_ast.Int):
             raise StructureException(err_msg, length_node)
 
         length = length_node.value
 
-        value_node = node.slice.value.elements[0]
+        value_node = node.slice.elements[0]
         value_type = type_from_annotation(value_node)
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
@@ -309,7 +315,10 @@ class TupleT(VyperType):
     This class is used to represent multiple return values from functions.
     """
 
+    typeclass = "tuple"
+
     _equality_attrs = ("members",)
+    _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
     # are in fact instantiable and the codegen works. if we
@@ -325,7 +334,10 @@ class TupleT(VyperType):
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+        if len(self.member_types) == 1:
+            (t,) = self.member_types
+            return f"({t},)"
+        return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
     @property
     def length(self):
@@ -359,6 +371,8 @@ class TupleT(VyperType):
         return sum(i.size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
+        node = node.reduced()
+
         if not isinstance(node, vy_ast.Int):
             raise InvalidType("Tuple indexes must be literals", node)
         if node.value < 0:
@@ -367,6 +381,7 @@ class TupleT(VyperType):
             raise ArrayIndexException("Index out of range", node)
 
     def get_subscripted_type(self, node):
+        node = node.reduced()
         return self.member_types[node.value]
 
     def compare_type(self, other):

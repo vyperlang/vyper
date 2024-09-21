@@ -131,7 +131,7 @@ A Venom program may feature basic blocks with multiple CFG inputs and outputs. T
 
 ### Code emission
 
-This final pass of the compiler aims to emit EVM assembly recognized by Vyper's assembler. It calcluates the desired stack layout for every basic block, schedules items on the stack and selects instructions. It ensures that deploy code, runtime code, and data segments are arranged according to the assembler's expectations.
+This final pass of the compiler aims to emit EVM assembly recognized by Vyper's assembler. It calculates the desired stack layout for every basic block, schedules items on the stack and selects instructions. It ensures that deploy code, runtime code, and data segments are arranged according to the assembler's expectations.
 
 ## Future planned passes
 

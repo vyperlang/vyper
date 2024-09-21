@@ -41,6 +41,9 @@ class _BytestringT(VyperType):
     def __repr__(self):
         return f"{self._id}[{self._length}]"
 
+    def _addl_dict_fields(self):
+        return {"length": self.length}
+
     @property
     def length(self):
         """
@@ -67,11 +70,11 @@ class _BytestringT(VyperType):
 
     @property
     def size_in_bytes(self):
-        # the first slot (32 bytes) stores the actual length, and then we
-        # reserve enough additional slots to store the data if it uses the
-        # max available length because this data type is single-bytes, we
-        # make it so it takes the max 32 byte boundary as it's size, instead
-        # of giving it a size that is not cleanly divisble by 32
+        # the first slot (32 bytes) stores the actual length, and then we reserve
+        # enough additional slots to store the data if it uses the max available length
+        # because this data type is single-bytes, we make it so it takes the max 32 byte
+        # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
+
         return 32 + ceil32(self.length)
 
     # note: definition of compare_type is:
@@ -92,7 +95,7 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
-        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
             )
@@ -120,6 +123,8 @@ class _BytestringT(VyperType):
 
 
 class BytesT(_BytestringT):
+    typeclass = "bytes"
+
     _id = "Bytes"
     _valid_literal = (vy_ast.Bytes,)
 
@@ -129,6 +134,8 @@ class BytesT(_BytestringT):
 
 
 class StringT(_BytestringT):
+    typeclass = "string"
+
     _id = "String"
     _valid_literal = (vy_ast.Str,)
 

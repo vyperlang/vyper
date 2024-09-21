@@ -11,6 +11,11 @@ from vyper.compiler.phases import CompilerData
 
 
 def _valid_identifier(attr):
+    if attr == "foo":
+        # the entry point to the test is named foo(),
+        # skip it to avoid collision
+        return False
+
     return attr not in RESERVED_KEYWORDS
 
 
@@ -54,7 +59,7 @@ def foo():
         t = CompilerData(code)
 
         # check the .called_functions data structure on foo() directly
-        foo = t.vyper_module_folded.get_children(vy_ast.FunctionDef, filters={"name": "foo"})[0]
+        foo = t.annotated_vyper_module.get_children(vy_ast.FunctionDef, filters={"name": "foo"})[0]
         foo_t = foo._metadata["func_type"]
         assert [f.name for f in foo_t.called_functions] == func_names
 
@@ -70,6 +75,9 @@ def foo():
                 r = d.args[0].args[0].value
                 if isinstance(r, str) and r.startswith("internal"):
                     ir_funcs.append(r)
-        assert ir_funcs == [
-            f._ir_info.internal_function_label(is_ctor_context=False) for f in sigs.values()
-        ]
+
+        expected = []
+        for f in foo_t.called_functions:
+            expected.append(f._ir_info.internal_function_label(is_ctor_context=False))
+
+        assert ir_funcs == expected

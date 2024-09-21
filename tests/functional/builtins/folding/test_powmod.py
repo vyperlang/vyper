@@ -2,10 +2,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
-from vyper.builtins import functions as vy_fn
+from tests.utils import parse_and_fold
 
-st_uint256 = st.integers(min_value=0, max_value=2**256)
+st_uint256 = st.integers(min_value=0, max_value=(2**256 - 1))
 
 
 @pytest.mark.fuzzing
@@ -19,8 +18,8 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"pow_mod256({a}, {b})")
+    vyper_ast = parse_and_fold(f"pow_mod256({a}, {b})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.PowMod256().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(a, b) == new_node.value

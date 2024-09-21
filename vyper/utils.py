@@ -1,19 +1,21 @@
 import binascii
 import contextlib
 import decimal
+import enum
 import functools
+import hashlib
 import sys
 import time
 import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
 
 _T = TypeVar("_T")
 
 
-class OrderedSet(Generic[_T], dict[_T, None]):
+class OrderedSet(Generic[_T]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -23,43 +25,149 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     """
 
     def __init__(self, iterable=None):
-        super().__init__()
+        self._data = dict()
         if iterable is not None:
-            for item in iterable:
-                self.add(item)
+            self.update(iterable)
 
     def __repr__(self):
-        keys = ", ".join(repr(k) for k in self.keys())
+        keys = ", ".join(repr(k) for k in self)
         return f"{{{keys}}}"
 
-    def get(self, *args, **kwargs):
-        raise RuntimeError("can't call get() on OrderedSet!")
+    def __iter__(self):
+        return iter(self._data)
+
+    def __reversed__(self):
+        return reversed(self._data)
+
+    def __contains__(self, item):
+        return self._data.__contains__(item)
+
+    def __len__(self):
+        return len(self._data)
+
+    def first(self):
+        return next(iter(self))
+
+    def last(self):
+        return next(reversed(self))
+
+    def pop(self):
+        return self._data.popitem()[0]
 
     def add(self, item: _T) -> None:
-        self[item] = None
+        self._data[item] = None
+
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
 
     def remove(self, item: _T) -> None:
-        del self[item]
+        del self._data[item]
+
+    def drop(self, item: _T):
+        # friendly version of remove
+        self._data.pop(item, None)
+
+    def dropmany(self, iterable):
+        for item in iterable:
+            self._data.pop(item, None)
 
     def difference(self, other):
         ret = self.copy()
-        for k in other.keys():
-            if k in ret:
-                ret.remove(k)
+        ret.dropmany(other)
         return ret
+
+    def update(self, other):
+        # CMC 2024-03-22 for some reason, this is faster than dict.update?
+        # (maybe size dependent)
+        for item in other:
+            self._data[item] = None
 
     def union(self, other):
         return self | other
 
-    def update(self, other):
-        for item in other:
-            self.add(item)
+    def __ior__(self, other):
+        self.update(other)
+        return self
 
     def __or__(self, other):
-        return self.__class__(super().__or__(other))
+        ret = self.copy()
+        ret.update(other)
+        return ret
+
+    def __eq__(self, other):
+        return self._data == other._data
 
     def copy(self):
-        return self.__class__(super().copy())
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret._data = self._data.copy()
+        return ret
+
+    @classmethod
+    def intersection(cls, *sets):
+        if len(sets) == 0:
+            raise ValueError("undefined: intersection of no sets")
+
+        ret = sets[0].copy()
+        for e in sets[0]:
+            if any(e not in s for s in sets[1:]):
+                ret.remove(e)
+        return ret
+
+
+class StringEnum(enum.Enum):
+    # Must be first, or else won't work, specifies what .value is
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise CompilerPanic(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        return self is other
+
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return not self.__lt__(other)
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __hash__(self) -> int:
+        # let `dataclass` know that this class is not mutable
+        return super().__hash__()
 
 
 class DecimalContextOverride(decimal.Context):
@@ -70,7 +178,9 @@ class DecimalContextOverride(decimal.Context):
                 raise DecimalOverrideException("Overriding decimal precision disabled")
             elif value > 78:
                 # not sure it's incorrect, might not be end of the world
-                warnings.warn("Changing decimals precision could have unintended side effects!")
+                warnings.warn(
+                    "Changing decimals precision could have unintended side effects!", stacklevel=2
+                )
             # else: no-op, is ok
 
         super().__setattr__(name, value)
@@ -87,6 +197,17 @@ except ImportError:
     import sha3 as _sha3
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+
+
+@functools.lru_cache(maxsize=512)
+def sha256sum(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).digest().hex()
+
+
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
 
 
 # Converts four bytes to an integer
@@ -151,8 +272,11 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -300,6 +424,12 @@ class SizeLimits:
     MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
+    CEILING_UINT256 = 2**256
+
+
+def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
+    quantizer = decimal.Decimal(f"{1:0.{places}f}")
+    return d.quantize(quantizer, rounding_mode)
 
 
 # List of valid IR macros.
@@ -331,6 +461,7 @@ VALID_IR_MACROS = {
     "with",
     "label",
     "goto",
+    "djump",  # "dynamic jump", i.e. constrained, multi-destination jump
     "~extcode",
     "~selfcode",
     "~calldata",
@@ -340,6 +471,7 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -373,17 +505,13 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
     return "".join(indented_lines)
 
 
-def timeit(func):
-    @functools.wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
-        return result
-
-    return timeit_wrapper
+@contextlib.contextmanager
+def timeit(msg):
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"{msg}: Took {total_time:.4f} seconds")
 
 
 @contextlib.contextmanager
@@ -469,25 +597,3 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
-
-
-def ir_pass(func):
-    """
-    Decorator for IR passes. This decorator will run the pass repeatedly until
-    no more changes are made.
-    """
-
-    def wrapper(*args, **kwargs):
-        count = 0
-
-        while True:
-            changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list) or isinstance(changes, set):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
-                break
-
-        return count
-
-    return wrapper

@@ -5,52 +5,64 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
-from vyper.venom.bb_optimizer import (
-    ir_pass_optimize_empty_blocks,
-    ir_pass_optimize_unused_variables,
-    ir_pass_remove_unreachable_blocks,
-)
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import convert_ir_basicblock
-from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
+from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
+from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.dft import DFTPass
+from vyper.venom.passes.extract_literals import ExtractLiteralsPass
+from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.mem2var import Mem2Var
+from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
+from vyper.venom.passes.sccp import SCCP
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.store_elimination import StoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
+
+DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 
 def generate_assembly_experimental(
-    ctx: IRFunction, optimize: Optional[OptimizationLevel] = None
+    runtime_code: IRContext,
+    deploy_code: Optional[IRContext] = None,
+    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
 ) -> list[str]:
-    compiler = VenomCompiler(ctx)
-    return compiler.generate_evm(optimize is OptimizationLevel.NONE)
+    # note: VenomCompiler is sensitive to the order of these!
+    if deploy_code is not None:
+        functions = [deploy_code, runtime_code]
+    else:
+        functions = [runtime_code]
+
+    compiler = VenomCompiler(functions)
+    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
-    # Convert "old" IR to "new" IR
-    ctx = convert_ir_basicblock(ir)
-
-    # Run passes on "new" IR
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
+    # Run passes on Venom IR
     # TODO: Add support for optimization levels
-    while True:
-        changes = 0
 
-        changes += ir_pass_optimize_empty_blocks(ctx)
-        changes += ir_pass_remove_unreachable_blocks(ctx)
+    ac = IRAnalysesCache(fn)
 
-        calculate_liveness(ctx)
+    SimplifyCFGPass(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
+    ExtractLiteralsPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    DFTPass(ac, fn).run_pass()
 
-        changes += ir_pass_optimize_unused_variables(ctx)
 
-        calculate_cfg(ctx)
-        calculate_liveness(ctx)
-
-        changes += ir_pass_constant_propagation(ctx)
-        changes += DFTPass.run_pass(ctx)
-
-        calculate_cfg(ctx)
-        calculate_liveness(ctx)
-
-        if changes == 0:
-            break
+def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
+    # Convert "old" IR to "new" IR
+    ctx = ir_node_to_venom(ir)
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize)
 
     return ctx

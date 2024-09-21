@@ -2,8 +2,8 @@ from decimal import ROUND_FLOOR, Decimal
 
 import hypothesis
 import pytest
-from eth_tester.exceptions import TransactionFailed
 
+from tests.utils import decimal_to_int
 from vyper.utils import SizeLimits
 
 DECIMAL_PLACES = 10
@@ -19,20 +19,21 @@ def decimal_truncate(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
 
 
 def decimal_sqrt(val):
-    return decimal_truncate(val.sqrt())
+    return decimal_to_int(decimal_truncate(val.sqrt()))
 
 
-def test_sqrt_literal(get_contract_with_gas_estimation):
+def test_sqrt_literal(get_contract):
     code = """
 @external
 def test() -> decimal:
     return sqrt(2.0)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test() == decimal_sqrt(Decimal("2"))
 
 
-def test_sqrt_variable(get_contract_with_gas_estimation):
+# TODO: use parametrization here
+def test_sqrt_variable(get_contract):
     code = """
 @external
 def test(a: decimal) -> decimal:
@@ -44,19 +45,19 @@ def test2() -> decimal:
     return sqrt(a)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = Decimal("33.33")
-    assert c.test(val) == decimal_sqrt(val)
+    assert c.test(decimal_to_int(val)) == decimal_sqrt(val)
 
     val = Decimal("0.1")
-    assert c.test(val) == decimal_sqrt(val)
+    assert c.test(decimal_to_int(val)) == decimal_sqrt(val)
 
-    assert c.test(Decimal("0.0")) == Decimal("0.0")
+    assert c.test(decimal_to_int("0.0")) == decimal_to_int("0.0")
     assert c.test2() == decimal_sqrt(Decimal("44.001"))
 
 
-def test_sqrt_storage(get_contract_with_gas_estimation):
+def test_sqrt_storage(get_contract):
     code = """
 s_var: decimal
 
@@ -71,15 +72,15 @@ def test2() -> decimal:
     return sqrt(self.s_var)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     val = Decimal("12.21")
-    assert c.test(val) == decimal_sqrt(val + 1)
+    assert c.test(decimal_to_int(val)) == decimal_sqrt(val + 1)
     val = Decimal("100.01")
-    assert c.test(val) == decimal_sqrt(val + 1)
+    assert c.test(decimal_to_int(val)) == decimal_sqrt(val + 1)
     assert c.test2() == decimal_sqrt(Decimal("444.44"))
 
 
-def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
+def test_sqrt_inline_memory_correct(get_contract):
     code = """
 @external
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100]):
@@ -91,17 +92,17 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
     return a, x, y, z, e, f
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     val = Decimal("2.1")
-    assert c.test(val) == [
-        val,
-        Decimal("1"),
-        Decimal("2"),
-        Decimal("3"),
+    assert c.test(decimal_to_int(val)) == (
+        decimal_to_int(val),
+        decimal_to_int("1"),
+        decimal_to_int("2"),
+        decimal_to_int("3"),
         decimal_sqrt(val),
         "hello world",
-    ]
+    )
 
 
 @pytest.mark.parametrize("value", DECIMAL_RANGE)
@@ -114,25 +115,25 @@ def test(a: decimal) -> decimal:
 
     c = get_contract(code)
 
-    vyper_sqrt = c.test(value)
+    vyper_sqrt = c.test(decimal_to_int(value))
     actual_sqrt = decimal_sqrt(value)
     assert vyper_sqrt == actual_sqrt
 
 
 @pytest.fixture(scope="module")
-def sqrt_contract(get_contract_module):
+def sqrt_contract(get_contract):
     code = """
 @external
 def test(a: decimal) -> decimal:
     return sqrt(a)
     """
-    c = get_contract_module(code)
+    c = get_contract(code)
     return c
 
 
 @pytest.mark.parametrize("value", [Decimal(0), Decimal(SizeLimits.MAX_INT128)])
 def test_sqrt_bounds(sqrt_contract, value):
-    vyper_sqrt = sqrt_contract.test(value)
+    vyper_sqrt = sqrt_contract.test(decimal_to_int(value))
     actual_sqrt = decimal_sqrt(value)
     assert vyper_sqrt == actual_sqrt
 
@@ -146,7 +147,7 @@ def test_sqrt_bounds(sqrt_contract, value):
 @hypothesis.example(value=Decimal(SizeLimits.MAX_INT128))
 @hypothesis.example(value=Decimal(0))
 def test_sqrt_valid_range(sqrt_contract, value):
-    vyper_sqrt = sqrt_contract.test(value)
+    vyper_sqrt = sqrt_contract.test(decimal_to_int(value))
     actual_sqrt = decimal_sqrt(value)
     assert vyper_sqrt == actual_sqrt
 
@@ -159,6 +160,25 @@ def test_sqrt_valid_range(sqrt_contract, value):
 )
 @hypothesis.example(value=Decimal(SizeLimits.MIN_INT128))
 @hypothesis.example(value=Decimal("-1E10"))
-def test_sqrt_invalid_range(sqrt_contract, value):
-    with pytest.raises(TransactionFailed):
-        sqrt_contract.test(value)
+def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
+    with tx_failed():
+        sqrt_contract.test(decimal_to_int(value))
+
+
+def test_sqrt_eval_once(get_contract):
+    code = """
+c: uint256
+
+@internal
+def some_decimal() -> decimal:
+    self.c += 1
+    return 1.0
+
+@external
+def foo() -> uint256:
+    k: decimal = sqrt(self.some_decimal())
+    return self.c
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 1

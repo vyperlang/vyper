@@ -7,10 +7,23 @@ FAILING_CONTRACTS = [
     """
 @external
 @pure
-@nonreentrant('lock')
+@nonreentrant
 def nonreentrant_foo() -> uint256:
     return 1
+    """,
     """
+@external
+@nonreentrant
+@nonreentrant
+def nonreentrant_foo() -> uint256:
+    return 1
+    """,
+    """
+@external
+@nonreentrant("foo")
+def nonreentrant_foo() -> uint256:
+    return 1
+    """,
 ]
 
 

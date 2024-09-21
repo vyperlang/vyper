@@ -4,9 +4,11 @@ import random
 
 import pytest
 
+from vyper import compile_code
 from vyper.exceptions import (
     InvalidOperation,
     OverflowException,
+    StaticAssertionException,
     TypeMismatch,
     ZeroDivisionException,
 )
@@ -17,7 +19,7 @@ types = sorted(IntegerT.signeds())
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent_base_zero(get_contract, assert_tx_failed, typ):
+def test_exponent_base_zero(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -30,12 +32,14 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 0
     assert c.foo(hi) == 0
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))  # note: lo < 0
+    with tx_failed():
+        c.foo(-1)
+    with tx_failed():
+        c.foo(lo)  # note: lo < 0
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent_base_one(get_contract, assert_tx_failed, typ):
+def test_exponent_base_one(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -48,8 +52,10 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 1
     assert c.foo(hi) == 1
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))
+    with tx_failed():
+        c.foo(-1)
+    with tx_failed():
+        c.foo(lo)
 
 
 def test_exponent_base_minus_one(get_contract):
@@ -68,7 +74,24 @@ def foo(x: int256) -> int256:
 
 # TODO: make this test pass
 @pytest.mark.parametrize("base", (0, 1))
-def test_exponent_negative_power(get_contract, assert_tx_failed, base):
+def test_exponent_negative_power_runtime_check(get_contract, tx_failed, base, experimental_codegen):
+    # #2985
+    code = f"""
+@external
+def bar(negative:int16) -> int16:
+    x: int16 = negative
+    return {base} ** x
+    """
+    c = get_contract(code)
+    # known bug: 2985
+    with tx_failed():
+        c.bar(-2)
+
+
+@pytest.mark.parametrize("base", (0, 1))
+def test_exponent_negative_power_compile_time_check(
+    get_contract, tx_failed, base, experimental_codegen
+):
     # #2985
     code = f"""
 @external
@@ -76,9 +99,10 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    c = get_contract(code)
-    # known bug: 2985
-    assert_tx_failed(lambda: c.bar())
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)
 
 
 def test_exponent_min_int16(get_contract):
@@ -108,7 +132,7 @@ def foo() -> int256:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent(get_contract, assert_tx_failed, typ):
+def test_exponent(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -121,13 +145,14 @@ def foo(x: {typ}) -> {typ}:
     test_cases = [0, 1, 3, 4, 126, 127, -1, lo, hi]
     for x in test_cases:
         if x * 2 >= typ.bits or x < 0:  # out of bounds
-            assert_tx_failed(lambda: c.foo(x))
+            with tx_failed():
+                c.foo(x)
         else:
             assert c.foo(x) == 4**x
 
 
 @pytest.mark.parametrize("typ", types)
-def test_negative_nums(get_contract_with_gas_estimation, typ):
+def test_negative_nums(get_contract, typ):
     negative_nums_code = f"""
 @external
 def negative_one() -> {typ}:
@@ -143,14 +168,14 @@ def negative_four() -> {typ}:
     return -(a+2)
     """
 
-    c = get_contract_with_gas_estimation(negative_nums_code)
+    c = get_contract(negative_nums_code)
     assert c.negative_one() == -1
     assert c.negative_three() == -3
     assert c.negative_four() == -4
 
 
 @pytest.mark.parametrize("typ", types)
-def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation, typ):
+def test_num_bound(tx_failed, get_contract, typ):
     lo, hi = typ.ast_bounds
 
     num_bound_code = f"""
@@ -179,44 +204,49 @@ def _num_min() -> {typ}:
     return {lo}
     """
 
-    c = get_contract_with_gas_estimation(num_bound_code)
+    c = get_contract(num_bound_code)
 
     assert c._num_add(hi, 0) == hi
     assert c._num_sub(lo, 0) == lo
     assert c._num_add(hi - 1, 1) == hi
     assert c._num_sub(lo + 1, 1) == lo
-    assert_tx_failed(lambda: c._num_add(hi, 1))
-    assert_tx_failed(lambda: c._num_sub(lo, 1))
-    assert_tx_failed(lambda: c._num_add(hi - 1, 2))
-    assert_tx_failed(lambda: c._num_sub(lo + 1, 2))
+    with tx_failed():
+        c._num_add(hi, 1)
+    with tx_failed():
+        c._num_sub(lo, 1)
+    with tx_failed():
+        c._num_add(hi - 1, 2)
+    with tx_failed():
+        c._num_sub(lo + 1, 2)
     assert c._num_max() == hi
     assert c._num_min() == lo
 
-    assert_tx_failed(lambda: c._num_add3(hi, 1, -1))
+    with tx_failed():
+        c._num_add3(hi, 1, -1)
     assert c._num_add3(hi, -1, 1) == hi - 1 + 1
-    assert_tx_failed(lambda: c._num_add3(lo, -1, 1))
+    with tx_failed():
+        c._num_add3(lo, -1, 1)
     assert c._num_add3(lo, 1, -1) == lo + 1 - 1
 
 
 @pytest.mark.parametrize("typ", types)
-def test_overflow_out_of_range(get_contract, assert_compile_failed, typ):
+def test_overflow_out_of_range(get_contract, typ):
     code = f"""
 @external
 def num_sub() -> {typ}:
     return 1-2**{typ.bits}
     """
 
-    if typ.bits == 256:
-        assert_compile_failed(lambda: get_contract(code), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    exc = OverflowException if typ.bits == 256 else TypeMismatch
+    with pytest.raises(exc):
+        compile_code(code)
 
 
 ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
     "*": operator.mul,
-    "/": evm_div,
+    "//": evm_div,
     "%": evm_mod,
 }
 
@@ -224,7 +254,7 @@ ARITHMETIC_OPS = {
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -251,7 +281,7 @@ def foo() -> {typ}:
     """
     lo, hi = typ.ast_bounds
 
-    fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": evm_div, "%": evm_mod}
+    fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "//": evm_div, "%": evm_mod}
     fn = fns[op]
 
     c = get_contract(code_1)
@@ -295,7 +325,7 @@ def foo() -> {typ}:
         in_bounds = lo <= expected <= hi
 
         # safediv and safemod disallow divisor == 0
-        div_by_zero = y == 0 and op in ("/", "%")
+        div_by_zero = y == 0 and op in ("//", "%")
 
         ok = in_bounds and not div_by_zero
 
@@ -309,15 +339,23 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
+            with tx_failed():
+                c.foo(x, y)
+            with pytest.raises(ZeroDivisionException):
+                compile_code(code_2)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises(ZeroDivisionException):
+                compile_code(code_4)
         else:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_tx_failed(lambda: get_contract(code_2).foo(x))
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (TypeMismatch, OverflowException))
+            with tx_failed():
+                c.foo(x, y)
+            with tx_failed():
+                get_contract(code_2).foo(x)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises((TypeMismatch, OverflowException)):
+                compile_code(code_4)
 
 
 COMPARISON_OPS = {
@@ -345,7 +383,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
     fn = COMPARISON_OPS[op]
     c = get_contract(code_1)
 
-    # note: constant folding is tested in tests/ast/folding
+    # note: constant folding is tested in tests/unit/ast/nodes
     special_cases = [
         lo,
         lo + 1,
@@ -375,7 +413,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_negation(get_contract, assert_tx_failed, typ):
+def test_negation(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(a: {typ}) -> {typ}:
@@ -393,15 +431,50 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(2) == -2
     assert c.foo(-2) == 2
 
-    assert_tx_failed(lambda: c.foo(lo))
+    with tx_failed():
+        c.foo(lo)
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["/"])
+def test_invalid_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(x: {typ}, y: {typ}) -> {typ}:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.parametrize("op", ["not"])
-def test_invalid_unary_ops(get_contract, assert_compile_failed, typ, op):
+def test_invalid_unary_ops(typ, op):
     code = f"""
 @external
 def foo(a: {typ}) -> {typ}:
     return {op} a
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
+
+
+def test_binop_nested_intermediate_underflow():
+    code = """
+@external
+def foo():
+    a: int256 = -2**255 * 2 - 10 + 100
+    """
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
+
+
+def test_invalid_div():
+    code = """
+@external
+def foo():
+    a: int256 = -5 / 9
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `-5 // 9`?"

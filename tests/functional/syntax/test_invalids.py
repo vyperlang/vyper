@@ -357,7 +357,7 @@ struct StructX:
 
 @external
 def a():
-    x: int128 = StructX({y: 1})
+    x: int128 = StructX(y=1)
 """,
     UnknownAttribute,
 )

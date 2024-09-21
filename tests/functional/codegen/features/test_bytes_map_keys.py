@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import TypeMismatch
 
 
-def test_basic_bytes_keys(w3, get_contract):
+def test_basic_bytes_keys(env, get_contract):
     code = """
 mapped_bytes: HashMap[Bytes[5], int128]
 
@@ -18,7 +18,7 @@ def get(k: Bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"test", 54321, transact={})
+    c.set(b"test", 54321)
 
     assert c.get(b"test") == 54321
 
@@ -38,7 +38,7 @@ def get(k: Bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(54321, transact={})
+    c.set(54321)
 
     assert c.get(b"test") == 54321
 
@@ -58,7 +58,7 @@ def get(k: Bytes[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={"gas": 10**6})
+    c.set(b"a" * 34, 6789, gas=10**6)
 
     assert c.get(b"a" * 34) == 6789
 
@@ -80,7 +80,7 @@ def test_extended_bytes_key_from_storage(get_contract):
     code = """
 a: HashMap[Bytes[100000], int128]
 
-@external
+@deploy
 def __init__():
     self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
 
@@ -114,19 +114,19 @@ struct Foo:
 
 a: HashMap[Bytes[100000], int128]
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.a[b"potato"] = 31337
 
 @external
 def get_one() -> int128:
-    b: Foo = Foo({one: b"hello", two: b"potato"})
+    b: Foo = Foo(one=b"hello", two=b"potato")
     return self.a[b.one]
 
 @external
 def get_two() -> int128:
-    b: Foo = Foo({one: b"hello", two: b"potato"})
+    b: Foo = Foo(one=b"hello", two=b"potato")
     return self.a[b.two]
 """
 
@@ -145,11 +145,11 @@ struct Foo:
 a: HashMap[Bytes[100000], int128]
 b: Foo
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.a[b"potato"] = 31337
-    self.b = Foo({one: b"hello", two: b"potato"})
+    self.b = Foo(one=b"hello", two=b"potato")
 
 @external
 def get_one() -> int128:
@@ -172,7 +172,7 @@ def test_bytes_key_storage(get_contract):
 a: HashMap[Bytes[100000], int128]
 b: Bytes[5]
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.b = b"hello"
@@ -193,7 +193,7 @@ def test_bytes_key_calldata(get_contract):
 a: HashMap[Bytes[100000], int128]
 
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
 
@@ -215,10 +215,10 @@ struct Thing:
 bar: public(HashMap[uint256, Thing])
 foo: public(HashMap[Bytes[64], uint256])
 
-@external
+@deploy
 def __init__():
     self.foo[b"hello"] = 31337
-    self.bar[12] = Thing({name: b"hello"})
+    self.bar[12] = Thing(name=b"hello")
 
 @external
 def do_the_thing(_index: uint256) -> uint256:

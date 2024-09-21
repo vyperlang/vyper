@@ -4,6 +4,7 @@ import random
 
 import pytest
 
+from vyper import compile_code
 from vyper.exceptions import (
     InvalidOperation,
     OverflowException,
@@ -11,7 +12,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, evm_mod
+from vyper.utils import SizeLimits, evm_div, evm_mod
 
 types = sorted(IntegerT.unsigneds())
 
@@ -82,7 +83,7 @@ ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
     "*": operator.mul,
-    "/": evm_div,
+    "//": evm_div,
     "%": evm_mod,
 }
 
@@ -90,7 +91,7 @@ ARITHMETIC_OPS = {
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -139,7 +140,7 @@ def foo() -> {typ}:
 
         in_bounds = lo <= expected <= hi
         # safediv and safemod disallow divisor == 0
-        div_by_zero = y == 0 and op in ("/", "%")
+        div_by_zero = y == 0 and op in ("//", "%")
 
         ok = in_bounds and not div_by_zero
 
@@ -153,15 +154,23 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
+            with tx_failed():
+                c.foo(x, y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_2)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_4)
         else:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_tx_failed(lambda: get_contract(code_2).foo(x))
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (TypeMismatch, OverflowException))
+            with tx_failed():
+                c.foo(x, y)
+            with tx_failed():
+                get_contract(code_2).foo(x)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises((TypeMismatch, OverflowException)):
+                get_contract(code_4)
 
 
 COMPARISON_OPS = {
@@ -189,7 +198,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
     lo, hi = typ.ast_bounds
 
-    # note: constant folding is tested in tests/ast/folding
+    # note: folding is tested in tests/unit/ast/nodes
 
     special_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 2, hi - 1, hi]
     xs = special_cases.copy()
@@ -201,7 +210,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_uint_literal(get_contract, assert_compile_failed, typ):
+def test_uint_literal(get_contract, typ):
     lo, hi = typ.ast_bounds
 
     good_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 1, hi]
@@ -218,7 +227,24 @@ def test() -> {typ}:
         assert c.test() == val
 
     for val in bad_cases:
-        assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+        exc = (
+            TypeMismatch
+            if SizeLimits.MIN_INT256 <= val <= SizeLimits.MAX_UINT256
+            else OverflowException
+        )
+        with pytest.raises(exc):
+            compile_code(code_template.format(typ=typ, val=val))
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["/"])
+def test_invalid_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(x: {typ}, y: {typ}) -> {typ}:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
 @pytest.mark.parametrize("typ", types)
@@ -229,4 +255,79 @@ def test_invalid_unary_ops(get_contract, assert_compile_failed, typ, op):
 def foo(a: {typ}) -> {typ}:
     return {op} a
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
+
+
+def test_binop_nested_intermediate_overflow():
+    code = """
+@external
+def foo():
+    a: uint256 = 2**255 * 2 // 10
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+div_code_with_hint = [
+    (
+        """
+@external
+def foo():
+    a: uint256 = 5 / 9
+    """,
+        "did you mean `5 // 9`?",
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = 10
+    a /= (3 + 10) // (2 + 3)
+    """,
+        "did you mean `a //= (3 + 10) // (2 + 3)`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / c
+    """,
+        "did you mean `(a + b) // c`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / (a + c)
+    """,
+        "did you mean `(a + b) // (a + c)`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + (c + b)) / (a + c)
+    """,
+        "did you mean `(a + (c + b)) // (a + c)`?",
+    ),
+    (
+        """
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / staticcall Foo(self).foo()
+    """,
+        "did you mean `(a + b) // staticcall Foo(self).foo()`?",
+    ),
+]
+
+
+@pytest.mark.parametrize("code, expected_hint", div_code_with_hint)
+def test_invalid_div(code, expected_hint):
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == expected_hint
