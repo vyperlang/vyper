@@ -1985,7 +1985,7 @@ class _MinMax(BuiltinFunctionT):
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
-    def infer_arg_types(self, node, expected_return_type=None):
+    def infer_arg_types(self, node, expected_return_typ=None):
         self._validate_arg_types(node)
 
         types_list = get_common_types(
