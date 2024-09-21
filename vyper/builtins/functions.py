@@ -2457,7 +2457,7 @@ class ABIDecode(BuiltinFunctionT):
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def get_return_type(self, node, expected_type=None):
-        _, output_type = self.infer_arg_types(node, return_type=expected_type)
+        _, output_type = self.infer_arg_types(node, expected_return_typ=expected_type)
         return output_type.typedef
 
     def infer_arg_types(self, node, expected_return_typ=None):
