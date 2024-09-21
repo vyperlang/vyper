@@ -20,7 +20,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import InterfaceT, TupleT, VOID_TYPE
+from vyper.semantics.types import VOID_TYPE, InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 
