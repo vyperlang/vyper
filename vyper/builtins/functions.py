@@ -194,8 +194,8 @@ class Ceil(BuiltinFunctionT):
 class Convert(BuiltinFunctionT):
     _id = "convert"
 
-    def get_return_type(self, node, expected_return_typ=None):
-        _, target_typedef = self.infer_arg_types(node, expected_return_typ=expected_return_typ)
+    def get_return_type(self, node, expected_typ=None):
+        _, target_typedef = self.infer_arg_types(node, expected_return_typ=expected_typ)
 
         # note: more type conversion validation happens in convert.py
         return target_typedef.typedef
