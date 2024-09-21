@@ -1981,11 +1981,8 @@ class _MinMax(BuiltinFunctionT):
         value = self._eval_fn(left.value, right.value)
         return type(left).from_node(node, value=value)
 
+    # TODO: this returns a list of types. should we revert to `fetch_call_return`?
     def get_return_type(self, node, expected_type=None):
-        return_type = self.infer_arg_types(node).pop()
-        return return_type
-
-    def infer_arg_types(self, node, expected_return_typ=None):
         self._validate_arg_types(node)
 
         types_list = get_common_types(
@@ -1995,6 +1992,12 @@ class _MinMax(BuiltinFunctionT):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         return types_list
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        types_list = self.get_return_type(node)
+        # type mismatch should have been caught in `fetch_call_return`
+        assert expected_return_typ in types_list
+        return [expected_return_typ, expected_return_typ]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
