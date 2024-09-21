@@ -422,7 +422,7 @@ class TYPE_T(VyperType):
     def get_return_type(self, node, expected_type=None):
         if expected_type is not None:
             if not self.typedef.compare_type(expected_type):
-                raise CompilerPanic("bad type passed to {self.typedef} ctor", node)
+                raise CompilerPanic(f"bad type passed to {self.typedef} ctor", node)
         if hasattr(self.typedef, "_ctor_call_return"):
             return self.typedef._ctor_call_return(node)
         raise StructureException("Value is not callable", node)

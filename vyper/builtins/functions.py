@@ -1996,12 +1996,6 @@ class _MinMax(BuiltinFunctionT):
 
         return types_list
 
-    def infer_arg_types(self, node, expected_return_typ=None):
-        types_list = self.fetch_call_return(node)
-        # type mismatch should have been caught in `fetch_call_return`
-        assert expected_return_typ in types_list
-        return [expected_return_typ, expected_return_typ]
-
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         op = self._opcode

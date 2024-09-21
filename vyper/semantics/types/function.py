@@ -619,7 +619,9 @@ class ContractFunctionT(VyperType):
             e.hint = self._pp_signature
         return e
 
-    def get_return_type(self, node: vy_ast.Call, expected_type: VyperType | None = None) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> Optional[VyperType]:
         # mypy hint - right now, the only way a ContractFunctionT can be
         # called is via `Attribute`, e.x. self.foo() or library.bar()
         assert isinstance(node.func, vy_ast.Attribute)

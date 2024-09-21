@@ -138,13 +138,15 @@ class BuiltinFunctionT(VyperType):
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return self._modifiability <= modifiability
 
-    def get_return_type(self, node: vy_ast.Call, expected_type: VyperType | None = None) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: Optional[VyperType] = None
+    ) -> Optional[VyperType]:
         self._validate_arg_types(node)
 
         ret = self._return_type
 
-        if expected_type is not None and not expected_type.compare_type(ret):
-            raise TypeMismatch("{self._id}() returns {ret}, but expected {expected_type}", node)
+        if expected_type is not None and not expected_type.compare_type(ret):  # type: ignore
+            raise TypeMismatch(f"{self._id}() returns {ret}, but expected {expected_type}", node)
 
         return ret
 
