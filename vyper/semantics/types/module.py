@@ -10,7 +10,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -45,28 +45,33 @@ class InterfaceT(_UserType):
         functions: dict,
         events: dict,
         structs: dict,
+        constants: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        members = functions | events | structs
+        members = functions | events | structs | constants
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs)
+        assert len(members) == len(functions) + len(events) + len(structs) + len(constants)
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs)
+        self._helper = VyperType(events | structs | constants)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
         self.structs = structs
+        self.constants = constants
 
         self.decl_node = decl_node
 
     def get_type_member(self, attr, node):
-        # get an event or struct from this interface
-        return TYPE_T(self._helper.get_member(attr, node))
+        # get an event, struct or constant from this interface
+        type_member = self._helper.get_member(attr, node)
+        if isinstance(type_member, (EventT, StructT)):
+            return TYPE_T(type_member)
+        return type_member
 
     @property
     def getter_signature(self):
@@ -161,10 +166,12 @@ class InterfaceT(_UserType):
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: list[tuple[str, EventT]],
         struct_list: list[tuple[str, StructT]],
+        constant_list: list[tuple[str, VarInfo]],
     ) -> "InterfaceT":
         functions = {}
         events = {}
         structs = {}
+        constants = {}
 
         seen_items: dict = {}
 
@@ -187,7 +194,11 @@ class InterfaceT(_UserType):
             _mark_seen(name, struct)
             structs[name] = struct
 
-        return cls(interface_name, decl_node, functions, events, structs)
+        for name, constant in constant_list:
+            _mark_seen(name, constant)
+            constants[name] = constant
+
+        return cls(interface_name, decl_node, functions, events, structs, constants)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -247,8 +258,8 @@ class InterfaceT(_UserType):
         # these are accessible via import, but they do not show up
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
-
-        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs)
+        constants = [(node.target.id, node.target._metadata["varinfo"]) for node in module_t.variable_decls if node.target._metadata["varinfo"].modifiability is Modifiability.CONSTANT]
+        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, constants)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":

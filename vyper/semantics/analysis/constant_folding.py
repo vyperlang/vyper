@@ -2,6 +2,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, UnfoldableNode, VyperException
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.types.module import InterfaceT
 from vyper.semantics.namespace import get_namespace
 
 
@@ -105,12 +106,11 @@ class ConstantFolder(VyperNodeVisitorBase):
         # not super type-safe but we don't care. just catch AttributeErrors
         # and move on
         try:
-            module_t = namespace[value.id].module_t
-
+            ns_member = namespace[value.id]
+            module_t = ns_member if isinstance(ns_member, InterfaceT) else ns_member.module_t
             for module_name in path:
                 module_t = module_t.members[module_name].module_t
-
-            varinfo = module_t.get_member(node.attr, node)
+            varinfo = module_t.get_type_member(node.attr, node) if isinstance(module_t, InterfaceT) else module_t.get_member(node.attr, node)
 
             return varinfo.decl_node.value.get_folded_value()
         except (VyperException, AttributeError, KeyError):
