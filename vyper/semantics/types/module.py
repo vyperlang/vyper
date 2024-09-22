@@ -45,9 +45,11 @@ class InterfaceT(_UserType):
         functions: dict,
         events: dict,
         structs: dict,
-        constants: dict,
+        constants: Optional[dict] = None,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
+
+        constants = constants if constants else {}
 
         members = functions | events | structs | constants
 
@@ -166,7 +168,7 @@ class InterfaceT(_UserType):
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: list[tuple[str, EventT]],
         struct_list: list[tuple[str, StructT]],
-        constant_list: list[tuple[str, VarInfo]],
+        constant_list: Optional[list[tuple[str, VarInfo]]] = None,
     ) -> "InterfaceT":
         functions = {}
         events = {}
@@ -194,9 +196,10 @@ class InterfaceT(_UserType):
             _mark_seen(name, struct)
             structs[name] = struct
 
-        for name, constant in constant_list:
-            _mark_seen(name, constant)
-            constants[name] = constant
+        if constant_list:
+            for name, constant in constant_list:
+                _mark_seen(name, constant)
+                constants[name] = constant
 
         return cls(interface_name, decl_node, functions, events, structs, constants)
 
@@ -258,7 +261,11 @@ class InterfaceT(_UserType):
         # these are accessible via import, but they do not show up
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
-        constants = [(node.target.id, node.target._metadata["varinfo"]) for node in module_t.variable_decls if node.target._metadata["varinfo"].modifiability is Modifiability.CONSTANT]
+        constants = [
+            (node.target.id, node.target._metadata["varinfo"])
+            for node in module_t.variable_decls
+            if node.target._metadata["varinfo"].modifiability is Modifiability.CONSTANT
+        ]
         return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, constants)
 
     @classmethod

@@ -110,7 +110,11 @@ class ConstantFolder(VyperNodeVisitorBase):
             module_t = ns_member if isinstance(ns_member, InterfaceT) else ns_member.module_t
             for module_name in path:
                 module_t = module_t.members[module_name].module_t
-            varinfo = module_t.get_type_member(node.attr, node) if isinstance(module_t, InterfaceT) else module_t.get_member(node.attr, node)
+            varinfo = (
+                module_t.get_type_member(node.attr, node)
+                if isinstance(module_t, InterfaceT)
+                else module_t.get_member(node.attr, node)
+            )
 
             return varinfo.decl_node.value.get_folded_value()
         except (VyperException, AttributeError, KeyError):
