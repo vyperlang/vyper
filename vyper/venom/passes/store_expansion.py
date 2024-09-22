@@ -12,7 +12,6 @@ class StoreExpansionPass(IRPass):
     """
 
     def run_pass(self):
-        return
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.analyses_cache.request_analysis(CFGAnalysis)
         liveness = self.analyses_cache.force_analysis(LivenessAnalysis)
