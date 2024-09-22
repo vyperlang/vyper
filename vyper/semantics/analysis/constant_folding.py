@@ -2,8 +2,8 @@ from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, UnfoldableNode, VyperException
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.types.module import InterfaceT
 from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types.module import InterfaceT
 
 
 def constant_fold(module_ast: vy_ast.Module):
