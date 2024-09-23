@@ -50,11 +50,16 @@ class InterfaceT(_UserType):
         validate_unique_method_ids(list(functions.values()))
 
         constants = constants or {}
+        public_constants = {
+            k: varinfo for k, varinfo in constants.items() if varinfo.decl_node.is_public
+        }
 
         members = functions | events | structs | constants
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs) + len(constants)
+        assert len(members) == len(functions) + len(events) + len(structs) + len(constants) - len(
+            public_constants
+        )
 
         super().__init__(functions)
 
@@ -179,9 +184,15 @@ class InterfaceT(_UserType):
 
         def _mark_seen(name, item):
             if name in seen_items:
+                prev = seen_items[name]
+                if (
+                    isinstance(prev, ContractFunctionT)
+                    and isinstance(item, VarInfo)
+                    and item.decl_node.is_public
+                ):
+                    return
                 msg = f"multiple functions or events named '{name}'!"
-                prev_decl = seen_items[name].decl_node
-                raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
+                raise NamespaceCollision(msg, item.decl_node, prev_decl=prev.decl_node)
             seen_items[name] = item
 
         for name, function in function_list:
