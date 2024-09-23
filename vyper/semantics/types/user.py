@@ -7,6 +7,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
     FlagDeclarationException,
+    InstantiationException,
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
@@ -21,7 +22,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import keccak256, vyper_warn
 
 
 # user defined type
@@ -281,9 +282,51 @@ class EventT(_UserType):
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
-        validate_call_args(node, len(self.arguments))
-        for arg, expected in zip(node.args, self.arguments.values()):
-            validate_expected_type(arg, expected)
+        # Handle positional args by converting them to kwargs
+        # TODO: Remove block when positional args are removed
+        if len(node.args) > 0:
+            if len(node.keywords) > 0:
+                # can't mix args and kwargs
+                raise InstantiationException(
+                    "Event instantiation requires either all positional arguments "
+                    "or all keyword arguments", node
+                )
+
+            msg = "Instantiating events with positional arguments is "
+            msg += "deprecated as of v0.4.1 and will be disallowed "
+            msg += "in a future release. Use kwargs instead eg. "
+            msg += "Foo(a=1, b=2)"
+
+            vyper_warn(msg, node)
+
+            # convert positional args to keywords
+            kw_list = []
+            for kw, val in zip(self.arguments.keys(), node.args):
+                kw_list.append(vy_ast.keyword(arg=kw, value=val))
+            node.keywords = kw_list
+            node.args = []
+
+        # manually validate kwargs for better error messages instead of
+        # relying on `validate_call_args` (same as structs)
+        members = self.arguments.copy()
+        keys = list(self.arguments.keys())
+        for i, kwarg in enumerate(node.keywords):
+            # x=5 => kwarg(arg="x", value=Int(5))
+            argname = kwarg.arg
+            if argname not in members:
+                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+                raise UnknownAttribute("Unknown or duplicate event argument.", kwarg, hint=hint)
+            expected = keys[i]
+            if argname != expected:
+                raise InvalidAttribute(
+                    "Event keys are required to be in order, but got "
+                    f"`{argname}` instead of `{expected}`. (Reminder: the "
+                    f"keys in this event are {list(self.arguments)})",
+                    kwarg,
+                )
+            expected_type = members.pop(argname)
+            validate_expected_type(kwarg.value, expected_type)
+
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [

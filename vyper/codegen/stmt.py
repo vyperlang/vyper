@@ -93,7 +93,7 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
+        args = [Expr(arg.value, self.context).ir_node for arg in self.stmt.value.keywords]
 
         topic_ir = []
         data_ir = []
