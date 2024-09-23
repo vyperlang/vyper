@@ -110,3 +110,11 @@ def test_compare_type_mismatch(op):
     old_node = vyper_ast.body[0].value
     with pytest.raises(UnfoldableNode):
         old_node.get_folded_value()
+
+
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_compare_eq_bytes(op):
+    vyper_ast = parse_and_fold(f"0xA1AAB33F {op} 0xa1aab33f")
+    old_node = vyper_ast.body[0].value
+    with pytest.raises(UnfoldableNode):
+        old_node.get_folded_value()

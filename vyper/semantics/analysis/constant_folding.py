@@ -176,7 +176,7 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise UnfoldableNode("Cannot compare different literal types")
 
         # this is maybe just handled in the type checker.
-        if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)) and not isinstance(left, vy_ast.Num):
+        if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)) or not isinstance(left, vy_ast.Num):
             raise UnfoldableNode(
                 f"Invalid literal types for {node.op.description} comparison", node
             )
