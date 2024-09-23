@@ -49,7 +49,7 @@ class InterfaceT(_UserType):
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        constants = constants if constants else {}
+        constants = constants or {}
 
         members = functions | events | structs | constants
 
@@ -264,7 +264,7 @@ class InterfaceT(_UserType):
         constants = [
             (node.target.id, node.target._metadata["varinfo"])
             for node in module_t.variable_decls
-            if node.target._metadata["varinfo"].modifiability is Modifiability.CONSTANT
+            if node.is_constant
         ]
         return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, constants)
 
