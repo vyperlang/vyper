@@ -816,7 +816,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(arg, typ)
         elif is_type_t(func_type, StructT):
             # struct ctors
-            # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
             for kwarg, arg_type in zip(node.keywords, expected_types):
                 self.visit(kwarg.value, arg_type)
