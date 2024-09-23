@@ -76,6 +76,23 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
+    def get_effects(self) -> list[str]:
+        tmp_effects: set[str] = set(reads.get(self.opcode, ()))
+        tmp_effects: set[str] = tmp_effects.union(writes.get(self.opcode, ()))
+        for op in self.operands:
+            if isinstance(op, IRVariable):
+                return list(_ALL)
+            if isinstance(op, _Expression):
+                tmp_effects = tmp_effects.union(op.get_effects())
+        return list(tmp_effects)
+
+    def get_reads(self) -> list[str]:
+        tmp_reads: set[str] = set(reads.get(self.opcode, ()))
+        for op in self.operands:
+            if isinstance(op, _Expression):
+                tmp_reads = tmp_reads.union(op.get_reads())
+        return list(tmp_reads)
+
 
 class _BBLattice:
     data: dict[IRInstruction, OrderedSet[_Expression]]
@@ -92,43 +109,44 @@ class _BBLattice:
 
 _UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
 
-_ALL = ("storage", "transient", "memory", "immutables", "balance", "returndata")
+_ALL = ("storage", "transient", "memory", "immutables", "balance", "returndata", "log")
 
 writes = {
-    "sstore": ("storage"),
-    "tstore": ("transient"),
-    "mstore": ("memory"),
-    "istore": ("immutables"),
+    "sstore": ("storage",),
+    "tstore": ("transient",),
+    "mstore": ("memory",),
+    "istore": ("immutables",),
     "call": _ALL,
     "delegatecall": _ALL,
-    "staticcall": ("memory"),
+    "staticcall": ("memory", "returndata"),
     "create": _ALL,
     "create2": _ALL,
     "invoke": _ALL,  # could be smarter, look up the effects of the invoked function
-    "dloadbytes": ("memory"),
-    "returndatacopy": ("memory"),
-    "calldatacopy": ("memory"),
-    "codecopy": ("memory"),
-    "extcodecopy": ("memory"),
-    "mcopy": ("memory"),
+    "dloadbytes": ("memory",),
+    "returndatacopy": ("memory",),
+    "calldatacopy": ("memory",),
+    "codecopy": ("memory",),
+    "extcodecopy": ("memory",),
+    "mcopy": ("memory",),
+    "log": ("log",)
 }
 reads = {
-    "sload": ("storage"),
-    "tload": ("transient"),
-    "iload": ("immutables"),
-    "mload": ("memory"),
-    "mcopy": ("memory"),
+    "sload": ("storage",),
+    "tload": ("transient",),
+    "iload": ("immutables",),
+    "mload": ("memory",),
+    "mcopy": ("memory",),
     "call": _ALL,
     "delegatecall": _ALL,
     "staticcall": _ALL,
-    "returndatasize": ("returndata"),
-    "returndatacopy": ("returndata"),
-    "balance": ("balance"),
-    "selfbalance": ("balance"),
-    "log": ("memory"),
-    "revert": ("memory"),
-    "return": ("memory"),
-    "sha3": ("memory"),
+    "returndatasize": ("returndata",),
+    "returndatacopy": ("returndata",),
+    "balance": ("balance",),
+    "selfbalance": ("balance",),
+    "log": ("memory",),
+    "revert": ("memory",),
+    "return": ("memory",),
+    "sha3": ("memory",),
 }
 
 
@@ -190,16 +208,13 @@ class AvailableExpressionAnalysis(IRAnalysis):
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = writes.get(inst_expr.opcode, ())
             for expr in available_expr.copy():
-                # if expr.contains_expr(inst_expr):
-                # available_expr.remove(expr)
-                read_effects = reads.get(expr.opcode, ())
+                read_effects = expr.get_effects()
                 if any(eff in write_effects for eff in read_effects):
                     available_expr.remove(expr)
 
             if (
-                "call" not in inst.opcode
-                and inst.opcode not in ["invoke", "log"]
-                and inst_expr.get_depth() in range(_MIN_DEPTH, _MAX_DEPTH + 1)
+                inst_expr.get_depth() in range(_MIN_DEPTH, _MAX_DEPTH + 1)
+                and not any(eff in write_effects for eff in inst_expr.get_effects())
             ):
                 available_expr.add(inst_expr)
 
@@ -215,7 +230,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if depth > 0 and isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
-            return self.get_expression(inst, available_exprs, depth - 1)
+            #if inst in available_exprs or inst.opcode in _UNINTERESTING_OPCODES:
+            if not inst.is_volatile:
+                return self.get_expression(inst, available_exprs, depth - 1)
         return op
 
     def _get_operands(
