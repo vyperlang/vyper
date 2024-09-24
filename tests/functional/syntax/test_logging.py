@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException, TypeMismatch
+from vyper.exceptions import InstantiationException, StructureException, TypeMismatch
 
 fail_list = [
     """
@@ -39,12 +39,22 @@ event Test:
 def test():
     log Test(n=-7)
    """,
+    """
+
+event Test:
+    n: uint256
+    o: uint256
+
+@external
+def test():
+    log Test(7, o=12)
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_logging_fail(bad_code):
-    with pytest.raises((TypeMismatch, StructureException)):
+    with pytest.raises((TypeMismatch, StructureException, InstantiationException)):
         compiler.compile_code(bad_code)
 
 
