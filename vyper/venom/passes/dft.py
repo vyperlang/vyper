@@ -53,7 +53,7 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
-        if inst.is_phi:
+        if inst.is_phi or inst.opcode == "param":
             return
 
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
@@ -80,7 +80,7 @@ class DFTPass(IRPass):
         self.function.append_basic_block(bb)
 
         self._calculate_dependency_graphs(bb)
-        self.instructions = list(bb.phi_instructions)
+        self.instructions = list(bb.phi_instructions) + list(bb.param_instructions)
 
         for g in self._get_group_order(bb):
             self._process_instruction_r(self.instructions, g.root)
@@ -235,7 +235,7 @@ class DFTPass(IRPass):
         for bb in basic_blocks:
             self._process_basic_block(bb)
 
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.force_analysis(LivenessAnalysis)
 
     #
     # Graphviz output for debugging

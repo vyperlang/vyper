@@ -503,6 +503,14 @@ class IRBasicBlock:
                 yield inst
             else:
                 return
+            
+    @property
+    def param_instructions(self) -> Iterator[IRInstruction]:
+        for inst in self.instructions:
+            if inst.opcode == "param":
+                yield inst
+            else:
+                return
 
     @property
     def body_instructions(self) -> Iterator[IRInstruction]:
