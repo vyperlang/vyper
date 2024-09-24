@@ -302,7 +302,10 @@ class EventT(_UserType):
             # convert positional args to keywords
             kw_list = []
             for kw, val in zip(self.arguments.keys(), node.args):
-                kw_list.append(vy_ast.keyword(arg=kw, value=val))
+                kw_node = vy_ast.keyword(arg=kw, value=val)
+                kw_node.value.set_parent(kw_node)
+                kw_node.set_parent(node)
+                kw_list.append(kw_node)
             node.keywords = kw_list
             node.args = []
 
