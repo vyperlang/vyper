@@ -244,6 +244,18 @@ class IRInstruction:
     def is_phi(self) -> bool:
         return self.opcode == "phi"
 
+    @property
+    def is_param(self) -> bool:
+        return self.opcode == "param"
+    
+    @property
+    def is_pseudo(self) -> bool:
+        """
+        Check if instruction is pseudo, i.e. not an actual instruction but
+        a construct for intermediate representation like phi and param.
+        """
+        return self.is_phi or self.is_param
+
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
         Get all labels in instruction.
@@ -494,7 +506,11 @@ class IRBasicBlock:
 
     @property
     def non_phi_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions if inst.opcode != "phi")
+        return (inst for inst in self.instructions if inst.opcode is not "phi")
+    
+    @property
+    def pseudo_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.is_pseudo)
 
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
@@ -514,7 +530,7 @@ class IRBasicBlock:
 
     @property
     def body_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions[:-1] if inst.opcode != "phi")
+        return (inst for inst in self.instructions[:-1] if inst.opcode not in ["phi", "param"])
 
     def replace_operands(self, replacements: dict) -> None:
         """

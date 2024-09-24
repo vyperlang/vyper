@@ -9,8 +9,6 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-count = 0
-
 
 @dataclass
 class Group:
@@ -53,7 +51,7 @@ class DFTPass(IRPass):
             return
         self.visited_instructions.add(inst)
 
-        if inst.is_phi or inst.opcode == "param":
+        if inst.is_pseudo:
             return
 
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
@@ -80,7 +78,7 @@ class DFTPass(IRPass):
         self.function.append_basic_block(bb)
 
         self._calculate_dependency_graphs(bb)
-        self.instructions = list(bb.phi_instructions) + list(bb.param_instructions)
+        self.instructions = list(bb.pseudo_instructions)
 
         for g in self._get_group_order(bb):
             self._process_instruction_r(self.instructions, g.root)
@@ -204,7 +202,7 @@ class DFTPass(IRPass):
             assert g is not None, f"Group not found for {inst}"
             for op in inst.get_input_variables():
                 prod = self.dfg.get_producing_instruction(op)
-                if prod.is_phi:
+                if prod.is_pseudo:
                     continue
                 if prod.parent != inst.parent:
                     continue
@@ -215,15 +213,6 @@ class DFTPass(IRPass):
                 if g in self.gda.get(prod_group, OrderedSet()):
                     continue
                 self.gda[g].add(prod_group)
-
-        # cycles = find_cycles_in_directed_graph(self.gda)
-
-        # global count
-        # if bb.label.value == "__main_entry" and count == 1:
-        #     print(self.gda_as_graph())
-        #     import sys
-        #     sys.exit(1)
-        # count += 1
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()

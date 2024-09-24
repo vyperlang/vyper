@@ -39,9 +39,6 @@ def generate_assembly_experimental(
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-count = 0
-
-
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
@@ -60,22 +57,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     ExtractLiteralsPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
-
-    # StoreExpansionPass(ac, fn).run_pass()
-    # #ExtractLiteralsPass(ac, fn).run_pass()
-
-    # dft = DFTPass(ac, fn)
-    # dft.run_pass()
-
-    # ac.force_analysis(LivenessAnalysis)
-    # global count
-    # if count == 1:
-    #     #dft = ac.request_analysis(DFGAnalysis)
-    #     print(dft.ida_as_graph())
-
-    #     import sys
-    #     sys.exit(1)
-    # count += 1
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
