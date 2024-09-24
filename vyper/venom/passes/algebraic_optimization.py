@@ -67,10 +67,10 @@ class AlgebraicOptimizationPass(IRPass):
                 if inst.opcode != "add":
                     continue
                 ops = inst.operands
-                if isinstance(ops[0], IRLabel):
+                if isinstance(ops[1], IRLabel):
                     # add is commutative
                     ops.reverse()
-                if isinstance(ops[0], IRLiteral) and isinstance(ops[1], IRLabel):
+                if isinstance(ops[1], IRLiteral) and isinstance(ops[0], IRLabel):
                     inst.opcode = "offset"
 
     def run_pass(self):
