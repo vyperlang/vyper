@@ -72,3 +72,19 @@ def test():
     """
     with pytest.raises(StructureException):
         compiler.compile_code(code)
+
+
+def test_logging_with_positional_args(get_contract, get_logs):
+    # TODO: Remove when positional arguments are fully deprecated
+    code = """
+event Test:
+    n: uint256
+
+@external
+def test():
+    log Test(1)
+    """
+    c = get_contract(code)
+    c.test()
+    (log,) = get_logs(c, "Test")
+    assert log.args.n == 1
