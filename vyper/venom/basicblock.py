@@ -505,20 +505,16 @@ class IRBasicBlock:
         self.instructions = []
 
     @property
-    def non_phi_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions if inst.opcode != "phi")
-
-    @property
-    def pseudo_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions if inst.is_pseudo)
-
-    @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
             if inst.opcode == "phi":
                 yield inst
             else:
                 return
+
+    @property
+    def non_phi_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.opcode != "phi")
 
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
@@ -529,8 +525,12 @@ class IRBasicBlock:
                 return
 
     @property
+    def pseudo_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.is_pseudo)
+
+    @property
     def body_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions[:-1] if inst.opcode not in ["phi", "param"])
+        return (inst for inst in self.instructions[:-1] if not inst.is_pseudo)
 
     def replace_operands(self, replacements: dict) -> None:
         """
