@@ -26,13 +26,11 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            #self.analyses_cache.invalidate_analysis(AvailableExpressionAnalysis)
             available_expression_analysis = self.analyses_cache.request_analysis(
                 AvailableExpressionAnalysis
             )
             assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
             self.available_expression_analysis = available_expression_analysis
-
 
     # return instruction and to which instruction it could
     # replaced by
@@ -53,6 +51,7 @@ class CSE(IRPass):
         for orig, to in replace_dict.items():
             while to in replace_dict.keys():
                 to = replace_dict[to]
+            # print(orig.output, to.output)
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
