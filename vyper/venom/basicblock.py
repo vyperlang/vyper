@@ -247,7 +247,7 @@ class IRInstruction:
     @property
     def is_param(self) -> bool:
         return self.opcode == "param"
-    
+
     @property
     def is_pseudo(self) -> bool:
         """
@@ -506,8 +506,8 @@ class IRBasicBlock:
 
     @property
     def non_phi_instructions(self) -> Iterator[IRInstruction]:
-        return (inst for inst in self.instructions if inst.opcode is not "phi")
-    
+        return (inst for inst in self.instructions if inst.opcode != "phi")
+
     @property
     def pseudo_instructions(self) -> Iterator[IRInstruction]:
         return (inst for inst in self.instructions if inst.is_pseudo)
@@ -519,7 +519,7 @@ class IRBasicBlock:
                 yield inst
             else:
                 return
-            
+
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
