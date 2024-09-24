@@ -7,11 +7,13 @@ from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
     EventDeclarationException,
+    InstantiationException,
     InvalidType,
     NamespaceCollision,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnknownAttribute,
 )
 from vyper.utils import keccak256
 
@@ -682,7 +684,7 @@ event MyLog:
 def foo():
     log MyLog(arg1=1, arg2=2)
 """
-    with tx_failed(ArgumentException):
+    with tx_failed(UnknownAttribute):
         get_contract(loggy_code)
 
 
@@ -696,7 +698,7 @@ event MyLog:
 def foo():
     log MyLog(arg1=1)
 """
-    with tx_failed(ArgumentException):
+    with tx_failed(InstantiationException):
         get_contract(loggy_code)
 
 
@@ -852,7 +854,7 @@ event Bar:
 @external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log Bar(_event=a)
+    log Bar(_value=a)
     """
     c = get_contract(code)
 
@@ -1019,7 +1021,7 @@ event Bar:
 @external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log Bar(_value=10, a)
+    log Bar(arg1=10, arg2=a)
     """
     c = get_contract(code)
 
