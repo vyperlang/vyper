@@ -36,6 +36,9 @@ class OrderedSet(Generic[_T]):
     def __iter__(self):
         return iter(self._data)
 
+    def __reversed__(self):
+        return reversed(self._data)
+
     def __contains__(self, item):
         return self._data.__contains__(item)
 
@@ -44,6 +47,9 @@ class OrderedSet(Generic[_T]):
 
     def first(self):
         return next(iter(self))
+
+    def last(self):
+        return next(reversed(self))
 
     def pop(self):
         return self._data.popitem()[0]
