@@ -289,7 +289,8 @@ class EventT(_UserType):
                 # can't mix args and kwargs
                 raise InstantiationException(
                     "Event instantiation requires either all positional arguments "
-                    "or all keyword arguments", node
+                    "or all keyword arguments",
+                    node,
                 )
 
             msg = "Instantiating events with positional arguments is "
@@ -334,7 +335,6 @@ class EventT(_UserType):
             raise InstantiationException(
                 f"Event instantiation does not define all fields: {', '.join(list(members))}", node
             )
-
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
