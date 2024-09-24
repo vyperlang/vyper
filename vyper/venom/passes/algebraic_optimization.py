@@ -64,7 +64,7 @@ class AlgebraicOptimizationPass(IRPass):
                 # check if the instruction is of the form
                 # `add <ptr> <label>`
                 # this works only if store chains have been eliminated.
-                if not inst.opcode == "add":
+                if inst.opcode != "add":
                     continue
                 ops = inst.operands
                 if isinstance(ops[0], IRLabel):
