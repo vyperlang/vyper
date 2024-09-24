@@ -50,7 +50,7 @@ event MyEvent:
 
 @internal
 def foo():
-    log MyEvent(5, 6)
+    log MyEvent(x=5, y=6)
     """
     main = """
 import lib1

@@ -12,7 +12,7 @@ x: decimal[4]
 
 @external
 def foo():
-    log Bar(self.x)
+    log Bar(_value=self.x)
     """,
     """
 event Bar:
@@ -21,7 +21,7 @@ event Bar:
 @external
 def foo():
     x: decimal[4] = [0.0, 0.0, 0.0, 0.0]
-    log Bar(x)
+    log Bar(_value=x)
     """,
     """
 struct Foo:
@@ -37,7 +37,7 @@ event Test:
 
 @external
 def test():
-    log Test(-7)
+    log Test(n=-7)
    """,
 ]
 
@@ -58,7 +58,7 @@ event Test:
 {visibility}
 {mutability}
 def test():
-    log Test(1)
+    log Test(n=1)
     """
     with pytest.raises(StructureException):
         compiler.compile_code(code)

@@ -50,7 +50,7 @@ event MyLog:
 @external
 def foo():
     self.a = b"bar"
-    log MyLog(self.a)
+    log MyLog(arg1=self.a)
     """
 
     c = get_contract(loggy_code)
@@ -78,7 +78,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(-2, True, self)
+    log MyLog(arg1=-2, arg2=True, arg3=self)
     """
 
     c = get_contract(loggy_code)
@@ -120,7 +120,7 @@ b: address
 def foo(arg1: int128):
     a: bool = True
     self.b = self
-    log MyLog(arg1, a, self.b)
+    log MyLog(arg1=arg1, arg2=a, arg3=self.b)
     """
 
     c = get_contract(code)
@@ -141,13 +141,13 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(1, self)
-    log MyLog(1, self)
+    log MyLog(arg1=1, arg2=self)
+    log MyLog(arg1=1, arg2=self)
 
 @external
 def bar():
-    log MyLog(1, self)
-    log MyLog(1, self)
+    log MyLog(arg1=1, arg2=self)
+    log MyLog(arg1=1, arg2=self)
     """
 
     c = get_contract(loggy_code)
@@ -198,7 +198,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(123)
+    log MyLog(arg1=123)
     """
 
     c = get_contract(loggy_code)
@@ -231,8 +231,8 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
-    log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
+    log MyLog(arg1=[1,2], arg2=[block.timestamp, block.timestamp+1, block.timestamp+2], arg3=[[1,2],[1,2]])
+    log MyLog(arg1=[1,2], arg2=[block.timestamp, block.timestamp+1, block.timestamp+2], arg3=[[1,2],[1,2]])
     """
 
     c = get_contract(loggy_code)
@@ -271,7 +271,7 @@ event MyLog:
 
 @external
 def foo(arg1: Bytes[29], arg2: Bytes[31]):
-    log MyLog(b'bar', arg1, arg2)
+    log MyLog(arg1=b'bar', arg2=arg1, arg3=arg2)
 """
 
     c = get_contract(loggy_code)
@@ -307,7 +307,7 @@ event MyLog:
 
 @external
 def foo(_arg1: Bytes[20]):
-    log MyLog(_arg1)
+    log MyLog(arg1=_arg1)
     """
 
     c = get_contract(loggy_code)
@@ -335,7 +335,7 @@ event MyLog:
 
 @external
 def foo(_arg1: Bytes[5]):
-    log MyLog(_arg1)
+    log MyLog(arg1=_arg1)
     """
 
     c = get_contract(loggy_code)
@@ -369,7 +369,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(123, b'home', b'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)  # noqa: E501
+    log MyLog(arg1=123, arg2=b'home', arg3=b'bar', arg4=0xc305c901078781C232A2a521C2aF7980f8385ee9, arg5=self, arg6=block.timestamp)  # noqa: E501
     """
 
     c = get_contract(loggy_code)
@@ -412,7 +412,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(1, b'bar')
+    log MyLog(arg1=1, arg2=b'bar')
     """
 
     c = get_contract(loggy_code)
@@ -457,8 +457,8 @@ event YourLog:
 
 @external
 def foo():
-    log MyLog(1, b'bar')
-    log YourLog(self, MyStruct(x=1, y=b'abc', z=SmallStruct(t='house', w=13.5)))
+    log MyLog(arg1=1, arg2=b'bar')
+    log YourLog(arg1=self, arg2=MyStruct(x=1, y=b'abc', z=SmallStruct(t='house', w=13.5)))
     """
 
     c = get_contract(loggy_code)
@@ -524,7 +524,7 @@ event MyLog:
 
 @external
 def foo_():
-    log MyLog(b'yo')
+    log MyLog(arg1=b'yo')
 """
 
     with tx_failed(TypeMismatch):
@@ -539,7 +539,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(b'bars')
+    log MyLog(arg1=b'bars')
 """
 
     with tx_failed(TypeMismatch):
@@ -553,7 +553,7 @@ event MyLog:
 
 @external
 def foo(arg1: Bytes[4]):
-    log MyLog(arg1)
+    log MyLog(arg1=arg1)
 """
 
     with tx_failed(TypeMismatch):
@@ -567,7 +567,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(b'bars')
+    log MyLog(arg1=b'bars')
 """
 
     with tx_failed(TypeMismatch):
@@ -581,7 +581,7 @@ event MyLog:
 
 @external
 def foo(arg1: Bytes[4]):
-    log MyLog(arg1)
+    log MyLog(arg1=arg1)
 """
 
     with tx_failed(TypeMismatch):
@@ -610,7 +610,7 @@ event MyLog:
 
 @deploy
 def __init__():
-    log MyLog(1, 2, 3, 4)
+    log MyLog(arg1=1, arg2=2, arg3=3, arg4=4)
     """
 
     with tx_failed(EventDeclarationException):
@@ -650,7 +650,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(self)
+    log MyLog(arg1=self)
     """
 
     with tx_failed(TypeMismatch):
@@ -664,7 +664,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(self)
+    log MyLog(arg1=self)
     """
 
     with tx_failed(TypeMismatch):
@@ -680,7 +680,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(1, 2)
+    log MyLog(arg1=1, arg2=2)
 """
     with tx_failed(ArgumentException):
         get_contract(loggy_code)
@@ -694,7 +694,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(1)
+    log MyLog(arg1=1)
 """
     with tx_failed(ArgumentException):
         get_contract(loggy_code)
@@ -852,7 +852,7 @@ event Bar:
 @external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log Bar(a)
+    log Bar(_event=a)
     """
     c = get_contract(code)
 
@@ -868,7 +868,7 @@ event Bar:
 
 @external
 def foo():
-    log Bar([1, 2, 3, 4])
+    log Bar(_value=[1, 2, 3, 4])
     """
     c = get_contract(code)
 
@@ -886,7 +886,7 @@ x: int128[4]
 
 @external
 def foo():
-    log Bar(self.x)
+    log Bar(_value=self.x)
 
 @external
 def set_list():
@@ -910,7 +910,7 @@ event Bar:
 
 @external
 def foo(barbaric: int128[4]):
-    log Bar(barbaric)
+    log Bar(_value=barbaric)
     """
     c = get_contract(code)
 
@@ -926,7 +926,7 @@ event Bar:
 
 @external
 def foo():
-    log Bar([1.11, 2.22, 3.33, 4.44])
+    log Bar(_value=[1.11, 2.22, 3.33, 4.44])
     """
     c = get_contract(code)
 
@@ -949,7 +949,7 @@ x:Bytes[5]
 
 @external
 def foo(a: int128):
-    log MyLog(self.x)
+    log MyLog(arg1=self.x)
 
 @external
 def setbytez():
@@ -975,7 +975,7 @@ x: decimal[4]
 
 @external
 def foo():
-    log Bar(self.x)
+    log Bar(_value=self.x)
 
 @external
 def set_list():
@@ -1004,7 +1004,7 @@ event Bar:
 
 @external
 def foo(inp: Bytes[33]):
-    log Bar(inp)
+    log Bar(_value=inp)
 """
     with tx_failed(TypeMismatch):
         get_contract(code)
@@ -1019,7 +1019,7 @@ event Bar:
 @external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
-    log Bar(10, a)
+    log Bar(_value=10, a)
     """
     c = get_contract(code)
 
@@ -1037,7 +1037,7 @@ x: int128[4]
 
 @external
 def foo():
-    log Bar(10, self.x)
+    log Bar(arg1=10, arg2=self.x)
 
 @external
 def set_list():
@@ -1071,7 +1071,7 @@ def __init__():
 @external
 def foo():
     v: int128[3] = [7, 8, 9]
-    log Bar(10, self.x, b"test", v, self.y)
+    log Bar(arg1=10, arg2=self.x, arg3=b"test", arg4=v, arg5=self.y)
 
 @external
 def set_list():
@@ -1104,7 +1104,7 @@ event MyLog:
 
 @external
 def foo(a: Bytes[36], b: int128, c: String[7]):
-    log MyLog(a, b, c)
+    log MyLog(arg1=a, arg2=b, arg3=c)
     """
 
     c = get_contract(loggy_code)
@@ -1144,7 +1144,7 @@ def foo():
     a: Bytes[10] = b"potato"
     b: int128 = -777
     c: String[44] = "why hello, neighbor! how are you today?"
-    log MyLog(a, b, c)
+    log MyLog(arg1=a, arg2=b, arg3=c)
     """
 
     c = get_contract(loggy_code)
@@ -1191,7 +1191,7 @@ def setter(_a: Bytes[32], _b: int128, _c: String[6]):
 
 @external
 def foo():
-    log MyLog(self.a, self.b, self.c)
+    log MyLog(arg1=self.a, arg2=self.b, arg3=self.c)
     """
 
     c = get_contract(loggy_code)
@@ -1229,7 +1229,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(b"wow", 666, "madness!")
+    log MyLog(arg1=b"wow", arg2=666, arg3="madness!")
     """
 
     c = get_contract(loggy_code)
