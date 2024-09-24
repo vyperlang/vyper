@@ -5,7 +5,6 @@ from eth_utils import to_text
 from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
-    ArgumentException,
     EventDeclarationException,
     InstantiationException,
     InvalidType,
@@ -233,8 +232,16 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(arg1=[1,2], arg2=[block.timestamp, block.timestamp+1, block.timestamp+2], arg3=[[1,2],[1,2]])
-    log MyLog(arg1=[1,2], arg2=[block.timestamp, block.timestamp+1, block.timestamp+2], arg3=[[1,2],[1,2]])
+    log MyLog(
+        arg1=[1,2],
+        arg2=[block.timestamp, block.timestamp+1, block.timestamp+2],
+        arg3=[[1,2],[1,2]]
+    )
+    log MyLog(
+        arg1=[1,2],
+        arg2=[block.timestamp, block.timestamp+1, block.timestamp+2],
+        arg3=[[1,2],[1,2]]
+    )
     """
 
     c = get_contract(loggy_code)
