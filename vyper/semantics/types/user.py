@@ -330,6 +330,11 @@ class EventT(_UserType):
             expected_type = members.pop(argname)
             validate_expected_type(kwarg.value, expected_type)
 
+        if members:
+            raise InstantiationException(
+                f"Event instantiation does not define all fields: {', '.join(list(members))}", node
+            )
+
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
