@@ -36,11 +36,7 @@ class _Expression:
         if self.opcode == "store":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
-        res = (
-            self.opcode + f"({self.first_inst.fence_id})"
-            if self.first_inst.is_volatile
-            else "" + " [ "
-        )
+        res = self.opcode + " [ "
         for op in self.operands:
             res += repr(op) + " "
         res += "]"
@@ -48,10 +44,6 @@ class _Expression:
 
     def same(self, other: "_Expression") -> bool:
         if self.opcode != other.opcode:
-            return False
-        if (
-            self.first_inst.is_volatile or "returndata" in self.opcode
-        ) and self.first_inst.fence_id != other.first_inst.fence_id:
             return False
         for self_op, other_op in zip(self.operands, other.operands):
             if type(self_op) is not type(other_op):
@@ -87,18 +79,18 @@ class _Expression:
     def get_effects(self) -> list[str]:
         tmp_effects: set[str] = set(reads.get(self.opcode, ()))
         tmp_effects = tmp_effects.union(writes.get(self.opcode, ()))
-        # for op in self.operands:
-        # if isinstance(op, IRVariable):
-        # return list(_ALL)
-        # if isinstance(op, _Expression):
-        # tmp_effects = tmp_effects.union(op.get_effects())
+        for op in self.operands:
+            if isinstance(op, IRVariable):
+                return list(_ALL)
+            if isinstance(op, _Expression):
+                tmp_effects = tmp_effects.union(op.get_effects())
         return list(tmp_effects)
 
     def get_reads(self) -> list[str]:
         tmp_reads: set[str] = set(reads.get(self.opcode, ()))
-        # for op in self.operands:
-        # if isinstance(op, _Expression):
-        # tmp_reads = tmp_reads.union(op.get_reads())
+        for op in self.operands:
+            if isinstance(op, _Expression):
+                tmp_reads = tmp_reads.union(op.get_reads())
         return list(tmp_reads)
 
 
@@ -237,9 +229,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if depth > 0 and isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
-            # if inst in available_exprs or inst.opcode in _UNINTERESTING_OPCODES:
-            # if not inst.is_volatile:
-            return self.get_expression(inst, available_exprs, depth - 1)
+            if not inst.is_volatile:
+                return self.get_expression(inst, available_exprs, depth - 1)
         return op
 
     def _get_operands(
@@ -258,7 +249,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands)
         for e in available_exprs:
-            # if e.opcode == expr.opcode and e.operands == expr.operands:
             if expr.same(e):
                 return e
 
