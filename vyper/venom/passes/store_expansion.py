@@ -4,9 +4,10 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
-class ExtractLiteralsPass(IRPass):
+class StoreExpansionPass(IRPass):
     """
-    This pass extracts literals so that they can be reordered by the DFT pass
+    This pass extracts literals and variables so that they can be
+    reordered by the DFT pass
     """
 
     def run_pass(self):
