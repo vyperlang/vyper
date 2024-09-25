@@ -31,6 +31,9 @@ class DFGAnalysis(IRAnalysis):
         uses = self._dfg_inputs.get(op, [])
         uses.remove(inst)
 
+    def remove_var(self, op: IRVariable):
+        self._dfg_outputs.pop(op)
+
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
         return self._dfg_outputs
