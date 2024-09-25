@@ -70,7 +70,7 @@ class AlgebraicOptimizationPass(IRPass):
                 if isinstance(ops[1], IRLabel):
                     # add is commutative
                     ops.reverse()
-                if isinstance(ops[1], IRLiteral) and isinstance(ops[0], IRLabel):
+                if isinstance(ops[0], IRLabel) and isinstance(ops[1], IRLiteral):
                     inst.opcode = "offset"
 
     def run_pass(self):
