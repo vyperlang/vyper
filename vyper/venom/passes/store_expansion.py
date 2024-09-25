@@ -1,6 +1,6 @@
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -14,35 +14,25 @@ class StoreExpansionPass(IRPass):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for bb in self.function.get_basic_blocks():
-            for idx, inst in enumerate(bb.instructions):
-                if inst.output is None:
-                    continue
-
-                self._process_inst(dfg, inst, idx)
+            self._process_bb(bb)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _process_inst(self, dfg, inst, idx):
-        """
-        Process store instruction. If the variable is only used by a load instruction,
-        forward the variable to the load instruction.
-        """
-        var = inst.output
-        uses = dfg.get_uses(var)
+    def _process_bb(self, bb):
+        i = 0
+        while i < len(bb.instructions):
+            inst = bb.instructions[i]
+            if inst.opcode in ("store", "offset", "phi"):
+                i += 1
+                continue
 
-        insertion_idx = idx + 1
-
-        prev = var
-        for use_inst in uses[:-1]:
-            if use_inst.parent != inst.parent:
-                continue  # improves codesize
-
-            for i, operand in enumerate(use_inst.operands):
-                if operand == var:
-                    new_var = self.function.get_next_variable()
-                    new_inst = IRInstruction("store", [var], new_var)
-                    inst.parent.insert_instruction(new_inst, insertion_idx)
-                    insertion_idx += 1
-                    use_inst.operands[i] = new_var
-                    prev = new_var
+            index = i
+            for j, op in enumerate(inst.operands):
+                if isinstance(op, IRVariable):
+                    var = self.function.get_next_variable()
+                    to_insert = IRInstruction("store", [op], var)
+                    bb.insert_instruction(to_insert, index=index)
+                    i += 1
+                    inst.operands[j] = var
+            i += 1
