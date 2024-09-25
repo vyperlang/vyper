@@ -11,8 +11,6 @@ class StoreExpansionPass(IRPass):
     """
 
     def run_pass(self):
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
@@ -23,7 +21,7 @@ class StoreExpansionPass(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("store", "offset", "phi"):
+            if inst.opcode in ("store", "offset", "phi", "param"):
                 i += 1
                 continue
 
