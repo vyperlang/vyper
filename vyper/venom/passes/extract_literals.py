@@ -1,6 +1,6 @@
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -20,7 +20,7 @@ class ExtractLiteralsPass(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("store", "offset"):
+            if inst.opcode in ("store", "offset", "phi", "param"):
                 i += 1
                 continue
 
@@ -29,9 +29,11 @@ class ExtractLiteralsPass(IRPass):
                 if inst.opcode == "log" and j == 0:
                     continue
 
-                if isinstance(op, IRLiteral):
+                if isinstance(op, (IRVariable, IRLiteral)):
                     var = self.function.get_next_variable()
                     to_insert = IRInstruction("store", [op], var)
                     bb.insert_instruction(to_insert, index=i)
                     inst.operands[j] = var
+                    i += 1
+
             i += 1
