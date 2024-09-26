@@ -30,7 +30,7 @@ class Group:
         self.volatile = volatile
 
     def __hash__(self) -> int:
-        return self.group_id
+        return hash(self.group_id)
 
 
 class DFTPass(IRPass):
