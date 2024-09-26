@@ -123,6 +123,10 @@ class DFTPass(IRPass):
 
         return groups
 
+    def _append_group(self, inst: IRInstruction) -> None:
+        self.groups.append(Group(len(self.groups), inst, False))
+        self.inst_groups[inst] = self.groups[-1]
+
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
         self.ida = dict[IRInstruction, list[IRInstruction]]()
@@ -144,12 +148,12 @@ class DFTPass(IRPass):
             outputs = inst.get_outputs()
 
             if len(outputs) == 0:
-                self.groups.append(Group(len(self.groups), inst, False))
-                self.inst_groups[inst] = self.groups[-1]
+                self._append_group(inst)
                 continue
+
             if inst.is_volatile:
-                self.groups.append(Group(len(self.groups), inst, False))
-                self.inst_groups[inst] = self.groups[-1]
+                self._append_group(inst)
+
             for op in outputs:
                 uses = self.dfg.get_uses(op)
                 uses_count = 0
@@ -159,8 +163,7 @@ class DFTPass(IRPass):
                     self.ida[uses_this].append(inst)
                     uses_count += 1
                 if uses_count == 0 and not inst.is_volatile:
-                    self.groups.append(Group(len(self.groups), inst, False))
-                    self.inst_groups[inst] = self.groups[-1]
+                    self._append_group(inst)
 
         #
         # Fill self.inst_groups with the group of each instruction
