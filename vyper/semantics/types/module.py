@@ -45,11 +45,10 @@ class InterfaceT(_UserType):
         functions: dict,
         events: dict,
         structs: dict,
-        constants: Optional[dict] = None,
+        constants: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        constants = constants or {}
         public_constants = {
             k: varinfo for k, varinfo in constants.items() if varinfo.decl_node.is_public
         }
@@ -171,8 +170,8 @@ class InterfaceT(_UserType):
         interface_name: str,
         decl_node: Optional[vy_ast.VyperNode],
         function_list: list[tuple[str, ContractFunctionT]],
-        event_list: list[tuple[str, EventT]],
-        struct_list: list[tuple[str, StructT]],
+        event_list: Optional[list[tuple[str, EventT]]] = None,
+        struct_list: Optional[list[tuple[str, StructT]]] = None,
         constant_list: Optional[list[tuple[str, VarInfo]]] = None,
     ) -> "InterfaceT":
         functions = {}
@@ -199,13 +198,15 @@ class InterfaceT(_UserType):
             _mark_seen(name, function)
             functions[name] = function
 
-        for name, event in event_list:
-            _mark_seen(name, event)
-            events[name] = event
+        if event_list:
+            for name, event in event_list:
+                _mark_seen(name, event)
+                events[name] = event
 
-        for name, struct in struct_list:
-            _mark_seen(name, struct)
-            structs[name] = struct
+        if struct_list:
+            for name, struct in struct_list:
+                _mark_seen(name, struct)
+                structs[name] = struct
 
         if constant_list:
             for name, constant in constant_list:
@@ -239,8 +240,7 @@ class InterfaceT(_UserType):
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
 
-        structs: list = []  # no structs in json ABI (as of yet)
-        return cls._from_lists(name, None, functions, events, structs)
+        return cls._from_lists(name, None, functions, events)
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -294,11 +294,7 @@ class InterfaceT(_UserType):
                 )
             functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
 
-        # no structs or events in InterfaceDefs
-        events: list = []
-        structs: list = []
-
-        return cls._from_lists(node.name, node, functions, events, structs)
+        return cls._from_lists(node.name, node, functions)
 
 
 # Datatype to store all module information.
