@@ -298,7 +298,6 @@ class EventT(_UserType):
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
-
     def _ctor_call_return_with_kwargs(self, node: vy_ast.Call) -> None:
         # TODO: Remove block when positional args are removed
         if len(node.args) > 0:
