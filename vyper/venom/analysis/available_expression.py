@@ -143,7 +143,7 @@ reads = {
     "returndatacopy": ("returndata",),
     "balance": ("balance",),
     "selfbalance": ("balance",),
-    "log": ("memory",),
+    "log": ("memory", "log"),  # I think here about log as a append to a log
     "revert": ("memory",),
     "return": ("memory",),
     "sha3": ("memory",),
@@ -213,7 +213,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                     available_expr.remove(expr)
 
             if inst_expr.get_depth() in range(_MIN_DEPTH, _MAX_DEPTH + 1) and not any(
-                eff in write_effects for eff in inst_expr.get_effects()
+                eff in write_effects for eff in inst_expr.get_reads()
             ):
                 available_expr.add(inst_expr)
 

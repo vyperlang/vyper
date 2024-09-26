@@ -26,7 +26,7 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            available_expression_analysis = self.analyses_cache.request_analysis(
+            available_expression_analysis = self.analyses_cache.force_analysis(
                 AvailableExpressionAnalysis
             )
             assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
