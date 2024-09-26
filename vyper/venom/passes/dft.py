@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass
+import sys
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -55,13 +56,7 @@ class DFTPass(IRPass):
             return
 
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
-
-        for dep_inst in self.ida[inst]:
-            if dep_inst in self.visited_instructions:
-                continue
-            if dep_inst in children:
-                continue
-            self._process_instruction_r(instructions, dep_inst)
+        children = list(OrderedSet(children + self.ida[inst]))
 
         for dep_inst in children:
             if inst.parent != dep_inst.parent:
@@ -204,6 +199,10 @@ class DFTPass(IRPass):
                 if g in self.gda.get(prod_group, OrderedSet()):
                     continue
                 self.gda[g].add(prod_group)
+
+            # if bb.label.value == "26_then":
+            #     print(self.gda_as_graph())
+            #     sys.exit(0)
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
