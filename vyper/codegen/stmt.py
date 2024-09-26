@@ -93,7 +93,13 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg.value, self.context).ir_node for arg in self.stmt.value.keywords]
+        args = []
+        if len(self.stmt.value.keywords) > 0:
+            # keyword arguments
+            args = [Expr(arg.value, self.context).ir_node for arg in self.stmt.value.keywords]
+        else:
+            # positional arguments
+            args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
 
         topic_ir = []
         data_ir = []

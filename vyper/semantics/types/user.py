@@ -282,32 +282,32 @@ class EventT(_UserType):
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
-        # Handle positional args by converting them to kwargs
+        # validate keyword arguments if provided
+        if len(node.keywords) > 0:
+            return self._ctor_call_return_with_kwargs(node)
+
+        # warn about positional argument depreciation
+        msg = "Instantiating events with positional arguments is "
+        msg += "deprecated as of v0.4.1 and will be disallowed "
+        msg += "in a future release. Use kwargs instead eg. "
+        msg += "Foo(a=1, b=2)"
+
+        vyper_warn(msg, node)
+
+        validate_call_args(node, len(self.arguments))
+        for arg, expected in zip(node.args, self.arguments.values()):
+            validate_expected_type(arg, expected)
+
+
+    def _ctor_call_return_with_kwargs(self, node: vy_ast.Call) -> None:
         # TODO: Remove block when positional args are removed
         if len(node.args) > 0:
-            if len(node.keywords) > 0:
-                # can't mix args and kwargs
-                raise InstantiationException(
-                    "Event instantiation requires either all positional arguments "
-                    "or all keyword arguments",
-                    node,
-                )
-
-            msg = "Instantiating events with positional arguments is "
-            msg += "deprecated as of v0.4.1 and will be disallowed "
-            msg += "in a future release. Use kwargs instead eg. "
-            msg += "Foo(a=1, b=2)"
-
-            vyper_warn(msg, node)
-
-            # convert positional args to keywords
-            kw_list = []
-            for kw, val in zip(self.arguments.keys(), node.args):
-                kw_node = vy_ast.keyword(arg=kw, value=val)
-                kw_node.set_parent(node)
-                kw_list.append(kw_node)
-            node.keywords = kw_list
-            node.args = []
+            # can't mix args and kwargs
+            raise InstantiationException(
+                "Event instantiation requires either all positional arguments "
+                "or all keyword arguments",
+                node,
+            )
 
         # manually validate kwargs for better error messages instead of
         # relying on `validate_call_args` (same as structs)
