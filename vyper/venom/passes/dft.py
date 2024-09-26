@@ -161,10 +161,8 @@ class DFTPass(IRPass):
 
                 if uses or inst.is_volatile:
                     continue
-                
+
                 self._append_group(inst)
-                
-                    
 
         #
         # Fill self.inst_groups with the group of each instruction
@@ -228,7 +226,7 @@ class DFTPass(IRPass):
         for bb in basic_blocks:
             self._process_basic_block(bb)
 
-        self.analyses_cache.force_analysis(LivenessAnalysis)
+        self.analyses_cache.request_analysis(LivenessAnalysis)
 
     #
     # Graphviz output for debugging
