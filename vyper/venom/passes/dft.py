@@ -46,7 +46,7 @@ class DFTPass(IRPass):
             if target.parent != inst.parent or target.fence_id != inst.fence_id:
                 # don't reorder across basic block or fence boundaries
                 continue
-            self._process_instruction_r(bb, target, offset)
+            self._process_instruction_r(bb, target, 0)
 
         self.inst_order[inst] = self.inst_order_num + offset
 
