@@ -156,12 +156,15 @@ class DFTPass(IRPass):
 
             for op in outputs:
                 uses = self.dfg.get_uses_in_bb(op, inst.parent)
-                uses_count = 0
-                for uses_this in uses:
-                    self.ida[uses_this].append(inst)
-                    uses_count += 1
-                if uses_count == 0 and not inst.is_volatile:
-                    self._append_group(inst)
+                for use in uses:
+                    self.ida[use].append(inst)
+
+                if uses or inst.is_volatile:
+                    continue
+                
+                self._append_group(inst)
+                
+                    
 
         #
         # Fill self.inst_groups with the group of each instruction
