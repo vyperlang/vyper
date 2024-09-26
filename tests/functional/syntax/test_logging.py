@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InstantiationException, InvalidAttribute, StructureException, TypeMismatch, UnknownAttribute
+from vyper.exceptions import (
+    InstantiationException,
+    InvalidAttribute,
+    StructureException,
+    TypeMismatch,
+    UnknownAttribute,
+)
 
 fail_list = [
     """
@@ -38,7 +44,7 @@ event Test:
 @external
 def test():
     log Test(n=-7)
-   """
+   """,
 ]
 
 
@@ -46,6 +52,7 @@ def test():
 def test_logging_fail(bad_code):
     with pytest.raises((TypeMismatch, StructureException)):
         compiler.compile_code(bad_code)
+
 
 def test_logging_fail_mixed_positional_kwargs():
     code = """
@@ -60,6 +67,7 @@ def test():
     with pytest.raises(InstantiationException):
         compiler.compile_code(code)
 
+
 def test_logging_fail_unknown_kwarg():
     code = """
 event Test:
@@ -71,6 +79,7 @@ def test():
     """
     with pytest.raises(UnknownAttribute):
         compiler.compile_code(code)
+
 
 def test_logging_fail_missing_kwarg():
     code = """
@@ -84,6 +93,7 @@ def test():
     """
     with pytest.raises(InstantiationException):
         compiler.compile_code(code)
+
 
 def test_logging_fail_kwargs_out_of_order():
     code = """
