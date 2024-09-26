@@ -9,7 +9,7 @@ class SimplifyCFGPass(IRPass):
     visited: OrderedSet
 
     def _merge_blocks(self, a: IRBasicBlock, b: IRBasicBlock):
-        a.instructions.pop()  # pop terminating instructoin
+        a.instructions.pop()  # pop terminating instruction
         for inst in b.instructions:
             assert inst.opcode != "phi", f"Instruction should never be phi {b}"
             inst.parent = a
