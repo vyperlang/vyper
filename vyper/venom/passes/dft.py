@@ -155,11 +155,9 @@ class DFTPass(IRPass):
                 self._append_group(inst)
 
             for op in outputs:
-                uses = self.dfg.get_uses(op)
+                uses = self.dfg.get_uses_in_bb(op, inst.parent)
                 uses_count = 0
                 for uses_this in uses:
-                    if uses_this.parent != inst.parent:
-                        continue
                     self.ida[uses_this].append(inst)
                     uses_count += 1
                 if uses_count == 0 and not inst.is_volatile:
