@@ -58,6 +58,9 @@ class DFTPass(IRPass):
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
         children = list(OrderedSet(children + self.ida[inst]))
 
+        # if inst.opcode == "sstore" and inst.operands[1].name == "%264" and inst.operands[0].name == "%267":
+        #     children = reversed(children)
+
         for dep_inst in children:
             if inst.parent != dep_inst.parent:
                 continue
@@ -201,7 +204,7 @@ class DFTPass(IRPass):
                 self.gda[g].add(prod_group)
 
             # if bb.label.value == "26_then":
-            #     print(self.gda_as_graph())
+            #     print(self.ida_as_graph())
             #     sys.exit(0)
 
     def run_pass(self) -> None:

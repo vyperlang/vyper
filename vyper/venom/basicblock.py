@@ -365,7 +365,7 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        return f"{s: <30} # {self.liveness}"
+        return f"{s: <30}"
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
