@@ -13,15 +13,15 @@ from vyper.venom.passes.base_pass import IRPass
 class DFTPass(IRPass):
     function: IRFunction
     inst_count: dict[IRInstruction, int]
+    visited_instructions: OrderedSet[IRInstruction]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.inst_groups = {}
         self.inst_count = {}
 
     def _permutate(self, instructions: list[IRInstruction]):
         return random.shuffle(instructions)
-    
+
     def _calculate_depth_instruction_r(self, inst: IRInstruction):
         if inst in self.visited_instructions:
             return
@@ -43,9 +43,12 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
 
-        children = sorted(self.ida[inst], key=lambda x: (
-            -self.inst_count[x] + (x.opcode == "iszero") * 10, 
-            inst.operands.index(x.output) if x.output in inst.operands else 0)
+        children = sorted(
+            self.ida[inst],
+            key=lambda x: (
+                -self.inst_count[x] + (x.opcode == "iszero") * 10,
+                inst.operands.index(x.output) if x.output in inst.operands else 0,
+            ),
         )
 
         for dep_inst in children:
@@ -71,13 +74,8 @@ class DFTPass(IRPass):
         for inst in reversed(list(bb.non_phi_instructions)):
             self._process_instruction_r(self.instructions, inst)
 
-        # if bb.label.value == "26_then":
-        #     print(self.ida_as_graph())
-        #     sys.exit(0)
-
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
-
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
@@ -125,22 +123,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                a += f" {self.inst_count.get(inst, "-")}"
-                b += f" {self.inst_count.get(dep, "-")}"
-                a = a.replace("%", "\\%")
-                b = b.replace("%", "\\%")
-                lines.append(f'"{a}" -> "{b}"')
-        lines.append("}")
-        return "\n".join(lines)
-
-    def gda_as_graph(self) -> str:
-        lines = ["digraph gda_graph {"]
-        for g, deps in self.gda.items():
-            for dep in deps:
-                a = g.root.str_short()
-                b = dep.root.str_short()
-                a += f" {g.group_id}"
-                b += f" {dep.group_id}"
+                a += f" {self.inst_count.get(inst, " - ")}"
+                b += f" {self.inst_count.get(dep, " - ")}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
