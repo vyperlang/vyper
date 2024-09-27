@@ -22,6 +22,7 @@ class Group:
     group_id: int
     dependents: list["Group"]
     root: IRInstruction
+    instruction_count: int
     volatile: bool
 
     def __init__(self, group_id: int, root: IRInstruction, volatile: bool):
@@ -29,7 +30,7 @@ class Group:
         self.dependents = []
         self.root = root
         self.volatile = volatile
-
+        self.instruction_count = 1
     def __hash__(self) -> int:
         return hash(self.group_id)
 
@@ -109,11 +110,16 @@ class DFTPass(IRPass):
             for dep in self.gda.get(g, []):
                 dep.dependents.append(g)
 
+        sorted_groups = sorted(self.groups, key=lambda g: (len(g.dependents), -g.instruction_count))
+        # print("sorted:")
+        # for g in sorted_groups:
+        #     print(f"{g.group_id}:  {len(g.dependents)} {g.instruction_count}")
+        
         groups_visited.add(exit_group)
-        for g in self.groups:
+        for g in sorted_groups:
             if len(g.dependents) == 0:
                 _walk_group_r(g)
-        for g in self.groups:
+        for g in sorted_groups:
             _walk_group_r(g)
         groups_visited.remove(exit_group)
 
@@ -159,6 +165,7 @@ class DFTPass(IRPass):
                 if self.inst_groups.get(inst) is not None:
                     continue
                 self.inst_groups[inst] = g
+                g.instruction_count += 1
                 mark_group_r(g, inst)
 
         for g in self.groups:
