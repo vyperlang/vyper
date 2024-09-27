@@ -1,6 +1,5 @@
 import random
 from dataclasses import dataclass
-import sys
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -31,6 +30,7 @@ class Group:
         self.root = root
         self.volatile = volatile
         self.instruction_count = 1
+
     def __hash__(self) -> int:
         return hash(self.group_id)
 
@@ -58,9 +58,6 @@ class DFTPass(IRPass):
 
         children = [self.dfg.get_producing_instruction(op) for op in inst.get_input_variables()]
         children = list(OrderedSet(children + self.ida[inst]))
-
-        # if inst.opcode == "sstore" and inst.operands[1].name == "%264" and inst.operands[0].name == "%267":
-        #     children = reversed(children)
 
         for dep_inst in children:
             if inst.parent != dep_inst.parent:
@@ -114,7 +111,7 @@ class DFTPass(IRPass):
         # print("sorted:")
         # for g in sorted_groups:
         #     print(f"{g.group_id}:  {len(g.dependents)} {g.instruction_count}")
-        
+
         groups_visited.add(exit_group)
         for g in sorted_groups:
             if len(g.dependents) == 0:
