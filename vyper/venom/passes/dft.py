@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass
+import sys
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -208,7 +209,7 @@ class DFTPass(IRPass):
                 self.gda[g].add(prod_group)
 
             # if bb.label.value == "26_then":
-            #     print(self.ida_as_graph())
+            #     print(self.gda_as_graph())
             #     sys.exit(0)
 
     def run_pass(self) -> None:
