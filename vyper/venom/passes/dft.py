@@ -43,7 +43,7 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
 
-        children = sorted(self.ida[inst], key=lambda x: -self.inst_count[x])
+        children = sorted(self.ida[inst], key=lambda x: (-self.inst_count[x], inst.operands.index(x.output) if x.output in inst.operands else 0))
 
         for dep_inst in children:
             if inst.parent != dep_inst.parent:
