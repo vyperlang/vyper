@@ -146,12 +146,16 @@ class DFTPass(IRPass):
         #
         # Calculate instruction groups and instruction dependencies
         #
+        last_volatile = None
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             if inst.is_volatile or not uses:
                 self._append_group(inst)
-                
+                if last_volatile:
+                    self.ida[inst].append(last_volatile)
+                last_volatile = inst
+
             for use in uses:
                 self.ida[use].append(inst)
 
