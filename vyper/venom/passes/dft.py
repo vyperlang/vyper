@@ -109,7 +109,7 @@ class DFTPass(IRPass):
                 dep.dependents.append(g)
 
         sorted_groups = sorted(self.groups, key=lambda g: (len(g.dependents), -g.instruction_count))
-        # print("sorted:")
+        # #print("sorted:")
         # for g in sorted_groups:
         #     print(f"{g.group_id}:  {len(g.dependents)} {g.instruction_count}")
 
@@ -146,11 +146,17 @@ class DFTPass(IRPass):
         #
         # Calculate instruction groups and instruction dependencies
         #
+        was_last_volatile = False
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             if inst.is_volatile or not uses:
                 self._append_group(inst)
+                was_last_volatile = True
+
+            elif was_last_volatile:
+                self._append_group(inst)
+                was_last_volatile = False
 
             for use in uses:
                 self.ida[use].append(inst)
@@ -209,7 +215,7 @@ class DFTPass(IRPass):
                 self.gda[g].add(prod_group)
 
             # if bb.label.value == "26_then":
-            #     print(self.gda_as_graph())
+            #     print(self.ida_as_graph())
             #     sys.exit(0)
 
     def run_pass(self) -> None:
