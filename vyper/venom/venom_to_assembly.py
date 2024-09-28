@@ -240,14 +240,6 @@ class VenomCompiler:
         # been scheduled to be killed. now it's just a matter of emitting
         # SWAPs, DUPs and PUSHes until we match the `ops` argument
 
-        # dumb heuristic: if the top of stack is not wanted here, swap
-        # it with something that is wanted
-        if ops and stack.height > 0 and stack.peek(0) not in ops:
-            for op in ops:
-                if isinstance(op, IRVariable) and op not in next_liveness:
-                    self.swap_op(assembly, stack, op)
-                    break
-
         # to validate store expansion invariant -
         # each op is emitted at most once.
         seen = set()
