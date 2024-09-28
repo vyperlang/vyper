@@ -25,6 +25,10 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
+DEBUG_SHOW_COST = True
+if DEBUG_SHOW_COST:
+    import sys
+
 # instructions which map one-to-one from venom to EVM
 _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     [
@@ -150,7 +154,6 @@ class VenomCompiler:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
@@ -282,6 +285,12 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
+        if DEBUG_SHOW_COST:
+            print(basicblock, file=sys.stderr)
+
+        ref = asm
+        asm = []
+
         # assembly entry point into the block
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
@@ -297,8 +306,14 @@ class VenomCompiler:
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
+        if DEBUG_SHOW_COST:
+            print(" ".join(map(str, asm)), file=sys.stderr)
+            print("\n", file=sys.stderr)
+
+        ref.extend(asm)
+
         for bb in basicblock.reachable:
-            self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -421,6 +436,13 @@ class VenomCompiler:
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
+        cost = self._stack_reorder([], stack, operands, dry_run=True)
+        if DEBUG_SHOW_COST and cost:
+            print("ENTER", inst, file=sys.stderr)
+            print("  HAVE", stack, file=sys.stderr)
+            print("  WANT", operands, file=sys.stderr)
+            print("  COST", cost, file=sys.stderr)
+
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
         self._stack_reorder(assembly, stack, operands)
@@ -455,7 +477,7 @@ class VenomCompiler:
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
-            # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
+            # assert if_zero_label == inst.parent.cfg_out.first().label
 
             assembly.append(f"_sym_{if_zero_label.value}")
             assembly.append("JUMP")
@@ -562,6 +584,7 @@ class VenomCompiler:
         assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
+        assert stack.get_depth(op) is not StackModel.NOT_IN_STACK, op
         self.swap(assembly, stack, stack.get_depth(op))
 
     def dup_op(self, assembly, stack, op):

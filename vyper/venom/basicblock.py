@@ -210,7 +210,6 @@ class IRInstruction:
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
-    fence_id: int
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -227,7 +226,6 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
-        self.fence_id = -1
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
