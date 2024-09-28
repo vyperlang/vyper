@@ -72,10 +72,10 @@ class DFTPass(IRPass):
 
         self.visited_instructions = OrderedSet()
         non_phi_instructions = list(bb.non_phi_instructions)
-        for inst in reversed(non_phi_instructions[:-1]):
+        for inst in reversed(non_phi_instructions):
             self._process_instruction_r(self.instructions, inst)
 
-        bb.instructions = self.instructions + [non_phi_instructions[-1]]
+        bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
@@ -98,22 +98,27 @@ class DFTPass(IRPass):
 
             for use in uses:
                 self.ida[use].append(inst)
+                
+            if inst.is_volatile and not uses:
+                if last_volatile:
+                    self.ida[inst].append(last_volatile)
+                last_volatile = inst
 
-            read_effects = inst.get_read_effects()
-            write_effects = inst.get_write_effects()
+            # read_effects = inst.get_read_effects()
+            # write_effects = inst.get_write_effects()
 
-            for write_effect in write_effects:
-                if write_effect in last_effects:
-                    self.ida[inst].append(last_effects[write_effect])
-                last_effects[write_effect] = inst
+            # for write_effect in write_effects:
+            #     if write_effect in last_effects:
+            #         self.ida[inst].append(last_effects[write_effect])
+            #     last_effects[write_effect] = inst
 
-            for read_effect in read_effects:
-                if read_effect in last_effects:
-                    self.ida[inst].append(last_effects[read_effect])
+            # for read_effect in read_effects:
+            #     if read_effect in last_effects:
+            #         self.ida[inst].append(last_effects[read_effect])
 
-            # if last_volatile and not uses:
-            #     self.ida[inst].append(last_volatile)
-            #     last_volatile = inst
+            
+
+            
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
