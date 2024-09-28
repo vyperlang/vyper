@@ -1,13 +1,13 @@
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRVariable
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.basicblock import IRVariable
 
 
 class VarEquivalenceAnalysis(IRAnalysis):
     """
     Generate equivalence sets of variables
     """
+
     def analyze(self):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
