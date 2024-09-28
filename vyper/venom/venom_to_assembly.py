@@ -13,7 +13,6 @@ from vyper.ir.compile_ir import (
 )
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.dup_requirements import DupRequirementsAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -154,7 +153,6 @@ class VenomCompiler:
 
                 NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
-                ac.request_analysis(DupRequirementsAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
 
@@ -264,7 +262,12 @@ class VenomCompiler:
         return cost
 
     def _emit_input_operands(
-        self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
+        self,
+        assembly: list,
+        inst: IRInstruction,
+        ops: list[IROperand],
+        stack: StackModel,
+        next_liveness: OrderedSet[IRVariable],
     ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
@@ -274,7 +277,7 @@ class VenomCompiler:
         # it with something that is wanted
         if ops and stack.height > 0 and stack.peek(0) not in ops:
             for op in ops:
-                if isinstance(op, IRVariable) and op not in inst.dup_requirements:
+                if isinstance(op, IRVariable) and op not in next_liveness:
                     self.swap_op(assembly, stack, op)
                     break
 
@@ -297,7 +300,7 @@ class VenomCompiler:
                 stack.push(op)
                 continue
 
-            if op in inst.dup_requirements and op not in emitted_ops:
+            if op in next_liveness and op not in emitted_ops:
                 self.dup_op(assembly, stack, op)
 
             if op in emitted_ops:
@@ -321,7 +324,9 @@ class VenomCompiler:
         all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
         for i, inst in enumerate(all_insts):
-            next_liveness = all_insts[i + 1].liveness if i + 1 < len(all_insts) else OrderedSet()
+            next_liveness = (
+                all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
+            )
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
@@ -360,10 +365,9 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
+        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
     ) -> list[str]:
         assembly: list[str | int] = []
-        next_liveness = next_liveness or OrderedSet()
         opcode = inst.opcode
 
         #
@@ -408,7 +412,7 @@ class VenomCompiler:
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            if to_be_replaced in inst.dup_requirements:
+            if to_be_replaced in next_liveness:
                 # %13/%14 is still live(!), so we make a copy of it
                 self.dup(assembly, stack, depth)
                 stack.poke(0, ret)
@@ -423,7 +427,7 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
-        self._emit_input_operands(assembly, inst, operands, stack)
+        self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
