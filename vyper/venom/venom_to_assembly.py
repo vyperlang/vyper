@@ -248,11 +248,14 @@ class VenomCompiler:
                     self.swap_op(assembly, stack, op)
                     break
 
-        emitted_ops = OrderedSet[IROperand]()
+        # to validate store expansion invariant -
+        # each op is emitted at most once.
+        seen = set()
+
         for op in ops:
             if isinstance(op, IRLabel):
-                # invoke emits the actual instruction itself so we don't need to emit it here
-                # but we need to add it to the stack map
+                # invoke emits the actual instruction itself so we don't need
+                # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
                     assembly.append(f"_sym_{op.value}")
                 stack.push(op)
@@ -267,13 +270,12 @@ class VenomCompiler:
                 stack.push(op)
                 continue
 
-            if op in next_liveness and op not in emitted_ops:
+            if op in next_liveness:
                 self.dup_op(assembly, stack, op)
 
-            if op in emitted_ops:
-                self.dup_op(assembly, stack, op)
-
-            emitted_ops.add(op)
+            # guaranteed by store expansion
+            assert op not in seen, (op, seen)
+            seen.add(op)
 
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
