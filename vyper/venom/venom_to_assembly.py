@@ -12,8 +12,8 @@ from vyper.ir.compile_ir import (
 )
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -26,7 +26,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
-DEBUG_SHOW_COST = True
+DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
     import sys
 
@@ -251,7 +251,7 @@ class VenomCompiler:
 
         # to validate store expansion invariant -
         # each op is emitted at most once.
-        seen = set()
+        seen: set[IROperand] = set()
 
         for op in ops:
             if isinstance(op, IRLabel):
