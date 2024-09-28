@@ -71,10 +71,11 @@ class DFTPass(IRPass):
             self._calculate_instruction_offspring_count_r(inst)
 
         self.visited_instructions = OrderedSet()
-        for inst in reversed(list(bb.non_phi_instructions)):
+        non_phi_instructions = list(bb.non_phi_instructions)
+        for inst in reversed(non_phi_instructions[:-1]):
             self._process_instruction_r(self.instructions, inst)
 
-        bb.instructions = self.instructions
+        bb.instructions = self.instructions + [non_phi_instructions[-1]]
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
@@ -88,19 +89,31 @@ class DFTPass(IRPass):
             self.ida[inst] = list()
 
         #
-        # Calculate instruction groups and instruction dependencies
+        # Apply effects to dependency graph
         #
+        last_effects = {}
         last_volatile = None
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
-            if inst.is_volatile or not uses:
-                if last_volatile:
-                    self.ida[inst].append(last_volatile)
-                last_volatile = inst
-
             for use in uses:
                 self.ida[use].append(inst)
+
+            read_effects = inst.get_read_effects()
+            write_effects = inst.get_write_effects()
+
+            for write_effect in write_effects:
+                if write_effect in last_effects:
+                    self.ida[inst].append(last_effects[write_effect])
+                last_effects[write_effect] = inst
+
+            for read_effect in read_effects:
+                if read_effect in last_effects:
+                    self.ida[inst].append(last_effects[read_effect])
+
+            # if last_volatile and not uses:
+            #     self.ida[inst].append(last_volatile)
+            #     last_volatile = inst
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
