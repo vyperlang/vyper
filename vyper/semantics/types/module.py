@@ -21,7 +21,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
-from vyper.semantics.types.user import EventT, StructT, _UserType
+from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet, sha256sum
 
 if TYPE_CHECKING:
@@ -45,6 +45,7 @@ class InterfaceT(_UserType):
         functions: dict,
         events: dict,
         structs: dict,
+        flags: dict,
         constants: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
@@ -53,21 +54,22 @@ class InterfaceT(_UserType):
             k: varinfo for k, varinfo in constants.items() if varinfo.decl_node.is_public
         }
 
-        members = functions | events | structs | constants
+        members = functions | events | structs | flags | constants
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs) + len(constants) - len(
-            public_constants
-        )
+        assert len(members) == len(functions) + len(events) + len(structs) + len(flags) + len(
+            constants
+        ) - len(public_constants)
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs | constants)
+        self._helper = VyperType(events | structs | flags | constants)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
         self.structs = structs
+        self.flags = flags
         self.constants = constants
 
         self.decl_node = decl_node
@@ -75,7 +77,7 @@ class InterfaceT(_UserType):
     def get_type_member(self, attr, node):
         # get an event, struct or constant from this interface
         type_member = self._helper.get_member(attr, node)
-        if isinstance(type_member, (EventT, StructT)):
+        if isinstance(type_member, (EventT, FlagT, StructT)):
             return TYPE_T(type_member)
         return type_member
 
@@ -172,11 +174,13 @@ class InterfaceT(_UserType):
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: Optional[list[tuple[str, EventT]]] = None,
         struct_list: Optional[list[tuple[str, StructT]]] = None,
+        flag_list: Optional[list[tuple[str, FlagT]]] = None,
         constant_list: Optional[list[tuple[str, VarInfo]]] = None,
     ) -> "InterfaceT":
         functions = {}
         events = {}
         structs = {}
+        flags = {}
         constants = {}
 
         seen_items: dict = {}
@@ -208,12 +212,17 @@ class InterfaceT(_UserType):
                 _mark_seen(name, struct)
                 structs[name] = struct
 
+        if flag_list:
+            for name, flag in flag_list:
+                _mark_seen(name, flag)
+                flags[name] = flag
+
         if constant_list:
             for name, constant in constant_list:
                 _mark_seen(name, constant)
                 constants[name] = constant
 
-        return cls(interface_name, decl_node, functions, events, structs, constants)
+        return cls(interface_name, decl_node, functions, events, structs, flags, constants)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -272,12 +281,15 @@ class InterfaceT(_UserType):
         # these are accessible via import, but they do not show up
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
+        flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
         constants = [
             (node.target.id, node.target._metadata["varinfo"])
             for node in module_t.variable_decls
             if node.is_constant
         ]
-        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, constants)
+        return cls._from_lists(
+            module_t._id, module_t.decl_node, funcs, events, structs, flags, constants
+        )
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
