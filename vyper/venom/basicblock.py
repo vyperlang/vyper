@@ -247,7 +247,7 @@ class IRInstruction:
         return effects.reads.get(self.opcode, ())
 
     def get_write_effects(self):
-        return effects.reads.get(self.opcode, ())
+        return effects.writes.get(self.opcode, ())
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
