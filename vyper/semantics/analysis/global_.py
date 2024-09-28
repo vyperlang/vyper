@@ -69,7 +69,7 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
                     module_str = "the top level of your main contract"
                 else:
                     module_str = f"`{module_t}`"
-                hint = f"add `initializes: {found_module.alias}` to {module_str}"
+                hint = f"add the line `initializes: {found_module.alias}` to {module_str}"
 
             err_list.append(InitializerException(msg, *uses, hint=hint))
 

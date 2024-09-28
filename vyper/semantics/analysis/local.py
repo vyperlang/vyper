@@ -276,8 +276,9 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
             msg += " use of the `@nonreentrant` decorator is also considered"
             msg += " state access"
 
-            hint = f"please add the line `uses: {module_info.alias}` or "
-            hint += f"`initializes: {module_info.alias}` to your contract"
+            hint = f"add the line `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
             raise ImmutableViolation(msg, hint=hint)
 
     # the leftmost- referenced module

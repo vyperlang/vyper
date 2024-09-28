@@ -367,8 +367,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if initialized_module.module_t not in should_initialize:
                 msg = f"tried to initialize `{initialized_module.alias}`, "
                 msg += "but it is not in initializer list!"
-                hint = f"please add the line `initializes: {initialized_module.alias}` "
-                hint += "to your contract"
+                hint = f"add the line `initializes: {initialized_module.alias}` "
+                hint += "as a top-level statement to your contract"
                 raise InitializerException(msg, call_node.func, hint=hint)
 
             del should_initialize[initialized_module.module_t]
@@ -378,7 +378,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list = ExceptionList()
             for s in should_initialize.values():
                 msg = "not initialized!"
-                hint = f"add `{s.module_info.alias}.__init__()` to "
+                hint = f"add the line `{s.module_info.alias}.__init__()` to "
                 hint += "your `__init__()` function"
 
                 # grab the init function AST node for error message
@@ -520,7 +520,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # it's `initializes: foo` instead of `initializes: foo[...]`
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
             else:
-                hint = f"add `{lhs} := {rhs}` to its initializer list"
+                hint = f"add the line `{lhs} := {rhs}` to its initializer list"
             raise InitializerException(msg, node, hint=hint)
 
         # note: try to refactor. not a huge fan of mutating the

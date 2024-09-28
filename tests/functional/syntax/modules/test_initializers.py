@@ -355,7 +355,9 @@ initializes: lib2[lib1 := lib1]
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "module `lib1.vy` is used but never initialized!"
-    assert e.value._hint == "add `initializes: lib1` to the top level of your main contract"
+    assert (
+        e.value._hint == "add the line `initializes: lib1` to the top level of your main contract"
+    )
 
 
 def test_initializer_no_references(make_input_bundle):
@@ -417,7 +419,7 @@ initializes: lib1
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -454,7 +456,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -495,7 +497,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -540,7 +542,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -575,7 +577,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -616,7 +618,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -660,7 +662,7 @@ def __init__():
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -699,7 +701,7 @@ initializes: lib1
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -738,7 +740,7 @@ def foo(new_value: uint256):
 
     assert e.value._message == "Cannot access `lib2` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint = "add the line `uses: lib2` or `initializes: lib2` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -780,7 +782,7 @@ def foo(new_value: uint256):
 
     assert e.value._message == "Cannot access `lib2` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint = "add the line `uses: lib2` or `initializes: lib2` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -823,7 +825,7 @@ def foo(new_value: uint256):
 
     assert e.value._message == "Cannot access `lib2` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint = "add the line `uses: lib2` or `initializes: lib2` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -857,7 +859,7 @@ def foo(new_value: uint256):
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
@@ -1122,7 +1124,10 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "tried to initialize `lib1`, but it is not in initializer list!"
-    assert e.value._hint == "add `initializes: lib1` as a top-level statement to your contract"
+    assert (
+        e.value._hint
+        == "add the line `initializes: lib1` as a top-level statement to your contract"
+    )
 
 
 def test_init_uninitialized_function2(make_input_bundle):
@@ -1149,7 +1154,10 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "tried to initialize `lib1`, but it is not in initializer list!"
-    assert e.value._hint == "add `initializes: lib1` as a top-level statement to your contract"
+    assert (
+        e.value._hint
+        == "add the line `initializes: lib1` as a top-level statement to your contract"
+    )
 
 
 def test_noinit_initialized_function(make_input_bundle):
@@ -1174,7 +1182,7 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "not initialized!"
-    assert e.value._hint == "add `lib1.__init__()` to your `__init__()` function"
+    assert e.value._hint == "add the line `lib1.__init__()` to your `__init__()` function"
 
 
 def test_noinit_initialized_function2(make_input_bundle):
@@ -1197,7 +1205,7 @@ initializes: lib1
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "not initialized!"
-    assert e.value._hint == "add `lib1.__init__()` to your `__init__()` function"
+    assert e.value._hint == "add the line `lib1.__init__()` to your `__init__()` function"
 
 
 def test_ownership_decl_errors_not_swallowed(make_input_bundle):
@@ -1270,7 +1278,7 @@ initializes: lib3
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib3`, but it is not initialized with `lib3`"
-    assert e.value._hint == "add `lib3 := lib3` to its initializer list"
+    assert e.value._hint == "add the line `lib3 := lib3` to its initializer list"
 
 
 def test_hint_for_missing_initializer_when_no_import(make_input_bundle, chdir_tmp_path):
@@ -1363,7 +1371,8 @@ def foo():
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=nonreentrant_library_bundle)
     assert e.value._message == f"Cannot access `{lib}` state!" + NONREENTRANT_NOTE
-    hint = f"add `uses: {lib}` or `initializes: {lib}` as a top-level statement to your contract"
+    hint = f"add the line `uses: {lib}` or `initializes: {lib}` "
+    hint += "as a top-level statement to your contract"
     assert e.value._hint == hint
     assert e.value.annotations[0].lineno == 4
 
@@ -1381,7 +1390,8 @@ def foo():
         compile_code(main, input_bundle=nonreentrant_library_bundle)
     assert e.value._message == f"Cannot access `{lib}` state!" + NONREENTRANT_NOTE
 
-    hint = f"add `uses: {lib}` or `initializes: {lib}` as a top-level statement to your contract"
+    hint = f"add the line `uses: {lib}` or `initializes: {lib}` "
+    hint += "as a top-level statement to your contract"
     assert e.value._hint == hint
     assert e.value.annotations[0].lineno == 6
 

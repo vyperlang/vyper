@@ -30,7 +30,7 @@ exports: lib1.get_counter
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value.hint == expected_hint
 
@@ -49,7 +49,7 @@ exports: lib1.counter
 
     assert e.value._message == "Cannot access `lib1` state!" + NONREENTRANT_NOTE
 
-    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint = "add the line `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value.hint == expected_hint
 
