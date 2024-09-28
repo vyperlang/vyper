@@ -12,28 +12,28 @@ from vyper.venom.passes.base_pass import IRPass
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_count: dict[IRInstruction, int]
+    inst_offspring_count: dict[IRInstruction, int]
     visited_instructions: OrderedSet[IRInstruction]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.inst_count = {}
+        self.inst_offspring_count = {}
 
     def _permutate(self, instructions: list[IRInstruction]):
         return random.shuffle(instructions)
 
-    def _calculate_depth_instruction_r(self, inst: IRInstruction):
+    def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
         if inst in self.visited_instructions:
             return
 
         self.visited_instructions.add(inst)
-        self.inst_count[inst] = 1
+        self.inst_offspring_count[inst] = 1
 
         for dep_inst in self.ida[inst]:
             if inst.parent != dep_inst.parent:
                 continue
-            self._calculate_depth_instruction_r(dep_inst)
-            self.inst_count[inst] += self.inst_count[dep_inst]
+            self._calculate_instruction_offspring_count_r(dep_inst)
+            self.inst_offspring_count[inst] += self.inst_offspring_count[dep_inst]
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
@@ -46,7 +46,7 @@ class DFTPass(IRPass):
         children = sorted(
             self.ida[inst],
             key=lambda x: (
-                -self.inst_count[x] + (x.opcode == "iszero") * 10,
+                -self.inst_offspring_count[x] + (x.opcode == "iszero") * 10,
                 inst.operands.index(x.output) if x.output in inst.operands else 0,
             ),
         )
@@ -68,7 +68,7 @@ class DFTPass(IRPass):
 
         self.visited_instructions = OrderedSet()
         for inst in reversed(list(bb.non_phi_instructions)):
-            self._calculate_depth_instruction_r(inst)
+            self._calculate_instruction_offspring_count_r(inst)
 
         self.visited_instructions = OrderedSet()
         for inst in reversed(list(bb.non_phi_instructions)):
