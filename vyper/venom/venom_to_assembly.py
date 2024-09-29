@@ -396,6 +396,7 @@ class VenomCompiler:
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
             if to_be_replaced in next_liveness:
+                # this branch seems unreachable (maybe due to make_ssa)
                 # %13/%14 is still live(!), so we make a copy of it
                 self.dup(assembly, stack, depth)
                 stack.poke(0, ret)

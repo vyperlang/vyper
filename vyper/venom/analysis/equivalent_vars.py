@@ -5,7 +5,11 @@ from vyper.venom.basicblock import IRVariable
 
 class VarEquivalenceAnalysis(IRAnalysis):
     """
-    Generate equivalence sets of variables
+    Generate equivalence sets of variables. This is used to avoid swapping
+    variables which are the same during venom_to_assembly. Theoretically,
+    the DFTPass should order variable declarations optimally, but, it is
+    not aware of the "pickaxe" heuristic in venom_to_assembly, so they can
+    interfere.
     """
 
     def analyze(self):
