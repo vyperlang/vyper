@@ -44,7 +44,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
-    ac = IRAnalysesCache(fn)
+    ac = IRAnalysesCache(fn, optimize)
 
     FunctionInlinerPass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()

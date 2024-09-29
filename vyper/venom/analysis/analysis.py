@@ -1,4 +1,5 @@
 from typing import Type
+from vyper.compiler.settings import OptimizationLevel
 
 from vyper.venom.function import IRFunction
 
@@ -36,10 +37,15 @@ class IRAnalysesCache:
 
     function: IRFunction
     analyses_cache: dict[Type[IRAnalysis], IRAnalysis]
+    optimize: OptimizationLevel
 
-    def __init__(self, function: IRFunction):
+    def __init__(self, function: IRFunction, optimize=None):
         self.analyses_cache = {}
         self.function = function
+
+        if optimize is None:
+            optimize = OptimizationLevel.default()
+        self.optimize = optimize
 
     def request_analysis(self, analysis_cls: Type[IRAnalysis], *args, **kwargs):
         """

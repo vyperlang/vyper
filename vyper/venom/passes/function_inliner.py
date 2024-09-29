@@ -1,4 +1,5 @@
 from vyper.utils import OrderedSet
+from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -18,8 +19,7 @@ class FunctionInlinerPass(IRPass):
         while len(self.worklist) > 0:
             bb = self.worklist.popleft()
             for idx, inst in enumerate(bb.instructions):
-                if inst.opcode == "invoke":
-                    self._handle_invoke(inst, idx)
+                if inst.opcode == "invoke" and self._handle_invoke(inst, idx):
                     break
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -33,6 +33,14 @@ class FunctionInlinerPass(IRPass):
                     ret[tuple(inst.operands)] = inst
         return ret
 
+    @property
+    def _threshold(self):
+        optimize = self.analyses_cache.optimize
+        if optimize == OptimizationLevel.GAS:
+            return 100
+        if optimize == OptimizationLevel.CODESIZE:
+            return 15
+
     def _handle_invoke(self, invoke_inst, invoke_idx):
         fn = self.function
         ctx = fn.ctx
@@ -41,6 +49,9 @@ class FunctionInlinerPass(IRPass):
         target_function = ctx.functions[target_label]
 
         bbs = list(target_function.get_basic_blocks())
+
+        if sum(len(bb.instructions) for bb in bbs) > self._threshold:
+            return False
 
         var_map = {}
 
@@ -92,3 +103,4 @@ class FunctionInlinerPass(IRPass):
         invoke_inst.opcode = "jmp"
         invoke_inst.operands = [next_bb.label]
         invoke_inst.output = None
+        return True
