@@ -19,11 +19,11 @@ class VarEquivalenceAnalysis(IRAnalysis):
 
             source = inst.operands[0]
 
+            assert var not in equivalence_set  # invariant
             if source in equivalence_set:
                 equivalence_set[var] = equivalence_set[source]
                 continue
             else:
-                assert var not in equivalence_set
                 equivalence_set[var] = bag
                 equivalence_set[source] = bag
 
