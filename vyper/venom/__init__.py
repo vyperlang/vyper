@@ -46,9 +46,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     FunctionInlinerPass(ac, fn).run_pass()
 
-    fn.remove_unreachable_blocks()
-    return
-
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
@@ -70,6 +69,6 @@ def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     for fn in ctx.functions.values():
         _run_passes(fn, optimize)
 
-    #ctx.prune_unreachable_functions()
+    ctx.prune_unreachable_functions()
 
     return ctx

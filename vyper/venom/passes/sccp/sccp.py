@@ -145,7 +145,7 @@ class SCCP(IRPass):
             self._visit_expr(work_item.inst)
 
     def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
-        assert isinstance(op, IRVariable), "Can't get lattice for non-variable"
+        assert isinstance(op, IRVariable), op
         lat = self.lattice[op]
         assert lat is not None, f"Got undefined var {op}"
         return lat

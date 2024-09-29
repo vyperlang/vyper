@@ -74,13 +74,9 @@ class FunctionInlinerPass(IRPass):
                 inst.parent = new_bb
                 new_bb.instructions.append(inst)
 
-                new_var = fn.get_next_variable()
-                var_map[inst.output] = new_var
-
-
                 for j, op in enumerate(inst.operands):
                     if isinstance(op, IRVariable):
-                        inst.operands[j] = var_map[inst.operands[j]]
+                        inst.operands[j] = var_map[op]
                     if inst.opcode in CFG_ALTERING_INSTRUCTIONS and isinstance(op, IRLabel):
                         inst.operands[j] = label_map[op]
 
@@ -90,18 +86,16 @@ class FunctionInlinerPass(IRPass):
                     inst.output = None
                 if inst.opcode.startswith("palloca"):
                     alloca_id = tuple(inst.operands)
-                    var_map[inst.output] = self._alloca_map[alloca_id].output
-                    print("ENTER0", var_map[inst.output], inst)
-                    inst.opcode = "nop"
-                    inst.operands = []
-                    inst.output = None
+                    inst.opcode = "store"
+                    inst.operands = [self._alloca_map[alloca_id].output]
                 if inst.opcode == "param":
-                    var_map[inst.output] = invoke_inst.operands[-i-1]
-                    #print("ENTER", var_map[inst.output], inst)
-                    inst.opcode = "nop"
-                    inst.operands = []
-                    inst.output = None
-                    #print("ENTER", inst)
+                    inst.opcode = "store"
+                    op = invoke_inst.operands[-i-1]
+                    inst.operands = [invoke_inst.operands[-i-1]]
+
+                new_var = fn.get_next_variable()
+                var_map[inst.output] = new_var
+                inst.output = new_var
 
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)

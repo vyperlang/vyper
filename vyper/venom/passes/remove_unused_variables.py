@@ -27,6 +27,7 @@ class RemoveUnusedVariablesPass(IRPass):
             self._process_instruction(inst)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _process_instruction(self, inst):
         if inst.output is None:
