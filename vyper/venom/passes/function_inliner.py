@@ -3,10 +3,10 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction,IRBasicBlock,IRVariable
+from vyper.venom.basicblock import IRInstruction,IRBasicBlock,IRVariable, CFG_ALTERING_INSTRUCTIONS,IRLabel
 from vyper.venom.passes.base_pass import IRPass
 
-from collections import deque
+from collections import deque,defaultdict
 
 class FunctionInlinerPass(IRPass):
     """
@@ -24,6 +24,7 @@ class FunctionInlinerPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _build_alloca_map(self):
         ret = {}
@@ -50,6 +51,7 @@ class FunctionInlinerPass(IRPass):
 
         bbs = list(target_function.get_basic_blocks())
 
+        # TODO: the number of times a function is called globally is also important
         if sum(len(bb.instructions) for bb in bbs) > self._threshold:
             return False
 
@@ -57,36 +59,49 @@ class FunctionInlinerPass(IRPass):
 
         next_bb = IRBasicBlock(ctx.get_next_label(), fn)
 
+        label_map = defaultdict(ctx.get_next_label)
+
         # make copies of every bb and inline them into the code
         for bb in bbs:
-            new_label = ctx.get_next_label()
+            new_label = label_map[bb.label]
             new_bb = IRBasicBlock(new_label, fn)
-            new_bb.instructions = bb.instructions.copy()
-            for i, inst in enumerate(new_bb.instructions):
+
+            if bb is target_function.entry:
+                target_bb = new_bb
+
+            for i, inst in enumerate(bb.instructions):
+                inst = inst.copy()
+                inst.parent = new_bb
+                new_bb.instructions.append(inst)
+
                 new_var = fn.get_next_variable()
                 var_map[inst.output] = new_var
 
-                inst = inst.copy()
-                inst.parent = new_bb
 
                 for j, op in enumerate(inst.operands):
                     if isinstance(op, IRVariable):
                         inst.operands[j] = var_map[inst.operands[j]]
+                    if inst.opcode in CFG_ALTERING_INSTRUCTIONS and isinstance(op, IRLabel):
+                        inst.operands[j] = label_map[op]
 
-                if inst.opcode.startswith("palloca"):
-                    alloca_id = tuple(inst.operands)
-                    inst.opcode = "store"
-                    var_map[inst.output] = self._alloca_map[alloca_id].output
                 if inst.opcode == "ret":
                     inst.opcode = "jmp"
                     inst.operands = [next_bb.label]
                     inst.output = None
-
-
-                # note: don't transform the operands for param
+                if inst.opcode.startswith("palloca"):
+                    alloca_id = tuple(inst.operands)
+                    var_map[inst.output] = self._alloca_map[alloca_id].output
+                    print("ENTER0", var_map[inst.output], inst)
+                    inst.opcode = "nop"
+                    inst.operands = []
+                    inst.output = None
                 if inst.opcode == "param":
-                    inst.opcode = "store"
-                    inst.operands = [invoke_inst.operands[-i-1]]
+                    var_map[inst.output] = invoke_inst.operands[-i-1]
+                    #print("ENTER", var_map[inst.output], inst)
+                    inst.opcode = "nop"
+                    inst.operands = []
+                    inst.output = None
+                    #print("ENTER", inst)
 
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)
@@ -99,8 +114,9 @@ class FunctionInlinerPass(IRPass):
         fn.append_basic_block(next_bb)
         self.worklist.append(next_bb)
 
-        del bb.instructions[invoke_idx+1:]
+        bb.instructions = bb.instructions[:invoke_idx+1]
+        assert len(bb.instructions) - 1 == invoke_idx
         invoke_inst.opcode = "jmp"
-        invoke_inst.operands = [next_bb.label]
+        invoke_inst.operands = [target_bb.label]
         invoke_inst.output = None
         return True

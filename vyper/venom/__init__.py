@@ -42,11 +42,14 @@ def generate_assembly_experimental(
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
-    # TODO: Add support for optimization levels
-
     ac = IRAnalysesCache(fn, optimize)
 
     FunctionInlinerPass(ac, fn).run_pass()
+
+    fn.remove_unreachable_blocks()
+    return
+
+
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
@@ -67,6 +70,6 @@ def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     for fn in ctx.functions.values():
         _run_passes(fn, optimize)
 
-    ctx.prune_unreachable_functions()
+    #ctx.prune_unreachable_functions()
 
     return ctx

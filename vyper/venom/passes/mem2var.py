@@ -42,9 +42,7 @@ class Mem2Var(IRPass):
         uses = dfg.get_uses(var)
         if all([inst.opcode == "mload" for inst in uses]):
             return
-        elif all([inst.opcode == "mstore" for inst in uses]):
-            return
-        elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
+        if all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
             var_name = self._mk_varname(var.name)
             for inst in uses:
                 if inst.opcode == "mstore":
