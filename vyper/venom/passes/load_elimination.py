@@ -9,6 +9,7 @@ class LoadElimination(IRPass):
     """
     Eliminate sloads, mloads and tloads
     """
+    # should this be renamed to EffectsElimination?
 
     def run_pass(self):
         self.equivalence = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
