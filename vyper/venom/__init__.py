@@ -11,6 +11,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
+from vyper.venom.passes.function_inliner import FunctionInlinerPass
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.extract_literals import ExtractLiteralsPass
 from vyper.venom.passes.make_ssa import MakeSSA
@@ -45,6 +46,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     ac = IRAnalysesCache(fn)
 
+    FunctionInlinerPass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
@@ -64,5 +66,7 @@ def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     ctx = ir_node_to_venom(ir)
     for fn in ctx.functions.values():
         _run_passes(fn, optimize)
+
+    ctx.prune_unreachable_functions()
 
     return ctx

@@ -232,6 +232,13 @@ class IRInstruction:
         self.ast_source = None
         self.error_msg = None
 
+    def copy(self):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.__dict__ = self.__dict__.copy()
+        ret.operands = ret.operands.copy()
+        return ret
+
     @property
     def is_volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS

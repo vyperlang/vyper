@@ -2,6 +2,7 @@ from typing import Optional
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
+from vyper.utils import OrderedSet
 
 
 class IRContext:
@@ -38,6 +39,24 @@ class IRContext:
             suffix = f"_{suffix}"
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
+
+    def prune_unreachable_functions(self):
+        entry = next(iter(self.functions.values()))
+        to_visit = OrderedSet([entry])
+        seen = OrderedSet()
+        while to_visit:
+            fn = to_visit.pop()
+            seen.add(fn)
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode == "invoke":
+                        label = inst.operands[0]
+                        next_fn = self.get_function(label)
+                        if next_fn not in seen:
+                            to_visit.add(next_fn)
+
+        self.functions = {label: fn for label,fn in self.functions.items() if fn in seen}
+
 
     def chain_basic_blocks(self) -> None:
         """
