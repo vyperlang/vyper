@@ -228,6 +228,7 @@ class VenomCompiler:
 
             to_swap = stack.peek(final_stack_depth)
             if self.equivalence.equivalent(op, to_swap):
+                # perform a "virtual" swap
                 stack.poke(final_stack_depth, op)
                 stack.poke(depth, to_swap)
                 continue
