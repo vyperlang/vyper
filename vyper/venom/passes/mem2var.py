@@ -12,13 +12,7 @@ class Mem2Var(IRPass):
     This pass promoted memory operations to variable operations, when possible.
     It does yet do any memory aliasing analysis, so it is conservative.
     """
-
-    # Number of memory operations over which we promote
-    # a palloca to a stack variable
-    OPS_THRESHOLD = 6
-
     function: IRFunction
-    defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
@@ -57,34 +51,33 @@ class Mem2Var(IRPass):
                     inst.operands = [IRVariable(var_name)]
                 elif inst.opcode == "return":
                     bb = inst.parent
-                    idx = bb.instructions.index(inst)
+                    idx = len(bb.instructions) - 1
+                    assert inst == bb.instructions[idx]  # sanity
                     bb.insert_instruction(
                         IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
                     )
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
-        Process alloca allocated variable. If it is only used by mstore/mload/return
+        Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
         uses = dfg.get_uses(var)
-        work_instructions = [inst.opcode in ["mstore", "mload"] for inst in uses]
-        count = sum(work_instructions)
-        if count > self.OPS_THRESHOLD and count == len(work_instructions):
-            var_name = f"addr{var.name}_{self.var_name_count}"
-            self.var_name_count += 1
+        if not all(inst.opcode in ["mstore", "mload"] for inst in uses):
+            return
 
-            palloca_inst.opcode = "mload"
-            palloca_inst.operands = [palloca_inst.operands[0]]
-            palloca_inst.output = IRVariable(var_name)
+        var_name = f"addr{var.name}_{self.var_name_count}"
+        self.var_name_count += 1
 
-            for inst in uses:
-                if inst.opcode == "mstore":
-                    inst.opcode = "store"
-                    inst.output = IRVariable(var_name)
-                    inst.operands = [inst.operands[0]]
-                elif inst.opcode == "mload":
-                    inst.opcode = "store"
-                    inst.operands = [IRVariable(var_name)]
-        else:
-            palloca_inst.opcode = "store"
+        palloca_inst.opcode = "mload"
+        palloca_inst.operands = [palloca_inst.operands[0]]
+        palloca_inst.output = IRVariable(var_name)
+
+        for inst in uses:
+            if inst.opcode == "mstore":
+                inst.opcode = "store"
+                inst.output = IRVariable(var_name)
+                inst.operands = [inst.operands[0]]
+            elif inst.opcode == "mload":
+                inst.opcode = "store"
+                inst.operands = [IRVariable(var_name)]
