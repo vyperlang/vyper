@@ -12,6 +12,7 @@ class Mem2Var(IRPass):
     This pass promoted memory operations to variable operations, when possible.
     It does yet do any memory aliasing analysis, so it is conservative.
     """
+
     function: IRFunction
 
     def run_pass(self):
