@@ -1,5 +1,7 @@
+from vyper.codegen.context import Context
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
@@ -66,7 +68,16 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
-    args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
+    if context.settings.experimental_codegen:
+        arg_items = ["multi"]
+        framestart = func_t._ir_info.frame_info.frame_start
+        freshctx = Context(context.module_ctx, MemoryAllocator(framestart))
+        for arg_t in func_t.argument_types:
+            varname = freshctx.fresh_varname("param")  # dummy varname
+            arg_items.append(freshctx.new_variable(varname, arg_t))
+        args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
+    else:
+        args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
