@@ -28,6 +28,12 @@ class Mem2Var(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
+    def _mk_varname(self, varname: str):
+        varname = varname.removeprefix("%")
+        varname = f"var{varname}_{self.var_name_count}"
+        self.var_name_count += 1
+        return varname
+
     def _process_alloca_var(self, dfg: DFGAnalysis, var: IRVariable):
         """
         Process alloca allocated variable. If it is only used by mstore/mload/return
@@ -39,8 +45,7 @@ class Mem2Var(IRPass):
         elif all([inst.opcode == "mstore" for inst in uses]):
             return
         elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
-            var_name = f"addr{var.name}_{self.var_name_count}"
-            self.var_name_count += 1
+            var_name = self._mk_varname(var.name)
             for inst in uses:
                 if inst.opcode == "mstore":
                     inst.opcode = "store"
@@ -66,8 +71,7 @@ class Mem2Var(IRPass):
         if not all(inst.opcode in ["mstore", "mload"] for inst in uses):
             return
 
-        var_name = f"addr{var.name}_{self.var_name_count}"
-        self.var_name_count += 1
+        var_name = self._mk_varname(var.name)
 
         palloca_inst.opcode = "mload"
         palloca_inst.operands = [palloca_inst.operands[0]]
