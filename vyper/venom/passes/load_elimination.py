@@ -1,4 +1,7 @@
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -12,6 +15,9 @@ class LoadElimination(IRPass):
 
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
         return op1 == op2 or self.equivalence.equivalent(op1, op2)
