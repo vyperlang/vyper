@@ -22,6 +22,13 @@ class LoadElimination(IRPass):
         memory = ()
 
         for inst in bb.instructions:
+            if "memory" in inst.get_write_effects():
+                memory = ()
+            if "storage" in inst.get_write_effects():
+                storage = ()
+            if "transient" in inst.get_write_effects():
+                transient = ()
+
             if inst.opcode == "mstore":
                 # mstore [val, ptr]
                 memory = (inst.operands[1], inst.operands[0])
@@ -33,7 +40,9 @@ class LoadElimination(IRPass):
             if inst.opcode == "mload":
                 prev_memory = memory
                 memory = (inst.operands[0], inst.output)
-                if not prev_memory or not self.equivalent(inst.operands[0], prev_memory[0]):
+                if not prev_memory:
+                    continue
+                if not self.equivalent(inst.operands[0], prev_memory[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_memory[1]]
@@ -41,7 +50,9 @@ class LoadElimination(IRPass):
             if inst.opcode == "sload":
                 prev_storage = storage
                 storage = (inst.operands[0], inst.output)
-                if not prev_storage or not self.equivalent(inst.operands[0], prev_storage[0]):
+                if not prev_storage:
+                    continue
+                if not self.equivalent(inst.operands[0], prev_storage[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_storage[1]]
@@ -49,7 +60,9 @@ class LoadElimination(IRPass):
             if inst.opcode == "tload":
                 prev_transient = transient
                 transient = (inst.operands[0], inst.output)
-                if not prev_transient or not self.equivalent(inst.operands[0], prev_transient[0]):
+                if not prev_transient:
+                    continue
+                if not self.equivalent(inst.operands[0], prev_transient[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_transient[1]]
