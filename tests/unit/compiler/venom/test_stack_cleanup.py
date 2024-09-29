@@ -9,7 +9,8 @@ def test_cleanup_stack():
     bb = fn.get_basic_block()
     ret_val = bb.append_instruction("param")
     op = bb.append_instruction("store", 10)
-    bb.append_instruction("add", op, op)
+    op2 = bb.append_instruction("store", op)
+    bb.append_instruction("add", op, op2)
     bb.append_instruction("ret", ret_val)
 
     asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
