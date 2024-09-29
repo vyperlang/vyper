@@ -107,14 +107,18 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = {}
+_global_symbols: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
+_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
-    global _global_symbols
+    _ = ir.unique_symbols  # run unique symbols check
+
+    global _global_symbols, _external_functions
     _global_symbols = {}
+    _external_functions = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -214,10 +218,6 @@ def _convert_ir_bb_list(fn, ir, symbols):
     return ret
 
 
-current_func = None
-var_list: list[str] = []
-
-
 def pop_source_on_return(func):
     @functools.wraps(func)
     def pop_source(*args, **kwargs):
@@ -232,7 +232,10 @@ def pop_source_on_return(func):
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list, _global_symbols
+    # TODO: refactor these to not be globals
+    global _break_target, _continue_target, _global_symbols, _external_functions
+
+    # keep a map from external functions to all possible entry points
 
     ctx = fn.ctx
     fn.push_source(ir)
@@ -274,7 +277,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 return ret
             elif is_external:
-                _global_symbols = {}
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
                 _append_return_args(fn)
         else:
@@ -382,6 +384,13 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
+        function_id_pattern = r"external (\d+)"
+        function_name = ir.args[0].value
+        m = re.match(function_id_pattern, function_name)
+        if m is not None:
+            function_id = m.group(1)
+            _global_symbols = _external_functions.setdefault(function_id, {})
+
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
@@ -468,14 +477,7 @@ def _convert_ir_bb(fn, ir, symbols):
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
 
         assert ir.args[3].is_literal, "repeat bound expected to be literal"
-
         bound = ir.args[3].value
-        if (
-            isinstance(end, IRLiteral)
-            and isinstance(start, IRLiteral)
-            and end.value + start.value <= bound
-        ):
-            bound = None
 
         body = ir.args[4]
 
@@ -491,9 +493,15 @@ def _convert_ir_bb(fn, ir, symbols):
 
         counter_var = entry_block.append_instruction("store", start)
         symbols[sym.value] = counter_var
+
+        if bound is not None:
+            # assert le end bound
+            invalid_end = entry_block.append_instruction("gt", bound, end)
+            valid_end = entry_block.append_instruction("iszero", invalid_end)
+            entry_block.append_instruction("assert", valid_end)
+
         end = entry_block.append_instruction("add", start, end)
-        if bound:
-            bound = entry_block.append_instruction("add", start, bound)
+
         entry_block.append_instruction("jmp", cond_block.label)
 
         xor_ret = cond_block.append_instruction("xor", counter_var, end)
@@ -501,9 +509,6 @@ def _convert_ir_bb(fn, ir, symbols):
         fn.append_basic_block(cond_block)
 
         fn.append_basic_block(body_block)
-        if bound:
-            xor_ret = body_block.append_instruction("xor", counter_var, bound)
-            body_block.append_instruction("assert", xor_ret)
 
         emit_body_blocks()
         body_end = fn.get_basic_block()
