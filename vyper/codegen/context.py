@@ -67,7 +67,6 @@ class VariableRecord:
             mutable=self.mutable,
             location=self.location,
         )
-        ret._referenced_variables = {self}
         if self.alloca is not None:
             ret.passthrough_metadata["alloca"] = self.alloca
         return ret

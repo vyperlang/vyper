@@ -211,3 +211,34 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
     assert sccp.lattice[IRVariable("%5", version=2)].value == 97
     assert sccp.lattice[IRVariable("%5")].value == 2
+
+
+def test_phi_reduction_after_unreachable_block():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+    join = IRBasicBlock(IRLabel("join"), fn)
+    fn.append_basic_block(join)
+
+    op = bb.append_instruction("store", 1)
+    true = IRLiteral(1)
+    bb.append_instruction("jnz", true, br1.label, join.label)
+
+    op1 = br1.append_instruction("store", 2)
+
+    br1.append_instruction("jmp", join.label)
+
+    join.append_instruction("phi", bb.label, op, br1.label, op1)
+    join.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+
+    assert join.instructions[0].opcode == "store", join.instructions[0]
+    assert join.instructions[0].operands == [op1]
+
+    assert join.instructions[1].opcode == "stop"

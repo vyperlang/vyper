@@ -12,6 +12,8 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "call",
         "staticcall",
         "delegatecall",
+        "create",
+        "create2",
         "invoke",
         "sload",
         "sstore",
@@ -34,6 +36,15 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "ret",
         "jmp",
         "jnz",
+        "djmp",
+        "log",
+        "selfdestruct",
+        "invalid",
+        "revert",
+        "assert",
+        "assert_unreachable",
+        "stop",
+        "exit",
     ]
 )
 
@@ -41,7 +52,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
         "mstore",
         "sstore",
-        "dstore",
         "istore",
         "tstore",
         "dloadbytes",
@@ -65,6 +75,10 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "log",
         "exit",
     ]
+)
+
+assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
+    NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
@@ -195,7 +209,6 @@ class IRInstruction:
     output: Optional[IROperand]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
-    dup_requirements: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
     fence_id: int
     annotation: Optional[str]
@@ -214,15 +227,18 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
-        self.dup_requirements = OrderedSet()
         self.fence_id = -1
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
 
     @property
-    def volatile(self) -> bool:
+    def is_volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS
+
+    @property
+    def is_bb_terminator(self) -> bool:
+        return self.opcode in BB_TERMINATORS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
@@ -236,7 +252,7 @@ class IRInstruction:
         """
         return (op for op in self.operands if not isinstance(op, IRLabel))
 
-    def get_inputs(self) -> Iterator[IRVariable]:
+    def get_input_variables(self) -> Iterator[IRVariable]:
         """
         Get all input operands for instruction.
         """
@@ -477,7 +493,7 @@ class IRBasicBlock:
     def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
         uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
         for inst in self.instructions:
-            for op in inst.get_inputs():
+            for op in inst.get_input_variables():
                 if op not in uses:
                     uses[op] = OrderedSet()
                 uses[op].add(inst)
@@ -499,7 +515,7 @@ class IRBasicBlock:
         # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
-        return self.instructions[-1].opcode in BB_TERMINATORS
+        return self.instructions[-1].is_bb_terminator
 
     @property
     def is_terminal(self) -> bool:
@@ -509,7 +525,7 @@ class IRBasicBlock:
         return len(self.cfg_out) == 0
 
     @property
-    def in_vars(self) -> OrderedSet[IRVariable]:
+    def liveness_in_vars(self) -> OrderedSet[IRVariable]:
         for inst in self.instructions:
             if inst.opcode != "phi":
                 return inst.liveness
