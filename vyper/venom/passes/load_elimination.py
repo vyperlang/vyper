@@ -1,8 +1,6 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.basicblock import IRVariable
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -16,6 +14,9 @@ class LoadElimination(IRPass):
 
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
         return op1 == op2 or self.equivalence.equivalent(op1, op2)
@@ -61,7 +62,6 @@ class LoadElimination(IRPass):
                 inst.opcode = "store"
                 inst.operands = [prev_storage[1]]
 
-
             if inst.opcode == "tload":
                 prev_transient = transient
                 transient = (inst.operands[0], inst.output)
@@ -71,5 +71,3 @@ class LoadElimination(IRPass):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_transient[1]]
-
-
