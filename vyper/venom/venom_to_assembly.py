@@ -1,4 +1,3 @@
-from collections import Counter
 from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
@@ -204,21 +203,17 @@ class VenomCompiler:
     def _stack_reorder(
         self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
     ) -> int:
-        cost = 0
-
         if dry_run:
             assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
 
-        stack_ops_count = len(stack_ops)
+        if len(stack_ops) == 0:
+            return 0
 
-        counts = Counter(stack_ops)
-
-        for i in range(stack_ops_count):
-            op = stack_ops[i]
-            final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op, counts[op])  # type: ignore
-            counts[op] -= 1
+        cost = 0
+        for i, op in enumerate(stack_ops):
+            final_stack_depth = -(len(stack_ops) - i - 1)
+            depth = stack.get_depth(op)
 
             if depth == StackModel.NOT_IN_STACK:
                 raise CompilerPanic(f"Variable {op} not in stack")
