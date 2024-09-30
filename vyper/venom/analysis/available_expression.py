@@ -17,6 +17,7 @@ from vyper.venom.context import IRFunction
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
+
 @dataclass
 class _Expression:
     first_inst: IRInstruction
@@ -166,7 +167,13 @@ class AvailableExpressionAnalysis(IRAnalysis):
     min_depth: int
     max_depth: int
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction, min_depth : int = _MIN_DEPTH, max_depth : int = _MAX_DEPTH):
+    def __init__(
+        self,
+        analyses_cache: IRAnalysesCache,
+        function: IRFunction,
+        min_depth: int = _MIN_DEPTH,
+        max_depth: int = _MAX_DEPTH,
+    ):
         super().__init__(analyses_cache, function)
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -178,10 +185,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         self.lattice = _FunctionLattice(function)
 
-    def analyze(self, min_depth : int = _MIN_DEPTH, max_depth : int = _MAX_DEPTH):
+    def analyze(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
         self.min_depth = min_depth
         self.max_depth = max_depth
-        worklist = deque()
+        worklist: deque = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
             bb: IRBasicBlock = worklist.popleft()
