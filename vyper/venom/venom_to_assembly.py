@@ -210,6 +210,8 @@ class VenomCompiler:
         if len(stack_ops) == 0:
             return 0
 
+        assert len(stack_ops) == len(set(stack_ops))  # precondition
+
         cost = 0
         for i, op in enumerate(stack_ops):
             final_stack_depth = -(len(stack_ops) - i - 1)
