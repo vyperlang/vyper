@@ -32,7 +32,8 @@ def foo():
     """,
         UnknownAttribute,
     ),
-    """
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -41,6 +42,8 @@ a: A
 def foo():
     self.a = A(x=1)
     """,
+        InstantiationException,
+    ),
     """
 struct A:
     x: int128
@@ -61,7 +64,8 @@ b: A
 def foo():
     self.a = A(self.b)
     """,
-    """
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -70,6 +74,8 @@ a: A
 def foo():
     self.a = A({x: 1})
     """,
+        InstantiationException,
+    ),
     """
 struct C:
     c: int128

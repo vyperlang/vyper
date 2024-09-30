@@ -7,6 +7,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
     FlagDeclarationException,
+    InstantiationException,
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
@@ -284,6 +285,13 @@ class EventT(_UserType):
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
+            if len(node.args) > 0:
+                raise InstantiationException(
+                    "Event instantiation requires either all keyword arguments "
+                    "or all positional arguments",
+                    node,
+                )
+
             return validate_kwargs(node, self.arguments.copy(), self.typeclass)
 
         # warn about positional argument depreciation
