@@ -51,7 +51,9 @@ class FunctionInlinerPass(IRPass):
 
         bbs = list(target_function.get_basic_blocks())
 
-        # TODO: the number of times a function is called globally is also important
+        # TODO: the number of times a function is called globally is also
+        # important
+        # TODO: check the threshold after the function is optimized
         if sum(len(bb.instructions) for bb in bbs) > self._threshold:
             return False
 
