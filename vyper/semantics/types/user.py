@@ -7,17 +7,17 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
     FlagDeclarationException,
-    InstantiationException,
-    InvalidAttribute,
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
-    UnknownAttribute,
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    validate_expected_type,
+    validate_kwargs,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -284,7 +284,7 @@ class EventT(_UserType):
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
-            return self._ctor_call_return_with_kwargs(node)
+            return validate_kwargs(node, self.arguments.copy(), self.typeclass)
 
         # warn about positional argument depreciation
         msg = "Instantiating events with positional arguments is "
@@ -297,42 +297,6 @@ class EventT(_UserType):
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
-
-    def _ctor_call_return_with_kwargs(self, node: vy_ast.Call) -> None:
-        # TODO: Remove block when positional args are removed
-        if len(node.args) > 0:
-            # can't mix args and kwargs
-            raise InstantiationException(
-                "Event instantiation requires either all positional arguments "
-                "or all keyword arguments",
-                node,
-            )
-
-        # manually validate kwargs for better error messages instead of
-        # relying on `validate_call_args` (same as structs)
-        members = self.arguments.copy()
-        keys = list(self.arguments.keys())
-        for i, kwarg in enumerate(node.keywords):
-            # x=5 => kwarg(arg="x", value=Int(5))
-            argname = kwarg.arg
-            if argname not in members:
-                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
-                raise UnknownAttribute("Unknown or duplicate event argument.", kwarg, hint=hint)
-            expected = keys[i]
-            if argname != expected:
-                raise InvalidAttribute(
-                    "Event keys are required to be in order, but got "
-                    f"`{argname}` instead of `{expected}`. (Reminder: the "
-                    f"keys in this event are {list(self.arguments)})",
-                    kwarg,
-                )
-            expected_type = members.pop(argname)
-            validate_expected_type(kwarg.value, expected_type)
-
-        if members:
-            raise InstantiationException(
-                f"Event instantiation does not define all fields: {', '.join(list(members))}", node
-            )
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -464,31 +428,7 @@ class StructT(_UserType):
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        # manually validate kwargs for better error messages instead of
-        # relying on `validate_call_args`
-        members = self.member_types.copy()
-        keys = list(self.member_types.keys())
-        for i, kwarg in enumerate(node.keywords):
-            # x=5 => kwarg(arg="x", value=Int(5))
-            argname = kwarg.arg
-            if argname not in members:
-                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
-                raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
-            expected = keys[i]
-            if argname != expected:
-                raise InvalidAttribute(
-                    "Struct keys are required to be in order, but got "
-                    f"`{argname}` instead of `{expected}`. (Reminder: the "
-                    f"keys in this struct are {list(self.member_types.items())})",
-                    kwarg,
-                )
-            expected_type = members.pop(argname)
-            validate_expected_type(kwarg.value, expected_type)
-
-        if members:
-            raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
-            )
+        validate_kwargs(node, self.member_types.copy(), self.typeclass)
 
         return self
 

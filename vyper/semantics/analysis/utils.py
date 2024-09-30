@@ -1,9 +1,11 @@
 import itertools
-from typing import Callable, Iterable, List
+from typing import Callable, Dict, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
+    InstantiationException,
+    InvalidAttribute,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -694,3 +696,32 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
         ret |= get_expr_writes(c)
     node._metadata["writes_r"] = ret
     return ret
+
+
+def validate_kwargs(node: vy_ast.Call, members: Dict, typeclass: str):
+    # manually validate kwargs for better error messages instead of
+    # relying on `validate_call_args`
+    keys = list(members.keys())
+    for i, kwarg in enumerate(node.keywords):
+        # x=5 => kwarg(arg="x", value=Int(5))
+        argname = kwarg.arg
+        if argname not in members:
+            hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+            raise UnknownAttribute(f"Unknown or duplicate {typeclass} argument.", kwarg, hint=hint)
+        expected = keys[i]
+        if argname != expected:
+            raise InvalidAttribute(
+                f"{typeclass.capitalize()} keys are required to be in order, but got "
+                f"`{argname}` instead of `{expected}`. (Reminder: the "
+                f"keys in this {typeclass} are {list(members)})",
+                kwarg,
+            )
+        expected_type = members.pop(argname)
+        validate_expected_type(kwarg.value, expected_type)
+
+    if members:
+        raise InstantiationException(
+            f"{typeclass.capitalize()} instantiation does not define all fields: "
+            f"{', '.join(list(members))}",
+            node,
+        )
