@@ -7,7 +7,7 @@ _writes = {
     "istore": "immutables",
     "call": _ALL,
     "delegatecall": _ALL,
-    "staticcall": "memory",
+    "staticcall": ("memory", "returndata"),
     "create": _ALL,
     "create2": _ALL,
     "invoke": _ALL,  # could be smarter, look up the effects of the invoked function
