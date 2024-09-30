@@ -8,13 +8,17 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
+_MAX_DEPTH = 5
+_MIN_DEPTH = 2
 
 class CSE(IRPass):
     available_expression_analysis: AvailableExpressionAnalysis
 
-    def run_pass(self, *args, **kwargs):
+    def run_pass(self, min_depth : int = _MIN_DEPTH, max_depth : int = _MAX_DEPTH):
         available_expression_analysis = self.analyses_cache.request_analysis(
-            AvailableExpressionAnalysis
+            AvailableExpressionAnalysis,
+            min_depth,
+            max_depth,
         )
         assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
         self.available_expression_analysis = available_expression_analysis
@@ -27,7 +31,9 @@ class CSE(IRPass):
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             available_expression_analysis = self.analyses_cache.force_analysis(
-                AvailableExpressionAnalysis
+                AvailableExpressionAnalysis,
+                min_depth,
+                max_depth
             )
             assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
             self.available_expression_analysis = available_expression_analysis

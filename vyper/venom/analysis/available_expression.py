@@ -17,7 +17,6 @@ from vyper.venom.context import IRFunction
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
-
 @dataclass
 class _Expression:
     first_inst: IRInstruction
@@ -164,17 +163,24 @@ class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression] = dict()
     dfg: DFGAnalysis
     lattice: _FunctionLattice
+    min_depth: int
+    max_depth: int
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction, min_depth : int = _MIN_DEPTH, max_depth : int = _MAX_DEPTH):
         super().__init__(analyses_cache, function)
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         self.dfg = dfg
 
+        self.min_depth = min_depth
+        self.max_depth = max_depth
+
         self.lattice = _FunctionLattice(function)
 
-    def analyze(self, *args, **kwargs):
+    def analyze(self, min_depth : int = _MIN_DEPTH, max_depth : int = _MAX_DEPTH):
+        self.min_depth = min_depth
+        self.max_depth = max_depth
         worklist = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
@@ -212,7 +218,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 if any(eff in write_effects for eff in read_effects):
                     available_expr.remove(expr)
 
-            if inst_expr.get_depth() in range(_MIN_DEPTH, _MAX_DEPTH + 1) and not any(
+            if inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1) and not any(
                 eff in write_effects for eff in inst_expr.get_reads()
             ):
                 available_expr.add(inst_expr)
@@ -234,7 +240,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         return op
 
     def _get_operands(
-        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression], depth: int = _MAX_DEPTH
+        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression], depth: int
     ) -> list[IROperand | _Expression]:
         return [self._get_operand(op, available_exprs, depth) for op in inst.operands]
 
@@ -242,10 +248,12 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self,
         inst: IRInstruction,
         available_exprs: OrderedSet[_Expression] | None = None,
-        depth: int = _MAX_DEPTH,
+        depth: int | None = None,
     ) -> _Expression:
         if available_exprs is None:
             available_exprs = self.lattice.data[inst.parent].data[inst]
+        if depth is None:
+            depth = self.max_depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands)
         for e in available_exprs:
