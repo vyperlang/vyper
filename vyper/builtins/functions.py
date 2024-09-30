@@ -1267,6 +1267,8 @@ class RawLog(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        context.check_is_not_constant(f"use {self._id}", expr)
+
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
         topics = [unwrap_location(topic) for topic in topics]

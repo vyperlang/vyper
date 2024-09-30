@@ -249,16 +249,11 @@ def get_search_paths(input_dict: dict) -> list[PurePath]:
     return [PurePath(p) for p in ret]
 
 
-def compile_from_input_dict(
-    input_dict: dict, exc_handler: Callable = exc_handler_raises
-) -> tuple[dict, dict]:
-    if input_dict["language"] != "Vyper":
-        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
-
+def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
-    experimental_codegen = input_dict["settings"].get("experimentalCodegen", False)
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
@@ -271,9 +266,18 @@ def compile_from_input_dict(
     else:
         assert optimize is None
 
-    settings = Settings(
+    return Settings(
         evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
     )
+
+
+def compile_from_input_dict(
+    input_dict: dict, exc_handler: Callable = exc_handler_raises
+) -> tuple[dict, dict]:
+    if input_dict["language"] != "Vyper":
+        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
+
+    settings = get_settings(input_dict)
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 

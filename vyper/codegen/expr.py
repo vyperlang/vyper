@@ -269,7 +269,8 @@ class Expr:
                 return IRnode.from_list(["~calldata"], typ=BytesT(0))
             elif key == "msg.value" and self.context.is_payable:
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
-            elif key == "msg.gas":
+            elif key in ("msg.gas", "msg.mana"):
+                # NOTE: `msg.mana` is an alias for `msg.gas`
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
@@ -713,7 +714,6 @@ class Expr:
                 ret = ["seq"]
                 if potential_overlap(darray, arg):
                     tmp = self.context.new_internal_variable(arg.typ)
-                    tmp = IRnode.from_list(tmp, typ=arg.typ, location=MEMORY)
                     ret.append(make_setter(tmp, arg))
                     arg = tmp
 
