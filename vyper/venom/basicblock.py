@@ -244,10 +244,10 @@ class IRInstruction:
         return self.opcode in BB_TERMINATORS
 
     def get_read_effects(self):
-        return effects.reads.get(self.opcode, ())
+        return effects.reads.get(self.opcode, effects.EMPTY)
 
     def get_write_effects(self):
-        return effects.writes.get(self.opcode, ())
+        return effects.writes.get(self.opcode, effects.EMPTY)
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
