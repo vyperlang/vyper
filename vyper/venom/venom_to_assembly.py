@@ -206,6 +206,8 @@ class VenomCompiler:
             stack = stack.copy()
 
         stack_ops_count = len(stack_ops)
+        if stack_ops_count == 0:
+            return 0
 
         counts = Counter(stack_ops)
 
@@ -214,7 +216,7 @@ class VenomCompiler:
         # this operand could ocure even more deeper in the stack
         # but only those that are needed/relevant in calculation
         # are considered
-        positions: dict[IROperand, list[int]] = defaultdict(lambda: [])
+        positions: dict[IROperand, list[int]] = defaultdict(list)
         for op in stack_ops:
             positions[op] = []
             for i in range(counts[op]):
@@ -255,9 +257,7 @@ class VenomCompiler:
 
             cost += self.swap(assembly, stack, final_stack_depth)
 
-        assert (
-            len(stack_ops) == 0 or stack._stack[-len(stack_ops) :] == stack_ops
-        ), f"Wrong stack {stack} {stack_ops}"
+        assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
         return cost
 
