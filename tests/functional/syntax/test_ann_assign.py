@@ -8,7 +8,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
     UnknownAttribute,
-    VariableDeclarationException,
 )
 
 fail_list = [
