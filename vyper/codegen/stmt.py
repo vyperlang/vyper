@@ -214,9 +214,10 @@ class Stmt:
                 raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
             varname = self.stmt.target.target.id
-            assert varname not in forvars
 
             i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
+
+            assert varname not in self.context.forvars
             self.context.forvars[varname] = i
 
             loop_body = ["seq"]
