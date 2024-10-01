@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, Dict, Iterable, List
+from typing import Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
