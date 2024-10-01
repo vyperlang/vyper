@@ -93,28 +93,31 @@ class DFTPass(IRPass):
         #
         last_effects = {}
         last_volatile = None
+        terminator_inst = non_phis[-1]
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             for use in uses:
                 self.ida[use].append(inst)
                 
-            if inst.is_volatile and not uses:
-                if last_volatile:
-                    self.ida[inst].append(last_volatile)
+            if inst.is_volatile:
+                if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
+                    self.ida[terminator_inst].append(inst)
+
+            if inst.is_volatile:
                 last_volatile = inst
 
-            # read_effects = inst.get_read_effects()
-            # write_effects = inst.get_write_effects()
+            read_effects = inst.get_read_effects()
+            write_effects = inst.get_write_effects()
 
-            # for write_effect in write_effects:
-            #     if write_effect in last_effects:
-            #         self.ida[inst].append(last_effects[write_effect])
-            #     last_effects[write_effect] = inst
+            for write_effect in write_effects:
+                if write_effect in last_effects:
+                    self.ida[inst].append(last_effects[write_effect])
+                last_effects[write_effect] = inst
 
-            # for read_effect in read_effects:
-            #     if read_effect in last_effects:
-            #         self.ida[inst].append(last_effects[read_effect])
+            for read_effect in read_effects:
+                if read_effect in last_effects:
+                    self.ida[inst].append(last_effects[read_effect])
 
             
 
