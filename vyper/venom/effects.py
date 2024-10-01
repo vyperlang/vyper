@@ -6,8 +6,10 @@ class Effects(Flag):
     TRANSIENT = auto()
     MEMORY = auto()
     IMMUTABLES = auto()
-    BALANCE = auto()
     RETURNDATA = auto()
+    BALANCE = auto()
+    EXTCODE = auto()
+    MSIZE = auto()
 
 
 EMPTY = Effects(0)
@@ -16,11 +18,13 @@ STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
 IMMUTABLES = Effects.IMMUTABLES
-BALANCE = Effects.BALANCE
 RETURNDATA = Effects.RETURNDATA
+BALANCE = Effects.BALANCE
+EXTCODE = Effects.EXTCODE
+MSIZE = Effects.MSIZE
 
 
-writes = {
+_writes = {
     "sstore": STORAGE,
     "tstore": TRANSIENT,
     "mstore": MEMORY,
@@ -39,7 +43,7 @@ writes = {
     "mcopy": MEMORY,
 }
 
-reads = {
+_reads = {
     "sload": STORAGE,
     "tload": TRANSIENT,
     "iload": IMMUTABLES,
@@ -48,12 +52,26 @@ reads = {
     "call": ALL,
     "delegatecall": ALL,
     "staticcall": ALL,
+    "create": ALL,
+    "create2": ALL,
+    "invoke": ALL,
     "returndatasize": RETURNDATA,
     "returndatacopy": RETURNDATA,
     "balance": BALANCE,
     "selfbalance": BALANCE,
+    "extcodecopy": EXTCODE,
     "log": MEMORY,
     "revert": MEMORY,
     "return": MEMORY,
     "sha3": MEMORY,
+    "msize": MSIZE,
 }
+
+reads = _reads.copy()
+writes = _writes.copy()
+
+for k, v in reads.items():
+    if MEMORY in v:
+        if k not in writes:
+            writes[k] = EMPTY
+        writes[k] |= MSIZE
