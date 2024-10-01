@@ -77,8 +77,11 @@ class DFTPass(IRPass):
             if len(to_remove) > 0:
                 entry_instructions.dropmany(to_remove)
 
-        entry_instructions = sorted(list(entry_instructions), key=lambda x: x.is_bb_terminator, reverse=True)
-
+        terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
+        assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
+        entry_instructions.remove(terminator)
+        entry_instructions.add(terminator)
+        
         self.visited_instructions = OrderedSet()
         
         for inst in entry_instructions:
@@ -101,31 +104,29 @@ class DFTPass(IRPass):
         # Apply effects to dependency graph
         #
         last_effects = {}
-        last_volatile = None
-        terminator_inst = non_phis[-1]
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             for use in uses:
                 self.ida[use].append(inst)
                 
-            if inst.is_volatile or not uses:
-                #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
-                if last_volatile:
-                    self.ida[inst].append(last_volatile)
-                last_volatile = inst
+            # if inst.is_volatile or not uses:
+            #     #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
+            #     if last_volatile:
+            #         self.ida[inst].append(last_volatile)
+            #     last_volatile = inst
 
-            # read_effects = inst.get_read_effects()
-            # write_effects = inst.get_write_effects()
+            read_effects = inst.get_read_effects()
+            write_effects = inst.get_write_effects()
 
-            # for write_effect in write_effects:
-            #     if write_effect in last_effects:
-            #         self.ida[inst].append(last_effects[write_effect])
-            #     last_effects[write_effect] = inst
+            for write_effect in write_effects:
+                if write_effect in last_effects:
+                    self.ida[inst].append(last_effects[write_effect])
+                last_effects[write_effect] = inst
 
-            # for read_effect in read_effects:
-            #     if read_effect in last_effects:
-            #         self.ida[inst].append(last_effects[read_effect])
+            for read_effect in read_effects:
+                if read_effect in last_effects:
+                    self.ida[inst].append(last_effects[read_effect])
 
             
 
