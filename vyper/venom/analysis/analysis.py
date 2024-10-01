@@ -1,6 +1,6 @@
 from typing import Type
-from vyper.compiler.settings import OptimizationLevel
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.function import IRFunction
 
 

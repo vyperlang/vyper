@@ -1,17 +1,18 @@
-from vyper.utils import OrderedSet
+from collections import defaultdict, deque
+
 from vyper.compiler.settings import OptimizationLevel
-from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction,IRBasicBlock,IRVariable, CFG_ALTERING_INSTRUCTIONS,IRLabel
+from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
-from collections import deque,defaultdict
 
 class FunctionInlinerPass(IRPass):
     """
     This pass removes instructions that produce output that is never used.
     """
+
     def run_pass(self):
         self._alloca_map = self._build_alloca_map()
 
@@ -92,8 +93,8 @@ class FunctionInlinerPass(IRPass):
                     inst.operands = [self._alloca_map[alloca_id].output]
                 if inst.opcode == "param":
                     inst.opcode = "store"
-                    op = invoke_inst.operands[-i-1]
-                    inst.operands = [invoke_inst.operands[-i-1]]
+                    op = invoke_inst.operands[-i - 1]
+                    inst.operands = [invoke_inst.operands[-i - 1]]
 
                 new_var = fn.get_next_variable()
                 var_map[inst.output] = new_var
@@ -104,13 +105,13 @@ class FunctionInlinerPass(IRPass):
 
         bb = invoke_inst.parent
         assert invoke_idx < len(bb.instructions), (invoke_idx, bb)
-        next_bb.instructions = bb.instructions[invoke_idx+1:]
+        next_bb.instructions = bb.instructions[invoke_idx + 1 :]
         for inst in next_bb.instructions:
             inst.parent = next_bb
         fn.append_basic_block(next_bb)
         self.worklist.append(next_bb)
 
-        bb.instructions = bb.instructions[:invoke_idx+1]
+        bb.instructions = bb.instructions[: invoke_idx + 1]
         assert len(bb.instructions) - 1 == invoke_idx
         invoke_inst.opcode = "jmp"
         invoke_inst.operands = [target_bb.label]

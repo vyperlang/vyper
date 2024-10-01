@@ -1,8 +1,8 @@
 from typing import Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
-from vyper.utils import OrderedSet
 
 
 class IRContext:
@@ -55,8 +55,7 @@ class IRContext:
                         if next_fn not in seen:
                             to_visit.add(next_fn)
 
-        self.functions = {label: fn for label,fn in self.functions.items() if fn in seen}
-
+        self.functions = {label: fn for label, fn in self.functions.items() if fn in seen}
 
     def chain_basic_blocks(self) -> None:
         """
