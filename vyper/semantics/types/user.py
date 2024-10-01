@@ -292,7 +292,7 @@ class EventT(_UserType):
                     node,
                 )
 
-            return validate_kwargs(node, self.arguments.copy(), self.typeclass)
+            return validate_kwargs(node, self.arguments, self.typeclass)
 
         # warn about positional argument depreciation
         msg = "Instantiating events with positional arguments is "
@@ -436,7 +436,7 @@ class StructT(_UserType):
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        validate_kwargs(node, self.member_types.copy(), self.typeclass)
+        validate_kwargs(node, self.member_types, self.typeclass)
 
         return self
 

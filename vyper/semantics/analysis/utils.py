@@ -702,6 +702,7 @@ def validate_kwargs(node: vy_ast.Call, members: Dict, typeclass: str):
     # manually validate kwargs for better error messages instead of
     # relying on `validate_call_args`
     keys = list(members.keys())
+    members = members.copy()
     for i, kwarg in enumerate(node.keywords):
         # x=5 => kwarg(arg="x", value=Int(5))
         argname = kwarg.arg
