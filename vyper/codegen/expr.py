@@ -716,7 +716,6 @@ class Expr:
                 ret = ["seq"]
                 if potential_overlap(darray, arg):
                     tmp = self.context.new_internal_variable(arg.typ)
-                    tmp = IRnode.from_list(tmp, typ=arg.typ, location=MEMORY)
                     ret.append(make_setter(tmp, arg))
                     arg = tmp
 
