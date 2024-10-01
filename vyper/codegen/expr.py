@@ -693,7 +693,7 @@ class Expr:
             (arg0,) = self.expr.args
             arg_ir = Expr(arg0, self.context).ir_node
 
-            assert isinstance(arg_ir.typ, (AddressT, InterfaceT)), arg_ir.typ
+            assert isinstance(arg_ir.typ, AddressT), arg_ir.typ
             arg_ir.typ = self.expr._metadata["type"]
 
             return arg_ir
