@@ -67,12 +67,21 @@ class DFTPass(IRPass):
         self.instructions = list(bb.pseudo_instructions)
 
         self.visited_instructions = OrderedSet()
-        for inst in reversed(list(bb.non_phi_instructions)):
+        non_phi_instructions = list(bb.non_phi_instructions)
+        for inst in non_phi_instructions:
             self._calculate_instruction_offspring_count_r(inst)
 
+        entry_instructions = OrderedSet(non_phi_instructions)
+        for inst in non_phi_instructions:
+            to_remove = self.ida.get(inst, [])
+            if len(to_remove) > 0:
+                entry_instructions.dropmany(to_remove)
+
+        entry_instructions = sorted(list(entry_instructions), key=lambda x: x.is_bb_terminator, reverse=True)
+
         self.visited_instructions = OrderedSet()
-        non_phi_instructions = list(bb.non_phi_instructions)
-        for inst in reversed(non_phi_instructions):
+        
+        for inst in entry_instructions:
             self._process_instruction_r(self.instructions, inst)
 
         bb.instructions = self.instructions
