@@ -1,9 +1,8 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    ModuleNotFound
-)
+from vyper.exceptions import ModuleNotFound
+
 
 def test_implicitly_relative_import_crashes(make_input_bundle):
     top = """
@@ -27,20 +26,23 @@ def foo():
     pass
     """
 
-    input_bundle = make_input_bundle({"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1})
+    input_bundle = make_input_bundle(
+        {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
+    )
 
     with pytest.raises(ModuleNotFound):
         compiler.compile_code(top, input_bundle=input_bundle)
 
-
     lib0 = """
-from subdir1 import lib1 as lib1 
+from subdir1 import lib1 as lib1
 
 def foo():
     lib1.foo()
     """
 
-    input_bundle = make_input_bundle({"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1})
+    input_bundle = make_input_bundle(
+        {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
+    )
 
     with pytest.raises(ModuleNotFound):
         compiler.compile_code(top, input_bundle=input_bundle)
@@ -68,5 +70,7 @@ def foo():
     pass
     """
 
-    input_bundle = make_input_bundle({"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1})
+    input_bundle = make_input_bundle(
+        {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
+    )
     compiler.compile_code(top, input_bundle=input_bundle)
