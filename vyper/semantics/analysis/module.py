@@ -789,11 +789,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
     def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        # the directory this (currently being analyzed) module is in
-        self_search_path = Path(self.ast.resolved_path).parent
-
-        with self.input_bundle.poke_search_path(self_search_path):
-            return self._load_import_helper(node, level, module_str, alias)
+        return self._load_import_helper(node, level, module_str, alias)
 
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
