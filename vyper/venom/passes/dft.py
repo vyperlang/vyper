@@ -100,11 +100,10 @@ class DFTPass(IRPass):
             for use in uses:
                 self.ida[use].append(inst)
                 
-            if inst.is_volatile:
+            if inst.is_volatile or not uses:
                 #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
-                self.ida[inst].append(last_volatile)
-
-            if inst.is_volatile:
+                if last_volatile:
+                    self.ida[inst].append(last_volatile)
                 last_volatile = inst
 
             # read_effects = inst.get_read_effects()
