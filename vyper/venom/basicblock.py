@@ -208,7 +208,6 @@ class IRInstruction:
     output: Optional[IROperand]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
-    dup_requirements: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
     annotation: Optional[str]
     ast_source: Optional[IRnode]
@@ -226,7 +225,6 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
-        self.dup_requirements = OrderedSet()
         self.annotation = None
         self.ast_source = None
         self.error_msg = None

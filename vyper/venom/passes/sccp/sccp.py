@@ -59,15 +59,12 @@ class SCCP(IRPass):
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     cfg_dirty: bool
-    # list of basic blocks whose cfg_in was modified
-    cfg_in_modified: OrderedSet[IRBasicBlock]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
-        self.cfg_in_modified = OrderedSet()
 
     def run_pass(self):
         self.fn = self.function
@@ -75,8 +72,6 @@ class SCCP(IRPass):
         self._compute_uses()
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
-
-        # self._propagate_variables()
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -312,9 +307,6 @@ class SCCP(IRPass):
                 inst.operands = [target]
 
                 self.cfg_dirty = True
-                for bb in inst.parent.cfg_out:
-                    if bb.label == target:
-                        self.cfg_in_modified.add(bb)
 
         elif inst.opcode in ("assert", "assert_unreachable"):
             lat = self._eval_from_lattice(inst.operands[0])
