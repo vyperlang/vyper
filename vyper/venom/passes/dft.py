@@ -8,6 +8,7 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+import vyper.venom.effects as effects
 
 
 class DFTPass(IRPass):
@@ -92,13 +93,13 @@ class DFTPass(IRPass):
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
-        self.ida = dict[IRInstruction, list[IRInstruction]]()
+        self.ida = dict[IRInstruction, OrderedSet[IRInstruction]]()
         # gda: group dependency analysis
 
         non_phis = list(bb.non_phi_instructions)
 
         for inst in non_phis:
-            self.ida[inst] = list()
+            self.ida[inst] = OrderedSet()
 
         #
         # Apply effects to dependency graph
@@ -108,7 +109,7 @@ class DFTPass(IRPass):
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             for use in uses:
-                self.ida[use].append(inst)
+                self.ida[use].add(inst)
                 
             # if inst.is_volatile or not uses:
             #     #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
@@ -119,14 +120,17 @@ class DFTPass(IRPass):
             read_effects = inst.get_read_effects()
             write_effects = inst.get_write_effects()
 
+            # if inst.is_volatile:
+            #     assert read_effects == effects.ALL or write_effects == effects.ALL, f"Instruction {inst} has read effects {read_effects} and write effects {write_effects}"
+
             for write_effect in write_effects:
-                if write_effect in last_effects:
-                    self.ida[inst].append(last_effects[write_effect])
+                if write_effect in last_effects and last_effects[write_effect] != inst:
+                    self.ida[inst].add(last_effects[write_effect])
                 last_effects[write_effect] = inst
 
             for read_effect in read_effects:
-                if read_effect in last_effects:
-                    self.ida[inst].append(last_effects[read_effect])
+                if read_effect in last_effects and last_effects[read_effect] != inst:
+                    self.ida[inst].add(last_effects[read_effect])
 
             
 
