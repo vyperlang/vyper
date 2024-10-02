@@ -12,6 +12,7 @@ class DFTPass(IRPass):
     function: IRFunction
     inst_offspring_count: dict[IRInstruction, int]
     visited_instructions: OrderedSet[IRInstruction]
+    ida: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
@@ -88,7 +89,7 @@ class DFTPass(IRPass):
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
-        self.ida = dict[IRInstruction, OrderedSet[IRInstruction]]()
+        self.ida = {}
 
         non_phis = list(bb.non_phi_instructions)
         for inst in non_phis:
