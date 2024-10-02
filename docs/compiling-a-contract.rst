@@ -145,7 +145,7 @@ When you compile your contract code, you can specify the target Ethereum Virtual
 .. note::
    If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised and compilation will not continue.
 
-For instance, the adding the following pragma to a contract indicates that it should be compiled for the "cancun" fork of the EVM.
+For instance, adding the following pragma to a contract indicates that it should be compiled for the "cancun" fork of the EVM.
 
 .. code-block:: vyper
 
