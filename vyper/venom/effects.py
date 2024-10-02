@@ -75,3 +75,7 @@ for k, v in reads.items():
         if k not in writes:
             writes[k] = EMPTY
         writes[k] |= MSIZE
+
+for k, v in writes.items():
+    if MEMORY in v:
+        writes[k] |= MSIZE
