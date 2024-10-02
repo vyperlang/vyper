@@ -104,33 +104,28 @@ class DFTPass(IRPass):
         #
         # Apply effects to dependency graph
         #
-        last_effects: dict[effects.Effects, IRInstruction] = {}
+        last_write_effects: dict[effects.Effects, IRInstruction] = {}
+        last_read_effects: dict[effects.Effects, IRInstruction] = {}
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             for use in uses:
                 self.ida[use].add(inst)
 
-            # if inst.is_volatile or not uses:
-            #     #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
-            #     if last_volatile:
-            #         self.ida[inst].append(last_volatile)
-            #     last_volatile = inst
-
             read_effects = inst.get_read_effects()
             write_effects = inst.get_write_effects()
 
-            # if inst.is_volatile:
-            #     assert read_effects == effects.ALL or write_effects == effects.ALL, f"Instruction {inst} has read effects {read_effects} and write effects {write_effects}"
-
             for write_effect in write_effects:
-                if write_effect in last_effects and last_effects[write_effect] != inst:
-                    self.ida[inst].add(last_effects[write_effect])
-                last_effects[write_effect] = inst
+                if write_effect in last_write_effects and last_write_effects[write_effect] != inst:
+                    self.ida[inst].add(last_write_effects[write_effect])
+                if write_effect in last_read_effects:
+                    self.ida[inst].add(last_read_effects[write_effect])
+                last_write_effects[write_effect] = inst
 
             for read_effect in read_effects:
-                if read_effect in last_effects and last_effects[read_effect] != inst:
-                    self.ida[inst].add(last_effects[read_effect])
+                if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
+                    self.ida[inst].add(last_write_effects[read_effect])
+                last_read_effects[read_effect] = inst
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
