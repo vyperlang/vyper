@@ -147,8 +147,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                a += f" {self.inst_offspring_count.get(inst, " - ")}"
-                b += f" {self.inst_offspring_count.get(dep, " - ")}"
+                a += f" {self.inst_offspring_count.get(inst, ' - ')}"
+                b += f" {self.inst_offspring_count.get(dep, ' - ')}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
