@@ -58,3 +58,56 @@ def foo() -> bool:
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.foo() is True
+
+
+def test_import_interface_constants(make_input_bundle, get_contract):
+    ifaces = """
+FOO: constant(uint256) = 3
+
+interface IFoo:
+    def foo() -> DynArray[uint256, FOO]: nonpayable
+    """
+
+    contract = """
+import ifaces
+
+implements: ifaces
+
+@external
+def foo() -> DynArray[uint256, ifaces.FOO]:
+    return [1, 2, ifaces.FOO]
+    """
+
+    input_bundle = make_input_bundle({"ifaces.vyi": ifaces})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo() == [1, 2, 3]
+
+
+def test_import_interface_flags(make_input_bundle, get_contract):
+    ifaces = """
+flag Foo:
+    BOO
+    MOO
+    POO
+
+interface IFoo:
+    def foo() -> Foo: nonpayable
+    """
+
+    contract = """
+import ifaces
+
+implements: ifaces
+
+@external
+def foo() -> ifaces.Foo:
+    return ifaces.Foo.POO
+    """
+
+    input_bundle = make_input_bundle({"ifaces.vyi": ifaces})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo() == 4
