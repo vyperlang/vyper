@@ -1,5 +1,3 @@
-import random
-
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -19,21 +17,49 @@ class DFTPass(IRPass):
         super().__init__(analyses_cache, function)
         self.inst_offspring_count = {}
 
-    def _permutate(self, instructions: list[IRInstruction]):
-        return random.shuffle(instructions)
+    def run_pass(self) -> None:
+        self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-    def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        basic_blocks = list(self.function.get_basic_blocks())
 
-        self.visited_instructions.add(inst)
-        self.inst_offspring_count[inst] = 1
+        self.function.clear_basic_blocks()
+        for bb in basic_blocks:
+            self._process_basic_block(bb)
 
-        for dep_inst in self.ida[inst]:
-            if inst.parent != dep_inst.parent:
-                continue
-            self._calculate_instruction_offspring_count_r(dep_inst)
-            self.inst_offspring_count[inst] += self.inst_offspring_count[dep_inst]
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        self.function.append_basic_block(bb)
+
+        self._calculate_dependency_graphs(bb)
+        self.instructions = list(bb.pseudo_instructions)
+
+        # Compute the number of instructions that are dependent on each instruction
+        self.visited_instructions = OrderedSet()
+        non_phi_instructions = list(bb.non_phi_instructions)
+        for inst in non_phi_instructions:
+            self._calculate_instruction_offspring_count_r(inst)
+
+        # Compute entry points in the graph of instruction dependencies
+        entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
+        for inst in non_phi_instructions:
+            to_remove = self.ida.get(inst, OrderedSet())
+            if len(to_remove) > 0:
+                entry_instructions.dropmany(to_remove)
+
+        # Move the terminator instruction to the end of the list
+        terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
+        assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
+        entry_instructions.remove(terminator)
+        entry_instructions.add(terminator)
+
+        self.visited_instructions = OrderedSet()
+        for inst in entry_instructions:
+            self._process_instruction_r(self.instructions, inst)
+
+        bb.instructions = self.instructions
+        assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
@@ -60,48 +86,16 @@ class DFTPass(IRPass):
 
         instructions.append(inst)
 
-    def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.function.append_basic_block(bb)
-
-        self._calculate_dependency_graphs(bb)
-        self.instructions = list(bb.pseudo_instructions)
-
-        self.visited_instructions = OrderedSet()
-        non_phi_instructions = list(bb.non_phi_instructions)
-        for inst in non_phi_instructions:
-            self._calculate_instruction_offspring_count_r(inst)
-
-        entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
-        for inst in non_phi_instructions:
-            to_remove = self.ida.get(inst, OrderedSet())
-            if len(to_remove) > 0:
-                entry_instructions.dropmany(to_remove)
-
-        terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
-        assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
-        entry_instructions.remove(terminator)
-        entry_instructions.add(terminator)
-
-        self.visited_instructions = OrderedSet()
-
-        for inst in entry_instructions:
-            self._process_instruction_r(self.instructions, inst)
-
-        bb.instructions = self.instructions
-        assert bb.is_terminated, f"Basic block should be terminated {bb}"
-
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
         self.ida = dict[IRInstruction, OrderedSet[IRInstruction]]()
-        # gda: group dependency analysis
 
         non_phis = list(bb.non_phi_instructions)
-
         for inst in non_phis:
             self.ida[inst] = OrderedSet()
 
         #
-        # Apply effects to dependency graph
+        # Compute dependency graph
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
@@ -111,8 +105,8 @@ class DFTPass(IRPass):
             for use in uses:
                 self.ida[use].add(inst)
 
-            read_effects = inst.get_read_effects()
             write_effects = inst.get_write_effects()
+            read_effects = inst.get_read_effects()
 
             for write_effect in write_effects:
                 if write_effect in last_write_effects and last_write_effects[write_effect] != inst:
@@ -126,17 +120,18 @@ class DFTPass(IRPass):
                     self.ida[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
 
-    def run_pass(self) -> None:
-        self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
+    def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
+        if inst in self.visited_instructions:
+            return
 
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        basic_blocks = list(self.function.get_basic_blocks())
+        self.visited_instructions.add(inst)
+        self.inst_offspring_count[inst] = 1
 
-        self.function.clear_basic_blocks()
-        for bb in basic_blocks:
-            self._process_basic_block(bb)
-
-        self.analyses_cache.request_analysis(LivenessAnalysis)
+        for dep_inst in self.ida[inst]:
+            if inst.parent != dep_inst.parent:
+                continue
+            self._calculate_instruction_offspring_count_r(dep_inst)
+            self.inst_offspring_count[inst] += self.inst_offspring_count[dep_inst]
 
     #
     # Graphviz output for debugging
