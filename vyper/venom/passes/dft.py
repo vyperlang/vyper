@@ -72,9 +72,9 @@ class DFTPass(IRPass):
         for inst in non_phi_instructions:
             self._calculate_instruction_offspring_count_r(inst)
 
-        entry_instructions = OrderedSet(non_phi_instructions)
+        entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
         for inst in non_phi_instructions:
-            to_remove = self.ida.get(inst, [])
+            to_remove = self.ida.get(inst, OrderedSet())
             if len(to_remove) > 0:
                 entry_instructions.dropmany(to_remove)
 
@@ -82,9 +82,9 @@ class DFTPass(IRPass):
         assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
         entry_instructions.remove(terminator)
         entry_instructions.add(terminator)
-        
+
         self.visited_instructions = OrderedSet()
-        
+
         for inst in entry_instructions:
             self._process_instruction_r(self.instructions, inst)
 
@@ -104,13 +104,13 @@ class DFTPass(IRPass):
         #
         # Apply effects to dependency graph
         #
-        last_effects = {}
+        last_effects: dict[effects.Effects, IRInstruction] = {}
         for inst in non_phis:
             uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
 
             for use in uses:
                 self.ida[use].add(inst)
-                
+
             # if inst.is_volatile or not uses:
             #     #if terminator_inst.opcode in ["exit", "ret", "stop", "return", "jmp"]:
             #     if last_volatile:
@@ -131,10 +131,6 @@ class DFTPass(IRPass):
             for read_effect in read_effects:
                 if read_effect in last_effects and last_effects[read_effect] != inst:
                     self.ida[inst].add(last_effects[read_effect])
-
-            
-
-            
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
@@ -157,8 +153,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                a += f" {self.inst_count.get(inst, " - ")}"
-                b += f" {self.inst_count.get(dep, " - ")}"
+                a += f" {self.inst_offspring_count.get(inst, " - ")}"
+                b += f" {self.inst_offspring_count.get(dep, " - ")}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
