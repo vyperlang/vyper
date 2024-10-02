@@ -3,7 +3,6 @@
 
 from typing import Optional
 
-from vyper.venom.passes.store_expansion import StoreExpansionPass
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -20,6 +19,7 @@ from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.passes.store_elimination import StoreElimination
+from vyper.venom.passes.store_expansion import StoreExpansionPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
