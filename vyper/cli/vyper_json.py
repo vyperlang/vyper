@@ -361,8 +361,13 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["object"] = data["bytecode_runtime"]
             if "opcodes_runtime" in data:
                 evm["opcodes"] = data["opcodes_runtime"]
-            if "source_map_runtime" in data:
-                evm["sourceMap"] = data["source_map_runtime"]
+            if "source_map" in data:
+                evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
+            if "source_map_full" in data:
+                evm["sourceMapFull"] = data["source_map_full"]
+            # MERGE: revisit
+            # if "source_map_runtime" in data:
+            #     evm["sourceMap"] = data["source_map_runtime"]
 
     return output_dict
 

@@ -1,6 +1,7 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
+from vyper.evm.opcodes import is_eof_enabled
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
@@ -91,11 +92,15 @@ def ir_for_self_call(stmt_expr, context):
     if return_buffer is not None:
         goto_op += [return_buffer]
     # pass return label to subroutine
-    goto_op.append(["symbol", return_label])
+    if not is_eof_enabled():
+        goto_op.append(["symbol", return_label])
 
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
-    call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
+    if is_eof_enabled():
+        call_sequence.extend([copy_args, goto_op])
+    else:
+        call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
     if return_buffer is not None:
         # push return buffer location to stack
         call_sequence += [return_buffer]
