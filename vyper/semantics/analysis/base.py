@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
 
@@ -234,6 +234,17 @@ class VarAccess:
     # A sentinel indicating a subscript access
     SUBSCRIPT_ACCESS: ClassVar[Any] = object()
 
+    def __reduce__(self):
+        dict_obj = {f.name: getattr(self, f.name) for f in fields(self)}
+        return self.__class__._produce, (dict_obj,)
+
+    @classmethod
+    def _produce(cls, data):
+        ret = cls.__new__(cls)
+        for k, v in data.items():
+            object.__setattr__(ret, k, v)
+        return cls
+
     @cached_property
     def attrs(self):
         ret = []
@@ -280,15 +291,15 @@ class ExprInfo:
     modifiability: Modifiability = Modifiability.MODIFIABLE
     attr: Optional[str] = None
 
+    _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
+    _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
+
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
-
-        self._writes: OrderedSet[VarAccess] = OrderedSet()
-        self._reads: OrderedSet[VarAccess] = OrderedSet()
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":
