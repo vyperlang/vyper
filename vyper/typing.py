@@ -1,21 +1,21 @@
 from tokenize import TokenInfo
-from typing import Dict, Optional, List, Sequence, Tuple, Union
+from typing import Optional, Sequence, Union
 
 # Parser
-ForLoopAnnotations = Dict[Tuple[int, int], List[TokenInfo]]
-ModificationOffsets = Dict[Tuple[int, int], str]
-NativeHexLiteralLocations = List[Tuple[int, int]]
-ParserPosition = Tuple[int, int]
+ForLoopAnnotations = dict[tuple[int, int], list[TokenInfo]]
+ModificationOffsets = dict[tuple[int, int], str]
+NativeHexLiteralLocations = list[tuple[int, int]]
+ParserPosition = tuple[int, int]
 
 # Compiler
 ContractPath = str
 SourceCode = str
 OutputFormats = Sequence[str]
-StorageLayout = Dict
+StorageLayout = dict
 
 # Opcodes
-OpcodeGasCost = Union[int, Tuple]
-OpcodeValue = Tuple[Optional[int], int, int, OpcodeGasCost]
-OpcodeMap = Dict[str, OpcodeValue]
-OpcodeRulesetValue = Tuple[Optional[int], int, int, int]
-OpcodeRulesetMap = Dict[str, OpcodeRulesetValue]
+OpcodeGasCost = Union[int, tuple]
+OpcodeValue = tuple[Optional[int], int, int, OpcodeGasCost]
+OpcodeMap = dict[str, OpcodeValue]
+OpcodeRulesetValue = tuple[Optional[int], int, int, int]
+OpcodeRulesetMap = dict[str, OpcodeRulesetValue]
