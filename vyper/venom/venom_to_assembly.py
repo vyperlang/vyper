@@ -233,6 +233,8 @@ class VenomCompiler:
             cost += self.swap(assembly, stack, depth)
             cost += self.swap(assembly, stack, final_stack_depth)
 
+        assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
+
         return cost
 
     def _emit_input_operands(
