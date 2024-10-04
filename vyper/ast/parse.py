@@ -55,7 +55,13 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, for_loop_annotations, python_source = pre_parse(vyper_source)
+    (
+        settings,
+        class_types,
+        for_loop_annotations,
+        native_hex_literal_locations,
+        python_source,
+    ) = pre_parse(vyper_source)
     try:
         py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
@@ -75,6 +81,7 @@ def parse_to_ast_with_settings(
         vyper_source,
         class_types,
         for_loop_annotations,
+        native_hex_literal_locations,
         source_id=source_id,
         module_path=module_path,
         resolved_path=resolved_path,
@@ -120,6 +127,7 @@ def annotate_python_ast(
     vyper_source: str,
     modification_offsets: ModificationOffsets,
     for_loop_annotations: dict,
+    native_hex_literal_locations: list,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -150,6 +158,7 @@ def annotate_python_ast(
         vyper_source,
         modification_offsets,
         for_loop_annotations,
+        native_hex_literal_locations,
         tokens,
         source_id,
         module_path=module_path,
@@ -170,6 +179,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         source_code: str,
         modification_offsets: ModificationOffsets,
         for_loop_annotations: dict,
+        native_hex_literal_locations: list,
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
@@ -182,6 +192,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_code = source_code
         self._modification_offsets = modification_offsets
         self._for_loop_annotations = for_loop_annotations
+        self._native_hex_literal_locations = native_hex_literal_locations
 
         self.counter: int = 0
 
@@ -401,7 +412,21 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
         elif isinstance(node.value, str):
-            node.ast_type = "Str"
+            if (node.lineno, node.col_offset) in self._native_hex_literal_locations:
+                if len(node.value) % 2 != 0:
+                    raise SyntaxException(
+                        "Native hex string must have an even number of characters",
+                        self._source_code,
+                        node.lineno,
+                        node.col_offset,
+                    )
+
+                byte_val = bytes.fromhex(node.value[1:-1])
+
+                node.ast_type = "Bytes"
+                node.value = byte_val
+            else:
+                node.ast_type = "Str"
         elif isinstance(node.value, bytes):
             node.ast_type = "Bytes"
         elif isinstance(node.value, Ellipsis.__class__):

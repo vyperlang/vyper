@@ -2,7 +2,7 @@ import enum
 import io
 import re
 from collections import defaultdict
-from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
+from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
@@ -48,7 +48,7 @@ def validate_version_pragma(version_str: str, full_source_code: str, start: Pars
         )
 
 
-class ForParserState(enum.Enum):
+class CustomParserState(enum.Enum):
     NOT_RUNNING = enum.auto()
     START_SOON = enum.auto()
     RUNNING = enum.auto()
@@ -63,7 +63,7 @@ class ForParser:
         self.annotations = {}
         self._current_annotation = None
 
-        self._state = ForParserState.NOT_RUNNING
+        self._state = CustomParserState.NOT_RUNNING
         self._current_for_loop = None
 
     def consume(self, token):
@@ -71,15 +71,15 @@ class ForParser:
         if token.type == NAME and token.string == "for":
             # note: self._state should be NOT_RUNNING here, but we don't sanity
             # check here as that should be an error the parser will handle.
-            self._state = ForParserState.START_SOON
+            self._state = CustomParserState.START_SOON
             self._current_for_loop = token.start
 
-        if self._state == ForParserState.NOT_RUNNING:
+        if self._state == CustomParserState.NOT_RUNNING:
             return False
 
         # state machine: start slurping tokens
         if token.type == OP and token.string == ":":
-            self._state = ForParserState.RUNNING
+            self._state = CustomParserState.RUNNING
 
             # sanity check -- this should never really happen, but if it does,
             # try to raise an exception which pinpoints the source.
@@ -93,17 +93,52 @@ class ForParser:
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
-            self._state = ForParserState.NOT_RUNNING
+            self._state = CustomParserState.NOT_RUNNING
             self.annotations[self._current_for_loop] = self._current_annotation or []
             self._current_annotation = None
             return False
 
-        if self._state != ForParserState.RUNNING:
+        if self._state != CustomParserState.RUNNING:
             return False
 
         # slurp the token
         self._current_annotation.append(token)
         return True
+
+
+class NativeHexParser:
+    def __init__(self):
+        self.locations = []
+        self._current_x = None
+        self._state = CustomParserState.NOT_RUNNING
+
+    def consume(self, token, result):
+        # prepare to check if the next token is a STRING
+        if token.type == NAME and token.string == "x":
+            self._state = CustomParserState.RUNNING
+            self._current_x = token
+            return True
+
+        if self._state == CustomParserState.NOT_RUNNING:
+            return False
+
+        if self._state == CustomParserState.RUNNING:
+            current_x = self._current_x
+            self._current_x = None
+            self._state = CustomParserState.NOT_RUNNING
+
+            toks = [current_x]
+
+            # drop the leading x token if the next token is a STRING to avoid a python
+            # parser error
+            if token.type == STRING:
+                self.locations.append(current_x.start)
+                toks = [TokenInfo(STRING, token.string, current_x.start, token.end, token.line)]
+
+            result.extend(toks)
+            return True
+
+        return False
 
 
 # compound statements that are replaced with `class`
@@ -122,7 +157,7 @@ CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 
 
-def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
+def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, list, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -153,10 +188,11 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
     str
         Reformatted python source string.
     """
-    result = []
+    result: list[TokenInfo] = []
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
     for_parser = ForParser(code)
+    native_hex_parser = NativeHexParser()
 
     _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
@@ -264,7 +300,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
 
-            if not for_parser.consume(token):
+            if not for_parser.consume(token) and not native_hex_parser.consume(token, result):
                 result.extend(toks)
 
     except TokenError as e:
@@ -274,4 +310,10 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
     for k, v in for_parser.annotations.items():
         for_loop_annotations[k] = v.copy()
 
-    return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")
+    return (
+        settings,
+        modification_offsets,
+        for_loop_annotations,
+        native_hex_parser.locations,
+        untokenize(result).decode("utf-8"),
+    )
