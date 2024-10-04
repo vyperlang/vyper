@@ -348,7 +348,15 @@ def parse_body(code, context, ensure_terminated=False):
 
     # force using the return routine / exit_to cleanup for end of function
     if ensure_terminated and context.return_type is None and not _is_terminated(code):
-        ir_node.append(parse_stmt(vy_ast.Return(value=None), context))
+        fn_ast = context.func_t.ast_def
+        dummy_node = vy_ast.Return(
+            value=None,
+            lineno=fn_ast.end_lineno,
+            end_lineno=fn_ast.end_lineno,
+            col_offset=fn_ast.end_col_offset,
+            end_col_offset=fn_ast.end_col_offset,
+        )
+        ir_node.append(parse_stmt(dummy_node, context))
 
     # force zerovalent, even last statement
     ir_node.append("pass")  # CMC 2022-01-16 is this necessary?
