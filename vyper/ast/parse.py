@@ -421,7 +421,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                         node.col_offset,
                     )
 
-                byte_val = bytes.fromhex(node.value[1:-1])
+                byte_val = bytes.fromhex(node.value)
 
                 node.ast_type = "Bytes"
                 node.value = byte_val
