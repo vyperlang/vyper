@@ -23,6 +23,7 @@ class MemoryAllocator:
         self.blocks = [MemoryBlock(total_size, 0)]
 
     def allocate(self, size: int) -> int:
+        print(f"Allocating {size} bytes with free memory {self.get_free_memory()}")
         for block in self.blocks:
             if block.is_free and block.size >= size:
                 if block.size > size:
@@ -31,7 +32,7 @@ class MemoryAllocator:
                     block.size = size
                 block.is_free = False
                 return self.start_address + block.address
-        raise MemoryError("Memory allocation failed")
+        raise MemoryError(f"Memory allocation failed for size {size} with free memory {self.get_free_memory()}")
 
     def deallocate(self, address: int) -> bool:
         relative_address = address - self.start_address

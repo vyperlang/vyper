@@ -3,6 +3,7 @@ from typing import Iterator, Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.mem_allocator import MemoryAllocator
 
 
 class IRFunction:
@@ -16,6 +17,7 @@ class IRFunction:
     last_label: int
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
+    _mem_allocator: MemoryAllocator
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -31,6 +33,8 @@ class IRFunction:
 
         self._ast_source_stack = []
         self._error_msg_stack = []
+
+        self._mem_allocator = MemoryAllocator(0xFFFFFFFFFFFFFFFF, 32)
 
         self.append_basic_block(IRBasicBlock(name, self))
 
