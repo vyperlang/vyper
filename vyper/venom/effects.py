@@ -5,11 +5,12 @@ class Effects(Flag):
     STORAGE = auto()
     TRANSIENT = auto()
     MEMORY = auto()
+    MSIZE = auto()
     IMMUTABLES = auto()
     RETURNDATA = auto()
+    LOG = auto()
     BALANCE = auto()
     EXTCODE = auto()
-    MSIZE = auto()
 
 
 EMPTY = Effects(0)
@@ -17,11 +18,12 @@ ALL = ~EMPTY
 STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
+MSIZE = Effects.MSIZE
 IMMUTABLES = Effects.IMMUTABLES
 RETURNDATA = Effects.RETURNDATA
+LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-MSIZE = Effects.MSIZE
 
 
 _writes = {
@@ -35,6 +37,7 @@ _writes = {
     "create": ALL ^ (MEMORY | IMMUTABLES),
     "create2": ALL ^ (MEMORY | IMMUTABLES),
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
+    "log": LOG,
     "dloadbytes": MEMORY,
     "returndatacopy": MEMORY,
     "calldatacopy": MEMORY,
