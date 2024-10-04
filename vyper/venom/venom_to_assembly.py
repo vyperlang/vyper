@@ -1,4 +1,5 @@
-from collections import Counter
+from bisect import insort
+from collections import Counter, defaultdict
 from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
@@ -205,14 +206,29 @@ class VenomCompiler:
             stack = stack.copy()
 
         stack_ops_count = len(stack_ops)
+        if stack_ops_count == 0:
+            return 0
 
         counts = Counter(stack_ops)
+
+        # positions stores the positions of relevant operands
+        # on stack for example operand %82 is on positions [0, 3]
+        # this operand could ocure even more deeper in the stack
+        # but only those that are needed/relevant in calculation
+        # are considered
+        positions: dict[IROperand, list[int]] = defaultdict(list)
+        for op in stack_ops:
+            positions[op] = []
+            for i in range(counts[op]):
+                positions[op].append(stack.get_depth(op, i + 1))
 
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op, counts[op])  # type: ignore
-            counts[op] -= 1
+            depth = positions[op].pop()  # type: ignore
+            assert depth not in range(
+                -stack_ops_count + 1, final_stack_depth
+            ), f"{depth} : ({-stack_ops_count - 1}, {final_stack_depth})"
 
             if depth == StackModel.NOT_IN_STACK:
                 raise CompilerPanic(f"Variable {op} not in stack")
@@ -223,8 +239,25 @@ class VenomCompiler:
             if op == stack.peek(final_stack_depth):
                 continue
 
+            # moves the top item to original position
+            top_item_positions = positions[stack.peek(0)]
+            if len(top_item_positions) != 0:
+                top_item_positions.remove(0)
+                insort(top_item_positions, depth)
+
             cost += self.swap(assembly, stack, depth)
+
+            # moves the item from final position to top
+            final_item_positions = positions[stack.peek(final_stack_depth)]
+            if final_stack_depth in final_item_positions:
+                final_item_positions.remove(final_stack_depth)
+                final_item_positions.insert(0, 0)
+            else:
+                final_item_positions.insert(0, 0)
+
             cost += self.swap(assembly, stack, final_stack_depth)
+
+        assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
         return cost
 
