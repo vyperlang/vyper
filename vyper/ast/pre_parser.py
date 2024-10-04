@@ -48,7 +48,7 @@ def validate_version_pragma(version_str: str, full_source_code: str, start: Pars
         )
 
 
-class CustomParserState(enum.Enum):
+class ParserState(enum.Enum):
     NOT_RUNNING = enum.auto()
     START_SOON = enum.auto()
     RUNNING = enum.auto()
@@ -63,7 +63,7 @@ class ForParser:
         self.annotations = {}
         self._current_annotation = None
 
-        self._state = CustomParserState.NOT_RUNNING
+        self._state = ParserState.NOT_RUNNING
         self._current_for_loop = None
 
     def consume(self, token):
@@ -71,15 +71,15 @@ class ForParser:
         if token.type == NAME and token.string == "for":
             # note: self._state should be NOT_RUNNING here, but we don't sanity
             # check here as that should be an error the parser will handle.
-            self._state = CustomParserState.START_SOON
+            self._state = ParserState.START_SOON
             self._current_for_loop = token.start
 
-        if self._state == CustomParserState.NOT_RUNNING:
+        if self._state == ParserState.NOT_RUNNING:
             return False
 
         # state machine: start slurping tokens
         if token.type == OP and token.string == ":":
-            self._state = CustomParserState.RUNNING
+            self._state = ParserState.RUNNING
 
             # sanity check -- this should never really happen, but if it does,
             # try to raise an exception which pinpoints the source.
@@ -93,12 +93,12 @@ class ForParser:
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
-            self._state = CustomParserState.NOT_RUNNING
+            self._state = ParserState.NOT_RUNNING
             self.annotations[self._current_for_loop] = self._current_annotation or []
             self._current_annotation = None
             return False
 
-        if self._state != CustomParserState.RUNNING:
+        if self._state != ParserState.RUNNING:
             return False
 
         # slurp the token
@@ -110,22 +110,22 @@ class NativeHexParser:
     def __init__(self):
         self.locations = []
         self._current_x = None
-        self._state = CustomParserState.NOT_RUNNING
+        self._state = ParserState.NOT_RUNNING
 
     def consume(self, token, result):
         # prepare to check if the next token is a STRING
         if token.type == NAME and token.string == "x":
-            self._state = CustomParserState.RUNNING
+            self._state = ParserState.RUNNING
             self._current_x = token
             return True
 
-        if self._state == CustomParserState.NOT_RUNNING:
+        if self._state == ParserState.NOT_RUNNING:
             return False
 
-        if self._state == CustomParserState.RUNNING:
+        if self._state == ParserState.RUNNING:
             current_x = self._current_x
             self._current_x = None
-            self._state = CustomParserState.NOT_RUNNING
+            self._state = ParserState.NOT_RUNNING
 
             toks = [current_x]
 
