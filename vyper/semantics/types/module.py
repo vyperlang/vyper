@@ -77,7 +77,7 @@ class InterfaceT(_UserType):
     def get_type_member(self, attr, node):
         # get an event, struct or constant from this interface
         type_member = self._helper.get_member(attr, node)
-        if isinstance(type_member, (EventT, FlagT, StructT)):
+        if isinstance(type_member, _UserType):
             return TYPE_T(type_member)
         return type_member
 
