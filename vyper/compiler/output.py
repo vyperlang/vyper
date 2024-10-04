@@ -320,15 +320,13 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly, insert_compiler_metadata=False
-    )
+    bytecode, pc_maps = compile_ir.assembly_to_evm(compiler_data.assembly, compiler_metadata=None)
     return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
 
 def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
     bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_compiler_metadata=False
+        compiler_data.assembly_runtime, compiler_metadata=None
     )
     return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
