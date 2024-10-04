@@ -72,6 +72,7 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
+        vyper_source,
         pre_parse_result,
         source_id=source_id,
         module_path=module_path,
@@ -115,6 +116,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
+    vyper_source: str,
     pre_parse_result: PreParseResult,
     source_id: int = 0,
     module_path: Optional[str] = None,
@@ -127,6 +129,8 @@ def annotate_python_ast(
     ----------
     parsed_ast : AST
         The AST to be annotated and optimized.
+    vyper_source: str
+        The original vyper source code
     pre_parse_result: PreParseResult
         Outputs from pre-parsing.
 
@@ -134,11 +138,16 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    tokens = asttokens.ASTTokens(pre_parse_result.reformatted_code)
+    tokens = asttokens.ASTTokens(vyper_source)
     assert isinstance(parsed_ast, python_ast.Module)  # help mypy
     tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
-        pre_parse_result, tokens, source_id, module_path=module_path, resolved_path=resolved_path
+        vyper_source,
+        pre_parse_result,
+        tokens,
+        source_id,
+        module_path=module_path,
+        resolved_path=resolved_path,
     )
     visitor.visit(parsed_ast)
 
@@ -152,6 +161,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def __init__(
         self,
+        source_code: str,
         pre_parse_result: PreParseResult,
         tokens: asttokens.ASTTokens,
         source_id: int,
@@ -162,7 +172,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_id = source_id
         self._module_path = module_path
         self._resolved_path = resolved_path
-        self._source_code = pre_parse_result.reformatted_code
+        self._source_code = source_code
         self._modification_offsets = pre_parse_result.modification_offsets
         self._for_loop_annotations = pre_parse_result.for_loop_annotations
         self._native_hex_literal_locations = pre_parse_result.native_hex_literal_locations
