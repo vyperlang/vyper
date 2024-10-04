@@ -134,9 +134,10 @@ class NativeHexParser:
             if token.type == STRING:
                 self.locations.append(current_x.start)
                 toks = [TokenInfo(STRING, token.string, current_x.start, token.end, token.line)]
-
+                result.extend(toks)
+                return True
+            
             result.extend(toks)
-            return True
 
         return False
 
