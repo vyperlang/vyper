@@ -136,7 +136,7 @@ class NativeHexParser:
                 toks = [TokenInfo(STRING, token.string, current_x.start, token.end, token.line)]
                 result.extend(toks)
                 return True
-            
+
             result.extend(toks)
 
         return False
