@@ -701,28 +701,38 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
 def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass: str):
     # manually validate kwargs for better error messages instead of
     # relying on `validate_call_args`
-    keys = list(members.keys())
-    members = members.copy()
+
+    seen: dict[str, vy_ast.keyword] = {}
+    membernames = list(members.keys())
+
+    # check duplicate kwargs
     for i, kwarg in enumerate(node.keywords):
         # x=5 => kwarg(arg="x", value=Int(5))
         argname = kwarg.arg
-        if argname not in members:
-            hint = get_levenshtein_error_suggestions(argname, members, 1.0)
-            raise UnknownAttribute(f"Unknown or duplicate {typeclass} argument.", kwarg, hint=hint)
-        expected = keys[i]
-        if argname != expected:
-            raise InvalidAttribute(
-                f"{typeclass.capitalize()} keys are required to be in order, but got "
-                f"`{argname}` instead of `{expected}`. (Reminder: the "
-                f"keys in this {typeclass} are {list(members)})",
-                kwarg,
-            )
-        expected_type = members.pop(argname)
+        if argname in seen:
+            prev = seen[argname]
+            raise InvalidAttribute(f"Duplicate {typeclass} argument", prev, kwarg)
+        seen[argname] = kwarg
+
+        expect_name = membernames[i]
+        if argname != expect_name:
+            # out of order key
+            if argname in members:
+                msg = f"{typeclass} keys are required to be in order, but got"
+                msg += f" `{argname}` instead of `{expect_name}`."
+                hint = "as a reminder, the order of the keys in this"
+                hint += f" {typeclass} are {list(members)}"
+                raise InvalidAttribute(msg, kwarg, hint=hint)
+
+            else:
+                hint_ = get_levenshtein_error_suggestions(argname, members, 1.0)
+                raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint_)
+
+        expected_type = members[argname]
         validate_expected_type(kwarg.value, expected_type)
 
-    if members:
-        raise InstantiationException(
-            f"{typeclass.capitalize()} instantiation does not define all fields: "
-            f"{', '.join(list(members))}",
-            node,
-        )
+    missing = OrderedSet(members.keys()) - OrderedSet(seen.keys())
+    if len(missing) > 0:
+        msg = f"{typeclass} instantiation missing fields:"
+        msg += f" {', '.join(list(missing))}"
+        raise InstantiationException(msg, node)
