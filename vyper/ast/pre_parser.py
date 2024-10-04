@@ -12,7 +12,12 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 # evm-version pragma
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import StructureException, SyntaxException, VersionException
-from vyper.typing import ModificationOffsets, ParserPosition
+from vyper.typing import (
+    ForLoopAnnotations,
+    ModificationOffsets,
+    NativeHexLiteralLocations,
+    ParserPosition,
+)
 
 
 def validate_version_pragma(version_str: str, full_source_code: str, start: ParserPosition) -> None:
@@ -158,7 +163,34 @@ CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 
 
-def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, list, str]:
+class PreParseResult:
+    # Compilation settings based on the directives in the source code
+    settings: Settings
+    # A mapping of class names to their original class types.
+    modification_offsets: ModificationOffsets
+    # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
+    for_loop_annotations: ForLoopAnnotations
+    # A list of line/column offsets of native hex literals
+    native_hex_literal_locations: NativeHexLiteralLocations
+    # Reformatted python source string.
+    reformatted_code: str
+
+    def __init__(
+        self,
+        settings,
+        modification_offsets,
+        for_loop_annotations,
+        native_hex_literal_locations,
+        reformatted_code,
+    ):
+        self.settings = settings
+        self.modification_offsets = modification_offsets
+        self.for_loop_annotations = for_loop_annotations
+        self.native_hex_literal_locations = native_hex_literal_locations
+        self.reformatted_code = reformatted_code
+
+
+def pre_parse(code: str) -> PreParseResult:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -180,14 +212,8 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, list, str
 
     Returns
     -------
-    Settings
-        Compilation settings based on the directives in the source code
-    ModificationOffsets
-        A mapping of class names to their original class types.
-    dict[tuple[int, int], list[TokenInfo]]
-        A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
-    str
-        Reformatted python source string.
+    PreParseResult
+        Outputs for transforming the python AST to vyper AST
     """
     result: list[TokenInfo] = []
     modification_offsets: ModificationOffsets = {}
@@ -311,7 +337,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, list, str
     for k, v in for_parser.annotations.items():
         for_loop_annotations[k] = v.copy()
 
-    return (
+    return PreParseResult(
         settings,
         modification_offsets,
         for_loop_annotations,

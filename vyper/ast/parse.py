@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 import asttokens
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.pre_parser import pre_parse
+from vyper.ast.pre_parser import PreParseResult, pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
@@ -55,15 +55,9 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    (
-        settings,
-        class_types,
-        for_loop_annotations,
-        native_hex_literal_locations,
-        python_source,
-    ) = pre_parse(vyper_source)
+    pre_parse_result = pre_parse(vyper_source)
     try:
-        py_ast = python_ast.parse(python_source)
+        py_ast = python_ast.parse(pre_parse_result.reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
@@ -78,23 +72,20 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
-        vyper_source,
-        class_types,
-        for_loop_annotations,
-        native_hex_literal_locations,
+        pre_parse_result,
         source_id=source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
 
     # postcondition: consumed all the for loop annotations
-    assert len(for_loop_annotations) == 0
+    assert len(pre_parse_result.for_loop_annotations) == 0
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
 
-    return settings, module
+    return pre_parse_result.settings, module
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
@@ -124,10 +115,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
-    vyper_source: str,
-    modification_offsets: ModificationOffsets,
-    for_loop_annotations: dict,
-    native_hex_literal_locations: list,
+    pre_parse_result: PreParseResult,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -139,30 +127,18 @@ def annotate_python_ast(
     ----------
     parsed_ast : AST
         The AST to be annotated and optimized.
-    vyper_source: str
-        The original vyper source code
-    loop_var_annotations: dict
-        A mapping of line numbers of `For` nodes to the tokens of the type
-        annotation of the iterator extracted during pre-parsing.
-    modification_offsets : dict
-        A mapping of class names to their original class types.
+    pre_parse_result: PreParseResult
+        Outputs from pre-parsing.
 
     Returns
     -------
         The annotated and optimized AST.
     """
-    tokens = asttokens.ASTTokens(vyper_source)
+    tokens = asttokens.ASTTokens(pre_parse_result.reformatted_code)
     assert isinstance(parsed_ast, python_ast.Module)  # help mypy
     tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
-        vyper_source,
-        modification_offsets,
-        for_loop_annotations,
-        native_hex_literal_locations,
-        tokens,
-        source_id,
-        module_path=module_path,
-        resolved_path=resolved_path,
+        pre_parse_result, tokens, source_id, module_path=module_path, resolved_path=resolved_path
     )
     visitor.visit(parsed_ast)
 
@@ -176,10 +152,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def __init__(
         self,
-        source_code: str,
-        modification_offsets: ModificationOffsets,
-        for_loop_annotations: dict,
-        native_hex_literal_locations: list,
+        pre_parse_result: PreParseResult,
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
@@ -189,10 +162,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_id = source_id
         self._module_path = module_path
         self._resolved_path = resolved_path
-        self._source_code = source_code
-        self._modification_offsets = modification_offsets
-        self._for_loop_annotations = for_loop_annotations
-        self._native_hex_literal_locations = native_hex_literal_locations
+        self._source_code = pre_parse_result.reformatted_code
+        self._modification_offsets = pre_parse_result.modification_offsets
+        self._for_loop_annotations = pre_parse_result.for_loop_annotations
+        self._native_hex_literal_locations = pre_parse_result.native_hex_literal_locations
 
         self.counter: int = 0
 
