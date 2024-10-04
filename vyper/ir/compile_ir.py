@@ -1155,22 +1155,24 @@ def _relocate_segments(assembly):
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm(assembly, pc_ofst=0, compiler_metadata=None):
     bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, insert_compiler_metadata=insert_compiler_metadata
+        assembly, pc_ofst=pc_ofst, compiler_metadata=compiler_metadata
     )
     return bytecode, source_maps
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None):
     """
     Assembles assembly into EVM
 
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    insert_compiler_metadata: whether to append vyper metadata to output
-                            (should be true for runtime code)
+    compiler_metadata: any compiler metadata to add. pass `None` to indicate
+                       no metadata to be added (should always be `None` for
+                       runtime code). the value is opaque, and will be passed
+                       directly to `cbor2.dumps()`.
     """
     line_number_map = {
         "breakpoints": set(),
@@ -1278,10 +1280,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
             pc += 1
 
     bytecode_suffix = b""
-    if insert_compiler_metadata:
+    if compiler_metadata is not None:
         # this will hold true when we are in initcode
         assert immutables_len is not None
         metadata = (
+            compiler_metadata,
             len(runtime_code),
             data_section_lengths,
             immutables_len,
