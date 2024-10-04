@@ -31,7 +31,7 @@ def get_contract_info(source_code):
     pre_parse_result = pre_parse(source_code)
     py_ast = python_ast.parse(pre_parse_result.reformatted_code)
 
-    annotate_python_ast(py_ast, pre_parse_result)
+    annotate_python_ast(py_ast, pre_parse_result.reformatted_code, pre_parse_result)
 
     return py_ast, pre_parse_result.reformatted_code
 
