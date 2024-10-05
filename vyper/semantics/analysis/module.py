@@ -817,7 +817,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         try:
             path_vy = path.with_suffix(".vy")
-            file = self.input_bundle.load_file(path_vy)
+            file = self.input_bundle.load_file(path_vy, level)
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
@@ -838,7 +838,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err = e
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            file = self.input_bundle.load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
 
@@ -857,7 +857,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             pass
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".json"))
+            file = self.input_bundle.load_file(path.with_suffix(".json"), level)
             assert isinstance(file, ABIInput)  # mypy hint
             return file, InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
