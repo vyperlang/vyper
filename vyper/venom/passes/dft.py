@@ -70,13 +70,15 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
 
-        children = sorted(
-            self.ida[inst],
-            key=lambda x: (
-                -self.inst_offspring_count[x] + (x.opcode == "iszero") * 10,
-                inst.operands.index(x.output) if x.output in inst.operands else 0,
-            ),
-        )
+        def cost(x):
+            s = 0
+            for op in enumerate(inst.operands):
+                if x.output == op:
+                    s = i
+                    break
+            return s, -self.inst_offspring_count[x]
+
+        children = sorted(self.ida[inst], key=cost)
 
         for dep_inst in children:
             if inst.parent != dep_inst.parent:
