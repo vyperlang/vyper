@@ -243,11 +243,7 @@ class VarAccess:
 
     @classmethod
     def _produce(cls, data):
-        ret = cls.__new__(cls)
-        # bypass blocking of setattr by `frozen=True`
-        for k, v in data.items():
-            object.__setattr__(ret, k, v)
-        return ret
+        return cls(**data)
 
     @cached_property
     def attrs(self):
