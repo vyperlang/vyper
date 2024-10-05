@@ -406,11 +406,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                         node.lineno,
                         node.col_offset,
                     )
-
-                byte_val = bytes.fromhex(node.value)
-
-                node.ast_type = "Bytes"
-                node.value = byte_val
+                node.ast_type = "HexBytes"
             else:
                 node.ast_type = "Str"
         elif isinstance(node.value, bytes):
