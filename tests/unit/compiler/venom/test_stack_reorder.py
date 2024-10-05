@@ -1,5 +1,7 @@
 from vyper.venom import generate_assembly_experimental
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
+from vyper.venom.passes.store_expansion import StoreExpansionPass
 
 
 def test_stack_reorder():
@@ -24,5 +26,8 @@ def test_stack_reorder():
     ret_val = bb.append_instruction("add", var4, var4)
 
     bb.append_instruction("ret", ret_val)
+
+    ac = IRAnalysesCache(fn)
+    StoreExpansionPass(ac, fn).run_pass()
 
     generate_assembly_experimental(ctx)

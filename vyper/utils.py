@@ -89,6 +89,7 @@ class OrderedSet(Generic[_T]):
     def union(self, other):
         return self | other
 
+    # set dunders
     def __ior__(self, other):
         self.update(other)
         return self
@@ -100,6 +101,15 @@ class OrderedSet(Generic[_T]):
 
     def __eq__(self, other):
         return self._data == other._data
+
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
 
     def copy(self):
         cls = self.__class__

@@ -41,7 +41,7 @@ event Foo:
     message: String[1]
 @external
 def foo():
-    log Foo("abcd")
+    log Foo(message="abcd")
     """,
     # Address literal must be checksummed
     """
