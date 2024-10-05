@@ -714,19 +714,18 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
             raise InvalidAttribute(f"Duplicate {typeclass} argument", prev, kwarg)
         seen[argname] = kwarg
 
+        if argname not in members:
+            hint_ = get_levenshtein_error_suggestions(argname, members, 1.0)
+            raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint_)
+
         expect_name = membernames[i]
         if argname != expect_name:
             # out of order key
-            if argname in members:
-                msg = f"{typeclass} keys are required to be in order, but got"
-                msg += f" `{argname}` instead of `{expect_name}`."
-                hint = "as a reminder, the order of the keys in this"
-                hint += f" {typeclass} are {list(members)}"
-                raise InvalidAttribute(msg, kwarg, hint=hint)
-
-            else:
-                hint_ = get_levenshtein_error_suggestions(argname, members, 1.0)
-                raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint_)
+            msg = f"{typeclass} keys are required to be in order, but got"
+            msg += f" `{argname}` instead of `{expect_name}`."
+            hint = "as a reminder, the order of the keys in this"
+            hint += f" {typeclass} are {list(members)}"
+            raise InvalidAttribute(msg, kwarg, hint=hint)
 
         expected_type = members[argname]
         validate_expected_type(kwarg.value, expected_type)

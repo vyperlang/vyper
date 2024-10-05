@@ -5,6 +5,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InstantiationException,
+    InvalidAttribute,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -392,7 +393,7 @@ b: B
 def foo():
     self.b = B(foo=1, foo=2)
     """,
-        UnknownAttribute,
+        InvalidAttribute,
     ),
     (
         """
