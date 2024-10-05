@@ -1,7 +1,6 @@
 import importlib
 import io
 import json
-import os
 import zipfile
 from dataclasses import dataclass
 from functools import cached_property
@@ -13,7 +12,7 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.analysis.module import _is_builtin
-from vyper.utils import get_long_version
+from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -62,7 +61,7 @@ class OutputBundle:
 
         sources = {}
         for c in inputs:
-            path = os.path.relpath(c.resolved_path)
+            path = safe_relpath(c.resolved_path)
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to search path semantics.
@@ -73,7 +72,7 @@ class OutputBundle:
     @cached_property
     def compilation_target_path(self):
         p = PurePath(self.compiler_data.file_input.resolved_path)
-        p = os.path.relpath(p)
+        p = safe_relpath(p)
         return _anonymize(p)
 
     @cached_property
@@ -121,7 +120,7 @@ class OutputBundle:
         sps = [sp for sp, count in tmp.items() if count > 0]
         assert len(sps) > 0
 
-        return [_anonymize(os.path.relpath(sp)) for sp in sps]
+        return [_anonymize(safe_relpath(sp)) for sp in sps]
 
 
 class OutputBundleWriter:

@@ -55,13 +55,17 @@ def test_bytecode_runtime():
 
 
 def test_bytecode_signature():
-    out = vyper.compile_code(simple_contract_code, output_formats=["bytecode_runtime", "bytecode"])
+    out = vyper.compile_code(
+        simple_contract_code, output_formats=["bytecode_runtime", "bytecode", "integrity"]
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     metadata = _parse_cbor_metadata(initcode)
-    runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    integrity_hash, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+
+    assert integrity_hash.hex() == out["integrity"]
 
     assert runtime_len == len(runtime_code)
     assert data_section_lengths == []
@@ -73,14 +77,18 @@ def test_bytecode_signature_dense_jumptable():
     settings = Settings(optimize=OptimizationLevel.CODESIZE)
 
     out = vyper.compile_code(
-        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+        many_functions,
+        output_formats=["bytecode_runtime", "bytecode", "integrity"],
+        settings=settings,
     )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     metadata = _parse_cbor_metadata(initcode)
-    runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    integrity_hash, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+
+    assert integrity_hash.hex() == out["integrity"]
 
     assert runtime_len == len(runtime_code)
     assert data_section_lengths == [5, 35]
@@ -92,14 +100,18 @@ def test_bytecode_signature_sparse_jumptable():
     settings = Settings(optimize=OptimizationLevel.GAS)
 
     out = vyper.compile_code(
-        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+        many_functions,
+        output_formats=["bytecode_runtime", "bytecode", "integrity"],
+        settings=settings,
     )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     metadata = _parse_cbor_metadata(initcode)
-    runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    integrity_hash, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+
+    assert integrity_hash.hex() == out["integrity"]
 
     assert runtime_len == len(runtime_code)
     assert data_section_lengths == [8]
@@ -108,13 +120,17 @@ def test_bytecode_signature_sparse_jumptable():
 
 
 def test_bytecode_signature_immutables():
-    out = vyper.compile_code(has_immutables, output_formats=["bytecode_runtime", "bytecode"])
+    out = vyper.compile_code(
+        has_immutables, output_formats=["bytecode_runtime", "bytecode", "integrity"]
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     metadata = _parse_cbor_metadata(initcode)
-    runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    integrity_hash, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+
+    assert integrity_hash.hex() == out["integrity"]
 
     assert runtime_len == len(runtime_code)
     assert data_section_lengths == []
@@ -129,7 +145,10 @@ def test_bytecode_signature_deployed(code, get_contract, env):
     deployed_code = env.get_code(c.address)
 
     metadata = _parse_cbor_metadata(c.bytecode)
-    runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    integrity_hash, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+
+    out = vyper.compile_code(code, output_formats=["integrity"])
+    assert integrity_hash.hex() == out["integrity"]
 
     assert compiler == {"vyper": list(vyper.version.version_tuple)}
 
