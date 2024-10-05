@@ -897,7 +897,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
         base_path = "../" * (level - 1)
     elif level == 1:
         base_path = "./"
-    return PurePath(f"{base_path}{module_str.replace('.','/')}/")
+    return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
