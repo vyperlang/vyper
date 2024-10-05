@@ -77,7 +77,7 @@ class ImportAnalyzer:
         self.graph = graph
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen = set()
+        self.seen: set[int] = set()
 
         self.integrity_sum = None
 
