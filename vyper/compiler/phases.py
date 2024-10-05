@@ -154,7 +154,20 @@ class CompilerData:
 
     @cached_property
     def resolved_imports(self):
-        return self._resolve_imports[1]
+        imports = self._resolve_imports[1]
+
+        expected = self.expected_integrity_sum
+
+        if expected is not None and imports.integrity_sum != expected:
+            # warn for now. strict/relaxed mode was considered but it costs
+            # interface and testing complexity to add another feature flag.
+            vyper_warn(
+                f"Mismatched integrity sum! Expected {expected}"
+                f" but got {imports.integrity_sum}."
+                " (This likely indicates a corrupted archive)"
+            )
+
+        return imports
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
@@ -178,17 +191,6 @@ class CompilerData:
         required for a compilation target.
         """
         module_t = self.annotated_vyper_module._metadata["type"]
-
-        expected = self.expected_integrity_sum
-
-        if expected is not None and module_t.integrity_sum != expected:
-            # warn for now. strict/relaxed mode was considered but it costs
-            # interface and testing complexity to add another feature flag.
-            vyper_warn(
-                f"Mismatched integrity sum! Expected {expected}"
-                f" but got {module_t.integrity_sum}."
-                " (This likely indicates a corrupted archive)"
-            )
 
         validate_compilation_target(module_t)
         return self.annotated_vyper_module
@@ -263,8 +265,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         metadata = None
         if not self.no_bytecode_metadata:
-            module_t = self.compilation_target._metadata["type"]
-            metadata = bytes.fromhex(module_t.integrity_sum)
+            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
         return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
