@@ -2,7 +2,7 @@ import copy
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Optional
+from typing import Any, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast import natspec
@@ -249,12 +249,15 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        insert_compiler_metadata = not self.no_bytecode_metadata
-        return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
+        metadata = None
+        if not self.no_bytecode_metadata:
+            module_t = self.compilation_target._metadata["type"]
+            metadata = bytes.fromhex(module_t.integrity_sum)
+        return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
+        return generate_bytecode(self.assembly_runtime, compiler_metadata=None)
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -351,7 +354,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
+def generate_bytecode(assembly: list, compiler_metadata: Optional[Any]) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -365,6 +368,4 @@ def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_compiler_metadata=insert_compiler_metadata)[
-        0
-    ]
+    return compile_ir.assembly_to_evm(assembly, compiler_metadata=compiler_metadata)[0]
