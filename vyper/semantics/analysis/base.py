@@ -234,6 +234,9 @@ class VarAccess:
     # A sentinel indicating a subscript access
     SUBSCRIPT_ACCESS: ClassVar[Any] = object()
 
+    # custom __reduce__ and _produce implementations to work around
+    # a pickle bug.
+    # see https://github.com/python/cpython/issues/124937#issuecomment-2392227290
     def __reduce__(self):
         dict_obj = {f.name: getattr(self, f.name) for f in fields(self)}
         return self.__class__._produce, (dict_obj,)
