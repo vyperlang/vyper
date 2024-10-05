@@ -86,3 +86,30 @@ def foo():
         {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
     )
     compiler.compile_code(top, input_bundle=input_bundle)
+
+def test_relative_paths_stay_in_current_directory(make_input_bundle):
+    top = """
+from subdir import b as b
+@external
+def foo():
+    b.foo()
+    """
+
+    a = """
+def foo():
+    pass
+    """
+
+    b = """
+from . import a as a
+
+def foo():
+    a.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"top.vy": top, "a.vy": a, "subdir/b.vy": b }
+    )
+
+    with pytest.raises(ModuleNotFound):
+        compiler.compile_code(top, input_bundle=input_bundle)
