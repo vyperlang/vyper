@@ -145,7 +145,7 @@ class Expr:
     def parse_HexBytes(self):
         return self._parse_bytes()
 
-    def _parse_bytes(self, bytes):
+    def _parse_bytes(self):
         bytez = self.expr.value
         bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)
