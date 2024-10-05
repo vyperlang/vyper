@@ -598,7 +598,7 @@ class VenomCompiler:
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
-        self.swap(assembly, stack, depth)
+        return self.swap(assembly, stack, depth)
 
     def dup_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
