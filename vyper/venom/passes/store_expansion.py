@@ -1,46 +1,40 @@
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
 class StoreExpansionPass(IRPass):
     """
-    This pass expands variables to their uses though `store` instructions,
-    reducing pressure on the stack scheduler
+    This pass extracts literals and variables so that they can be
+    reordered by the DFT pass
     """
 
     def run_pass(self):
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
         for bb in self.function.get_basic_blocks():
-            for idx, inst in enumerate(bb.instructions):
-                if inst.output is None:
+            self._process_bb(bb)
+
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _process_bb(self, bb):
+        i = 0
+        while i < len(bb.instructions):
+            inst = bb.instructions[i]
+            if inst.opcode in ("store", "offset", "phi", "param"):
+                i += 1
+                continue
+
+            for j, op in enumerate(inst.operands):
+                # first operand to log is magic
+                if inst.opcode == "log" and j == 0:
                     continue
 
-                # print("ENTER", inst)
-                self._process_inst(dfg, inst, idx)
+                if isinstance(op, (IRVariable, IRLiteral)):
+                    var = self.function.get_next_variable()
+                    to_insert = IRInstruction("store", [op], var)
+                    bb.insert_instruction(to_insert, index=i)
+                    inst.operands[j] = var
+                    i += 1
 
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
-
-    def _process_inst(self, dfg, inst, idx):
-        """
-        Process store instruction. If the variable is only used by a load instruction,
-        forward the variable to the load instruction.
-        """
-        var = inst.output
-        uses = dfg.get_uses(var)
-
-        insertion_idx = idx + 1
-
-        for use_inst in uses:
-            if use_inst.parent != inst.parent:
-                continue  # improves codesize
-
-            for i, operand in enumerate(use_inst.operands):
-                if operand == var:
-                    new_var = self.function.get_next_variable()
-                    new_inst = IRInstruction("store", [var], new_var)
-                    inst.parent.insert_instruction(new_inst, insertion_idx)
-                    use_inst.operands[i] = new_var
+            i += 1
