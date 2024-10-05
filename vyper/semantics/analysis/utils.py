@@ -1,9 +1,11 @@
 import itertools
-from typing import Callable, Iterable, List
+from typing import Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
+    InstantiationException,
+    InvalidAttribute,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -694,3 +696,43 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
         ret |= get_expr_writes(c)
     node._metadata["writes_r"] = ret
     return ret
+
+
+def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass: str):
+    # manually validate kwargs for better error messages instead of
+    # relying on `validate_call_args`
+
+    seen: dict[str, vy_ast.keyword] = {}
+    membernames = list(members.keys())
+
+    # check duplicate kwargs
+    for i, kwarg in enumerate(node.keywords):
+        # x=5 => kwarg(arg="x", value=Int(5))
+        argname = kwarg.arg
+        if argname in seen:
+            prev = seen[argname]
+            raise InvalidAttribute(f"Duplicate {typeclass} argument", prev, kwarg)
+        seen[argname] = kwarg
+
+        hint: Any  # mypy kludge
+        if argname not in members:
+            hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+            raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint)
+
+        expect_name = membernames[i]
+        if argname != expect_name:
+            # out of order key
+            msg = f"{typeclass} keys are required to be in order, but got"
+            msg += f" `{argname}` instead of `{expect_name}`."
+            hint = "as a reminder, the order of the keys in this"
+            hint += f" {typeclass} are {list(members)}"
+            raise InvalidAttribute(msg, kwarg, hint=hint)
+
+        expected_type = members[argname]
+        validate_expected_type(kwarg.value, expected_type)
+
+    missing = OrderedSet(members.keys()) - OrderedSet(seen.keys())
+    if len(missing) > 0:
+        msg = f"{typeclass} instantiation missing fields:"
+        msg += f" {', '.join(list(missing))}"
+        raise InstantiationException(msg, node)
