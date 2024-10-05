@@ -11,11 +11,32 @@ any errors.
     - To use Try Vyper, go to https://try.vyperlang.org and log in (requires Github login).
     - To use remix, go to https://remix.ethereum.org and activate the vyper-remix plugin in the Plugin manager.
 
+
+Standalone
+**********
+
+The Vyper CLI can be installed with any ``pip`` compatible tool, for example, ``pipx`` or ``uv tool``. If you do not have ``pipx`` or ``uv`` installed, first, go to the respective tool's installation page:
+
+- https://github.com/pypa/pipx?tab=readme-ov-file
+- https://github.com/astral-sh/uv?tab=readme-ov-file#uv
+
+Then, the command to install Vyper would be
+
+::
+
+    pipx install vyper
+
+Or,
+
+::
+
+    uv tool install vyper
+
+
 Binaries
 ********
 
-Vyper binaries for Windows, Mac and Linux are available for download from the `GitHub releases page
-<https://github.com/vyperlang/vyper/releases>`_.
+Alternatively, prebuilt Vyper binaries for Windows, Mac and Linux are available for download from the GitHub releases page: https://github.com/vyperlang/vyper/releases.
 
 
 PIP
@@ -29,6 +50,11 @@ follow the instructions from the official `Python website <https://wiki.python.o
 
 Creating a virtual environment
 ==============================
+
+Because pip installations are not isolated by default, this method of
+installation is meant for more experienced Python developers who are using
+Vyper as a library, or want to use it within a Python project with other
+pip dependencies.
 
 It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
