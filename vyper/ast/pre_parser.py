@@ -12,12 +12,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 # evm-version pragma
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import StructureException, SyntaxException, VersionException
-from vyper.typing import (
-    ForLoopAnnotations,
-    ModificationOffsets,
-    NativeHexLiteralLocations,
-    ParserPosition,
-)
+from vyper.typing import ParserPosition
 
 
 def validate_version_pragma(version_str: str, full_source_code: str, start: ParserPosition) -> None:
@@ -167,11 +162,11 @@ class PreParseResult:
     # Compilation settings based on the directives in the source code
     settings: Settings
     # A mapping of class names to their original class types.
-    modification_offsets: ModificationOffsets
+    modification_offsets: dict[tuple[int, int], str]
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
-    for_loop_annotations: ForLoopAnnotations
+    for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
     # A list of line/column offsets of native hex literals
-    native_hex_literal_locations: NativeHexLiteralLocations
+    native_hex_literal_locations: list[tuple[int, int]]
     # Reformatted python source string.
     reformatted_code: str
 
@@ -216,7 +211,7 @@ def pre_parse(code: str) -> PreParseResult:
         Outputs for transforming the python AST to vyper AST
     """
     result: list[TokenInfo] = []
-    modification_offsets: ModificationOffsets = {}
+    modification_offsets: dict[tuple[int, int], str] = {}
     settings = Settings()
     for_parser = ForParser(code)
     native_hex_parser = NativeHexParser()

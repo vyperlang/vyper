@@ -1,10 +1,6 @@
-from tokenize import TokenInfo
-from typing import Dict, Optional, List, Sequence, Tuple, Union
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 # Parser
-ForLoopAnnotations = Dict[Tuple[int, int], List[TokenInfo]]
-ModificationOffsets = Dict[Tuple[int, int], str]
-NativeHexLiteralLocations = List[Tuple[int, int]]
 ParserPosition = Tuple[int, int]
 
 # Compiler

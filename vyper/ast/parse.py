@@ -9,7 +9,6 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParseResult, pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-from vyper.typing import ModificationOffsets
 from vyper.utils import sha256sum, vyper_warn
 
 
@@ -156,8 +155,7 @@ def annotate_python_ast(
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
-    _modification_offsets: ModificationOffsets
-    _loop_var_annotations: dict[int, dict[str, Any]]
+    _pre_parse_result: PreParseResult
 
     def __init__(
         self,
@@ -173,9 +171,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._module_path = module_path
         self._resolved_path = resolved_path
         self._source_code = source_code
-        self._modification_offsets = pre_parse_result.modification_offsets
-        self._for_loop_annotations = pre_parse_result.for_loop_annotations
-        self._native_hex_literal_locations = pre_parse_result.native_hex_literal_locations
+        self._pre_parse_result = pre_parse_result
 
         self.counter: int = 0
 
@@ -269,7 +265,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+        node.ast_type = self._pre_parse_result.modification_offsets[(node.lineno, node.col_offset)]
         return node
 
     def visit_For(self, node):
@@ -277,7 +273,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         Visit a For node, splicing in the loop variable annotation provided by
         the pre-parser
         """
-        annotation_tokens = self._for_loop_annotations.pop((node.lineno, node.col_offset))
+        annotation_tokens = self._pre_parse_result.for_loop_annotations.pop(
+            (node.lineno, node.col_offset)
+        )
 
         if not annotation_tokens:
             # a common case for people migrating to 0.4.0, provide a more
@@ -344,14 +342,16 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if isinstance(node.value, python_ast.Yield):
             # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
-            node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+            node.ast_type = self._pre_parse_result.modification_offsets[
+                (node.lineno, node.col_offset)
+            ]
 
         return node
 
     def visit_Await(self, node):
         start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
         self.generic_visit(node)
-        node.ast_type = self._modification_offsets[start_pos]
+        node.ast_type = self._pre_parse_result.modification_offsets[start_pos]
         return node
 
     def visit_Call(self, node):
@@ -395,7 +395,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
         elif isinstance(node.value, str):
-            if (node.lineno, node.col_offset) in self._native_hex_literal_locations:
+            if (
+                node.lineno,
+                node.col_offset,
+            ) in self._pre_parse_result.native_hex_literal_locations:
                 if len(node.value) % 2 != 0:
                     raise SyntaxException(
                         "Native hex string must have an even number of characters",
