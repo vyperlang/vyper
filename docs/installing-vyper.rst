@@ -7,37 +7,16 @@ any errors.
 
 .. note::
 
-    The easiest way to experiment with the language is to use the `Remix online compiler <https://remix.ethereum.org>`_.
-    (Activate the vyper-remix plugin in the Plugin manager.)
+    The easiest way to experiment with the language is to use either `Try Vyper! <https://try.vyperlang.org>`_ (maintained by the Vyper team) or the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by the Ethereum Foundation).
+    - To use Try Vyper, go to https://try.vyperlang.org and log in (requires Github login).
+    - To use remix, go to https://remix.ethereum.org and activate the vyper-remix plugin in the Plugin manager.
 
-Docker
-******
+Binaries
+********
 
-Vyper can be downloaded as docker image from `dockerhub <https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_:
-::
+Vyper binaries for Windows, Mac and Linux are available for download from the `GitHub releases page
+<https://github.com/vyperlang/vyper/releases>`_.
 
-    docker pull vyperlang/vyper
-
-To run the compiler use the ``docker run`` command:
-::
-
-    docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
-
-Alternatively you can log into the docker image and execute vyper on the prompt.
-::
-
-    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
-    root@d35252d1fb1b:/code# vyper <contract_file.vy>
-
-The normal parameters are also supported, for example:
-::
-
-    docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
-    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
-
-.. note::
-
-    If you would like to know how to install Docker, please follow their `documentation <https://docs.docker.com/get-docker/>`_.
 
 PIP
 ***
@@ -45,7 +24,7 @@ PIP
 Installing Python
 =================
 
-Vyper can only be built using Python 3.6 and higher. If you need to know how to install the correct version of python,
+Vyper can only be built using Python 3.10 and higher. If you need to know how to install the correct version of python,
 follow the instructions from the official `Python website <https://wiki.python.org/moin/BeginnersGuide/Download>`_.
 
 Creating a virtual environment
@@ -76,12 +55,42 @@ Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vype
 To install a specific version use:
 ::
 
-    pip install vyper==0.3.7
+    pip install vyper==0.4.0
 
 You can check if Vyper is installed completely or not by typing the following in your terminal/cmd:
 ::
 
     vyper --version
+
+
+Docker
+******
+
+Vyper can be downloaded as docker image from `dockerhub <https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_:
+::
+
+    docker pull vyperlang/vyper
+
+To run the compiler use the ``docker run`` command:
+::
+
+    docker run -v $(pwd):/code vyperlang/vyper /code/<contract_file.vy>
+
+Alternatively you can log into the docker image and execute vyper on the prompt.
+::
+
+    docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
+    root@d35252d1fb1b:/code# vyper <contract_file.vy>
+
+The normal parameters are also supported, for example:
+::
+
+    docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
+    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+
+.. note::
+
+    If you would like to know how to install Docker, please follow their `documentation <https://docs.docker.com/get-docker/>`_.
 
 nix
 ***
