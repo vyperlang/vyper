@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, Iterable, List
+from typing import Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -714,9 +714,10 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
             raise InvalidAttribute(f"Duplicate {typeclass} argument", prev, kwarg)
         seen[argname] = kwarg
 
+        hint: Any  # mypy kludge
         if argname not in members:
-            hint_ = get_levenshtein_error_suggestions(argname, members, 1.0)
-            raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint_)
+            hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+            raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint)
 
         expect_name = membernames[i]
         if argname != expect_name:
