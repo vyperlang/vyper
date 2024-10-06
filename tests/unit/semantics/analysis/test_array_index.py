@@ -55,6 +55,28 @@ def foo():
         analyze_module(vyper_module, dummy_input_bundle)
 
 
+def test_empty_array_index(dummy_input_bundle):
+    code = """
+a: constant(DynArray[uint256, 3]) = []
+
+@internal
+def foo():
+    b: uint256 = a[0]
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ArrayIndexException):
+        analyze_module(vyper_module, dummy_input_bundle)
+
+    code = """
+@internal
+def foo():
+    b: uint256 = empty(DynArray[uint256, 3])[0]
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ArrayIndexException):
+        analyze_module(vyper_module, dummy_input_bundle)
+
+
 @pytest.mark.parametrize("value", ["b", "self.b"])
 def test_undeclared_definition(namespace, value, dummy_input_bundle):
     code = f"""
