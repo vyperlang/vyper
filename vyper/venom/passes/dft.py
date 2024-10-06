@@ -79,14 +79,14 @@ class DFTPass(IRPass):
                     break
             return s, -len(self.inst_offspring[x])
 
-        for dep_inst in self.ida[inst]:
-            self._process_instruction_r(instructions, dep_inst)
-
         barriers = list(self.barriers[inst])
         #barriers.sort(key=cost)
 
         for barrier_inst in barriers:
             self._process_instruction_r(instructions, barrier_inst)
+
+        for dep_inst in self.ida[inst]:
+            self._process_instruction_r(instructions, dep_inst)
 
         instructions.append(inst)
 
