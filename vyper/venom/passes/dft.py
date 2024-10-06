@@ -11,13 +11,13 @@ from collections import defaultdict
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_offspring_count: dict[IRInstruction, int]
+    inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     ida: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.inst_offspring_count = {}
+        self.inst_offspring = {}
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
@@ -41,7 +41,7 @@ class DFTPass(IRPass):
         self.visited_instructions = OrderedSet()
         non_phi_instructions = list(bb.non_phi_instructions)
         for inst in non_phi_instructions:
-            self._calculate_instruction_offspring_count_r(inst)
+            self._calculate_instruction_offspring(inst)
 
         # Compute entry points in the graph of instruction dependencies
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
@@ -77,12 +77,14 @@ class DFTPass(IRPass):
                 if x.output == op:
                     s = i
                     break
-            return s, -self.inst_offspring_count[x]
+            return s, -len(self.inst_offspring[x])
 
         for dep_inst in self.ida[inst]:
             self._process_instruction_r(instructions, dep_inst)
 
         barriers = list(self.barriers[inst])
+        #barriers.sort(key=cost)
+
         for barrier_inst in barriers:
             self._process_instruction_r(instructions, barrier_inst)
 
@@ -121,18 +123,20 @@ class DFTPass(IRPass):
                     self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
 
-    def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
+    def _calculate_instruction_offspring(self, inst: IRInstruction):
+        if inst in self.inst_offspring:
+            return self.inst_offspring[inst]
 
-        self.visited_instructions.add(inst)
-        self.inst_offspring_count[inst] = 1
+        self.inst_offspring[inst] = self.ida[inst].copy()
 
-        for dep_inst in self.ida[inst]:
-            if inst.parent != dep_inst.parent:
-                continue
-            self._calculate_instruction_offspring_count_r(dep_inst)
-            self.inst_offspring_count[inst] += self.inst_offspring_count[dep_inst]
+        children = list(self.ida[inst]) + list(self.barriers[inst])
+        for dep_inst in children:#self.ida[inst]:
+            assert inst.parent == dep_inst.parent
+            res = self._calculate_instruction_offspring(dep_inst)
+            self.inst_offspring[inst] |= res
+
+        return self.inst_offspring[inst]
+
 
     #
     # Graphviz output for debugging
@@ -143,8 +147,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                a += f" {self.inst_offspring_count.get(inst, ' - ')}"
-                b += f" {self.inst_offspring_count.get(dep, ' - ')}"
+                a += f" {self.inst_offspring.get(inst, ' - ')}"
+                b += f" {self.inst_offspring.get(dep, ' - ')}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
