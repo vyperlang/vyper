@@ -6,6 +6,7 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from collections import defaultdict
 
 
 class DFTPass(IRPass):
@@ -78,24 +79,21 @@ class DFTPass(IRPass):
                     break
             return s, -self.inst_offspring_count[x]
 
-        children = sorted(self.ida[inst], key=cost)
-
-        for dep_inst in children:
-            if inst.parent != dep_inst.parent:
-                continue
-            if dep_inst in self.visited_instructions:
-                continue
+        for dep_inst in self.ida[inst]:
             self._process_instruction_r(instructions, dep_inst)
+
+        barriers = list(self.barriers[inst])
+        for barrier_inst in barriers:
+            self._process_instruction_r(instructions, barrier_inst)
 
         instructions.append(inst)
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
-        self.ida = {}
+        self.ida = defaultdict(OrderedSet)
+        self.barriers = defaultdict(OrderedSet)
 
         non_phis = list(bb.non_phi_instructions)
-        for inst in non_phis:
-            self.ida[inst] = OrderedSet()
 
         #
         # Compute dependency graph
@@ -103,24 +101,24 @@ class DFTPass(IRPass):
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
         for inst in non_phis:
-            uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
-
-            for use in uses:
-                self.ida[use].add(inst)
+            for op in inst.operands:
+                dep = self.dfg.get_producing_instruction(op)
+                if dep is not None and dep.parent == bb:
+                    self.ida[inst].add(dep)
 
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
 
             for write_effect in write_effects:
                 if write_effect in last_write_effects and last_write_effects[write_effect] != inst:
-                    self.ida[inst].add(last_write_effects[write_effect])
+                    self.barriers[inst].add(last_write_effects[write_effect])
                 if write_effect in last_read_effects:
-                    self.ida[inst].add(last_read_effects[write_effect])
+                    self.barriers[inst].add(last_read_effects[write_effect])
                 last_write_effects[write_effect] = inst
 
             for read_effect in read_effects:
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
-                    self.ida[inst].add(last_write_effects[read_effect])
+                    self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
 
     def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
