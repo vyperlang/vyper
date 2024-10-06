@@ -17,11 +17,6 @@ def test_common_subexpression_elimination():
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    from vyper.venom.analysis.available_expression import AvailableExpressionAnalysis
-    avail: AvailableExpressionAnalysis = ac.request_analysis(AvailableExpressionAnalysis)
-    print(fn)
-    for inst in bb.instructions:
-        print(avail.get_available(inst))
 
     CSE(ac, fn).run_pass(1, 5)
 
@@ -43,7 +38,6 @@ def test_common_subexpression_elimination_effects_1():
 
     ac = IRAnalysesCache(fn)
 
-    #ExtractLiteralsPass(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
@@ -65,7 +59,6 @@ def test_common_subexpression_elimination_effects_2():
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    #ExtractLiteralsPass(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
@@ -85,7 +78,6 @@ def test_common_subexpression_elimination_effect_mstore():
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    #ExtractLiteralsPass(ac, fn).run_pass()
     CSE(ac, fn).run_pass(1, 5)
 
     assert (
