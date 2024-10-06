@@ -57,10 +57,11 @@ def parse_to_ast_with_settings(
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
     settings, class_types, for_loop_annotations, python_source = pre_parse(vyper_source)
     try:
-        py_ast = python_ast.parse(python_source)
+        filename = module_path or resolved_path or "<unknown>"
+        py_ast = python_ast.parse(python_source, filename=filename)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
+        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset)
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
