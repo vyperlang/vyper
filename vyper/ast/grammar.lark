@@ -97,12 +97,12 @@ flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
 flag_def: _FLAG_DECL NAME ":" flag_body
 
 // Types
-array_def: (NAME | array_def | dyn_array_def) "[" expr "]"
-dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," expr "]"
-tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
+array_def: (NAME | imported_type | array_def | dyn_array_def) "[" expr "]"
+dyn_array_def: "DynArray" "[" (NAME | imported_type | array_def | dyn_array_def) "," expr "]"
+tuple_def: "(" ( NAME | imported_type | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
-map_def: _MAP "[" ( NAME | array_def ) "," type "]"
+map_def: _MAP "[" ( NAME | imported_type | array_def ) "," type "]"
 imported_type: NAME ("." NAME)+
 type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
 
