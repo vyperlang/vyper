@@ -13,6 +13,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRFunction
+from vyper.venom.effects import EMPTY, Effects
 
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
@@ -76,22 +77,23 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
-    def get_effects(self) -> list[str]:
-        tmp_effects: set[str] = set(reads.get(self.opcode, ()))
-        tmp_effects = tmp_effects.union(writes.get(self.opcode, ()))
+    def get_reads(self, ignore_msize: bool) -> Effects:
+        tmp_reads = self.first_inst.get_read_effects()
         for op in self.operands:
-            if isinstance(op, IRVariable):
-                return list(_ALL)
             if isinstance(op, _Expression):
-                tmp_effects = tmp_effects.union(op.get_effects())
-        return list(tmp_effects)
+                tmp_reads = tmp_reads | op.get_reads(ignore_msize)
+        if ignore_msize:
+            tmp_reads &= ~Effects.MSIZE
+        return tmp_reads
 
-    def get_reads(self) -> list[str]:
-        tmp_reads: set[str] = set(reads.get(self.opcode, ()))
+    def get_writes(self, ignore_msize: bool) -> Effects:
+        tmp_reads = self.first_inst.get_write_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
-                tmp_reads = tmp_reads.union(op.get_reads())
-        return list(tmp_reads)
+                tmp_reads = tmp_reads | op.get_writes(ignore_msize)
+        if ignore_msize:
+            tmp_reads &= ~Effects.MSIZE
+        return tmp_reads
 
 
 class _BBLattice:
@@ -108,46 +110,6 @@ class _BBLattice:
 
 
 _UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
-
-_ALL = ("storage", "transient", "memory", "immutables", "balance", "returndata", "log")
-
-writes = {
-    "sstore": ("storage",),
-    "tstore": ("transient",),
-    "mstore": ("memory",),
-    "istore": ("immutables",),
-    "call": _ALL,
-    "delegatecall": _ALL,
-    "staticcall": ("memory", "returndata"),
-    "create": _ALL,
-    "create2": _ALL,
-    "invoke": _ALL,  # could be smarter, look up the effects of the invoked function
-    "dloadbytes": ("memory",),
-    "returndatacopy": ("memory",),
-    "calldatacopy": ("memory",),
-    "codecopy": ("memory",),
-    "extcodecopy": ("memory",),
-    "mcopy": ("memory",),
-    "log": ("log",),
-}
-reads = {
-    "sload": ("storage",),
-    "tload": ("transient",),
-    "iload": ("immutables",),
-    "mload": ("memory",),
-    "mcopy": ("memory",),
-    "call": _ALL,
-    "delegatecall": _ALL,
-    "staticcall": _ALL,
-    "returndatasize": ("returndata",),
-    "returndatacopy": ("returndata",),
-    "balance": ("balance",),
-    "selfbalance": ("balance",),
-    "log": ("memory", "log"),  # I think here about log as a append to a log
-    "revert": ("memory",),
-    "return": ("memory",),
-    "sha3": ("memory",),
-}
 
 
 class _FunctionLattice:
@@ -166,6 +128,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
     lattice: _FunctionLattice
     min_depth: int
     max_depth: int
+    ignore_msize: bool
 
     def __init__(
         self,
@@ -185,6 +148,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         self.lattice = _FunctionLattice(function)
 
+        self.ignore_msize = not self._contains_msize()
+
     def analyze(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
         self.min_depth = min_depth
         self.max_depth = max_depth
@@ -198,6 +163,13 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 for out in bb.cfg_out:
                     if out not in worklist:
                         worklist.append(out)
+
+    def _contains_msize(self) -> bool:
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode == "msize":
+                    return True
+        return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         available_expr: OrderedSet[_Expression] = OrderedSet()
@@ -219,14 +191,20 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 change |= True
 
             inst_expr = self.get_expression(inst, available_expr)
-            write_effects = writes.get(inst_expr.opcode, ())
+            # write_effects = inst.get_write_effects()  # writes.get(inst_expr.opcode, ())
+            write_effects = inst_expr.get_writes(self.ignore_msize)
             for expr in available_expr.copy():
-                read_effects = expr.get_effects()
-                if any(eff in write_effects for eff in read_effects):
+                read_effects = expr.get_reads(self.ignore_msize)
+                if read_effects & write_effects != EMPTY:
+                    available_expr.remove(expr)
+                    continue
+                write_effects_expr = expr.get_writes(self.ignore_msize)
+                if write_effects_expr & write_effects != EMPTY:
                     available_expr.remove(expr)
 
-            if inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1) and not any(
-                eff in write_effects for eff in inst_expr.get_reads()
+            if (
+                inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1)
+                and write_effects & inst_expr.get_reads(self.ignore_msize) == EMPTY
             ):
                 available_expr.add(inst_expr)
 
