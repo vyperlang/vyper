@@ -128,7 +128,11 @@ class ImportAnalyzer:
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):
         # from m.n[module] import x[name] as y[alias]
-        alias = node.alias or node.name
+
+        alias = node.alias
+
+        if alias is None:
+            alias = node.name
 
         module = node.module or ""
         if module:
