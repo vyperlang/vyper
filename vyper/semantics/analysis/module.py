@@ -720,7 +720,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             with override_global_namespace(Namespace()):
                 module_t = _analyze_module_r(module_ast, is_interface=True)
 
-                # TODO: return the whole module
+                # NOTE: might be cleaner to return the whole module, so we
+                # have a ModuleInfo, that way we don't need to have different
+                # code paths for InterfaceT vs ModuleInfo
                 return module_t.interface
 
         if path.suffix == ".json":
