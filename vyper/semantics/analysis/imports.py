@@ -195,7 +195,7 @@ class ImportAnalyzer:
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
 
-            # no recursion yet
+            # language does not yet allow recursion for vyi files
             # self.resolve_imports(module_ast)
 
             return file, module_ast
