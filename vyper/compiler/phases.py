@@ -148,6 +148,7 @@ class CompilerData:
 
     @cached_property
     def _resolve_imports(self):
+        # deepcopy so as to not interfere with `-f ast` output
         vyper_module = copy.deepcopy(self.vyper_module)
         with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
             return vyper_module, resolve_imports(vyper_module, self.input_bundle)
