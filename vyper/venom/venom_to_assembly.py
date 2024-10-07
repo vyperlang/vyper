@@ -25,7 +25,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
-DEBUG_SHOW_COST = False
+DEBUG_SHOW_COST = True
 if DEBUG_SHOW_COST:
     import sys
 

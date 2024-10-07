@@ -6,17 +6,18 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from collections import defaultdict
 
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_offspring_count: dict[IRInstruction, int]
+    inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     ida: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.inst_offspring_count = {}
+        self.inst_offspring = {}
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
@@ -40,7 +41,7 @@ class DFTPass(IRPass):
         self.visited_instructions = OrderedSet()
         non_phi_instructions = list(bb.non_phi_instructions)
         for inst in non_phi_instructions:
-            self._calculate_instruction_offspring_count_r(inst)
+            self._calculate_instruction_offspring(inst)
 
         # Compute entry points in the graph of instruction dependencies
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
@@ -70,30 +71,31 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
 
-        children = sorted(
-            self.ida[inst],
-            key=lambda x: (
-                -self.inst_offspring_count[x] + (x.opcode == "iszero") * 10,
-                inst.operands.index(x.output) if x.output in inst.operands else 0,
-            ),
-        )
+        def cost(x):
+            s = 0
+            for op in enumerate(inst.operands):
+                if x.output == op:
+                    s = i
+                    break
+            return s, -len(self.inst_offspring[x])
 
-        for dep_inst in children:
-            if inst.parent != dep_inst.parent:
-                continue
-            if dep_inst in self.visited_instructions:
-                continue
+        barriers = list(self.barriers[inst])
+        #barriers.sort(key=cost)
+
+        for barrier_inst in barriers:
+            self._process_instruction_r(instructions, barrier_inst)
+
+        for dep_inst in self.ida[inst]:
             self._process_instruction_r(instructions, dep_inst)
 
         instructions.append(inst)
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
-        self.ida = {}
+        self.ida = defaultdict(OrderedSet)
+        self.barriers = defaultdict(OrderedSet)
 
         non_phis = list(bb.non_phi_instructions)
-        for inst in non_phis:
-            self.ida[inst] = OrderedSet()
 
         #
         # Compute dependency graph
@@ -101,38 +103,40 @@ class DFTPass(IRPass):
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
         for inst in non_phis:
-            uses = self.dfg.get_uses_in_bb(inst.output, inst.parent)
-
-            for use in uses:
-                self.ida[use].add(inst)
+            for op in inst.operands:
+                dep = self.dfg.get_producing_instruction(op)
+                if dep is not None and dep.parent == bb:
+                    self.ida[inst].add(dep)
 
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
 
             for write_effect in write_effects:
                 if write_effect in last_write_effects and last_write_effects[write_effect] != inst:
-                    self.ida[inst].add(last_write_effects[write_effect])
+                    self.barriers[inst].add(last_write_effects[write_effect])
                 if write_effect in last_read_effects:
-                    self.ida[inst].add(last_read_effects[write_effect])
+                    self.barriers[inst].add(last_read_effects[write_effect])
                 last_write_effects[write_effect] = inst
 
             for read_effect in read_effects:
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
-                    self.ida[inst].add(last_write_effects[read_effect])
+                    self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
 
-    def _calculate_instruction_offspring_count_r(self, inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
+    def _calculate_instruction_offspring(self, inst: IRInstruction):
+        if inst in self.inst_offspring:
+            return self.inst_offspring[inst]
 
-        self.visited_instructions.add(inst)
-        self.inst_offspring_count[inst] = 1
+        self.inst_offspring[inst] = self.ida[inst].copy()
 
-        for dep_inst in self.ida[inst]:
-            if inst.parent != dep_inst.parent:
-                continue
-            self._calculate_instruction_offspring_count_r(dep_inst)
-            self.inst_offspring_count[inst] += self.inst_offspring_count[dep_inst]
+        children = list(self.ida[inst]) + list(self.barriers[inst])
+        for dep_inst in children:#self.ida[inst]:
+            assert inst.parent == dep_inst.parent
+            res = self._calculate_instruction_offspring(dep_inst)
+            self.inst_offspring[inst] |= res
+
+        return self.inst_offspring[inst]
+
 
     #
     # Graphviz output for debugging
@@ -143,8 +147,8 @@ class DFTPass(IRPass):
             for dep in deps:
                 a = inst.str_short()
                 b = dep.str_short()
-                a += f" {self.inst_offspring_count.get(inst, ' - ')}"
-                b += f" {self.inst_offspring_count.get(dep, ' - ')}"
+                a += f" {self.inst_offspring.get(inst, ' - ')}"
+                b += f" {self.inst_offspring.get(dep, ' - ')}"
                 a = a.replace("%", "\\%")
                 b = b.replace("%", "\\%")
                 lines.append(f'"{a}" -> "{b}"')
