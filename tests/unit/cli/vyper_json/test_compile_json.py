@@ -317,5 +317,5 @@ def test_compile_json_with_abi_top(make_input_bundle):
     code = """
 from . import json
     """
-    input_bundle = make_input_bundle({"json.json": json, "code.vy":code})
-    vyper.compiler.compile_code(code, input_bundle = input_bundle)
+    input_bundle = make_input_bundle({"json.json": json, "code.vy": code})
+    vyper.compiler.compile_code(code, input_bundle=input_bundle)
