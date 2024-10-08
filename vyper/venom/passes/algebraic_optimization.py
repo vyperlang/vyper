@@ -1,37 +1,75 @@
+import operator
+
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from vyper.utils import (
+    ceil32,
+    evm_div,
+    evm_mod,
+    evm_pow,
+    int_bounds,
+    int_log2,
+    is_power_of_two,
+    signed_to_unsigned,
+    unsigned_to_signed,
+)
+
+SIGNED = False
+UNSIGNED = True
+
+def _wrap256(x, unsigned=UNSIGNED):
+    x %= 2**256
+    # wrap in a signed way.
+    if not unsigned:
+        x = unsigned_to_signed(x, 256, strict=True)
+    return x
 
 
-class _InstTree:
-    inst: IRInstruction
-    operands: list["IROperand | _InstTree"]
+# unsigned: convert python num to evm unsigned word
+#   e.g. unsigned=True : -1 -> 0xFF...FF
+#        unsigned=False: 0xFF...FF -> -1
+def _evm_int(val: int, unsigned: bool = True) -> int | None:
+    if unsigned and val < 0:
+        return signed_to_unsigned(val, 256, strict=True)
+    elif not unsigned and val > 2**255 - 1:
+        return unsigned_to_signed(val, 256, strict=True)
 
-    def __init__(self, inst: IRInstruction, operands: list["IROperand | _InstTree"]) -> None:
-        self.inst = inst
-        self.operands = operands
-    
-    @property
-    def opcode(self) -> str:
-        return self.inst.opcode
-    
-    def eval_to(self, val: IRLiteral) -> bool:
-        if self.opcode == "store":
-            if isinstance(self.operands[0], IRLiteral):
-                return self.operands[0] == val
-            elif isinstance(self.operands[0], _InstTree):
-                return self.operands[0].eval_to(val)
+    return val
+
+def _check_num(val: int) -> bool:
+    if val < -(2**255):
         return False
+    elif val >= 2**256:
+        return False
+    return True
 
-    def op_eval_to(self, index: int, val: IRLiteral) -> bool:
-        op = self.operands[index]
-        if isinstance(op, IRLiteral):
-            return op == val
-        elif isinstance(op, _InstTree):
-            return op.eval_to(val)
-        else:
-            return False
+
+
+arith = {
+    "add": (operator.add, "+", UNSIGNED),
+    "sub": (operator.sub, "-", UNSIGNED),
+    "mul": (operator.mul, "*", UNSIGNED),
+    "div": (evm_div, "/", UNSIGNED),
+    "sdiv": (evm_div, "/", SIGNED),
+    "mod": (evm_mod, "%", UNSIGNED),
+    "smod": (evm_mod, "%", SIGNED),
+    "exp": (evm_pow, "**", UNSIGNED),
+    "eq": (operator.eq, "==", UNSIGNED),
+    "ne": (operator.ne, "!=", UNSIGNED),
+    "lt": (operator.lt, "<", UNSIGNED),
+    "le": (operator.le, "<=", UNSIGNED),
+    "gt": (operator.gt, ">", UNSIGNED),
+    "ge": (operator.ge, ">=", UNSIGNED),
+    "slt": (operator.lt, "<", SIGNED),
+    "sle": (operator.le, "<=", SIGNED),
+    "sgt": (operator.gt, ">", SIGNED),
+    "sge": (operator.ge, ">=", SIGNED),
+    "or": (operator.or_, "|", UNSIGNED),
+    "and": (operator.and_, "&", UNSIGNED),
+    "xor": (operator.xor, "^", UNSIGNED),
+}
 
 class AlgebraicOptimizationPass(IRPass):
     """
@@ -40,6 +78,7 @@ class AlgebraicOptimizationPass(IRPass):
     It currently optimizes:
         * iszero chains
     """
+    dfg: DFGAnalysis
 
     def _optimize_iszero_chains(self) -> None:
         fn = self.function
@@ -100,16 +139,26 @@ class AlgebraicOptimizationPass(IRPass):
                 ):
                     inst.opcode = "offset"
     
-    def _get_tree_op(self, op: IROperand, depth) -> IROperand | _InstTree:
-        if depth == 0 or not isinstance(op, IRVariable):
+    def eval_op(self, op: IROperand) -> IRLiteral | None:
+        if isinstance(op, IRLiteral):
             return op
-        inst = self.dfg.get_producing_instruction(op)
-        assert isinstance(inst, IRInstruction)
-        return self._get_tree(inst, depth - 1)
+        elif isinstance(op, IRVariable):
+            next_inst = self.dfg.get_producing_instruction(op)
+            assert next_inst is not None
+            return self.eval(next_inst)
+        else:
+            return None
 
-    def _get_tree(self, inst: IRInstruction, depth: int = 0) -> _InstTree:
-        return _InstTree(inst, [self._get_tree_op(op, depth) for op in inst.operands])
-        
+    def eval(self, inst: IRInstruction) -> IRLiteral | None:
+        if inst.opcode == "store":
+            if isinstance(inst.operands[0], IRLiteral):
+                return inst.operands[0]
+            elif isinstance(inst.operands[0], IRVariable):
+                next_inst = self.dfg.get_producing_instruction(inst.operands[0])
+                assert next_inst is not None
+                return self.eval(next_inst)
+        return None
+
     def _peepholer(self):
         depth = 5
         while True:
@@ -122,43 +171,64 @@ class AlgebraicOptimizationPass(IRPass):
                 break
 
     def _handle_inst_peephole(self, inst: IRInstruction, depth: int) -> bool:
-        inst_tree = self._get_tree(inst, depth)
+        if inst.opcode not in arith.keys():
+            return False
+        fn, symb, unsigned = arith[inst.opcode]
+
+        op_0 = self.eval_op(inst.operands[0])
+        op_1 = self.eval_op(inst.operands[1])
+
+        if isinstance(op_0, IRLiteral) and  isinstance(op_1, IRLiteral):
+            assert isinstance(op_0.value, int), "must be int"
+            assert isinstance(op_1.value, int), "must be int"
+            a = _evm_int(op_0.value, unsigned)
+            b = _evm_int(op_1.value, unsigned)
+            res = fn(b, a)
+            res = _wrap256(res, unsigned)
+            if res is not None and _check_num(res):
+                inst.opcode = "store"
+                inst.operands = [IRLiteral(res)]
+                return True
+
         
-        if inst_tree.opcode in {"add", "sub", "xor", "or"} and inst_tree.op_eval_to(0, IRLiteral(0)):
-            inst_tree.inst.opcode = "store"
-            inst_tree.inst.operands = [inst.operands[1]]
+        if inst.opcode in {"add", "sub", "xor", "or"} and op_0 == IRLiteral(0):
+            inst.opcode = "store"
+            inst.operands = [inst.operands[1]]
             return True
         
-        if inst_tree.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and inst_tree.op_eval_to(0, IRLiteral(0)):
-            inst_tree.inst.opcode = "store"
-            inst_tree.inst.operands = [IRLiteral(0)]
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and op_1 == IRLiteral(0):
+            inst.opcode = "store"
+            inst.operands = [IRLiteral(0)]
             return True
 
-        if inst_tree.opcode in {"mod", "smod"} and inst_tree.op_eval_to(0, IRLiteral(1)):
-            inst_tree.inst.opcode = "store"
-            inst_tree.inst.operands = [IRLiteral(0)]
+        if inst.opcode in {"mod", "smod"} and op_0 == IRLiteral(1):
+            inst.opcode = "store"
+            inst.operands = [IRLiteral(0)]
             return True
 
-        if inst_tree.opcode in {"mul", "div", "sdiv"} and inst_tree.op_eval_to(0, IRLiteral(1)):
-            inst_tree.inst.opcode = "store"
-            inst_tree.inst.operands = [inst.operands[1]]
+        if inst.opcode in {"mul", "div", "sdiv"} and op_0 == IRLiteral(1):
+            inst.opcode = "store"
+            inst.operands = [inst.operands[1]]
             return True
 
-        if inst_tree.op_eval_to == "eq" and inst_tree.op_eval_to(0, IRLiteral(0)):
-            inst_tree.inst.opcode = "iszero"
-            inst_tree.inst.operands = [inst.operands[1]]
+        if inst.opcode == "eq" and op_0 == IRLiteral(0):
+            inst.opcode = "iszero"
+            inst.operands = [inst.operands[1]]
             return True
 
-        if inst_tree.op_eval_to == "eq" and inst_tree.op_eval_to(1, IRLiteral(0)):
-            inst_tree.inst.opcode = "iszero"
-            inst_tree.inst.operands = [inst.operands[0]]
+        if inst.opcode == "eq" and op_1 == IRLiteral(0):
+            inst.opcode = "iszero"
+            inst.operands = [inst.operands[0]]
             return True
 
         return False
 
     def run_pass(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        assert isinstance(dfg, DFGAnalysis)
+        self.dfg = dfg
 
+        
         self._optimize_iszero_chains()
         self._handle_offsets()
         self._peepholer()
