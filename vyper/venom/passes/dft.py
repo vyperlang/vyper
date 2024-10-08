@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -6,7 +8,6 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from collections import defaultdict
 
 
 class DFTPass(IRPass):
@@ -14,6 +15,7 @@ class DFTPass(IRPass):
     inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     ida: dict[IRInstruction, OrderedSet[IRInstruction]]
+    barriers: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
@@ -71,18 +73,7 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
 
-        def cost(x):
-            s = 0
-            for op in enumerate(inst.operands):
-                if x.output == op:
-                    s = i
-                    break
-            return s, -len(self.inst_offspring[x])
-
-        barriers = list(self.barriers[inst])
-        #barriers.sort(key=cost)
-
-        for barrier_inst in barriers:
+        for barrier_inst in self.barriers[inst]:
             self._process_instruction_r(instructions, barrier_inst)
 
         for dep_inst in self.ida[inst]:
@@ -130,13 +121,12 @@ class DFTPass(IRPass):
         self.inst_offspring[inst] = self.ida[inst].copy()
 
         children = list(self.ida[inst]) + list(self.barriers[inst])
-        for dep_inst in children:#self.ida[inst]:
+        for dep_inst in children:
             assert inst.parent == dep_inst.parent
             res = self._calculate_instruction_offspring(dep_inst)
             self.inst_offspring[inst] |= res
 
         return self.inst_offspring[inst]
-
 
     #
     # Graphviz output for debugging
