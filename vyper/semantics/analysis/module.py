@@ -1,4 +1,3 @@
-import os
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
@@ -58,7 +57,7 @@ from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, safe_relpath
 
 
 def analyze_module(
@@ -898,7 +897,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
         base_path = "../" * (level - 1)
     elif level == 1:
         base_path = "./"
-    return PurePath(f"{base_path}{module_str.replace('.','/')}/")
+    return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
@@ -921,7 +920,7 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, In
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
     # conversion, so we must use the `os` module).
-    builtins_path = os.path.relpath(builtins_path)
+    builtins_path = safe_relpath(builtins_path)
 
     search_path = Path(builtins_path).parent.parent.parent
     # generate an input bundle just because it knows how to build paths.

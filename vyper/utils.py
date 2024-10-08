@@ -4,6 +4,7 @@ import decimal
 import enum
 import functools
 import hashlib
+import os
 import sys
 import time
 import traceback
@@ -25,9 +26,10 @@ class OrderedSet(Generic[_T]):
     """
 
     def __init__(self, iterable=None):
-        self._data = dict()
-        if iterable is not None:
-            self.update(iterable)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self)
@@ -57,6 +59,7 @@ class OrderedSet(Generic[_T]):
     def add(self, item: _T) -> None:
         self._data[item] = None
 
+    # NOTE to refactor: duplicate of self.update()
     def addmany(self, iterable):
         for item in iterable:
             self._data[item] = None
@@ -86,6 +89,7 @@ class OrderedSet(Generic[_T]):
     def union(self, other):
         return self | other
 
+    # set dunders
     def __ior__(self, other):
         self.update(other)
         return self
@@ -98,6 +102,15 @@ class OrderedSet(Generic[_T]):
     def __eq__(self, other):
         return self._data == other._data
 
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
     def copy(self):
         cls = self.__class__
         ret = cls.__new__(cls)
@@ -109,11 +122,11 @@ class OrderedSet(Generic[_T]):
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
 
-        ret = sets[0].copy()
-        for e in sets[0]:
-            if any(e not in s for s in sets[1:]):
-                ret.remove(e)
-        return ret
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
 
 
 class StringEnum(enum.Enum):
@@ -597,3 +610,12 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path

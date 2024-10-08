@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
+import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
@@ -21,8 +22,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "istore",
         "tload",
         "tstore",
-        "assert",
-        "assert_unreachable",
         "mstore",
         "mload",
         "calldatacopy",
@@ -209,7 +208,6 @@ class IRInstruction:
     output: Optional[IROperand]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
-    dup_requirements: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
     fence_id: int
     annotation: Optional[str]
@@ -228,7 +226,6 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
-        self.dup_requirements = OrderedSet()
         self.fence_id = -1
         self.annotation = None
         self.ast_source = None
@@ -241,6 +238,12 @@ class IRInstruction:
     @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
+
+    def get_read_effects(self):
+        return effects.reads.get(self.opcode, effects.EMPTY)
+
+    def get_write_effects(self):
+        return effects.writes.get(self.opcode, effects.EMPTY)
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
