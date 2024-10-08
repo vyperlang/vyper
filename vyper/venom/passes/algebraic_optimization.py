@@ -2,6 +2,7 @@ import operator
 
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 from vyper.utils import (
@@ -175,14 +176,17 @@ class AlgebraicOptimizationPass(IRPass):
             return False
         fn, symb, unsigned = arith[inst.opcode]
 
-        op_0 = self.eval_op(inst.operands[0])
-        op_1 = self.eval_op(inst.operands[1])
+        
+        op_0 = inst.operands[0]
+        op_1 = inst.operands[1]
+        eop_0 = self.eval_op(inst.operands[0])
+        eop_1 = self.eval_op(inst.operands[1])
 
-        if isinstance(op_0, IRLiteral) and  isinstance(op_1, IRLiteral):
-            assert isinstance(op_0.value, int), "must be int"
-            assert isinstance(op_1.value, int), "must be int"
-            a = _evm_int(op_0.value, unsigned)
-            b = _evm_int(op_1.value, unsigned)
+        if isinstance(eop_0, IRLiteral) and  isinstance(eop_1, IRLiteral):
+            assert isinstance(eop_0.value, int), "must be int"
+            assert isinstance(eop_1.value, int), "must be int"
+            a = _evm_int(eop_0.value, unsigned)
+            b = _evm_int(eop_1.value, unsigned)
             res = fn(b, a)
             res = _wrap256(res, unsigned)
             if res is not None and _check_num(res):
@@ -191,35 +195,39 @@ class AlgebraicOptimizationPass(IRPass):
                 return True
 
         
-        if inst.opcode in {"add", "sub", "xor", "or"} and op_0 == IRLiteral(0):
+        if inst.opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
             inst.opcode = "store"
             inst.operands = [inst.operands[1]]
             return True
         
-        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and op_1 == IRLiteral(0):
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and eop_1 == IRLiteral(0):
             inst.opcode = "store"
             inst.operands = [IRLiteral(0)]
             return True
 
-        if inst.opcode in {"mod", "smod"} and op_0 == IRLiteral(1):
+        if inst.opcode in {"mod", "smod"} and eop_0 == IRLiteral(1):
             inst.opcode = "store"
             inst.operands = [IRLiteral(0)]
             return True
 
-        if inst.opcode in {"mul", "div", "sdiv"} and op_0 == IRLiteral(1):
+        if inst.opcode in {"mul", "div", "sdiv"} and eop_0 == IRLiteral(1):
             inst.opcode = "store"
             inst.operands = [inst.operands[1]]
             return True
 
-        if inst.opcode == "eq" and op_0 == IRLiteral(0):
+        if inst.opcode == "eq" and eop_0 == IRLiteral(0):
             inst.opcode = "iszero"
             inst.operands = [inst.operands[1]]
             return True
 
-        if inst.opcode == "eq" and op_1 == IRLiteral(0):
+        if inst.opcode == "eq" and eop_1 == IRLiteral(0):
             inst.opcode = "iszero"
             inst.operands = [inst.operands[0]]
             return True
+        
+        if inst.opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
+            inst.opcode = "store"
+            inst.operands = [IRLiteral(1)]
 
         return False
 
@@ -227,6 +235,8 @@ class AlgebraicOptimizationPass(IRPass):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         self.dfg = dfg
+        
+        self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
 
         
         self._optimize_iszero_chains()
