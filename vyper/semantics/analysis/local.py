@@ -810,13 +810,17 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, typ)
 
         elif is_type_t(func_type, EventT):
-            # events have no kwargs
+            # event ctors
             expected_types = func_type.typedef.arguments.values()  # type: ignore
-            for arg, typ in zip(node.args, expected_types):
-                self.visit(arg, typ)
+            # Handle keyword args if present, otherwise use positional args
+            if len(node.keywords) > 0:
+                for kwarg, arg_type in zip(node.keywords, expected_types):
+                    self.visit(kwarg.value, arg_type)
+            else:
+                for arg, typ in zip(node.args, expected_types):
+                    self.visit(arg, typ)
         elif is_type_t(func_type, StructT):
             # struct ctors
-            # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
             for kwarg, arg_type in zip(node.keywords, expected_types):
                 self.visit(kwarg.value, arg_type)
