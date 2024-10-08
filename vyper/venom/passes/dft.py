@@ -12,14 +12,12 @@ from vyper.venom.passes.base_pass import IRPass
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     ida: dict[IRInstruction, OrderedSet[IRInstruction]]
     barriers: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.inst_offspring = {}
 
     def run_pass(self) -> None:
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
@@ -38,12 +36,7 @@ class DFTPass(IRPass):
 
         self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
-
-        # Compute the number of instructions that are dependent on each instruction
-        self.visited_instructions = OrderedSet()
         non_phi_instructions = list(bb.non_phi_instructions)
-        for inst in non_phi_instructions:
-            self._calculate_instruction_offspring(inst)
 
         # Compute entry points in the graph of instruction dependencies
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
@@ -113,34 +106,3 @@ class DFTPass(IRPass):
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
-
-    def _calculate_instruction_offspring(self, inst: IRInstruction):
-        if inst in self.inst_offspring:
-            return self.inst_offspring[inst]
-
-        self.inst_offspring[inst] = self.ida[inst].copy()
-
-        children = list(self.ida[inst]) + list(self.barriers[inst])
-        for dep_inst in children:
-            assert inst.parent == dep_inst.parent
-            res = self._calculate_instruction_offspring(dep_inst)
-            self.inst_offspring[inst] |= res
-
-        return self.inst_offspring[inst]
-
-    #
-    # Graphviz output for debugging
-    #
-    def ida_as_graph(self) -> str:
-        lines = ["digraph ida_graph {"]
-        for inst, deps in self.ida.items():
-            for dep in deps:
-                a = inst.str_short()
-                b = dep.str_short()
-                a += f" {self.inst_offspring.get(inst, ' - ')}"
-                b += f" {self.inst_offspring.get(dep, ' - ')}"
-                a = a.replace("%", "\\%")
-                b = b.replace("%", "\\%")
-                lines.append(f'"{a}" -> "{b}"')
-        lines.append("}")
-        return "\n".join(lines)
