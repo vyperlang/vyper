@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
@@ -240,6 +240,17 @@ class VarAccess:
     # A sentinel indicating a subscript access
     SUBSCRIPT_ACCESS: ClassVar[Any] = object()
 
+    # custom __reduce__ and _produce implementations to work around
+    # a pickle bug.
+    # see https://github.com/python/cpython/issues/124937#issuecomment-2392227290
+    def __reduce__(self):
+        dict_obj = {f.name: getattr(self, f.name) for f in fields(self)}
+        return self.__class__._produce, (dict_obj,)
+
+    @classmethod
+    def _produce(cls, data):
+        return cls(**data)
+
     @cached_property
     def attrs(self):
         ret = []
@@ -292,7 +303,6 @@ class ExprInfo:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
-
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()
 
