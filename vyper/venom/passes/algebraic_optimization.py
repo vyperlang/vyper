@@ -189,10 +189,6 @@ class AlgebraicOptimizationPass(IRPass):
                 break
 
     def _handle_inst_peephole(self, inst: IRInstruction, depth: int) -> bool:
-        if inst.opcode not in arith.keys():
-            return False
-        fn, symb, unsigned = arith[inst.opcode]
-
         def update(opcode: str,  *args: IROperand | int) -> bool:
             inst.opcode = opcode
             inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
@@ -201,16 +197,36 @@ class AlgebraicOptimizationPass(IRPass):
         def store(*args: IROperand | int) -> bool:
             return update("store", *args)
         
-        op_0 = inst.operands[0]
-        op_1 = inst.operands[1]
-        eop_0 = self.eval_op(inst.operands[0])
-        eop_1 = self.eval_op(inst.operands[1])
+        if len(inst.operands) < 1:
+            return False
 
         opcode = inst.opcode 
+        op_0 = inst.operands[0]
+        eop_0 = self.eval_op(inst.operands[0])
+
+        if opcode == "iszero" and _evm_int(eop_0) is not None:
+            val = _evm_int(eop_0)
+            assert val is not None
+            val = int(val == 0)  # int(bool) == 1 if bool else 0
+            return store(val) #finalize(val, [])
+
+        if len(inst.operands) != 2:
+            return False
+
+        op_1 = inst.operands[1]
+        eop_1 = self.eval_op(inst.operands[1])
+
         if opcode in COMMUTATIVE_INSTRUCTIONS and eop_1 is not None:
             eop_0, eop_1 = eop_1, eop_0
             op_0, op_1 = op_1, op_0
+
+        if opcode in {"shl", "shr", "sar"} and _evm_int(eop_1) == 0:
+            # x >> 0 == x << 0 == x
+            return store(op_0)
             
+        if inst.opcode not in arith.keys():
+            return False
+        fn, symb, unsigned = arith[inst.opcode]
 
         if isinstance(eop_0, IRLiteral) and  isinstance(eop_1, IRLiteral):
             assert isinstance(eop_0.value, int), "must be int"
@@ -300,11 +316,15 @@ class AlgebraicOptimizationPass(IRPass):
 
             raise CompilerPanic("unreachable")  # pragma: no cover
 
+        # the not equal equivalent is not needed
         if opcode == "eq" and eop_0 == IRLiteral(0):
             return update("iszero", op_1)
 
         if opcode == "eq" and eop_1 == IRLiteral(0):
             return update("iszero", op_0)
+
+
+
         
         if opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
             return store(1)
