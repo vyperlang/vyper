@@ -263,6 +263,43 @@ class AlgebraicOptimizationPass(IRPass):
 
             raise CompilerPanic("unreachable")  # pragma: nocover
 
+        # -1 - x == ~x (definition of two's complement)
+        if opcode == "sub" and _evm_int(eop_1, SIGNED) == -1:
+            return update("not", op_0) #finalize("not", [args[1]])
+
+        if opcode == "exp":
+            # n ** 0 == 1 (forall n)
+            # 1 ** n == 1
+            if _evm_int(eop_0) == 0 or _evm_int(eop_1) == 1:
+                return store(1) #finalize(1, [])
+            # 0 ** n == (1 if n == 0 else 0)
+            if _evm_int(eop_1) == 0:
+                return update("iszero", op_0) #finalize("iszero", [args[1]])
+            # n ** 1 == n
+            if _evm_int(eop_0) == 1:
+                return store(op_1) #finalize("seq", [args[0]])
+
+        if opcode in {"mod", "div", "mul"} and isinstance(eop_0, IRLiteral) and is_power_of_two(_evm_int(eop_0)):
+            val_0 = _evm_int(eop_0)
+            assert isinstance(val_0, int)
+            assert unsigned == UNSIGNED, "something's not right."
+            # shave two gas off mod/div/mul for powers of two
+            # x % 2**n == x & (2**n - 1)
+            if opcode == "mod":
+                return update("and", val_0 - 1, op_1) #finalize("and", [args[0], _int(args[1]) - 1])
+
+            if opcode == "div":
+                # x / 2**n == x >> n
+                # recall shr/shl have unintuitive arg order
+                return update("shr", op_1, int_log2(val_0)) #finalize("shr", [int_log2(_int(args[1])), args[0]])
+
+            # note: no rule for sdiv since it rounds differently from sar
+            if opcode == "mul":
+                # x * 2**n == x << n
+                return update("shl", op_1, int_log2(val_0)) #finalize("shl", [int_log2(_int(args[1])), args[0]])
+
+            raise CompilerPanic("unreachable")  # pragma: no cover
+
         if opcode == "eq" and eop_0 == IRLiteral(0):
             return update("iszero", op_1)
 
