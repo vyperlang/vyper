@@ -17,8 +17,16 @@ from vyper.utils import (
     unsigned_to_signed,
 )
 
+from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+from vyper.exceptions import CompilerPanic, StaticAssertionException
+
 SIGNED = False
 UNSIGNED = True
+
+COMMUTATIVE_OPS = {"add", "mul", "eq", "ne", "and", "or", "xor"}
+COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
+STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
+UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
 
 def _wrap256(x, unsigned=UNSIGNED):
     x %= 2**256
@@ -31,7 +39,12 @@ def _wrap256(x, unsigned=UNSIGNED):
 # unsigned: convert python num to evm unsigned word
 #   e.g. unsigned=True : -1 -> 0xFF...FF
 #        unsigned=False: 0xFF...FF -> -1
-def _evm_int(val: int, unsigned: bool = True) -> int | None:
+def _evm_int(lit: IRLiteral | None, unsigned: bool = True) -> int | None:
+    if lit is None:
+        return None
+
+    val: int = lit.value
+
     if unsigned and val < 0:
         return signed_to_unsigned(val, 256, strict=True)
     elif not unsigned and val > 2**255 - 1:
@@ -159,6 +172,10 @@ class AlgebraicOptimizationPass(IRPass):
                 assert next_inst is not None
                 return self.eval(next_inst)
         return None
+    
+    def static_eq(self, op_0: IROperand, op_1: IROperand, eop_0: IRLiteral | None, eop_1: IRLiteral | None) -> bool:
+        return (eop_0 is not None and eop_0 == eop_1) or self.eq_analysis.equivalent(op_0, op_1)
+
 
     def _peepholer(self):
         depth = 5
@@ -176,17 +193,30 @@ class AlgebraicOptimizationPass(IRPass):
             return False
         fn, symb, unsigned = arith[inst.opcode]
 
+        def update(opcode: str,  *args: IROperand | int) -> bool:
+            inst.opcode = opcode
+            inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            return True
+
+        def store(*args: IROperand | int) -> bool:
+            return update("store", *args)
         
         op_0 = inst.operands[0]
         op_1 = inst.operands[1]
         eop_0 = self.eval_op(inst.operands[0])
         eop_1 = self.eval_op(inst.operands[1])
 
+        opcode = inst.opcode 
+        if opcode in COMMUTATIVE_INSTRUCTIONS and eop_1 is not None:
+            eop_0, eop_1 = eop_1, eop_0
+            op_0, op_1 = op_1, op_0
+            
+
         if isinstance(eop_0, IRLiteral) and  isinstance(eop_1, IRLiteral):
             assert isinstance(eop_0.value, int), "must be int"
             assert isinstance(eop_1.value, int), "must be int"
-            a = _evm_int(eop_0.value, unsigned)
-            b = _evm_int(eop_1.value, unsigned)
+            a = _evm_int(eop_0, unsigned)
+            b = _evm_int(eop_1, unsigned)
             res = fn(b, a)
             res = _wrap256(res, unsigned)
             if res is not None and _check_num(res):
@@ -194,40 +224,53 @@ class AlgebraicOptimizationPass(IRPass):
                 inst.operands = [IRLiteral(res)]
                 return True
 
+        if opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
+            return store(op_1)
+
+        if opcode in {"sub", "xor", "ne"} and self.static_eq(op_0, op_1, eop_0, eop_1):
+            # (x - x) == (x ^ x) == (x != x) == 0
+            return store(0)
+
+        if opcode in STRICT_COMPARISON_OPS and self.static_eq(op_0, op_1, eop_0, eop_1):
+            # (x < x) == (x > x) == 0
+            return store(0)
+
+        if opcode in {"eq"} | UNSTRICT_COMPARISON_OPS and  self.static_eq(op_0, op_1, eop_0, eop_1):
+            # (x == x) == (x >= x) == (x <= x) == 1
+            return store(1)
         
-        if inst.opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
-            inst.opcode = "store"
-            inst.operands = [inst.operands[1]]
-            return True
+        if opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and _evm_int(eop_0, unsigned) == 0:
+            return store(0)
+
+        if opcode in {"mod", "smod"} and eop_0 == IRLiteral(1):
+            return store(0)
+
+        if opcode in {"mul", "div", "sdiv"} and eop_0 == IRLiteral(1):
+            return store(op_1)
+        if opcode in {"and", "or", "xor"} and _evm_int(eop_0, SIGNED) == -1:
+            assert unsigned == UNSIGNED
+            if opcode == "and":
+                # -1 & x == x
+                return store(op_1) #finalize("seq", [args[0]])
+
+            if opcode == "xor":
+                # -1 ^ x == ~x
+                return update("not", op_1) # finalize("not", [args[0]])
+
+            if opcode == "or":
+                # -1 | x == -1
+                return store(_evm_int(-1, unsigned)) #finalize(args[1].value, [])
+
+            raise CompilerPanic("unreachable")  # pragma: nocover
+
+        if opcode == "eq" and eop_0 == IRLiteral(0):
+            return update("iszero", op_1)
+
+        if opcode == "eq" and eop_1 == IRLiteral(0):
+            return update("iszero", op_0)
         
-        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and eop_1 == IRLiteral(0):
-            inst.opcode = "store"
-            inst.operands = [IRLiteral(0)]
-            return True
-
-        if inst.opcode in {"mod", "smod"} and eop_0 == IRLiteral(1):
-            inst.opcode = "store"
-            inst.operands = [IRLiteral(0)]
-            return True
-
-        if inst.opcode in {"mul", "div", "sdiv"} and eop_0 == IRLiteral(1):
-            inst.opcode = "store"
-            inst.operands = [inst.operands[1]]
-            return True
-
-        if inst.opcode == "eq" and eop_0 == IRLiteral(0):
-            inst.opcode = "iszero"
-            inst.operands = [inst.operands[1]]
-            return True
-
-        if inst.opcode == "eq" and eop_1 == IRLiteral(0):
-            inst.opcode = "iszero"
-            inst.operands = [inst.operands[0]]
-            return True
-        
-        if inst.opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
-            inst.opcode = "store"
-            inst.operands = [IRLiteral(1)]
+        if opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
+            return store(1)
 
         return False
 
@@ -239,9 +282,9 @@ class AlgebraicOptimizationPass(IRPass):
         self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
 
         
-        self._optimize_iszero_chains()
         self._handle_offsets()
         self._peepholer()
+        self._optimize_iszero_chains()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
