@@ -142,18 +142,24 @@ class AlgebraicOptimizationPass(IRPass):
         chain.reverse()
         return chain
 
-    def _handle_offsets(self):
+    def _handle_offsets(self) -> bool:
+        change = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 # check if the instruction is of the form
                 # `add <ptr> <label>`
                 # this works only if store chains have been eliminated.
+                if inst.opcode  != "add":
+                    continue
+                op_0 = self.eval_op(inst.operands[0])
                 if (
-                    inst.opcode == "add"
-                    and isinstance(inst.operands[0], IRLiteral)
+                    isinstance(op_0, int)
                     and isinstance(inst.operands[1], IRLabel)
                 ):
+                    change |= True
                     inst.opcode = "offset"
+
+        return change
 
     def eval_op(self, op: IROperand) -> IRLiteral | None:
         if isinstance(op, IRLiteral):
@@ -183,7 +189,7 @@ class AlgebraicOptimizationPass(IRPass):
     def _peepholer(self):
         depth = 5
         while True:
-            change = False
+            change = self._handle_offsets()
             for bb in self.function.get_basic_blocks():
                 for inst in bb.instructions:
                     change |= self._handle_inst_peephole(inst, depth)
@@ -219,6 +225,14 @@ class AlgebraicOptimizationPass(IRPass):
         op_1 = inst.operands[1]
         eop_1 = self.eval_op(inst.operands[1])
 
+        if (
+            opcode == "add"
+            and isinstance(eop_0, IRLiteral)
+            and isinstance(inst.operands[1], IRLabel)
+        ):
+            inst.opcode = "offset"
+            return True
+
         if opcode in COMMUTATIVE_INSTRUCTIONS and eop_1 is not None:
             eop_0, eop_1 = eop_1, eop_0
             op_0, op_1 = op_1, op_0
@@ -242,6 +256,7 @@ class AlgebraicOptimizationPass(IRPass):
                 inst.opcode = "store"
                 inst.operands = [IRLiteral(res)]
                 return True
+
 
         if opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
             return store(op_1)
@@ -355,7 +370,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
 
-        self._handle_offsets()
+        #self._handle_offsets()
         self._peepholer()
         self._optimize_iszero_chains()
 
