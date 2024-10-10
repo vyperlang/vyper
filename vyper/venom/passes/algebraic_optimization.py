@@ -149,13 +149,10 @@ class AlgebraicOptimizationPass(IRPass):
                 # check if the instruction is of the form
                 # `add <ptr> <label>`
                 # this works only if store chains have been eliminated.
-                if inst.opcode  != "add":
+                if inst.opcode != "add":
                     continue
                 op_0 = self.eval_op(inst.operands[0])
-                if (
-                    isinstance(op_0, int)
-                    and isinstance(inst.operands[1], IRLabel)
-                ):
+                if isinstance(op_0, int) and isinstance(inst.operands[1], IRLabel):
                     change |= True
                     inst.opcode = "offset"
 
@@ -256,7 +253,6 @@ class AlgebraicOptimizationPass(IRPass):
                 inst.opcode = "store"
                 inst.operands = [IRLiteral(res)]
                 return True
-
 
         if opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
             return store(op_1)
@@ -370,7 +366,6 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
 
-        #self._handle_offsets()
         self._peepholer()
         self._optimize_iszero_chains()
 
