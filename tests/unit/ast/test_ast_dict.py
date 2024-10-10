@@ -1822,6 +1822,6 @@ def foo():
     # type contains name which is based on path
     keys = [s for s in lib1_import_ast.keys() if s not in {"path", "type"}]
 
-    for kw in keys:
-        assert lib1_ast[kw] == lib1_import_ast[kw]
-        assert lib2_ast[kw] == lib2_import_ast[kw]
+    for key in keys:
+        assert lib1_ast[key] == lib1_import_ast[key]
+        assert lib2_ast[key] == lib2_import_ast[key]
