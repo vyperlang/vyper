@@ -30,6 +30,7 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    # get all reachable imports including recursion
     imported_module_infos = module_t.reachable_imports
     unique_modules: dict[str, vy_ast.Module] = {}
     for info in imported_module_infos:
