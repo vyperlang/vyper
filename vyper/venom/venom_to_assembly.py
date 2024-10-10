@@ -295,7 +295,8 @@ class VenomCompiler:
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
 
-        self.clean_stack_from_cfg_in(asm, basicblock, stack)
+        if len(basicblock.cfg_in) == 1:
+            self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
         all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
@@ -321,26 +322,28 @@ class VenomCompiler:
     def clean_stack_from_cfg_in(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
-        if len(basicblock.cfg_in) == 0:
-            return
+        # the input block is a splitter block, like jnz or djmp
+        assert len(basicblock.cfg_in) == 1
+        in_bb = basicblock.cfg_in.first()
+        assert len(in_bb.cfg_out) > 1
 
-        to_pop = OrderedSet[IRVariable]()
-        for in_bb in basicblock.cfg_in:
-            # inputs is the input variables we need from in_bb
-            inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
+        # inputs is the input variables we need from in_bb
+        inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
 
-            # layout is the output stack layout for in_bb (which works
-            # for all possible cfg_outs from the in_bb).
-            layout = in_bb.out_vars
+        # layout is the output stack layout for in_bb (which works
+        # for all possible cfg_outs from the in_bb, in_bb is responsible
+        # for making sure its output stack layout works no matter which
+        # bb it jumps into).
+        layout = in_bb.out_vars
+        to_pop = list(layout.difference(inputs))
 
-            # pop all the stack items which in_bb produced which we don't need.
-            to_pop |= layout.difference(inputs)
+        # small heuristic: pop from shallowest first.
+        to_pop.sort(key=lambda var: -stack.get_depth(var))
 
+        # NOTE: we could get more fancy and try to optimize the swap
+        # operations here, there is probably some more room for optimization.
         for var in to_pop:
             depth = stack.get_depth(var)
-            # don't pop phantom phi inputs
-            if depth is StackModel.NOT_IN_STACK:
-                continue
 
             if depth != 0:
                 self.swap(asm, stack, depth)
