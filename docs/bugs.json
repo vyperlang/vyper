@@ -1,0 +1,380 @@
+[
+    {
+        "ghsaId": "GHSA-mr6r-mvw4-736g",
+        "name": "InterfaceReturnManipulation",
+        "summary": "The compiler does not clamp the return value of function calls returning integer types.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-mr6r-mvw4-736g",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-vg88-3v92-rjx2",
+        "name": "RevertWhenReturnInsideNestedLoop",
+        "summary": "Returning inside a for loop causes an invalid jump dest, reverting the transaction.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-vg88-3v92-rjx2",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.2.3",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-4v7v-gqf9-ww2g",
+        "name": "CallStackCorruptionComplexTypes",
+        "summary": "Using a multi-dimensional array as an argument to a function call can lead to call stack corruption.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-4v7v-gqf9-ww2g",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.2.6",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-2r3x-4mrv-mcxf",
+        "name": "MemoryCorruptionFunctionCallInTupleOrNested",
+        "summary": "Function call inside an tuple or as an argument to another function call leads to memory corruption.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-2r3x-4mrv-mcxf",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.2.6",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-22wc-c9wj-6q2v",
+        "name": "MemoryCorruptionFunctionCallInArray",
+        "summary": "Function call inside an array leads to memory corruption.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-22wc-c9wj-6q2v",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.2.12",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-375m-5fvv-xq23",
+        "name": "IncorrectReturndatasizeForwarderProxy",
+        "summary": "Incorrect returndatasize when using simple forwarder proxies deployed prior to EIP-1167 adoption.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-375m-5fvv-xq23",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.2.9",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-7f92-rr6w-cq64",
+        "name": "StorageCorruptionReentrancyLocks",
+        "summary": "Reentrancy protection storage slots get allocated to the same slots as storage variables.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-7f92-rr6w-cq64",
+        "introduced": "0.2.13",
+        "fixed": "0.2.15",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-xv8x-pr4h-73jv",
+        "name": "MemoryCorruptionPrivateCallInLiteralStruct",
+        "summary": "Function call inside a literal struct leads to memory corruption.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-xv8x-pr4h-73jv",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.0",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-c7pr-343r-5c46",
+        "name": "MissingClampsDecimalArgs",
+        "summary": "The compiler does not clamp the return value of function calls returning bytes, which can result in a buffer overrun.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-c7pr-343r-5c46",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.0",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-4mrx-6fxm-8jpg",
+        "name": "BufferOverflowMissingCampBytesReturns",
+        "summary": "",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-4mrx-6fxm-8jpg",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.2",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-7vrm-3jc8-5wwm",
+        "name": "IncorrectBytestringEquality",
+        "summary": "Bytestrings can have dirty bytes, resulting in the word-for-word comparison to give incorrect results.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-7vrm-3jc8-5wwm",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.2",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-j2x6-9323-fp7h",
+        "name": "ExternalCallReturnValueNotClamped",
+        "summary": "External calls return values are not clamped in certain complex expressions.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-j2x6-9323-fp7h",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.2",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-42j8-8cjv-j5r9",
+        "name": "IncorrectSafeMathForDecimal",
+        "summary": "Safemath for decimals do not check for 256-bit overflow",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-42j8-8cjv-j5r9",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.2",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-4v9q-cgpw-cf38",
+        "name": "MultipleEvalOfCallAddress",
+        "summary": "When a calling an external contract with no return value, the contract address can be evaluated twice.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.4",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-6r8q-pfpv-7cgj",
+        "name": "IntegerOverflowInLoop",
+        "summary": "By assigning the iterator of a loop to a variable, it is possible to overflow the type of the latter.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-6r8q-pfpv-7cgj",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-3p37-3636-q8wv",
+        "name": "OOBDynArrayAccessInAssignment",
+        "summary": "During code genation of assignment, the length of a dynarray is written before its content. This can result in OOB array access in the case where the dynarray is on both sides of the assignment.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-3p37-3636-q8wv",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-mgv8-gggw-mrg6",
+        "name": "StorageAllocatorOverflow",
+        "summary": "The storage allocator does not guard against allocation overflows.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-mgv8-gggw-mrg6",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-w9g2-3w7p-72g9",
+        "name": "RawCallIncorrectSuccessValue",
+        "summary": "raw_call with outsize=0 and revert_on_failure=False returns incorrect success value.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-w9g2-3w7p-72g9",
+        "introduced": "0.3.1",
+        "fixed": "0.3.8",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-ph9x-4vc9-m39g",
+        "name": "IncorrectOrderingOfKwargsPassedToInternals",
+        "summary": "Internal calls to internal functions with more than 1 default argument are compiled incorrectly, the defaults are added not right-to-left, but left-to-right.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-vxmm-cwh2-q762",
+        "name": "NonPayableIneffectiveForDefaultFunction",
+        "summary": "Nonpayable default functions can be sent ether with calldatasize<4.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-vxmm-cwh2-q762",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-f5x6-7qgp-jhf3",
+        "name": "EcrecoverCanReturnUndefinedData",
+        "summary": "The ecrecover precompile does not fill the output buffer if the signature does not verify, however, it will still return whatever is at memory location 0.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.10",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-g2xh-c426-v8mf",
+        "name": "ReversedSideEffectForOperations",
+        "summary": "For most expressions, the compiler evaluates the arguments from right to left instead of left to right.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-g2xh-c426-v8mf",
+        "introduced": "0.1.0-beta",
+        "fixed": "",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-5824-cm3x-3c38",
+        "name": "ReentrancyLockIncorrectlyAllocated",
+        "summary": "Named re-entrancy locks are allocated incorrectly. Each function using a named re-entrancy lock gets a unique lock regardless of the key.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38",
+        "introduced": "0.2.15",
+        "fixed": "0.3.1",
+        "severity": "critical"
+    },
+    {
+        "ghsaId": "GHSA-4hg4-9mf5-wxxq",
+        "name": "IncorectOrderOfEvaluationForBuiltins",
+        "summary": "The order of evaluation of the arguments of the builtin functions uint256_addmod, uint256_mulmod, ecadd and ecmul does not follow source order.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-4hg4-9mf5-wxxq",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.10",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-3hg2-r75x-g69m",
+        "name": "IncorrectReentrancyLockWhenKeyIsEmpty",
+        "summary": "Locks of the type @nonreentrant('') do not produce reentrancy checks at runtime.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-3hg2-r75x-g69m",
+        "introduced": "0.2.9",
+        "fixed": "0.3.10",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-c647-pxm2-c52w",
+        "name": "MemoryCorruptionBuiltinsMsize",
+        "summary": "The memory used by the builtins raw_call, create_from_blueprint and create_copy_of can be corrupted.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-c647-pxm2-c52w",
+        "introduced": "0.3.4",
+        "fixed": "0.3.10",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-cx2q-hfxr-rj97",
+        "name": "AbiDecodeInputNotValidated",
+        "summary": "_abi_decode does not validate the input when it is nested in an expression.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-cx2q-hfxr-rj97",
+        "introduced": "0.3.4",
+        "fixed": "0.3.10",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-2q8v-3gqq-4f8p",
+        "name": "ConcatMemoryCorruption",
+        "summary": "The concat builtin can corrupt the memory by overwriting existing valid data.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-2q8v-3gqq-4f8p",
+        "introduced": "0.3.0",
+        "fixed": "0.4.0",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-6m97-7527-mh74",
+        "name": "IncorrectStorageLayoutLargeArray",
+        "summary": "incorrect storage layout for contracts containing large arrays",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-6m97-7527-mh74",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.8",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-9x7f-gwxq-6f2c",
+        "name": "SliceBoundCheckOverflow",
+        "summary": "The bounds check for slices does not account for the ability for start + length to overflow when the values aren't literals.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-9x7f-gwxq-6f2c",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "high"
+    },
+    {
+        "ghsaId": "GHSA-gp3w-2v2m-p686",
+        "name": "ExternalCallReturnDataOverflow",
+        "summary": "External calls can overflow return data to return part of the input buffer.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-gp3w-2v2m-p686",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-9p8r-4xp4-gw5w",
+        "name": "AbiDecodeMemoryOverflow",
+        "summary": "_abi_decode can read memory outside of the input buffer to be decoded.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-4hwq-4cpm-8vmx",
+        "name": "Extract32DirtyMemoryAccess",
+        "summary": "Using the extract32 builtin can result in a double eval vulnerability if the start argument has side-effects.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-4hwq-4cpm-8vmx",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-52xq-j7v9-v4v2",
+        "name": "NegativeArrayIndexBoundCheck",
+        "summary": "Arrays can be keyed by a negative integer, which can lead to reverts or unexpected behavior.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-52xq-j7v9-v4v2",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-6845-xw22-ffxv",
+        "name": "Sha3CodegenStackHeight",
+        "summary": "The height variable is miscalculated when compiling the IR for sha3_64, can only be triggered by using the fang binary directly.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-6845-xw22-ffxv",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-x2c2-q32w-4w6m",
+        "name": "ValueKwargStaticAndDelegateCall",
+        "summary": "Vyper compiler allows passing a value in builtin raw_call even if the call is a delegatecall or a staticcall, in which case the value is silently ignored.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-x2c2-q32w-4w6m",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "moderate"
+    },
+    {
+        "ghsaId": "GHSA-3whq-64q2-qfj6",
+        "name": "DoubleEvalCreateFromBlueprint",
+        "summary": "Using the create_from_blueprint builtin can result in a double eval vulnerability when raw_args=True and the args argument has side-effects.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-3whq-64q2-qfj6",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-5jrj-52x8-m64h",
+        "name": "DoubleEvalSqrtArgument",
+        "summary": "Using the sqrt builtin can result in multiple eval evaluation of side effects when the argument has side-effects.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-5jrj-52x8-m64h",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-r56x-j438-vw5m",
+        "name": "DoubleEvalSliceStartAndLength",
+        "summary": "Using the slice builtin can result in a double evaluation of its start and length arguments if they have side effects.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-r56x-j438-vw5m",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-m2v9-w374-5hj9",
+        "name": "ReentrancyLockNotWorkingForDefaultFunction",
+        "summary": "Nonreentrancy decorator has no effect on default functions.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-m2v9-w374-5hj9",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.3.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-xchq-w5r3-4wg3",
+        "name": "IncorrectTopicRawLog",
+        "summary": "Incorrect values can be logged as topics by the raw_log builtin.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-xchq-w5r3-4wg3",
+        "introduced": "0.1.0-beta",
+        "fixed": "0.4.0",
+        "severity": "low"
+    },
+    {
+        "ghsaId": "GHSA-ppx5-q359-pvwj",
+        "name": "RangeRevertForNegativeNumbers",
+        "summary": "vyper's range(start, start + N) reverts for negative numbers.",
+        "link": "https://github.com/vyperlang/vyper/security/advisories/GHSA-ppx5-q359-pvwj",
+        "introduced": "0.3.8",
+        "fixed": "0.4.0",
+        "severity": "low"
+    }
+]
