@@ -124,6 +124,11 @@ class IROperand:
             return False
         return self.value == other.value
 
+    def same(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
+
     def __repr__(self) -> str:
         return str(self.value)
 
