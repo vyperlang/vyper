@@ -41,6 +41,8 @@ class CSE(IRPass):
         res: dict[IRInstruction, IRInstruction] = dict()
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                # skip instruction that for sure 
+                # wont be substituted
                 if inst in _UNINTERESTING_OPCODES:
                     continue
                 inst_expr = self.available_expression_analysis.get_expression(inst)
