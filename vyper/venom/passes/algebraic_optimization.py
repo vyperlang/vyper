@@ -142,22 +142,6 @@ class AlgebraicOptimizationPass(IRPass):
         chain.reverse()
         return chain
 
-    def _handle_offsets(self) -> bool:
-        change = False
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                # check if the instruction is of the form
-                # `add <ptr> <label>`
-                # this works only if store chains have been eliminated.
-                if inst.opcode != "add":
-                    continue
-                op_0 = self.eval_op(inst.operands[0])
-                if isinstance(op_0, int) and isinstance(inst.operands[1], IRLabel):
-                    change |= True
-                    inst.opcode = "offset"
-
-        return change
-
     def eval_op(self, op: IROperand) -> IRLiteral | None:
         if isinstance(op, IRLiteral):
             return op
@@ -186,7 +170,8 @@ class AlgebraicOptimizationPass(IRPass):
     def _peepholer(self):
         depth = 5
         while True:
-            change = self._handle_offsets()
+            #change = self._handle_offsets()
+            change = False
             for bb in self.function.get_basic_blocks():
                 for inst in bb.instructions:
                     change |= self._handle_inst_peephole(inst, depth)
