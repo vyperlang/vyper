@@ -56,7 +56,7 @@ class _Expression:
         return True
 
     def __hash__(self) -> int:
-        return hash((self.opcode, *self.operands))
+        return hash(self.first_inst)
 
     def __repr__(self) -> str:
         if self.opcode == "store":
@@ -107,6 +107,9 @@ class _Expression:
 class _BBLattice:
     data: dict[IRInstruction, OrderedSet[_Expression]]
     out: OrderedSet[_Expression]
+
+    # used to check if the basic block has to be
+    # recalculated
     in_cache: OrderedSet[_Expression] | None
 
     def __init__(self, bb: IRBasicBlock):
@@ -134,6 +137,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression] = dict()
     dfg: DFGAnalysis
     lattice: _FunctionLattice
+
+    # the size of the expressions
+    # that are considered in the analysis
     min_depth: int
     max_depth: int
     ignore_msize: bool
@@ -161,6 +167,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
     def analyze(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
         self.min_depth = min_depth
         self.max_depth = max_depth
+
         worklist: deque = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
@@ -199,7 +206,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 change |= True
 
             inst_expr = self.get_expression(inst, available_expr)
-            # write_effects = inst.get_write_effects()  # writes.get(inst_expr.opcode, ())
             write_effects = inst_expr.get_writes(self.ignore_msize)
             for expr in available_expr.copy():
                 read_effects = expr.get_reads(self.ignore_msize)
