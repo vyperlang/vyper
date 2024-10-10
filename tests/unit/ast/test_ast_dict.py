@@ -1780,3 +1780,48 @@ def qux2():
             },
         }
     ]
+
+def test_annotated_ast_export_recursion(make_input_bundle):
+    sources = {
+        "main.vy": """
+import lib1
+
+@external
+def foo():
+    lib1.foo()
+    """,
+        "lib1.vy": """
+import lib2
+
+def foo():
+    lib2.foo()
+    """,
+        "lib2.vy": """
+def foo():
+    pass
+    """
+    }
+
+    input_bundle = make_input_bundle(sources)
+
+    def compile_and_get_ast(file_name):
+        file = input_bundle.load_file(file_name)
+        output = compiler.compile_from_file_input(
+            file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
+        )
+        return output["annotated_ast_dict"]
+
+    lib1_ast = compile_and_get_ast("lib1.vy")["ast"]
+    lib2_ast = compile_and_get_ast("lib2.vy")["ast"]
+    main_out = compile_and_get_ast("main.vy")
+
+    lib1_import_ast = main_out["imports"][1]
+    lib2_import_ast = main_out["imports"][0]
+
+    # path is once virtual, once libX.vy
+    # type contains name which is based on path
+    keys = [s for s in lib1_import_ast.keys() if s not in {"path", "type"}]
+
+    for key in keys:
+        assert lib1_ast[key] == lib1_import_ast[key]
+        assert lib2_ast[key] == lib2_import_ast[key]
