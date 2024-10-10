@@ -1820,8 +1820,8 @@ def foo():
 
     # path is once virtual, once libX.vy
     # type contains name which is based on path
-    kws = [s for s in lib1_import_ast.keys() if s not in {"path", "type"}]
+    keys = [s for s in lib1_import_ast.keys() if s not in {"path", "type"}]
 
-    for kw in kws:
+    for kw in keys:
         assert lib1_ast[kw] == lib1_import_ast[kw]
         assert lib2_ast[kw] == lib2_import_ast[kw]
