@@ -5,7 +5,12 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, CompilerPanic, TypeMismatch, StaticAssertionException
+from vyper.exceptions import (
+    ArgumentException,
+    CompilerPanic,
+    StaticAssertionException,
+    TypeMismatch,
+)
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 

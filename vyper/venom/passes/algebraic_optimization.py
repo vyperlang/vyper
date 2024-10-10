@@ -349,9 +349,10 @@ class AlgebraicOptimizationPass(IRPass):
                 # note that (xor (-1) x) has its own rule
                 index = inst.parent.instructions.index(inst)
                 tmp = inst.parent.parent.get_next_variable()
-                inst.parent.insert_instruction(IRInstruction("xor", [op_0, op_1], output=tmp), index)
+                inst.parent.insert_instruction(
+                    IRInstruction("xor", [op_0, op_1], output=tmp), index
+                )
                 return update("iszero", tmp)
-
 
             # TODO can we do this?
             # if val == "div":
