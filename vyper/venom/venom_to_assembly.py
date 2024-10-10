@@ -337,9 +337,11 @@ class VenomCompiler:
         layout = in_bb.out_vars
         to_pop = list(layout.difference(inputs))
 
-        # small heuristic: pop from shallowest first
+        # small heuristic: pop from shallowest first.
         to_pop.sort(key=lambda var: -stack.get_depth(var))
 
+        # NOTE: we could get more fancy and try to optimize the swap
+        # operations here, there is probably some more room for optimization.
         for var in to_pop:
             depth = stack.get_depth(var)
 
