@@ -25,6 +25,25 @@ def test_common_subexpression_elimination():
     assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
 
 
+def test_common_subexpression_elimination_commutative():
+    ctx = IRContext()
+    fn = ctx.create_function("test")
+    bb = fn.get_basic_block()
+    op = bb.append_instruction("store", 10)
+    sum_1 = bb.append_instruction("add", 10, op)
+    bb.append_instruction("mul", sum_1, 10)
+    sum_2 = bb.append_instruction("add", op, 10)
+    bb.append_instruction("mul", sum_2, 10)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+
+    CSE(ac, fn).run_pass(1, 5)
+
+    assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
+    assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
+
+
 def test_common_subexpression_elimination_effects_1():
     ctx = IRContext()
     fn = ctx.create_function("test")
