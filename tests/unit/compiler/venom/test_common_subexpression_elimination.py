@@ -1,11 +1,10 @@
 import pytest
 
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.store_expansion import StoreExpansionPass
-from vyper.venom.basicblock import IRBasicBlock
-from vyper.venom.basicblock import IRLabel
 
 
 def test_common_subexpression_elimination():
@@ -139,13 +138,14 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
         sum(1 for inst in bb.instructions if inst.opcode == "mload") == 2
     ), "wrong number of mloads"
 
+
 def test_common_subexpression_elimination_different_branches():
     ctx = IRContext()
     fn = ctx.create_function("test")
     bb = fn.get_basic_block()
     addr = bb.append_instruction("store", 10)
     rand_cond = bb.append_instruction("mload", addr)
-    
+
     br1 = IRBasicBlock(IRLabel("br1"), fn)
     fn.append_basic_block(br1)
     br2 = IRBasicBlock(IRLabel("br2"), fn)
@@ -173,9 +173,8 @@ def test_common_subexpression_elimination_different_branches():
     StoreExpansionPass(ac, fn).run_pass()
     CSE(ac, fn).run_pass(1, 5)
 
-    print(fn)
-
     assert sum(1 for inst in br1.instructions if inst.opcode == "add") == 1, "wrong number of adds"
     assert sum(1 for inst in br2.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    assert sum(1 for inst in join_bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    
+    assert (
+        sum(1 for inst in join_bb.instructions if inst.opcode == "add") == 1
+    ), "wrong number of adds"
