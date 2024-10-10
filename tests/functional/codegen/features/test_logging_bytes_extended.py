@@ -7,7 +7,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(667788, b'hellohellohellohellohellohellohellohellohello', 334455)
+    log MyLog(arg1=667788, arg2=b'hellohellohellohellohellohellohellohellohello', arg3=334455)
     """
 
     c = get_contract(code)
@@ -31,7 +31,7 @@ def foo():
     a: Bytes[64] = b'hellohellohellohellohellohellohellohellohello'
     b: Bytes[64] = b'hellohellohellohellohellohellohellohello'
     # test literal much smaller than buffer
-    log MyLog(a, b, b'hello')
+    log MyLog(arg1=a, arg2=b, arg3=b'hello')
     """
 
     c = get_contract(code)
@@ -51,7 +51,7 @@ event MyLog:
 
 @external
 def foo(a: int128, b: Bytes[64], c: int128):
-    log MyLog(a, b, c)
+    log MyLog(arg1=a, arg2=b, arg3=c)
     """
 
     c = get_contract(code)
@@ -77,7 +77,7 @@ c: int128
 
 @external
 def foo():
-    log MyLog(self.a, self.b, self.c)
+    log MyLog(arg1=self.a, arg2=self.b, arg3=self.c)
 
 @external
 def set(x: int128, y: Bytes[64], z: int128):
@@ -114,10 +114,10 @@ event MyLog:
 @external
 def foo():
     log MyLog(
-        [[24, 26], [12, 10]],
-        b'hellohellohellohellohellohellohellohellohello',
-        314159,
-        b'helphelphelphelphelphelphelphelphelphelphelp'
+        arg1=[[24, 26], [12, 10]],
+        arg2=b'hellohellohellohellohellohellohellohellohello',
+        arg3=314159,
+        arg4=b'helphelphelphelphelphelphelphelphelphelphelp'
     )
     """
 

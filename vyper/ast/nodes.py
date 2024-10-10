@@ -854,9 +854,14 @@ class Hex(Constant):
 
     def validate(self):
         if "_" in self.value:
+            # TODO: revisit this, we should probably allow underscores
             raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
+
+        if self.value.startswith("0X"):
+            hint = f"Did you mean `0x{self.value[2:]}`?"
+            raise InvalidLiteral("Hex literal begins with 0X!", self, hint=hint)
 
     @property
     def n_nibbles(self):
