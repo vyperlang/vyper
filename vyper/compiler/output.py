@@ -46,7 +46,7 @@ def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
         # come from multiple InputBundles (particularly builtin interfaces),
         # so source_id is not guaranteed to be unique.
         if ast.resolved_path in unique_modules:
-            # sanity check -- object equality
+            # sanity check -- objects must be identical
             assert unique_modules[ast.resolved_path] is ast
         unique_modules[ast.resolved_path] = ast
 
