@@ -168,18 +168,17 @@ class AlgebraicOptimizationPass(IRPass):
         return (eop_0 is not None and eop_0 == eop_1) or self.eq_analysis.equivalent(op_0, op_1)
 
     def _peepholer(self):
-        depth = 5
         while True:
-            #change = self._handle_offsets()
+            # change = self._handle_offsets()
             change = False
             for bb in self.function.get_basic_blocks():
                 for inst in bb.instructions:
-                    change |= self._handle_inst_peephole(inst, depth)
+                    change |= self._handle_inst_peephole(inst)
 
             if not change:
                 break
 
-    def _handle_inst_peephole(self, inst: IRInstruction, depth: int) -> bool:
+    def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int) -> bool:
             inst.opcode = opcode
             inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
@@ -198,8 +197,8 @@ class AlgebraicOptimizationPass(IRPass):
         if opcode == "iszero" and _evm_int(eop_0) is not None:
             val = _evm_int(eop_0)
             assert val is not None
-            val = int(val == 0)  # int(bool) == 1 if bool else 0
-            return store(val)  # finalize(val, [])
+            val = int(val == 0)
+            return store(val)
 
         if len(inst.operands) != 2:
             return False
@@ -269,17 +268,17 @@ class AlgebraicOptimizationPass(IRPass):
             assert unsigned == UNSIGNED
             if opcode == "and":
                 # -1 & x == x
-                return store(op_1)  # finalize("seq", [args[0]])
+                return store(op_1)
 
             if opcode == "xor":
                 # -1 ^ x == ~x
-                return update("not", op_1)  # finalize("not", [args[0]])
+                return update("not", op_1)
 
             if opcode == "or":
                 # -1 | x == -1
                 val = _evm_int(IRLiteral(-1), unsigned)
                 assert val is not None
-                return store(val)  # finalize(args[1].value, [])
+                return store(val)
 
             raise CompilerPanic("unreachable")  # pragma: nocover
 
@@ -291,13 +290,13 @@ class AlgebraicOptimizationPass(IRPass):
             # n ** 0 == 1 (forall n)
             # 1 ** n == 1
             if _evm_int(eop_0) == 0 or _evm_int(eop_1) == 1:
-                return store(1)  # finalize(1, [])
+                return store(1)
             # 0 ** n == (1 if n == 0 else 0)
             if _evm_int(eop_1) == 0:
-                return update("iszero", op_0)  # finalize("iszero", [args[1]])
+                return update("iszero", op_0)
             # n ** 1 == n
             if _evm_int(eop_0) == 1:
-                return store(op_1)  # finalize("seq", [args[0]])
+                return store(op_1)
 
         val = _evm_int(eop_0)
         if (
@@ -312,23 +311,17 @@ class AlgebraicOptimizationPass(IRPass):
             # shave two gas off mod/div/mul for powers of two
             # x % 2**n == x & (2**n - 1)
             if opcode == "mod":
-                return update(
-                    "and", val_0 - 1, op_1
-                )  # finalize("and", [args[0], _int(args[1]) - 1])
+                return update("and", val_0 - 1, op_1)
 
             if opcode == "div":
                 # x / 2**n == x >> n
                 # recall shr/shl have unintuitive arg order
-                return update(
-                    "shr", op_1, int_log2(val_0)
-                )  # finalize("shr", [int_log2(_int(args[1])), args[0]])
+                return update("shr", op_1, int_log2(val_0))
 
             # note: no rule for sdiv since it rounds differently from sar
             if opcode == "mul":
                 # x * 2**n == x << n
-                return update(
-                    "shl", op_1, int_log2(val_0)
-                )  # finalize("shl", [int_log2(_int(args[1])), args[0]])
+                return update("shl", op_1, int_log2(val_0))
 
             raise CompilerPanic("unreachable")  # pragma: no cover
 
@@ -341,6 +334,32 @@ class AlgebraicOptimizationPass(IRPass):
 
         if opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
             return store(1)
+
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses(inst.output)
+        is_truthy = all(i.opcode in ("assert", "iszero") for i in uses)
+
+        if is_truthy:
+            if False and opcode == "eq":
+                assert unsigned == UNSIGNED, "must be unsigned"
+                # (eq x y) has the same truthyness as (iszero (xor x y))
+                # it also has the same truthyness as (iszero (sub x y)),
+                # but xor is slightly easier to optimize because of being
+                # commutative.
+                # note that (xor (-1) x) has its own rule
+                index = inst.parent.instructions.index(inst)
+                tmp = inst.parent.parent.get_next_variable()
+                inst.parent.insert_instruction(IRInstruction("xor", [op_0, op_1], output=tmp), index)
+                return update("iszero", tmp)
+
+
+            # TODO can we do this?
+            # if val == "div":
+            #     return finalize("gt", ["iszero", args])
+
+            if opcode == "or" and isinstance(eop_0, IRLiteral) and eop_0 != 0:
+                # (x | y != 0) for any (y != 0)
+                return store(1)
 
         return False
 
