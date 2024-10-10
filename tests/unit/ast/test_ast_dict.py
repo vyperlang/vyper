@@ -1781,6 +1781,7 @@ def qux2():
         }
     ]
 
+
 def test_annotated_ast_export_recursion(make_input_bundle):
     sources = {
         "main.vy": """
@@ -1799,7 +1800,7 @@ def foo():
         "lib2.vy": """
 def foo():
     pass
-    """
+    """,
     }
 
     input_bundle = make_input_bundle(sources)
