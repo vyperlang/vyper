@@ -23,7 +23,7 @@ When we are confident that disclosure will not impact known projects that use Vy
 we will add an entry to the list of security advisories for posterity and reference by others.
 
   - List of publicly known vulnerabilities: https://github.com/vyperlang/vyper/security/advisories
-  - Additionally, the file [bugs_by_version.json](./docs/bugs_by_version.json) can be used to check which vulnerability affects a specific version of the compiler.
+  - Additionally, the file [bugs_by_version.json](./docs/bugs_by_version.json) can be used to check which vulnerability affects a specific version of the compiler. The file should be used together with [bugs.json](./docs/bugs.json) to get more information about the vulnerabilities and a link to the corresponding security advisory.
 
 ## Bug Bounty Program
 - Vyper runs a bug bounty program via the Ethereum Foundation.
