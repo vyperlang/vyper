@@ -26,7 +26,15 @@ class _Expression:
     opcode: str
     operands: list["IROperand | _Expression"]
 
-    def __eq__(self, other):
+    # equality for lattices only based on first_inst
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, _Expression):
+            return False
+
+        return self.first_inst == other.first_inst
+
+    # Full equality for expressions based on opcode and operands
+    def same(self, other) -> bool:
         if type(self) is not type(other):
             return False
 
@@ -35,12 +43,14 @@ class _Expression:
 
         # Early return special case for commutative instructions
         if self.opcode in COMMUTATIVE_INSTRUCTIONS:
-            if self.operands[0] == other.operands[1] and self.operands[1] == other.operands[0]:
+            if self.operands[0].same(other.operands[1]) and self.operands[1].same(
+                other.operands[0]
+            ):
                 return True
 
         # General case
         for self_op, other_op in zip(self.operands, other.operands):
-            if self_op != other_op:
+            if not self_op.same(other_op):
                 return False
 
         return True
@@ -233,15 +243,13 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs: OrderedSet[_Expression] | None = None,
         depth: int | None = None,
     ) -> _Expression:
-        if available_exprs is None:
-            available_exprs = self.lattice.data[inst.parent].data[inst]
-        if depth is None:
-            depth = self.max_depth
+        available_exprs = available_exprs or self.lattice.data[inst.parent].data[inst]
+        depth = self.max_depth if depth is None else depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands)
 
         for e in available_exprs:
-            if expr == e:
+            if expr.same(e):
                 return e
 
         return expr
