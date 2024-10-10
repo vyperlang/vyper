@@ -14,6 +14,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import EMPTY, Effects
+from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
@@ -26,9 +27,23 @@ class _Expression:
     operands: list["IROperand | _Expression"]
 
     def __eq__(self, other):
-        if not isinstance(other, _Expression):
+        if type(self) is not type(other):
             return False
-        return self.first_inst == other.first_inst
+
+        if self.opcode != other.opcode:
+            return False
+
+        # Early return special case for commutative instructions
+        if self.opcode in COMMUTATIVE_INSTRUCTIONS:
+            if self.operands[0] == other.operands[1] and self.operands[1] == other.operands[0]:
+                return True
+
+        # General case
+        for self_op, other_op in zip(self.operands, other.operands):
+            if self_op != other_op:
+                return False
+
+        return True
 
     def __hash__(self) -> int:
         return hash((self.opcode, *self.operands))
@@ -42,23 +57,6 @@ class _Expression:
             res += repr(op) + " "
         res += "]"
         return res
-
-    def same(self, other: "_Expression") -> bool:
-        if self.opcode != other.opcode:
-            return False
-        for self_op, other_op in zip(self.operands, other.operands):
-            if type(self_op) is not type(other_op):
-                return False
-            if isinstance(self_op, _Expression):
-                assert isinstance(other_op, _Expression)
-                if not self_op.same(other_op):
-                    return False
-            else:
-                assert isinstance(self_op, IROperand)
-                assert isinstance(other_op, IROperand)
-                if self_op != other_op:
-                    return False
-        return True
 
     def contains_expr(self, expr: "_Expression") -> bool:
         for op in self.operands:
@@ -241,8 +239,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
             depth = self.max_depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands)
+
         for e in available_exprs:
-            if expr.same(e):
+            if expr == e:
                 return e
 
         return expr
