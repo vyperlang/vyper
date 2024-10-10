@@ -4,6 +4,8 @@ from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.store_expansion import StoreExpansionPass
+from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.basicblock import IRLabel
 
 
 def test_common_subexpression_elimination():
@@ -136,3 +138,44 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
     assert (
         sum(1 for inst in bb.instructions if inst.opcode == "mload") == 2
     ), "wrong number of mloads"
+
+def test_common_subexpression_elimination_different_branches():
+    ctx = IRContext()
+    fn = ctx.create_function("test")
+    bb = fn.get_basic_block()
+    addr = bb.append_instruction("store", 10)
+    rand_cond = bb.append_instruction("mload", addr)
+    
+    br1 = IRBasicBlock(IRLabel("br1"), fn)
+    fn.append_basic_block(br1)
+    br2 = IRBasicBlock(IRLabel("br2"), fn)
+    fn.append_basic_block(br2)
+    join_bb = IRBasicBlock(IRLabel("join_bb"), fn)
+    fn.append_basic_block(join_bb)
+
+    bb.append_instruction("jnz", rand_cond, br1.label, br2.label)
+
+    def do_same(bb: IRBasicBlock, rand: int):
+        a = bb.append_instruction("store", 10)
+        b = bb.append_instruction("store", 20)
+        c = bb.append_instruction("add", a, b)
+        bb.append_instruction("mul", c, rand)
+
+    do_same(br1, 1)
+    br1.append_instruction("jmp", join_bb.label)
+    do_same(br2, 2)
+    br2.append_instruction("jmp", join_bb.label)
+    do_same(join_bb, 3)
+    join_bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+
+    StoreExpansionPass(ac, fn).run_pass()
+    CSE(ac, fn).run_pass(1, 5)
+
+    print(fn)
+
+    assert sum(1 for inst in br1.instructions if inst.opcode == "add") == 1, "wrong number of adds"
+    assert sum(1 for inst in br2.instructions if inst.opcode == "add") == 1, "wrong number of adds"
+    assert sum(1 for inst in join_bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
+    
