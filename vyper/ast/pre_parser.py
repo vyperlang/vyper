@@ -106,7 +106,7 @@ class ForParser:
         return True
 
 
-class NativeHexParser:
+class HexStringParser:
     def __init__(self):
         self.locations = []
         self._current_x = None
@@ -214,7 +214,7 @@ def pre_parse(code: str) -> PreParseResult:
     modification_offsets: dict[tuple[int, int], str] = {}
     settings = Settings()
     for_parser = ForParser(code)
-    native_hex_parser = NativeHexParser()
+    native_hex_parser = HexStringParser()
 
     _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 

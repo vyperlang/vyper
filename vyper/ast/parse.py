@@ -342,9 +342,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if isinstance(node.value, python_ast.Yield):
             # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
-            node.ast_type = self._pre_parse_result.modification_offsets[
-                (node.lineno, node.col_offset)
-            ]
+            key = (node.lineno, node.col_offset)
+            node.ast_type = self._pre_parse_result.modification_offsets[key]
 
         return node
 
