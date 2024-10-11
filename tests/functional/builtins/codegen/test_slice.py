@@ -4,7 +4,8 @@ from hypothesis import given, settings
 
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import ArgumentException, CompilerPanic, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -13,7 +14,7 @@ def _generate_bytes(length):
     return bytes(list(range(length)))
 
 
-def test_basic_slice(get_contract_with_gas_estimation):
+def test_basic_slice(get_contract):
     code = """
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
@@ -22,7 +23,7 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
 
@@ -36,7 +37,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 def _fail_contract(code, opt_level, exceptions):
     settings = Settings(optimize=opt_level)
     with pytest.raises(exceptions):
-        compile_code(code, settings)
+        compile_code(code, settings=settings)
 
 
 @pytest.mark.parametrize("use_literal_start", (True, False))
@@ -93,7 +94,9 @@ def do_splice() -> Bytes[{length_bound}]:
         assert c.do_splice() == bytesdata[start : start + length]
 
 
-@pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
+@pytest.mark.parametrize(
+    "location", ["storage", "transient", "calldata", "memory", "literal", "code"]
+)
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
@@ -112,6 +115,10 @@ def test_slice_bytes_fuzz(
     use_literal_length,
     length_bound,
 ):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
     preamble = ""
     if location == "memory":
         spliced_code = f"foo: Bytes[{length_bound}] = inp"
@@ -119,6 +126,12 @@ def test_slice_bytes_fuzz(
     elif location == "storage":
         preamble = f"""
 foo: Bytes[{length_bound}]
+         """
+        spliced_code = "self.foo = inp"
+        foo = "self.foo"
+    elif location == "transient":
+        preamble = f"""
+foo: transient(Bytes[{length_bound}])
         """
         spliced_code = "self.foo = inp"
         foo = "self.foo"
@@ -153,7 +166,12 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     """
 
     def _get_contract():
-        return get_contract(code, bytesdata, override_opt_level=opt_level)
+        if "__init__" in code:
+            # eth-tester used to ignore constructor arguments if no constructor was defined
+            # now we raise an exception, so only call the constructor if it exists
+            # TODO: Refactor so we don't rely on searching the source code.
+            return get_contract(code, bytesdata, override_opt_level=opt_level)
+        return get_contract(code, override_opt_level=opt_level)
 
     # length bound is the container size; input_bound is the bound on the input
     # (which can be different, if the input is a literal)
@@ -194,10 +212,23 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
 
 
-def test_slice_private(get_contract):
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_slice_private(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
+
     # test there are no buffer overruns in the slice function
-    code = """
-bytez: public(String[12])
+    if location == "storage":
+        decl = "bytez: public(String[12])"
+    elif location == "transient":
+        decl = "bytez: public(transient(String[12]))"
+    else:
+        raise Exception("unreachable")
+
+    code = f"""
+{decl}
 
 @internal
 def _slice(start: uint256, length: uint256):
@@ -211,12 +242,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2**256 - 1, ""]
-    assert c.foo(7, 5) == [2**256 - 1, "world"]
-    assert c.foo(0, 5) == [2**256 - 1, "hello"]
-    assert c.foo(0, 1) == [2**256 - 1, "h"]
-    assert c.foo(11, 1) == [2**256 - 1, "d"]
+    assert c.foo(0, 12) == (2**256 - 1, "hello, world")
+    assert c.foo(12, 0) == (2**256 - 1, "")
+    assert c.foo(7, 5) == (2**256 - 1, "world")
+    assert c.foo(0, 5) == (2**256 - 1, "hello")
+    assert c.foo(0, 1) == (2**256 - 1, "h")
+    assert c.foo(11, 1) == (2**256 - 1, "d")
 
 
 def test_slice_storage_bytes32(get_contract):
@@ -233,7 +264,7 @@ def dice() -> Bytes[1]:
     assert c.dice() == b"A"
 
 
-def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
+def test_slice_immutable_length_arg(get_contract):
     code = """
 LENGTH: immutable(uint256)
 
@@ -245,7 +276,7 @@ def __init__():
 def do_slice(inp: Bytes[50]) -> Bytes[50]:
     return slice(inp, 0, LENGTH)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"abcde", x
 
@@ -505,3 +536,79 @@ def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
     c = get_contract(bad_code)
     with tx_failed():
         c.do_slice()
+
+
+# tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`
+@pytest.mark.parametrize("adhoc_loc", ["msg.data", "self.code", "a.code"])
+def test_slice_start_eval_once(get_contract, adhoc_loc):
+    code = f"""
+counter: uint256
+
+@internal
+def bar() -> uint256:
+    self.counter += 1
+    return 1
+
+@external
+def foo(cs: String[64]) -> uint256:
+    s: Bytes[64] = b""
+    # use `a` to exercise the path with `<address>.code`
+    a: address = self
+    s = slice({adhoc_loc}, self.bar(), 3)
+    return self.counter
+    """
+
+    arg = "a" * 64
+    c = get_contract(code)
+    # ensure that counter was incremented only once
+    assert c.foo(arg) == 1
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_slice_order_of_eval(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 32
+
+@external
+def foo() -> Bytes[96]:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return slice(self.var[0], 3, extcall Bar(self).bar())
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_slice_order_of_eval2(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 3
+
+@external
+def foo() -> Bytes[96]:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return slice(self.var[0], extcall Bar(self).bar(), 32)
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"

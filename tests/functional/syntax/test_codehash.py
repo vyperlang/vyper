@@ -1,9 +1,8 @@
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
 from vyper.utils import keccak256
 
 
-def test_get_extcodehash(get_contract, optimize):
+def test_get_extcodehash(get_contract):
     code = """
 a: address
 
@@ -28,8 +27,7 @@ def foo3() -> bytes32:
 def foo4() -> bytes32:
     return self.a.codehash
     """
-    settings = Settings(optimize=optimize)
-    compiled = compile_code(code, output_formats=["bytecode_runtime"], settings=settings)
+    compiled = compile_code(code, output_formats=["bytecode_runtime"])
     bytecode = bytes.fromhex(compiled["bytecode_runtime"][2:])
     hash_ = keccak256(bytecode)
 

@@ -1,11 +1,10 @@
 import pytest
 from hexbytes import HexBytes
 
+from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
-
-pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_max_outsize_exceeds_returndatasize(get_contract):
@@ -50,14 +49,14 @@ def foo() -> Bytes[5]:
     assert c.foo() == b"moose"
 
 
-def test_multiple_levels(w3, get_contract_with_gas_estimation):
+def test_multiple_levels(env, get_contract):
     inner_code = """
 @external
 def returnten() -> int128:
     return 10
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = get_contract(inner_code)
 
     outer_code = """
 @external
@@ -72,16 +71,16 @@ def create_and_return_proxy(inp: address) -> address:
     return x
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
-    c2.create_and_call_returnten(c.address, transact={})
+    c2.create_and_call_returnten(c.address)
 
     _, preamble, callcode = eip1167_bytecode()
 
-    c3 = c2.create_and_return_proxy(c.address, call={})
-    c2.create_and_return_proxy(c.address, transact={})
+    c3 = c2.create_and_return_proxy(c.address)
+    c2.create_and_return_proxy(c.address)
 
-    c3_contract_code = w3.to_bytes(w3.eth.get_code(c3))
+    c3_contract_code = env.get_code(c3)
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -91,14 +90,14 @@ def create_and_return_proxy(inp: address) -> address:
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
 
-def test_multiple_levels2(tx_failed, get_contract_with_gas_estimation):
+def test_multiple_levels2(tx_failed, get_contract):
     inner_code = """
 @external
 def returnten() -> int128:
     raise
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = get_contract(inner_code)
 
     outer_code = """
 @external
@@ -112,7 +111,7 @@ def create_and_return_proxy(inp: address) -> address:
     return create_minimal_proxy_to(inp)
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = get_contract(outer_code)
 
     with tx_failed():
         c2.create_and_call_returnten(c.address)
@@ -120,7 +119,7 @@ def create_and_return_proxy(inp: address) -> address:
     print("Passed minimal proxy exception test")
 
 
-def test_delegate_call(w3, get_contract):
+def test_delegate_call(env, get_contract):
     inner_code = """
 a: address  # this is required for storage alignment...
 owners: public(address[5])
@@ -155,20 +154,19 @@ def set(i: int128, owner: address):
     )
     """
 
-    a0, a1, a2 = w3.eth.accounts[:3]
-    outer_contract = get_contract(outer_code, *[inner_contract.address])
+    a0, a1, a2 = env.accounts[:3]
+    outer_contract = get_contract(outer_code, inner_contract.address)
 
     # Test setting on inners contract's state setting works.
-    inner_contract.set_owner(1, a2, transact={})
+    inner_contract.set_owner(1, a2)
     assert inner_contract.owners(1) == a2
 
     # Confirm outer contract's state is empty and contract to call has been set.
     assert outer_contract.owner_setter_contract() == inner_contract.address
-    assert outer_contract.owners(1) is None
+    assert outer_contract.owners(1) == ZERO_ADDRESS
 
     # Call outer contract, that make a delegate call to inner_contract.
-    tx_hash = outer_contract.set(1, a1, transact={})
-    assert w3.eth.get_transaction_receipt(tx_hash)["status"] == 1
+    outer_contract.set(1, a1)
     assert outer_contract.owners(1) == a1
 
 
@@ -202,7 +200,7 @@ def foo_call(_addr: address):
     outer_contract.foo_call(inner_contract.address)
 
     # manually specifying an insufficient amount should fail
-    outer_contract = get_contract(outer_code.format(", gas=15000"))
+    outer_contract = get_contract(outer_code.format(", gas=2250"))
     with tx_failed():
         outer_contract.foo_call(inner_contract.address)
 
@@ -234,7 +232,7 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
-def test_forward_calldata(get_contract, w3, keccak):
+def test_forward_calldata(get_contract, env, keccak):
     target_source = """
 @external
 def foo() -> uint256:
@@ -256,11 +254,17 @@ def __default__():
     target = get_contract(target_source)
 
     caller = get_contract(caller_source)
-    caller.set_target(target.address, transact={})
+    caller.set_target(target.address)
 
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]
-    w3.eth.send_transaction({"to": caller.address, "data": sig})
+    assert env.message_call(caller.address, data=sig) == b""
+
+
+def _strip_initcode_suffix(bytecode):
+    bs = bytes.fromhex(bytecode.removeprefix("0x"))
+    to_strip = int.from_bytes(bs[-2:], "big")
+    return bs[:-to_strip].hex()
 
 
 # check max_outsize=0 does same thing as not setting max_outsize.
@@ -278,7 +282,11 @@ def test_raw_call(_target: address):
     """
     output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
     output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
-    assert output1 == output2
+    assert output1["bytecode_runtime"] == output2["bytecode_runtime"]
+
+    bytecode1 = output1["bytecode"]
+    bytecode2 = output2["bytecode"]
+    assert _strip_initcode_suffix(bytecode1) == _strip_initcode_suffix(bytecode2)
 
 
 # check max_outsize=0 does same thing as not setting max_outsize,
@@ -300,7 +308,11 @@ def test_raw_call(_target: address) -> bool:
     """
     output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
     output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
-    assert output1 == output2
+    assert output1["bytecode_runtime"] == output2["bytecode_runtime"]
+
+    bytecode1 = output1["bytecode"]
+    bytecode2 = output2["bytecode"]
+    assert _strip_initcode_suffix(bytecode1) == _strip_initcode_suffix(bytecode2)
 
 
 # test functionality of max_outsize=0
@@ -517,7 +529,7 @@ def foo() -> String[32]:
     assert c.foo() == "goo"
 
 
-def test_raw_call_clean_mem_kwargs_value(get_contract):
+def test_raw_call_clean_mem_kwargs_value(get_contract, env):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs
     code = """
@@ -544,6 +556,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
     return self.buf
     """
+    env.set_balance(env.deployer, 1)
     c = get_contract(code, value=1)
 
     assert (
@@ -552,7 +565,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
 
 
-def test_raw_call_clean_mem_kwargs_gas(get_contract):
+def test_raw_call_clean_mem_kwargs_gas(get_contract, env):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs
     code = """
@@ -579,6 +592,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
     return self.buf
     """
+    env.set_balance(env.deployer, 1)
     c = get_contract(code, value=1)
 
     assert (
@@ -634,7 +648,5 @@ def foo(_addr: address):
 
 
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
-def test_invalid_type_exception(
-    assert_compile_failed, get_contract_with_gas_estimation, source_code, exc
-):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(source_code), exc)
+def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
+    assert_compile_failed(lambda: get_contract(source_code), exc)

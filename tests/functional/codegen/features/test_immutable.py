@@ -76,7 +76,7 @@ def get_values() -> (uint256, address, String[64]):
     """
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code, *values)
-    assert c.get_values() == list(values)
+    assert c.get_values() == values
 
 
 def test_struct_immutable(get_contract):
@@ -393,11 +393,11 @@ def fix():
     assert c.x() == 2
     assert c.d() == 2
 
-    c.thrash(transact={})
+    c.thrash()
 
     assert c.x() == 2
     assert c.d() == 2 + 5
 
-    c.fix(transact={})
+    c.fix()
     assert c.x() == 2
     assert c.d() == 2

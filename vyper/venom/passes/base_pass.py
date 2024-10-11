@@ -1,21 +1,18 @@
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.function import IRFunction
+
+
 class IRPass:
     """
-    Decorator for IR passes. This decorator will run the pass repeatedly
-    until no more changes are made.
+    Base class for all Venom IR passes.
     """
 
-    @classmethod
-    def run_pass(cls, *args, **kwargs):
-        t = cls()
-        count = 0
+    function: IRFunction
+    analyses_cache: IRAnalysesCache
 
-        while True:
-            changes_count = t._run_pass(*args, **kwargs) or 0
-            count += changes_count
-            if changes_count == 0:
-                break
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        self.function = function
+        self.analyses_cache = analyses_cache
 
-        return count
-
-    def _run_pass(self, *args, **kwargs):
+    def run_pass(self, *args, **kwargs):
         raise NotImplementedError(f"Not implemented! {self.__class__}.run_pass()")

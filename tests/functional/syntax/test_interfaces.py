@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
     InvalidType,
@@ -157,12 +158,12 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
-    log Transfer(msg.sender, _to, _value)
+    log Transfer(sender=msg.sender, receiver=_to, value=_value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
-    log IERC20.Transfer(_from, _to, _value)
+    log IERC20.Transfer(sender=_from, receiver=_to, value=_value)
     return True
 
 @external
@@ -421,3 +422,143 @@ from ethereum.ercs import {erc}
         compiler.compile_code(code)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+
+
+def test_interface_body_check(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    return ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+
+@external
+def foobar():
+    pass
+"""
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "function body in an interface can only be `...`!"
+
+
+def test_interface_body_check2(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    ...
+
+@external
+def bar():
+    ...
+
+@external
+def baz():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo
+
+implements: foo
+
+@external
+def foobar():
+    pass
+
+@external
+def bar():
+    pass
+
+@external
+def baz():
+    pass
+"""
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+invalid_visibility_code = [
+    """
+import foo as Foo
+implements: Foo
+@external
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+def foobar():
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_visibility_code)
+def test_internal_visibility_in_interface(make_input_bundle, code):
+    interface_code = """
+@internal
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "Interface functions can only be marked as `@external`"
+
+
+external_visibility_interface = [
+    """
+@external
+def foobar():
+    ...
+def bar():
+    ...
+    """,
+    """
+def foobar():
+    ...
+@external
+def bar():
+    ...
+    """,
+]
+
+
+@pytest.mark.parametrize("iface", external_visibility_interface)
+def test_internal_implemenatation_of_external_interface(make_input_bundle, iface):
+    input_bundle = make_input_bundle({"foo.vyi": iface})
+
+    code = """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+def bar():
+    pass
+    """
+
+    with pytest.raises(InterfaceViolation) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"

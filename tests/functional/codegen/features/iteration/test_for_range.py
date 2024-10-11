@@ -1,7 +1,10 @@
 import pytest
 
+from vyper.exceptions import StaticAssertionException
+from vyper.utils import SizeLimits
 
-def test_basic_repeater(get_contract_with_gas_estimation):
+
+def test_basic_repeater(get_contract):
     basic_repeater = """
 @external
 def repeat(z: int128) -> int128:
@@ -10,7 +13,7 @@ def repeat(z: int128) -> int128:
         x = x + z
     return(x)
     """
-    c = get_contract_with_gas_estimation(basic_repeater)
+    c = get_contract(basic_repeater)
     assert c.repeat(9) == 54
 
 
@@ -128,7 +131,7 @@ def get_last(start: uint256, end: uint256) -> uint256:
             c.get_last(UINT_MAX, UINT_MAX - n)
 
 
-def test_digit_reverser(get_contract_with_gas_estimation):
+def test_digit_reverser(get_contract):
     digit_reverser = """
 @external
 def reverse_digits(x: int128) -> int128:
@@ -144,11 +147,11 @@ def reverse_digits(x: int128) -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation(digit_reverser)
+    c = get_contract(digit_reverser)
     assert c.reverse_digits(123456) == 654321
 
 
-def test_more_complex_repeater(get_contract_with_gas_estimation):
+def test_more_complex_repeater(get_contract):
     more_complex_repeater = """
 @external
 def repeat() -> int128:
@@ -160,12 +163,12 @@ def repeat() -> int128:
     return(out)
     """
 
-    c = get_contract_with_gas_estimation(more_complex_repeater)
+    c = get_contract(more_complex_repeater)
     assert c.repeat() == 666666
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
-def test_offset_repeater(get_contract_with_gas_estimation, typ):
+def test_offset_repeater(get_contract, typ):
     offset_repeater = f"""
 @external
 def sum() -> {typ}:
@@ -175,12 +178,12 @@ def sum() -> {typ}:
     return out
     """
 
-    c = get_contract_with_gas_estimation(offset_repeater)
+    c = get_contract(offset_repeater)
     assert c.sum() == 4100
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
-def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
+def test_offset_repeater_2(get_contract, typ):
     offset_repeater_2 = f"""
 @external
 def sum(frm: {typ}, to: {typ}) -> {typ}:
@@ -192,12 +195,12 @@ def sum(frm: {typ}, to: {typ}) -> {typ}:
     return out
     """
 
-    c = get_contract_with_gas_estimation(offset_repeater_2)
+    c = get_contract(offset_repeater_2)
     assert c.sum(100, 99999) == 15150
     assert c.sum(70, 131) == 6100
 
 
-def test_loop_call_priv(get_contract_with_gas_estimation):
+def test_loop_call_priv(get_contract):
     code = """
 @internal
 def _bar() -> bool:
@@ -210,7 +213,7 @@ def foo() -> bool:
     return True
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True
 
 
@@ -271,7 +274,7 @@ def test():
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
-def test_for_range_oob_check(get_contract, tx_failed, typ):
+def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
 @external
 def test():
@@ -279,9 +282,30 @@ def test():
     for i: {typ} in range(x, x + 2, bound=2):
         pass
     """
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)
+
+
+@pytest.mark.parametrize(
+    "typ, max_value",
+    [
+        ("uint8", SizeLimits.MAX_UINT8),
+        ("int128", SizeLimits.MAX_INT128),
+        ("uint256", SizeLimits.MAX_UINT256),
+    ],
+)
+def test_for_range_oob_runtime_check(get_contract, tx_failed, typ, max_value):
+    code = f"""
+@external
+def test(x: {typ}):
+    for i: {typ} in range(x, x + 2, bound=2):
+        pass
+    """
     c = get_contract(code)
     with tx_failed():
-        c.test()
+        c.test(max_value)
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])
@@ -376,7 +400,7 @@ def foo(a: {typ}):
     self.result = 31337
     """
     c = get_contract(code)
-    c.foo(val, transact={})
+    c.foo(val)
     if val + 1 >= 19:
         assert c.result() == 31337
     else:
@@ -416,7 +440,25 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(0) == 31337
 
 
-def test_for_range_signed_int_overflow(get_contract, tx_failed):
+def test_for_range_signed_int_overflow_runtime_check(get_contract, tx_failed, experimental_codegen):
+    code = """
+@external
+def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
+    res: DynArray[int256, 10] = empty(DynArray[int256, 10])
+    x:int256 = _max
+    y:int256 = _min+2
+    for i:int256 in range(x,y , bound=10):
+        res.append(i)
+    return res
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo(SizeLimits.MIN_INT256, SizeLimits.MAX_INT256)
+
+
+def test_for_range_signed_int_overflow_compile_time_check(
+    get_contract, tx_failed, experimental_codegen
+):
     code = """
 @external
 def foo() -> DynArray[int256, 10]:
@@ -427,6 +469,41 @@ def foo() -> DynArray[int256, 10]:
         res.append(i)
     return res
     """
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)
+
+
+def test_for_range_start_double_eval(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> (uint256, DynArray[uint256, 3]):
+    x:DynArray[uint256, 3] = [3, 1]
+    res: DynArray[uint256, 3] = empty(DynArray[uint256, 3])
+    for i:uint256 in range(x.pop(),x.pop(), bound = 3):
+        res.append(i)
+
+    return len(x), res
+    """
     c = get_contract(code)
-    with tx_failed():
-        c.foo()
+    length, res = c.foo()
+
+    assert (length, res) == (0, [1, 2])
+
+
+def test_for_range_stop_double_eval(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> (uint256, DynArray[uint256, 3]):
+    x:DynArray[uint256, 3] = [3, 3]
+    res: DynArray[uint256, 3] = empty(DynArray[uint256, 3])
+    for i:uint256 in range(x.pop(), bound = 3):
+        res.append(i)
+
+    return len(x), res
+    """
+    c = get_contract(code)
+    length, res = c.foo()
+
+    assert (length, res) == (1, [0, 1, 2])
