@@ -548,7 +548,7 @@ def _convert_ir_bb(fn, ir, symbols):
             _global_symbols[ir.value] = ptr
         elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("store", alloca.offset)
+            ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
             _global_symbols[ir.value] = ptr
 
         return _global_symbols.get(ir.value) or symbols.get(ir.value)
