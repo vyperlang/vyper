@@ -116,7 +116,7 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(667788, 'hellohellohellohellohellohellohellohellohello', 334455)
+    log MyLog(arg1=667788, arg2='hellohellohellohellohellohellohellohellohello', arg3=334455)
     """
 
     c = get_contract(code)
