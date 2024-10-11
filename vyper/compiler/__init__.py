@@ -46,6 +46,11 @@ OUTPUT_FORMATS = {
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
 
+INTERFACE_OUTPUT_FORMATS = ["ast_dict",
+                            "annotated_ast_dict",
+                            "interface",
+                            "external_interface",
+                            "abi"]
 
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
@@ -121,6 +126,8 @@ def compile_from_file_input(
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
+            elif file_input.resolved_path.suffix == ".vyi" and output_format not in INTERFACE_OUTPUT_FORMATS:
+                raise ValueError(f"Unsupported format for compiling interface: {repr(output_format)}")
             try:
                 formatter = OUTPUT_FORMATS[output_format]
                 ret[output_format] = formatter(compiler_data)
