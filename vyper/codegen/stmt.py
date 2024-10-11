@@ -147,8 +147,9 @@ class Stmt:
             revert_seq = [
                 "seq",
                 ["mstore", buf, method_id],
-                IRnode.from_list(["revert", add_ofst(buf, 28), ["add", 4, encoded_length]], error_msg="user revert with reason")
             ]
+            revert = ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]]
+            revert_seq.append(IRnode.from_list(revert, error_msg="user revert with reason"))
             revert_seq = b1.resolve(revert_seq)
 
         if is_raise:
