@@ -425,3 +425,29 @@ import lib
 
         used_dir = search_paths[-1].stem  # either dir1 or dir2
         assert output_bundle.used_search_paths == [".", "0/" + used_dir]
+
+def test_compile_interface_file(make_file):
+    interface = """
+@view
+@external
+def foo() -> String[1]:
+    ...
+
+@view
+@external
+def bar() -> String[1]:
+    ...
+
+@external
+def baz() -> uint8:
+    ...
+
+    """
+    file = make_file("interface.vyi", interface)
+    compile_files([file], ["ast","annotated_ast","interface","external_interface","abi"])
+
+    with pytest.raises(ValueError):
+        compile_files([file],["bytecode"])
+
+    with pytest.raises(ValueError):
+        compile_files([file],["asm"])
