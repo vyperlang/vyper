@@ -19,6 +19,7 @@ from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
+UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
 
 @dataclass
 class _Expression:
@@ -108,19 +109,11 @@ class _BBLattice:
     data: dict[IRInstruction, OrderedSet[_Expression]]
     out: OrderedSet[_Expression]
 
-    # used to check if the basic block has to be
-    # recalculated
-    in_cache: OrderedSet[_Expression] | None
-
     def __init__(self, bb: IRBasicBlock):
         self.data = dict()
         self.out = OrderedSet()
-        self.in_cache = None
         for inst in bb.instructions:
             self.data[inst] = OrderedSet()
-
-
-_UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
 
 
 class _FunctionLattice:
@@ -179,6 +172,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
                     if out not in worklist:
                         worklist.append(out)
 
+    # msize effect should be only necessery
+    # to be handled when there is a possibility
+    # of msize read otherwise it should not make difference
+    # for this analysis
     def _contains_msize(self) -> bool:
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -194,16 +191,12 @@ class AvailableExpressionAnalysis(IRAnalysis):
             )
 
         bb_lat = self.lattice.data[bb]
-        if bb_lat.in_cache is not None and available_expr == bb_lat.in_cache:
-            return False
-        bb_lat.in_cache = available_expr
         change = False
         for inst in bb.instructions:
-            if inst.opcode in _UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
+            if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
                 continue
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
-                change |= True
 
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes(self.ignore_msize)
@@ -224,6 +217,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         if available_expr != bb_lat.out:
             bb_lat.out = available_expr.copy()
+            # change is only necessery when the output of the
+            # basic block is changed (otherwise it wont affect rest)
             change |= True
 
         return change
@@ -234,6 +229,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if depth > 0 and isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
+            # this can both create better solutions and is necessery
+            # for correct effect handle, otherwise you could go over
+            # effect bounderies
             if not inst.is_volatile:
                 return self.get_expression(inst, available_exprs, depth - 1)
         return op
