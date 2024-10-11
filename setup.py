@@ -116,4 +116,10 @@ setup(
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],
+    # Add linter configuration for flake8
+    options={
+        "flake8": {
+            "select": "F401",
+        }
+    }
 )
