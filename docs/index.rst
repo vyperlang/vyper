@@ -6,14 +6,17 @@
 Vyper
 #####
 
-Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_.
+Vyper is a contract-oriented, Pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_.
+It prioritizes user safety, encourages clear coding practices via language design and efficient execution. In other words, Vyper code is safe, clear and efficient!
 
 Principles and Goals
 ====================
 
 * **Security**: It should be possible and natural to build secure smart-contracts in Vyper.
 * **Language and compiler simplicity**: The language and the compiler implementation should strive to be simple.
-* **Auditability**: Vyper code should be maximally human-readable. Furthermore, it should be maximally difficult to write misleading code. Simplicity for the reader is more important than simplicity for the writer, and simplicity for readers with low prior experience with Vyper (and low prior experience with programming in general) is particularly important.
+* **Auditability**: Vyper code should be maximally human-readable.
+  Furthermore, it should be maximally difficult to write misleading code.
+  Simplicity for the reader is more important than simplicity for the writer, and simplicity for readers with low prior experience with Vyper (and low prior experience with programming in general) is particularly important.
 
 Because of this Vyper provides the following features:
 
@@ -23,7 +26,7 @@ Because of this Vyper provides the following features:
 * **Strong typing**
 * **Clean and understandable compiler code**
 * **Support for pure functions**: Anything marked ``pure`` is not allowed to change the state.
-* **Code reuse through composition**: Vyper supports code reuse through composition, and to help auditors, requires syntactic marking of dependencies which potentially modify state.
+* **Code reuse through composition**: Vyper supports code reuse through composition, and requires syntactic marking of dependencies which potentially modify state.
 
 Following the principles and goals, Vyper **does not** provide the following features:
 
@@ -35,5 +38,3 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Recursive calling**: Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Infinite-length loops**: Similar to recursive calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Binary fixed point**: Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
-
-Vyper **does not** strive to be a 100% replacement for everything that can be done in Solidity; it will deliberately forbid things or make things harder if it deems fit to do so for the goal of increasing security.

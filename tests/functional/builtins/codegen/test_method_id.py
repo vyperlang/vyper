@@ -1,4 +1,4 @@
-def test_method_id_test(get_contract_with_gas_estimation):
+def test_method_id_test(get_contract):
     method_id_test = """
 @external
 def double(x: int128) -> int128:
@@ -9,7 +9,7 @@ def returnten() -> int128:
     ans: Bytes[32] = raw_call(self, concat(method_id("double(int128)"), convert(5, bytes32)), gas=50000, max_outsize=32)  # noqa: E501
     return convert(convert(ans, bytes32), int128)
     """
-    c = get_contract_with_gas_estimation(method_id_test)
+    c = get_contract(method_id_test)
     assert c.returnten() == 10
 
 

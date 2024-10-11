@@ -18,7 +18,10 @@ from vyper.codegen.core import (
     is_flag_type,
     is_numeric_type,
     is_tuple_like,
+    make_setter,
     pop_dyn_array,
+    potential_overlap,
+    read_write_overlap,
     sar,
     shl,
     shr,
@@ -31,12 +34,14 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    EvmVersionException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -71,8 +76,7 @@ class Expr:
 
     def __init__(self, node, context, is_stmt=False):
         assert isinstance(node, vy_ast.VyperNode)
-        if node.has_folded_value:
-            node = node.get_folded_value()
+        node = node.reduced()
 
         self.expr = node
         self.context = context
@@ -84,12 +88,15 @@ class Expr:
             self.ir_node = fn()
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
+        writes = set(access.variable for access in get_expr_writes(self.expr))
+        self.ir_node._writes = writes
+
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.ast_source = self.expr
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        return IRnode.from_list(self.expr.n, typ=typ)
+        return IRnode.from_list(self.expr.value, typ=typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -133,8 +140,8 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
-        bytez = self.expr.s
-        bytez_length = len(self.expr.s)
+        bytez = self.expr.value
+        bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
@@ -165,27 +172,24 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-        if self.expr.id == "self":
+        varname = self.expr.id
+
+        if varname == "self":
             return IRnode.from_list(["address"], typ=AddressT())
-        elif self.expr.id in self.context.vars:
-            var = self.context.vars[self.expr.id]
-            ret = IRnode.from_list(
-                var.pos,
-                typ=var.typ,
-                location=var.location,  # either 'memory' or 'calldata' storage is handled above.
-                encoding=var.encoding,
-                annotation=self.expr.id,
-                mutable=var.mutable,
-            )
-            ret._referenced_variables = {var}
+
+        varinfo = self.expr._expr_info.var_info
+        assert varinfo is not None
+
+        # local variable
+        if varname in self.context.vars:
+            ret = self.context.lookup_var(varname).as_ir_node()
+            ret._referenced_variables = {varinfo}
             return ret
 
-        elif (varinfo := self.expr._expr_info.var_info) is not None:
-            if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+        if varinfo.is_constant:
+            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
-            assert varinfo.is_immutable, "not an immutable!"
-
+        if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
 
             location = data_location_to_address_space(
@@ -196,11 +200,13 @@ class Expr:
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=location,
-                annotation=self.expr.id,
+                annotation=varname,
                 mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -263,14 +269,15 @@ class Expr:
                 return IRnode.from_list(["~calldata"], typ=BytesT(0))
             elif key == "msg.value" and self.context.is_payable:
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
-            elif key == "msg.gas":
+            elif key in ("msg.gas", "msg.mana"):
+                # NOTE: `msg.mana` is an alias for `msg.gas`
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
                     vyper_warn(warning, self.expr)
-                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
+                return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
@@ -287,6 +294,12 @@ class Expr:
                 return IRnode.from_list(["gaslimit"], typ=UINT256_T)
             elif key == "block.basefee":
                 return IRnode.from_list(["basefee"], typ=UINT256_T)
+            elif key == "block.blobbasefee":
+                if not version_check(begin="cancun"):
+                    raise EvmVersionException(
+                        "`block.blobbasefee` is not available pre-cancun", self.expr
+                    )
+                return IRnode.from_list(["blobbasefee"], typ=UINT256_T)
             elif key == "block.prevhash":
                 return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ=BYTES32_T)
             elif key == "tx.origin":
@@ -345,9 +358,13 @@ class Expr:
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice, self.context)
+            if read_write_overlap(sub, index):
+                raise CompilerPanic("risky overlap")
 
         elif is_tuple_like(sub.typ):
-            index = self.expr.slice.n
+            # should we annotate expr.slice in the frontend with the
+            # folded value instead of calling reduced() here?
+            index = self.expr.slice.reduced().value
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")
@@ -493,7 +510,7 @@ class Expr:
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
     @staticmethod
-    def _signed_to_unsigned_comparision_op(op):
+    def _signed_to_unsigned_comparison_op(op):
         translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
@@ -553,7 +570,7 @@ class Expr:
             if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
-                op = self._signed_to_unsigned_comparision_op(op)
+                op = self._signed_to_unsigned_comparison_op(op)
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):
@@ -693,10 +710,19 @@ class Expr:
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
                 )
-                return append_dyn_array(darray, arg)
+
+                ret = ["seq"]
+                if potential_overlap(darray, arg):
+                    tmp = self.context.new_internal_variable(arg.typ)
+                    ret.append(make_setter(tmp, arg))
+                    arg = tmp
+
+                ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
+
         return self_call.ir_for_self_call(self.expr, self.context)
 
     @classmethod

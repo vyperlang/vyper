@@ -1,8 +1,8 @@
 import re
-from decimal import Decimal
 
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
@@ -166,7 +166,7 @@ def test_basic_for_in_lists(code, data, get_contract):
     assert c.data() == data
 
 
-def test_basic_for_list_storage(get_contract_with_gas_estimation):
+def test_basic_for_list_storage(get_contract):
     code = """
 x: int128[4]
 
@@ -182,14 +182,14 @@ def data() -> int128:
     return -1
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.data() == -1
-    c.set(transact={})
+    c.set()
     assert c.data() == 7
 
 
-def test_basic_for_dyn_array_storage(get_contract_with_gas_estimation):
+def test_basic_for_dyn_array_storage(get_contract):
     code = """
 x: DynArray[int128, 4]
 
@@ -205,16 +205,16 @@ def data() -> int128:
     return t
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.data() == 0
     # test all sorts of lists
     for xs in [[3, 5, 7, 9], [4, 6, 8], [1, 2], [5], []]:
-        c.set(xs, transact={})
+        c.set(xs)
         assert c.data() == sum(xs)
 
 
-def test_basic_for_list_storage_address(get_contract_with_gas_estimation):
+def test_basic_for_list_storage_address(get_contract):
     code = """
 addresses: address[3]
 
@@ -236,16 +236,16 @@ def iterate_return_second() -> address:
     return empty(address)
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
-    c.set(0, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1", transact={})
-    c.set(1, "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e", transact={})
-    c.set(2, "0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D", transact={})
+    c.set(0, "0x82A978B3f5962A5b0957d9ee9eEf472EE55B42F1")
+    c.set(1, "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e")
+    c.set(2, "0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D")
 
     assert c.ret(1) == c.iterate_return_second() == "0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e"
 
 
-def test_basic_for_list_storage_decimal(get_contract_with_gas_estimation):
+def test_basic_for_list_storage_decimal(get_contract):
     code = """
 readings: decimal[3]
 
@@ -267,18 +267,18 @@ def i_return(break_count: int128) -> decimal:
     return -1.111
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
-    c.set(0, Decimal("0.0001"), transact={})
-    c.set(1, Decimal("1.1"), transact={})
-    c.set(2, Decimal("2.2"), transact={})
+    c.set(0, decimal_to_int("0.0001"))
+    c.set(1, decimal_to_int("1.1"))
+    c.set(2, decimal_to_int("2.2"))
 
-    assert c.ret(2) == c.i_return(2) == Decimal("2.2")
-    assert c.ret(1) == c.i_return(1) == Decimal("1.1")
-    assert c.ret(0) == c.i_return(0) == Decimal("0.0001")
+    assert c.ret(2) == c.i_return(2) == decimal_to_int("2.2")
+    assert c.ret(1) == c.i_return(1) == decimal_to_int("1.1")
+    assert c.ret(0) == c.i_return(0) == decimal_to_int("0.0001")
 
 
-def test_for_in_list_iter_type(get_contract_with_gas_estimation):
+def test_for_in_list_iter_type(get_contract):
     code = """
 @external
 @view
@@ -292,12 +292,12 @@ def func(amounts: uint256[3]) -> uint256:
     return total
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.func([100, 200, 300]) == 600
 
 
-def test_for_in_dyn_array(get_contract_with_gas_estimation):
+def test_for_in_dyn_array(get_contract):
     code = """
 @external
 @view
@@ -311,7 +311,7 @@ def func(amounts: DynArray[uint256, 3]) -> uint256:
     return total
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.func([100, 200, 300]) == 600
     assert c.func([100, 200]) == 300
@@ -897,3 +897,36 @@ def foo():
         compile_code(main, input_bundle=input_bundle)
 
     assert e.value._message == "Cannot modify loop variable `queue`"
+
+
+def test_iterator_modification_memory(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 10]:
+    # check VarInfos are distinguished by decl_node when they have same type
+    alreadyDone: DynArray[uint256, 10] = []
+    _assets: DynArray[uint256, 10] = [1, 2, 3, 4, 3, 2, 1]
+    for a: uint256 in _assets:
+        if a in alreadyDone:
+            continue
+        alreadyDone.append(a)
+    return alreadyDone
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4]
+
+
+def test_iterator_modification_func_arg(get_contract):
+    code = """
+@internal
+def boo(a: DynArray[uint256, 12] = [], b: DynArray[uint256, 12] = []) -> DynArray[uint256, 12]:
+    for i: uint256 in a:
+        b.append(i)
+    return b
+
+@external
+def foo() -> DynArray[uint256, 12]:
+    return self.boo([1, 2, 3])
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]

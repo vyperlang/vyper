@@ -97,10 +97,7 @@ class _BaseVyperException(Exception):
 
     @property
     def message(self):
-        msg = self._message
-        if self.hint:
-            msg += f"\n\n  (hint: {self.hint})"
-        return msg
+        return self._message
 
     def format_annotation(self, value):
         from vyper import ast as vy_ast
@@ -127,8 +124,9 @@ class _BaseVyperException(Exception):
             return None
 
         if isinstance(node, vy_ast.VyperNode):
-            module_node = node.get_ancestor(vy_ast.Module)
+            module_node = node.module_node
 
+            # TODO: handle cases where module is None or vy_ast.Module
             if module_node.get("path") not in (None, "<unknown>"):
                 node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
 
@@ -147,7 +145,16 @@ class _BaseVyperException(Exception):
         node_msg = textwrap.indent(node_msg, "  ")
         return node_msg
 
+    def _add_hint(self, msg):
+        hint = self.hint
+        if hint is None:
+            return msg
+        return msg + f"\n  (hint: {self.hint})"
+
     def __str__(self):
+        return self._add_hint(self._str_helper())
+
+    def _str_helper(self):
         if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
@@ -203,7 +210,7 @@ class InstantiationException(StructureException):
     """Variable or expression cannot be instantiated"""
 
 
-class VersionException(VyperException):
+class VersionException(SyntaxException):
     """Version string is malformed or incompatible with this compiler version."""
 
 
@@ -349,8 +356,16 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
+class BadArchive(Exception):
+    """Bad archive"""
+
+
 class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
+
+
+class FeatureException(VyperException):
+    """Some feature flag is not enabled"""
 
 
 class StaticAssertionException(VyperException):
@@ -383,6 +398,10 @@ class CompilerPanic(VyperInternalException):
 
 class CodegenPanic(VyperInternalException):
     """Invalid code generated during codegen phase"""
+
+
+class StackTooDeep(CodegenPanic):
+    """Stack too deep"""  # (should not happen)
 
 
 class UnexpectedNodeType(VyperInternalException):

@@ -37,14 +37,14 @@ def test_basic_grammar_empty():
     assert len(tree.children) == 0
 
 
-def fix_terminal(terminal: str) -> bool:
+def fix_terminal(terminal: str) -> str:
     # these throw exceptions in the grammar
-    for bad in ("\x00", "\\ ", "\x0c"):
+    for bad in ("\x00", "\\ ", "\x0c", "\x0d"):
         terminal = terminal.replace(bad, " ")
     return terminal
 
 
-ALLOWED_CHARS = st.characters(codec="utf-8", min_codepoint=1)
+ALLOWED_CHARS = st.characters(codec="ascii", min_codepoint=1)
 
 
 # With help from hyposmith

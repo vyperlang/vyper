@@ -59,10 +59,8 @@ def ir_for_self_call(stmt_expr, context):
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
     if func_t.return_type is not None:
-        return_buffer = IRnode.from_list(
-            context.new_internal_variable(func_t.return_type),
-            annotation=f"{return_label}_return_buf",
-        )
+        return_buffer = context.new_internal_variable(func_t.return_type)
+        return_buffer.annotation = f"{return_label}_return_buf"
     else:
         return_buffer = None
 
@@ -77,9 +75,7 @@ def ir_for_self_call(stmt_expr, context):
     if args_as_tuple.contains_self_call:
         copy_args = ["seq"]
         # TODO deallocate me
-        tmp_args_buf = IRnode(
-            context.new_internal_variable(dst_tuple_t), typ=dst_tuple_t, location=MEMORY
-        )
+        tmp_args_buf = context.new_internal_variable(dst_tuple_t)
         copy_args.append(
             # --> args evaluate here <--
             make_setter(tmp_args_buf, args_as_tuple)
@@ -112,6 +108,5 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
-    o.passthrough_metadata["func_t"] = func_t
-    o.passthrough_metadata["args_ir"] = args_ir
+    o.invoked_function_ir = func_t._ir_info.func_ir
     return o

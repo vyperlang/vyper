@@ -72,7 +72,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json():
+def input_json(optimize, evm_version, experimental_codegen):
     return {
         "language": "Vyper",
         "sources": {
@@ -81,7 +81,12 @@ def input_json():
             "contracts/bar.vy": {"content": BAR_CODE},
         },
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
-        "settings": {"outputSelection": {"*": ["*"]}},
+        "settings": {
+            "outputSelection": {"*": ["*"]},
+            "optimize": optimize.name.lower(),
+            "evmVersion": evm_version,
+            "experimentalCodegen": experimental_codegen,
+        },
     }
 
 
@@ -113,11 +118,13 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 def test_compile_json(input_json, input_bundle):
     foo_input = input_bundle.load_file("contracts/foo.vy")
-    # remove bb and bb_runtime from output formats
+    # remove venom related from output formats
     # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
     del output_formats["bb"]
     del output_formats["bb_runtime"]
+    del output_formats["cfg"]
+    del output_formats["cfg_runtime"]
     foo = compile_from_file_input(
         foo_input, output_formats=output_formats, input_bundle=input_bundle
     )
@@ -164,12 +171,15 @@ def test_compile_json(input_json, input_bundle):
             "userdoc": data["userdoc"],
             "metadata": data["metadata"],
             "evm": {
-                "bytecode": {"object": data["bytecode"], "opcodes": data["opcodes"]},
+                "bytecode": {
+                    "object": data["bytecode"],
+                    "opcodes": data["opcodes"],
+                    "sourceMap": data["source_map"],
+                },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
-                    "sourceMap": data["source_map"]["pc_pos_map_compressed"],
-                    "sourceMapFull": data["source_map_full"],
+                    "sourceMap": data["source_map_runtime"],
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
@@ -220,11 +230,6 @@ def test_different_outputs(input_bundle, input_json):
     assert foo["evm"]["methodIdentifiers"] == method_identifiers
 
 
-def test_root_folder_not_exists(input_json):
-    with pytest.raises(FileNotFoundError):
-        compile_json(input_json, root_folder="/path/that/does/not/exist")
-
-
 def test_wrong_language():
     with pytest.raises(JSONError):
         compile_json({"language": "Solidity"})
@@ -264,7 +269,7 @@ def test_exc_handler_to_dict_compiler(input_json):
 
 
 def test_source_ids_increment(input_json):
-    input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMapFull"]}
+    input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMap"]}
     result = compile_json(input_json)
 
     def get(filename, contractname):
@@ -273,7 +278,7 @@ def test_source_ids_increment(input_json):
 
         # grab it via source map to sanity check
         contract_info = result["contracts"][filename][contractname]["evm"]
-        pc_ast_map = contract_info["deployedBytecode"]["sourceMapFull"]["pc_ast_map"]
+        pc_ast_map = contract_info["deployedBytecode"]["sourceMap"]["pc_ast_map"]
         pc_item = next(iter(pc_ast_map.values()))
         source_id, node_id = pc_item
         assert ret == source_id

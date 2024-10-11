@@ -1,15 +1,22 @@
+import base64
 import warnings
 from collections import deque
 from pathlib import PurePath
 
-from vyper.ast import ast_to_dict, parse_natspec
+import vyper.ast as vy_ast
+from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
+from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
+from vyper.utils import vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -22,21 +29,80 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    # get all reachable imports including recursion
+    imported_module_infos = module_t.reachable_imports
+    unique_modules: dict[str, vy_ast.Module] = {}
+    for info in imported_module_infos:
+        if isinstance(info.typ, InterfaceT):
+            ast = info.typ.decl_node
+            if ast is None:  # json abi
+                continue
+        else:
+            assert isinstance(info.typ, ModuleInfo)
+            ast = info.typ.module_t._module
+
+        assert isinstance(ast, vy_ast.Module)  # help mypy
+        # use resolved_path for uniqueness, since Module objects can actually
+        # come from multiple InputBundles (particularly builtin interfaces),
+        # so source_id is not guaranteed to be unique.
+        if ast.resolved_path in unique_modules:
+            # sanity check -- objects must be identical
+            assert unique_modules[ast.resolved_path] is ast
+        unique_modules[ast.resolved_path] = ast
+
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+        "imports": [ast_to_dict(ast) for ast in unique_modules.values()],
     }
     return annotated_ast_dict
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return devdoc
+    return compiler_data.natspec.devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return userdoc
+    return compiler_data.natspec.userdoc
+
+
+def build_solc_json(compiler_data: CompilerData) -> str:
+    # request bytecode to ensure the input compiles through all the
+    # compilation passes, emit warnings if there are any issues
+    # (this allows use cases like sending a bug reproduction while
+    # still alerting the user in the common case that they didn't
+    # mean to have a bug)
+    try:
+        _ = compiler_data.bytecode
+    except VyperException as e:
+        vyper_warn(
+            f"Exceptions encountered during code generation (but producing output anyway): {e}"
+        )
+    writer = SolcJSONWriter(compiler_data)
+    writer.write()
+    return writer.output()
+
+
+def build_archive(compiler_data: CompilerData) -> bytes:
+    # ditto
+    try:
+        _ = compiler_data.bytecode
+    except VyperException as e:
+        vyper_warn(
+            f"Exceptions encountered during code generation (but producing archive anyway): {e}"
+        )
+    writer = VyperArchiveWriter(compiler_data)
+    writer.write()
+    return writer.output()
+
+
+def build_archive_b64(compiler_data: CompilerData) -> str:
+    return base64.b64encode(build_archive(compiler_data)).decode("ascii")
+
+
+def build_integrity(compiler_data: CompilerData) -> str:
+    return compiler_data.compilation_target._metadata["type"].integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
@@ -88,6 +154,14 @@ def build_bb_output(compiler_data: CompilerData) -> IRnode:
 
 def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
     return compiler_data.venom_functions[1]
+
+
+def build_cfg_output(compiler_data: CompilerData) -> str:
+    return compiler_data.venom_functions[0].as_graph()
+
+
+def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
+    return compiler_data.venom_functions[1].as_graph()
 
 
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
@@ -240,16 +314,13 @@ def _build_node_identifier(ast_node):
     return (ast_node.module_node.source_id, ast_node.node_id)
 
 
-def build_source_map_output(compiler_data: CompilerData) -> dict:
+def _build_source_map_output(compiler_data, bytecode, pc_maps):
     """
     Generate source map output in various formats. Note that integrations
     are encouraged to use pc_ast_map since the information it provides is
     a superset of the other formats, and the other types are included
     for legacy reasons.
     """
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_compiler_metadata=False
-    )
     # sort the pc maps alphabetically
     # CMC 2024-03-09 is this really necessary?
     out = {}
@@ -272,6 +343,18 @@ def build_source_map_output(compiler_data: CompilerData) -> dict:
     # hint to consumers what the fields in pc_ast_map mean
     out["pc_ast_map_item_keys"] = ("source_id", "node_id")
     return out
+
+
+def build_source_map_output(compiler_data: CompilerData) -> dict:
+    bytecode, pc_maps = compile_ir.assembly_to_evm(compiler_data.assembly, compiler_metadata=None)
+    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+
+
+def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
+    bytecode, pc_maps = compile_ir.assembly_to_evm(
+        compiler_data.assembly_runtime, compiler_metadata=None
+    )
+    return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
 
 # generate a solidity-style source map. this functionality is deprecated

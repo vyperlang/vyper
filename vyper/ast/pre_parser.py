@@ -15,14 +15,14 @@ from vyper.exceptions import StructureException, SyntaxException, VersionExcepti
 from vyper.typing import ModificationOffsets, ParserPosition
 
 
-def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
+def validate_version_pragma(version_str: str, full_source_code: str, start: ParserPosition) -> None:
     """
     Validates a version pragma directive against the current compiler version.
     """
     from vyper import __version__
 
     if len(version_str) == 0:
-        raise VersionException("Version specification cannot be empty", start)
+        raise VersionException("Version specification cannot be empty", full_source_code, *start)
 
     # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
     if re.match("[v0-9]", version_str):
@@ -34,14 +34,17 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
         spec = SpecifierSet(version_str)
     except InvalidSpecifier:
         raise VersionException(
-            f'Version specification "{version_str}" is not a valid PEP440 specifier', start
+            f'Version specification "{version_str}" is not a valid PEP440 specifier',
+            full_source_code,
+            *start,
         )
 
     if not spec.contains(__version__, prereleases=True):
         raise VersionException(
             f'Version specification "{version_str}" is not compatible '
             f'with compiler version "{__version__}"',
-            start,
+            full_source_code,
+            *start,
         )
 
 
@@ -176,7 +179,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                     if settings.compiler_version is not None:
                         raise StructureException("compiler version specified twice!", start)
                     compiler_version = contents.removeprefix("@version ").strip()
-                    validate_version_pragma(compiler_version, start)
+                    validate_version_pragma(compiler_version, code, start)
                     settings.compiler_version = compiler_version
 
                 if contents.startswith("pragma "):
@@ -185,9 +188,10 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         if settings.compiler_version is not None:
                             raise StructureException("pragma version specified twice!", start)
                         compiler_version = pragma.removeprefix("version ").strip()
-                        validate_version_pragma(compiler_version, start)
+                        validate_version_pragma(compiler_version, code, start)
                         settings.compiler_version = compiler_version
 
+                    # TODO: refactor these to something like Settings.from_pragma
                     elif pragma.startswith("optimize "):
                         if settings.optimize is not None:
                             raise StructureException("pragma optimize specified twice!", start)
@@ -201,8 +205,20 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                             raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
-                            raise StructureException("Invalid evm version: `{evm_version}`", start)
+                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
+                    elif pragma.startswith("experimental-codegen"):
+                        if settings.experimental_codegen is not None:
+                            raise StructureException(
+                                "pragma experimental-codegen specified twice!", start
+                            )
+                        settings.experimental_codegen = True
+                    elif pragma.startswith("enable-decimals"):
+                        if settings.enable_decimals is not None:
+                            raise StructureException(
+                                "pragma enable_decimals specified twice!", start
+                            )
+                        settings.enable_decimals = True
 
                     else:
                         raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")

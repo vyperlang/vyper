@@ -230,7 +230,8 @@ Decimals
 
 **Keyword:** ``decimal``
 
-A decimal is a type to store a decimal fixed point value.
+A decimal is a type to store a decimal fixed point value. As of v0.4.0, decimals must be enabled with the CLI flag ``--enable-decimals``.
+
 
 Values
 ******
@@ -239,7 +240,7 @@ A value with a precision of 10 decimal places between -1870722095783555735300716
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
 
-The ABI type (for computing method identifiers) of ``decimal`` is ``fixed168x10``.
+The ABI type (for computing method identifiers) of ``decimal`` is ``int168``.
 
 Operators
 *********
@@ -562,7 +563,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
     .. code-block:: vyper
 
-        for item in self.my_array:
+        for item: uint256 in self.my_array:
             self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.

@@ -4,6 +4,7 @@ from eth.codecs import abi
 from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
+from tests.utils import ZERO_ADDRESS
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
@@ -42,7 +43,7 @@ def test() -> address:
     assert c.test() == checksum_encode("0x" + expected_create_address.hex())
 
 
-def test_create_minimal_proxy_to_call(get_contract, w3):
+def test_create_minimal_proxy_to_call(get_contract):
     code = """
 interface SubContract:
     def hello() -> Bytes[100]: view
@@ -66,11 +67,11 @@ def test2() -> Bytes[100]:
     c = get_contract(code)
 
     assert c.hello() == b"hello world!"
-    c.test(transact={})
+    c.test()
     assert c.test2() == b"hello world!"
 
 
-def test_minimal_proxy_exception(w3, get_contract, tx_failed):
+def test_minimal_proxy_exception(env, get_contract, tx_failed):
     code = """
 interface SubContract:
     def hello(a: uint256) -> Bytes[100]: view
@@ -95,50 +96,63 @@ def test2(a: uint256) -> Bytes[100]:
     c = get_contract(code)
 
     assert c.hello(1) == b"hello world!"
-    c.test(transact={})
+    c.test()
     assert c.test2(1) == b"hello world!"
 
-    with tx_failed():
+    with tx_failed(exc_text="invaliddddd"):
         c.test2(0)
 
-    GAS_SENT = 30000
-    tx_hash = c.test2(0, transact={"gas": GAS_SENT})
+    gas_sent = 30000
+    with tx_failed(exc_text="invaliddddd"):
+        c.test2(0, gas=gas_sent)
 
-    receipt = w3.eth.get_transaction_receipt(tx_hash)
-
-    assert receipt["status"] == 0
-    assert receipt["gasUsed"] < GAS_SENT
+    # check we issued `revert`, which does not consume all gas
+    assert env.last_result.gas_used < gas_sent
 
 
-def test_create_minimal_proxy_to_create2(get_contract, create2_address_of, keccak, tx_failed):
-    code = """
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
+def test_create_minimal_proxy_to_create2(
+    get_contract, create2_address_of, keccak, tx_failed, revert_on_failure
+):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
+    code = f"""
 main: address
 
 @external
 def test(_salt: bytes32) -> address:
-    self.main = create_minimal_proxy_to(self, salt=_salt)
+    self.main = create_minimal_proxy_to(self, salt=_salt{revert_arg})
     return self.main
     """
 
     c = get_contract(code)
 
     salt = keccak(b"vyper")
-    assert HexBytes(c.test(salt)) == create2_address_of(
-        c.address, salt, eip1167_initcode(c.address)
-    )
+    result = c.test(salt)
+    assert HexBytes(result) == create2_address_of(c.address, salt, eip1167_initcode(c.address))
 
-    c.test(salt, transact={})
     # revert on collision
-    with tx_failed():
-        c.test(salt, transact={})
+    if revert_on_failure is False:
+        assert c.test(salt) == ZERO_ADDRESS
+    else:
+        with tx_failed():
+            c.test(salt)
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
 # contract, and 0xfe7100 is ERC5202 magic
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", ERC5202_PREFIX])
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
 def test_create_from_blueprint(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed, blueprint_prefix
+    get_contract,
+    deploy_blueprint_for,
+    env,
+    keccak,
+    create2_address_of,
+    tx_failed,
+    blueprint_prefix,
+    revert_on_failure,
 ):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
     code = """
 @external
 def foo() -> uint256:
@@ -151,25 +165,27 @@ created_address: public(address)
 
 @external
 def test(target: address):
-    self.created_address = create_from_blueprint(target, code_offset={prefix_len})
+    self.created_address = create_from_blueprint(target, code_offset={prefix_len}{revert_arg})
 
 @external
 def test2(target: address, salt: bytes32):
-    self.created_address = create_from_blueprint(target, code_offset={prefix_len}, salt=salt)
+    self.created_address = create_from_blueprint(
+        target, code_offset={prefix_len}, salt=salt{revert_arg}
+    )
     """
 
-    # deploy a foo so we can compare its bytecode with factory deployed version
+    # deploy a foo, so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # extcodesize check
@@ -179,26 +195,29 @@ def test2(target: address, salt: bytes32):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, salt, transact={})
+    d.test2(f.address, salt)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # check if the create2 address matches our offchain calculation
-    initcode = w3.eth.get_code(f.address)
+    initcode = env.get_code(f.address)
     initcode = initcode[len(blueprint_prefix) :]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
-    with tx_failed():
-        d.test2(f.address, salt)
+    if revert_on_failure is False:
+        assert not d.test2(f.address, salt)
+    else:
+        with tx_failed():
+            d.test2(f.address, salt)
 
 
 # test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
 # code offset by default should be 3 here.
 def test_create_from_blueprint_default_offset(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed
+    get_contract, deploy_blueprint_for, env, keccak, create2_address_of, tx_failed
 ):
     code = """
 @external
@@ -220,16 +239,16 @@ def test2(target: address, salt: bytes32):
 
     # deploy a foo so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # extcodesize check
@@ -239,14 +258,14 @@ def test2(target: address, salt: bytes32):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, salt, transact={})
+    d.test2(f.address, salt)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
     # check if the create2 address matches our offchain calculation
-    initcode = w3.eth.get_code(f.address)
+    initcode = env.get_code(f.address)
     initcode = initcode[len(ERC5202_PREFIX) :]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
@@ -256,7 +275,7 @@ def test2(target: address, salt: bytes32):
 
 
 def test_create_from_blueprint_bad_code_offset(
-    get_contract, get_contract_from_ir, deploy_blueprint_for, w3, tx_failed
+    get_contract, get_contract_from_ir, deploy_blueprint_for, env, tx_failed
 ):
     deployer_code = """
 BLUEPRINT: immutable(address)
@@ -280,11 +299,8 @@ def test(code_ofst: uint256) -> address:
         compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
     )
     # manually deploy the bytecode
-    c = w3.eth.contract(abi=[], bytecode=bytecode)
-    deploy_transaction = c.constructor()
-    tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
-    tx_hash = deploy_transaction.transact(tx_info)
-    blueprint_address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+    c = env.deploy(abi=[], bytecode=bytecode)
+    blueprint_address = c.address
 
     d = get_contract(deployer_code, blueprint_address)
 
@@ -305,7 +321,7 @@ def test(code_ofst: uint256) -> address:
 
 # test create_from_blueprint with args
 def test_create_from_blueprint_args(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed
+    get_contract, deploy_blueprint_for, env, keccak, create2_address_of, tx_failed
 ):
     code = """
 struct Bar:
@@ -359,18 +375,18 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     # deploy a foo so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code, FOO, BAR)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code)
 
     d = get_contract(deployer_code)
 
-    initcode = w3.eth.get_code(f.address)[3:]
+    initcode = env.get_code(f.address)[3:]
 
-    d.test(f.address, FOO, BAR, transact={})
+    d.test(f.address, FOO, BAR)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
     assert test.bar() == BAR
 
@@ -380,25 +396,25 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, FOO, BAR, salt, transact={})
+    d.test2(f.address, FOO, BAR, salt)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
     assert test.bar() == BAR
 
     encoded_args = abi.encode("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
-    d.test3(f.address, encoded_args, transact={})
+    d.test3(f.address, encoded_args)
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    d.test4(f.address, encoded_args, keccak(b"test4"), transact={})
+    d.test4(f.address, encoded_args, keccak(b"test4"))
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
     assert test.bar() == BAR
 
@@ -411,7 +427,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     # but creating a contract with different args is ok
     FOO = "bar"
-    d.test2(f.address, FOO, BAR, salt, transact={})
+    d.test2(f.address, FOO, BAR, salt)
     # just for kicks
     assert FooContract(d.created_address()).foo() == FOO
     assert FooContract(d.created_address()).bar() == BAR
@@ -422,19 +438,23 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     with tx_failed():
-        w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"})
+        env.message_call(d.address, env.deployer, f"{sig}{encoded}")
 
 
-def test_create_copy_of(get_contract, w3, keccak, create2_address_of, tx_failed):
-    code = """
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
+def test_create_copy_of(
+    get_contract, env, keccak, create2_address_of, tx_failed, revert_on_failure
+):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
+    code = f"""
 created_address: public(address)
 @internal
 def _create_copy_of(target: address):
-    self.created_address = create_copy_of(target)
+    self.created_address = create_copy_of(target{revert_arg})
 
 @internal
 def _create_copy_of2(target: address, salt: bytes32):
-    self.created_address = create_copy_of(target, salt=salt)
+    self.created_address = create_copy_of(target, salt=salt{revert_arg})
 
 @external
 def test(target: address) -> address:
@@ -452,35 +472,29 @@ def test2(target: address, salt: bytes32) -> address:
     """
 
     c = get_contract(code)
-    bytecode = w3.eth.get_code(c.address)
+    bytecode = env.get_code(c.address)
 
-    c.test(c.address, transact={})
+    c.test(c.address)
     test1 = c.created_address()
-    assert w3.eth.get_code(test1) == bytecode
+    assert env.get_code(test1) == bytecode
 
     # extcodesize check
     with tx_failed():
         c.test("0x" + "00" * 20)
 
-    # test1 = c.test(b"\x01")
-    # assert w3.eth.get_code(test1) == b"\x01"
-
     salt = keccak(b"vyper")
-    c.test2(c.address, salt, transact={})
+    c.test2(c.address, salt)
     test2 = c.created_address()
-    assert w3.eth.get_code(test2) == bytecode
+    assert env.get_code(test2) == bytecode
 
     assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(bytecode))
 
     # can't create2 where contract already exists
-    with tx_failed():
-        c.test2(c.address, salt, transact={})
-
-    # test single byte contract
-    # test2 = c.test2(b"\x01", salt)
-    # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # with tx_failed():
-    #     c.test2(bytecode, salt)
+    if revert_on_failure is False:
+        assert c.test2(c.address, salt) == ZERO_ADDRESS
+    else:
+        with tx_failed():
+            c.test2(c.address, salt)
 
 
 # XXX: these various tests to check the msize allocator for
@@ -489,7 +503,7 @@ def test2(target: address, salt: bytes32) -> address:
 # changes in calling convention and memory layout
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint_complex_value(
-    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+    get_contract, deploy_blueprint_for, env, blueprint_prefix
 ):
     # check msize allocator does not get trampled by value= kwarg
     code = """
@@ -531,22 +545,23 @@ def test(target: address):
     """
 
     foo_contract = get_contract(code, 12)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={"value": 3})
+    env.set_balance(env.deployer, 3)
+    d.test(f.address, value=3)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 12
 
 
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint_complex_salt_raw_args(
-    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+    get_contract, deploy_blueprint_for, env, blueprint_prefix
 ):
     # test msize allocator does not get trampled by salt= kwarg
     code = """
@@ -589,22 +604,22 @@ def test(target: address):
     """
 
     foo_contract = get_contract(code, 12)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 12
 
 
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint_complex_salt_no_constructor_args(
-    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+    get_contract, deploy_blueprint_for, env, blueprint_prefix
 ):
     # test msize allocator does not get trampled by salt= kwarg
     code = """
@@ -637,20 +652,59 @@ def test(target: address):
     """
 
     foo_contract = get_contract(code)
-    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+    expected_runtime_code = env.get_code(foo_contract.address)
 
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert env.get_code(test.address) == expected_runtime_code
     assert test.foo() == 12
 
 
-def test_create_copy_of_complex_kwargs(get_contract, w3):
+def test_blueprint_evals_once_side_effects(get_contract, deploy_blueprint_for, env):
+    # test msize allocator does not get trampled by salt= kwarg
+    code = """
+foo: public(uint256)
+    """
+
+    deployer_code = """
+created_address: public(address)
+deployed: public(uint256)
+
+@external
+def get() -> Bytes[32]:
+    self.deployed += 1
+    return b''
+
+@external
+def create_(target: address):
+    self.created_address = create_from_blueprint(
+        target,
+        raw_call(self, method_id("get()"), max_outsize=32),
+        raw_args=True, code_offset=3
+    )
+    """
+
+    foo_contract = get_contract(code)
+    expected_runtime_code = env.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code)
+
+    d = get_contract(deployer_code)
+
+    d.create_(f.address)
+
+    test = FooContract(d.created_address())
+    assert env.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 0
+    assert d.deployed() == 1
+
+
+def test_create_copy_of_complex_kwargs(get_contract, env):
     # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
 created_address: public(address)
@@ -666,10 +720,11 @@ def test(target: address) -> address:
     """
 
     c = get_contract(complex_salt)
-    bytecode = w3.eth.get_code(c.address)
-    c.test(c.address, transact={})
-    test1 = c.created_address()
-    assert w3.eth.get_code(test1) == bytecode
+    bytecode = env.get_code(c.address)
+    assert bytecode  # Sanity check
+    c.test(c.address)
+    test1 = c.address
+    assert env.get_code(test1) == bytecode
 
     # test msize allocator does not get trampled by value= kwarg
     complex_value = """
@@ -685,8 +740,9 @@ def test(target: address) -> address:
     """
 
     c = get_contract(complex_value)
-    bytecode = w3.eth.get_code(c.address)
+    bytecode = env.get_code(c.address)
+    env.set_balance(env.deployer, 2)
 
-    c.test(c.address, transact={"value": 2})
-    test1 = c.created_address()
-    assert w3.eth.get_code(test1) == bytecode
+    c.test(c.address, value=2)
+    test1 = c.address
+    assert env.get_code(test1) == bytecode
