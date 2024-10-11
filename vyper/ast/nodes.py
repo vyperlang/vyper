@@ -968,6 +968,12 @@ class NameConstant(Constant):
 class Ellipsis(Constant):
     __slots__ = ()
 
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        # python ast ellipsis() is not json serializable; use a string
+        ast_dict["value"] = self.node_source_code
+        return ast_dict
+
 
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
