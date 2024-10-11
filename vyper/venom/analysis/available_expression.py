@@ -21,6 +21,7 @@ _MIN_DEPTH = 2
 
 UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
 
+
 @dataclass
 class _Expression:
     first_inst: IRInstruction
