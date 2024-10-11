@@ -4,6 +4,7 @@ import decimal
 import enum
 import functools
 import hashlib
+import os
 import sys
 import time
 import traceback
@@ -25,9 +26,10 @@ class OrderedSet(Generic[_T]):
     """
 
     def __init__(self, iterable=None):
-        self._data = dict()
-        if iterable is not None:
-            self.update(iterable)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self)
@@ -35,6 +37,9 @@ class OrderedSet(Generic[_T]):
 
     def __iter__(self):
         return iter(self._data)
+
+    def __reversed__(self):
+        return reversed(self._data)
 
     def __contains__(self, item):
         return self._data.__contains__(item)
@@ -45,8 +50,19 @@ class OrderedSet(Generic[_T]):
     def first(self):
         return next(iter(self))
 
+    def last(self):
+        return next(reversed(self))
+
+    def pop(self):
+        return self._data.popitem()[0]
+
     def add(self, item: _T) -> None:
         self._data[item] = None
+
+    # NOTE to refactor: duplicate of self.update()
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
 
     def remove(self, item: _T) -> None:
         del self._data[item]
@@ -73,6 +89,7 @@ class OrderedSet(Generic[_T]):
     def union(self, other):
         return self | other
 
+    # set dunders
     def __ior__(self, other):
         self.update(other)
         return self
@@ -85,6 +102,15 @@ class OrderedSet(Generic[_T]):
     def __eq__(self, other):
         return self._data == other._data
 
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
     def copy(self):
         cls = self.__class__
         ret = cls.__new__(cls)
@@ -96,11 +122,11 @@ class OrderedSet(Generic[_T]):
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
 
-        ret = sets[0].copy()
-        for e in sets[0]:
-            if any(e not in s for s in sets[1:]):
-                ret.remove(e)
-        return ret
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
 
 
 class StringEnum(enum.Enum):
@@ -189,6 +215,12 @@ except ImportError:
 @functools.lru_cache(maxsize=512)
 def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
+
+
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
 
 
 # Converts four bytes to an integer
@@ -580,23 +612,10 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-def ir_pass(func):
-    """
-    Decorator for IR passes. This decorator will run the pass repeatedly until
-    no more changes are made.
-    """
-
-    def wrapper(*args, **kwargs):
-        count = 0
-
-        while True:
-            changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list) or isinstance(changes, set):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
-                break
-
-        return count
-
-    return wrapper
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path

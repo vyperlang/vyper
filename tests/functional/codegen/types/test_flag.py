@@ -43,7 +43,7 @@ def set_and_get(a: Actions) -> Actions:
     c = get_contract(code)
     for i in range(5):
         assert c.set_and_get(i) == i
-        c.set_and_get(i, transact={})
+        c.set_and_get(i)
         assert c.action() == i
 
 
@@ -152,7 +152,7 @@ def binv_arg(a: Roles) -> Roles:
         c.bxor_arg(3, 32)
 
 
-def test_augassign_storage(get_contract, w3, tx_failed):
+def test_augassign_storage(get_contract, env, tx_failed):
     code = """
 flag Roles:
     ADMIN
@@ -186,11 +186,11 @@ def checkMinter(minter: address):
     c = get_contract(code)
 
     # check admin
-    admin_address = w3.eth.accounts[0]
-    minter_address = w3.eth.accounts[1]
+    admin_address = env.deployer
+    minter_address = env.accounts[1]
 
     # add minter
-    c.addMinter(minter_address, transact={})
+    c.addMinter(minter_address)
     c.checkMinter(minter_address)
 
     assert c.roles(admin_address) == 0b01
@@ -200,31 +200,31 @@ def checkMinter(minter: address):
     with tx_failed():
         c.checkMinter(admin_address)
 
-    c.addMinter(admin_address, transact={})
+    c.addMinter(admin_address)
 
     # now, admin is a minter
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # revoke minter
-    c.revokeMinter(admin_address, transact={})
+    c.revokeMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     with tx_failed():
         c.checkMinter(admin_address)
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     with tx_failed():
         c.checkMinter(admin_address)
 
 
-def test_in_flag(get_contract_with_gas_estimation):
+def test_in_flag(get_contract):
     code = """
 flag Roles:
     USER
@@ -252,7 +252,7 @@ def baz(a: Roles) -> bool:
     return a in (x & y)
 
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() is True
 
     # CEO MANAGER ADMIN STAFF USER
@@ -269,7 +269,7 @@ def baz(a: Roles) -> bool:
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
 
 
-def test_struct_with_flag(get_contract_with_gas_estimation):
+def test_struct_with_flag(get_contract):
     code = """
 flag Foobar:
     FOO
@@ -284,11 +284,11 @@ def get_flag_from_struct() -> Foobar:
     f: Foo = Foo(a=1, b=Foobar.BAR)
     return f.b
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_flag_from_struct() == 2
 
 
-def test_mapping_with_flag(get_contract_with_gas_estimation):
+def test_mapping_with_flag(get_contract):
     code = """
 flag Foobar:
     FOO
@@ -301,5 +301,5 @@ def get_key(f: Foobar, i: uint256) -> uint256:
     self.fb[f] = i
     return self.fb[f]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_key(1, 777) == 777

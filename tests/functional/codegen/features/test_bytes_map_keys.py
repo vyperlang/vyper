@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import TypeMismatch
 
 
-def test_basic_bytes_keys(w3, get_contract):
+def test_basic_bytes_keys(env, get_contract):
     code = """
 mapped_bytes: HashMap[Bytes[5], int128]
 
@@ -18,7 +18,7 @@ def get(k: Bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"test", 54321, transact={})
+    c.set(b"test", 54321)
 
     assert c.get(b"test") == 54321
 
@@ -38,7 +38,7 @@ def get(k: Bytes[5]) -> int128:
 
     c = get_contract(code)
 
-    c.set(54321, transact={})
+    c.set(54321)
 
     assert c.get(b"test") == 54321
 
@@ -58,7 +58,7 @@ def get(k: Bytes[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={"gas": 10**6})
+    c.set(b"a" * 34, 6789, gas=10**6)
 
     assert c.get(b"a" * 34) == 6789
 

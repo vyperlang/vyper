@@ -788,11 +788,6 @@ class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
 
-    @property
-    def n(self):
-        # TODO phase out use of Num.n and remove this
-        return self.value
-
     def validate(self):
         if self.value < SizeLimits.MIN_INT256:
             raise OverflowException("Value is below lower bound for all numeric types", self)
@@ -859,9 +854,14 @@ class Hex(Constant):
 
     def validate(self):
         if "_" in self.value:
+            # TODO: revisit this, we should probably allow underscores
             raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
+
+        if self.value.startswith("0X"):
+            hint = f"Did you mean `0x{self.value[2:]}`?"
+            raise InvalidLiteral("Hex literal begins with 0X!", self, hint=hint)
 
     @property
     def n_nibbles(self):
@@ -893,11 +893,6 @@ class Str(Constant):
         for c in self.value:
             if ord(c) >= 256:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
-
-    @property
-    def s(self):
-        # TODO phase out use of Str.s and remove this
-        return self.value
 
 
 class Bytes(Constant):
@@ -953,6 +948,12 @@ class NameConstant(Constant):
 
 class Ellipsis(Constant):
     __slots__ = ()
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        # python ast ellipsis() is not json serializable; use a string
+        ast_dict["value"] = self.node_source_code
+        return ast_dict
 
 
 class Dict(ExprNode):
@@ -1063,7 +1064,7 @@ class Div(Operator):
             raise OverflowException(msg, self) from None
 
 
-class FloorDiv(VyperNode):
+class FloorDiv(Operator):
     __slots__ = ()
     _description = "integer division"
     _pretty = "//"
@@ -1114,6 +1115,7 @@ class Pow(Operator):
         # r > ln(2 ** 256) / ln(l)
         if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
             raise InvalidLiteral("Out of bounds", self)
+
         return int(left**right)
 
 
@@ -1343,7 +1345,7 @@ class Assign(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class AnnAssign(VyperNode):
+class AnnAssign(Stmt):
     __slots__ = ("target", "annotation", "value")
 
 

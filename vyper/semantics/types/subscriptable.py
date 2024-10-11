@@ -46,7 +46,7 @@ class HashMapT(_SubscriptableT):
 
     _equality_attrs = ("key_type", "value_type")
 
-    # disallow everything but storage
+    # disallow everything but storage or transient
     _invalid_locations = (
         DataLocation.UNSET,
         DataLocation.CALLDATA,
@@ -84,10 +84,11 @@ class HashMapT(_SubscriptableT):
             )
 
         k_ast, v_ast = node.slice.elements
-        key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
+        key_type = type_from_annotation(k_ast)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
+        # TODO: thread through actual location - might also be TRANSIENT
         value_type = type_from_annotation(v_ast, DataLocation.STORAGE)
 
         return cls(key_type, value_type)
@@ -333,7 +334,10 @@ class TupleT(VyperType):
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+        if len(self.member_types) == 1:
+            (t,) = self.member_types
+            return f"({t},)"
+        return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
     @property
     def length(self):

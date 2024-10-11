@@ -1,11 +1,12 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFG
-from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
 class DFTPass(IRPass):
+    function: IRFunction
     inst_order: dict[IRInstruction, int]
     inst_order_num: int
 
@@ -29,7 +30,7 @@ class DFTPass(IRPass):
         self.visited_instructions.add(inst)
         self.inst_order_num += 1
 
-        if inst.opcode in BB_TERMINATORS:
+        if inst.is_bb_terminator:
             offset = len(bb.instructions)
 
         if inst.opcode == "phi":
@@ -39,7 +40,7 @@ class DFTPass(IRPass):
             self.inst_order[inst] = 0
             return
 
-        for op in inst.get_inputs():
+        for op in inst.get_input_variables():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
             if target.parent != inst.parent or target.fence_id != inst.fence_id:
@@ -50,11 +51,11 @@ class DFTPass(IRPass):
         self.inst_order[inst] = self.inst_order_num + offset
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.ctx.append_basic_block(bb)
+        self.function.append_basic_block(bb)
 
         for inst in bb.instructions:
             inst.fence_id = self.fence_id
-            if inst.volatile:
+            if inst.is_volatile:
                 self.fence_id += 1
 
         # We go throught the instructions and calculate the order in which they should be executed
@@ -67,15 +68,14 @@ class DFTPass(IRPass):
 
         bb.instructions.sort(key=lambda x: self.inst_order[x])
 
-    def _run_pass(self, ctx: IRFunction) -> None:
-        self.ctx = ctx
-        self.dfg = DFG.build_dfg(ctx)
+    def run_pass(self) -> None:
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-        basic_blocks = ctx.basic_blocks
-        ctx.basic_blocks = []
+        basic_blocks = list(self.function.get_basic_blocks())
 
+        self.function.clear_basic_blocks()
         for bb in basic_blocks:
             self._process_basic_block(bb)

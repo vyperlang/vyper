@@ -48,38 +48,38 @@ def abi_encode(
     )
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(human) # default ensure_tuple=True
-        return _abi_encode(human, method_id=0xdeadbeef)
+            return abi_encode(human) # default ensure_tuple=True
+        return abi_encode(human, method_id=0xdeadbeef)
     else:
         if not include_method_id:
-            return _abi_encode(human, ensure_tuple=False)
-        return _abi_encode(human, ensure_tuple=False, method_id=0xdeadbeef)
+            return abi_encode(human, ensure_tuple=False)
+        return abi_encode(human, ensure_tuple=False, method_id=0xdeadbeef)
 
 @external
 def abi_encode2(name: String[32], ensure_tuple: bool, include_method_id: bool) -> Bytes[100]:
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(name) # default ensure_tuple=True
-        return _abi_encode(name, method_id=0xdeadbeef)
+            return abi_encode(name) # default ensure_tuple=True
+        return abi_encode(name, method_id=0xdeadbeef)
     else:
         if not include_method_id:
-            return _abi_encode(name, ensure_tuple=False)
-        return _abi_encode(name, ensure_tuple=False, method_id=0xdeadbeef)
+            return abi_encode(name, ensure_tuple=False)
+        return abi_encode(name, ensure_tuple=False, method_id=0xdeadbeef)
 
 @external
 def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Bytes[36]:
 
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(x) # default ensure_tuple=True
+            return abi_encode(x) # default ensure_tuple=True
 
-        return _abi_encode(x, method_id=0xdeadbeef)
+        return abi_encode(x, method_id=0xdeadbeef)
 
     else:
         if not include_method_id:
-            return _abi_encode(x, ensure_tuple=False)
+            return abi_encode(x, ensure_tuple=False)
 
-        return _abi_encode(x, ensure_tuple=False, method_id=0xdeadbeef)
+        return abi_encode(x, ensure_tuple=False, method_id=0xdeadbeef)
     """
     c = get_contract(code)
 
@@ -129,7 +129,7 @@ struct WrappedBytes:
 @internal
 def foo():
     x: WrappedBytes = WrappedBytes(bs={value})
-    y: {type}[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
+    y: {type}[96] = abi_encode(x, ensure_tuple=True) # should be Bytes[128]
     """
 
     assert_compile_failed(lambda: get_contract(code))
@@ -141,12 +141,12 @@ def test_abi_encode_dynarray(get_contract):
 def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: bool) -> Bytes[164]:
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(d) # default ensure_tuple=True
-        return _abi_encode(d, method_id=0xdeadbeef)
+            return abi_encode(d) # default ensure_tuple=True
+        return abi_encode(d, method_id=0xdeadbeef)
     else:
         if not include_method_id:
-            return _abi_encode(d, ensure_tuple=False)
-        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+            return abi_encode(d, ensure_tuple=False)
+        return abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
     """
     c = get_contract(code)
 
@@ -185,12 +185,12 @@ def abi_encode(
 ) -> Bytes[548]:
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(d) # default ensure_tuple=True
-        return _abi_encode(d, method_id=0xdeadbeef)
+            return abi_encode(d) # default ensure_tuple=True
+        return abi_encode(d, method_id=0xdeadbeef)
     else:
         if not include_method_id:
-            return _abi_encode(d, ensure_tuple=False)
-        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+            return abi_encode(d, ensure_tuple=False)
+        return abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
     """
     c = get_contract(code)
 
@@ -236,12 +236,12 @@ def abi_encode(
 ) -> Bytes[1700]:
     if ensure_tuple:
         if not include_method_id:
-            return _abi_encode(d) # default ensure_tuple=True
-        return _abi_encode(d, method_id=0xdeadbeef)
+            return abi_encode(d) # default ensure_tuple=True
+        return abi_encode(d, method_id=0xdeadbeef)
     else:
         if not include_method_id:
-            return _abi_encode(d, ensure_tuple=False)
-        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+            return abi_encode(d, ensure_tuple=False)
+        return abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
     """
     c = get_contract(code)
 
@@ -281,7 +281,7 @@ interface Foo:
 
 @external
 def foo(addr: address) -> Bytes[164]:
-    return _abi_encode(extcall Foo(addr).get_counter(), method_id=0xdeadbeef)
+    return abi_encode(extcall Foo(addr).get_counter(), method_id=0xdeadbeef)
     """
 
     c2 = get_contract(contract_2)
@@ -300,7 +300,7 @@ def test_abi_encode_private(get_contract):
 bytez: Bytes[96]
 @internal
 def _foo(bs: Bytes[32]):
-    self.bytez = _abi_encode(bs)
+    self.bytez = abi_encode(bs)
 
 @external
 def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
@@ -310,7 +310,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = b"\x00" * 32
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(bytes)", (bs,)))
 
 
 def test_abi_encode_private_dynarray(get_contract):
@@ -318,7 +318,7 @@ def test_abi_encode_private_dynarray(get_contract):
 bytez: Bytes[160]
 @internal
 def _foo(bs: DynArray[uint256, 3]):
-    self.bytez = _abi_encode(bs)
+    self.bytez = abi_encode(bs)
 @external
 def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     dont_clobber_me: uint256 = max_value(uint256)
@@ -327,7 +327,7 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[])", (bs,)))
 
 
 def test_abi_encode_private_nested_dynarray(get_contract):
@@ -335,7 +335,7 @@ def test_abi_encode_private_nested_dynarray(get_contract):
 bytez: Bytes[1696]
 @internal
 def _foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
-    self.bytez = _abi_encode(bs)
+    self.bytez = abi_encode(bs)
 
 @external
 def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1696]):
@@ -349,7 +349,7 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[][][])", (bs,)))
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))
@@ -358,9 +358,9 @@ def test_abi_encode_empty_string(get_contract, empty_literal):
 @external
 def foo(ensure_tuple: bool) -> Bytes[96]:
     if ensure_tuple:
-        return _abi_encode({empty_literal}) # default ensure_tuple=True
+        return abi_encode({empty_literal}) # default ensure_tuple=True
     else:
-        return _abi_encode({empty_literal}, ensure_tuple=False)
+        return abi_encode({empty_literal}, ensure_tuple=False)
     """
 
     c = get_contract(code)

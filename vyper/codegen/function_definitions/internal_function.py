@@ -82,4 +82,7 @@ def generate_ir_for_internal_function(
     func_t._ir_info.gas_estimate = ir_node.gas
     tag_frame_info(func_t, context)
 
-    return InternalFuncIR(ir_node)
+    ret = InternalFuncIR(ir_node)
+    func_t._ir_info.func_ir = ret
+
+    return ret
