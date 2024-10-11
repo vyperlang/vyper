@@ -533,6 +533,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     def _analyse_list_iter(self, iter_node, target_type):
         # iteration over a variable or literal list
         iter_val = iter_node.reduced()
+        if isinstance(iter_val, vy_ast.ExtCall):
+            raise StateAccessViolation(
+                "May not call state modifying function for loop iterator.", iter_val
+            )
 
         if isinstance(iter_val, vy_ast.List):
             len_ = len(iter_val.elements)

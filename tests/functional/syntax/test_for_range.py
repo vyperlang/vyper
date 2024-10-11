@@ -358,6 +358,21 @@ def bar(t: address):
         None,
         "extcall I(t).bar()",
     ),
+    (
+        """
+interface I:
+    def bar() -> DynArray[uint256, 10]: nonpayable
+
+@external
+def bar(t: address):
+    for i: uint256 in extcall I(t).bar():
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function for loop iterator.",
+        None,
+        "extcall I(t).bar()",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
