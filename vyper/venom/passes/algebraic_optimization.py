@@ -147,7 +147,8 @@ class AlgebraicOptimizationPass(IRPass):
             return op
         elif isinstance(op, IRVariable):
             next_inst = self.dfg.get_producing_instruction(op)
-            assert next_inst is not None
+            #print(op)
+            assert next_inst is not None, "must have producing inst"
             return self.eval(next_inst)
         else:
             return None
@@ -169,7 +170,6 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _peepholer(self):
         while True:
-            # change = self._handle_offsets()
             change = False
             for bb in self.function.get_basic_blocks():
                 for inst in bb.instructions:
@@ -177,6 +177,7 @@ class AlgebraicOptimizationPass(IRPass):
 
             if not change:
                 break
+
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int) -> bool:
@@ -196,7 +197,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         if opcode == "iszero" and _evm_int(eop_0) is not None:
             val = _evm_int(eop_0)
-            assert val is not None
+            assert val is not None, "Cannot be none"
             val = int(val == 0)
             return store(val)
 
@@ -265,7 +266,7 @@ class AlgebraicOptimizationPass(IRPass):
         if opcode in {"mul", "div", "sdiv"} and eop_0 == IRLiteral(1):
             return store(op_1)
         if opcode in {"and", "or", "xor"} and _evm_int(eop_0, SIGNED) == -1:
-            assert unsigned == UNSIGNED
+            assert unsigned == UNSIGNED, "must be unsigned"
             if opcode == "and":
                 # -1 & x == x
                 return store(op_1)
@@ -340,7 +341,7 @@ class AlgebraicOptimizationPass(IRPass):
         is_truthy = all(i.opcode in ("assert", "iszero") for i in uses)
 
         if is_truthy:
-            if False and opcode == "eq":
+            if opcode == "eq":
                 assert unsigned == UNSIGNED, "must be unsigned"
                 # (eq x y) has the same truthyness as (iszero (xor x y))
                 # it also has the same truthyness as (iszero (sub x y)),
@@ -349,10 +350,19 @@ class AlgebraicOptimizationPass(IRPass):
                 # note that (xor (-1) x) has its own rule
                 index = inst.parent.instructions.index(inst)
                 tmp = inst.parent.parent.get_next_variable()
+                tmp_inst = IRInstruction("xor", [op_0, op_1], output=tmp)
                 inst.parent.insert_instruction(
-                    IRInstruction("xor", [op_0, op_1], output=tmp), index
+                    inst, index
                 )
-                return update("iszero", tmp)
+                self.dfg.add_output(tmp, tmp_inst)
+                self.dfg.add_use(tmp, inst)
+                self.dfg.get_producing_instruction(tmp)
+
+                update("iszero", tmp)
+                print(inst)
+                print(tmp_inst)
+                print("yeye")
+                return True
 
             # TODO can we do this?
             # if val == "div":
