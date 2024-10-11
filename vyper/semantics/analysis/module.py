@@ -1,4 +1,3 @@
-import os
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
@@ -58,7 +57,7 @@ from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, safe_relpath
 
 
 def analyze_module(
@@ -150,15 +149,15 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
     path = path or []
 
     path.append(fn_t)
-    root = path[0]
 
     for g in fn_t.called_functions:
         if g in fn_t.reachable_internal_functions:
             # already seen
             continue
 
-        if g == root:
-            message = " -> ".join([f.name for f in path])
+        if g in path:
+            extended_path = path + [g]
+            message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
         _compute_reachable_set(g, path=path)
@@ -193,7 +192,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
         # keep track of exported functions to prevent duplicate exports
-        self._exposed_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+        self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         self._events: list[EventT] = []
 
@@ -414,7 +413,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise StructureException(msg, node.annotation, hint=hint)
 
         # grab exposed functions
-        funcs = self._exposed_functions
+        funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
         type_.validate_implements(node, funcs)
 
         node._metadata["interface_type"] = type_
@@ -514,7 +513,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     break
 
             if rhs is None:
-                hint = f"try importing {item.alias} first"
+                hint = f"try importing `{item.alias}` first "
+                hint += f"(located at `{item.module_t._module.path}`)"
             elif not isinstance(annotation, vy_ast.Subscript):
                 # it's `initializes: foo` instead of `initializes: foo[...]`
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
@@ -609,10 +609,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_exposed_function(self, func_t, node, relax=True):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
-        if not relax and (prev_decl := self._exposed_functions.get(func_t)) is not None:
+        if not relax and (prev_decl := self._all_functions.get(func_t)) is not None:
             raise StructureException("already exported!", node, prev_decl=prev_decl)
 
-        self._exposed_functions[func_t] = node
+        self._all_functions[func_t] = node
 
     def visit_VariableDecl(self, node):
         # postcondition of VariableDecl.validate
@@ -899,7 +899,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
         base_path = "../" * (level - 1)
     elif level == 1:
         base_path = "./"
-    return PurePath(f"{base_path}{module_str.replace('.','/')}/")
+    return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
@@ -922,7 +922,7 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, In
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
     # conversion, so we must use the `os` module).
-    builtins_path = os.path.relpath(builtins_path)
+    builtins_path = safe_relpath(builtins_path)
 
     search_path = Path(builtins_path).parent.parent.parent
     # generate an input bundle just because it knows how to build paths.

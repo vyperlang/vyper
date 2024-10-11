@@ -261,6 +261,12 @@ def __default__():
     assert env.message_call(caller.address, data=sig) == b""
 
 
+def _strip_initcode_suffix(bytecode):
+    bs = bytes.fromhex(bytecode.removeprefix("0x"))
+    to_strip = int.from_bytes(bs[-2:], "big")
+    return bs[:-to_strip].hex()
+
+
 # check max_outsize=0 does same thing as not setting max_outsize.
 # compile to bytecode and compare bytecode directly.
 def test_max_outsize_0():
@@ -276,7 +282,11 @@ def test_raw_call(_target: address):
     """
     output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
     output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
-    assert output1 == output2
+    assert output1["bytecode_runtime"] == output2["bytecode_runtime"]
+
+    bytecode1 = output1["bytecode"]
+    bytecode2 = output2["bytecode"]
+    assert _strip_initcode_suffix(bytecode1) == _strip_initcode_suffix(bytecode2)
 
 
 # check max_outsize=0 does same thing as not setting max_outsize,
@@ -298,7 +308,11 @@ def test_raw_call(_target: address) -> bool:
     """
     output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
     output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
-    assert output1 == output2
+    assert output1["bytecode_runtime"] == output2["bytecode_runtime"]
+
+    bytecode1 = output1["bytecode"]
+    bytecode2 = output2["bytecode"]
+    assert _strip_initcode_suffix(bytecode1) == _strip_initcode_suffix(bytecode2)
 
 
 # test functionality of max_outsize=0

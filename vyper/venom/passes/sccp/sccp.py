@@ -56,8 +56,9 @@ class SCCP(IRPass):
     uses: dict[IRVariable, OrderedSet[IRInstruction]]
     lattice: Lattice
     work_list: list[WorkListItem]
-    cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+
+    cfg_dirty: bool
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
@@ -72,9 +73,9 @@ class SCCP(IRPass):
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
-        # self._propagate_variables()
-
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        if self.cfg_dirty:
+            self.analyses_cache.force_analysis(CFGAnalysis)
+            self._fix_phi_nodes()
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -178,7 +179,7 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ["store", "alloca"]:
+        if opcode in ["store", "alloca", "palloca"]:
             assert inst.output is not None, "Got store/alloca without output"
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
@@ -304,6 +305,7 @@ class SCCP(IRPass):
                     target = inst.operands[1]
                 inst.opcode = "jmp"
                 inst.operands = [target]
+
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
@@ -328,6 +330,34 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
+
+    def _fix_phi_nodes(self):
+        # fix basic blocks whose cfg in was changed
+        # maybe this should really be done in _visit_phi
+        needs_sort = False
+
+        for bb in self.fn.get_basic_blocks():
+            cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
+
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    break
+                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
+
+        # move phi instructions to the top of the block
+        if needs_sort:
+            bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+
+    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
+        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
+
+        if len(operands) != 1:
+            return False
+
+        assert inst.output is not None
+        inst.opcode = "store"
+        inst.operands = operands
+        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
