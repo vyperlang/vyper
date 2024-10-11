@@ -1,5 +1,6 @@
 import pytest
 
+import vyper
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
@@ -178,3 +179,29 @@ def test_offsets():
                 offset_count += 1
 
     assert offset_count == 3
+
+
+# Test the case of https://github.com/vyperlang/vyper/issues/4288
+def test_ssa_after_algebraic_optimization():
+    code = """
+@internal
+def _do_math(x: uint256) -> uint256:
+    value: uint256 = x
+    result: uint256 = 0
+
+    if (x >> 128 != 0):
+        x >>= 128
+    if (x >> 64 != 0):
+        x >>= 64
+
+    if 1 < value:
+        result = 1
+
+    return result
+
+@external
+def run() -> uint256:
+    return self._do_math(10)
+    """
+
+    vyper.compile_code(code, output_formats=["bytecode"])
