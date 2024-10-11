@@ -101,6 +101,15 @@ def update_foo():
     assert "fallback function" in list(error_map.values())
 
 
+def test_error_map_with_user_error():
+    code = """
+@external
+def foo():
+    raise "some error"
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "user revert with reason" in list(error_map.values())
+
 def test_compress_source_map():
     # mock the required VyperNode fields in compress_source_map
     # fake_node = namedtuple("fake_node", ("lineno", "col_offset", "end_lineno", "end_col_offset"))
