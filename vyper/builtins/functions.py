@@ -1218,6 +1218,7 @@ class BlobHash(BuiltinFunctionT):
     _id = "blobhash"
     _inputs = [("index", UINT256_T)]
     _return_type = BYTES32_T
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):

@@ -200,12 +200,22 @@ def foo() -> uint256:
         compile_code(code)
 
 
-def test_invalid_builtin(get_contract):
+def test_invalid_builtins(get_contract):
     code = """
 @external
 @pure
 def foo(x: uint256)-> bytes32:
     return blockhash(x)
+    """
+
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+    code = """
+@external
+@pure
+def foo(x: uint256)-> bytes32:
+    return blobhash(x)
     """
 
     with pytest.raises(StateAccessViolation):
