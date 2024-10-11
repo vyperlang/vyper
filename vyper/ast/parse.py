@@ -273,9 +273,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         Visit a For node, splicing in the loop variable annotation provided by
         the pre-parser
         """
-        annotation_tokens = self._pre_parse_result.for_loop_annotations.pop(
-            (node.lineno, node.col_offset)
-        )
+        key = (node.lineno, node.col_offset)
+        annotation_tokens = self._pre_parse_result.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
             # a common case for people migrating to 0.4.0, provide a more
@@ -394,10 +393,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if node.value is None or isinstance(node.value, bool):
             node.ast_type = "NameConstant"
         elif isinstance(node.value, str):
-            if (
-                node.lineno,
-                node.col_offset,
-            ) in self._pre_parse_result.native_hex_literal_locations:
+            key = (node.lineno, node.col_offset)
+            if key in self._pre_parse_result.native_hex_literal_locations:
                 if len(node.value) % 2 != 0:
                     raise SyntaxException(
                         "Native hex string must have an even number of characters",
