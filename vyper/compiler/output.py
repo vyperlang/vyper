@@ -254,7 +254,8 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+    if compiler_data.contract_path.suffix != ".vyi":
+        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
