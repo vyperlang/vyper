@@ -446,8 +446,33 @@ def baz() -> uint8:
     file = make_file("interface.vyi", interface)
     compile_files([file], ["ast","annotated_ast","interface","external_interface","abi"])
 
-    with pytest.raises(ValueError):
-        compile_files([file],["bytecode"])
+    unallowed_formats = [
+    "layout",
+    "devdoc",
+    "userdoc",
+    "archive",
+    "archive_b64",
+    "integrity",
+    "solc_json",
+    "bb",
+    "bb_runtime",
+    "cfg",
+    "cfg_runtime",
+    "ir",
+    "ir_runtime",
+    "ir_dict",
+    "ir_runtime_dict",
+    "method_identifiers",
+    "metadata",
+    "asm",
+    "source_map",
+    "source_map_runtime",
+    "bytecode",
+    "bytecode_runtime",
+    "blueprint_bytecode",
+    "opcodes",
+    "opcodes_runtime"]
 
-    with pytest.raises(ValueError):
-        compile_files([file],["asm"])
+    for f in unallowed_formats:
+        with pytest.raises(ValueError):
+            compile_files([file], [f])
