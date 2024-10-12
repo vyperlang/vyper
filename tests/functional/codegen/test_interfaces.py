@@ -726,3 +726,45 @@ def bar() -> uint256:
     c = get_contract(code, input_bundle=input_bundle)
 
     assert c.foo() == c.bar() == 1
+
+
+def test_interface_with_structures():
+    code = """
+struct MyStruct:
+    a: address
+    b: uint256
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+struct Voter:
+    weight: int128
+    voted: bool
+    delegate: address
+    vote: int128
+
+@external
+def bar():
+    pass
+
+event Buy:
+    buyer: indexed(address)
+    buy_order: uint256
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])[
+        "interface"
+    ]
+
+    assert "# Structs" in out
+    assert "struct MyStruct:" in out
+    assert "b: uint256" in out
+    assert "struct Voter:" in out
+    assert "voted: bool" in out
