@@ -158,184 +158,170 @@ CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 
 
-class PreParseResult:
+class PreParser:
     # Compilation settings based on the directives in the source code
     settings: Settings
     # A mapping of class names to their original class types.
     modification_offsets: dict[tuple[int, int], str]
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
-    # A list of line/column offsets of native hex literals
-    native_hex_literal_locations: list[tuple[int, int]]
+    # A list of line/column offsets of hex string literals
+    hex_string_locations: list[tuple[int, int]]
     # Reformatted python source string.
     reformatted_code: str
 
-    def __init__(
-        self,
-        settings,
-        modification_offsets,
-        for_loop_annotations,
-        native_hex_literal_locations,
-        reformatted_code,
-    ):
-        self.settings = settings
-        self.modification_offsets = modification_offsets
-        self.for_loop_annotations = for_loop_annotations
-        self.native_hex_literal_locations = native_hex_literal_locations
-        self.reformatted_code = reformatted_code
+    def parse(self, code: str):
+        """
+        Re-formats a vyper source string into a python source string and performs
+        some validation.  More specifically,
 
+        * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
+        * Validates "@version" pragma against current compiler version
+        * Prevents direct use of python "class" keyword
+        * Prevents use of python semi-colon statement separator
+        * Extracts type annotation of for loop iterators into a separate dictionary
 
-def pre_parse(code: str) -> PreParseResult:
-    """
-    Re-formats a vyper source string into a python source string and performs
-    some validation.  More specifically,
+        Stores a mapping of detected interface and struct names to their
+        respective vyper class types ("interface" or "struct"), and a mapping of line numbers
+        of for loops to the type annotation of their iterators.
 
-    * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
-    * Validates "@version" pragma against current compiler version
-    * Prevents direct use of python "class" keyword
-    * Prevents use of python semi-colon statement separator
-    * Extracts type annotation of for loop iterators into a separate dictionary
+        Parameters
+        ----------
+        code : str
+            The vyper source code to be re-formatted.
+        """
+        result: list[TokenInfo] = []
+        modification_offsets: dict[tuple[int, int], str] = {}
+        settings = Settings()
+        for_parser = ForParser(code)
+        hex_string_parser = HexStringParser()
 
-    Also returns a mapping of detected interface and struct names to their
-    respective vyper class types ("interface" or "struct"), and a mapping of line numbers
-    of for loops to the type annotation of their iterators.
+        _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
-    Parameters
-    ----------
-    code : str
-        The vyper source code to be re-formatted.
+        try:
+            code_bytes = code.encode("utf-8")
+            token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
-    Returns
-    -------
-    PreParseResult
-        Outputs for transforming the python AST to vyper AST
-    """
-    result: list[TokenInfo] = []
-    modification_offsets: dict[tuple[int, int], str] = {}
-    settings = Settings()
-    for_parser = ForParser(code)
-    native_hex_parser = HexStringParser()
+            for token in token_list:
+                toks = [token]
 
-    _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
+                typ = token.type
+                string = token.string
+                start = token.start
+                end = token.end
+                line = token.line
 
-    try:
-        code_bytes = code.encode("utf-8")
-        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
-
-        for token in token_list:
-            toks = [token]
-
-            typ = token.type
-            string = token.string
-            start = token.start
-            end = token.end
-            line = token.line
-
-            if typ == COMMENT:
-                contents = string[1:].strip()
-                if contents.startswith("@version"):
-                    if settings.compiler_version is not None:
-                        raise StructureException("compiler version specified twice!", start)
-                    compiler_version = contents.removeprefix("@version ").strip()
-                    validate_version_pragma(compiler_version, code, start)
-                    settings.compiler_version = compiler_version
-
-                if contents.startswith("pragma "):
-                    pragma = contents.removeprefix("pragma ").strip()
-                    if pragma.startswith("version "):
+                if typ == COMMENT:
+                    contents = string[1:].strip()
+                    if contents.startswith("@version"):
                         if settings.compiler_version is not None:
-                            raise StructureException("pragma version specified twice!", start)
-                        compiler_version = pragma.removeprefix("version ").strip()
+                            raise StructureException("compiler version specified twice!", start)
+                        compiler_version = contents.removeprefix("@version ").strip()
                         validate_version_pragma(compiler_version, code, start)
                         settings.compiler_version = compiler_version
 
-                    # TODO: refactor these to something like Settings.from_pragma
-                    elif pragma.startswith("optimize "):
-                        if settings.optimize is not None:
-                            raise StructureException("pragma optimize specified twice!", start)
-                        try:
-                            mode = pragma.removeprefix("optimize").strip()
-                            settings.optimize = OptimizationLevel.from_string(mode)
-                        except ValueError:
-                            raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    elif pragma.startswith("evm-version "):
-                        if settings.evm_version is not None:
-                            raise StructureException("pragma evm-version specified twice!", start)
-                        evm_version = pragma.removeprefix("evm-version").strip()
-                        if evm_version not in EVM_VERSIONS:
-                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
-                        settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen"):
-                        if settings.experimental_codegen is not None:
-                            raise StructureException(
-                                "pragma experimental-codegen specified twice!", start
-                            )
-                        settings.experimental_codegen = True
-                    elif pragma.startswith("enable-decimals"):
-                        if settings.enable_decimals is not None:
-                            raise StructureException(
-                                "pragma enable_decimals specified twice!", start
-                            )
-                        settings.enable_decimals = True
+                    if contents.startswith("pragma "):
+                        pragma = contents.removeprefix("pragma ").strip()
+                        if pragma.startswith("version "):
+                            if settings.compiler_version is not None:
+                                raise StructureException("pragma version specified twice!", start)
+                            compiler_version = pragma.removeprefix("version ").strip()
+                            validate_version_pragma(compiler_version, code, start)
+                            settings.compiler_version = compiler_version
 
-                    else:
-                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
+                        # TODO: refactor these to something like Settings.from_pragma
+                        elif pragma.startswith("optimize "):
+                            if settings.optimize is not None:
+                                raise StructureException("pragma optimize specified twice!", start)
+                            try:
+                                mode = pragma.removeprefix("optimize").strip()
+                                settings.optimize = OptimizationLevel.from_string(mode)
+                            except ValueError:
+                                raise StructureException(
+                                    f"Invalid optimization mode `{mode}`", start
+                                )
+                        elif pragma.startswith("evm-version "):
+                            if settings.evm_version is not None:
+                                raise StructureException(
+                                    "pragma evm-version specified twice!", start
+                                )
+                            evm_version = pragma.removeprefix("evm-version").strip()
+                            if evm_version not in EVM_VERSIONS:
+                                raise StructureException(
+                                    f"Invalid evm version: `{evm_version}`", start
+                                )
+                            settings.evm_version = evm_version
+                        elif pragma.startswith("experimental-codegen"):
+                            if settings.experimental_codegen is not None:
+                                raise StructureException(
+                                    "pragma experimental-codegen specified twice!", start
+                                )
+                            settings.experimental_codegen = True
+                        elif pragma.startswith("enable-decimals"):
+                            if settings.enable_decimals is not None:
+                                raise StructureException(
+                                    "pragma enable_decimals specified twice!", start
+                                )
+                            settings.enable_decimals = True
 
-            if typ == NAME and string in ("class", "yield"):
-                raise SyntaxException(
-                    f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
-                )
+                        else:
+                            raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
 
-            if typ == NAME:
-                if string in VYPER_CLASS_TYPES and start[1] == 0:
-                    toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
-                elif string in CUSTOM_STATEMENT_TYPES:
-                    new_keyword = "yield"
-                    adjustment = len(new_keyword) - len(string)
-                    # adjustments for following staticcall/extcall modification_offsets
-                    _col_adjustments[start[0]] += adjustment
-                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
-                elif string in CUSTOM_EXPRESSION_TYPES:
-                    # a bit cursed technique to get untokenize to put
-                    # the new tokens in the right place so that modification_offsets
-                    # will work correctly.
-                    # (recommend comparing the result of pre_parse with the
-                    # source code side by side to visualize the whitespace)
-                    new_keyword = "await"
-                    vyper_type = CUSTOM_EXPRESSION_TYPES[string]
+                if typ == NAME and string in ("class", "yield"):
+                    raise SyntaxException(
+                        f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
+                    )
 
-                    lineno, col_offset = start
+                if typ == NAME:
+                    if string in VYPER_CLASS_TYPES and start[1] == 0:
+                        toks = [TokenInfo(NAME, "class", start, end, line)]
+                        modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                    elif string in CUSTOM_STATEMENT_TYPES:
+                        new_keyword = "yield"
+                        adjustment = len(new_keyword) - len(string)
+                        # adjustments for following staticcall/extcall modification_offsets
+                        _col_adjustments[start[0]] += adjustment
+                        toks = [TokenInfo(NAME, new_keyword, start, end, line)]
+                        modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                    elif string in CUSTOM_EXPRESSION_TYPES:
+                        # a bit cursed technique to get untokenize to put
+                        # the new tokens in the right place so that modification_offsets
+                        # will work correctly.
+                        # (recommend comparing the result of pre_parse with the
+                        # source code side by side to visualize the whitespace)
+                        new_keyword = "await"
+                        vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
-                    # fixup for when `extcall/staticcall` follows `log`
-                    adjustment = _col_adjustments[lineno]
-                    new_start = (lineno, col_offset + adjustment)
-                    modification_offsets[new_start] = vyper_type
+                        lineno, col_offset = start
 
-                    # tells untokenize to add whitespace, preserving locations
-                    diff = len(new_keyword) - len(string)
-                    new_end = end[0], end[1] + diff
+                        # fixup for when `extcall/staticcall` follows `log`
+                        adjustment = _col_adjustments[lineno]
+                        new_start = (lineno, col_offset + adjustment)
+                        modification_offsets[new_start] = vyper_type
 
-                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
+                        # tells untokenize to add whitespace, preserving locations
+                        diff = len(new_keyword) - len(string)
+                        new_end = end[0], end[1] + diff
 
-            if (typ, string) == (OP, ";"):
-                raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
+                        toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
 
-            if not for_parser.consume(token) and not native_hex_parser.consume(token, result):
-                result.extend(toks)
+                if (typ, string) == (OP, ";"):
+                    raise SyntaxException(
+                        "Semi-colon statements not allowed", code, start[0], start[1]
+                    )
 
-    except TokenError as e:
-        raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+                if not for_parser.consume(token) and not hex_string_parser.consume(token, result):
+                    result.extend(toks)
 
-    for_loop_annotations = {}
-    for k, v in for_parser.annotations.items():
-        for_loop_annotations[k] = v.copy()
+        except TokenError as e:
+            raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    return PreParseResult(
-        settings,
-        modification_offsets,
-        for_loop_annotations,
-        native_hex_parser.locations,
-        untokenize(result).decode("utf-8"),
-    )
+        for_loop_annotations = {}
+        for k, v in for_parser.annotations.items():
+            for_loop_annotations[k] = v.copy()
+
+        self.settings = settings
+        self.modification_offsets = modification_offsets
+        self.for_loop_annotations = for_loop_annotations
+        self.hex_string_locations = hex_string_parser.locations
+        self.reformatted_code = untokenize(result).decode("utf-8")
