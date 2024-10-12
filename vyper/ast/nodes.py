@@ -923,10 +923,6 @@ class HexBytes(Constant):
         ast_dict["value"] = f"0x{self.value.hex()}"
         return ast_dict
 
-    @property
-    def s(self):
-        return self.value
-
 
 class List(ExprNode):
     __slots__ = ("elements",)
