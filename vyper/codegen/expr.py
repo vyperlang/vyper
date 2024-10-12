@@ -140,6 +140,12 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
+        return self._parse_bytes()
+
+    def parse_HexBytes(self):
+        return self._parse_bytes()
+
+    def _parse_bytes(self):
         bytez = self.expr.value
         bytez_length = len(self.expr.value)
         typ = BytesT(bytez_length)

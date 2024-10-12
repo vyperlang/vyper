@@ -259,6 +259,28 @@ def test2(l: bytes{m} = {vyper_literal}) -> bool:
     assert c.test2(vyper_literal) is True
 
 
+@pytest.mark.parametrize("m,val", [(2, "ab"), (3, "ab"), (4, "abcd")])
+def test_native_hex_literals(get_contract, m, val):
+    vyper_literal = bytes.fromhex(val)
+    code = f"""
+@external
+def test() -> bool:
+    l: Bytes[{m}] = x"{val}"
+    return l == {vyper_literal}
+
+@external
+def test2(l: Bytes[{m}] = x"{val}") -> bool:
+    return l == {vyper_literal}
+    """
+    print(code)
+
+    c = get_contract(code)
+
+    assert c.test() is True
+    assert c.test2() is True
+    assert c.test2(vyper_literal) is True
+
+
 def test_zero_padding_with_private(get_contract):
     code = """
 counter: uint256
