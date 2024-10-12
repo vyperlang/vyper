@@ -700,7 +700,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
-        print("local - visit_Attribute")
         _validate_msg_data_attribute(node)
 
         # CMC 2023-10-19 TODO generalize this to mutability check on every node.
@@ -715,7 +714,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
-        print("value type: ", value_type)
 
         _validate_address_code(node, value_type)
 
