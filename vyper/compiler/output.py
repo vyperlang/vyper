@@ -134,6 +134,13 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
 
+    if interface.structs:
+        out = f"{out}\n# Structs\n\n"
+        for struct in interface.structs.values():
+            out = f"{out}struct {struct.name}:\n"
+            for member_name, member_type in struct.members.items():
+                out = f"{out}\t{member_name}: {member_type}\n"
+
     if interface.functions:
         out = f"{out}\n# Functions\n\n"
         for func in interface.functions.values():
