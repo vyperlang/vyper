@@ -106,8 +106,10 @@ class ConstantFolder(VyperNodeVisitorBase):
         # and move on
         try:
             module_t = namespace[value.id].module_t
+
             for module_name in path:
                 module_t = module_t.members[module_name].module_t
+
             varinfo = module_t.get_member(node.attr, node)
 
             return varinfo.decl_node.value.get_folded_value()

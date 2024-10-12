@@ -67,7 +67,7 @@ class InterfaceT(_UserType):
         self.decl_node = decl_node
 
     def get_type_member(self, attr, node):
-        # get an event, struct or constant from this interface
+        # get an event, struct or flag from this interface
         return TYPE_T(self._helper.get_member(attr, node))
 
     @property
