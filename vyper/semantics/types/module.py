@@ -10,7 +10,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -68,10 +68,7 @@ class InterfaceT(_UserType):
 
     def get_type_member(self, attr, node):
         # get an event, struct or constant from this interface
-        type_member = self._helper.get_member(attr, node)
-        if isinstance(type_member, _UserType):
-            return TYPE_T(type_member)
-        return type_member
+        return TYPE_T(self._helper.get_member(attr, node))
 
     @property
     def getter_signature(self):
@@ -177,15 +174,9 @@ class InterfaceT(_UserType):
 
         def _mark_seen(name, item):
             if name in seen_items:
-                prev = seen_items[name]
-                if (
-                    isinstance(prev, ContractFunctionT)
-                    and isinstance(item, VarInfo)
-                    and item.decl_node.is_public
-                ):
-                    return
                 msg = f"multiple functions or events named '{name}'!"
-                raise NamespaceCollision(msg, item.decl_node, prev_decl=prev.decl_node)
+                prev_decl = seen_items[name].decl_node
+                raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
             seen_items[name] = item
 
         for name, function in function_list:
@@ -267,6 +258,7 @@ class InterfaceT(_UserType):
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
         flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
+
         return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, flags)
 
     @classmethod
