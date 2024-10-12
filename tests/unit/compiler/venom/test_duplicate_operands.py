@@ -1,6 +1,8 @@
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
+from vyper.venom.passes.store_expansion import StoreExpansionPass
 
 
 def test_duplicate_operands():
@@ -13,7 +15,7 @@ def test_duplicate_operands():
     %3 = mul %1, %2
     stop
 
-    Should compile to: [PUSH1, 10, DUP1, DUP1, DUP1, ADD, MUL, POP, STOP]
+    Should compile to: [PUSH1, 10, DUP1, DUP2, ADD, MUL, POP, STOP]
     """
     ctx = IRContext()
     fn = ctx.create_function("test")
@@ -23,5 +25,9 @@ def test_duplicate_operands():
     bb.append_instruction("mul", sum_, op)
     bb.append_instruction("stop")
 
-    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
-    assert asm == ["PUSH1", 10, "DUP1", "DUP1", "ADD", "MUL", "POP", "STOP"]
+    ac = IRAnalysesCache(fn)
+    StoreExpansionPass(ac, fn).run_pass()
+
+    optimize = OptimizationLevel.GAS
+    asm = generate_assembly_experimental(ctx, optimize=optimize)
+    assert asm == ["PUSH1", 10, "DUP1", "DUP2", "ADD", "MUL", "POP", "STOP"]

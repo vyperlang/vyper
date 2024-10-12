@@ -5,6 +5,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InstantiationException,
+    InvalidAttribute,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -32,7 +33,8 @@ def foo():
     """,
         UnknownAttribute,
     ),
-    """
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -41,6 +43,8 @@ a: A
 def foo():
     self.a = A(x=1)
     """,
+        InstantiationException,
+    ),
     """
 struct A:
     x: int128
@@ -61,7 +65,8 @@ b: A
 def foo():
     self.a = A(self.b)
     """,
-    """
+    (
+        """
 struct A:
     x: int128
     y: int128
@@ -70,6 +75,8 @@ a: A
 def foo():
     self.a = A({x: 1})
     """,
+        InstantiationException,
+    ),
     """
 struct C:
     c: int128
@@ -386,7 +393,7 @@ b: B
 def foo():
     self.b = B(foo=1, foo=2)
     """,
-        UnknownAttribute,
+        InvalidAttribute,
     ),
     (
         """
