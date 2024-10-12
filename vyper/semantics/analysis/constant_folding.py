@@ -90,7 +90,6 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise UnfoldableNode("unknown name", node)
 
     def visit_Attribute(self, node) -> vy_ast.ExprNode:
-        print("visit Attribute")
         namespace = get_namespace()
         path = []
         value = node.value
@@ -101,7 +100,6 @@ class ConstantFolder(VyperNodeVisitorBase):
         path.reverse()
 
         if not isinstance(value, vy_ast.Name):
-            print("not foldable")
             raise UnfoldableNode("not a module", value)
 
         # not super type-safe but we don't care. just catch AttributeErrors
