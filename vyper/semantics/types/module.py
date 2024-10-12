@@ -46,31 +46,23 @@ class InterfaceT(_UserType):
         events: dict,
         structs: dict,
         flags: dict,
-        constants: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        public_constants = {
-            k: varinfo for k, varinfo in constants.items() if varinfo.decl_node.is_public
-        }
-
-        members = functions | events | structs | flags | constants
+        members = functions | events | structs | flags
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs) + len(flags) + len(
-            constants
-        ) - len(public_constants)
+        assert len(members) == len(functions) + len(events) + len(structs) + len(flags)
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs | flags | constants)
+        self._helper = VyperType(events | structs | flags)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
         self.structs = structs
         self.flags = flags
-        self.constants = constants
 
         self.decl_node = decl_node
 
@@ -175,13 +167,11 @@ class InterfaceT(_UserType):
         event_list: Optional[list[tuple[str, EventT]]] = None,
         struct_list: Optional[list[tuple[str, StructT]]] = None,
         flag_list: Optional[list[tuple[str, FlagT]]] = None,
-        constant_list: Optional[list[tuple[str, VarInfo]]] = None,
     ) -> "InterfaceT":
         functions = {}
         events = {}
         structs = {}
         flags = {}
-        constants = {}
 
         seen_items: dict = {}
 
@@ -217,12 +207,7 @@ class InterfaceT(_UserType):
                 _mark_seen(name, flag)
                 flags[name] = flag
 
-        if constant_list:
-            for name, constant in constant_list:
-                _mark_seen(name, constant)
-                constants[name] = constant
-
-        return cls(interface_name, decl_node, functions, events, structs, flags, constants)
+        return cls(interface_name, decl_node, functions, events, structs, flags)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -282,14 +267,7 @@ class InterfaceT(_UserType):
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
         flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
-        constants = [
-            (node.target.id, node.target._metadata["varinfo"])
-            for node in module_t.variable_decls
-            if node.is_constant
-        ]
-        return cls._from_lists(
-            module_t._id, module_t.decl_node, funcs, events, structs, flags, constants
-        )
+        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, flags)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
