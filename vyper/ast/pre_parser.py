@@ -287,7 +287,7 @@ class PreParser:
                         # a bit cursed technique to get untokenize to put
                         # the new tokens in the right place so that modification_offsets
                         # will work correctly.
-                        # (recommend comparing the result of pre_parse with the
+                        # (recommend comparing the result of parse with the
                         # source code side by side to visualize the whitespace)
                         new_keyword = "await"
                         vyper_type = CUSTOM_EXPRESSION_TYPES[string]
