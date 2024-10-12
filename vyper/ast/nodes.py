@@ -909,6 +909,25 @@ class Bytes(Constant):
         return ast_dict
 
 
+class HexBytes(Constant):
+    __slots__ = ()
+    _translated_fields = {"s": "value"}
+
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        if isinstance(self.value, str):
+            self.value = bytes.fromhex(self.value)
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        ast_dict["value"] = f"0x{self.value.hex()}"
+        return ast_dict
+
+    @property
+    def s(self):
+        return self.value
+
+
 class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
