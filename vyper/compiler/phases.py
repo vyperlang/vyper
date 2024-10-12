@@ -287,8 +287,7 @@ def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundl
     vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: analyze_module does type inference on the AST
-        is_interface = vyper_module.resolved_path.endswith(".vyi")
-        analyze_module(vyper_module, input_bundle, is_interface=is_interface)
+        analyze_module(vyper_module, input_bundle, is_interface=vyper_module.is_interface)
 
     return vyper_module
 
