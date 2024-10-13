@@ -128,29 +128,33 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
-    if interface.events:
+    if len(interface.events) > 0:
         out = "# Events\n\n"
         for event in interface.events.values():
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
-            out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
+            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
-    if interface.structs:
-        out = f"{out}\n# Structs\n\n"
+    if len(interface.structs) > 0:
+        out += "# Structs\n\n"
         for struct in interface.structs.values():
-            out = f"{out}struct {struct.name}:\n"
+            out += f"struct {struct.name}:\n"
             for member_name, member_type in struct.members.items():
-                out = f"{out}\t{member_name}: {member_type}\n"
+                out += f"    {member_name}: {member_type}\n"
+            out += "\n\n"
 
-    if interface.functions:
-        out = f"{out}\n# Functions\n\n"
+    if len(interface.functions) > 0:
+        out += "# Functions\n\n"
         for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
-                out = f"{out}@{func.mutability.value}\n"
+                out += f"@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
+            out += f"@external\ndef {func.name}({args}){return_value}:\n    ...\n\n\n"
+
+    out = out.rstrip("\n")
+    out += "\n"
 
     return out
 
