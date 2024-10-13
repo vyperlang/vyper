@@ -366,6 +366,13 @@ class AlgebraicOptimizationPass(IRPass):
                 # (x | y != 0) for any (y != 0)
                 return store(1)
 
+        if opcode in COMPARISON_OPS:
+            prefer_strict = not is_truthy
+            res = _comparison_helper(binop, args, prefer_strict=prefer_strict)
+            if res is None:
+                return res
+            new_op, new_args = res
+            return finalize(new_op, new_args)
         return False
 
     def run_pass(self):
