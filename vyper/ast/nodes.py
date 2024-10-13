@@ -911,7 +911,6 @@ class Bytes(Constant):
 
 class HexBytes(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
