@@ -647,10 +647,6 @@ class Module(TopLevel):
     def source_sha256sum(self):
         return sha256sum(self.full_source_code)
 
-    @property
-    def is_interface(self):
-        return self.resolved_path.endswith(".vyi")
-
     @contextlib.contextmanager
     def namespace(self):
         from vyper.semantics.namespace import get_namespace, override_global_namespace
