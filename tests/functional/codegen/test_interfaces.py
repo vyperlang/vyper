@@ -759,9 +759,7 @@ def foo(s: MyStruct) -> MyStruct:
     return s
     """
 
-    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])[
-        "interface"
-    ]
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
 
     assert "# Structs" in out
     assert "struct MyStruct:" in out
