@@ -1,11 +1,10 @@
 import pytest
 
 from vyper.exceptions import StaticAssertionException
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
-from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.sccp import SCCP
+from vyper.venom.passes import SCCP, MakeSSA
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 
