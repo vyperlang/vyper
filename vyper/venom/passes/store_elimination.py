@@ -1,6 +1,4 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import IRPass
 

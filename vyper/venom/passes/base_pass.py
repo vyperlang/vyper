@@ -1,4 +1,4 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.function import IRFunction
 
 
