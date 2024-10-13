@@ -1,9 +1,7 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
-from vyper.venom.passes.branch_optimization import BranchOptimizationPass
-from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes import BranchOptimizationPass, MakeSSA
 
 
 def test_simple_jump_case():
