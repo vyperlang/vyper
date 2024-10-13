@@ -128,12 +128,6 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
-    if len(interface.events) > 0:
-        out = "# Events\n\n"
-        for event in interface.events.values():
-            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
-            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
-
     if len(interface.structs) > 0:
         out += "# Structs\n\n"
         for struct in interface.structs.values():
@@ -141,6 +135,12 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             for member_name, member_type in struct.members.items():
                 out += f"    {member_name}: {member_type}\n"
             out += "\n\n"
+
+    if len(interface.events) > 0:
+        out += "# Events\n\n"
+        for event in interface.events.values():
+            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
+            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
     if len(interface.functions) > 0:
         out += "# Functions\n\n"
