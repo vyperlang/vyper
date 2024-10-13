@@ -1,8 +1,7 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral
 from vyper.venom.context import IRContext
-from vyper.venom.passes.sccp import SCCP
-from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes import SCCP, SimplifyCFGPass
 
 
 def test_phi_reduction_after_block_pruning():

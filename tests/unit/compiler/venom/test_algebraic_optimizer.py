@@ -1,11 +1,9 @@
 import pytest
 
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
-from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
-from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
+from vyper.venom.passes import AlgebraicOptimizationPass, MakeSSA, RemoveUnusedVariablesPass
 
 
 @pytest.mark.parametrize("iszero_count", range(5))
