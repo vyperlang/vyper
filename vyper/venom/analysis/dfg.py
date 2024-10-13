@@ -1,7 +1,6 @@
 from typing import Optional
 
-from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import IRAnalysesCache, IRAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 
