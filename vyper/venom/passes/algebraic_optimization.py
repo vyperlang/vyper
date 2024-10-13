@@ -147,8 +147,7 @@ class AlgebraicOptimizationPass(IRPass):
             return op
         elif isinstance(op, IRVariable):
             next_inst = self.dfg.get_producing_instruction(op)
-            #print(op)
-            assert next_inst is not None, "must have producing inst"
+            assert next_inst is not None, f"must have producing inst {op}\n{self.dfg._dfg_outputs}"
             return self.eval(next_inst)
         else:
             return None
@@ -159,7 +158,7 @@ class AlgebraicOptimizationPass(IRPass):
                 return inst.operands[0]
             elif isinstance(inst.operands[0], IRVariable):
                 next_inst = self.dfg.get_producing_instruction(inst.operands[0])
-                assert next_inst is not None
+                assert next_inst is not None, "must have producing inst"
                 return self.eval(next_inst)
         return None
 
@@ -352,17 +351,12 @@ class AlgebraicOptimizationPass(IRPass):
                 tmp = inst.parent.parent.get_next_variable()
                 tmp_inst = IRInstruction("xor", [op_0, op_1], output=tmp)
                 inst.parent.insert_instruction(
-                    inst, index
+                    tmp_inst, index
                 )
                 self.dfg.add_output(tmp, tmp_inst)
                 self.dfg.add_use(tmp, inst)
-                self.dfg.get_producing_instruction(tmp)
 
-                update("iszero", tmp)
-                print(inst)
-                print(tmp_inst)
-                print("yeye")
-                return True
+                return update("iszero", tmp)
 
             # TODO can we do this?
             # if val == "div":
@@ -386,3 +380,4 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
