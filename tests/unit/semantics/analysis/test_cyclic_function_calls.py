@@ -5,7 +5,7 @@ from vyper.exceptions import CallViolation, StructureException
 from vyper.semantics.analysis import analyze_module
 
 
-def test_self_function_call(dummy_input_bundle):
+def test_self_function_call():
     code = """
 @internal
 def foo():
@@ -13,12 +13,12 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> foo"
 
 
-def test_self_function_call2(dummy_input_bundle):
+def test_self_function_call2():
     code = """
 @external
 def foo():
@@ -30,12 +30,12 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> bar -> bar"
 
 
-def test_cyclic_function_call(dummy_input_bundle):
+def test_cyclic_function_call():
     code = """
 @internal
 def foo():
@@ -47,12 +47,12 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> bar -> foo"
 
 
-def test_multi_cyclic_function_call(dummy_input_bundle):
+def test_multi_cyclic_function_call():
     code = """
 @internal
 def foo():
@@ -72,14 +72,14 @@ def potato():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     expected_message = "Contract contains cyclic function call: foo -> bar -> baz -> potato -> foo"
 
     assert e.value.message == expected_message
 
 
-def test_multi_cyclic_function_call2(dummy_input_bundle):
+def test_multi_cyclic_function_call2():
     code = """
 @internal
 def foo():
@@ -99,14 +99,14 @@ def potato():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     expected_message = "Contract contains cyclic function call: foo -> bar -> baz -> potato -> bar"
 
     assert e.value.message == expected_message
 
 
-def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
+def test_global_ann_assign_callable_no_crash():
     code = """
 balanceOf: public(HashMap[address, uint256])
 
@@ -116,5 +116,5 @@ def foo(to : address):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException) as excinfo:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
     assert excinfo.value.message == "HashMap[address, uint256] is not callable"
