@@ -9,3 +9,4 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
+from .common_subexpression_elimination import CSE
