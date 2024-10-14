@@ -24,6 +24,7 @@ def parse_to_ast_with_settings(
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
     add_fn_node: Optional[str] = None,
+    is_interface: bool = False
 ) -> tuple[Settings, vy_ast.Module]:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
@@ -86,6 +87,7 @@ def parse_to_ast_with_settings(
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
+    module.is_interface = is_interface
 
     return settings, module
 

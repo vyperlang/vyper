@@ -99,7 +99,6 @@ def _analyze_module_r(
         generate_public_variable_getters(module_ast)
 
         ret = ModuleT(module_ast)
-        ret.is_interface = is_interface
         module_ast._metadata["type"] = ret
 
         # if this is an interface, the function is already validated

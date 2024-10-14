@@ -298,7 +298,6 @@ class ModuleT(VyperType):
 
         self._helper = VyperType()
         self._helper._id = self._id
-        self.is_interface = None
 
         for f in self.function_defs:
             # note: this checks for collisions
