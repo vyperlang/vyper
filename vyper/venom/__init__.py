@@ -10,6 +10,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
+    CSE,
     SCCP,
     AlgebraicOptimizationPass,
     BranchOptimizationPass,
@@ -20,7 +21,6 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
-    CSE,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 

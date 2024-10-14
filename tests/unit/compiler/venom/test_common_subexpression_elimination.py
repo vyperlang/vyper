@@ -84,6 +84,7 @@ def test_common_subexpression_elimination_effects_2():
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
 
+
 def test_common_subexpression_elimination_effects_3():
     ctx = IRContext()
     fn = ctx.create_function("test")
@@ -99,8 +100,9 @@ def test_common_subexpression_elimination_effects_3():
 
     CSE(ac, fn).run_pass()
 
-    assert sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 3, "wrong number of mstores"
-
+    assert (
+        sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 3
+    ), "wrong number of mstores"
 
 
 def test_common_subexpression_elimination_effect_mstore():
