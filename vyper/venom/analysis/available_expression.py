@@ -14,7 +14,8 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import EMPTY, Effects
-from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+
+COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
