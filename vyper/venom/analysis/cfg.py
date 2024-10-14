@@ -29,7 +29,6 @@ class CFGAnalysis(IRAnalysis):
                     next_bb.add_cfg_in(bb)
                     bb.add_cfg_out(next_bb)
 
-
     def topsort(self):
         if self._topsort is None:
             self._topsort = OrderedSet()
