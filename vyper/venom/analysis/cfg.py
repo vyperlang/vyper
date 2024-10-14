@@ -32,7 +32,8 @@ class CFGAnalysis(IRAnalysis):
                 in_bb.add_cfg_out(bb)
 
     def invalidate(self):
-        from vyper.venom.analysis import DominatorTreeAnalysis, LivenessAnalysis
+        from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
