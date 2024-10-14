@@ -1,5 +1,5 @@
 from vyper.exceptions import CompilerPanic
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
 

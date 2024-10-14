@@ -13,6 +13,7 @@ from vyper.exceptions import (
 )
 
 
+# TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
 def test_basic_extract_interface():
     code = """
 # Events
@@ -21,6 +22,7 @@ event Transfer:
     _from: address
     _to: address
     _value: uint256
+
 
 # Functions
 
@@ -37,6 +39,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     assert code_pass.strip() == out.strip()
 
 
+# TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
 def test_basic_extract_external_interface():
     code = """
 @view
@@ -68,6 +71,7 @@ interface One:
     assert interface.strip() == out.strip()
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_basic_interface_implements(assert_compile_failed):
     code = """
 from ethereum.ercs import IERC20
@@ -82,6 +86,7 @@ def test() -> bool:
     assert_compile_failed(lambda: compile_code(code), InterfaceViolation)
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_external_interface_parsing(make_input_bundle, assert_compile_failed):
     interface_code = """
 @external
@@ -126,6 +131,7 @@ def foo() -> uint256:
         compile_code(not_implemented_code, input_bundle=input_bundle)
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_log_interface_event(make_input_bundle, assert_compile_failed):
     interface_code = """
 event Foo:
@@ -160,6 +166,7 @@ VALID_IMPORT_CODE = [
 ]
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 @pytest.mark.parametrize("code,filename", VALID_IMPORT_CODE)
 def test_extract_file_interface_imports(code, filename, make_input_bundle):
     input_bundle = make_input_bundle({filename: ""})
@@ -177,6 +184,7 @@ BAD_IMPORT_CODE = [
 ]
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 @pytest.mark.parametrize("code,exception_type", BAD_IMPORT_CODE)
 def test_extract_file_interface_imports_raises(
     code, exception_type, assert_compile_failed, make_input_bundle
@@ -726,3 +734,43 @@ def bar() -> uint256:
     c = get_contract(code, input_bundle=input_bundle)
 
     assert c.foo() == c.bar() == 1
+
+
+def test_interface_with_structures():
+    code = """
+struct MyStruct:
+    a: address
+    b: uint256
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+struct Voter:
+    weight: int128
+    voted: bool
+    delegate: address
+    vote: int128
+
+@external
+def bar():
+    pass
+
+event Buy:
+    buyer: indexed(address)
+    buy_order: uint256
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
+
+    assert "# Structs" in out
+    assert "struct MyStruct:" in out
+    assert "b: uint256" in out
+    assert "struct Voter:" in out
+    assert "voted: bool" in out
