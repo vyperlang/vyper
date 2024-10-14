@@ -332,19 +332,35 @@ class SCCP(IRPass):
     def _fix_phi_nodes(self):
         # fix basic blocks whose cfg in was changed
         # maybe this should really be done in _visit_phi
-        needs_sort = False
 
         for bb in self.fn.get_basic_blocks():
             cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
 
+            needs_sort = False
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
                 needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
 
-        # move phi instructions to the top of the block
-        if needs_sort:
-            bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+            # move phi instructions to the top of the block
+            if needs_sort:
+                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+
+            # Cleanup duplicate phis
+            phis = dict[int, IRInstruction]()
+            phi_inst = [inst for inst in bb.instructions if inst.opcode == "phi"]
+            for inst in phi_inst:
+                op_hash = hash((op for op in inst.operands))
+                if op_hash not in phis.keys():
+                    phis[op_hash] = inst
+                    continue
+
+                for use_inst in self._get_uses(inst.output):
+                    for i, operand in enumerate(use_inst.operands):
+                        if operand == inst.output:
+                            use_inst.operands[i] = phis[op_hash].output
+
+                bb.remove_instruction(inst)
 
     def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
         operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
