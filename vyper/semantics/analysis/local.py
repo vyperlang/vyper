@@ -533,6 +533,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     def _analyse_list_iter(self, iter_node, target_type):
         # iteration over a variable or literal list
         iter_val = iter_node.reduced()
+        if isinstance(iter_val, vy_ast.ExtCall):
+            raise StateAccessViolation(
+                "May not call state modifying function for loop iterator.", iter_val
+            )
 
         if isinstance(iter_val, vy_ast.List):
             len_ = len(iter_val.elements)
@@ -954,6 +958,11 @@ def _validate_range_call(node: vy_ast.Call):
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
     start, end = [i.reduced() for i in (start, end)]
+
+    if any(isinstance((extcall := n), vy_ast.ExtCall) for n in (start, end)):
+        raise StateAccessViolation(
+            "May not call state modifying function within a range expression.", extcall
+        )
 
     if "bound" in kwargs:
         bound = kwargs["bound"].reduced()

@@ -3,7 +3,13 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
+from vyper.exceptions import (
+    ArgumentException,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+    UnknownType,
+)
 
 fail_list = [
     (
@@ -321,6 +327,51 @@ def foo():
         "Bound must be a literal integer",
         None,
         "10.1",
+    ),
+    (
+        """
+interface I:
+    def bar() -> uint256: payable
+
+@external
+def bar(t: address):
+    for i: uint256 in range(extcall I(t).bar(), bound=10):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    (
+        """
+interface I:
+    def bar() -> uint256: payable
+
+@external
+def bar(t: address):
+    for i: uint256 in range(1, extcall I(t).bar(), bound=10):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    (
+        """
+interface I:
+    def bar() -> DynArray[uint256, 10]: nonpayable
+
+@external
+def bar(t: address):
+    for i: uint256 in extcall I(t).bar():
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function for loop iterator.",
+        None,
+        "extcall I(t).bar()",
     ),
 ]
 
