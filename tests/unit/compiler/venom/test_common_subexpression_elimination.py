@@ -84,6 +84,24 @@ def test_common_subexpression_elimination_effects_2():
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
 
+def test_common_subexpression_elimination_effects_3():
+    ctx = IRContext()
+    fn = ctx.create_function("test")
+    bb = fn.get_basic_block()
+    addr1 = bb.append_instruction("store", 10)
+    addr2 = bb.append_instruction("store", 10)
+    bb.append_instruction("mstore", 0, addr1)
+    bb.append_instruction("mstore", 2, addr2)
+    bb.append_instruction("mstore", 0, addr1)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+
+    CSE(ac, fn).run_pass()
+
+    assert sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 3, "wrong number of mstores"
+
+
 
 def test_common_subexpression_elimination_effect_mstore():
     ctx = IRContext()
