@@ -55,7 +55,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
-
+    MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
