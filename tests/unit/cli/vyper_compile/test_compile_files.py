@@ -426,6 +426,7 @@ import lib
         used_dir = search_paths[-1].stem  # either dir1 or dir2
         assert output_bundle.used_search_paths == [".", "0/" + used_dir]
 
+
 def test_compile_interface_file(make_file):
     interface = """
 @view
@@ -444,34 +445,35 @@ def baz() -> uint8:
 
     """
     file = make_file("interface.vyi", interface)
-    compile_files([file], ["ast","annotated_ast","interface","external_interface","abi"])
+    compile_files([file], ["ast", "annotated_ast", "interface", "external_interface", "abi"])
 
     unallowed_formats = [
-    "layout",
-    "devdoc",
-    "userdoc",
-    "archive",
-    "archive_b64",
-    "integrity",
-    "solc_json",
-    "bb",
-    "bb_runtime",
-    "cfg",
-    "cfg_runtime",
-    "ir",
-    "ir_runtime",
-    "ir_dict",
-    "ir_runtime_dict",
-    "method_identifiers",
-    "metadata",
-    "asm",
-    "source_map",
-    "source_map_runtime",
-    "bytecode",
-    "bytecode_runtime",
-    "blueprint_bytecode",
-    "opcodes",
-    "opcodes_runtime"]
+        "layout",
+        "devdoc",
+        "userdoc",
+        "archive",
+        "archive_b64",
+        "integrity",
+        "solc_json",
+        "bb",
+        "bb_runtime",
+        "cfg",
+        "cfg_runtime",
+        "ir",
+        "ir_runtime",
+        "ir_dict",
+        "ir_runtime_dict",
+        "method_identifiers",
+        "metadata",
+        "asm",
+        "source_map",
+        "source_map_runtime",
+        "bytecode",
+        "bytecode_runtime",
+        "blueprint_bytecode",
+        "opcodes",
+        "opcodes_runtime",
+    ]
 
     for f in unallowed_formats:
         with pytest.raises(ValueError):
