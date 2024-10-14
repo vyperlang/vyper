@@ -13,6 +13,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
+from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -146,8 +147,33 @@ class CompilerData:
         return ast
 
     @cached_property
+    def _resolve_imports(self):
+        # deepcopy so as to not interfere with `-f ast` output
+        vyper_module = copy.deepcopy(self.vyper_module)
+        with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
+            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+
+    @cached_property
+    def resolved_imports(self):
+        imports = self._resolve_imports[1]
+
+        expected = self.expected_integrity_sum
+
+        if expected is not None and imports.integrity_sum != expected:
+            # warn for now. strict/relaxed mode was considered but it costs
+            # interface and testing complexity to add another feature flag.
+            vyper_warn(
+                f"Mismatched integrity sum! Expected {expected}"
+                f" but got {imports.integrity_sum}."
+                " (This likely indicates a corrupted archive)"
+            )
+
+        return imports
+
+    @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = generate_annotated_ast(self.vyper_module, self.input_bundle)
+        module = self._resolve_imports[0]
+        analyze_module(module)
         nspec = natspec.parse_natspec(module)
         return nspec, module
 
@@ -166,17 +192,6 @@ class CompilerData:
         required for a compilation target.
         """
         module_t = self.annotated_vyper_module._metadata["type"]
-
-        expected = self.expected_integrity_sum
-
-        if expected is not None and module_t.integrity_sum != expected:
-            # warn for now. strict/relaxed mode was considered but it costs
-            # interface and testing complexity to add another feature flag.
-            vyper_warn(
-                f"Mismatched integrity sum! Expected {expected}"
-                f" but got {module_t.integrity_sum}."
-                " (This likely indicates a corrupted archive)"
-            )
 
         validate_compilation_target(module_t)
         return self.annotated_vyper_module
@@ -251,8 +266,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         metadata = None
         if not self.no_bytecode_metadata:
-            module_t = self.compilation_target._metadata["type"]
-            metadata = bytes.fromhex(module_t.integrity_sum)
+            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
         return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
@@ -268,28 +282,6 @@ class CompilerData:
         deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
 
         return deploy_bytecode + blueprint_bytecode
-
-
-def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
-    """
-    Validates and annotates the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-
-    Returns
-    -------
-    vy_ast.Module
-        Annotated Vyper AST
-    """
-    vyper_module = copy.deepcopy(vyper_module)
-    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # note: analyze_module does type inference on the AST
-        analyze_module(vyper_module, input_bundle)
-
-    return vyper_module
 
 
 def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:
