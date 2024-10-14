@@ -11,7 +11,7 @@ from vyper.compiler.input_bundle import CompilerInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.analysis.module import _is_builtin
+from vyper.semantics.analysis.imports import _is_builtin
 from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
@@ -158,7 +158,7 @@ class OutputBundleWriter:
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
-        self.write_integrity(self.bundle.compilation_target.integrity_sum)
+        self.write_integrity(self.compiler_data.resolved_imports.integrity_sum)
         self.write_sources(self.bundle.compiler_inputs)
 
 

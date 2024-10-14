@@ -1,8 +1,8 @@
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
-from vyper.venom.passes.store_expansion import StoreExpansionPass
+from vyper.venom.passes import StoreExpansionPass
 
 
 def test_duplicate_operands():

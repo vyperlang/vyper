@@ -10,9 +10,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis, VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -22,7 +20,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False

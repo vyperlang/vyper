@@ -1,7 +1,7 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
-from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes import MakeSSA
 
 
 def test_phi_case():
