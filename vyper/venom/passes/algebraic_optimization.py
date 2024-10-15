@@ -196,6 +196,16 @@ class AlgebraicOptimizationPass(IRPass):
         def store(*args: IROperand | int) -> bool:
             return update("store", *args)
 
+        def add(opcode: str, *args: IROperand | int) -> IRVariable:
+            index = inst.parent.instructions.index(inst)
+            var = inst.parent.parent.get_next_variable()
+            operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            new_inst = IRInstruction(opcode, operands, output=var)
+            inst.parent.insert_instruction(new_inst, index)
+            self.dfg.add_output(var, new_inst)
+            self.dfg.add_use(var, inst)
+            return var
+
         if len(inst.operands) < 1:
             return False
 
@@ -356,12 +366,7 @@ class AlgebraicOptimizationPass(IRPass):
                 # but xor is slightly easier to optimize because of being
                 # commutative.
                 # note that (xor (-1) x) has its own rule
-                index = inst.parent.instructions.index(inst)
-                tmp = inst.parent.parent.get_next_variable()
-                tmp_inst = IRInstruction("xor", [op_0, op_1], output=tmp)
-                inst.parent.insert_instruction(tmp_inst, index)
-                self.dfg.add_output(tmp, tmp_inst)
-                self.dfg.add_use(tmp, inst)
+                tmp = add("xor", op_0, op_1)
 
                 return update("iszero", tmp)
 
@@ -416,13 +421,7 @@ class AlgebraicOptimizationPass(IRPass):
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and _int(eop_0) == almost_always:
                 # e.g. gt x 0, slt x MAX_INT256
-                index = inst.parent.instructions.index(inst)
-                tmp = inst.parent.parent.get_next_variable()
-                tmp_inst = IRInstruction("eq", [op_0, op_1], output=tmp)
-                inst.parent.insert_instruction(tmp_inst, index)
-                self.dfg.add_output(tmp, tmp_inst)
-                self.dfg.add_use(tmp, inst)
-
+                tmp = add("eq", op_0, op_1)
                 return update("iszero", tmp)
 
             # special cases that are not covered by others:
@@ -430,17 +429,8 @@ class AlgebraicOptimizationPass(IRPass):
             if opcode == "gt" and eop_0 == 0:
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
-                index = inst.parent.instructions.index(inst)
-                tmp = inst.parent.parent.get_next_variable()
-                tmp_inst = IRInstruction("iszero", [op_1], output=tmp)
-                inst.parent.insert_instruction(tmp_inst, index)
-                self.dfg.add_output(tmp, tmp_inst)
-                self.dfg.add_use(tmp, inst)
-
+                tmp = add("iszero", op_1)
                 return update("iszero", tmp)
-        return False
-
-    def _comparison(self, inst: IRInstruction, prefer_strict: bool) -> bool:
         return False
 
     def run_pass(self):
