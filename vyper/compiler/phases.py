@@ -117,6 +117,7 @@ class CompilerData:
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
+            is_interface=self.contract_path.suffix == ".vyi",
         )
 
         if self.original_settings:
