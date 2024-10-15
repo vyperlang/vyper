@@ -5,6 +5,7 @@ from vyper.utils import (
     evm_div,
     evm_mod,
     evm_pow,
+    int_bounds,
     int_log2,
     is_power_of_two,
     signed_to_unsigned,
@@ -15,7 +16,8 @@ from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-#from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+
+# from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
 SIGNED = False
 UNSIGNED = True
@@ -82,6 +84,15 @@ arith = {
     "and": (operator.and_, "&", UNSIGNED),
     "xor": (operator.xor, "^", UNSIGNED),
 }
+
+
+def _flip_comparison_op(opname):
+    assert opname in COMPARISON_OPS
+    if "g" in opname:
+        return opname.replace("g", "l")
+    if "l" in opname:
+        return opname.replace("l", "g")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
 class AlgebraicOptimizationPass(IRPass):
@@ -176,7 +187,6 @@ class AlgebraicOptimizationPass(IRPass):
 
             if not change:
                 break
-
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int) -> bool:
@@ -350,9 +360,7 @@ class AlgebraicOptimizationPass(IRPass):
                 index = inst.parent.instructions.index(inst)
                 tmp = inst.parent.parent.get_next_variable()
                 tmp_inst = IRInstruction("xor", [op_0, op_1], output=tmp)
-                inst.parent.insert_instruction(
-                    tmp_inst, index
-                )
+                inst.parent.insert_instruction(tmp_inst, index)
                 self.dfg.add_output(tmp, tmp_inst)
                 self.dfg.add_use(tmp, inst)
 
@@ -366,13 +374,74 @@ class AlgebraicOptimizationPass(IRPass):
                 # (x | y != 0) for any (y != 0)
                 return store(1)
 
-        if False and opcode in COMPARISON_OPS:
+        if opcode in COMPARISON_OPS:
             prefer_strict = not is_truthy
-            res = _comparison_helper(binop, args, prefer_strict=prefer_strict)
-            if res is None:
-                return res
-            new_op, new_args = res
-            return finalize(new_op, new_args)
+            if isinstance(eop_1, IRLiteral):  # _is_int(args[0]):
+                opcode = _flip_comparison_op(opcode)
+                inst.opcode = opcode
+                eop_0, eop_1 = eop_1, eop_0
+                op_0, op_1 = op_1, op_0
+                inst.operands[0], inst.operands[1] = op_0, op_1
+
+            is_gt = "g" in opcode
+
+            # local version of _evm_int which defaults to the current binop's signedness
+            def _int(x):
+                return _evm_int(x, unsigned=unsigned)
+
+            lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+            # for comparison operators, we have three special boundary cases:
+            # almost always, never and almost never.
+            # almost_always is always true for the non-strict ("ge" and co)
+            # comparators. for strict comparators ("gt" and co), almost_always
+            # is true except for one case. never is never true for the strict
+            # comparators. never is almost always false for the non-strict
+            # comparators, except for one case. and almost_never is almost
+            # never true (except one case) for the strict comparators.
+            if is_gt:
+                almost_always, never = lo, hi
+                almost_never = hi - 1
+            else:
+                almost_always, never = hi, lo
+                almost_never = lo + 1
+
+            if _int(eop_0) == never:
+                # e.g. gt x MAX_UINT256, slt x MIN_INT256
+                return store(0)
+
+            if _int(eop_0) == almost_never:
+                # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+                return update("eq", op_1, never)
+
+            # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+            if not prefer_strict and _int(eop_0) == almost_always:
+                # e.g. gt x 0, slt x MAX_INT256
+                index = inst.parent.instructions.index(inst)
+                tmp = inst.parent.parent.get_next_variable()
+                tmp_inst = IRInstruction("eq", [op_0, op_1], output=tmp)
+                inst.parent.insert_instruction(tmp_inst, index)
+                self.dfg.add_output(tmp, tmp_inst)
+                self.dfg.add_use(tmp, inst)
+
+                return update("iszero", tmp)
+
+            # special cases that are not covered by others:
+
+            if opcode == "gt" and eop_0 == 0:
+                # improve codesize (not gas), and maybe trigger
+                # downstream optimizations
+                index = inst.parent.instructions.index(inst)
+                tmp = inst.parent.parent.get_next_variable()
+                tmp_inst = IRInstruction("iszero", [op_1], output=tmp)
+                inst.parent.insert_instruction(tmp_inst, index)
+                self.dfg.add_output(tmp, tmp_inst)
+                self.dfg.add_use(tmp, inst)
+
+                return update("iszero", tmp)
+        return False
+
+    def _comparison(self, inst: IRInstruction, prefer_strict: bool) -> bool:
         return False
 
     def run_pass(self):
@@ -387,4 +456,3 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-
