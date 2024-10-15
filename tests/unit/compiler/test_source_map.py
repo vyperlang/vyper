@@ -97,8 +97,8 @@ def update_foo():
     self.foo += 1
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
-    assert "safeadd" in list(error_map.values())
-    assert "fallback function" in list(error_map.values())
+    assert "safeadd" in error_map.values()
+    assert "fallback function" in error_map.values()
 
 
 def test_error_map_with_user_error():
@@ -108,7 +108,7 @@ def foo():
     raise "some error"
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
-    assert "user revert with reason" in list(error_map.values())
+    assert "user revert with reason" in error_map.values()
 
 def test_compress_source_map():
     # mock the required VyperNode fields in compress_source_map
