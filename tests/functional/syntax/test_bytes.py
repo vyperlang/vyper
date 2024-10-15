@@ -80,6 +80,15 @@ def test() -> Bytes[1]:
     (
         """
 @external
+def test() -> Bytes[2]:
+    a: Bytes[2] = x"abc"
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
 def foo():
     a: Bytes = b"abc"
     """,
