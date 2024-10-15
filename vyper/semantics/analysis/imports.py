@@ -164,12 +164,7 @@ class ImportAnalyzer:
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        return self._load_import_helper(node, level, module_str, alias)
-
-    def _load_import_helper(
-        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> tuple[CompilerInput, Any]:
+    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> tuple[CompilerInput, Any]:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
