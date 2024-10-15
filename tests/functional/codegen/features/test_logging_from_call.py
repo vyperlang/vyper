@@ -21,11 +21,11 @@ def to_bytes32(_value: uint256) -> bytes32:
 @external
 def test_func(_value: uint256):
     data2: Bytes[60] = concat(self.to_bytes32(_value),self.to_bytes(_value),b"testing")
-    log TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
+    log TestLog(testData1=self.to_bytes32(_value), testData2=data2, testData3=self.to_bytes(_value))
 
     loggedValue: bytes32 = self.to_bytes32(_value)
     loggedValue2: Bytes[8] = self.to_bytes(_value)
-    log TestLog(loggedValue, data2, loggedValue2)
+    log TestLog(testData1=loggedValue, testData2=data2, testData3=loggedValue2)
     """
 
     c = get_contract(code)
@@ -65,8 +65,8 @@ def test_func(_value: uint256,input: Bytes[133]):
 
     data2: Bytes[200] = b"hello world"
 
-    # log TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
-    log TestLog(self.to_bytes32(_value),input,"bababa")
+    # log TestLog(testData1=self.to_bytes32(_value),testData2=input,testData3=self.to_bytes(_value))
+    log TestLog(testData1=self.to_bytes32(_value),testData2=input,testData3="bababa")
     """
 
     c = get_contract(code)
@@ -99,8 +99,8 @@ def test_func(_value: uint256,input: Bytes[133]):
     data2: Bytes[200] = b"hello world"
 
     # log will be malformed
-    # log TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
-    log TestLog(self.to_bytes32(_value), input)
+    # log TestLog(testData1=self.to_bytes32(_value),testData2=input,testData3=self.to_bytes(_value))
+    log TestLog(testData1=self.to_bytes32(_value), testData2=input)
     """
 
     c = get_contract(code)
@@ -137,12 +137,12 @@ def test_func(_value: uint256,input: Bytes[2048]):
     data2: Bytes[2064] = concat(self.to_bytes(_value),self.to_bytes(_value),input)
 
     # log will be malformed
-    log TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
+    log TestLog(testData1=self.to_bytes32(_value), testData2=data2, testData3=self.to_bytes(_value))
 
     loggedValue: Bytes[8] = self.to_bytes(_value)
 
     # log will be normal
-    log TestLog(self.to_bytes32(_value),data2,loggedValue)
+    log TestLog(testData1=self.to_bytes32(_value),testData2=data2,testData3=loggedValue)
     """
 
     c = get_contract(code)

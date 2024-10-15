@@ -359,11 +359,12 @@ A byte array with a max size.
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
-Bytes literals may be given as bytes strings.
+Bytes literals may be given as bytes strings or as hex strings.
 
 .. code-block:: vyper
 
     bytes_string: Bytes[100] = b"\x01"
+    bytes_string: Bytes[100] = x"01"
 
 .. index:: !string
 

@@ -436,7 +436,7 @@ def i_am_me() -> bool:
 @external
 @nonpayable
 def whoami() -> address:
-    log Addr(self._whoami())
+    log Addr(addr=self._whoami())
     return self._whoami()
     """
 
