@@ -124,17 +124,18 @@ def compile_from_file_input(
     )
 
     ret = {}
+
     with anchor_settings(compiler_data.settings):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
-            elif (
-                file_input.resolved_path.suffix == ".vyi"
-                and output_format not in INTERFACE_OUTPUT_FORMATS
-            ):
+
+            is_vyi = file_input.resolved_path.suffix == ".vyi"
+            if is_vyi and output_format not in INTERFACE_OUTPUT_FORMATS:
                 raise ValueError(
                     f"Unsupported format for compiling interface: {repr(output_format)}"
                 )
+
             try:
                 formatter = OUTPUT_FORMATS[output_format]
                 ret[output_format] = formatter(compiler_data)
