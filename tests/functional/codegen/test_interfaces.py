@@ -161,8 +161,6 @@ VALID_IMPORT_CODE = [
     ("import Foo as Foo", "Foo.vyi"),
     ("from a import Foo", "a/Foo.vyi"),
     ("from b.a import Foo", "b/a/Foo.vyi"),
-    ("from .a import Foo", "./a/Foo.vyi"),
-    ("from ..a import Foo", "../a/Foo.vyi"),
 ]
 
 
@@ -171,7 +169,22 @@ VALID_IMPORT_CODE = [
 def test_extract_file_interface_imports(code, filename, make_input_bundle):
     input_bundle = make_input_bundle({filename: ""})
 
-    assert compile_code(code, input_bundle=input_bundle) is not None
+    assert compile_code(code,resolved_path=input_bundle.search_paths[0]/filename ,input_bundle=input_bundle) is not None
+
+VALID_RELATIVE_IMPORT_CODE = [
+    # import statement, import path without suffix
+    ("from .a import Foo", "a"),
+    ("from ..a import Foo", "a/b"),
+]
+
+
+# TODO CMC 2024-10-13: should probably be in syntax tests
+@pytest.mark.parametrize("code,subdirs", VALID_RELATIVE_IMPORT_CODE)
+def test_extract_file_interface_relative_imports(code, subdirs, make_input_bundle):
+    input_bundle = make_input_bundle({"a/Foo.vyi": ""})
+
+    assert compile_code(code,resolved_path=(input_bundle.search_paths[0])/subdirs ,input_bundle=input_bundle) is not None
+
 
 
 BAD_IMPORT_CODE = [
@@ -191,7 +204,7 @@ def test_extract_file_interface_imports_raises(
 ):
     input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
     with pytest.raises(exception_type):
-        compile_code(code, input_bundle=input_bundle)
+        compile_code(code, resolved_path=input_bundle.search_paths[0]/"mock.vy",  input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
