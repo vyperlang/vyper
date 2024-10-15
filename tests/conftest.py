@@ -14,7 +14,7 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -164,12 +164,6 @@ def make_input_bundle(tmp_path, make_file):
         return FilesystemInputBundle([tmp_path])
 
     return fn
-
-
-# for tests which just need an input bundle, doesn't matter what it is
-@pytest.fixture
-def dummy_input_bundle():
-    return InputBundle([])
 
 
 @pytest.fixture(scope="module")
