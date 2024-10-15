@@ -25,6 +25,10 @@ jobs:
         # see https://github.com/vyperlang/vyper/blob/8f9a8cac49aafb3fbc9dde78f0f6125c390c32f0/.github/workflows/build.yml#L27-L32
         fetch-depth: 0
 
+    # debug
+    - name: Git shorthash
+      run: git rev-parse --short HEAD
+
     - name: Python
       uses: actions/setup-python@v5
       with:
