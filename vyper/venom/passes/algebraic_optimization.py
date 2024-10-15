@@ -22,7 +22,6 @@ from vyper.venom.passes.base_pass import IRPass
 SIGNED = False
 UNSIGNED = True
 
-COMMUTATIVE_OPS = {"add", "mul", "eq", "ne", "and", "or", "xor"}
 COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
 STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
 UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
@@ -224,7 +223,7 @@ class AlgebraicOptimizationPass(IRPass):
             inst.opcode = "offset"
             return True
 
-        if opcode in COMMUTATIVE_OPS and eop_1 is not None:
+        if inst.is_commutative and eop_1 is not None:
             eop_0, eop_1 = eop_1, eop_0
             op_0, op_1 = op_1, op_0
 
