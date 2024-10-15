@@ -105,14 +105,13 @@ class InputBundle:
 
         return self._source_ids[resolved_path]
 
-    def load_file(self, path: PathLike | str, level: int = 0) -> CompilerInput:
+    def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
-        search_paths = self.search_paths if level == 0 else [self.search_paths[-1]]
 
         if isinstance(path, str):
             path = PurePath(path)
-        for sp in reversed(search_paths):
+        for sp in reversed(self.search_paths):
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
             # Path("/a") / Path("/b") => Path("/b")
