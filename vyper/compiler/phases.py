@@ -112,12 +112,14 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
+        is_vyi = self.contract_path.suffix == ".vyi"
+
         settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
-            is_interface=self.contract_path.suffix == ".vyi",
+            is_interface=is_vyi,
         )
 
         if self.original_settings:
