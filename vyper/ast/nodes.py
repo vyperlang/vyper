@@ -676,7 +676,6 @@ class DocStr(VyperNode):
     """
 
     __slots__ = ("value",)
-    _translated_fields = {"s": "value"}
 
 
 class arguments(VyperNode):
@@ -887,7 +886,6 @@ class Hex(Constant):
 
 class Str(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def validate(self):
         for c in self.value:
@@ -897,7 +895,6 @@ class Str(Constant):
 
 class Bytes(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
@@ -911,14 +908,9 @@ class Bytes(Constant):
         ast_dict["value"] = f"0x{self.value.hex()}"
         return ast_dict
 
-    @property
-    def s(self):
-        return self.value
-
 
 class HexBytes(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
@@ -929,10 +921,6 @@ class HexBytes(Constant):
         ast_dict = super().to_dict()
         ast_dict["value"] = f"0x{self.value.hex()}"
         return ast_dict
-
-    @property
-    def s(self):
-        return self.value
 
 
 class List(ExprNode):
