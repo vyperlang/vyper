@@ -15,8 +15,6 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import EMPTY, Effects
 
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
-
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
@@ -46,7 +44,7 @@ class _Expression:
             return False
 
         # Early return special case for commutative instructions
-        if self.opcode in COMMUTATIVE_INSTRUCTIONS:
+        if self.is_commutative:
             if self.operands[0].same(other.operands[1]) and self.operands[1].same(
                 other.operands[0]
             ):
@@ -106,6 +104,10 @@ class _Expression:
         if ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
+
+    @property
+    def is_commutative(self) -> bool:
+        return self.first_inst.is_commutative
 
 
 class _BBLattice:
