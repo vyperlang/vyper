@@ -1,7 +1,6 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.function import IRFunction
 

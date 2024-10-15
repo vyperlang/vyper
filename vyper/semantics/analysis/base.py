@@ -1,7 +1,7 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import CompilerInput
@@ -13,7 +13,7 @@ from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
     from vyper.semantics.types.function import ContractFunctionT
-    from vyper.semantics.types.module import InterfaceT, ModuleT
+    from vyper.semantics.types.module import ModuleT
 
 
 class FunctionVisibility(StringEnum):
@@ -119,13 +119,19 @@ class ModuleInfo(AnalysisResult):
         return hash(id(self.module_t))
 
 
-@dataclass(frozen=True)
+@dataclass
 class ImportInfo(AnalysisResult):
-    typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
     compiler_input: CompilerInput  # to recover file info for ast export
-    node: vy_ast.VyperNode
+    parsed: Any  # (json) abi | AST
+    _typ: Any = None  # type to be filled in during analysis
+
+    @property
+    def typ(self):
+        if self._typ is None:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
+        return self._typ
 
     def to_dict(self):
         ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
@@ -234,6 +240,17 @@ class VarAccess:
     # A sentinel indicating a subscript access
     SUBSCRIPT_ACCESS: ClassVar[Any] = object()
 
+    # custom __reduce__ and _produce implementations to work around
+    # a pickle bug.
+    # see https://github.com/python/cpython/issues/124937#issuecomment-2392227290
+    def __reduce__(self):
+        dict_obj = {f.name: getattr(self, f.name) for f in fields(self)}
+        return self.__class__._produce, (dict_obj,)
+
+    @classmethod
+    def _produce(cls, data):
+        return cls(**data)
+
     @cached_property
     def attrs(self):
         ret = []
@@ -286,7 +303,6 @@ class ExprInfo:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
-
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()
 
