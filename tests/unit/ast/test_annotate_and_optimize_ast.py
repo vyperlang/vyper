@@ -28,12 +28,12 @@ def foo() -> int128:
 
 
 def get_contract_info(source_code):
-    _, loop_var_annotations, class_types, reformatted_code = pre_parse(source_code)
-    py_ast = python_ast.parse(reformatted_code)
+    pre_parse_result = pre_parse(source_code)
+    py_ast = python_ast.parse(pre_parse_result.reformatted_code)
 
-    annotate_python_ast(py_ast, reformatted_code, loop_var_annotations, class_types)
+    annotate_python_ast(py_ast, pre_parse_result.reformatted_code, pre_parse_result)
 
-    return py_ast, reformatted_code
+    return py_ast, pre_parse_result.reformatted_code
 
 
 def test_it_annotates_ast_with_source_code():

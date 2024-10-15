@@ -1,22 +1,11 @@
-from pathlib import Path, PurePath
 from typing import Any, Optional
 
-import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import (
-    ABIInput,
-    CompilerInput,
-    FileInput,
-    FilesystemInputBundle,
-    InputBundle,
-    PathLike,
-)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
     CompilerPanic,
-    DuplicateImport,
     EvmVersionException,
     ExceptionList,
     ImmutableViolation,
@@ -24,7 +13,6 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidLiteral,
     InvalidType,
-    ModuleNotFound,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
@@ -44,7 +32,6 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
-from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -57,32 +44,19 @@ from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import OrderedSet, safe_relpath
+from vyper.utils import OrderedSet
 
 
-def analyze_module(
-    module_ast: vy_ast.Module,
-    input_bundle: InputBundle,
-    import_graph: ImportGraph = None,
-    is_interface: bool = False,
-) -> ModuleT:
+def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
     """
     Analyze a Vyper module AST node, recursively analyze all its imports,
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    if import_graph is None:
-        import_graph = ImportGraph()
-
-    return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
+    return _analyze_module_r(module_ast)
 
 
-def _analyze_module_r(
-    module_ast: vy_ast.Module,
-    input_bundle: InputBundle,
-    import_graph: ImportGraph,
-    is_interface: bool = False,
-):
+def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
@@ -91,8 +65,8 @@ def _analyze_module_r(
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
 
-    with namespace.enter_scope(), import_graph.enter_path(module_ast):
-        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
+    with namespace.enter_scope():
+        analyzer = ModuleAnalyzer(module_ast, namespace, is_interface)
         analyzer.analyze_module_body()
 
         _analyze_call_graph(module_ast)
@@ -175,21 +149,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self,
-        module_node: vy_ast.Module,
-        input_bundle: InputBundle,
-        namespace: Namespace,
-        import_graph: ImportGraph,
-        is_interface: bool = False,
+        self, module_node: vy_ast.Module, namespace: Namespace, is_interface: bool = False
     ) -> None:
         self.ast = module_node
-        self.input_bundle = input_bundle
         self.namespace = namespace
-        self._import_graph = import_graph
         self.is_interface = is_interface
-
-        # keep track of imported modules to prevent duplicate imports
-        self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
         # keep track of exported functions to prevent duplicate exports
         self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
@@ -388,16 +352,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
 
             err_list.raise_if_not_empty()
-
-    def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
-        # cache ast if we have seen it before.
-        # this gives us the additional property of object equality on
-        # two ASTs produced from the same source
-        ast_of = self.input_bundle._cache._ast_of
-        if file.source_id not in ast_of:
-            ast_of[file.source_id] = _parse_ast(file)
-
-        return ast_of[file.source_id]
 
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
@@ -739,32 +693,44 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_exposed_function(func_t, node)
 
     def visit_Import(self, node):
-        # import x.y[name] as y[alias]
-
-        alias = node.alias
-
-        if alias is None:
-            alias = node.name
-
-        # don't handle things like `import x.y`
-        if "." in alias:
-            msg = "import requires an accompanying `as` statement"
-            suggested_alias = node.name[node.name.rfind(".") :]
-            hint = f"try `import {node.name} as {suggested_alias}`"
-            raise StructureException(msg, node, hint=hint)
-
-        self._add_import(node, 0, node.name, alias)
+        self._add_import(node)
 
     def visit_ImportFrom(self, node):
-        # from m.n[module] import x[name] as y[alias]
-        alias = node.alias or node.name
+        self._add_import(node)
 
-        module = node.module or ""
-        if module:
-            module += "."
+    def _add_import(self, node: vy_ast.VyperNode) -> None:
+        import_info = node._metadata["import_info"]
+        # similar structure to import analyzer
+        module_info = self._load_import(import_info)
 
-        qualified_module_name = module + node.name
-        self._add_import(node, node.level, qualified_module_name, alias)
+        import_info._typ = module_info
+
+        self.namespace[import_info.alias] = module_info
+
+    def _load_import(self, import_info: ImportInfo) -> Any:
+        path = import_info.compiler_input.path
+        if path.suffix == ".vy":
+            module_ast = import_info.parsed
+            with override_global_namespace(Namespace()):
+                module_t = _analyze_module_r(module_ast, is_interface=False)
+                return ModuleInfo(module_t, import_info.alias)
+
+        if path.suffix == ".vyi":
+            module_ast = import_info.parsed
+            with override_global_namespace(Namespace()):
+                module_t = _analyze_module_r(module_ast, is_interface=True)
+
+                # NOTE: might be cleaner to return the whole module, so we
+                # have a ModuleInfo, that way we don't need to have different
+                # code paths for InterfaceT vs ModuleInfo
+                return module_t.interface
+
+        if path.suffix == ".json":
+            abi = import_info.parsed
+            path = import_info.compiler_input.path
+            return InterfaceT.from_json_abi(str(path), abi)
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     def visit_InterfaceDef(self, node):
         interface_t = InterfaceT.from_InterfaceDef(node)
@@ -775,190 +741,3 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         struct_t = StructT.from_StructDef(node)
         node._metadata["struct_type"] = struct_t
         self.namespace[node.name] = struct_t
-
-    def _add_import(
-        self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
-    ) -> None:
-        compiler_input, module_info = self._load_import(node, level, qualified_module_name, alias)
-        node._metadata["import_info"] = ImportInfo(
-            module_info, alias, qualified_module_name, compiler_input, node
-        )
-        self.namespace[alias] = module_info
-
-    # load an InterfaceT or ModuleInfo from an import.
-    # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        # the directory this (currently being analyzed) module is in
-        self_search_path = Path(self.ast.resolved_path).parent
-
-        with self.input_bundle.poke_search_path(self_search_path):
-            return self._load_import_helper(node, level, module_str, alias)
-
-    def _load_import_helper(
-        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> tuple[CompilerInput, Any]:
-        if _is_builtin(module_str):
-            return _load_builtin_import(level, module_str)
-
-        path = _import_to_path(level, module_str)
-
-        # this could conceivably be in the ImportGraph but no need at this point
-        if path in self._imported_modules:
-            previous_import_stmt = self._imported_modules[path]
-            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
-
-        self._imported_modules[path] = node
-
-        err = None
-
-        try:
-            path_vy = path.with_suffix(".vy")
-            file = self.input_bundle.load_file(path_vy)
-            assert isinstance(file, FileInput)  # mypy hint
-
-            module_ast = self._ast_from_file(file)
-
-            with override_global_namespace(Namespace()):
-                module_t = _analyze_module_r(
-                    module_ast,
-                    self.input_bundle,
-                    import_graph=self._import_graph,
-                    is_interface=False,
-                )
-
-                return file, ModuleInfo(module_t, alias)
-
-        except FileNotFoundError as e:
-            # escape `e` from the block scope, it can make things
-            # easier to debug.
-            err = e
-
-        try:
-            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
-            assert isinstance(file, FileInput)  # mypy hint
-            module_ast = self._ast_from_file(file)
-
-            with override_global_namespace(Namespace()):
-                _analyze_module_r(
-                    module_ast,
-                    self.input_bundle,
-                    import_graph=self._import_graph,
-                    is_interface=True,
-                )
-                module_t = module_ast._metadata["type"]
-
-                return file, module_t.interface
-
-        except FileNotFoundError:
-            pass
-
-        try:
-            file = self.input_bundle.load_file(path.with_suffix(".json"))
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, InterfaceT.from_json_abi(str(file.path), file.abi)
-        except FileNotFoundError:
-            pass
-
-        hint = None
-        if module_str.startswith("vyper.interfaces"):
-            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
-
-        # copy search_paths, makes debugging a bit easier
-        search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, hint=hint) from err
-
-
-def _parse_ast(file: FileInput) -> vy_ast.Module:
-    module_path = file.resolved_path  # for error messages
-    try:
-        # try to get a relative path, to simplify the error message
-        cwd = Path(".")
-        if module_path.is_absolute():
-            cwd = cwd.resolve()
-        module_path = module_path.relative_to(cwd)
-    except ValueError:
-        # we couldn't get a relative path (cf. docs for Path.relative_to),
-        # use the resolved path given to us by the InputBundle
-        pass
-
-    ret = vy_ast.parse_to_ast(
-        file.source_code,
-        source_id=file.source_id,
-        module_path=module_path.as_posix(),
-        resolved_path=file.resolved_path.as_posix(),
-    )
-    return ret
-
-
-# convert an import to a path (without suffix)
-def _import_to_path(level: int, module_str: str) -> PurePath:
-    base_path = ""
-    if level > 1:
-        base_path = "../" * (level - 1)
-    elif level == 1:
-        base_path = "./"
-    return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
-
-
-# can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs"]
-
-
-# TODO: could move this to analysis/common.py or something
-def _is_builtin(module_str):
-    return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
-
-
-_builtins_cache: dict[PathLike, tuple[CompilerInput, ModuleT]] = {}
-
-
-def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
-    if not _is_builtin(module_str):  # pragma: nocover
-        raise CompilerPanic("unreachable!")
-
-    builtins_path = vyper.builtins.interfaces.__path__[0]
-    # hygiene: convert to relpath to avoid leaking user directory info
-    # (note Path.relative_to cannot handle absolute to relative path
-    # conversion, so we must use the `os` module).
-    builtins_path = safe_relpath(builtins_path)
-
-    search_path = Path(builtins_path).parent.parent.parent
-    # generate an input bundle just because it knows how to build paths.
-    input_bundle = FilesystemInputBundle([search_path])
-
-    # remap builtins directory --
-    # ethereum/ercs => vyper/builtins/interfaces
-    remapped_module = module_str
-    if remapped_module.startswith("ethereum.ercs"):
-        remapped_module = remapped_module.removeprefix("ethereum.ercs")
-        remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
-
-    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
-
-    # builtins are globally the same, so we can safely cache them
-    # (it is also *correct* to cache them, so that types defined in builtins
-    # compare correctly using pointer-equality.)
-    if path in _builtins_cache:
-        file, module_t = _builtins_cache[path]
-        return file, module_t.interface
-
-    try:
-        file = input_bundle.load_file(path)
-        assert isinstance(file, FileInput)  # mypy hint
-    except FileNotFoundError as e:
-        hint = None
-        components = module_str.split(".")
-        # common issue for upgrading codebases from v0.3.x to v0.4.x -
-        # hint: rename ERC20 to IERC20
-        if components[-1].startswith("ERC"):
-            module_prefix = components[-1]
-            hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
-        raise ModuleNotFound(module_str, hint=hint) from e
-
-    interface_ast = _parse_ast(file)
-
-    with override_global_namespace(Namespace()):
-        module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
-
-    _builtins_cache[path] = file, module_t
-    return file, module_t.interface

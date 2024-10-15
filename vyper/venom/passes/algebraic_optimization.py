@@ -15,7 +15,7 @@ from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
+#from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
 SIGNED = False
 UNSIGNED = True
@@ -214,7 +214,7 @@ class AlgebraicOptimizationPass(IRPass):
             inst.opcode = "offset"
             return True
 
-        if opcode in COMMUTATIVE_INSTRUCTIONS and eop_1 is not None:
+        if opcode in COMMUTATIVE_OPS and eop_1 is not None:
             eop_0, eop_1 = eop_1, eop_0
             op_0, op_1 = op_1, op_0
 
@@ -366,7 +366,7 @@ class AlgebraicOptimizationPass(IRPass):
                 # (x | y != 0) for any (y != 0)
                 return store(1)
 
-        if opcode in COMPARISON_OPS:
+        if False and opcode in COMPARISON_OPS:
             prefer_strict = not is_truthy
             res = _comparison_helper(binop, args, prefer_strict=prefer_strict)
             if res is None:

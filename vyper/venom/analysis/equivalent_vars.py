@@ -1,5 +1,4 @@
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRVariable
 
 
