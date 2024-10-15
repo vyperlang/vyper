@@ -21,8 +21,8 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
-from vyper.semantics.types.user import EventT, StructT, _UserType
-from vyper.utils import OrderedSet, sha256sum
+from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
+from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
     from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
@@ -45,27 +45,29 @@ class InterfaceT(_UserType):
         functions: dict,
         events: dict,
         structs: dict,
+        flags: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        members = functions | events | structs
+        members = functions | events | structs | flags
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs)
+        assert len(members) == len(functions) + len(events) + len(structs) + len(flags)
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs)
+        self._helper = VyperType(events | structs | flags)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
         self.structs = structs
+        self.flags = flags
 
         self.decl_node = decl_node
 
     def get_type_member(self, attr, node):
-        # get an event or struct from this interface
+        # get an event, struct or flag from this interface
         return TYPE_T(self._helper.get_member(attr, node))
 
     @property
@@ -159,12 +161,14 @@ class InterfaceT(_UserType):
         interface_name: str,
         decl_node: Optional[vy_ast.VyperNode],
         function_list: list[tuple[str, ContractFunctionT]],
-        event_list: list[tuple[str, EventT]],
-        struct_list: list[tuple[str, StructT]],
+        event_list: Optional[list[tuple[str, EventT]]] = None,
+        struct_list: Optional[list[tuple[str, StructT]]] = None,
+        flag_list: Optional[list[tuple[str, FlagT]]] = None,
     ) -> "InterfaceT":
-        functions = {}
-        events = {}
-        structs = {}
+        functions: dict[str, ContractFunctionT] = {}
+        events: dict[str, EventT] = {}
+        structs: dict[str, StructT] = {}
+        flags: dict[str, FlagT] = {}
 
         seen_items: dict = {}
 
@@ -175,19 +179,20 @@ class InterfaceT(_UserType):
                 raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
             seen_items[name] = item
 
-        for name, function in function_list:
-            _mark_seen(name, function)
-            functions[name] = function
+        def _process(dst_dict, items):
+            if items is None:
+                return
 
-        for name, event in event_list:
-            _mark_seen(name, event)
-            events[name] = event
+            for name, item in items:
+                _mark_seen(name, item)
+                dst_dict[name] = item
 
-        for name, struct in struct_list:
-            _mark_seen(name, struct)
-            structs[name] = struct
+        _process(functions, function_list)
+        _process(events, event_list)
+        _process(structs, struct_list)
+        _process(flags, flag_list)
 
-        return cls(interface_name, decl_node, functions, events, structs)
+        return cls(interface_name, decl_node, functions, events, structs, flags)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -214,8 +219,7 @@ class InterfaceT(_UserType):
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
 
-        structs: list = []  # no structs in json ABI (as of yet)
-        return cls._from_lists(name, None, functions, events, structs)
+        return cls._from_lists(name, None, functions, events)
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -247,8 +251,9 @@ class InterfaceT(_UserType):
         # these are accessible via import, but they do not show up
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
+        flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
 
-        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs)
+        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, flags)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
@@ -265,11 +270,7 @@ class InterfaceT(_UserType):
                 )
             functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
 
-        # no structs or events in InterfaceDefs
-        events: list = []
-        structs: list = []
-
-        return cls._from_lists(node.name, node, functions, events, structs)
+        return cls._from_lists(node.name, node, functions)
 
 
 # Datatype to store all module information.
@@ -436,21 +437,6 @@ class ModuleT(VyperType):
             ret.append(info)
 
         return ret
-
-    @cached_property
-    def integrity_sum(self) -> str:
-        acc = [sha256sum(self._module.full_source_code)]
-        for s in self.import_stmts:
-            info = s._metadata["import_info"]
-
-            if isinstance(info.typ, InterfaceT):
-                # NOTE: this needs to be redone if interfaces can import other interfaces
-                acc.append(info.compiler_input.sha256sum)
-            else:
-                assert isinstance(info.typ.typ, ModuleT)
-                acc.append(info.typ.typ.integrity_sum)
-
-        return sha256sum("".join(acc))
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
         for s in self.imported_modules.values():
