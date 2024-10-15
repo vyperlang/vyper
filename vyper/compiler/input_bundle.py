@@ -52,6 +52,8 @@ class ABIInput(CompilerInput):
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
         return ABIInput(**asdict(file_input), abi=s)
     except (ValueError, TypeError):
         return file_input

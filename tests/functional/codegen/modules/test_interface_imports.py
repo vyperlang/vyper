@@ -58,3 +58,31 @@ def foo() -> bool:
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.foo() is True
+
+
+def test_import_interface_flags(make_input_bundle, get_contract):
+    ifaces = """
+flag Foo:
+    BOO
+    MOO
+    POO
+
+interface IFoo:
+    def foo() -> Foo: nonpayable
+    """
+
+    contract = """
+import ifaces
+
+implements: ifaces
+
+@external
+def foo() -> ifaces.Foo:
+    return ifaces.Foo.POO
+    """
+
+    input_bundle = make_input_bundle({"ifaces.vyi": ifaces})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo() == 4
