@@ -63,12 +63,11 @@ def foo():
     a.foo()
     """
 
-    input_bundle = make_input_bundle(
-        {"top.vy": top, "a.vy": a, "subdir/b.vy": b }
-    )
+    input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
 
     with pytest.raises(ModuleNotFound):
         compiler.compile_code(top, input_bundle=input_bundle)
+
 
 def test_absolute_import_within_relative_import(make_input_bundle):
     top = """
