@@ -21,6 +21,7 @@ _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
 UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
+_IDEMPOTENT_INSTRUCTIONS = ["log", "call", "staticcall", "delegatecall", "invoke"]
 
 
 @dataclass
@@ -87,7 +88,7 @@ class _Expression:
                 if d > max_depth:
                     max_depth = d
         return max_depth + 1
-
+    
     def get_reads(self, ignore_msize: bool) -> Effects:
         tmp_reads = self.first_inst.get_read_effects()
         for op in self.operands:
@@ -197,9 +198,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         for inst in bb.instructions:
             if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
                 continue
+
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
-
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes(self.ignore_msize)
             for expr in available_expr.copy():
@@ -213,9 +214,11 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             if (
                 inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1)
+                and inst.opcode not in _IDEMPOTENT_INSTRUCTIONS
                 and write_effects & inst_expr.get_reads(self.ignore_msize) == EMPTY
             ):
                 available_expr.add(inst_expr)
+
 
         if available_expr != bb_lat.out:
             bb_lat.out = available_expr.copy()

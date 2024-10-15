@@ -85,6 +85,40 @@ def test_common_subexpression_elimination_effects_2():
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
 
 
+def test_common_subexpression_elimination_logs():
+    ctx = IRContext()
+    fn = ctx.create_function("test")
+    bb = fn.get_basic_block()
+    num2 = bb.append_instruction("store", 10)
+    num1 = bb.append_instruction("store", 20)
+    num3 = bb.append_instruction("store", 20)
+    bb.append_instruction("log", num1)
+    bb.append_instruction("log", num2)
+    bb.append_instruction("log", num1)
+    bb.append_instruction("log", num3)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+
+    print(fn)
+
+    from vyper.venom.analysis.available_expression import AvailableExpressionAnalysis
+
+    avail: AvailableExpressionAnalysis = ac.request_analysis(AvailableExpressionAnalysis)
+
+    print()
+
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            print(avail.get_available(inst))
+
+    CSE(ac, fn).run_pass()
+    print(fn)
+
+    assert (
+        sum(1 for inst in bb.instructions if inst.opcode == "log") == 4
+    ), "wrong number of log"
+
 def test_common_subexpression_elimination_effects_3():
     ctx = IRContext()
     fn = ctx.create_function("test")
@@ -103,7 +137,6 @@ def test_common_subexpression_elimination_effects_3():
     assert (
         sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 3
     ), "wrong number of mstores"
-
 
 def test_common_subexpression_elimination_effect_mstore():
     ctx = IRContext()
