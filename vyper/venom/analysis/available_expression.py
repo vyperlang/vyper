@@ -88,7 +88,7 @@ class _Expression:
                 if d > max_depth:
                     max_depth = d
         return max_depth + 1
-    
+
     def get_reads(self, ignore_msize: bool) -> Effects:
         tmp_reads = self.first_inst.get_read_effects()
         for op in self.operands:
@@ -218,7 +218,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 and write_effects & inst_expr.get_reads(self.ignore_msize) == EMPTY
             ):
                 available_expr.add(inst_expr)
-
 
         if available_expr != bb_lat.out:
             bb_lat.out = available_expr.copy()
