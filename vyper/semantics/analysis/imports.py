@@ -80,9 +80,9 @@ class ImportAnalyzer:
         self.seen: set[int] = set()
 
         self.integrity_sum = None
-        self.abosulte_search_paths = (
-            input_bundle.search_paths.copy()
-        )  # should be all system paths + topmost module path
+
+        # should be all system paths + topmost module path
+        self.absolute_search_paths =  input_bundle.search_paths.copy()
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
@@ -154,7 +154,7 @@ class ImportAnalyzer:
 
     def _load_file(self, path: PathLike, level: int):
         if level == 0:
-            self.input_bundle.search_paths = self.abosulte_search_paths
+            self.input_bundle.search_paths = self.absolute_search_paths
         else:
             ast = self.graph.current_module
             current_search_path = Path(ast.resolved_path).parent
