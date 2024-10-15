@@ -147,16 +147,18 @@ class Stmt:
             revert_seq = [
                 "seq",
                 ["mstore", buf, method_id],
+                ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]],
             ]
-            revert = ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]]
-            revert_seq.append(IRnode.from_list(revert, error_msg="user revert with reason"))
             revert_seq = b1.resolve(revert_seq)
 
         if is_raise:
             ir_node = revert_seq
         else:
             ir_node = ["if", ["iszero", test_expr], revert_seq]
-        return IRnode.from_list(ir_node)
+
+        ir_node = IRnode.from_list(ir_node)
+        ir_node.set_error_msg("user revert with reason")
+        return ir_node
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
