@@ -3,7 +3,8 @@ import warnings
 from collections import deque
 from pathlib import PurePath
 
-from vyper.ast import ast_to_dict
+import vyper.ast as vy_ast
+from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
@@ -11,7 +12,9 @@ from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
+from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
 from vyper.utils import vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
@@ -26,9 +29,32 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    # get all reachable imports including recursion
+    imported_module_infos = module_t.reachable_imports
+    unique_modules: dict[str, vy_ast.Module] = {}
+    for info in imported_module_infos:
+        if isinstance(info.typ, InterfaceT):
+            ast = info.typ.decl_node
+            if ast is None:  # json abi
+                continue
+        else:
+            assert isinstance(info.typ, ModuleInfo)
+            ast = info.typ.module_t._module
+
+        assert isinstance(ast, vy_ast.Module)  # help mypy
+        # use resolved_path for uniqueness, since Module objects can actually
+        # come from multiple InputBundles (particularly builtin interfaces),
+        # so source_id is not guaranteed to be unique.
+        if ast.resolved_path in unique_modules:
+            # sanity check -- objects must be identical
+            assert unique_modules[ast.resolved_path] is ast
+        unique_modules[ast.resolved_path] = ast
+
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+        "imports": [ast_to_dict(ast) for ast in unique_modules.values()],
     }
     return annotated_ast_dict
 
@@ -76,7 +102,7 @@ def build_archive_b64(compiler_data: CompilerData) -> str:
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
-    return compiler_data.compilation_target._metadata["type"].integrity_sum
+    return compiler_data.resolved_imports.integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
@@ -102,22 +128,33 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
-    if interface.events:
-        out = "# Events\n\n"
+    if len(interface.structs) > 0:
+        out += "# Structs\n\n"
+        for struct in interface.structs.values():
+            out += f"struct {struct.name}:\n"
+            for member_name, member_type in struct.members.items():
+                out += f"    {member_name}: {member_type}\n"
+            out += "\n\n"
+
+    if len(interface.events) > 0:
+        out += "# Events\n\n"
         for event in interface.events.values():
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
-            out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
+            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
-    if interface.functions:
-        out = f"{out}\n# Functions\n\n"
+    if len(interface.functions) > 0:
+        out += "# Functions\n\n"
         for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
-                out = f"{out}@{func.mutability.value}\n"
+                out += f"@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
+            out += f"@external\ndef {func.name}({args}){return_value}:\n    ...\n\n\n"
+
+    out = out.rstrip("\n")
+    out += "\n"
 
     return out
 
