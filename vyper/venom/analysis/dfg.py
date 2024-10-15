@@ -28,7 +28,7 @@ class DFGAnalysis(IRAnalysis):
         uses.append(inst)
 
     def add_output(self, op: IRVariable, inst: IRInstruction):
-        assert op not in self._dfg_outputs.keys()
+        assert op not in self._dfg_outputs
         self._dfg_outputs[op] = inst
     
     def remove_use(self, op: IRVariable, inst: IRInstruction):
