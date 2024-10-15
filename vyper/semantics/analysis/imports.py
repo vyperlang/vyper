@@ -82,7 +82,7 @@ class ImportAnalyzer:
         self.integrity_sum = None
 
         # should be all system paths + topmost module path
-        self.absolute_search_paths =  input_bundle.search_paths.copy()
+        self.absolute_search_paths = input_bundle.search_paths.copy()
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)

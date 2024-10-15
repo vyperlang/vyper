@@ -138,7 +138,6 @@ class InputBundle:
 
         return res
 
-
     # temporarily add something to the search path (within the
     # scope of the context manager) with highest precedence.
     # if `path` is None, do nothing
