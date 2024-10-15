@@ -105,9 +105,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
-
-
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
 
@@ -433,7 +430,7 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        if opcode in COMMUTATIVE_INSTRUCTIONS:
+        if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
