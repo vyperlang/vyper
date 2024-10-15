@@ -165,10 +165,10 @@ class InterfaceT(_UserType):
         struct_list: Optional[list[tuple[str, StructT]]] = None,
         flag_list: Optional[list[tuple[str, FlagT]]] = None,
     ) -> "InterfaceT":
-        functions = {}
-        events = {}
-        structs = {}
-        flags = {}
+        functions: dict[str, ContractFunctionT] = {}
+        events: dict[str, EventT] = {}
+        structs: dict[str, StructT] = {}
+        flags: dict[str, FlagT] = {}
 
         seen_items: dict = {}
 
@@ -179,24 +179,18 @@ class InterfaceT(_UserType):
                 raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
             seen_items[name] = item
 
-        for name, function in function_list:
-            _mark_seen(name, function)
-            functions[name] = function
+        def _process(dst_dict, items):
+            if items is None:
+                return
 
-        if event_list:
-            for name, event in event_list:
-                _mark_seen(name, event)
-                events[name] = event
+            for name, item in items:
+                _mark_seen(name, item)
+                dst_dict[name] = item
 
-        if struct_list:
-            for name, struct in struct_list:
-                _mark_seen(name, struct)
-                structs[name] = struct
-
-        if flag_list:
-            for name, flag in flag_list:
-                _mark_seen(name, flag)
-                flags[name] = flag
+        _process(functions, function_list)
+        _process(events, event_list)
+        _process(structs, struct_list)
+        _process(flags, flag_list)
 
         return cls(interface_name, decl_node, functions, events, structs, flags)
 
