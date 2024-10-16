@@ -299,7 +299,7 @@ def foo():
         compile_code(code)
 
 
-def test_replace_decimal_nested_intermediate_underflow(dummy_input_bundle):
+def test_replace_decimal_nested_intermediate_underflow():
     code = """
 @external
 def foo():

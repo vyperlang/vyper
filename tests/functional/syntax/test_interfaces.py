@@ -381,13 +381,22 @@ def test_interfaces_success(good_code):
 
 
 def test_imports_and_implements_within_interface(make_input_bundle):
-    interface_code = """
+    ibar_code = """
+@external
+def foobar():
+    ...
+"""
+    ifoo_code = """
+import bar
+
+implements: bar
+
 @external
 def foobar():
     ...
 """
 
-    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code, "bar.vyi": ibar_code})
 
     code = """
 import foo as Foo
