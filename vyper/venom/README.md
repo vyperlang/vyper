@@ -160,3 +160,154 @@ A number of passes that are planned to be implemented, or are implemented for im
 ### Function inlining
 
 ### Load-store elimination
+
+---
+
+## Structure of a venom program
+
+### IRContext
+An `IRContext` consists of multiple `IRFunctions`, with one designated as the main entry point of the program.
+Additionally, the `IRContext` maintains its own representation of the data segment.
+
+### IRFunction
+An `IRFunction` is composed of a name and multiple `IRBasicBlocks` with one marked as the entry point to the function.
+
+### IRBasicBlock
+An `IRBasicBlock` contains a label and a sequence of `IRInstructions`.
+Each `IRBasicBlock` has a single entry point and a single exit point.
+The exit point must be one of following terminator instructions:
+- `jmp` 
+- `djmp` 
+- `jnz` 
+- `ret` 
+- `return` 
+- `stop` 
+- `exit`
+
+### IRInstruction
+An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
+
+## Instructions
+
+### Special instructions
+- jmp
+- djmp
+- jnz
+- invoke
+- alloca
+- palloca
+- iload
+- istore
+- log
+- phi
+- offset
+- jmp
+- param
+- store
+- dbname
+- dloadbytes
+- invoke
+- ret
+- return
+- exit
+- sha3
+- sha3_64
+- assert
+- assert_unreachable
+- log
+- nop
+
+### Jump instructions
+- jnz
+- jmp Unconditional jump to label
+- djump Branching jump to label
+
+
+### EVM instructions
+The following instructions map one-to-one with EVM instructions.
+
+- revert
+- coinbase
+- calldatasize
+- calldatacopy
+- mcopy
+- calldataload
+- gas
+- gasprice
+- gaslimit
+- chainid
+- address
+- origin
+- number
+- extcodesize
+- extcodehash
+- extcodecopy
+- returndatasize
+- returndatacopy
+- callvalue
+- selfbalance
+- sload
+- sstore
+- mload
+- mstore
+- tload
+- tstore
+- timestamp
+- caller
+- blockhash
+- selfdestruct
+- signextend
+- stop
+- shr
+- shl
+- sar
+- and
+- xor
+- or
+- add
+- sub
+- mul
+- div
+- smul
+- sdiv
+- mod
+- smod
+- exp
+- addmod
+- mulmod
+- eq
+- iszero
+- not
+- lt
+- gt
+- slt
+- sgt
+- create
+- create2
+- msize
+- balance
+- call
+- staticcall
+- delegatecall
+- codesize
+- basefee
+- blobhash
+- blobbasefee
+- prevrandao
+- difficulty
+- invalid
+---
+
+### NOTES
+- line 469:  venomtoassembly elif opcode in ["codecopy", "dloadbytes"]: redundant codecopy mention here as it is in _ONE_TO_ONE_INSTRUCTIONS?
+- line 27: in function args- is it used, ever (really don't think so - when deleting it nothing changes on my tiny example)
+
+
+### TODO
+- Describe the architecture of analyses and passes a bit more. mention the distiction between analysis and pass (optimisation or transformation).
+- mention how to compile into it , bb(deploy), bb_runtime
+- perhaps add some flag to skip the store expansion pass? for readers of the code
+- mem2var hoists from mem to var
+- should i comment on the translation from the s-expr IR to this ssa-IR?
+- Mention what is normalized? 
+- args pushed onto stack before call
