@@ -280,6 +280,8 @@ class AlgebraicOptimizationPass(IRPass):
         self.rules = [
             Rule(opset({"shl", "shr", "sar"}), new_rules_eops(None, 0), store_op(0)),
             Rule(opset({"add", "sub", "xor", "or"}), new_rules_eops(0, None), store_op(1)),
+            Rule(opset({"mul", "div", "sdiv", "mod", "smod", "and"}), new_rules_eops(0, None), store(0)),
+            Rule(opset({"mul", "div", "sdiv"}), new_rules_eops(1, None), store_op(1))
         ]
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
@@ -337,7 +339,7 @@ class AlgebraicOptimizationPass(IRPass):
             op_0, op_1 = op_1, op_0
             operands = [operands[1], operands[0]]
 
-        fn, _, unsigned = arith.get(inst.opcode, (lambda x, y: x, "x", False))
+        fn, _, unsigned = arith.get(inst.opcode, (lambda x, _: x, "x", False))
 
         if isinstance(eop_0, IRLiteral) and isinstance(eop_1, IRLiteral) and opcode in arith:
             assert isinstance(eop_0.value, int), "must be int"
@@ -351,25 +353,12 @@ class AlgebraicOptimizationPass(IRPass):
                 inst.operands = [IRLiteral(res)]
                 return True
 
-        eval_ops = [_evm_int(self.eval_op(op)) for op in operands]
+        eval_ops = [_evm_int(self.eval_op(op), unsigned) for op in operands]
 
         for rule in self.rules:
             if rule.check(inst, operands, eval_ops):
                 rule.trasform(inst, operands)
                 return True
-        """
-        if opcode in {"shl", "shr", "sar"} and _evm_int(eop_1) == 0:
-            # x >> 0 == x << 0 == x
-            return store(op_0)
-
-        if opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
-            return store(op_1)
-        """
-        if (
-            opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}
-            and _evm_int(eop_0, unsigned) == 0
-        ):
-            return store(0)
 
         if opcode in {"sub", "xor", "ne"} and self.static_eq(op_0, op_1, eop_0, eop_1):
             # (x - x) == (x ^ x) == (x != x) == 0
@@ -386,8 +375,7 @@ class AlgebraicOptimizationPass(IRPass):
         if opcode in {"mod", "smod"} and eop_0 == IRLiteral(1):
             return store(0)
 
-        if opcode in {"mul", "div", "sdiv"} and eop_0 == IRLiteral(1):
-            return store(op_1)
+
         if opcode in {"and", "or", "xor"} and _evm_int(eop_0, SIGNED) == -1:
             assert unsigned == UNSIGNED, "must be unsigned"
             if opcode == "and":
