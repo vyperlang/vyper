@@ -1,4 +1,5 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .alloca_elimination import AllocaElimination
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .make_ssa import MakeSSA
@@ -7,7 +8,6 @@ from .normalization import NormalizationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
+from .stack2mem import Stack2Mem
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
-from .alloca_elimination import AllocaElimination
-from .stack2mem import Stack2Mem

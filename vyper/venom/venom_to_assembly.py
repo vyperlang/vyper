@@ -358,11 +358,14 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode in ["alloca", "palloca"]:
-            #raise Exception("Alloca at assembly generation is not valid")
+        elif opcode == "alloca":
+            raise Exception("Alloca at assembly generation is not valid")
             offset, _size = inst.operands
             offset = inst.parent.parent._mem_allocator.allocate(_size.value)
             # print(f"Allocated {offset} for alloca {_size}")
+            operands = [offset]
+        elif opcode == "palloca":
+            offset, _size = inst.operands
             operands = [offset]
 
         # iload and istore are special cases because they can take a literal

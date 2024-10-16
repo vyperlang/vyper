@@ -1,5 +1,4 @@
 from vyper.venom.basicblock import IRInstruction, IRLiteral
-
 from vyper.venom.passes.base_pass import IRPass
 
 

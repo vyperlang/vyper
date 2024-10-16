@@ -13,16 +13,16 @@ from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
+    AllocaElimination,
     BranchOptimizationPass,
     DFTPass,
     MakeSSA,
     Mem2Var,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
+    Stack2Mem,
     StoreElimination,
     StoreExpansionPass,
-    AllocaElimination,
-    Stack2Mem,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
