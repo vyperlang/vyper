@@ -50,10 +50,11 @@ class DFTPass(IRPass):
             if len(to_remove) > 0:
                 entry_instructions.dropmany(to_remove)
 
-        entry_instructions = sorted(entry_instructions,
-                                    key=lambda x: (
-                                        len(self.inst_offspring[x])
-                                    ))
+        # entry_instructions = sorted(entry_instructions,
+        #                             key=lambda x: (
+        #                                 len(self.inst_offspring[x])
+        #                             ))
+        entry_instructions = list(reversed(entry_instructions))
 
         # Move the terminator instruction to the end of the list
         terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
@@ -76,25 +77,15 @@ class DFTPass(IRPass):
         if inst.is_pseudo:
             return
         
+        children = list(self.barriers[inst]) + list(self.ida[inst])
+        
         children = sorted(
             self.ida[inst],
             key=lambda x: (
-                -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
                 inst.operands.index(x.output) if x.output in inst.operands else 0,
+                -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
             ),
         )
-
-        children = self.ida[inst]
-
-        barriers = sorted(self.barriers[inst],
-                          key=lambda x: (
-                            -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
-                            inst.operands.index(x.output) if x.output in inst.operands else 0,
-                          ),
-                          reverse=False)
-
-        for barrier_inst in barriers:
-            self._process_instruction_r(instructions, barrier_inst)
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
