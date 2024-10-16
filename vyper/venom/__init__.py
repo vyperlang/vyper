@@ -10,18 +10,18 @@ from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
-from vyper.venom.passes.alloca_elimination import AllocaElimination
-from vyper.venom.passes.branch_optimization import BranchOptimizationPass
-from vyper.venom.passes.dft import DFTPass
-from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.mem2var import Mem2Var
-from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
-from vyper.venom.passes.sccp import SCCP
-from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
-from vyper.venom.passes.stack2mem import Stack2Mem
-from vyper.venom.passes.store_elimination import StoreElimination
-from vyper.venom.passes.store_expansion import StoreExpansionPass
+from vyper.venom.passes import (
+    AlgebraicOptimizationPass,
+    BranchOptimizationPass,
+    DFTPass,
+    MakeSSA,
+    Mem2Var,
+    RemoveUnusedVariablesPass,
+    SimplifyCFGPass,
+    StoreElimination,
+    StoreExpansionPass,
+    AllocaElimination,
+)
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -57,6 +57,13 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+    # NOTE: MakeSSA is after algebraic optimization it currently produces
+    #       smaller code by adding some redundant phi nodes. This is not a
+    #       problem for us, but we need to be aware of it, and should be
+    #       removed when the dft pass is fixed to produce the smallest code
+    #       without making the code generation more expensive by running
+    #       MakeSSA again.
+    MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 

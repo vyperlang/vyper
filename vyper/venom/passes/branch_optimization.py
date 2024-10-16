@@ -1,4 +1,4 @@
-from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
 
