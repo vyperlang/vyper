@@ -10,14 +10,17 @@ from vyper.venom.passes.base_pass import IRPass
 
 class DFTPass(IRPass):
     function: IRFunction
+    inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     ida: dict[IRInstruction, OrderedSet[IRInstruction]]
     barriers: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
+        self.inst_offspring = {}
 
     def run_pass(self) -> None:
+        self.inst_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -36,6 +39,10 @@ class DFTPass(IRPass):
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)
 
+        self.visited_instructions = OrderedSet()
+        for inst in non_phi_instructions:
+            self._calculate_instruction_offspring(inst)
+
         # Compute entry points in the graph of instruction dependencies
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
         for inst in non_phi_instructions:
@@ -43,11 +50,16 @@ class DFTPass(IRPass):
             if len(to_remove) > 0:
                 entry_instructions.dropmany(to_remove)
 
+        entry_instructions = sorted(entry_instructions,
+                                    key=lambda x: (
+                                        len(self.inst_offspring[x])
+                                    ))
+
         # Move the terminator instruction to the end of the list
         terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
         assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
         entry_instructions.remove(terminator)
-        entry_instructions.add(terminator)
+        entry_instructions.append(terminator)
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions:
@@ -63,11 +75,28 @@ class DFTPass(IRPass):
 
         if inst.is_pseudo:
             return
+        
+        children = sorted(
+            self.ida[inst],
+            key=lambda x: (
+                -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
+                inst.operands.index(x.output) if x.output in inst.operands else 0,
+            ),
+        )
 
-        for barrier_inst in self.barriers[inst]:
+        children = self.ida[inst]
+
+        barriers = sorted(self.barriers[inst],
+                          key=lambda x: (
+                            -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
+                            inst.operands.index(x.output) if x.output in inst.operands else 0,
+                          ),
+                          reverse=False)
+
+        for barrier_inst in barriers:
             self._process_instruction_r(instructions, barrier_inst)
 
-        for dep_inst in self.ida[inst]:
+        for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
 
         instructions.append(inst)
@@ -104,3 +133,18 @@ class DFTPass(IRPass):
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
+
+
+    def _calculate_instruction_offspring(self, inst: IRInstruction):
+        if inst in self.inst_offspring:
+            return self.inst_offspring[inst]
+
+        self.inst_offspring[inst] = self.ida[inst].copy()
+
+        children = list(self.ida[inst]) + list(self.barriers[inst])
+        for dep_inst in children:
+            assert inst.parent == dep_inst.parent
+            res = self._calculate_instruction_offspring(dep_inst)
+            self.inst_offspring[inst] |= res
+
+        return self.inst_offspring[inst]
