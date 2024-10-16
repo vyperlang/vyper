@@ -141,6 +141,8 @@ class IRFunction:
             if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
                 for op in inst.get_label_operands():
                     out_bb = self.get_basic_block(op.value)
+                    # note: bb.reachable is "shallow" reachability, not
+                    # "deep" reachability -- it is equivalent to cfg_out.
                     bb.reachable.add(out_bb)
                     self._compute_reachability_from(out_bb)
 
