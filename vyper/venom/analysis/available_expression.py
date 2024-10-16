@@ -1,5 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
+from functools import cached_property
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
@@ -27,6 +28,7 @@ class _Expression:
     first_inst: IRInstruction
     opcode: str
     operands: list["IROperand | _Expression"]
+    ignore_msize: bool
 
     # equality for lattices only based on first_inst
     def __eq__(self, other) -> bool:
@@ -87,21 +89,23 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
-    def get_reads(self, ignore_msize: bool) -> Effects:
+    @cached_property
+    def get_reads(self) -> Effects:
         tmp_reads = self.first_inst.get_read_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
-                tmp_reads = tmp_reads | op.get_reads(ignore_msize)
-        if ignore_msize:
+                tmp_reads = tmp_reads | op.get_reads
+        if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
-    def get_writes(self, ignore_msize: bool) -> Effects:
+    @cached_property
+    def get_writes(self) -> Effects:
         tmp_reads = self.first_inst.get_write_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
-                tmp_reads = tmp_reads | op.get_writes(ignore_msize)
-        if ignore_msize:
+                tmp_reads = tmp_reads | op.get_writes
+        if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
@@ -204,20 +208,20 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if available_expr != bb_lat.data[inst]:
                 bb_lat.data[inst] = available_expr.copy()
             inst_expr = self.get_expression(inst, available_expr)
-            write_effects = inst_expr.get_writes(self.ignore_msize)
+            write_effects = inst_expr.get_writes
             for expr in available_expr.copy():
-                read_effects = expr.get_reads(self.ignore_msize)
+                read_effects = expr.get_reads
                 if read_effects & write_effects != EMPTY:
                     available_expr.remove(expr)
                     continue
-                write_effects_expr = expr.get_writes(self.ignore_msize)
+                write_effects_expr = expr.get_writes
                 if write_effects_expr & write_effects != EMPTY:
                     available_expr.remove(expr)
 
             if (
                 inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1)
                 and inst.opcode not in _IDEMPOTENT_INSTRUCTIONS
-                and write_effects & inst_expr.get_reads(self.ignore_msize) == EMPTY
+                and write_effects & inst_expr.get_reads == EMPTY
             ):
                 available_expr.add(inst_expr)
 
@@ -256,7 +260,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs = available_exprs or self.lattice.data[inst.parent].data[inst]
         depth = self.max_depth if depth is None else depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
-        expr = _Expression(inst, inst.opcode, operands)
+        expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
         for e in available_exprs:
             if expr.same(e):
