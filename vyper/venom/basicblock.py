@@ -82,6 +82,8 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
+COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
+
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
@@ -234,6 +236,10 @@ class IRInstruction:
     @property
     def is_volatile(self) -> bool:
         return self.opcode in VOLATILE_INSTRUCTIONS
+
+    @property
+    def is_commutative(self) -> bool:
+        return self.opcode in COMMUTATIVE_INSTRUCTIONS
 
     @property
     def is_bb_terminator(self) -> bool:
