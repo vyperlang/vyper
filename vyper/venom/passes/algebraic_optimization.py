@@ -63,11 +63,14 @@ class AlgebraicOptimizationPass(IRPass):
                 # check if the instruction is of the form
                 # `add <ptr> <label>`
                 # this works only if store chains have been eliminated.
-                if (
-                    inst.opcode == "add"
-                    and isinstance(inst.operands[0], IRLiteral)
-                    and isinstance(inst.operands[1], IRLabel)
-                ):
+                if inst.opcode != "add":
+                    continue
+                ops = inst.operands
+                # assembler expects IRLabel as second operand
+                if isinstance(ops[0], IRLabel):
+                    # add is commutative
+                    ops.reverse()
+                if isinstance(ops[1], IRLabel) and isinstance(ops[0], IRLiteral):
                     inst.opcode = "offset"
 
     def run_pass(self):
