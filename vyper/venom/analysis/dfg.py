@@ -2,7 +2,7 @@ from typing import Optional
 
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -18,6 +18,12 @@ class DFGAnalysis(IRAnalysis):
     # return uses of a given variable
     def get_uses(self, op: IRVariable) -> list[IRInstruction]:
         return self._dfg_inputs.get(op, [])
+
+    def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
+        """
+        Get uses of a given variable in a specific basic block.
+        """
+        return [inst for inst in self.get_uses(op) if inst.parent == bb]
 
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
