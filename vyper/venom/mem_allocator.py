@@ -23,7 +23,7 @@ class MemoryAllocator:
         self.blocks = [MemoryBlock(total_size, 0)]
 
     def allocate(self, size: int) -> int:
-        print(f"Allocating {size} bytes with free memory {self.get_free_memory()}")
+        #print(f"Allocating {size} bytes with free memory {self.get_free_memory()}")
         for block in self.blocks:
             if block.is_free and block.size >= size:
                 if block.size > size:

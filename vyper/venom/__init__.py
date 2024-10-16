@@ -11,6 +11,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
+    SCCP,
     AlgebraicOptimizationPass,
     BranchOptimizationPass,
     DFTPass,
@@ -54,7 +55,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     MakeSSA(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
-    #SCCP(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()

@@ -361,8 +361,8 @@ class VenomCompiler:
         elif opcode in ["alloca", "palloca"]:
             #raise Exception("Alloca at assembly generation is not valid")
             offset, _size = inst.operands
-            offset = inst.parent.parent._mem_allocator.allocate(_size)
-            print(f"Allocated {offset} for alloca {_size}")
+            offset = inst.parent.parent._mem_allocator.allocate(_size.value)
+            # print(f"Allocated {offset} for alloca {_size}")
             operands = [offset]
 
         # iload and istore are special cases because they can take a literal
