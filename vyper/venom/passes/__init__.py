@@ -9,3 +9,5 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
+from .alloca_elimination import AllocaElimination
+from .stack2mem import Stack2Mem

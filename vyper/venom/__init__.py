@@ -21,6 +21,7 @@ from vyper.venom.passes import (
     StoreElimination,
     StoreExpansionPass,
     AllocaElimination,
+    Stack2Mem,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 

@@ -359,7 +359,7 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
         elif opcode in ["alloca", "palloca"]:
-            raise Exception("Alloca at assembly generation is not valid")
+            #raise Exception("Alloca at assembly generation is not valid")
             offset, _size = inst.operands
             offset = inst.parent.parent._mem_allocator.allocate(_size)
             print(f"Allocated {offset} for alloca {_size}")
