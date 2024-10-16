@@ -16,6 +16,7 @@ from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from collections.abc import Callable
 
 # from vyper.venom.venom_to_assembly import COMMUTATIVE_INSTRUCTIONS
 
@@ -70,15 +71,10 @@ arith = {
     "smod": (evm_mod, "%", SIGNED),
     "exp": (evm_pow, "**", UNSIGNED),
     "eq": (operator.eq, "==", UNSIGNED),
-    "ne": (operator.ne, "!=", UNSIGNED),
     "lt": (operator.lt, "<", UNSIGNED),
-    "le": (operator.le, "<=", UNSIGNED),
     "gt": (operator.gt, ">", UNSIGNED),
-    "ge": (operator.ge, ">=", UNSIGNED),
     "slt": (operator.lt, "<", SIGNED),
-    "sle": (operator.le, "<=", SIGNED),
     "sgt": (operator.gt, ">", SIGNED),
-    "sge": (operator.ge, ">=", SIGNED),
     "or": (operator.or_, "|", UNSIGNED),
     "and": (operator.and_, "&", UNSIGNED),
     "xor": (operator.xor, "^", UNSIGNED),
@@ -94,6 +90,32 @@ def _flip_comparison_op(opname):
     raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
+class Rule:
+    inst_rule: Callable[[IRInstruction], bool]
+    rules: list[Callable[[IROperand, int | None], bool]]
+    tranformation: Callable[[IRInstruction], None]
+
+    def __init__(self, inst_rule: Callable[[IRInstruction], bool], rules: list, transformation):
+        self.inst_rule = inst_rule
+        self.rules = rules
+        self.tranformation = transformation
+
+
+    def check(self, inst: IRInstruction, eval_ops: list[int | None]) -> bool:
+        if not self.inst_rule(inst):
+            return False
+
+        assert len(inst.operands) == len(self.rules), "wrong number rules"
+        for (rule, op, eop) in zip(self.rules, inst.operands, eval_ops):
+            if not rule(op, eop):
+                return False
+
+        return True
+    
+    def trasform(self, inst: IRInstruction):
+        self.tranformation(inst)
+
+
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
@@ -103,6 +125,7 @@ class AlgebraicOptimizationPass(IRPass):
     """
 
     dfg: DFGAnalysis
+    rules: list[Rule]
 
     def _optimize_iszero_chains(self) -> None:
         fn = self.function
@@ -176,6 +199,67 @@ class AlgebraicOptimizationPass(IRPass):
         self, op_0: IROperand, op_1: IROperand, eop_0: IRLiteral | None, eop_1: IRLiteral | None
     ) -> bool:
         return (eop_0 is not None and eop_0 == eop_1) or self.eq_analysis.equivalent(op_0, op_1)
+    
+    def _create_rules(self):
+        def update(opcode: str, *args: IROperand | int) -> Callable[[IRInstruction], None]:
+            def inner(inst: IRInstruction):
+                inst.opcode = opcode
+                inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            return inner
+
+        def store(*args: IROperand | int) -> Callable[[IRInstruction], None]:
+            return update("store", *args)
+
+
+        def get_op(index: int) -> Callable[[IRInstruction], IROperand]:
+            def inner(inst: IRInstruction):
+                return inst.operands[index]
+            return inner
+
+        def store_op(index: int) -> Callable[[IRInstruction], None]:
+            def inner(inst: IRInstruction):
+                inst.opcode = "store"
+                inst.operands = [inst.operands[index]]
+
+            return inner
+
+        def add(opcode: str, *args: IROperand | int) -> Callable[[IRInstruction], IRVariable]:
+            def inner(inst: IRInstruction):
+                index = inst.parent.instructions.index(inst)
+                var = inst.parent.parent.get_next_variable()
+                operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+                new_inst = IRInstruction(opcode, operands, output=var)
+                inst.parent.insert_instruction(new_inst, index)
+                self.dfg.add_output(var, new_inst)
+                self.dfg.add_use(var, inst)
+                return var
+
+            return inner
+        
+        def new_rules_eops(*eops: int | None) -> list[Callable[[IROperand, int | None], bool]]:
+            rules = []
+            def check(eop: int | None) -> Callable[[IROperand, int | None], bool]:
+                def inner(_: IROperand, e: int | None):
+                    return e is not None and e == eop
+                return inner
+
+            for eop in eops:
+                if eop is not None:
+                    rules.append(check(eop))
+                else:
+                    rules.append(lambda _a, _b: True)
+            return rules
+        
+        def opset(opcodes: set[str]) -> Callable[[IRInstruction], bool]:
+            def inner(inst: IRInstruction) -> bool:
+                return inst.opcode in opcodes
+
+            return inner
+
+        self.rules = [
+            Rule(opset({"shl", "shr", "sar"}), new_rules_eops(None, 0), store_op(0)),
+            Rule(opset({"add", "sub", "xor", "or"}), new_rules_eops(0, None), store_op(1))
+        ]
 
     def _peepholer(self):
         while True:
@@ -209,6 +293,9 @@ class AlgebraicOptimizationPass(IRPass):
         if len(inst.operands) < 1:
             return False
 
+        if inst.output is None:
+            return False
+
         opcode = inst.opcode
         op_0 = inst.operands[0]
         eop_0 = self.eval_op(inst.operands[0])
@@ -236,6 +323,7 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.is_commutative and eop_1 is not None:
             eop_0, eop_1 = eop_1, eop_0
             op_0, op_1 = op_1, op_0
+            inst.operands[0], inst.operands[1] = inst.operands[1], inst.operands[0]
 
         if opcode in {"shl", "shr", "sar"} and _evm_int(eop_1) == 0:
             # x >> 0 == x << 0 == x
@@ -243,7 +331,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         if inst.opcode not in arith.keys():
             return False
-        fn, _, unsigned = arith[inst.opcode]
+        fn, _, unsigned = arith.get(inst.opcode, (lambda x: x, "x", False))
 
         if isinstance(eop_0, IRLiteral) and isinstance(eop_1, IRLiteral):
             assert isinstance(eop_0.value, int), "must be int"
@@ -256,6 +344,20 @@ class AlgebraicOptimizationPass(IRPass):
                 inst.opcode = "store"
                 inst.operands = [IRLiteral(res)]
                 return True
+
+
+        #eval_ops = [_evm_int(self.eval_op(op)) for op in inst.operands]
+
+        #for rule in self.rules:
+            #if rule.check(inst, eval_ops):
+                #rule.trasform(inst)
+                #return True
+
+        """
+        if opcode in {"shl", "shr", "sar"} and _evm_int(eop_1) == 0:
+            # x >> 0 == x << 0 == x
+            return store(op_0)
+        """
 
         if opcode in {"add", "sub", "xor", "or"} and eop_0 == IRLiteral(0):
             return store(op_1)
@@ -439,6 +541,7 @@ class AlgebraicOptimizationPass(IRPass):
         self.dfg = dfg
 
         self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
+        self._create_rules()
 
         self._peepholer()
         self._optimize_iszero_chains()
