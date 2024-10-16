@@ -186,29 +186,38 @@ The exit point must be one of following terminator instructions:
 
 ### IRInstruction
 An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
+Operand can be a label, a variable or a literal.
 
 ## Instructions
 
 ### Special instructions
-- jmp
-- djmp
-- jnz
+
 - invoke
 - alloca
+  - Allocates memory on stack
+  - does not get translated to EVM. op1 is size, op2 is offset
+  - ```
+    ret = alloca op1, op2
+    ```
+  - what does it return? at offset op2 it allocates op1 bytes?
 - palloca
+  - does not get translated to EVM
 - iload
 - istore
-- log
 - phi
 - offset
-- jmp
 - param
+  - does not get translated to EVM
 - store
+  - does not get translated to EVM
 - dbname
+  - does not get translated to EVM
 - dloadbytes
 - invoke
 - ret
+  - return from an internall call, translates to JUMP
 - return
+  - return from an external jumps, translates to RETURN
 - exit
 - sha3
 - sha3_64
@@ -218,10 +227,24 @@ An `IRInstruction` consists of an opcode, a list of operands, and an optional re
 - nop
 
 ### Jump instructions
-- jnz
-- jmp Unconditional jump to label
-- djump Branching jump to label
 
+- jmp
+  - Unconditional jump to label
+  - ```
+    jmp label
+    ```
+- jnz
+  - Conditional jump
+  - Jumps to `label2` when `op3` is not zero, otherwise jumps to `label1`.
+  - ```
+    jnz label1, label2, op
+    ```
+- djmp
+  - Dynamic jump to an address specified by the variable operand.
+  - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
+  - ```
+    djmp op
+    ```
 
 ### EVM instructions
 The following instructions map one-to-one with EVM instructions.
@@ -304,6 +327,7 @@ The following instructions map one-to-one with EVM instructions.
 
 
 ### TODO
+- Ask - the operands are written in the way they are printed, not in the way they are represented internally?
 - Describe the architecture of analyses and passes a bit more. mention the distiction between analysis and pass (optimisation or transformation).
 - mention how to compile into it , bb(deploy), bb_runtime
 - perhaps add some flag to skip the store expansion pass? for readers of the code
