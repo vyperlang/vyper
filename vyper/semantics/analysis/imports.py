@@ -194,6 +194,7 @@ class ImportAnalyzer:
             file = self.input_bundle.load_file(path.with_suffix(".vyi"))
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
+            self.resolve_imports(module_ast)
 
             # language does not yet allow recursion for vyi files
             # self.resolve_imports(module_ast)
