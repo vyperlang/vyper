@@ -53,7 +53,7 @@ def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    return _analyze_module_r(module_ast)
+    return _analyze_module_r(module_ast, module_ast.is_interface)
 
 
 def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
