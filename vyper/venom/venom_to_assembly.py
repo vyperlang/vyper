@@ -10,9 +10,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis, VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -22,7 +20,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -104,9 +102,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "invalid",
     ]
 )
-
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
-
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
@@ -433,7 +428,7 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        if opcode in COMMUTATIVE_INSTRUCTIONS:
+        if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
