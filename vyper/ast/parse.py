@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 import asttokens
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.pre_parser import PreParseResult, pre_parse
+from vyper.ast.pre_parser import PreParser
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum, vyper_warn
@@ -54,9 +54,10 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    pre_parse_result = pre_parse(vyper_source)
+    pre_parser = PreParser()
+    pre_parser.parse(vyper_source)
     try:
-        py_ast = python_ast.parse(pre_parse_result.reformatted_code)
+        py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
@@ -72,20 +73,20 @@ def parse_to_ast_with_settings(
     annotate_python_ast(
         py_ast,
         vyper_source,
-        pre_parse_result,
+        pre_parser,
         source_id=source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
 
     # postcondition: consumed all the for loop annotations
-    assert len(pre_parse_result.for_loop_annotations) == 0
+    assert len(pre_parser.for_loop_annotations) == 0
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
 
-    return pre_parse_result.settings, module
+    return pre_parser.settings, module
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
@@ -116,7 +117,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     vyper_source: str,
-    pre_parse_result: PreParseResult,
+    pre_parser: PreParser,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -130,8 +131,8 @@ def annotate_python_ast(
         The AST to be annotated and optimized.
     vyper_source: str
         The original vyper source code
-    pre_parse_result: PreParseResult
-        Outputs from pre-parsing.
+    pre_parser: PreParser
+        PreParser object.
 
     Returns
     -------
@@ -142,7 +143,7 @@ def annotate_python_ast(
     tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
         vyper_source,
-        pre_parse_result,
+        pre_parser,
         tokens,
         source_id,
         module_path=module_path,
@@ -155,12 +156,12 @@ def annotate_python_ast(
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
-    _pre_parse_result: PreParseResult
+    _pre_parser: PreParser
 
     def __init__(
         self,
         source_code: str,
-        pre_parse_result: PreParseResult,
+        pre_parser: PreParser,
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
@@ -171,7 +172,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._module_path = module_path
         self._resolved_path = resolved_path
         self._source_code = source_code
-        self._pre_parse_result = pre_parse_result
+        self._pre_parser = pre_parser
 
         self.counter: int = 0
 
@@ -265,7 +266,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        node.ast_type = self._pre_parse_result.modification_offsets[(node.lineno, node.col_offset)]
+        node.ast_type = self._pre_parser.modification_offsets[(node.lineno, node.col_offset)]
         return node
 
     def visit_For(self, node):
@@ -274,7 +275,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         the pre-parser
         """
         key = (node.lineno, node.col_offset)
-        annotation_tokens = self._pre_parse_result.for_loop_annotations.pop(key)
+        annotation_tokens = self._pre_parser.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
             # a common case for people migrating to 0.4.0, provide a more
@@ -342,14 +343,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
             key = (node.lineno, node.col_offset)
-            node.ast_type = self._pre_parse_result.modification_offsets[key]
+            node.ast_type = self._pre_parser.modification_offsets[key]
 
         return node
 
     def visit_Await(self, node):
         start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
         self.generic_visit(node)
-        node.ast_type = self._pre_parse_result.modification_offsets[start_pos]
+        node.ast_type = self._pre_parser.modification_offsets[start_pos]
         return node
 
     def visit_Call(self, node):
@@ -394,10 +395,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "NameConstant"
         elif isinstance(node.value, str):
             key = (node.lineno, node.col_offset)
-            if key in self._pre_parse_result.native_hex_literal_locations:
+            if key in self._pre_parser.hex_string_locations:
                 if len(node.value) % 2 != 0:
                     raise SyntaxException(
-                        "Native hex string must have an even number of characters",
+                        "Hex string must have an even number of characters",
                         self._source_code,
                         node.lineno,
                         node.col_offset,

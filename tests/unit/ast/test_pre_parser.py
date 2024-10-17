@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.ast.pre_parser import pre_parse, validate_version_pragma
+from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException, VersionException
@@ -174,9 +174,10 @@ pragma_examples = [
 @pytest.mark.parametrize("code, pre_parse_settings, compiler_data_settings", pragma_examples)
 def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_version):
     mock_version("0.3.10")
-    pre_parse_result = pre_parse(code)
+    pre_parser = PreParser()
+    pre_parser.parse(code)
 
-    assert pre_parse_result.settings == pre_parse_settings
+    assert pre_parser.settings == pre_parse_settings
 
     compiler_data = CompilerData(code)
 
@@ -224,7 +225,7 @@ invalid_pragmas = [
 @pytest.mark.parametrize("code", invalid_pragmas)
 def test_invalid_pragma(code):
     with pytest.raises(StructureException):
-        pre_parse(code)
+        PreParser().parse(code)
 
 
 def test_version_exception_in_import(make_input_bundle):
