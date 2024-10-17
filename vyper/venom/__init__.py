@@ -10,6 +10,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
+    CSE,
     SCCP,
     AlgebraicOptimizationPass,
     BranchOptimizationPass,
@@ -63,9 +64,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
+    CSE(ac, fn).run_pass(2, 10)
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 
 
