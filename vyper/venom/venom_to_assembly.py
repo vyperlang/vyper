@@ -10,9 +10,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis, VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -22,7 +20,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -104,9 +102,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "invalid",
     ]
 )
-
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
-
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
@@ -295,7 +290,8 @@ class VenomCompiler:
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
 
-        self.clean_stack_from_cfg_in(asm, basicblock, stack)
+        if len(basicblock.cfg_in) == 1:
+            self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
         all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
@@ -321,26 +317,28 @@ class VenomCompiler:
     def clean_stack_from_cfg_in(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
-        if len(basicblock.cfg_in) == 0:
-            return
+        # the input block is a splitter block, like jnz or djmp
+        assert len(basicblock.cfg_in) == 1
+        in_bb = basicblock.cfg_in.first()
+        assert len(in_bb.cfg_out) > 1
 
-        to_pop = OrderedSet[IRVariable]()
-        for in_bb in basicblock.cfg_in:
-            # inputs is the input variables we need from in_bb
-            inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
+        # inputs is the input variables we need from in_bb
+        inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
 
-            # layout is the output stack layout for in_bb (which works
-            # for all possible cfg_outs from the in_bb).
-            layout = in_bb.out_vars
+        # layout is the output stack layout for in_bb (which works
+        # for all possible cfg_outs from the in_bb, in_bb is responsible
+        # for making sure its output stack layout works no matter which
+        # bb it jumps into).
+        layout = in_bb.out_vars
+        to_pop = list(layout.difference(inputs))
 
-            # pop all the stack items which in_bb produced which we don't need.
-            to_pop |= layout.difference(inputs)
+        # small heuristic: pop from shallowest first.
+        to_pop.sort(key=lambda var: -stack.get_depth(var))
 
+        # NOTE: we could get more fancy and try to optimize the swap
+        # operations here, there is probably some more room for optimization.
         for var in to_pop:
             depth = stack.get_depth(var)
-            # don't pop phantom phi inputs
-            if depth is StackModel.NOT_IN_STACK:
-                continue
 
             if depth != 0:
                 self.swap(asm, stack, depth)
@@ -360,7 +358,7 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode == "alloca":
+        elif opcode in ("alloca", "palloca"):
             offset, _size = inst.operands
             operands = [offset]
 
@@ -430,7 +428,7 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        if opcode in COMMUTATIVE_INSTRUCTIONS:
+        if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
@@ -460,7 +458,7 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode == "alloca":
+        elif opcode in ("alloca", "palloca"):
             pass
         elif opcode == "param":
             pass
