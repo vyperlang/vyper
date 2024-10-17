@@ -81,6 +81,9 @@ class ImportAnalyzer:
 
         self.integrity_sum = None
 
+        # should be all system paths + topmost module path
+        self.absolute_search_paths = input_bundle.search_paths.copy()
+
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
         self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
@@ -149,17 +152,19 @@ class ImportAnalyzer:
             alias, qualified_module_name, compiler_input, ast
         )
 
+    def _load_file(self, path: PathLike, level: int):
+        if level == 0:
+            self.input_bundle.search_paths = self.absolute_search_paths
+        else:
+            ast = self.graph.current_module
+            current_search_path = Path(ast.resolved_path).parent
+            self.input_bundle.search_paths = [current_search_path]
+
+        return self.input_bundle.load_file(path)
+
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        # the directory this (currently being analyzed) module is in
-        ast = self.graph.current_module
-        self_search_path = Path(ast.resolved_path).parent
-
-        with self.input_bundle.poke_search_path(self_search_path):
-            return self._load_import_helper(node, level, module_str, alias)
-
-    def _load_import_helper(
+    def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
         if _is_builtin(module_str):
@@ -177,7 +182,7 @@ class ImportAnalyzer:
 
         try:
             path_vy = path.with_suffix(".vy")
-            file = self.input_bundle.load_file(path_vy)
+            file = self._load_file(path_vy, level)
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
@@ -191,7 +196,7 @@ class ImportAnalyzer:
             err = e
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
             self.resolve_imports(module_ast)
@@ -205,7 +210,7 @@ class ImportAnalyzer:
             pass
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".json"))
+            file = self._load_file(path.with_suffix(".json"), level)
             assert isinstance(file, ABIInput)  # mypy hint
             return file, file.abi
         except FileNotFoundError:

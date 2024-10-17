@@ -108,6 +108,7 @@ class InputBundle:
     def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
+
         if isinstance(path, str):
             path = PurePath(path)
         for sp in reversed(self.search_paths):
@@ -137,9 +138,6 @@ class InputBundle:
 
         return res
 
-    def add_search_path(self, path: PathLike) -> None:
-        self.search_paths.append(path)
-
     # temporarily add something to the search path (within the
     # scope of the context manager) with highest precedence.
     # if `path` is None, do nothing
@@ -154,17 +152,6 @@ class InputBundle:
                 yield
             finally:
                 self.search_paths.pop()
-
-    # temporarily modify the top of the search path (within the
-    # scope of the context manager) with highest precedence to something else
-    @contextlib.contextmanager
-    def poke_search_path(self, path: PathLike) -> Iterator[None]:
-        tmp = self.search_paths[-1]
-        self.search_paths[-1] = path
-        try:
-            yield
-        finally:
-            self.search_paths[-1] = tmp
 
 
 # regular input. takes a search path(s), and `load_file()` will search all
