@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
+import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
@@ -21,8 +22,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "istore",
         "tload",
         "tstore",
-        "assert",
-        "assert_unreachable",
         "mstore",
         "mload",
         "calldatacopy",
@@ -82,6 +81,8 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
 )
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
+
+COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -237,8 +238,18 @@ class IRInstruction:
         return self.opcode in VOLATILE_INSTRUCTIONS
 
     @property
+    def is_commutative(self) -> bool:
+        return self.opcode in COMMUTATIVE_INSTRUCTIONS
+
+    @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
+
+    def get_read_effects(self):
+        return effects.reads.get(self.opcode, effects.EMPTY)
+
+    def get_write_effects(self):
+        return effects.writes.get(self.opcode, effects.EMPTY)
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """

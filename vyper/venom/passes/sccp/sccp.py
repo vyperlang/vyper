@@ -5,9 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -179,7 +177,7 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ["store", "alloca"]:
+        if opcode in ["store", "alloca", "palloca"]:
             assert inst.output is not None, "Got store/alloca without output"
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
@@ -334,19 +332,18 @@ class SCCP(IRPass):
     def _fix_phi_nodes(self):
         # fix basic blocks whose cfg in was changed
         # maybe this should really be done in _visit_phi
-        needs_sort = False
-
         for bb in self.fn.get_basic_blocks():
             cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
 
+            needs_sort = False
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
                 needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
 
-        # move phi instructions to the top of the block
-        if needs_sort:
-            bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+            # move phi instructions to the top of the block
+            if needs_sort:
+                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
     def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
         operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
