@@ -1,5 +1,6 @@
 import operator
 from collections.abc import Callable
+from functools import partial as cur
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import (
@@ -17,8 +18,6 @@ from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-
-from functools import partial as cur
 
 SIGNED = False
 UNSIGNED = True
@@ -93,22 +92,26 @@ def _flip_comparison_op(opname):
 RuleType = Callable[[IROperand, IRLiteral | None, bool], bool]
 TransformType = Callable[[IRInstruction, list[IROperand]], None]
 
+
 class Rule:
     inst_rule: Callable[[IRInstruction], bool]
     rules: list[RuleType]
     tranformation: TransformType
 
     def __init__(
-        self,
-        inst_rule: Callable[[IRInstruction], bool],
-        rules: list,
-        transformation: TransformType,
+        self, inst_rule: Callable[[IRInstruction], bool], rules: list, transformation: TransformType
     ):
         self.inst_rule = inst_rule
         self.rules = rules
         self.tranformation = transformation
 
-    def check(self, inst: IRInstruction, ops: list[IROperand], eval_ops: list[IRLiteral | None], unsigned: bool) -> bool:
+    def check(
+        self,
+        inst: IRInstruction,
+        ops: list[IROperand],
+        eval_ops: list[IRLiteral | None],
+        unsigned: bool,
+    ) -> bool:
         if not self.inst_rule(inst):
             return False
 
@@ -232,9 +235,9 @@ class AlgebraicOptimizationPass(IRPass):
         def store(*args: IROperand | int) -> Callable[[IRInstruction, list[IROperand]], None]:
             return update("store", *args)
 
-        def get_op(index: int) -> Callable[[IRInstruction], IROperand]:
-            def inner(inst: IRInstruction):
-                return inst.operands[index]
+        def get_op(index: int) -> Callable[[IRInstruction, list[IROperand]], IROperand]:
+            def inner(inst: IRInstruction, ops: list[IROperand]):
+                return ops[index]
 
             return inner
 
@@ -286,7 +289,7 @@ class AlgebraicOptimizationPass(IRPass):
             def inner(inst: IRInstruction, ops: list[IROperand]):
                 tmp_op = None
                 for fn in fns:
-                    if tmp_op == None:
+                    if tmp_op is None:
                         tmp_op = fn(inst, ops)
                     else:
                         tmp_op = fn(tmp_op)(inst, ops)
@@ -296,10 +299,26 @@ class AlgebraicOptimizationPass(IRPass):
         self.rules = [
             Rule(opset({"shl", "shr", "sar"}), new_rules_eops(None, 0), store_op(0)),
             Rule(opset({"add", "sub", "xor", "or"}), new_rules_eops(0, None), store_op(1)),
-            Rule(opset({"mul", "div", "sdiv", "mod", "smod", "and"}), new_rules_eops(0, None), store(0)),
+            Rule(
+                opset({"mul", "div", "sdiv", "mod", "smod", "and"}),
+                new_rules_eops(0, None),
+                store(0),
+            ),
             Rule(opset({"mul", "div", "sdiv"}), new_rules_eops(1, None), store_op(1)),
             # -1 - x == ~x (definition of two's complement)
-            Rule(opset({"sub"}), new_rules_eops(None, -1, unsigned_force=SIGNED), chain(get_op(0), cur(update, "not"))),
+            Rule(
+                opset({"sub"}),
+                new_rules_eops(None, -1, unsigned_force=SIGNED),
+                chain(get_op(0), cur(update, "not")),
+            ),
+            # n ** 0 == 1 (forall n)
+            # 1 ** n == 1
+            Rule(opset({"exp"}), new_rules_eops(0, None), store(1)),
+            Rule(opset({"exp"}), new_rules_eops(None, 1), store(1)),
+            # 0 ** n == (1 if n == 0 else 0)
+            Rule(opset({"exp"}), new_rules_eops(None, 0), chain(get_op(0), cur(update, "iszero"))),
+            # n ** 1 == n
+            Rule(opset({"exp"}), new_rules_eops(1, None), store_op(1)),
         ]
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
@@ -393,7 +412,6 @@ class AlgebraicOptimizationPass(IRPass):
         if opcode in {"mod", "smod"} and eop_0 == IRLiteral(1):
             return store(0)
 
-
         if opcode in {"and", "or", "xor"} and _evm_int(eop_0, SIGNED) == -1:
             assert unsigned == UNSIGNED, "must be unsigned"
             if opcode == "and":
@@ -411,20 +429,6 @@ class AlgebraicOptimizationPass(IRPass):
                 return store(val)
 
             raise CompilerPanic("unreachable")  # pragma: nocover
-
-
-
-        if opcode == "exp":
-            # n ** 0 == 1 (forall n)
-            # 1 ** n == 1
-            if _evm_int(eop_0) == 0 or _evm_int(eop_1) == 1:
-                return store(1)
-            # 0 ** n == (1 if n == 0 else 0)
-            if _evm_int(eop_1) == 0:
-                return update("iszero", op_0)
-            # n ** 1 == n
-            if _evm_int(eop_0) == 1:
-                return store(op_1)
 
         val = _evm_int(eop_0)
         if (
