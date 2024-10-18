@@ -253,7 +253,7 @@ An operand can be a label, a variable, or a literal.
 - db
   - db stores into the data segment some label? hmm
 - dloadbytes
-  - aparently the same `codecopy`-everything handled the same way. Maybe historical reasons?
+  - alias for `codecopy` for legacy reasons. may be removed in future versions.
 - `ret`
   - Represents a return from an internal call.
   - Jumps to a location given by `op`, hence modifies the program counter.
@@ -261,8 +261,7 @@ An operand can be a label, a variable, or a literal.
     ret op
     ```
 - exit
-  - similar like return, but jumps to one predetermined section.
-  - Used for constrcutor exit? chec why in fallback
+  - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - ```
     exit
     ```
@@ -274,7 +273,7 @@ An operand can be a label, a variable, or a literal.
     assert op
     ```
 - `assert_unreachable`
-  - Check that `op` is zero. If it is not, terminate.
+  - Check that `op` is zero. If it is not, terminate with `0xFE` ("INVALID" opcode).
   - Calls that end this way do not receive a gas refund.
   - ```
     assert_unreachable op
