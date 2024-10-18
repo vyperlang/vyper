@@ -226,10 +226,12 @@ An operand can be a label, a variable, or a literal.
   - ```
     istore offset value
     ```
-- phi
-  - label, variable, basic phi
+- `phi`
+  - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
+  - Therefore, we use `phi` instructions. They are used in basic blocks where the control flow path merges.
+  - So essentially the `out` variable is set to `var_a` if the program entered this block from `label_a` or to `var_b` when it went through `label_b`. 
   - ```
-    %out = phi %61:2, label_a, %61, label %__main_entry
+    out = phi var_a, label_a, var_b, label_b
     ```
 - `offset`
   - Statically compute offset. Useful for `mstore`, `mload` and such.
@@ -252,15 +254,15 @@ An operand can be a label, a variable, or a literal.
   - make and mark a data segment (one data segment in context - so maybe section it?) dunno
 - db
   - db stores into the data segment some label? hmm
-- dloadbytes
-  - alias for `codecopy` for legacy reasons. may be removed in future versions.
+- `dloadbytes`
+  - Alias for `codecopy` for legacy reasons. May be removed in future versions.
 - `ret`
   - Represents a return from an internal call.
   - Jumps to a location given by `op`, hence modifies the program counter.
   - ```
     ret op
     ```
-- exit
+- `exit`
   - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - ```
     exit
@@ -278,10 +280,20 @@ An operand can be a label, a variable, or a literal.
   - ```
     assert_unreachable op
     ```
-- log
-  - topic in 0 to 4 meant for logging, translates to EVM Log0..log4 instructions
+- `log`
+  - Similar to the `LOGX` instruction in EVM.
+  - Depending on the `topic_count` value (which can be only from 0 to 4) translates to `LOG0` ... `LOG4`.
+  - The rest of the operands correspond to the `LOGX` instructions.
   - ```
-    log offset, size, {topic}max4 , topic_count
+    log offset, size, [topic] * topic_count , topic_count
+    ```
+  - For example
+    ```
+    log %53, 32, 64, %56, 2
+    ```
+    would translate to:
+    ```
+    LOG2 %53, 32, 64, %56
     ```
 - `nop`
   - No operation, does nothing.
@@ -293,21 +305,18 @@ An operand can be a label, a variable, or a literal.
 
 - `jmp`
   - Unconditional jump to code denoted by given `label`.
-  - Changes the program counter.
   - ```
     jmp label
     ```
 - `jnz`
   - A conditional jump depending on `op` value.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
-  - Changes the program counter.
   - ```
     jnz label1, label2, op
     ```
 - `djmp`
   - Dynamic jump to an address specified by the variable operand.
   - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
-  - Changes the program counter.
   - ```
     djmp var
     ```
@@ -394,7 +403,6 @@ Instructions have the same effects.
 - Describe the architecture of analyses and passes a bit more. mention the distiction between analysis and pass (optimisation or transformation).
 - mention how to compile into it , bb(deploy), bb_runtime
 - perhaps add some flag to skip the store expansion pass? for readers of the code
-- some of the evm opcodes are from older versions - should comment on that? instructions like difficulty that changed into prevrandao
 - if it is meant for using venom, then i should mention api for passes and analyses - should i do that?
   - analysis by ir_analysis_cache - request, invalidate, force - type of analysis and additional params
   - pass - run_pass
