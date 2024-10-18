@@ -1,4 +1,3 @@
-from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -45,6 +44,9 @@ class _Expression:
         if self.opcode != other.opcode:
             return False
 
+        if self.first_inst == other.first_inst:
+            return True
+
         # Early return special case for commutative instructions
         if self.is_commutative:
             if self.operands[0].same(other.operands[1]) and self.operands[1].same(
@@ -80,11 +82,12 @@ class _Expression:
                 return True
         return False
 
+    @cached_property
     def get_depth(self) -> int:
         max_depth = 0
         for op in self.operands:
             if isinstance(op, _Expression):
-                d = op.get_depth()
+                d = op.get_depth
                 if d > max_depth:
                     max_depth = d
         return max_depth + 1
@@ -170,16 +173,15 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.min_depth = min_depth
         self.max_depth = max_depth
 
-        worklist: deque = deque()
-        worklist.append(self.function.entry)
+        worklist: OrderedSet = OrderedSet()
+        worklist.add(self.function.entry)
         while len(worklist) > 0:
-            bb: IRBasicBlock = worklist.popleft()
+            bb: IRBasicBlock = worklist.pop()
             changed = self._handle_bb(bb)
 
             if changed:
                 for out in bb.cfg_out:
-                    if out not in worklist:
-                        worklist.append(out)
+                    worklist.add(out)
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -219,7 +221,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                     available_expr.remove(expr)
 
             if (
-                inst_expr.get_depth() in range(self.min_depth, self.max_depth + 1)
+                inst_expr.get_depth in range(self.min_depth, self.max_depth + 1)
                 and inst.opcode not in _IDEMPOTENT_INSTRUCTIONS
                 and write_effects & inst_expr.get_reads == EMPTY
             ):
@@ -242,8 +244,11 @@ class AvailableExpressionAnalysis(IRAnalysis):
             # this can both create better solutions and is necessery
             # for correct effect handle, otherwise you could go over
             # effect bounderies
-            if not inst.is_volatile:
-                return self.get_expression(inst, available_exprs, depth - 1)
+            if inst.is_volatile:
+                return op
+            if inst in self.inst_to_expr:
+                return self.inst_to_expr[inst]
+            return self.get_expression(inst, available_exprs, depth - 1)
         return op
 
     def _get_operands(
@@ -264,8 +269,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         for e in available_exprs:
             if expr.same(e):
+                self.inst_to_expr[inst] = e
                 return e
 
+        self.inst_to_expr[inst] = expr
         return expr
 
     def get_available(self, inst: IRInstruction) -> OrderedSet[_Expression]:
