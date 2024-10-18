@@ -19,7 +19,7 @@ _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
 UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
-_IDEMPOTENT_INSTRUCTIONS = ["log", "call", "staticcall", "delegatecall", "invoke"]
+_NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
 
 @dataclass
@@ -73,14 +73,6 @@ class _Expression:
             res += repr(op) + " "
         res += "]"
         return res
-
-    def contains_expr(self, expr: "_Expression") -> bool:
-        for op in self.operands:
-            if op == expr:
-                return True
-            if isinstance(op, _Expression) and op.contains_expr(expr):
-                return True
-        return False
 
     @cached_property
     def get_depth(self) -> int:
@@ -138,7 +130,6 @@ class _FunctionLattice:
 
 
 class AvailableExpressionAnalysis(IRAnalysis):
-    expressions: OrderedSet[_Expression] = OrderedSet()
     inst_to_expr: dict[IRInstruction, _Expression] = dict()
     dfg: DFGAnalysis
     lattice: _FunctionLattice
@@ -222,7 +213,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             if (
                 inst_expr.get_depth in range(self.min_depth, self.max_depth + 1)
-                and inst.opcode not in _IDEMPOTENT_INSTRUCTIONS
+                and inst.opcode not in _NONIDEMPOTENT_INSTRUCTIONS
                 and write_effects & inst_expr.get_reads == EMPTY
             ):
                 available_expr.add(inst_expr)
