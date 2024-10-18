@@ -319,6 +319,8 @@ class AlgebraicOptimizationPass(IRPass):
             Rule(opset({"exp"}), new_rules_eops(None, 0), chain(get_op(0), cur(update, "iszero"))),
             # n ** 1 == n
             Rule(opset({"exp"}), new_rules_eops(1, None), store_op(1)),
+            Rule(opset({"eq"}), new_rules_eops(0, None), chain(get_op(1), cur(update, "iszero"))),
+            Rule(opset({"eq"}), new_rules_eops(None, 0), chain(get_op(0), cur(update, "iszero"))),
         ]
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
@@ -456,13 +458,6 @@ class AlgebraicOptimizationPass(IRPass):
                 return update("shl", op_1, int_log2(val_0))
 
             raise CompilerPanic("unreachable")  # pragma: no cover
-
-        # the not equal equivalent is not needed
-        if opcode == "eq" and eop_0 == IRLiteral(0):
-            return update("iszero", op_1)
-
-        if opcode == "eq" and eop_1 == IRLiteral(0):
-            return update("iszero", op_0)
 
         if opcode == "eq" and self.eq_analysis.equivalent(op_0, op_1):
             return store(1)
