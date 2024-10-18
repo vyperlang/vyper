@@ -29,11 +29,8 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            available_expression_analysis = self.analyses_cache.force_analysis(
-                AvailableExpressionAnalysis, min_depth, max_depth
-            )
-            assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
-            self.available_expression_analysis = available_expression_analysis
+            # should be ok to be reevaluted
+            self.available_expression_analysis.analyze(min_depth, max_depth)
 
     # return instruction and to which instruction it could
     # replaced by
