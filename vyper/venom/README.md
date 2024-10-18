@@ -170,12 +170,12 @@ An `IRContext` consists of multiple `IRFunctions`, with one designated as the ma
 Additionally, the `IRContext` maintains its own representation of the data segment.
 
 ### IRFunction
-An `IRFunction` is composed of a name and multiple `IRBasicBlocks` with one marked as the entry point to the function.
+An `IRFunction` is composed of a name and multiple `IRBasicBlocks`, with one marked as the entry point to the function.
 
 ### IRBasicBlock
 An `IRBasicBlock` contains a label and a sequence of `IRInstructions`.
-Each `IRBasicBlock` has a single entry point and a single exit point.
-The exit point must be one of following terminator instructions:
+Each `IRBasicBlock` has a single entry point and exit point.
+The exit point must be one of the following terminator instructions:
 - `jmp` 
 - `djmp` 
 - `jnz` 
@@ -184,154 +184,226 @@ The exit point must be one of following terminator instructions:
 - `stop` 
 - `exit`
 
+Normalized basic blocks can not have multiple predecessors and successors. It has either one (or zero) predecessors and potentially multiple successors or vice versa.
+
 ### IRInstruction
 An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
-Operand can be a label, a variable or a literal.
+An operand can be a label, a variable, or a literal.
 
 ## Instructions
 
 ### Special instructions
 
-- invoke
-- alloca
-  - Allocates memory on stack
-  - does not get translated to EVM. op1 is size, op2 is offset
+- `invoke`
+  - Cause control flow to jump to a function denoted by the label.
+  - Return values are passed in the return buffer at the offset address.
+  - Practically only used for internal functions.
+  - Effectively translates to `JUMP` and therefore changes the program counter value.
   - ```
-    ret = alloca op1, op2
+    invoke offset, label
     ```
-  - what does it return? at offset op2 it allocates op1 bytes?
-- palloca
-  - does not get translated to EVM
-- iload
-- istore
+- `alloca`
+  - Allocates memory of a given size at a given offset in memory.
+  - The output is the offset itself.
+  - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
+  - ```
+    out = alloca size, offset
+    ```
+- `palloca`
+  - Like the `alloca` instruction but only used for parameters of internal functions.
+  - ```
+    out = palloca size, offset
+    ```
+- `iload`
+  - Load value at immutable section of memory denoted by `offset` into `out` variable.
+  - The operand can be either a literal, which is a statically computed offset, or a variable.
+  - ```
+    out = iload offset
+    ```
+- `istore`
+  - The instruction represents a store into immutable section of memory.
+  - Like in `iload`, the offset operand can be a literal.
+  - ```
+    istore offset value
+    ```
 - phi
-- offset
-- param
-  - does not get translated to EVM
-- store
-  - does not get translated to EVM
+  - label, variable, basic phi
+  - ```
+    %out = phi %61:2, label_a, %61, label %__main_entry
+    ```
+- `offset`
+  - Statically compute offset. Useful for `mstore`, `mload` and such.
+  - Basically `label` + `op`.
+  - ```
+    ret = offset label, op
+    ```
+- `param`
+  - The `param` instruction is used to represent function arguments passed by the stack.
+  - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
+  - ```
+    out = param
+    ```
+- `store`
+  - Store variable value or literal into `out` variable.
+  - ```
+    out = op
+    ```
 - dbname
-  - does not get translated to EVM
+  - make and mark a data segment (one data segment in context - so maybe section it?) dunno
+- db
+  - db stores into the data segment some label? hmm
 - dloadbytes
-- invoke
-- ret
-  - return from an internall call, translates to JUMP
-- return
-  - return from an external jumps, translates to RETURN
+  - aparently the same `codecopy`-everything handled the same way. Maybe historical reasons?
+- `ret`
+  - Represents a return from an internal call.
+  - Jumps to a location given by `op`, hence modifies the program counter.
+  - ```
+    ret op
+    ```
 - exit
-- sha3
+  - similar like return, but jumps to one predetermined section.
+  - Used for constrcutor exit? chec why in fallback
+  - ```
+    exit
+    ```
 - sha3_64
-- assert
-- assert_unreachable
+- `assert`
+  - Assert that `op` is zero. If it is not, revert.
+  - Calls that terminate this way do receive a gas refund.
+  - ```
+    assert op
+    ```
+- `assert_unreachable`
+  - Check that `op` is zero. If it is not, terminate.
+  - Calls that end this way do not receive a gas refund.
+  - ```
+    assert_unreachable op
+    ```
 - log
-- nop
+  - topic in 0 to 4 meant for logging, translates to EVM Log0..log4 instructions
+  - ```
+    log offset, size, {topic}max4 , topic_count
+    ```
+- `nop`
+  - No operation, does nothing.
+  - ```
+    nop
+    ```
 
 ### Jump instructions
 
-- jmp
-  - Unconditional jump to label
+- `jmp`
+  - Unconditional jump to code denoted by given `label`.
+  - Changes the program counter.
   - ```
     jmp label
     ```
-- jnz
-  - Conditional jump
-  - Jumps to `label2` when `op3` is not zero, otherwise jumps to `label1`.
+- `jnz`
+  - A conditional jump depending on `op` value.
+  - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
+  - Changes the program counter.
   - ```
     jnz label1, label2, op
     ```
-- djmp
+- `djmp`
   - Dynamic jump to an address specified by the variable operand.
   - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
+  - Changes the program counter.
   - ```
-    djmp op
+    djmp var
     ```
 
 ### EVM instructions
-The following instructions map one-to-one with EVM instructions.
-
-- revert
-- coinbase
-- calldatasize
-- calldatacopy
-- mcopy
-- calldataload
-- gas
-- gasprice
-- gaslimit
-- chainid
-- address
-- origin
-- number
-- extcodesize
-- extcodehash
-- extcodecopy
-- returndatasize
-- returndatacopy
-- callvalue
-- selfbalance
-- sload
-- sstore
-- mload
-- mstore
-- tload
-- tstore
-- timestamp
-- caller
-- blockhash
-- selfdestruct
-- signextend
-- stop
-- shr
-- shl
-- sar
-- and
-- xor
-- or
-- add
-- sub
-- mul
-- div
-- smul
-- sdiv
-- mod
-- smod
-- exp
-- addmod
-- mulmod
-- eq
-- iszero
-- not
-- lt
-- gt
-- slt
-- sgt
-- create
-- create2
-- msize
-- balance
-- call
-- staticcall
-- delegatecall
-- codesize
-- basefee
-- blobhash
-- blobbasefee
-- prevrandao
-- difficulty
-- invalid
+The following instructions map one-to-one with [EVM instructions](https://www.evm.codes/).
+Operands correspond to stack inputs in the same order. Stack outputs are instruction output.
+Instructions have the same effects.
+- `return`
+- `revert`
+- `coinbase`
+- `calldatasize`
+- `calldatacopy`
+- `mcopy`
+- `calldataload`
+- `gas`
+- `gasprice`
+- `gaslimit`
+- `chainid`
+- `address`
+- `origin`
+- `number`
+- `extcodesize`
+- `extcodehash`
+- `extcodecopy`
+- `returndatasize`
+- `returndatacopy`
+- `callvalue`
+- `selfbalance`
+- `sload`
+- `sstore`
+- `mload`
+- `mstore`
+- `tload`
+- `tstore`
+- `timestamp`
+- `caller`
+- `blockhash`
+- `selfdestruct`
+- `signextend`
+- `stop`
+- `shr`
+- `shl`
+- `sar`
+- `and`
+- `xor`
+- `or`
+- `add`
+- `sub`
+- `mul`
+- `div`
+- `smul`
+- `sdiv`
+- `mod`
+- `smod`
+- `exp`
+- `addmod`
+- `mulmod`
+- `eq`
+- `iszero`
+- `not`
+- `lt`
+- `gt`
+- `slt`
+- `sgt`
+- `create`
+- `create2`
+- `msize`
+- `balance`
+- `call`
+- `staticcall`
+- `delegatecall`
+- `codesize`
+- `basefee`
+- `blobhash`
+- `blobbasefee`
+- `prevrandao`
+- `difficulty`
+- `invalid`
+- `sha3`
 ---
 
-### NOTES
-- line 469:  venomtoassembly elif opcode in ["codecopy", "dloadbytes"]: redundant codecopy mention here as it is in _ONE_TO_ONE_INSTRUCTIONS?
-- line 27: in function args- is it used, ever (really don't think so - when deleting it nothing changes on my tiny example)
-
-
 ### TODO
-- Ask - the operands are written in the way they are printed, not in the way they are represented internally?
 - Describe the architecture of analyses and passes a bit more. mention the distiction between analysis and pass (optimisation or transformation).
 - mention how to compile into it , bb(deploy), bb_runtime
 - perhaps add some flag to skip the store expansion pass? for readers of the code
-- mem2var hoists from mem to var
-- should i comment on the translation from the s-expr IR to this ssa-IR?
-- Mention what is normalized? 
-- args pushed onto stack before call
+- some of the evm opcodes are from older versions - should comment on that? instructions like difficulty that changed into prevrandao
+- if it is meant for using venom, then i should mention api for passes and analyses - should i do that?
+  - analysis by ir_analysis_cache - request, invalidate, force - type of analysis and additional params
+  - pass - run_pass
+
+Perhaps mention that functions:
+- each function starts as if with empty stack
+- alloca and palloca(interf) for some args
+- param for args by stack
+
+ask harry or someone:
+- _mem_deploy_end is it immutable after that??
