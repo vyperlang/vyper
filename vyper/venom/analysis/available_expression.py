@@ -109,30 +109,11 @@ class _Expression:
         return self.first_inst.is_commutative
 
 
-class _BBLattice:
-    data: dict[IRInstruction, OrderedSet[_Expression]]
-    out: OrderedSet[_Expression]
-
-    def __init__(self, bb: IRBasicBlock):
-        self.data = dict()
-        self.out = OrderedSet()
-        for inst in bb.instructions:
-            self.data[inst] = OrderedSet()
-
-
-class _FunctionLattice:
-    data: dict[IRBasicBlock, _BBLattice]
-
-    def __init__(self, function: IRFunction):
-        self.data = dict()
-        for bb in function.get_basic_blocks():
-            self.data[bb] = _BBLattice(bb)
-
-
 class AvailableExpressionAnalysis(IRAnalysis):
-    inst_to_expr: dict[IRInstruction, _Expression] = dict()
+    inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
-    lattice: _FunctionLattice
+    inst_to_available: dict[IRInstruction, OrderedSet[_Expression]]
+    bb_outs: dict[IRBasicBlock, OrderedSet[_Expression]]
 
     # the size of the expressions
     # that are considered in the analysis
@@ -156,7 +137,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.min_depth = min_depth
         self.max_depth = max_depth
 
-        self.lattice = _FunctionLattice(function)
+        self.inst_to_expr = dict()
+        self.inst_to_available = dict()
+        self.bb_outs = dict()
 
         self.ignore_msize = not self._contains_msize()
 
@@ -189,17 +172,17 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_expr: OrderedSet[_Expression] = OrderedSet()
         if len(bb.cfg_in) > 0:
             available_expr = OrderedSet.intersection(
-                *(self.lattice.data[in_bb].out for in_bb in bb.cfg_in)
+                *(self.bb_outs.get(in_bb, OrderedSet()) for in_bb in bb.cfg_in)
             )
 
-        bb_lat = self.lattice.data[bb]
+        #bb_lat = self.lattice.data[bb]
         change = False
         for inst in bb.instructions:
             if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
                 continue
 
-            if available_expr != bb_lat.data[inst]:
-                bb_lat.data[inst] = available_expr.copy()
+            if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
+                self.inst_to_available[inst] = available_expr.copy()
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes
             for expr in available_expr.copy():
@@ -218,8 +201,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             ):
                 available_expr.add(inst_expr)
 
-        if available_expr != bb_lat.out:
-            bb_lat.out = available_expr.copy()
+        if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
+            self.bb_outs[bb] = available_expr.copy()
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
@@ -253,7 +236,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs: OrderedSet[_Expression] | None = None,
         depth: int | None = None,
     ) -> _Expression:
-        available_exprs = available_exprs or self.lattice.data[inst.parent].data[inst]
+        available_exprs = available_exprs or self.inst_to_available.get(inst, OrderedSet())
         depth = self.max_depth if depth is None else depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
@@ -270,4 +253,4 @@ class AvailableExpressionAnalysis(IRAnalysis):
         return expr
 
     def get_available(self, inst: IRInstruction) -> OrderedSet[_Expression]:
-        return self.lattice.data[inst.parent].data[inst]
+        return self.inst_to_available.get(inst, OrderedSet())
