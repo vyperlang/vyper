@@ -267,6 +267,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
+        if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
+            return self.inst_to_expr[inst]
+
         for e in available_exprs:
             if expr.same(e):
                 self.inst_to_expr[inst] = e
