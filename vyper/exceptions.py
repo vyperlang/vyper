@@ -400,10 +400,6 @@ class CodegenPanic(VyperInternalException):
     """Invalid code generated during codegen phase"""
 
 
-class StackTooDeep(CodegenPanic):
-    """Stack too deep"""  # (should not happen)
-
-
 class UnexpectedNodeType(VyperInternalException):
     """Unexpected AST node type."""
 
@@ -422,6 +418,15 @@ class TypeCheckFailure(VyperInternalException):
 
 class InvalidABIType(VyperInternalException):
     """An internal routine constructed an invalid ABI type"""
+
+
+class UnreachableStackException(VyperException):
+
+    """An unreachable stack operation was encountered."""
+
+    def __init__(self, message, op):
+        self.op = op
+        super().__init__(message)
 
 
 @contextlib.contextmanager
