@@ -175,7 +175,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 *(self.bb_outs.get(in_bb, OrderedSet()) for in_bb in bb.cfg_in)
             )
 
-        #bb_lat = self.lattice.data[bb]
+        # bb_lat = self.lattice.data[bb]
         change = False
         for inst in bb.instructions:
             if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
@@ -237,6 +237,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         depth: int | None = None,
     ) -> _Expression:
         available_exprs = available_exprs or self.inst_to_available.get(inst, OrderedSet())
+        assert available_exprs is not None
         depth = self.max_depth if depth is None else depth
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
