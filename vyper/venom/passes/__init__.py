@@ -1,5 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
+from .common_subexpression_elimination import CSE
 from .dft import DFTPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
