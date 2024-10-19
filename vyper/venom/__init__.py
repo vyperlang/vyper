@@ -43,17 +43,22 @@ def generate_assembly_experimental(
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
-    # TODO: Add support for optimization levels
 
     ac = IRAnalysesCache(fn)
-
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
+    if optimize == OptimizationLevel.NONE:
+        StoreExpansionPass(ac, fn).run_pass()
+        return
+
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
+
     AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a
@@ -62,8 +67,11 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #       without making the code generation more expensive by running
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
+
     BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    # TODO: codesize optimizations, e.g. for literals
 
     StoreExpansionPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
