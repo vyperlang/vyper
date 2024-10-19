@@ -338,7 +338,7 @@ class ModuleT(VyperType):
                 # type_from_annotation uses TYPE_T
                 self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
             else:  # interfaces
-                assert isinstance(import_info, InterfaceT)
+                assert isinstance(import_info.typ, InterfaceT)
                 self.add_member(import_info.alias, TYPE_T(import_info.typ))
 
         for name, interface_t in self.interfaces.items():

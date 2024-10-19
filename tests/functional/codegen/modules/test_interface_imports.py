@@ -88,6 +88,7 @@ def bar() -> uint256:
     assert c.foo() == 5
     assert c.bar() == 4
 
+
 def test_import_interface_flags(make_input_bundle, get_contract):
     ifaces = """
 flag Foo:
