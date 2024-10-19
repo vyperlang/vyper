@@ -481,4 +481,5 @@ exports: lib1.__interface__
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(StructureException) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "lib1 has no external functions!"
+    lib1_path = input_bundle.load_file("lib1.vy").path
+    assert e.value._message == f"lib1 (located at `{lib1_path}`) has no external functions!"
