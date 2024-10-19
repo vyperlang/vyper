@@ -1,7 +1,4 @@
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -9,6 +6,7 @@ class LoadElimination(IRPass):
     """
     Eliminate sloads, mloads and tloads
     """
+
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
