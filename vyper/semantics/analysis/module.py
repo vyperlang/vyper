@@ -528,6 +528,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     for fn in interface_t.functions.values()
                     if fn.is_external
                 ]
+
+                if len(funcs) == 0:
+                    path = module_info.module_node.path
+                    msg = f"{module_info.alias} (located at `{path}`) has no external functions!"
+                    raise StructureException(msg, item)
+
             else:
                 raise StructureException(
                     f"not a function or interface: `{info.typ}`", info.typ.decl_node, item

@@ -466,3 +466,19 @@ def __init__():
     with pytest.raises(InterfaceViolation) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
+
+
+def test_export_empty_interface(make_input_bundle):
+    lib1 = """
+def an_internal_function():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.__interface__
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "lib1 has no external functions!"
