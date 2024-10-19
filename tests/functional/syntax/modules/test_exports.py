@@ -468,7 +468,7 @@ def __init__():
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
 
 
-def test_export_empty_interface(make_input_bundle):
+def test_export_empty_interface(make_input_bundle, tmp_path):
     lib1 = """
 def an_internal_function():
     pass
@@ -481,5 +481,5 @@ exports: lib1.__interface__
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(StructureException) as e:
         compile_code(main, input_bundle=input_bundle)
-    lib1_path = input_bundle.load_file("lib1.vy").path
+    lib1_path = tmp_path / "lib1.vy"
     assert e.value._message == f"lib1 (located at `{lib1_path}`) has no external functions!"
