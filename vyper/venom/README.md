@@ -196,15 +196,15 @@ An operand can be a label, a variable, or a literal.
 
 - `invoke`
   - Cause control flow to jump to a function denoted by the label.
-  - Return values are passed in the return buffer at the offset address.
+  - Return values are passed in the return buffer at the `offset` address.
   - Practically only used for internal functions.
-  - Effectively translates to `JUMP` and therefore changes the program counter value.
+  - Effectively translates to `JUMP`.
   - ```
     invoke offset, label
     ```
 - `alloca`
-  - Allocates memory of a given size at a given offset in memory.
-  - The output is the offset itself.
+  - Allocates memory of a given `size` at a given `offset` in memory.
+  - The output is the offset value itself.
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   - ```
     out = alloca size, offset
@@ -250,15 +250,21 @@ An operand can be a label, a variable, or a literal.
   - ```
     out = op
     ```
-- dbname
-  - make and mark a data segment (one data segment in context - so maybe section it?) dunno
-- db
-  - db stores into the data segment some label? hmm
+- `dbname`
+  - Mark memory with a `label` in the data segment so it can be referenced.
+  - ```
+    dbname label
+    ```
+- `db`
+  - Store `data` into data segment.
+  - ```
+    db data
+    ```
 - `dloadbytes`
   - Alias for `codecopy` for legacy reasons. May be removed in future versions.
 - `ret`
   - Represents a return from an internal call.
-  - Jumps to a location given by `op`, hence modifies the program counter.
+  - Jumps to a location given by `op`.
   - ```
     ret op
     ```
@@ -267,7 +273,19 @@ An operand can be a label, a variable, or a literal.
   - ```
     exit
     ```
-- sha3_64
+- `sha3_64`
+  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
+  - ```
+    out = sha3_64 x y
+    ```
+    Essentially translates to
+    ```
+    MSTORE FREE_VAR_SPACE y
+    MSTORE FREE_VAR_SPACE2 x
+    SHA3 FREE_VAR_SPACE, 64
+    ```
+    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler.
+
 - `assert`
   - Assert that `op` is zero. If it is not, revert.
   - Calls that terminate this way do receive a gas refund.
