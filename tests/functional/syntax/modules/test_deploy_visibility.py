@@ -53,5 +53,6 @@ def __init__():
     with pytest.raises(UnknownAttribute) as e:
         compile_code(code, input_bundle=input_bundle)
 
-    lib1_path = tmp_path / "lib1.vy"
+    # as_posix() for windows tests
+    lib1_path = (tmp_path / "lib1.vy").as_posix()
     assert e.value.message == f"interface {lib1_path} has no member '__init__'."
