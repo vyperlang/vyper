@@ -195,17 +195,19 @@ class IRFunction:
         """
         bbs = list(self.get_basic_blocks())
         for i, bb in enumerate(bbs):
-            if not bb.is_terminated:
-                if i < len(bbs) - 1:
-                    # TODO: revisit this. When contructor calls internal functions they
-                    # are linked to the last ctor block. Should separate them before this
-                    # so we don't have to handle this here
-                    if bbs[i + 1].label.value.startswith("internal"):
-                        bb.append_instruction("stop")
-                    else:
-                        bb.append_instruction("jmp", bbs[i + 1].label)
+            if bb.is_terminated:
+                continue
+
+            if i < len(bbs) - 1:
+                # TODO: revisit this. When contructor calls internal functions
+                # they are linked to the last ctor block. Should separate them
+                # before this so we don't have to handle this here
+                if bbs[i + 1].label.value.startswith("internal"):
+                    bb.append_instruction("stop")
                 else:
-                    bb.append_instruction("exit")
+                    bb.append_instruction("jmp", bbs[i + 1].label)
+            else:
+                bb.append_instruction("stop")
 
     def copy(self):
         new = IRFunction(self.name)
