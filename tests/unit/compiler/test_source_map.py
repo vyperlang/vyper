@@ -111,6 +111,21 @@ def foo():
     assert "user revert with reason" in error_map.values()
 
 
+def test_error_map_not_overriding_errors():
+    code = """
+@external
+def foo(i: uint256):
+    raise self.bar(5%i)
+
+@pure
+def bar(i: uint256) -> String[32]:
+    return "foo foo"
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "user revert with reason" in error_map.values()
+    assert "safemod" in error_map.values()
+
+
 def test_compress_source_map():
     # mock the required VyperNode fields in compress_source_map
     # fake_node = namedtuple("fake_node", ("lineno", "col_offset", "end_lineno", "end_col_offset"))
