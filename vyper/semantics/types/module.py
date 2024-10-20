@@ -240,9 +240,6 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
-        if (fn_t := module_t.init_function) is not None:
-            funcs.append((fn_t.name, fn_t))
-
         event_set: OrderedSet[EventT] = OrderedSet()
         event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
         event_set.update(module_t.used_events)
