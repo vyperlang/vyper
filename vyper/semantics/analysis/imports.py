@@ -152,16 +152,6 @@ class ImportAnalyzer:
             alias, qualified_module_name, compiler_input, ast
         )
 
-    def _load_file(self, path: PathLike, level: int):
-        if level == 0:
-            self.input_bundle.search_paths = self.absolute_search_paths
-        else:
-            ast = self.graph.current_module
-            current_search_path = Path(ast.resolved_path).parent
-            self.input_bundle.search_paths = [current_search_path]
-
-        return self.input_bundle.load_file(path)
-
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
     def _load_import(
@@ -223,6 +213,16 @@ class ImportAnalyzer:
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, hint=hint) from err
+
+    def _load_file(self, path: PathLike, level: int):
+        if level == 0:
+            self.input_bundle.search_paths = self.absolute_search_paths
+        else:
+            ast = self.graph.current_module
+            current_search_path = Path(ast.resolved_path).parent
+            self.input_bundle.search_paths = [current_search_path]
+
+        return self.input_bundle.load_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
