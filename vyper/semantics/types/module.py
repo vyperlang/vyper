@@ -112,6 +112,10 @@ class InterfaceT(_UserType):
     def validate_implements(
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
     ) -> None:
+        if len(self.functions) == 0:
+            msg = f"Tried to implement `{self}`, but it has no functions to implement!"
+            raise StructureException(msg, node)
+
         # only external functions can implement interfaces
         fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
 
