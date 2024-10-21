@@ -44,7 +44,11 @@ class CSE(IRPass):
                     continue
                 inst_expr = self.available_expression_analysis.get_expression(inst)
                 avail = self.available_expression_analysis.get_available(inst)
-                if inst_expr in avail:
+                # heuristic to not replace small expressions
+                # basic block bounderies (it can create better codesize)
+                if inst_expr in avail and (
+                    inst_expr.get_depth > 2 or inst.parent == inst_expr.first_inst.parent
+                ):
                     res[inst] = inst_expr.first_inst
 
         return res
