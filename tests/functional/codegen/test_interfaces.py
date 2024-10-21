@@ -179,19 +179,19 @@ def test_extract_file_interface_imports(code, filename, make_input_bundle):
 
 VALID_RELATIVE_IMPORT_CODE = [
     # import statement, import path without suffix
-    ("from .a import Foo", "a"),
-    ("from ..a import Foo", "a/b"),
+    ("from .a import Foo", "mock.vy"),
+    ("from a import Foo", "b/mock.vy"),
 ]
 
 
 # TODO CMC 2024-10-13: should probably be in syntax tests
-@pytest.mark.parametrize("code,subdirs", VALID_RELATIVE_IMPORT_CODE)
-def test_extract_file_interface_relative_imports(code, subdirs, make_input_bundle):
-    input_bundle = make_input_bundle({"a/Foo.vyi": ""})
+@pytest.mark.parametrize("code,filename", VALID_RELATIVE_IMPORT_CODE)
+def test_extract_file_interface_relative_imports(code, filename, make_input_bundle):
+    input_bundle = make_input_bundle({"a/Foo.vyi": "", filename: code})
 
     assert (
         compile_code(
-            code, resolved_path=(input_bundle.search_paths[0]) / subdirs, input_bundle=input_bundle
+            code, resolved_path=(input_bundle.search_paths[0]) / filename, input_bundle=input_bundle
         )
         is not None
     )
