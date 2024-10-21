@@ -47,6 +47,10 @@ class IRContext:
         for fn in self.functions.values():
             fn.chain_basic_blocks()
 
+    def float_allocas(self) -> None:
+        for fn in self.functions.values():
+            fn.float_allocas()
+
     def append_data(self, opcode: str, args: list[IROperand]) -> None:
         """
         Append data

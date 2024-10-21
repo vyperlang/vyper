@@ -127,6 +127,9 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     ctx.chain_basic_blocks()
 
+    # errors in make_ssa whether this is commented or not
+    #ctx.float_allocas()
+
     return ctx
 
 
@@ -269,12 +272,14 @@ def _convert_ir_bb(fn, ir, symbols):
                 # Internal definition
                 var_list = ir.args[0].args[1]
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+                saved_global_symbols = _global_symbols
                 _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
                     ret = _convert_ir_bb(new_fn, ir_node, symbols)
 
+                _global_symbols = saved_global_symbols
                 return ret
             elif is_external:
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
@@ -297,8 +302,6 @@ def _convert_ir_bb(fn, ir, symbols):
         cont_ret = _convert_ir_bb(fn, cond, symbols)
         cond_block = fn.get_basic_block()
 
-        saved_global_symbols = _global_symbols.copy()
-
         then_block = IRBasicBlock(ctx.get_next_label("then"), fn)
         else_block = IRBasicBlock(ctx.get_next_label("else"), fn)
 
@@ -313,7 +316,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # convert "else"
         cond_symbols = symbols.copy()
-        _global_symbols = saved_global_symbols.copy()
         fn.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
@@ -341,8 +343,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
-
-        _global_symbols = saved_global_symbols
 
         return if_ret
 
@@ -468,10 +468,8 @@ def _convert_ir_bb(fn, ir, symbols):
             global _break_target, _continue_target, _global_symbols
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
-            saved_global_symbols = _global_symbols.copy()
             _convert_ir_bb(fn, body, symbols.copy())
             _break_target, _continue_target = old_targets
-            _global_symbols = saved_global_symbols
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
