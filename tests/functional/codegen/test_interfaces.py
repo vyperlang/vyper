@@ -169,18 +169,13 @@ VALID_IMPORT_CODE = [
 def test_extract_file_interface_imports(code, filename, make_input_bundle):
     input_bundle = make_input_bundle({filename: ""})
 
-    assert (
-        compile_code(
-            code, resolved_path=input_bundle.search_paths[0] / filename, input_bundle=input_bundle
-        )
-        is not None
-    )
+    assert compile_code(code, input_bundle=input_bundle) is not None
 
 
 VALID_RELATIVE_IMPORT_CODE = [
     # import statement, import path without suffix
     ("from .a import Foo", "mock.vy"),
-    ("from a import Foo", "b/mock.vy"),
+    ("from ..a import Foo", "b/mock.vy"),
 ]
 
 
