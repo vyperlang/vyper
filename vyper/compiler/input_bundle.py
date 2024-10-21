@@ -108,7 +108,6 @@ class InputBundle:
     def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
-
         if isinstance(path, str):
             path = PurePath(path)
         for sp in reversed(self.search_paths):
