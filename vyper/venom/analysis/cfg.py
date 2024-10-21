@@ -45,7 +45,10 @@ class CFGAnalysis(IRAnalysis):
             self._topsort_r(next_bb)
 
     def invalidate(self):
-        from vyper.venom.analysis import DominatorTreeAnalysis, LivenessAnalysis
+        from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+        # be conservative - assume cfg invalidation invalidates dfg
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
