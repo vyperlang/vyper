@@ -152,6 +152,16 @@ class InputBundle:
             finally:
                 self.search_paths.pop()
 
+    # temporarily set search paths to a given list
+    @contextlib.contextmanager
+    def temporary_search_paths(self, new_paths: list[PathLike]) -> Iterator[None]:
+        original_paths = self.search_paths
+        self.search_paths = new_paths
+        try:
+            yield
+        finally:
+            self.search_paths = original_paths
+
 
 # regular input. takes a search path(s), and `load_file()` will search all
 # search paths for the file and read it from the filesystem
