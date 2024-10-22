@@ -485,3 +485,36 @@ exports: lib1.__interface__
     # as_posix() for windows
     lib1_path = (tmp_path / "lib1.vy").as_posix()
     assert e.value._message == f"lib1 (located at `{lib1_path}`) has no external functions!"
+
+
+def test_invalid_export(make_input_bundle):
+    lib1 = """
+@external
+def foo():
+    pass
+    """
+    main = """
+import lib1
+a: address
+
+exports: lib1.__interface__(self.a).foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "invalid export of a value"
+    assert e.value._hint == "exports should look like <module>.<function | interface>"
+
+    main = """
+interface Foo:
+    def foo(): nonpayable
+
+exports: Foo
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(main)
+
+    assert e.value._message == "invalid export"
+    assert e.value._hint == "exports should look like <module>.<function | interface>"

@@ -40,7 +40,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT, is_type_t
+from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -499,6 +499,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     raise StructureException("not a public variable!", decl, item)
                 funcs = [decl._expanded_getter._metadata["func_type"]]
             elif isinstance(info.typ, ContractFunctionT):
+                # e.g. lib1.__interface__(self._addr).foo
+                if not isinstance(get_expr_info(item.value).typ, (ModuleT, TYPE_T)):
+                    raise StructureException(
+                        "invalid export of a value",
+                        item.value,
+                        hint="exports should look like <module>.<function | interface>",
+                    )
+
                 # regular function
                 funcs = [info.typ]
             elif is_type_t(info.typ, InterfaceT):
