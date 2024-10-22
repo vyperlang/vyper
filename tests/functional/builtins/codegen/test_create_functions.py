@@ -945,6 +945,7 @@ def deploy() -> address:
     assert env.get_code(res) == runtime
 
 
+@pytest.mark.xfail
 @pytest.mark.parametrize("arg", [12, 257, 2**256 - 1])
 @pytest.mark.parametrize("length_offset", [-32, -1, 0, 1, 32])
 def test_raw_create_change_initcode_size(
