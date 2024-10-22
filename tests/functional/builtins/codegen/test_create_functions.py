@@ -964,7 +964,7 @@ def __init__(arg: uint256):
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
-    dummy_bytes = bytes([2] * (len(initcode) + length_offset))
+    dummy_bytes = b"\x02" * (len(initcode) + length_offset)
 
     deployer_code = f"""
 x:DynArray[Bytes[1024],1]
