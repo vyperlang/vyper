@@ -383,15 +383,10 @@ class IRnode:
     # function with a more specific error message.
     def set_error_msg(self, error_msg: str) -> None:
         if self.error_msg is not None:
-            raise CompilerPanic(f"{self.value} already has error message {self.error_msg}")
-        self._set_error_msg(error_msg)
-
-    def _set_error_msg(self, error_msg: str) -> None:
-        if self.error_msg is not None:
             return
         self.error_msg = error_msg
         for arg in self.args:
-            arg._set_error_msg(error_msg)
+            arg.set_error_msg(error_msg)
 
     # get the unique symbols contained in this node, which provides
     # sanity check invariants for the optimizer.
