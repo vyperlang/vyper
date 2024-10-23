@@ -68,6 +68,7 @@ _reads = {
     "revert": MEMORY,
     "return": MEMORY,
     "sha3": MEMORY,
+    "sha3_64": MEMORY,
     "msize": MSIZE,
 }
 
