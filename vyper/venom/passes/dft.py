@@ -50,16 +50,16 @@ class DFTPass(IRPass):
             if len(to_remove) > 0:
                 entry_instructions.dropmany(to_remove)
 
-        entry_instructions = list(entry_instructions)
+        entry_instructions_list = list(entry_instructions)
 
         # Move the terminator instruction to the end of the list
         terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
         assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
-        entry_instructions.remove(terminator)
-        entry_instructions.append(terminator)
+        entry_instructions_list.remove(terminator)
+        entry_instructions_list.append(terminator)
 
         self.visited_instructions = OrderedSet()
-        for inst in entry_instructions:
+        for inst in entry_instructions_list:
             self._process_instruction_r(self.instructions, inst)
 
         bb.instructions = self.instructions
@@ -72,14 +72,14 @@ class DFTPass(IRPass):
 
         if inst.is_pseudo:
             return
-        
+
         children = list(self.barriers[inst]) + list(self.ida[inst])
-        
+
         children = sorted(
             self.ida[inst],
-            key=lambda x: 
-                (inst.operands.index(x.output) if x.output in inst.operands else 0)
-                -len(self.inst_offspring[x]) + (x.opcode == "iszero") * 10,
+            key=lambda x: (inst.operands.index(x.output) if x.output in inst.operands else 0)
+            - len(self.inst_offspring[x])
+            + (x.opcode == "iszero") * 10,
         )
 
         for dep_inst in children:
@@ -119,7 +119,6 @@ class DFTPass(IRPass):
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.barriers[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
-
 
     def _calculate_instruction_offspring(self, inst: IRInstruction):
         if inst in self.inst_offspring:
