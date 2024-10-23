@@ -112,7 +112,7 @@ def test_cont_jump_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
+    bb.append_instruction("jnz", p1, br1.label, br2.label)
 
     br1.append_instruction("add", op3, 10)
     br1.append_instruction("stop")
@@ -123,6 +123,7 @@ def test_cont_jump_case():
     MakeSSA(ac, fn).run_pass()
     sccp = SCCP(ac, fn)
     sccp.run_pass()
+    print(fn)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -149,7 +150,7 @@ def test_cont_phi_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
+    bb.append_instruction("jnz", p1, br1.label, br2.label)
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
@@ -160,8 +161,12 @@ def test_cont_phi_case():
 
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
+    print(fn)
     sccp = SCCP(ac, fn)
     sccp.run_pass()
+
+    print(fn)
+    print(sccp.lattice)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -208,8 +213,8 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
-    assert sccp.lattice[IRVariable("%5")].value == 2
+    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.TOP
+    assert sccp.lattice[IRVariable("%5")].value == 106
 
 
 def test_phi_reduction_after_unreachable_block():

@@ -4,8 +4,14 @@ from functools import reduce
 from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
-from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.utils import OrderedSet, int_bounds, int_log2, is_power_of_two
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    DFGAnalysis,
+    DominatorTreeAnalysis,
+    IRAnalysesCache,
+    VarEquivalenceAnalysis,
+)
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -16,7 +22,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, signed_to_unsigned
 
 
 class LatticeEnum(Enum):
@@ -38,6 +44,20 @@ class FlowWorkItem:
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
+
+
+COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
+STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
+UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
+
+
+def _flip_comparison_op(opname):
+    assert opname in COMPARISON_OPS
+    if "g" in opname:
+        return opname.replace("g", "l")
+    if "l" in opname:
+        return opname.replace("l", "g")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
 class SCCP(IRPass):
@@ -67,9 +87,16 @@ class SCCP(IRPass):
     def run_pass(self):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._compute_uses()
-        self._calculate_sccp(self.fn.entry)
-        self._propagate_constants()
+        while True:
+            self.uses = dict()
+            self._compute_uses()
+            self.lattice = {}
+            self.work_list: list[WorkListItem] = []
+            self._calculate_sccp(self.fn.entry)
+            self._propagate_constants()
+            if not self._algebraic_opt():
+                break
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -355,6 +382,240 @@ class SCCP(IRPass):
         inst.opcode = "store"
         inst.operands = operands
         return True
+
+    def _algebraic_opt(self) -> bool:
+        self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
+        assert isinstance(self.eq, VarEquivalenceAnalysis)
+        full_change = False
+        while True:
+            change = False
+            for bb in self.function.get_basic_blocks():
+                for inst in bb.instructions:
+                    change |= self._handle_inst_peephole(inst)
+            full_change |= change
+
+            if not change:
+                break
+        return full_change
+
+    def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
+        # print(inst)
+        def update(opcode: str, *args: IROperand | int) -> bool:
+            if inst.opcode == opcode:
+                return False
+            inst.opcode = opcode
+            inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            return True
+
+        def store(*args: IROperand | int) -> bool:
+            return update("store", *args)
+
+        def add(opcode: str, *args: IROperand | int) -> IRVariable:
+            index = inst.parent.instructions.index(inst)
+            var = inst.parent.parent.get_next_variable()
+            operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            new_inst = IRInstruction(opcode, operands, output=var)
+            inst.parent.insert_instruction(new_inst, index)
+            # self.dfg.add_output(var, new_inst)
+            # self.dfg.add_use(var, inst)
+            self._get_uses(var).add(inst)
+            return var
+
+        operands = inst.operands
+
+        def match(opcodes: set[str], *ops: int | None):
+            if inst.opcode not in opcodes:
+                return False
+
+            assert len(ops) == len(operands), "wrong number of operands"
+            for cond_op, op in zip(ops, operands):
+                if cond_op is None:
+                    continue
+                if not isinstance(op, IRLiteral):
+                    return False
+                if op.value != cond_op:
+                    return False
+            return True
+
+        def is_lit(index: int) -> bool:
+            if isinstance(operands[index], IRLabel):
+                return False
+            if isinstance(operands[index], IRVariable) and operands[index] not in self.lattice:
+                return False
+            return isinstance(self._eval_from_lattice(operands[index]), IRLiteral)
+
+        def get_lit(index: int) -> IRLiteral:
+            x = self._eval_from_lattice(operands[index])
+            assert isinstance(x, IRLiteral), f"is not literal {x}"
+            return x
+
+        def op_eq(idx_a: int, idx_b: int) -> bool:
+            if is_lit(idx_a) and is_lit(idx_b):
+                return get_lit(idx_a) == get_lit(idx_b)
+            else:
+                assert isinstance(self.eq, VarEquivalenceAnalysis)
+                return self.eq.equivalent(operands[idx_a], operands[idx_b])
+
+        if (
+            inst.opcode == "add"
+            and is_lit(0)
+            and isinstance(get_lit(0), IRLiteral)
+            and isinstance(inst.operands[1], IRLabel)
+        ):
+            inst.opcode = "offset"
+            return True
+
+        if inst.is_commutative and is_lit(1):
+            operands = [operands[1], operands[0]]
+
+        if inst.opcode in ARITHMETIC_OPS and all(is_lit(i) for i in range(len(operands))):
+            oper = ARITHMETIC_OPS[inst.opcode]
+            val = oper([get_lit(i) for i in range(len(operands))])
+            return store(val)
+
+        # return False
+        if inst.opcode == "iszero" and is_lit(0):
+            lit = get_lit(0).value
+            val = int(lit == 0)
+            return store(val)
+
+        if match({"shl", "shr", "sar"}, None, 0):
+            return store(operands[0])
+
+        if match({"add", "sub", "xor", "or"}, 0, None):
+            return store(operands[1])
+
+        if match({"mul", "div", "sdiv", "mod", "smod", "and"}, 0, None):
+            return store(0)
+
+        if match({"mul", "div", "sdiv"}, 1, None):
+            return store(operands[1])
+
+        if match({"sub"}, None, -1):
+            return update("not", operands[0])
+
+        if match({"exp"}, 0, None):
+            return store(1)
+
+        if match({"exp"}, None, 1):
+            return store(1)
+
+        if match({"exp"}, None, 0):
+            return update("iszero", operands[0])
+
+        if match({"exp"}, 1, None):
+            return store(operands[1])
+
+        if match({"eq"}, 0, None):
+            return update("iszero", operands[1])
+
+        if match({"eq"}, None, 0):
+            return update("iszero", operands[0])
+
+        if inst.opcode in {"sub", "xor", "ne"} and op_eq(0, 1):
+            # (x - x) == (x ^ x) == (x != x) == 0
+            return store(0)
+
+        if inst.opcode in STRICT_COMPARISON_OPS and op_eq(0, 1):
+            # (x < x) == (x > x) == 0
+            return store(0)
+
+        if inst.opcode in {"eq"} | UNSTRICT_COMPARISON_OPS and op_eq(0, 1):
+            # (x == x) == (x >= x) == (x <= x) == 1
+            return store(1)
+
+        if match({"mod", "smod"}, 1, None):
+            return store(0)
+
+        if match({"and"}, -1, None):
+            return store(operands[1])
+
+        if match({"xor"}, -1, None):
+            return update("not", operands[1])
+
+        if match({"or"}, -1, None):
+            return store(signed_to_unsigned(-1, 256))
+
+        if inst.opcode in {"mod", "div", "mul"} and is_lit(0) and is_power_of_two(get_lit(0).value):
+            val = get_lit(0).value
+            if inst.opcode == "mod":
+                return update("and", val - 1, operands[1])
+            if inst.opcode == "div":
+                return update("shr", operands[1], int_log2(val))
+            if inst.opcode == "mul":
+                return update("shl", operands[1], int_log2(val))
+
+        if inst.output is None:
+            return False
+
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self._get_uses(inst.output)
+        is_truthy = all(i.opcode in ("assert", "iszero") for i in uses)
+
+        if is_truthy:
+            if inst.opcode == "eq":
+                # (eq x y) has the same truthyness as (iszero (xor x y))
+                # it also has the same truthyness as (iszero (sub x y)),
+                # but xor is slightly easier to optimize because of being
+                # commutative.
+                # note that (xor (-1) x) has its own rule
+                tmp = add("xor", operands[0], operands[1])
+
+                return update("iszero", tmp)
+            if inst.opcode == "or" and is_lit(0) and get_lit(0).value != 0:
+                return store(1)
+
+        if inst.opcode in COMPARISON_OPS:
+            prefer_strict = not is_truthy
+            opcode = inst.opcode
+            if is_lit(1):  # _is_int(args[0]):
+                opcode = _flip_comparison_op(inst.opcode)
+                operands = [operands[1], operands[0]]
+
+            is_gt = "g" in opcode
+
+            unsigned = "s" not in opcode
+
+            lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+            # for comparison operators, we have three special boundary cases:
+            # almost always, never and almost never.
+            # almost_always is always true for the non-strict ("ge" and co)
+            # comparators. for strict comparators ("gt" and co), almost_always
+            # is true except for one case. never is never true for the strict
+            # comparators. never is almost always false for the non-strict
+            # comparators, except for one case. and almost_never is almost
+            # never true (except one case) for the strict comparators.
+            if is_gt:
+                almost_always, never = lo, hi
+                almost_never = hi - 1
+            else:
+                almost_always, never = hi, lo
+                almost_never = lo + 1
+
+            if is_lit(0) and get_lit(0).value == never:
+                # e.g. gt x MAX_UINT256, slt x MIN_INT256
+                return store(0)
+
+            if is_lit(0) and get_lit(0).value == almost_never:
+                # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+                return update("eq", operands[1], never)
+
+            # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+            if not prefer_strict and is_lit(0) and get_lit(0).value == almost_always:
+                # e.g. gt x 0, slt x MAX_INT256
+                tmp = add("eq", *operands)
+                return update("iszero", tmp)
+
+            # special cases that are not covered by others:
+
+            if opcode == "gt" and is_lit(0) and get_lit(0) == 0:
+                # improve codesize (not gas), and maybe trigger
+                # downstream optimizations
+                tmp = add("iszero", operands[1])
+                return update("iszero", tmp)
+
+        return False
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:

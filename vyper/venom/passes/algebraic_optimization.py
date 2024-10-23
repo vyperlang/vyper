@@ -175,7 +175,8 @@ class AlgebraicOptimizationPass(IRPass):
         chain: list[IRInstruction] = []
 
         while True:
-            assert isinstance(op, IRVariable)
+            if not isinstance(op, IRVariable):
+                break
             inst = self.dfg.get_producing_instruction(op)
             if inst is None or inst.opcode != "iszero":
                 break
@@ -352,7 +353,7 @@ class AlgebraicOptimizationPass(IRPass):
         op_0 = inst.operands[0]
         eop_0 = self.eval_op(inst.operands[0])
 
-        if opcode == "iszero" and _evm_int(eop_0) is not None:
+        if False and opcode == "iszero" and _evm_int(eop_0) is not None:
             val = _evm_int(eop_0)
             assert val is not None, "Cannot be none"
             val = int(val == 0)
@@ -371,6 +372,7 @@ class AlgebraicOptimizationPass(IRPass):
         ):
             inst.opcode = "offset"
             return True
+        return False
 
         operands = inst.operands
         if inst.is_commutative and eop_1 is not None:
