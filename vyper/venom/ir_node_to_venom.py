@@ -45,7 +45,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "smod",
         "exp",
         "sha3",
-        "sha3_64",
         "signextend",
         "chainid",
         "basefee",
@@ -434,6 +433,13 @@ def _convert_ir_bb(fn, ir, symbols):
         src = bb.append_instruction("add", src_offset, IRLabel("code_end"))
         bb.append_instruction("codecopy", len_, src, dst)
         return None
+
+    elif ir.value == "sha3_64":
+        args = _convert_ir_bb_list(fn, ir.args, symbols)
+        bb = fn.get_basic_block()
+        bb.append_instruction("mstore", args[1], MemoryPositions.FREE_VAR_SPACE2)
+        bb.append_instruction("mstore", args[0], MemoryPositions.FREE_VAR_SPACE)
+        return bb.append_instruction("sha3", 64, MemoryPositions.FREE_VAR_SPACE)
 
     elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
