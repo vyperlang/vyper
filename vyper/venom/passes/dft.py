@@ -81,10 +81,9 @@ class DFTPass(IRPass):
 
         children = sorted(
             children,
-            key=lambda x: 
-                (inst.operands.index(x.output) if x.output in inst.operands else 0)
-                - len(self.inst_offspring[x])
-                + (x.opcode == "iszero") * 10,
+            key=lambda x: (inst.operands.index(x.output) if x.output in inst.operands else 0)
+            - len(self.inst_offspring[x])
+            + (x.opcode == "iszero") * 10,
         )
 
         for dep_inst in children:

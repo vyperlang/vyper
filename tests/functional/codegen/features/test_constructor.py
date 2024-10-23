@@ -1,7 +1,4 @@
-import pytest
-
 from tests.evm_backends.base_env import _compile
-from vyper.exceptions import StackTooDeep
 from vyper.utils import method_id
 
 
