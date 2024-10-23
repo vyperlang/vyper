@@ -1,6 +1,6 @@
 from typing import Any
 
-from vyper.exceptions import CompilerPanic, UnreachableStackException
+from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
     DataHeader,
@@ -358,13 +358,7 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode == "alloca":
-            raise Exception("Alloca at assembly generation is not valid")
-            offset, _size = inst.operands
-            offset = inst.parent.parent._mem_allocator.allocate(_size.value)
-            # print(f"Allocated {offset} for alloca {_size}")
-            operands = [offset]
-        elif opcode == "palloca":
+        elif opcode in ("alloca", "palloca"):
             offset, _size = inst.operands
             operands = [offset]
 
@@ -582,40 +576,43 @@ class VenomCompiler:
 
         return apply_line_numbers(inst, assembly)
 
-    def pop(self, assembly, stack: StackModel, num=1):
+    def pop(self, assembly, stack, num=1):
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack: StackModel, depth) -> int:
+    def swap(self, assembly, stack, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
             return 0
+
         stack.swap(depth)
-        assembly.append(_evm_swap_for(depth, stack.top()))
+        assembly.append(_evm_swap_for(depth))
         return 1
 
-    def dup(self, assembly, stack: StackModel, depth):
+    def dup(self, assembly, stack, depth):
         stack.dup(depth)
-        assembly.append(_evm_dup_for(depth, stack.top()))
+        assembly.append(_evm_dup_for(depth))
 
-    def swap_op(self, assembly, stack: StackModel, op):
+    def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
-        self.swap(assembly, stack, depth)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
+        return self.swap(assembly, stack, depth)
 
-    def dup_op(self, assembly, stack: StackModel, op):
+    def dup_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot dup non-existent operand {op}"
         self.dup(assembly, stack, depth)
 
 
-def _evm_swap_for(depth: int, op: IROperand) -> str:
+def _evm_swap_for(depth: int) -> str:
     swap_idx = -depth
     if not (1 <= swap_idx <= 16):
-        raise UnreachableStackException(f"Unsupported swap depth {swap_idx} ({op})", op)
+        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
     return f"SWAP{swap_idx}"
 
 
-def _evm_dup_for(depth: int, op: IROperand) -> str:
+def _evm_dup_for(depth: int) -> str:
     dup_idx = 1 - depth
     if not (1 <= dup_idx <= 16):
-        raise UnreachableStackException(f"Unsupported dup depth {dup_idx} ({op})", op)
+        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
     return f"DUP{dup_idx}"

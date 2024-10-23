@@ -2,7 +2,6 @@ from typing import Optional
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
-from vyper.venom.mem_allocator import MemoryAllocator
 
 
 class IRContext:
@@ -11,7 +10,6 @@ class IRContext:
     immutables_len: Optional[int]
     data_segment: list[IRInstruction]
     last_label: int
-    mem_allocator: MemoryAllocator
 
     def __init__(self) -> None:
         self.functions = {}
@@ -19,9 +17,6 @@ class IRContext:
         self.immutables_len = None
         self.data_segment = []
         self.last_label = 0
-        self.mem_allocator = MemoryAllocator(
-            4096, 0x100000
-        )  # TODO: Should get this from the original IR
 
     def add_function(self, fn: IRFunction) -> None:
         fn.ctx = self
