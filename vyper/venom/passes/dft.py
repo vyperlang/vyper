@@ -53,10 +53,7 @@ class DFTPass(IRPass):
         entry_instructions_list = list(entry_instructions)
 
         # Move the terminator instruction to the end of the list
-        terminator = next(inst for inst in entry_instructions if inst.is_bb_terminator)
-        assert terminator is not None, f"Basic block should have a terminator instruction {bb}"
-        entry_instructions_list.remove(terminator)
-        entry_instructions_list.append(terminator)
+        self._move_terminator_to_end(entry_instructions_list)
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
@@ -64,6 +61,13 @@ class DFTPass(IRPass):
 
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
+
+    def _move_terminator_to_end(self, instructions: list[IRInstruction]) -> None:
+        terminator = next((inst for inst in instructions if inst.is_bb_terminator), None)
+        if terminator is None:
+            raise ValueError(f"Basic block should have a terminator instruction {self.function}")
+        instructions.remove(terminator)
+        instructions.append(terminator)
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
@@ -76,10 +80,11 @@ class DFTPass(IRPass):
         children = list(self.barriers[inst]) + list(self.ida[inst])
 
         children = sorted(
-            self.ida[inst],
-            key=lambda x: (inst.operands.index(x.output) if x.output in inst.operands else 0)
-            - len(self.inst_offspring[x])
-            + (x.opcode == "iszero") * 10,
+            children,
+            key=lambda x: 
+                (inst.operands.index(x.output) if x.output in inst.operands else 0)
+                - len(self.inst_offspring[x])
+                + (x.opcode == "iszero") * 10,
         )
 
         for dep_inst in children:
