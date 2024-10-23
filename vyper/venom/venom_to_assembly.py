@@ -466,7 +466,7 @@ class VenomCompiler:
             pass
         elif opcode == "dbname":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
+        elif opcode in ["codecopy"]:
             assembly.append("CODECOPY")
         elif opcode == "jnz":
             # jump if not zero

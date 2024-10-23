@@ -38,7 +38,6 @@ _writes = {
     "create2": ALL ^ (MEMORY | IMMUTABLES),
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
     "log": LOG,
-    "dloadbytes": MEMORY,
     "returndatacopy": MEMORY,
     "calldatacopy": MEMORY,
     "codecopy": MEMORY,

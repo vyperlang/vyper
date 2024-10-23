@@ -424,7 +424,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb = fn.get_basic_block()
         src = bb.append_instruction("add", arg_0, IRLabel("code_end"))
 
-        bb.append_instruction("dloadbytes", 32, src, MemoryPositions.FREE_VAR_SPACE)
+        bb.append_instruction("codecopy", 32, src, MemoryPositions.FREE_VAR_SPACE)
         return bb.append_instruction("mload", MemoryPositions.FREE_VAR_SPACE)
 
     elif ir.value == "dloadbytes":
@@ -432,7 +432,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         bb = fn.get_basic_block()
         src = bb.append_instruction("add", src_offset, IRLabel("code_end"))
-        bb.append_instruction("dloadbytes", len_, src, dst)
+        bb.append_instruction("codecopy", len_, src, dst)
         return None
 
     elif ir.value == "mstore":
