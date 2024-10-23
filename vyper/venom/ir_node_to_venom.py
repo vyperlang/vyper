@@ -128,7 +128,7 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
     ctx.chain_basic_blocks()
 
     # errors in make_ssa whether this is commented or not
-    #ctx.float_allocas()
+    ctx.float_allocas()
 
     return ctx
 
