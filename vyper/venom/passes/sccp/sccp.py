@@ -402,7 +402,6 @@ class SCCP(IRPass):
         return full_change
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
-        # print(inst)
         def update(opcode: str, *args: IROperand | int) -> bool:
             if inst.opcode == opcode:
                 return False
@@ -476,7 +475,6 @@ class SCCP(IRPass):
             val = oper([get_lit(i) for i in range(len(operands))])
             return store(val)
 
-        # return False
         if inst.opcode == "iszero" and is_lit(0):
             lit = get_lit(0).value
             val = int(lit == 0)
