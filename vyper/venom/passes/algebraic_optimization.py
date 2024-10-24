@@ -1,13 +1,9 @@
-import operator
-from collections.abc import Callable
-from functools import partial as cur
-
-from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+
 
 class AlgebraicOptimizationPass(IRPass):
     """

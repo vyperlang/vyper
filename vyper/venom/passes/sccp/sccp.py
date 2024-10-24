@@ -100,7 +100,6 @@ class SCCP(IRPass):
                 break
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
