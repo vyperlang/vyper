@@ -83,15 +83,15 @@ class SCCP(IRPass):
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
+        self.uses = dict()
 
     def run_pass(self):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self._compute_uses()
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
-            self.uses = dict()
-            self._compute_uses()
             self.lattice = {}
             self.work_list: list[WorkListItem] = []
             self._calculate_sccp(self.fn.entry)
@@ -330,6 +330,8 @@ class SCCP(IRPass):
                     target = inst.operands[2]
                 else:
                     target = inst.operands[1]
+                if isinstance(inst.operands[0], IRVariable):
+                    self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
 
@@ -404,8 +406,17 @@ class SCCP(IRPass):
         def update(opcode: str, *args: IROperand | int) -> bool:
             if inst.opcode == opcode:
                 return False
+
+            for op in inst.operands:
+                if isinstance(op, IRVariable):
+                    self._get_uses(op).remove(inst)
             inst.opcode = opcode
             inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+
+            for op in inst.operands:
+                if isinstance(op, IRVariable):
+                    self._get_uses(op).add(inst)
+
             return True
 
         def store(*args: IROperand | int) -> bool:
