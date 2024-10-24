@@ -89,14 +89,17 @@ class SCCP(IRPass):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self._compute_uses()
+        self.recalc_sccp = True
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
-            self.lattice = {}
             #self.uses = dict()
             #self._compute_uses()
-            self.work_list: list[WorkListItem] = []
-            self._calculate_sccp(self.fn.entry)
+            if self.recalc_sccp:
+                self.recalc_sccp = False
+                self.lattice = {}
+                self.work_list: list[WorkListItem] = []
+                self._calculate_sccp(self.fn.entry)
             self._propagate_constants()
             if not self._algebraic_opt():
                 break
@@ -438,6 +441,7 @@ class SCCP(IRPass):
             # self.dfg.add_output(var, new_inst)
             # self.dfg.add_use(var, inst)
             self._get_uses(var).add(inst)
+            self._set_lattice(var, LatticeEnum.BOTTOM)
             return var
 
         operands = inst.operands
@@ -612,15 +616,18 @@ class SCCP(IRPass):
                 almost_never = lo + 1
 
             if is_lit(0) and get_lit(0).value == never:
+                self.recalc_sccp = True
                 # e.g. gt x MAX_UINT256, slt x MIN_INT256
                 return store(0)
 
             if is_lit(0) and get_lit(0).value == almost_never:
+                self.recalc_sccp = True
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
                 return update("eq", operands[1], never)
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and is_lit(0) and get_lit(0).value == almost_always:
+                self.recalc_sccp = True
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = add("eq", *operands)
                 return update("iszero", tmp)
@@ -628,6 +635,7 @@ class SCCP(IRPass):
             # special cases that are not covered by others:
 
             if opcode == "gt" and is_lit(0) and get_lit(0) == 0:
+                self.recalc_sccp = True
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
                 tmp = add("iszero", operands[1])

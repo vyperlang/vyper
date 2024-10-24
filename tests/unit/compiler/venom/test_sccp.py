@@ -213,8 +213,8 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.TOP
-    assert sccp.lattice[IRVariable("%5")].value == 106
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
+    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
 
 
 def test_phi_reduction_after_unreachable_block():
