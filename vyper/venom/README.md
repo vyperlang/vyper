@@ -184,7 +184,7 @@ The exit point must be one of the following terminator instructions:
 - `stop` 
 - `exit`
 
-Normalized basic blocks can not have multiple predecessors and successors. It has either one (or zero) predecessors and potentially multiple successors or vice versa.
+Normalized basic blocks cannot have multiple predecessors and successors. It has either one (or zero) predecessors and potentially multiple successors or vice versa.
 
 ### IRInstruction
 An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
@@ -241,7 +241,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
      istore 24 %op
      ```
      could compile to 
-     `PUSH1 14 PUSH1 10 _mem_deploy_end ADD MSTORE`.
+     `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
     out = phi var_a, label_a, var_b, label_b
@@ -318,7 +318,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
     assert %op
     ```
     could compile to
-    `PUSH1 23 ISZERO _sym___revert JUMPI`.
+    `PUSH1 13 ISZERO _sym___revert JUMPI`.
 - `assert_unreachable`
   - ```
     assert_unreachable op
@@ -333,7 +333,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
     ```
     could compile to
     ```
-    PUSH1 23 _sym_reachable1 JUMPI
+    PUSH1 13 _sym_reachable1 JUMPI
     INVALID
     _sym_reachable1 JUMPDEST
     ```
@@ -387,7 +387,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
   - Translates to `JUMP`.
 ### EVM instructions
 The following instructions map one-to-one with [EVM instructions](https://www.evm.codes/).
-Operands correspond to stack inputs in the same order. Stack outputs are instruction output.
+Operands correspond to stack inputs in the same order. Stack outputs are the instruction's output.
 Instructions have the same effects.
 - `return`
 - `revert`
