@@ -78,6 +78,7 @@ def test_metadata():
     input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"*": ["metadata"]}}}
     assert get_output_formats(input_json) == {PurePath("foo.vy"): ["metadata"]}
 
+
 def test_metadata_contain_all_reachable_functions(make_input_bundle):
     code_a = """
 @internal
@@ -105,7 +106,9 @@ def bar():
 
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
 
-    out = compiler.compile_code(code_b, input_bundle=input_bundle,  output_formats=["metadata"])["metadata"]
+    out = compiler.compile_code(code_b, input_bundle=input_bundle, output_formats=["metadata"])[
+        "metadata"
+    ]
     print(out)
     assert "foochino" in out["function_info"]
     assert "bar" in out["function_info"]
