@@ -88,6 +88,8 @@ class SCCP(IRPass):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         while True:
+            # TODO compute uses and sccp only once
+            # and then modify them on the fly
             self.uses = dict()
             self._compute_uses()
             self.lattice = {}
@@ -97,6 +99,7 @@ class SCCP(IRPass):
             if not self._algebraic_opt():
                 break
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -527,13 +530,13 @@ class SCCP(IRPass):
         if match({"mod", "smod"}, 1, None):
             return store(0)
 
-        if match({"and"}, -1, None):
+        if match({"and"}, signed_to_unsigned(-1, 256), None):
             return store(operands[1])
 
-        if match({"xor"}, -1, None):
+        if match({"xor"}, signed_to_unsigned(-1, 256), None):
             return update("not", operands[1])
 
-        if match({"or"}, -1, None):
+        if match({"or"}, signed_to_unsigned(-1, 256), None):
             return store(signed_to_unsigned(-1, 256))
 
         if inst.opcode in {"mod", "div", "mul"} and is_lit(0) and is_power_of_two(get_lit(0).value):
