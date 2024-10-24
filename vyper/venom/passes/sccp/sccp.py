@@ -93,6 +93,8 @@ class SCCP(IRPass):
             # TODO compute uses and sccp only once
             # and then modify them on the fly
             self.lattice = {}
+            #self.uses = dict()
+            #self._compute_uses()
             self.work_list: list[WorkListItem] = []
             self._calculate_sccp(self.fn.entry)
             self._propagate_constants()
@@ -409,7 +411,9 @@ class SCCP(IRPass):
 
             for op in inst.operands:
                 if isinstance(op, IRVariable):
-                    self._get_uses(op).remove(inst)
+                    uses = self._get_uses(op)
+                    if inst in uses:
+                        uses.remove(inst)
             inst.opcode = opcode
             inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
 
@@ -428,6 +432,9 @@ class SCCP(IRPass):
             operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
             new_inst = IRInstruction(opcode, operands, output=var)
             inst.parent.insert_instruction(new_inst, index)
+            for op in new_inst.operands:
+                if isinstance(op, IRVariable):
+                    self._get_uses(op).add(new_inst)
             # self.dfg.add_output(var, new_inst)
             # self.dfg.add_use(var, inst)
             self._get_uses(var).add(inst)
