@@ -191,154 +191,200 @@ An `IRInstruction` consists of an opcode, a list of operands, and an optional re
 An operand can be a label, a variable, or a literal.
 
 ## Instructions
+To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code.
 
 ### Special instructions
 
 - `invoke`
-  - Cause control flow to jump to a function denoted by the label.
-  - Return values are passed in the return buffer at the `offset` address.
-  - Practically only used for internal functions.
-  - Effectively translates to `JUMP`.
   - ```
     invoke offset, label
     ```
+  - Causes control flow to jump to a function denoted by the `label`.
+  - Return values are passed in the return buffer at the `offset` address.
+  - Practically only used for internal functions.
+  - Effectively translates to `JUMP` and marks the call site as a valid destination for jump by `JUMPDEST`.
 - `alloca`
-  - Allocates memory of a given `size` at a given `offset` in memory.
-  - The output is the offset value itself.
-  - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   - ```
     out = alloca size, offset
     ```
+  - Allocates memory of a given `size` at a given `offset` in memory.
+  - The output is the offset value itself.
+  - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
+  
 - `palloca`
-  - Like the `alloca` instruction but only used for parameters of internal functions.
   - ```
     out = palloca size, offset
     ```
+  - Like the `alloca` instruction but only used for parameters of internal functions.
 - `iload`
-  - Load value at immutable section of memory denoted by `offset` into `out` variable.
-  - The operand can be either a literal, which is a statically computed offset, or a variable.
   - ```
     out = iload offset
     ```
+  - Loads value at an immutable section of memory denoted by `offset` into `out` variable.
+  - The operand can be either a literal, which is a statically computed offset, or a variable.
+  - Essentially translates to `MLOAD` on an immutable section of memory. So, for example 
+     ```
+     %op = 12
+     %out = iload %op
+    ```
+    could compile into `PUSH1 12 _mem_deploy_end ADD MLOAD`.
+  - When `offset` is a literal the location is computed statically during compilation from assembly to bytecode.
 - `istore`
-  - The instruction represents a store into immutable section of memory.
-  - Like in `iload`, the offset operand can be a literal.
   - ```
     istore offset value
     ```
+  - Represents a store into immutable section of memory.
+  - Like in `iload`, the offset operand can be a literal.
+  - Essentially translates to `MSTORE` on an immutable section of memory. For example,
+     ```
+     %op = 12
+     istore 24 %op
+     ```
+     could compile to 
+     `PUSH1 14 PUSH1 10 _mem_deploy_end ADD MSTORE`.
 - `phi`
-  - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
-  - Therefore, we use `phi` instructions. They are used in basic blocks where the control flow path merges.
-  - So essentially the `out` variable is set to `var_a` if the program entered this block from `label_a` or to `var_b` when it went through `label_b`. 
   - ```
     out = phi var_a, label_a, var_b, label_b
     ```
+  - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
+  - Therefore, we use `phi` instructions. They are used in basic blocks where the control flow path merges.
+  - So essentially the `out` variable is set to `var_a` if the program entered the current block from `label_a` or to `var_b` when it went through `label_b`.
 - `offset`
-  - Statically compute offset. Useful for `mstore`, `mload` and such.
-  - Basically `label` + `op`.
   - ```
     ret = offset label, op
     ```
+  - Statically compute offset before compiling into bytecode. Useful for `mstore`, `mload` and such.
+  - Basically `label` + `op`.
+  - The `asm` output could show something like `_OFST _sym_<op> label`.
 - `param`
-  - The `param` instruction is used to represent function arguments passed by the stack.
-  - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
   - ```
     out = param
     ```
+  - The `param` instruction is used to represent function arguments passed by the stack.
+  - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
 - `store`
-  - Store variable value or literal into `out` variable.
   - ```
     out = op
     ```
+  - Store variable value or literal into `out` variable.
 - `dbname`
-  - Mark memory with a `label` in the data segment so it can be referenced.
   - ```
     dbname label
     ```
+  - Mark memory with a `label` in the data segment so it can be referenced.
 - `db`
-  - Store `data` into data segment.
   - ```
     db data
     ```
+  - Store `data` into data segment.
 - `dloadbytes`
   - Alias for `codecopy` for legacy reasons. May be removed in future versions.
+  - Translates to `CODECOPY`.
 - `ret`
-  - Represents a return from an internal call.
-  - Jumps to a location given by `op`.
   - ```
     ret op
     ```
+  - Represents return from an internal call.
+  - Jumps to a location given by `op`.
+  - If `op` is a label it can effectively translate into `op JUMP`.
 - `exit`
-  - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - ```
     exit
     ```
+  - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
+  - Might translate to something like  `_sym__ctor_exit JUMP`.
 - `sha3_64`
-  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
   - ```
     out = sha3_64 x y
     ```
-    Essentially translates to
+  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
+  - Essentially translates to
     ```
-    MSTORE FREE_VAR_SPACE y
-    MSTORE FREE_VAR_SPACE2 x
-    SHA3 FREE_VAR_SPACE, 64
+    PUSH y PUSH FREE_VAR_SPACE MSTORE
+    PUSH x PUSH FREE_VAR_SPACE2 MSTORE
+    PUSH 64 PUSH FREE_VAR_SPACE SHA3
     ```
-    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler.
+    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler, set to 0 and 32 respectively.
 
 - `assert`
-  - Assert that `op` is zero. If it is not, revert.
-  - Calls that terminate this way do receive a gas refund.
   - ```
     assert op
     ```
+  - Assert that `op` is zero. If it is not, revert.
+  - Calls that terminate this way do receive a gas refund.
+  - For example
+    ``` 
+    %op = 13
+    assert %op
+    ```
+    could compile to
+    `PUSH1 23 ISZERO _sym___revert JUMPI`.
 - `assert_unreachable`
-  - Check that `op` is zero. If it is not, terminate with `0xFE` ("INVALID" opcode).
-  - Calls that end this way do not receive a gas refund.
   - ```
     assert_unreachable op
     ```
+  - Check that `op` is zero. If it is not, terminate with `0xFE` ("INVALID" opcode).
+  - Calls that end this way do not receive a gas refund.
+  - Could translate to `op reachable JUMPI INVALID reachable JUMPDEST`.
+  - For example
+    ``` 
+    %op = 13
+    assert_unreachable %op
+    ```
+    could compile to
+    ```
+    PUSH1 23 _sym_reachable1 JUMPI
+    INVALID
+    _sym_reachable1 JUMPDEST
+    ```
 - `log`
-  - Similar to the `LOGX` instruction in EVM.
-  - Depending on the `topic_count` value (which can be only from 0 to 4) translates to `LOG0` ... `LOG4`.
-  - The rest of the operands correspond to the `LOGX` instructions.
   - ```
     log offset, size, [topic] * topic_count , topic_count
     ```
+  - Similar to the `LOGX` instruction in EVM.
+  - Depending on the `topic_count` value (which can be only from 0 to 4) translates to `LOG0` ... `LOG4`.
+  - The rest of the operands correspond to the `LOGX` instructions.
   - For example
     ```
     log %53, 32, 64, %56, 2
     ```
-    would translate to:
+    could translate to:
     ```
-    LOG2 %53, 32, 64, %56
+    %56, 64, 32, %53 LOG2
     ```
 - `nop`
-  - No operation, does nothing.
   - ```
     nop
     ```
+  - No operation, does nothing.
 
 ### Jump instructions
 
 - `jmp`
-  - Unconditional jump to code denoted by given `label`.
   - ```
     jmp label
     ```
+  - Unconditional jump to code denoted by given `label`.
+  - Translates to `label JUMP`.
 - `jnz`
+   - ```
+     jnz label1, label2, op
+     ```
   - A conditional jump depending on `op` value.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
-  - ```
-    jnz label1, label2, op
+  - For example
     ```
+    %op = 15
+    jnz label1, label2, %op
+    ```
+    could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
-  - Dynamic jump to an address specified by the variable operand.
-  - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
   - ```
     djmp var
     ```
-
+  - Dynamic jump to an address specified by the variable operand.
+  - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
+  - Translates to `JUMP`.
 ### EVM instructions
 The following instructions map one-to-one with [EVM instructions](https://www.evm.codes/).
 Operands correspond to stack inputs in the same order. Stack outputs are instruction output.
@@ -415,20 +461,3 @@ Instructions have the same effects.
 - `difficulty`
 - `invalid`
 - `sha3`
----
-
-### TODO
-- Describe the architecture of analyses and passes a bit more. mention the distiction between analysis and pass (optimisation or transformation).
-- mention how to compile into it , bb(deploy), bb_runtime
-- perhaps add some flag to skip the store expansion pass? for readers of the code
-- if it is meant for using venom, then i should mention api for passes and analyses - should i do that?
-  - analysis by ir_analysis_cache - request, invalidate, force - type of analysis and additional params
-  - pass - run_pass
-
-Perhaps mention that functions:
-- each function starts as if with empty stack
-- alloca and palloca(interf) for some args
-- param for args by stack
-
-ask harry or someone:
-- _mem_deploy_end is it immutable after that??
