@@ -4,6 +4,7 @@ import pytest
 
 from vyper.cli.vyper_json import TRANSLATE_MAP, get_output_formats
 from vyper.exceptions import JSONError
+from vyper import compiler
 
 
 def test_no_outputs():
@@ -76,3 +77,37 @@ def test_solc_style():
 def test_metadata():
     input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"*": ["metadata"]}}}
     assert get_output_formats(input_json) == {PurePath("foo.vy"): ["metadata"]}
+
+def test_metadata_contain_all_reachable_functions(make_input_bundle):
+    code_a = """
+@internal
+def foo() -> uint256:
+    return 43
+
+@internal
+def faa() -> uint256:
+    return 76
+        """
+
+    code_b = """
+import A
+
+@internal
+def foochino() -> uint256:
+    return 43
+
+@external
+def bar():
+    self.foochino()
+    A.foo()
+    assert 1 != 12
+        """
+
+    input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
+
+    out = compiler.compile_code(code_b, input_bundle=input_bundle,  output_formats=["metadata"])["metadata"]
+    print(out)
+    assert "foochino" in out["function_info"]
+    assert "bar" in out["function_info"]
+    assert "foo" in out["function_info"]
+    assert "faa" not in out["function_info"]
