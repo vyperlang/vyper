@@ -550,7 +550,7 @@ class SCCP(IRPass):
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self._get_uses(inst.output)
-        is_truthy = all(i.opcode in ("assert", "iszero") for i in uses)
+        is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
 
         if is_truthy:
             if inst.opcode == "eq":
