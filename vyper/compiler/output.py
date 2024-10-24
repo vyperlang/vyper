@@ -18,6 +18,7 @@ from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
 from vyper.utils import vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
+from vyper.semantics.types.function import ContractFunctionT
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
@@ -206,7 +207,15 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    sigs = compiler_data.function_signatures
+    _ = compiler_data.function_signatures
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    sigs = dict[str, ContractFunctionT]()
+
+    for fn_t in module_t.exposed_functions:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+        for inf_t in fn_t.reachable_internal_functions:
+            sigs[inf_t.name] = inf_t
+        sigs[fn_t.name] = fn_t
 
     def _var_rec_dict(variable_record):
         ret = vars(variable_record).copy()
