@@ -110,7 +110,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
-    name = "".join([x.capitalize() for x in stem.split("_")])
+    name = "".join([x[0].upper() + x[1:] for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():
