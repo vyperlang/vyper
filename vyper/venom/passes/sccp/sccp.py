@@ -71,7 +71,7 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dom: DominatorTreeAnalysis
-    uses: dict[IRVariable, OrderedSet[IRInstruction]]
+    dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -83,18 +83,15 @@ class SCCP(IRPass):
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
         self.cfg_dirty = False
-        self.uses = dict()
 
     def run_pass(self):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._compute_uses()
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.recalc_sccp = True
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
-            #self.uses = dict()
-            #self._compute_uses()
             if self.recalc_sccp:
                 self.recalc_sccp = False
                 self.lattice = {}
@@ -103,7 +100,6 @@ class SCCP(IRPass):
             self._propagate_constants()
             if not self._algebraic_opt():
                 break
-            self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -126,7 +122,7 @@ class SCCP(IRPass):
         self.work_list.append(FlowWorkItem(dummy, entry))
 
         # Initialize the lattice with TOP values for all variables
-        for v in self.uses.keys():
+        for v in self.dfg._dfg_outputs:
             self.lattice[v] = LatticeEnum.TOP
 
         # Iterate over the work list until it is empty
@@ -295,21 +291,8 @@ class SCCP(IRPass):
         for target_inst in self._get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
-    def _compute_uses(self):
-        """
-        This method computes the uses for each variable in the IR.
-        It iterates over the dominator tree and collects all the
-        instructions that use each variable.
-        """
-        self.uses = {}
-        for bb in self.dom.dfs_walk:
-            for var, insts in bb.get_uses().items():
-                self._get_uses(var).update(insts)
-
-    def _get_uses(self, var: IRVariable):
-        if var not in self.uses:
-            self.uses[var] = OrderedSet()
-        return self.uses[var]
+    def _get_uses(self, var: IRVariable) -> OrderedSet:
+        return self.dfg.get_uses(var)
 
     def _propagate_constants(self):
         """
@@ -438,8 +421,6 @@ class SCCP(IRPass):
             for op in new_inst.operands:
                 if isinstance(op, IRVariable):
                     self._get_uses(op).add(new_inst)
-            # self.dfg.add_output(var, new_inst)
-            # self.dfg.add_use(var, inst)
             self._get_uses(var).add(inst)
             self._set_lattice(var, LatticeEnum.BOTTOM)
             return var
