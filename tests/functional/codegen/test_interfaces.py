@@ -775,6 +775,7 @@ def foo(s: MyStruct) -> MyStruct:
     assert "struct Voter:" in out
     assert "voted: bool" in out
 
+
 def test_interface_with_flags():
     code = """
 struct MyStruct:
