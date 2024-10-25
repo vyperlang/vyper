@@ -35,7 +35,6 @@ class DominatorTreeAnalysis(IRAnalysis):
 
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        self._compute_dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
@@ -131,8 +130,8 @@ class DominatorTreeAnalysis(IRAnalysis):
         return bb1
 
     @cached_property
-    def dfs_walk(self) -> Iterator[IRBasicBlock]:
-        return self.cfg.dfs_walk
+    def dfs_walk(self) -> list[IRBasicBlock]:
+        return list(self.cfg.dfs_walk)
 
     @cached_property
     def dfs_order(self) -> dict[IRBasicBlock, int]:

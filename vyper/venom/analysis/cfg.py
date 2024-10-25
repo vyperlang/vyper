@@ -11,7 +11,6 @@ class CFGAnalysis(IRAnalysis):
     """
 
     _dfs: Optional[list[IRBasicBlock]] = None
-    _topsort: Optional[OrderedSet[IRBasicBlock]] = None
 
     def analyze(self) -> None:
         fn = self.function
@@ -34,27 +33,23 @@ class CFGAnalysis(IRAnalysis):
             for in_bb in bb.cfg_in:
                 in_bb.add_cfg_out(bb)
 
-    def _compute_dfs_r(self, bb=None):
-        self._dfs = []
+    def _compute_dfs_r(self, bb):
+        assert self._dfs is not None  # help mypy
 
-        if bb is None:
-            bb = self.function.entry
+        if bb in self._dfs:
+            return
 
-        self._dfs.append(bb)
+        self._dfs.add(bb)
         for out_bb in bb.cfg_out:
             self._compute_dfs_r(out_bb)
 
-    def dfs(self) -> Iterator[IRBasicBlock]:
+    @property
+    def dfs_walk(self) -> Iterator[IRBasicBlock]:
         if self._dfs is None:
-            self._compute_dfs_r()
+            self._dfs = OrderedSet()
+            self._compute_dfs_r(self.function.entry)
 
-        assert self._dfs is not None  # help mypy
         return iter(self._dfs)
-
-    def topsort(self) -> Iterator[IRBasicBlock]:
-        if self._topsort is None:
-            self._topsort = OrderedSet(self.dfs())
-        return iter(self._topsort)
 
     def invalidate(self):
         from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
