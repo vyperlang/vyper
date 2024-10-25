@@ -190,8 +190,12 @@ Normalized basic blocks cannot have multiple predecessors and successors. It has
 An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
 An operand can be a label, a variable, or a literal.
 
+By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. However, the prefix is not required.
+
 ## Instructions
-To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code.
+To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+
+Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
 ### Special instructions
 
@@ -201,8 +205,8 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
     ```
   - Causes control flow to jump to a function denoted by the `label`.
   - Return values are passed in the return buffer at the `offset` address.
-  - Practically only used for internal functions.
-  - Effectively translates to `JUMP` and marks the call site as a valid destination for jump by `JUMPDEST`.
+  - Used for internal functions.
+  - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
     out = alloca size, offset
@@ -215,7 +219,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
   - ```
     out = palloca size, offset
     ```
-  - Like the `alloca` instruction but only used for parameters of internal functions.
+  - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `iload`
   - ```
     out = iload offset
@@ -244,11 +248,11 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
      `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
-    out = phi var_a, label_a, var_b, label_b
+    out = phi %var_a, label_a, %var_b, label_b
     ```
   - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
-  - Therefore, we use `phi` instructions. They are used in basic blocks where the control flow path merges.
-  - So essentially the `out` variable is set to `var_a` if the program entered the current block from `label_a` or to `var_b` when it went through `label_b`.
+  - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
+  - In this example, essentially the `out` variable is set to `%var_a` if the program entered the current block from `label_a` or to `%var_b` when it went through `label_b`.
 - `offset`
   - ```
     ret = offset label, op
@@ -311,7 +315,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
     assert op
     ```
   - Assert that `op` is zero. If it is not, revert.
-  - Calls that terminate this way do receive a gas refund.
+  - Calls that terminate this way receive a gas refund.
   - For example
     ``` 
     %op = 13
@@ -341,7 +345,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
   - ```
     log offset, size, [topic] * topic_count , topic_count
     ```
-  - Similar to the `LOGX` instruction in EVM.
+  - Corresponds to the `LOGX` instruction in EVM.
   - Depending on the `topic_count` value (which can be only from 0 to 4) translates to `LOG0` ... `LOG4`.
   - The rest of the operands correspond to the `LOGX` instructions.
   - For example
@@ -370,7 +374,7 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
    - ```
      jnz label1, label2, op
      ```
-  - A conditional jump depending on `op` value.
+  - A conditional jump depending on the value of `op`.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
   - For example
     ```
@@ -380,12 +384,16 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the 
     could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
   - ```
-    djmp var
+    djmp %var, label1, label2, label3, ...
     ```
-  - Dynamic jump to an address specified by the variable operand.
+  - Dynamic jump to an address specified by the variable operand, constrained to the provided labels.
+  - Accepts a variable number of labels.
   - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
+  - The jump target can be any of the provided labels.
   - Translates to `JUMP`.
+
 ### EVM instructions
+
 The following instructions map one-to-one with [EVM instructions](https://www.evm.codes/).
 Operands correspond to stack inputs in the same order. Stack outputs are the instruction's output.
 Instructions have the same effects.
