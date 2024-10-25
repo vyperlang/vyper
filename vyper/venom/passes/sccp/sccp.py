@@ -261,11 +261,8 @@ class SCCP(IRPass):
         return ret  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self._get_uses(inst.output):  # type: ignore
+        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
-
-    def _get_uses(self, var: IRVariable):
-        return self.dfg.get_uses(var)
 
     def _propagate_constants(self):
         """
