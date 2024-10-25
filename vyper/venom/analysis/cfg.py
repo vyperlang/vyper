@@ -10,7 +10,7 @@ class CFGAnalysis(IRAnalysis):
     Compute control flow graph information for each basic block in the function.
     """
 
-    _dfs: Optional[list[IRBasicBlock]] = None
+    _dfs: Optional[OrderedSet[IRBasicBlock]] = None
 
     def analyze(self) -> None:
         fn = self.function
@@ -33,15 +33,20 @@ class CFGAnalysis(IRAnalysis):
             for in_bb in bb.cfg_in:
                 in_bb.add_cfg_out(bb)
 
-    def _compute_dfs_r(self, bb):
+    def _compute_dfs_r(self, bb, visited=None):
         assert self._dfs is not None  # help mypy
+        if visited is None:
+            visited = OrderedSet()
 
-        if bb in self._dfs:
+        if bb in visited:
             return
 
-        self._dfs.add(bb)
+        visited.add(bb)
+
         for out_bb in bb.cfg_out:
-            self._compute_dfs_r(out_bb)
+            self._compute_dfs_r(out_bb, visited)
+
+        self._dfs.add(bb)
 
     @property
     def dfs_walk(self) -> Iterator[IRBasicBlock]:
@@ -49,6 +54,7 @@ class CFGAnalysis(IRAnalysis):
             self._dfs = OrderedSet()
             self._compute_dfs_r(self.function.entry)
 
+        assert self._dfs is not None  # help mypy
         return iter(self._dfs)
 
     def invalidate(self):
@@ -58,7 +64,6 @@ class CFGAnalysis(IRAnalysis):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
         self._dfs = None
-        self._topsort = None
 
         # be conservative - assume cfg invalidation invalidates dfg
         self.analyses_cache.invalidate_analysis(DFGAnalysis)

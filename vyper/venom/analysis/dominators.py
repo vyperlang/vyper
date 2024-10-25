@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Iterator
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
