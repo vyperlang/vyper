@@ -136,6 +136,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out += f"    {member_name}: {member_type}\n"
             out += "\n\n"
 
+    if len(interface.flags) > 0:
+        out += "# Flags\n\n"
+        for flag in interface.flags.values():
+            out += f"flag {flag.name}:\n"
+            for flag_value in flag._flag_members:
+                out += f"    {flag_value}\n"
+            out += "\n\n"
+
     if len(interface.events) > 0:
         out += "# Events\n\n"
         for event in interface.events.values():
