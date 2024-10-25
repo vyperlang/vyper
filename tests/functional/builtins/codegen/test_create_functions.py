@@ -943,3 +943,51 @@ def deploy() -> address:
     res = deployer.deploy()
 
     assert env.get_code(res) == runtime
+
+
+@pytest.mark.xfail
+@pytest.mark.parametrize("arg", [12, 257, 2**256 - 1])
+@pytest.mark.parametrize("length_offset", [-32, -1, 0, 1, 32])
+def test_raw_create_change_initcode_size(
+    get_contract, deploy_blueprint_for, env, arg, length_offset
+):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+
+"""
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    dummy_bytes = b"\x02" * (len(initcode) + length_offset)
+
+    deployer_code = f"""
+x:DynArray[Bytes[1024],1]
+
+@internal
+def change_initcode_length(v: Bytes[1024]) -> uint256:
+    self.x.pop()
+    self.x.append({dummy_bytes})
+    return {arg}
+
+@external
+def deploy(s: Bytes[1024]) -> address:
+    self.x.append(s)
+    contract: address = raw_create(self.x[0], self.change_initcode_length(s))
+    return contract
+"""
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy(initcode)
+    assert env.get_code(res) == runtime
+
+    _, FooContract = deploy_blueprint_for(to_deploy_code)
+    res = FooContract(res)
+
+    assert res.foo() == arg
