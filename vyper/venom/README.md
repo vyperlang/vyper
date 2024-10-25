@@ -361,6 +361,10 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     nop
     ```
   - No operation, does nothing.
+- `offset`
+  - ```
+    %2 = offset %1 label1
+  - Similar to `add`, but takes a label as the second argument. If the first argument is a literal, the addition will get optimized at assembly time.
 
 ### Jump instructions
 
