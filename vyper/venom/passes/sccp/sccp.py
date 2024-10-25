@@ -50,7 +50,6 @@ class SCCP(IRPass):
     """
 
     fn: IRFunction
-    dom: DominatorTreeAnalysis
     dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -66,7 +65,6 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
@@ -269,7 +267,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        for bb in self.dom.dfs_walk:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
