@@ -5,7 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
