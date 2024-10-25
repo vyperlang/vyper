@@ -774,3 +774,38 @@ def foo(s: MyStruct) -> MyStruct:
     assert "b: uint256" in out
     assert "struct Voter:" in out
     assert "voted: bool" in out
+
+def test_interface_with_flags():
+    code = """
+struct MyStruct:
+    a: address
+    
+flag Foo:
+    BOO
+    MOO
+    POO
+
+event Transfer:
+    sender: indexed(address)
+
+@external
+def bar():
+    pass
+flag BAR:
+    BIZ
+    BAZ
+    BOO
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
+
+    assert "# Flags" in out
+    assert "flag Foo:" in out
+    assert "flag BAR" in out
+    assert "BOO" in out
+    assert "MOO" in out
