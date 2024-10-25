@@ -5,7 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -51,7 +51,8 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dom: DominatorTreeAnalysis
-    uses: dict[IRVariable, OrderedSet[IRInstruction]]
+    dfg: DFGAnalysis
+    #uses: dict[IRVariable, OrderedSet[IRInstruction]]
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -67,13 +68,15 @@ class SCCP(IRPass):
     def run_pass(self):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._compute_uses()
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
+
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -92,7 +95,7 @@ class SCCP(IRPass):
         self.work_list.append(FlowWorkItem(dummy, entry))
 
         # Initialize the lattice with TOP values for all variables
-        for v in self.uses.keys():
+        for v in self.dfg._dfg_outputs:
             self.lattice[v] = LatticeEnum.TOP
 
         # Iterate over the work list until it is empty
@@ -261,21 +264,8 @@ class SCCP(IRPass):
         for target_inst in self._get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
-    def _compute_uses(self):
-        """
-        This method computes the uses for each variable in the IR.
-        It iterates over the dominator tree and collects all the
-        instructions that use each variable.
-        """
-        self.uses = {}
-        for bb in self.dom.dfs_walk:
-            for var, insts in bb.get_uses().items():
-                self._get_uses(var).update(insts)
-
     def _get_uses(self, var: IRVariable):
-        if var not in self.uses:
-            self.uses[var] = OrderedSet()
-        return self.uses[var]
+        return self.dfg.get_uses(var)
 
     def _propagate_constants(self):
         """
