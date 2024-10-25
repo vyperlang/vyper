@@ -1,11 +1,11 @@
 from typing import Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 
-from vyper.utils import OrderedSet
 
 class DFGAnalysis(IRAnalysis):
     _dfg_inputs: dict[IRVariable, OrderedSet[IRInstruction]]
