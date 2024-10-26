@@ -28,14 +28,11 @@ class CFGAnalysis(IRAnalysis):
             term = bb.instructions[-1]
             if term.opcode in CFG_ALTERING_INSTRUCTIONS:
                 ops = term.get_label_operands()
-                for op in ops:
+                # order of cfg_out matters to performance!
+                for op in reversed(list(ops)):
                     next_bb = fn.get_basic_block(op.value)
+                    bb.add_cfg_out(next_bb)
                     next_bb.add_cfg_in(bb)
-
-        for bb in fn.get_basic_blocks():
-            for in_bb in bb.cfg_in:
-                # order here matters to performance!
-                in_bb.add_cfg_out(bb)
 
         self._compute_dfs_r(self.function.entry)
 
