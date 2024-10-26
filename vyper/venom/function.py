@@ -1,8 +1,7 @@
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.utils import OrderedSet
-from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
 
 class IRFunction:
@@ -89,7 +88,7 @@ class IRFunction:
         return f"%{self.last_variable}"
 
     def remove_unreachable_blocks(self) -> int:
-        self._compute_reachability()
+        # pre: requires CFG analysis!
 
         removed = []
 
@@ -119,30 +118,6 @@ class IRFunction:
                         out_bb.remove_instruction(inst)
 
         return len(removed)
-
-    def _compute_reachability(self) -> None:
-        """
-        Compute reachability of basic blocks.
-        """
-        for bb in self.get_basic_blocks():
-            bb.reachable = OrderedSet()
-            bb.is_reachable = False
-
-        self._compute_reachability_from(self.entry)
-
-    def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
-        """
-        Compute reachability of basic blocks from bb.
-        """
-        if bb.is_reachable:
-            return
-        bb.is_reachable = True
-        for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
-                for op in inst.get_label_operands():
-                    out_bb = self.get_basic_block(op.value)
-                    bb.reachable.add(out_bb)
-                    self._compute_reachability_from(out_bb)
 
     @property
     def normalized(self) -> bool:

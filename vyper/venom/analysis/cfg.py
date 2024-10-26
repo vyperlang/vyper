@@ -1,4 +1,4 @@
-from typing import Iterator, Optional
+from typing import Iterator
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
@@ -10,14 +10,17 @@ class CFGAnalysis(IRAnalysis):
     Compute control flow graph information for each basic block in the function.
     """
 
-    _dfs: Optional[OrderedSet[IRBasicBlock]] = None
+    _dfs: OrderedSet[IRBasicBlock]
 
     def analyze(self) -> None:
         fn = self.function
+        self._dfs = OrderedSet()
+
         for bb in fn.get_basic_blocks():
             bb.cfg_in = OrderedSet()
             bb.cfg_out = OrderedSet()
             bb.out_vars = OrderedSet()
+            bb.is_reachable = False
 
         for bb in fn.get_basic_blocks():
             assert bb.is_terminated
@@ -31,31 +34,23 @@ class CFGAnalysis(IRAnalysis):
 
         for bb in fn.get_basic_blocks():
             for in_bb in bb.cfg_in:
-                # order here matters to performance
+                # order here matters to performance!
                 in_bb.add_cfg_out(bb)
 
-    def _compute_dfs_r(self, bb, visited=None):
-        assert self._dfs is not None  # help mypy
-        if visited is None:
-            visited = OrderedSet()
+        self._compute_dfs_r(self.function.entry)
 
-        if bb in visited:
+    def _compute_dfs_r(self, bb):
+        if bb.is_reachable:
             return
-
-        visited.add(bb)
+        bb.is_reachable = True
 
         for out_bb in bb.cfg_out:
-            self._compute_dfs_r(out_bb, visited)
+            self._compute_dfs_r(out_bb)
 
         self._dfs.add(bb)
 
     @property
     def dfs_walk(self) -> Iterator[IRBasicBlock]:
-        if self._dfs is None:
-            self._dfs = OrderedSet()
-            self._compute_dfs_r(self.function.entry)
-
-        assert self._dfs is not None  # help mypy
         return iter(self._dfs)
 
     def invalidate(self):
