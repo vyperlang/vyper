@@ -28,7 +28,11 @@ class CFGAnalysis(IRAnalysis):
                 for op in ops:
                     next_bb = fn.get_basic_block(op.value)
                     next_bb.add_cfg_in(bb)
-                    bb.add_cfg_out(next_bb)
+
+        for bb in fn.get_basic_blocks():
+            for in_bb in bb.cfg_in:
+                # order here matters to performance
+                in_bb.add_cfg_out(bb)
 
     def _compute_dfs_r(self, bb, visited=None):
         assert self._dfs is not None  # help mypy
