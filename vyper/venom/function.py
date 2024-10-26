@@ -89,6 +89,7 @@ class IRFunction:
 
     def remove_unreachable_blocks(self) -> int:
         # pre: requires CFG analysis!
+        # NOTE: should this be a pass?
 
         removed = []
 
