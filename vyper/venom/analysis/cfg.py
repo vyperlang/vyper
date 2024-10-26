@@ -22,16 +22,13 @@ class CFGAnalysis(IRAnalysis):
         for bb in fn.get_basic_blocks():
             assert bb.is_terminated
 
-            for inst in bb.instructions:
-                if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
-                    ops = inst.get_label_operands()
-                    for op in ops:
-                        fn.get_basic_block(op.value).add_cfg_in(bb)
-
-        # Fill in the "out" set for each basic block
-        for bb in fn.get_basic_blocks():
-            for in_bb in bb.cfg_in:
-                in_bb.add_cfg_out(bb)
+            term = bb.instructions[-1]
+            if term.opcode in CFG_ALTERING_INSTRUCTIONS:
+                ops = term.get_label_operands()
+                for op in ops:
+                    next_bb = fn.get_basic_block(op.value)
+                    next_bb.add_cfg_in(bb)
+                    bb.add_cfg_out(next_bb)
 
     def _compute_dfs_r(self, bb, visited=None):
         assert self._dfs is not None  # help mypy
