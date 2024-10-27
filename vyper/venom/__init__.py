@@ -12,11 +12,11 @@ from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
-    ReduceLiteralsCodesize,
     BranchOptimizationPass,
     DFTPass,
     MakeSSA,
     Mem2Var,
+    ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
