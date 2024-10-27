@@ -213,8 +213,8 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
     for fn_t in module_t.exposed_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        for inf_t in fn_t.reachable_internal_functions:
-            sigs[inf_t.name] = inf_t
+        for rif_t in fn_t.reachable_internal_functions:
+            sigs[rif_t.ast_def.module_node.path + ": " + rif_t.name] = rif_t
         sigs[fn_t.name] = fn_t
 
     def _var_rec_dict(variable_record):

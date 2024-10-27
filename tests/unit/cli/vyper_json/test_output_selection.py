@@ -94,12 +94,12 @@ def faa() -> uint256:
 import A
 
 @internal
-def foochino() -> uint256:
+def foo() -> uint256:
     return 43
 
 @external
 def bar():
-    self.foochino()
+    self.foo()
     A.foo()
     assert 1 != 12
         """
@@ -108,9 +108,15 @@ def bar():
 
     out = compiler.compile_code(code_b, input_bundle=input_bundle, output_formats=["metadata"])[
         "metadata"
-    ]
-    print(out)
-    assert "foochino" in out["function_info"]
-    assert "bar" in out["function_info"]
-    assert "foo" in out["function_info"]
-    assert "faa" not in out["function_info"]
+    ]["function_info"]
+
+    def has_suffix_key(data: dict, suffix: str) -> bool:
+        for key in data.keys():
+            if key.endswith(suffix):
+                return True
+        return False
+
+    assert has_suffix_key(out, "<unknown>: foo")
+    assert has_suffix_key(out, "bar")
+    assert has_suffix_key(out, "A.vy: foo")
+    assert not has_suffix_key(out, "faa")
