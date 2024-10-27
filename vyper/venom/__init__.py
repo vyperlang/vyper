@@ -12,6 +12,7 @@ from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
+    ReduceLiteralsCodesize,
     BranchOptimizationPass,
     DFTPass,
     MakeSSA,
@@ -66,6 +67,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
+
+    if optimize == OptimizationLevel.CODESIZE:
+        ReduceLiteralsCodesize(ac, fn).run_pass()
+
     DFTPass(ac, fn).run_pass()
 
 

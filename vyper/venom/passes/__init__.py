@@ -1,4 +1,5 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .literals_codesize import ReduceLiteralsCodesize
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .make_ssa import MakeSSA
