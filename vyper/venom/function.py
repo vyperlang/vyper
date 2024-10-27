@@ -88,42 +88,31 @@ class IRFunction:
         return f"%{self.last_variable}"
 
     def remove_unreachable_blocks(self) -> int:
+        # Remove unreachable basic blocks
         # pre: requires CFG analysis!
         # NOTE: should this be a pass?
 
-        removed = []
+        removed = set()
 
-        # Remove unreachable basic blocks
         for bb in self.get_basic_blocks():
             if not bb.is_reachable:
-                removed.append(bb)
+                removed.add(bb)
 
         for bb in removed:
             self.remove_basic_block(bb)
 
         # Remove phi instructions that reference removed basic blocks
-        for bb in removed:
-            for out_bb in bb.cfg_out:
-                if not out_bb.is_reachable:
+        for bb in self.get_basic_blocks():
+            modified = False
+            for in_bb in list(bb.cfg_in):
+                if in_bb not in removed:
                     continue
 
-                out_bb.remove_cfg_in(bb)
-                for inst in out_bb.instructions:
-                    if inst.opcode != "phi":
-                        continue
+                modified = True
+                bb.remove_cfg_in(in_bb)
 
-                    in_labels = inst.get_label_operands()
-                    if bb.label in in_labels:
-                        inst.remove_phi_operand(bb.label)
-
-                    op_len = len(inst.operands)
-                    if op_len == 2:
-                        inst.opcode = "store"
-                        inst.operands = [inst.operands[1]]
-                    elif op_len == 0:
-                        inst.output = None
-                        inst.opcode = "nop"
-                        inst.operands = []
+            if modified or True:
+                bb.fix_phi_instructions()
 
         return len(removed)
 

@@ -495,6 +495,32 @@ class IRBasicBlock:
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
 
+    def fix_phi_instructions(self):
+        cfg_in_labels = tuple(bb.label for bb in self.cfg_in)
+
+        needs_sort = False
+        for inst in self.instructions:
+            if inst.opcode != "phi":
+                continue
+
+            labels = inst.get_label_operands()
+            for label in labels:
+                if label not in cfg_in_labels:
+                    needs_sort = True
+                    inst.remove_phi_operand(label)
+
+            op_len = len(inst.operands)
+            if op_len == 2:
+                inst.opcode = "store"
+                inst.operands = [inst.operands[1]]
+            elif op_len == 0:
+                inst.opcode = "nop"
+                inst.output = None
+                inst.operands = []
+
+        if needs_sort:
+            self.instructions.sort(key=lambda inst: inst.opcode != "phi")
+
     def get_assignments(self):
         """
         Get all assignments in basic block.
