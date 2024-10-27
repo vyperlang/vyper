@@ -104,19 +104,26 @@ class IRFunction:
         # Remove phi instructions that reference removed basic blocks
         for bb in removed:
             for out_bb in bb.cfg_out:
+                if not out_bb.is_reachable:
+                    continue
+
                 out_bb.remove_cfg_in(bb)
                 for inst in out_bb.instructions:
                     if inst.opcode != "phi":
                         continue
+
                     in_labels = inst.get_label_operands()
                     if bb.label in in_labels:
                         inst.remove_phi_operand(bb.label)
+
                     op_len = len(inst.operands)
                     if op_len == 2:
                         inst.opcode = "store"
                         inst.operands = [inst.operands[1]]
                     elif op_len == 0:
-                        out_bb.remove_instruction(inst)
+                        inst.output = None
+                        inst.opcode = "nop"
+                        inst.operands = []
 
         return len(removed)
 
