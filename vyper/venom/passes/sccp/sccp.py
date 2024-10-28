@@ -105,6 +105,8 @@ class SCCP(IRPass):
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
 
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
         This method is the main entry point for the SCCP algorithm. It
@@ -288,7 +290,7 @@ class SCCP(IRPass):
         return ret  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self._get_uses(inst.output):  # type: ignore
+        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
     def _get_uses(self, var: IRVariable) -> OrderedSet:
