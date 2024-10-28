@@ -200,6 +200,7 @@ pragma_venom = [
     """,
 ]
 
+
 @pytest.mark.parametrize("code", pragma_venom)
 def test_parse_venom_pragma(code):
     pre_parse_result = pre_parse(code)

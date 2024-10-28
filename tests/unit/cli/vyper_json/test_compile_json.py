@@ -325,21 +325,15 @@ from . import stream
 def test_compile_json_with_experimental_codegen():
     code = {
         "language": "Vyper",
-        "sources": {
-            "foo.vy": {
-                "content": "@external\ndef foo() -> bool:\n    return True"
-            }
-        },
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
             "venom": True,
             "search_paths": [],
-            "outputSelection": {
-                "*": ["ast"],
-            }
-        }
+            "outputSelection": {"*": ["ast"]},
+        },
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen==True
+    assert settings.experimental_codegen == True
