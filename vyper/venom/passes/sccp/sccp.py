@@ -86,17 +86,15 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis) # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis) # type: ignore
         self.recalc_sccp = True
+        self.lattice = {}
+        self.work_list: list[WorkListItem] = []
+        self._calculate_sccp(self.fn.entry)
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
-            if self.recalc_sccp:
-                self.recalc_sccp = False
-                self.lattice = {}
-                self.work_list: list[WorkListItem] = []
-                self._calculate_sccp(self.fn.entry)
             self._propagate_constants()
             if not self._algebraic_opt():
                 break
@@ -105,7 +103,7 @@ class SCCP(IRPass):
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
 
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        #self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -394,6 +392,7 @@ class SCCP(IRPass):
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int) -> bool:
+            assert opcode != "phi"
             if inst.opcode == opcode:
                 return False
 
@@ -409,12 +408,15 @@ class SCCP(IRPass):
                 if isinstance(op, IRVariable):
                     self._get_uses(op).add(inst)
 
+            self._visit_expr(inst)
+        
             return True
 
         def store(*args: IROperand | int) -> bool:
             return update("store", *args)
 
         def add(opcode: str, *args: IROperand | int) -> IRVariable:
+            assert opcode != "phi"
             index = inst.parent.instructions.index(inst)
             var = inst.parent.parent.get_next_variable()
             operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
@@ -424,7 +426,8 @@ class SCCP(IRPass):
                 if isinstance(op, IRVariable):
                     self._get_uses(op).add(new_inst)
             self._get_uses(var).add(inst)
-            self._set_lattice(var, LatticeEnum.BOTTOM)
+            self._visit_expr(new_inst)
+            #self._set_lattice(var, LatticeEnum.BOTTOM)
             return var
 
         operands = inst.operands
