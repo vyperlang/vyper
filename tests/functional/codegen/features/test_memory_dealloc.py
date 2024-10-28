@@ -9,7 +9,7 @@ interface Other:
 
 @external
 def foo(target: address) -> uint256[2]:
-    log Shimmy(empty(address), 3)
+    log Shimmy(a=empty(address), b=3)
     amount: uint256 = 1
     flargen: uint256 = 42
     extcall Other(target).sendit()

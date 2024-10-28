@@ -5,9 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -53,7 +51,7 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dom: DominatorTreeAnalysis
-    uses: dict[IRVariable, OrderedSet[IRInstruction]]
+    dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -69,13 +67,15 @@ class SCCP(IRPass):
     def run_pass(self):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._compute_uses()
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
+
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -94,7 +94,7 @@ class SCCP(IRPass):
         self.work_list.append(FlowWorkItem(dummy, entry))
 
         # Initialize the lattice with TOP values for all variables
-        for v in self.uses.keys():
+        for v in self.dfg._dfg_outputs:
             self.lattice[v] = LatticeEnum.TOP
 
         # Iterate over the work list until it is empty
@@ -260,24 +260,8 @@ class SCCP(IRPass):
         return ret  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self._get_uses(inst.output):  # type: ignore
+        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
-
-    def _compute_uses(self):
-        """
-        This method computes the uses for each variable in the IR.
-        It iterates over the dominator tree and collects all the
-        instructions that use each variable.
-        """
-        self.uses = {}
-        for bb in self.dom.dfs_walk:
-            for var, insts in bb.get_uses().items():
-                self._get_uses(var).update(insts)
-
-    def _get_uses(self, var: IRVariable):
-        if var not in self.uses:
-            self.uses[var] = OrderedSet()
-        return self.uses[var]
 
     def _propagate_constants(self):
         """
@@ -334,19 +318,18 @@ class SCCP(IRPass):
     def _fix_phi_nodes(self):
         # fix basic blocks whose cfg in was changed
         # maybe this should really be done in _visit_phi
-        needs_sort = False
-
         for bb in self.fn.get_basic_blocks():
             cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
 
+            needs_sort = False
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
                 needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
 
-        # move phi instructions to the top of the block
-        if needs_sort:
-            bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+            # move phi instructions to the top of the block
+            if needs_sort:
+                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
     def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
         operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]

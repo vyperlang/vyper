@@ -295,3 +295,27 @@ def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
     input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
     compile_from_input_dict(input_json)
+
+
+def test_compile_json_with_abi_top(make_input_bundle):
+    stream = """
+{
+  "abi": [
+    {
+      "name": "validate",
+      "inputs": [
+        { "name": "creator", "type": "address" },
+        { "name": "token", "type": "address" },
+        { "name": "amount_per_second", "type": "uint256" },
+        { "name": "reason", "type": "bytes" }
+      ],
+      "outputs": [{ "name": "max_stream_life", "type": "uint256" }]
+    }
+  ]
+}
+    """
+    code = """
+from . import stream
+    """
+    input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
+    vyper.compiler.compile_code(code, input_bundle=input_bundle)
