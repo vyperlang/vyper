@@ -337,3 +337,20 @@ def test_compile_json_with_experimental_codegen():
 
     settings = get_settings(code)
     assert settings.experimental_codegen == True
+
+
+def test_compile_json_with_both_venom_aliases():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": ""}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "experimentalCodegen": False,
+            "venom": False,
+            "search_paths": [],
+            "outputSelection": {"*": ["ast"]},
+        },
+    }
+    with pytest.raises(JSONError):
+        get_settings(code)
