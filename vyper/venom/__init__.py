@@ -14,7 +14,7 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     BranchOptimizationPass,
     DFTPass,
-FunctionInlinerPass,
+    FunctionInlinerPass,
     MakeSSA,
     Mem2Var,
     RemoveUnusedVariablesPass,
