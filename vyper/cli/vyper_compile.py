@@ -354,7 +354,7 @@ def compile_files(
             # we allow this instead of requiring a different mode (like
             # `--zip`) so that verifier pipelines do not need a different
             # workflow for archive files and single-file contracts.
-            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
             ret[file_path] = output
             continue
         except NotZipInput:
