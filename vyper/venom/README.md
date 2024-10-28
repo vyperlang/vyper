@@ -160,3 +160,316 @@ A number of passes that are planned to be implemented, or are implemented for im
 ### Function inlining
 
 ### Load-store elimination
+
+---
+
+## Structure of a venom program
+
+### IRContext
+An `IRContext` consists of multiple `IRFunctions`, with one designated as the main entry point of the program.
+Additionally, the `IRContext` maintains its own representation of the data segment.
+
+### IRFunction
+An `IRFunction` is composed of a name and multiple `IRBasicBlocks`, with one marked as the entry point to the function.
+
+### IRBasicBlock
+An `IRBasicBlock` contains a label and a sequence of `IRInstructions`.
+Each `IRBasicBlock` has a single entry point and exit point.
+The exit point must be one of the following terminator instructions:
+- `jmp` 
+- `djmp` 
+- `jnz` 
+- `ret` 
+- `return` 
+- `stop` 
+- `exit`
+
+Normalized basic blocks cannot have multiple predecessors and successors. It has either one (or zero) predecessors and potentially multiple successors or vice versa.
+
+### IRInstruction
+An `IRInstruction` consists of an opcode, a list of operands, and an optional return value.
+An operand can be a label, a variable, or a literal.
+
+By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. However, the prefix is not required.
+
+## Instructions
+To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+
+Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
+
+### Special instructions
+
+- `invoke`
+  - ```
+    invoke offset, label
+    ```
+  - Causes control flow to jump to a function denoted by the `label`.
+  - Return values are passed in the return buffer at the `offset` address.
+  - Used for internal functions.
+  - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
+- `alloca`
+  - ```
+    out = alloca size, offset
+    ```
+  - Allocates memory of a given `size` at a given `offset` in memory.
+  - The output is the offset value itself.
+  - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
+  
+- `palloca`
+  - ```
+    out = palloca size, offset
+    ```
+  - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
+- `iload`
+  - ```
+    out = iload offset
+    ```
+  - Loads value at an immutable section of memory denoted by `offset` into `out` variable.
+  - The operand can be either a literal, which is a statically computed offset, or a variable.
+  - Essentially translates to `MLOAD` on an immutable section of memory. So, for example 
+     ```
+     %op = 12
+     %out = iload %op
+    ```
+    could compile into `PUSH1 12 _mem_deploy_end ADD MLOAD`.
+  - When `offset` is a literal the location is computed statically during compilation from assembly to bytecode.
+- `istore`
+  - ```
+    istore offset value
+    ```
+  - Represents a store into immutable section of memory.
+  - Like in `iload`, the offset operand can be a literal.
+  - Essentially translates to `MSTORE` on an immutable section of memory. For example,
+     ```
+     %op = 12
+     istore 24 %op
+     ```
+     could compile to 
+     `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
+- `phi`
+  - ```
+    out = phi %var_a, label_a, %var_b, label_b
+    ```
+  - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
+  - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
+  - In this example, essentially the `out` variable is set to `%var_a` if the program entered the current block from `label_a` or to `%var_b` when it went through `label_b`.
+- `offset`
+  - ```
+    ret = offset label, op
+    ```
+  - Statically compute offset before compiling into bytecode. Useful for `mstore`, `mload` and such.
+  - Basically `label` + `op`.
+  - The `asm` output could show something like `_OFST _sym_<op> label`.
+- `param`
+  - ```
+    out = param
+    ```
+  - The `param` instruction is used to represent function arguments passed by the stack.
+  - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
+- `store`
+  - ```
+    out = op
+    ```
+  - Store variable value or literal into `out` variable.
+- `dbname`
+  - ```
+    dbname label
+    ```
+  - Mark memory with a `label` in the data segment so it can be referenced.
+- `db`
+  - ```
+    db data
+    ```
+  - Store `data` into data segment.
+- `dloadbytes`
+  - Alias for `codecopy` for legacy reasons. May be removed in future versions.
+  - Translates to `CODECOPY`.
+- `ret`
+  - ```
+    ret op
+    ```
+  - Represents return from an internal call.
+  - Jumps to a location given by `op`.
+  - If `op` is a label it can effectively translate into `op JUMP`.
+- `exit`
+  - ```
+    exit
+    ```
+  - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
+  - Might translate to something like  `_sym__ctor_exit JUMP`.
+- `sha3_64`
+  - ```
+    out = sha3_64 x y
+    ```
+  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
+  - Essentially translates to
+    ```
+    PUSH y PUSH FREE_VAR_SPACE MSTORE
+    PUSH x PUSH FREE_VAR_SPACE2 MSTORE
+    PUSH 64 PUSH FREE_VAR_SPACE SHA3
+    ```
+    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler, set to 0 and 32 respectively.
+
+- `assert`
+  - ```
+    assert op
+    ```
+  - Assert that `op` is zero. If it is not, revert.
+  - Calls that terminate this way receive a gas refund.
+  - For example
+    ``` 
+    %op = 13
+    assert %op
+    ```
+    could compile to
+    `PUSH1 13 ISZERO _sym___revert JUMPI`.
+- `assert_unreachable`
+  - ```
+    assert_unreachable op
+    ```
+  - Check that `op` is zero. If it is not, terminate with `0xFE` ("INVALID" opcode).
+  - Calls that end this way do not receive a gas refund.
+  - Could translate to `op reachable JUMPI INVALID reachable JUMPDEST`.
+  - For example
+    ``` 
+    %op = 13
+    assert_unreachable %op
+    ```
+    could compile to
+    ```
+    PUSH1 13 _sym_reachable1 JUMPI
+    INVALID
+    _sym_reachable1 JUMPDEST
+    ```
+- `log`
+  - ```
+    log offset, size, [topic] * topic_count , topic_count
+    ```
+  - Corresponds to the `LOGX` instruction in EVM.
+  - Depending on the `topic_count` value (which can be only from 0 to 4) translates to `LOG0` ... `LOG4`.
+  - The rest of the operands correspond to the `LOGX` instructions.
+  - For example
+    ```
+    log %53, 32, 64, %56, 2
+    ```
+    could translate to:
+    ```
+    %56, 64, 32, %53 LOG2
+    ```
+- `nop`
+  - ```
+    nop
+    ```
+  - No operation, does nothing.
+- `offset`
+  - ```
+    %2 = offset %1 label1
+  - Similar to `add`, but takes a label as the second argument. If the first argument is a literal, the addition will get optimized at assembly time.
+
+### Jump instructions
+
+- `jmp`
+  - ```
+    jmp label
+    ```
+  - Unconditional jump to code denoted by given `label`.
+  - Translates to `label JUMP`.
+- `jnz`
+   - ```
+     jnz label1, label2, op
+     ```
+  - A conditional jump depending on the value of `op`.
+  - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
+  - For example
+    ```
+    %op = 15
+    jnz label1, label2, %op
+    ```
+    could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
+- `djmp`
+  - ```
+    djmp %var, label1, label2, label3, ...
+    ```
+  - Dynamic jump to an address specified by the variable operand, constrained to the provided labels.
+  - Accepts a variable number of labels.
+  - The target is not a fixed label but rather a value stored in a variable, making the jump dynamic.
+  - The jump target can be any of the provided labels.
+  - Translates to `JUMP`.
+
+### EVM instructions
+
+The following instructions map one-to-one with [EVM instructions](https://www.evm.codes/).
+Operands correspond to stack inputs in the same order. Stack outputs are the instruction's output.
+Instructions have the same effects.
+- `return`
+- `revert`
+- `coinbase`
+- `calldatasize`
+- `calldatacopy`
+- `mcopy`
+- `calldataload`
+- `gas`
+- `gasprice`
+- `gaslimit`
+- `chainid`
+- `address`
+- `origin`
+- `number`
+- `extcodesize`
+- `extcodehash`
+- `extcodecopy`
+- `returndatasize`
+- `returndatacopy`
+- `callvalue`
+- `selfbalance`
+- `sload`
+- `sstore`
+- `mload`
+- `mstore`
+- `tload`
+- `tstore`
+- `timestamp`
+- `caller`
+- `blockhash`
+- `selfdestruct`
+- `signextend`
+- `stop`
+- `shr`
+- `shl`
+- `sar`
+- `and`
+- `xor`
+- `or`
+- `add`
+- `sub`
+- `mul`
+- `div`
+- `smul`
+- `sdiv`
+- `mod`
+- `smod`
+- `exp`
+- `addmod`
+- `mulmod`
+- `eq`
+- `iszero`
+- `not`
+- `lt`
+- `gt`
+- `slt`
+- `sgt`
+- `create`
+- `create2`
+- `msize`
+- `balance`
+- `call`
+- `staticcall`
+- `delegatecall`
+- `codesize`
+- `basefee`
+- `blobhash`
+- `blobbasefee`
+- `prevrandao`
+- `difficulty`
+- `invalid`
+- `sha3`
