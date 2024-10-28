@@ -191,6 +191,24 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
     assert compiler_data.settings == compiler_data_settings
 
 
+pragma_venom = [
+    """
+    #pragma venom
+    """,
+    """
+    #pragma experimental-codegen
+    """,
+]
+
+@pytest.mark.parametrize("code", pragma_venom)
+def test_parse_venom_pragma(code):
+    pre_parse_result = pre_parse(code)
+    assert pre_parse_result.settings.experimental_codegen == True
+
+    compiler_data = CompilerData(code)
+    assert compiler_data.settings.experimental_codegen == True
+
+
 invalid_pragmas = [
     # evm-versionnn
     """
