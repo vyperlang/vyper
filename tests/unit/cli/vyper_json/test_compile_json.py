@@ -9,6 +9,7 @@ from vyper.cli.vyper_json import (
     compile_json,
     exc_handler_to_dict,
     get_inputs,
+    get_settings,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
@@ -319,3 +320,26 @@ from . import stream
     """
     input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
     vyper.compiler.compile_code(code, input_bundle=input_bundle)
+
+
+def test_compile_json_with_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {
+            "foo.vy": {
+                "content": "@external\ndef foo() -> bool:\n    return True"
+            }
+        },
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venom": True,
+            "search_paths": [],
+            "outputSelection": {
+                "*": ["ast"],
+            }
+        }
+    }
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen==True
