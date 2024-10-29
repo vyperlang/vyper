@@ -1,3 +1,4 @@
+from vyper.venom.effects import Effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
 from vyper.venom.passes.base_pass import IRPass
 
@@ -27,11 +28,11 @@ class LoadElimination(IRPass):
         memory = ()
 
         for inst in bb.instructions:
-            if "memory" in inst.get_write_effects():
+            if Effects.MEMORY in inst.get_write_effects():
                 memory = ()
-            if "storage" in inst.get_write_effects():
+            if Effects.STORAGE in inst.get_write_effects():
                 storage = ()
-            if "transient" in inst.get_write_effects():
+            if Effects.TRANSIENT in inst.get_write_effects():
                 transient = ()
 
             if inst.opcode == "mstore":
