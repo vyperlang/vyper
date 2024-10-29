@@ -384,7 +384,6 @@ class IRBasicBlock:
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
-    reachable: OrderedSet["IRBasicBlock"]
     is_reachable: bool = False
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -395,7 +394,6 @@ class IRBasicBlock:
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
-        self.reachable = OrderedSet()
         self.is_reachable = False
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
