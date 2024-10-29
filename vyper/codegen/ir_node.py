@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Any, List, Optional, Union
 
 import vyper.ast as vy_ast
-from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.compiler.settings import VYPER_COLOR_OUTPUT, get_global_settings
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
@@ -426,6 +426,10 @@ class IRnode:
 
     @property  # probably could be cached_property but be paranoid
     def _optimized(self):
+        if get_global_settings().experimental_codegen:
+            # in venom pipeline, we don't need to inline constants.
+            return self
+
         # TODO figure out how to fix this circular import
         from vyper.ir.optimizer import optimize
 
