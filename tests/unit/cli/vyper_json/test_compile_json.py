@@ -336,7 +336,7 @@ def test_compile_json_with_experimental_codegen():
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen == True
+    assert settings.experimental_codegen is True
 
 
 def test_compile_json_with_both_venom_aliases():
