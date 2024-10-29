@@ -15,7 +15,7 @@ class LivenessAnalysis(IRAnalysis):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
 
-        worklist = deque(reversed(list(cfg.topsort())))
+        worklist = deque(cfg.dfs_walk)
 
         while len(worklist) > 0:
             bb = worklist.popleft()
