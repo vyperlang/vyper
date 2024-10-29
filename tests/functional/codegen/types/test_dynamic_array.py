@@ -11,7 +11,6 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     OverflowException,
-    StackTooDeep,
     StateAccessViolation,
     TypeMismatch,
 )
@@ -737,7 +736,6 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]

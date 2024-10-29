@@ -185,15 +185,6 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
-    def __eq__(self, other):
-        # no need for is_symbol to participate in equality
-        return super().__eq__(other)
-
-    def __hash__(self):
-        # __hash__ is required when __eq__ is overridden --
-        # https://docs.python.org/3/reference/datamodel.html#object.__hash__
-        return super().__hash__()
-
 
 class IRInstruction:
     """
@@ -393,7 +384,6 @@ class IRBasicBlock:
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
-    reachable: OrderedSet["IRBasicBlock"]
     is_reachable: bool = False
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -404,7 +394,6 @@ class IRBasicBlock:
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
-        self.reachable = OrderedSet()
         self.is_reachable = False
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
@@ -494,6 +483,32 @@ class IRBasicBlock:
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
+
+    def fix_phi_instructions(self):
+        cfg_in_labels = tuple(bb.label for bb in self.cfg_in)
+
+        needs_sort = False
+        for inst in self.instructions:
+            if inst.opcode != "phi":
+                continue
+
+            labels = inst.get_label_operands()
+            for label in labels:
+                if label not in cfg_in_labels:
+                    needs_sort = True
+                    inst.remove_phi_operand(label)
+
+            op_len = len(inst.operands)
+            if op_len == 2:
+                inst.opcode = "store"
+                inst.operands = [inst.operands[1]]
+            elif op_len == 0:
+                inst.opcode = "nop"
+                inst.output = None
+                inst.operands = []
+
+        if needs_sort:
+            self.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
     def get_assignments(self):
         """

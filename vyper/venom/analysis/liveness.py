@@ -65,7 +65,7 @@ class LivenessAnalysis(IRAnalysis):
         bb.out_vars = OrderedSet()
         for out_bb in bb.cfg_out:
             target_vars = self.input_vars_from(bb, out_bb)
-            bb.out_vars = bb.out_vars.union(target_vars)
+            bb.out_vars.update(target_vars)
         return out_vars != bb.out_vars
 
     # calculate the input variables into self from source
