@@ -300,6 +300,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
+        self.function._compute_reachability()
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 self._replace_constants(inst)
@@ -331,7 +332,7 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
-                else:
+                elif inst.parent.is_reachable:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
