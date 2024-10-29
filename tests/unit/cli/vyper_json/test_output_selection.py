@@ -2,9 +2,9 @@ from pathlib import PurePath
 
 import pytest
 
+from vyper import compiler
 from vyper.cli.vyper_json import TRANSLATE_MAP, get_output_formats
 from vyper.exceptions import JSONError
-from vyper import compiler
 
 
 def test_no_outputs():
