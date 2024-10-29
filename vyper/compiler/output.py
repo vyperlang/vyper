@@ -207,6 +207,7 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
+    # need ir info to be computed
     _ = compiler_data.function_signatures
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     sigs = dict[str, ContractFunctionT]()
