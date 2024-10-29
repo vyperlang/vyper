@@ -780,7 +780,7 @@ def test_interface_with_flags():
     code = """
 struct MyStruct:
     a: address
-    
+
 flag Foo:
     BOO
     MOO
