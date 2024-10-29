@@ -86,8 +86,8 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis) # type: ignore
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis) # type: ignore
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)  # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         self.recalc_sccp = True
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
@@ -102,8 +102,6 @@ class SCCP(IRPass):
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
-
-        #self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -300,6 +298,11 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
+        # the reachability is needed because of the
+        # unreachable assert that would be statically
+        # found to be false, but we still assume that
+        # the unreachable basic block will be handled
+        # with all other aspects in sccp test
         self.function._compute_reachability()
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
@@ -410,7 +413,7 @@ class SCCP(IRPass):
                     self._get_uses(op).add(inst)
 
             self._visit_expr(inst)
-        
+
             return True
 
         def store(*args: IROperand | int) -> bool:
@@ -428,7 +431,6 @@ class SCCP(IRPass):
                     self._get_uses(op).add(new_inst)
             self._get_uses(var).add(inst)
             self._visit_expr(new_inst)
-            #self._set_lattice(var, LatticeEnum.BOTTOM)
             return var
 
         operands = inst.operands
