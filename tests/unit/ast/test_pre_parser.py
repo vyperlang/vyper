@@ -237,6 +237,15 @@ invalid_pragmas = [
 # pragma evm-version cancun
 # pragma evm-version shanghai
     """,
+    # duplicit setting of venom
+    """
+    #pragma venom
+    #pragma experimental-codegen
+    """,
+    """
+    #pragma venom
+    #pragma venom
+    """,
 ]
 
 
