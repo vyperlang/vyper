@@ -324,7 +324,7 @@ class SCCP(IRPass):
                     self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
-                
+
                 self.recalc_reachable = True
                 self.cfg_dirty = True
 
