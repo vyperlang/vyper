@@ -543,6 +543,9 @@ def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
         with tx_failed():
             c.do_slice()
     except StaticAssertionException:
+        # it should be ok if we
+        # catch the assert in compile time
+        # since it supposed to be revert
         pass
 
 
