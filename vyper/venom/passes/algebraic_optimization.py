@@ -1,5 +1,4 @@
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
@@ -65,11 +64,7 @@ class AlgebraicOptimizationPass(IRPass):
         return chain
 
     def run_pass(self):
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        assert isinstance(dfg, DFGAnalysis)
-        self.dfg = dfg
-
-        self.eq_analysis = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self._optimize_iszero_chains()
 
