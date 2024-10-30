@@ -1,9 +1,10 @@
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.basicblock import IRBasicBlock
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.basicblock import IRInstruction
 from dataclasses import dataclass
 from vyper.venom.analysis import DFGAnalysis
+from vyper.venom.effects import Effects
 from bisect import bisect_left
 
 @dataclass
@@ -76,32 +77,46 @@ class MemMergePass(IRPass):
             inter.insts[0].opcode = "mcopy"
             inter.insts[0].operands = [IRLiteral(inter.dst_start), IRLiteral(inter.src_start), IRLiteral(inter.length)]
             for inst in inter.insts[1:]:
-                print(inst)
                 bb.remove_instruction(inst)
 
         intervals.clear()
 
 
     def _handle_bb(self, bb: IRBasicBlock):
+        loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 
         for inst in bb.instructions:
             if inst.opcode == "mload":
-                uses = self.dfg.get_uses(inst.output) # type: ignore
-                if len(uses) != 1:
-                    self._opt_intervals(bb, intervals)
-                    continue
-                if uses.first().opcode != "mstore":
-                    self._opt_intervals(bb, intervals)
-                    continue
                 src = inst.operands[0]
                 if not isinstance(src, IRLiteral):
-                    self._opt_intervals(bb, intervals)
                     continue
-                dst = uses.first().operands[1]
+                uses = self.dfg.get_uses(inst.output) # type: ignore
+                if len(uses) != 1:
+                    continue
+                if uses.first().opcode != "mstore":
+                    continue
+                assert isinstance(inst.output, IRVariable)
+                loads[inst.output] = src.value
+            elif inst.opcode == "mstore":
+                var = inst.operands[0]
+                dst = inst.operands[1]
                 if not isinstance(dst, IRLiteral):
                     self._opt_intervals(bb, intervals)
+                    loads.clear()
                     continue
-                n_inter = _Interval(src.value, src.value + 32, dst.value, [inst, uses.first()])
+                if not isinstance(var, IRVariable):
+                    self._opt_intervals(bb, intervals)
+                    loads.clear()
+                    continue
+                if not var in loads:
+                    self._opt_intervals(bb, intervals)
+                    loads.clear()
+                    continue
+                src = loads[var]
+                n_inter = _Interval(src, src + 32, dst.value, [self.dfg.get_producing_instruction(var), inst]) # type: ignore
                 if len(intervals) == 0:
                     intervals.append(n_inter)
+            elif Effects.MEMORY in inst.get_write_effects():
+                self._opt_intervals(bb, intervals)
+                loads.clear()
