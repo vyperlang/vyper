@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Default values
 SOLVER="z3"
-TIMEOUT=300
+TIMEOUT=600 # hevm default is 300
 NUM_CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 TARGET_DIR="examples"
 SPECIFIC_CONTRACT=""
@@ -12,12 +12,11 @@ DEBUG=false
 # Contracts to exclude from testing
 EXCLUDED_CONTRACTS=(
     "examples/wallet/wallet.vy" # CopySlice with a symbolically sized region not currently implemented
-    "examples/voting/ballot.vy" # loooong
-    "examples/auctions/blind_auction.vy" # loooong
-    "examples/tokens/ERC4626.vy" # loong
-    "examples/tokens/ERC1155ownable.vy" #looong
-    "examples/tokens/ERC721.vy" # loongs
-    "examples/name_registry/name_registry.vy" # again copy slice?
+    "examples/name_registry/name_registry.vy" # CopySlice with a symbolically sized region not currently implemented
+    "examples/auctions/blind_auction.vy" # 1x -> SMT result timeout/unknown for TIMEOUT=600
+    "examples/tokens/ERC1155ownable.vy" # long time to finish
+    "examples/voting/ballot.vy" # long time to finish
+    "examples/tokens/ERC721.vy" # long time to finish
 )
 
 # Parse arguments
@@ -115,6 +114,12 @@ else
     find "$TARGET_DIR" -name "*.vy" -type f | while read -r contract; do
         test_contract "$contract" || any_failed=1
     done
+fi
+
+if [ $any_failed -eq 0 ]; then
+    echo "✅ All tests passed"
+else
+    echo "❌ Some tests failed"
 fi
 
 exit $any_failed
