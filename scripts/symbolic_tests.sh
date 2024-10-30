@@ -9,6 +9,16 @@ TARGET_DIR="examples"
 SPECIFIC_CONTRACT=""
 DEBUG=false
 
+# Contracts to exclude from testing
+EXCLUDED_CONTRACTS=(
+    "examples/wallet/wallet.vy" # CopySlice with a symbolically sized region not currently implemented
+    "examples/voting/ballot.vy" # loooong
+    "examples/auctions/blind_auction.vy" # loooong
+    "examples/tokens/ERC4626.vy" # loong
+    "examples/tokens/ERC1155ownable.vy" #looong
+    "examples/tokens/ERC721.vy" # loongs
+    "examples/name_registry/name_registry.vy" # again copy slice?
+)
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -40,6 +50,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Function to check if contract should be excluded
+is_excluded() {
+    local contract=$1
+    for excluded in "${EXCLUDED_CONTRACTS[@]}"; do
+        if [ "$contract" = "$excluded" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Function to run hevm equivalence check
 check_equivalence() {
     local contract=$1
@@ -63,6 +84,11 @@ check_equivalence() {
 # Main testing function
 test_contract() {
     local contract=$1
+
+    if is_excluded "$contract"; then
+        echo "Skipping excluded contract: $contract"
+        return 0
+    fi
 
     echo "Processing $contract..."
     
