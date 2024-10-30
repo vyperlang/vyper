@@ -46,9 +46,7 @@ LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
 
 
-COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
-STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
-UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
+COMPARISON_OPS = {"gt", "sgt", "lt", "slt"}
 
 
 def _flip_comparison_op(opname):
@@ -527,12 +525,12 @@ class SCCP(IRPass):
             # (x - x) == (x ^ x) == (x != x) == 0
             return store(0)
 
-        if inst.opcode in STRICT_COMPARISON_OPS and op_eq(0, 1):
+        if inst.opcode in COMPARISON_OPS and op_eq(0, 1):
             # (x < x) == (x > x) == 0
             return store(0)
 
-        if inst.opcode in {"eq"} | UNSTRICT_COMPARISON_OPS and op_eq(0, 1):
-            # (x == x) == (x >= x) == (x <= x) == 1
+        if inst.opcode in {"eq"} and op_eq(0, 1):
+            # (x == x) == 1
             return store(1)
 
         if match({"mod", "smod"}, 1, None):
