@@ -1440,7 +1440,7 @@ class VariableDecl(VyperNode):
 
         if not self.is_constant and self.value is not None:
             raise VariableDeclarationException(
-                f"{self._pretty_location} variables cannot have an initial value", self.value
+                f"{self._pretty_location()} variables cannot have an initial value", self.value
             )
         if not isinstance(self.target, Name):
             raise VariableDeclarationException("Invalid variable declaration", self.target)

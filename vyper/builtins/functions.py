@@ -1663,7 +1663,7 @@ class _CreateBase(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         # errmsg something like f"Cannot use {self._id} in pure fn"
-        context.check_is_not_constant(f"use {self._id}", expr)
+        context.check_is_not_constant(f"Error: {self._id} is not a constant")
 
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
