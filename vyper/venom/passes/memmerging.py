@@ -74,8 +74,9 @@ class MemMergePass(IRPass):
 
     def _opt_intervals(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for inter in intervals:
+            inter.insts[0].output = None
             inter.insts[0].opcode = "mcopy"
-            inter.insts[0].operands = [IRLiteral(inter.dst_start), IRLiteral(inter.src_start), IRLiteral(inter.length)]
+            inter.insts[0].operands = [IRLiteral(inter.length), IRLiteral(inter.src_start), IRLiteral(inter.dst_start)]
             for inst in inter.insts[1:]:
                 bb.remove_instruction(inst)
 
@@ -115,8 +116,12 @@ class MemMergePass(IRPass):
                     continue
                 src = loads[var]
                 n_inter = _Interval(src, src + 32, dst.value, [self.dfg.get_producing_instruction(var), inst]) # type: ignore
+                if n_inter in intervals:
+                    self._opt_intervals(bb, intervals);
+                    loads.clear()
                 if len(intervals) == 0:
                     intervals.append(n_inter)
             elif Effects.MEMORY in inst.get_write_effects():
                 self._opt_intervals(bb, intervals)
                 loads.clear()
+        self._opt_intervals(bb, intervals)
