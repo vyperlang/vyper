@@ -86,9 +86,7 @@ class SCCP(IRPass):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)  # type: ignore
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        self.recalc_sccp = True
-        self.lattice = {}
-        self.work_list: list[WorkListItem] = []
+        self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
         while True:
             # TODO compute uses and sccp only once
@@ -301,7 +299,9 @@ class SCCP(IRPass):
         # found to be false, but we still assume that
         # the unreachable basic block will be handled
         # with all other aspects in sccp test
-        self.function._compute_reachability()
+        if self.recalc_reachable:
+            self.function._compute_reachability()
+        self.recalc_reachable = False
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
                 self._replace_constants(inst)
@@ -324,7 +324,8 @@ class SCCP(IRPass):
                     self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
-
+                
+                self.recalc_reachable = True
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
@@ -603,18 +604,15 @@ class SCCP(IRPass):
                 almost_never = lo + 1
 
             if is_lit(0) and get_lit(0).value == never:
-                self.recalc_sccp = True
                 # e.g. gt x MAX_UINT256, slt x MIN_INT256
                 return store(0)
 
             if is_lit(0) and get_lit(0).value == almost_never:
-                self.recalc_sccp = True
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
                 return update("eq", operands[1], never)
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and is_lit(0) and get_lit(0).value == almost_always:
-                self.recalc_sccp = True
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = add("eq", *operands)
                 return update("iszero", tmp)
@@ -622,7 +620,6 @@ class SCCP(IRPass):
             # special cases that are not covered by others:
 
             if opcode == "gt" and is_lit(0) and get_lit(0) == 0:
-                self.recalc_sccp = True
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
                 tmp = add("iszero", operands[1])
