@@ -74,9 +74,12 @@ class MemMergePass(IRPass):
     def _opt_intervals(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for inter in intervals:
             inter.insts[0].opcode = "mcopy"
-            inter.insts[0].operands = [ite]
+            inter.insts[0].operands = [IRLiteral(inter.dst_start), IRLiteral(inter.src_start), IRLiteral(inter.length)]
             for inst in inter.insts[1:]:
+                print(inst)
                 bb.remove_instruction(inst)
+
+        intervals.clear()
 
 
     def _handle_bb(self, bb: IRBasicBlock):
@@ -86,20 +89,19 @@ class MemMergePass(IRPass):
             if inst.opcode == "mload":
                 uses = self.dfg.get_uses(inst.output) # type: ignore
                 if len(uses) != 1:
-                    intervals = []
+                    self._opt_intervals(bb, intervals)
                     continue
                 if uses.first().opcode != "mstore":
-                    intervals = []
+                    self._opt_intervals(bb, intervals)
                     continue
                 src = inst.operands[0]
                 if not isinstance(src, IRLiteral):
-                    intervals = []
+                    self._opt_intervals(bb, intervals)
                     continue
                 dst = uses.first().operands[1]
                 if not isinstance(dst, IRLiteral):
-                    intervals = []
+                    self._opt_intervals(bb, intervals)
                     continue
                 n_inter = _Interval(src.value, src.value + 32, dst.value, [inst, uses.first()])
                 if len(intervals) == 0:
                     intervals.append(n_inter)
-                    continue
