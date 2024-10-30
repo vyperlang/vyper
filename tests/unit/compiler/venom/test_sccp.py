@@ -123,7 +123,6 @@ def test_cont_jump_case():
     MakeSSA(ac, fn).run_pass()
     sccp = SCCP(ac, fn)
     sccp.run_pass()
-    print(fn)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -161,12 +160,8 @@ def test_cont_phi_case():
 
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
-    print(fn)
     sccp = SCCP(ac, fn)
     sccp.run_pass()
-
-    print(fn)
-    print(sccp.lattice)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
