@@ -64,16 +64,21 @@ test_contract() {
     fi
 }
 
+# Track if any test failed
+any_failed=0
+
 # Main execution
 if [ -n "$SPECIFIC_CONTRACT" ]; then
     if [ ! -f "$SPECIFIC_CONTRACT" ]; then
         echo "Contract file not found: $SPECIFIC_CONTRACT"
         exit 1
     fi
-    test_contract "$SPECIFIC_CONTRACT"
+    test_contract "$SPECIFIC_CONTRACT" || any_failed=1
 else
     # Find all Vyper contracts in examples directory
     find "$TARGET_DIR" -name "*.vy" -type f | while read -r contract; do
-        test_contract "$contract"
+        test_contract "$contract" || any_failed=1
     done
 fi
+
+exit $any_failed
