@@ -129,8 +129,8 @@ class MemMergePass(IRPass):
         intervals: list[_Interval] = []
 
         for inst in bb.instructions:
-            #if len(intervals) > 0:
-                #print(intervals)
+            # if len(intervals) > 0:
+            # print(intervals)
             if inst.opcode == "mload":
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
