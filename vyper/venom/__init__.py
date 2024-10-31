@@ -16,11 +16,11 @@ from vyper.venom.passes import (
     DFTPass,
     MakeSSA,
     Mem2Var,
+    MemMergePass,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
-    MemMergePass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
