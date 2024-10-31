@@ -1,7 +1,7 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 
-from vyper.venom.analysis import DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
@@ -76,8 +76,13 @@ class MemMergePass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
     def _opt_intervals(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for inter in intervals:
+            if inter.length <= 32:
+                continue
             inter.insts[0].output = None
             inter.insts[0].opcode = "mcopy"
             inter.insts[0].operands = [
@@ -124,8 +129,8 @@ class MemMergePass(IRPass):
         intervals: list[_Interval] = []
 
         for inst in bb.instructions:
-            if len(intervals) > 0:
-                print(intervals)
+            #if len(intervals) > 0:
+                #print(intervals)
             if inst.opcode == "mload":
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
