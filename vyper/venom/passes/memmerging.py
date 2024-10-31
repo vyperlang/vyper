@@ -1,6 +1,7 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 
+from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
@@ -72,6 +73,8 @@ class MemMergePass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        if not version_check(begin="cancun"):
+            return
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
