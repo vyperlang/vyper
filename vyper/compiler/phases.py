@@ -19,6 +19,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.exceptions import SyntaxException
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -174,7 +175,11 @@ class CompilerData:
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
         module = self._resolve_imports[0]
         analyze_module(module)
-        nspec = natspec.parse_natspec(module)
+        try:
+            nspec = natspec.parse_natspec(module)
+        except SyntaxException as e:
+            e.path = module.resolved_path
+            raise e
         return nspec, module
 
     @cached_property
