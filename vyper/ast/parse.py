@@ -16,8 +16,20 @@ def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
     _settings, ast = parse_to_ast_with_settings(*args, **kwargs)
     return ast
 
-
 def parse_to_ast_with_settings(
+    vyper_source: str,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
+    add_fn_node: Optional[str] = None,
+) -> tuple[Settings, vy_ast.Module]:
+    try:
+        return _parse_to_ast_with_settings(vyper_source, source_id, module_path, resolved_path, add_fn_node)
+    except SyntaxException as e:
+        e.path = resolved_path
+        raise e
+
+def _parse_to_ast_with_settings(
     vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,

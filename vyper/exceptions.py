@@ -134,6 +134,10 @@ class _BaseVyperException(Exception):
             if fn_node:
                 node_msg = f'{node_msg}function "{fn_node.name}", '
 
+        path = getattr(self, "path", None)
+        if path is not None:
+            node_msg = f'{node_msg}contract "{path}", '
+
         col_offset_str = "" if node.col_offset is None else str(node.col_offset)
         node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
 
