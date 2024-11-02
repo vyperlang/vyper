@@ -63,6 +63,16 @@ def test_invalid_version_contains_file(mock_version):
         compile_code("# pragma version ^0.3.10", resolved_path=Path("mock.vy"))
 
 
+def test_imported_invalid_version_contains_correct_file(mock_version, make_input_bundle):
+    code_a = "# pragma version ^0.3.10"
+    code_b = "import A"
+    input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
+    mock_version(COMPILER_VERSION)
+
+    with pytest.raises(VersionException, match=r'contract ".*\/A\.vy"'):
+        compile_code(code_b, input_bundle=input_bundle)
+
+
 prerelease_valid_versions = [
     "<0.1.1-beta.9",
     "<0.1.1b9",
