@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 from vyper import compile_code
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
@@ -54,6 +55,12 @@ def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
         validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
+
+
+def test_invalid_version_contains_file(mock_version):
+    mock_version(COMPILER_VERSION)
+    with pytest.raises(VersionException, match=r'contract ".*\.vy"'):
+        compile_code("# pragma version ^0.3.10", resolved_path=Path("mock.vy"))
 
 
 prerelease_valid_versions = [
