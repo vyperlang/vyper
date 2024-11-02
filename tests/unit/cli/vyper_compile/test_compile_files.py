@@ -360,6 +360,31 @@ def test_archive_b64_output(input_files):
     assert out[contract_file] == out2[archive_path]
 
 
+def test_archive_compile_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    options = ["abi_python", "json", "ast", "annotated_ast", "ir_json"]
+
+    for option in options:
+        out = compile_files([contract_file], ["archive_b64", option], paths=search_paths)
+
+        archive_b64 = out[contract_file].pop("archive_b64")
+
+        archive_path = Path("foo.zip.b64")
+        with archive_path.open("w") as f:
+            f.write(archive_b64)
+
+        # compare compiling the two input bundles
+        out2 = compile_files([archive_path], [option])
+
+        if option in ["ast", "annotated_ast"]:
+            # would have to normalize paths and imports, so just verify it compiles
+            continue
+
+        assert out[contract_file] == out2[archive_path]
+
+
 def test_solc_json_output(input_files):
     tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
