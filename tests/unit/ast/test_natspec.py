@@ -436,3 +436,19 @@ def test_natspec_parsed_implicitly():
     # anything beyond ast is blocked
     with pytest.raises(NatSpecSyntaxException):
         compile_code(code, output_formats=["annotated_ast_dict"])
+
+
+def test_natspec_exception_contains_file_path():
+    code = """
+@external
+def foo() -> (int128,uint256):
+    '''
+    @return int128
+    @return uint256
+    @return this should fail
+    '''
+    return 1, 2
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match=r'contract ".*\.vy"'):
+        parse_natspec(code)
