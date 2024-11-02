@@ -54,6 +54,7 @@ class _BaseVyperException(Exception):
         self.lineno = None
         self.col_offset = None
         self.annotations = None
+        self.path = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
@@ -134,9 +135,8 @@ class _BaseVyperException(Exception):
             if fn_node:
                 node_msg = f'{node_msg}function "{fn_node.name}", '
 
-        path = getattr(self, "path", None)
-        if path is not None:
-            node_msg = f'{node_msg}contract "{path}", '
+        if self.path is not None:
+            node_msg = f'{node_msg}contract "{self.path}", '
 
         col_offset_str = "" if node.col_offset is None else str(node.col_offset)
         node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
