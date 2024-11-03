@@ -271,6 +271,8 @@ def bar(x: {type}):
 
 def test_exports_abi(make_input_bundle):
     lib1 = """
+phony: uint32
+
 @external
 def foo():
     pass
@@ -383,6 +385,8 @@ def __init__():
 def test_event_export_from_init(make_input_bundle):
     # test that events get exported when used in init functions
     lib1 = """
+phony: uint32
+
 event MyEvent:
     pass
 
@@ -414,6 +418,8 @@ def __init__():
 def test_event_export_from_function_export(make_input_bundle):
     # test events used in exported functions are exported
     lib1 = """
+phony: uint32
+
 event MyEvent:
     pass
 
@@ -449,6 +455,8 @@ exports: lib1.foo
 def test_event_export_unused_function(make_input_bundle):
     # test events in unused functions are not exported
     lib1 = """
+phony: uint32
+
 event MyEvent:
     pass
 
