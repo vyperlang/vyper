@@ -737,6 +737,7 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
         msg += f" {', '.join(list(missing))}"
         raise InstantiationException(msg, node)
 
+
 def is_stateless(module: vy_ast.Module):
     """
     Determine whether a module is stateless by examining its top-level declarations.

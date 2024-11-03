@@ -411,7 +411,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
         if is_stateless(module_info.module_node):
-            raise StructureException(f"Cannot initialize a stateless module {module_info.alias}!", module_ref)
+            raise StructureException(
+                f"Cannot initialize a stateless module {module_info.alias}!", module_ref
+            )
 
         used_modules = {i.module_t: i for i in module_info.module_t.used_modules}
 
