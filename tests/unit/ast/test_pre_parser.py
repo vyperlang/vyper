@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from vyper import compile_code
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma

@@ -10,6 +10,7 @@ from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
+from vyper.exceptions import SyntaxException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
@@ -19,7 +20,6 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
-from vyper.exceptions import SyntaxException
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
