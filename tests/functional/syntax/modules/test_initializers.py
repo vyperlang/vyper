@@ -1445,6 +1445,27 @@ initializes: lib
     compile_code(main, input_bundle=input_bundle)
 
 
+def test_initializes_on_modules_with_immutables(make_input_bundle):
+    lib = """
+foo: immutable(int128)
+
+@deploy
+def __init__():
+    foo = 2
+    """
+
+    main = """
+import lib
+initializes: lib
+
+@deploy
+def __init__():
+    lib.__init__()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
 stateless_modules = [
     """
     """,
@@ -1461,13 +1482,6 @@ def foo(x: uint256, y: uint256) -> uint256:
     """,
     """
 FOO: constant(int128) = 128
-    """,
-    """
-foo: immutable(int128)
-
-@deploy
-def __init__():
-    foo = 2
     """,
 ]
 
