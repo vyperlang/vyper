@@ -1420,3 +1420,103 @@ initializes: lib1
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "module `lib3.vy` is used but never initialized!"
     assert e.value._hint is None
+
+
+stateful_var_modules = [
+    """
+phony: uint32
+    """,
+    """
+ended: public(bool)
+    """,
+    """
+message: transient(bool)
+    """,
+]
+
+
+@pytest.mark.parametrize("module", stateful_var_modules)
+def test_initializes_on_modules_with_state_related_vars(module, make_input_bundle):
+    main = """
+import lib
+initializes: lib
+    """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+stateless_modules = [
+    """
+    """,
+    """
+@deploy
+def __init__():
+    pass
+    """,
+    """
+@internal
+@pure
+def foo(x: uint256, y: uint256) -> uint256:
+    return unsafe_add(x & y, (x ^ y) >> 1)
+    """,
+    """
+FOO: constant(int128) = 128
+    """,
+    """
+foo: immutable(int128)
+
+@deploy
+def __init__():
+    foo = 2
+    """,
+]
+
+
+@pytest.mark.parametrize("module", stateless_modules)
+def test_forbids_initializes_on_stateless_modules(module, make_input_bundle):
+    main = """
+import lib
+initializes: lib
+        """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    with pytest.raises(StructureException):
+        compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_uses(make_input_bundle):
+    lib0 = """
+import lib1
+uses: lib1
+
+@external
+def foo() -> uint32:
+    return lib1.phony
+           """
+    lib1 = """
+phony: uint32
+           """
+    main = """
+import lib1
+initializes: lib1
+
+import lib0
+initializes: lib0[lib1 := lib1]
+           """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_initializes(make_input_bundle):
+    lib0 = """
+import lib1
+initializes: lib1
+           """
+    lib1 = """
+phony: uint32
+           """
+    main = """
+import lib0
+initializes: lib0
+           """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
