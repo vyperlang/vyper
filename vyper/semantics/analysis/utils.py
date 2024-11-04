@@ -747,6 +747,6 @@ def is_stateless(module: vy_ast.Module):
     for i in module.body:
         if isinstance(i, (vy_ast.InitializesDecl, vy_ast.UsesDecl)):
             return False
-        if isinstance(i, vy_ast.VariableDecl) and not i.is_constant:
+        if isinstance(i, vy_ast.VariableDecl) and not i.is_constant and not i.is_immutable:
             return False
     return True
