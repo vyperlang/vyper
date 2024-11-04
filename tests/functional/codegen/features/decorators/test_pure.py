@@ -135,7 +135,6 @@ def foo() -> uint256:
 
 def test_invalid_module_immutable_access(make_input_bundle):
     lib1 = """
-phony: uint32
 COUNTER: immutable(uint256)
 
 @deploy
