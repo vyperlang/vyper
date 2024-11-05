@@ -132,6 +132,10 @@ class MemMergePass(IRPass):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 
+        def opt():
+            self._opt_intervals(bb, intervals, copy_inst)
+            loads.clear()
+
         for inst in bb.instructions:
             # if len(intervals) > 0:
             # print(intervals)
@@ -151,15 +155,12 @@ class MemMergePass(IRPass):
                 dst = inst.operands[1]
                 if not isinstance(dst, IRLiteral):
                     self._opt_intervals(bb, intervals, copy_inst)
-                    loads.clear()
                     continue
                 if not isinstance(var, IRVariable):
                     self._opt_intervals(bb, intervals, copy_inst)
-                    loads.clear()
                     continue
                 if var not in loads:
                     self._opt_intervals(bb, intervals, copy_inst)
-                    loads.clear()
                     continue
                 src: int = loads[var]
                 n_inter = _Interval(
@@ -174,7 +175,8 @@ class MemMergePass(IRPass):
                     if not self._add_interval(intervals, n_inter):
                         self._opt_intervals(bb, intervals, copy_inst)
                         loads.clear()
-            elif Effects.MEMORY in inst.get_write_effects():
+            # why wont this trigger some error
+            elif False and Effects.MEMORY in inst.get_write_effects():
                 self._opt_intervals(bb, intervals, copy_inst)
                 loads.clear()
         self._opt_intervals(bb, intervals, copy_inst)
