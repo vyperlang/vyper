@@ -352,5 +352,6 @@ def test_compile_json_with_both_venom_aliases():
             "outputSelection": {"*": ["ast"]},
         },
     }
-    with pytest.raises(JSONError):
+    with pytest.raises(JSONError) as e:
         get_settings(code)
+    assert e.value.args[0] == "both experimentalCodegen and venom cannot be set"
