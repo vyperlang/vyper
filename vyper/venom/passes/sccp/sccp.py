@@ -22,7 +22,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, signed_to_unsigned
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, signed_to_unsigned, unsigned_to_signed
 
 
 class LatticeEnum(Enum):
@@ -58,6 +58,14 @@ def _flip_comparison_op(opname):
     raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
+def _wrap256(x, unsigned: bool):
+    x %= 2**256
+    # wrap in a signed way.
+    if not unsigned:
+        x = unsigned_to_signed(x, 256, strict=True)
+    return x
+
+
 class SCCP(IRPass):
     """
     This class implements the Sparse Conditional Constant Propagation
@@ -86,15 +94,19 @@ class SCCP(IRPass):
         self.fn = self.function
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)  # type: ignore
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+
         self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
+        self.last = False
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
             self._propagate_constants()
             if not self._algebraic_opt():
+                self.last = True
                 break
 
+        self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
@@ -394,9 +406,9 @@ class SCCP(IRPass):
         return full_change
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
-        def update(opcode: str, *args: IROperand | int) -> bool:
+        def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
             assert opcode != "phi"
-            if inst.opcode == opcode:
+            if not force and inst.opcode == opcode:
                 return False
 
             for op in inst.operands:
@@ -558,8 +570,18 @@ class SCCP(IRPass):
         if inst.output is None:
             return False
 
-        assert isinstance(inst.output, IRVariable), "must be variable"
-        uses = self._get_uses(inst.output)
+        output = inst.output
+        is_truthy = False
+        while True:
+            assert isinstance(output, IRVariable), "must be variable"
+            uses = self._get_uses(output)
+            if len(uses) == 1 and uses.first().opcode == "store":
+                output = uses.first().output
+            else:
+                break
+
+        assert isinstance(output, IRVariable), "must be variable"
+        uses = self._get_uses(output)
         is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
 
         if is_truthy:
@@ -624,6 +646,32 @@ class SCCP(IRPass):
                 # downstream optimizations
                 tmp = add("iszero", operands[1])
                 return update("iszero", tmp)
+
+            if self.last and len(uses) == 1 and uses.first().opcode == "iszero" and is_lit(0):
+                after = uses.first()
+                while True:
+                    n_uses = self.dfg.get_uses(after.output)
+                    if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+                        # print(n_uses)
+                        return False
+                    if len(n_uses) == 1 and n_uses.first().opcode == "store":
+                        after = n_uses.first()
+                        continue
+                    else:
+                        break
+
+                n_op = get_lit(0).value
+                if "gt" in opcode:
+                    n_op += 1
+                else:
+                    n_op -= 1
+
+                assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+                n_opcode = opcode.replace("g", "l") if "g" in opcode else opcode.replace("l", "g")
+                assert update(n_opcode, n_op, operands[1], force=True), "you stupid"
+                uses.first().opcode = "store"
+                self._visit_expr(uses.first())
+                return True
 
         return False
 
