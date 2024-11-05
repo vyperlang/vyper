@@ -1467,11 +1467,6 @@ stateless_modules = [
     """
     """,
     """
-@deploy
-def __init__():
-    pass
-    """,
-    """
 @internal
 @pure
 def foo(x: uint256, y: uint256) -> uint256:
