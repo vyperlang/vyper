@@ -1,10 +1,8 @@
-import pytest
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes import SCCP, MemMergePass
 
-from vyper.evm.opcodes import version_check, get_active_evm_version
-from vyper.compiler.settings import get_global_settings
+from vyper.evm.opcodes import version_check
 
 def test_memmerging():
     if version_check(end="shanghai"):
