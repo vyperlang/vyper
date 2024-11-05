@@ -17,7 +17,7 @@ def symbol() -> String[1]:
 def decimals() -> uint8:
     ...
 
-import IERC20
+from ethereum.ercs import IERC20
 
 implements: IERC20
 
