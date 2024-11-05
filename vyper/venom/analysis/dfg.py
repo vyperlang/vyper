@@ -20,6 +20,16 @@ class DFGAnalysis(IRAnalysis):
     def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         return self._dfg_inputs.get(op, OrderedSet())
 
+    # return uses of a given variable while following chains
+    def get_uses_ignore_stores(self, op: IRVariable) -> OrderedSet[IRInstruction]:
+        tmp = self._dfg_inputs.get(op, OrderedSet())
+        res = tmp.copy()
+        for item in tmp:
+            if item.opcode == "store":
+                res.remove(item)
+                res.addmany(self.get_uses_ignore_stores(item.output))
+        return res
+
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)

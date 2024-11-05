@@ -111,6 +111,7 @@ class SCCP(IRPass):
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
 
+
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
         This method is the main entry point for the SCCP algorithm. It
@@ -570,18 +571,8 @@ class SCCP(IRPass):
         if inst.output is None:
             return False
 
-        output = inst.output
-        is_truthy = False
-        while True:
-            assert isinstance(output, IRVariable), "must be variable"
-            uses = self._get_uses(output)
-            if len(uses) == 1 and uses.first().opcode == "store":
-                output = uses.first().output
-            else:
-                break
-
-        assert isinstance(output, IRVariable), "must be variable"
-        uses = self._get_uses(output)
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses_ignore_stores(inst.output)
         is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
 
         if is_truthy:
@@ -649,16 +640,9 @@ class SCCP(IRPass):
 
             if self.last and len(uses) == 1 and uses.first().opcode == "iszero" and is_lit(0):
                 after = uses.first()
-                while True:
-                    n_uses = self.dfg.get_uses(after.output)
-                    if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
-                        # print(n_uses)
-                        return False
-                    if len(n_uses) == 1 and n_uses.first().opcode == "store":
-                        after = n_uses.first()
-                        continue
-                    else:
-                        break
+                n_uses = self.dfg.get_uses(after.output)
+                if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+                    return False
 
                 n_op = get_lit(0).value
                 if "gt" in opcode:
