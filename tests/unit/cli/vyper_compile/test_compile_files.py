@@ -385,6 +385,51 @@ def test_archive_compile_options(input_files):
         assert out[contract_file] == out2[archive_path]
 
 
+format_options = [
+    "bytecode",
+    "bytecode_runtime",
+    "blueprint_bytecode",
+    "abi",
+    "abi_python",
+    "source_map",
+    "source_map_runtime",
+    "method_identifiers",
+    "userdoc",
+    "devdoc",
+    "metadata",
+    "combined_json",
+    "layout",
+    "ast",
+    "annotated_ast",
+    "interface",
+    "external_interface",
+    "opcodes",
+    "opcodes_runtime",
+    "ir",
+    "ir_json",
+    "ir_runtime",
+    "asm",
+    "integrity",
+    "archive",
+    "solc_json",
+]
+
+
+def test_archive_compile_simultaneous_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    for option in format_options:
+        with pytest.raises(ValueError) as e:
+            _ = compile_files([contract_file], ["archive", option], paths=search_paths)
+
+        err_opt = "archive"
+        if option in ("combined_json", "solc_json"):
+            err_opt = option
+
+        assert f"If using {err_opt} it must be the only output format requested" in str(e.value)
+
+
 def test_solc_json_output(input_files):
     tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
