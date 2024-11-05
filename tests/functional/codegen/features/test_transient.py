@@ -570,3 +570,15 @@ def foo() -> (uint256[3], uint256, uint256, uint256):
 
     c = get_contract(main, input_bundle=input_bundle)
     assert c.foo() == ([1, 2, 3], 1, 2, 42)
+
+
+def test_transient_is_state(make_input_bundle):
+    lib = """
+message: transient(bool)
+    """
+    main = """
+import lib
+initializes: lib
+        """
+    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
