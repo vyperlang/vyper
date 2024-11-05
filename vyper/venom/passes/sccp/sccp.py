@@ -111,7 +111,6 @@ class SCCP(IRPass):
             self.analyses_cache.force_analysis(CFGAnalysis)
             self._fix_phi_nodes()
 
-
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
         This method is the main entry point for the SCCP algorithm. It
@@ -638,6 +637,9 @@ class SCCP(IRPass):
                 tmp = add("iszero", operands[1])
                 return update("iszero", tmp)
 
+            # only done in last iteration because on average if not already optimize
+            # this rule creates bigger codesize because it could interfere with other
+            # optimizations
             if self.last and len(uses) == 1 and uses.first().opcode == "iszero" and is_lit(0):
                 after = uses.first()
                 n_uses = self.dfg.get_uses(after.output)
