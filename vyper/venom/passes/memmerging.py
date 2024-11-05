@@ -77,17 +77,18 @@ class MemMergePass(IRPass):
             return
 
         for bb in self.function.get_basic_blocks():
-            self._handle_bb(bb)
+            self._handle_bb(bb, "calldataload", "calldatacopy")
+            self._handle_bb(bb, "mload", "mcopy")
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _opt_intervals(self, bb: IRBasicBlock, intervals: list[_Interval]):
+    def _opt_intervals(self, bb: IRBasicBlock, intervals: list[_Interval], copy_inst: str):
         for inter in intervals:
             if inter.length <= 32:
                 continue
             inter.insts[0].output = None
-            inter.insts[0].opcode = "mcopy"
+            inter.insts[0].opcode = copy_inst
             inter.insts[0].operands = [
                 IRLiteral(inter.length),
                 IRLiteral(inter.src_start),
@@ -127,14 +128,14 @@ class MemMergePass(IRPass):
         intervals[index - 1] = merged
         return True
 
-    def _handle_bb(self, bb: IRBasicBlock):
+    def _handle_bb(self, bb: IRBasicBlock, load_inst: str, copy_inst: str):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 
         for inst in bb.instructions:
             # if len(intervals) > 0:
             # print(intervals)
-            if inst.opcode == "mload":
+            if inst.opcode == load_inst:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
                     continue
@@ -149,15 +150,15 @@ class MemMergePass(IRPass):
                 var = inst.operands[0]
                 dst = inst.operands[1]
                 if not isinstance(dst, IRLiteral):
-                    self._opt_intervals(bb, intervals)
+                    self._opt_intervals(bb, intervals, copy_inst)
                     loads.clear()
                     continue
                 if not isinstance(var, IRVariable):
-                    self._opt_intervals(bb, intervals)
+                    self._opt_intervals(bb, intervals, copy_inst)
                     loads.clear()
                     continue
                 if var not in loads:
-                    self._opt_intervals(bb, intervals)
+                    self._opt_intervals(bb, intervals, copy_inst)
                     loads.clear()
                     continue
                 src: int = loads[var]
@@ -171,9 +172,9 @@ class MemMergePass(IRPass):
                     intervals.append(n_inter)
                 else:
                     if not self._add_interval(intervals, n_inter):
-                        self._opt_intervals(bb, intervals)
+                        self._opt_intervals(bb, intervals, copy_inst)
                         loads.clear()
             elif Effects.MEMORY in inst.get_write_effects():
-                self._opt_intervals(bb, intervals)
+                self._opt_intervals(bb, intervals, copy_inst)
                 loads.clear()
-        self._opt_intervals(bb, intervals)
+        self._opt_intervals(bb, intervals, copy_inst)
