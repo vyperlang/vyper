@@ -265,10 +265,10 @@ def pre_parse(code: str) -> PreParseResult:
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen"):
+                    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
                         if settings.experimental_codegen is not None:
                             raise StructureException(
-                                "pragma experimental-codegen specified twice!", start
+                                "pragma experimental-codegen/venom specified twice!", start
                             )
                         settings.experimental_codegen = True
                     elif pragma.startswith("enable-decimals"):
