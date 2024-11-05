@@ -742,6 +742,8 @@ def is_stateless(module: vy_ast.Module):
             return False
         if isinstance(i, vy_ast.VariableDecl) and not i.is_constant:
             return False
+        if isinstance(i, vy_ast.FunctionDef) and i.name == "__init__":
+            return False
     return True
 
 

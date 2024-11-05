@@ -1627,6 +1627,31 @@ initializes: lib0
     compile_code(main, input_bundle=input_bundle)
 
 
+def test_initializes_on_modules_with_init_function(make_input_bundle):
+    lib = """
+interface Foo:
+    def foo(): payable
+
+@deploy
+def __init__():
+    extcall Foo(self).foo()
+           """
+    main = """
+import lib
+initializes: lib
+
+@deploy
+def __init__():
+    lib.__init__()
+
+@external
+def foo():
+    pass
+           """
+    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
 # ===== Abstract/Override Initializer Tests =====
 # Tests for uses/initializes requirements with @abstract/@override
 
