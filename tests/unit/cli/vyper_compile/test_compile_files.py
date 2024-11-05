@@ -415,6 +415,34 @@ format_options = [
 ]
 
 
+def test_compile_vyz_with_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    for option in format_options:
+        out_archive = compile_files([contract_file], ["archive"], paths=search_paths)
+
+        archive = out_archive[contract_file].pop("archive")
+
+        archive_path = Path("foo.zip.out.vyz")
+        with archive_path.open("wb") as f:
+            f.write(archive)
+
+        # compare compiling the two input bundles
+        out = compile_files([contract_file], [option], paths=search_paths)
+        out2 = compile_files([archive_path], [option])
+
+        if option in ["ast", "annotated_ast"]:
+            # would have to normalize paths and imports, so just verify it compiles
+            continue
+
+        if option in ["ir_runtime", "ir", "asm", "archive", "solc_json"]:
+            # TODO investigate why these don't pass the assert
+            continue
+
+        assert out[contract_file] == out2[archive_path]
+
+
 def test_archive_compile_simultaneous_options(input_files):
     tmpdir, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
