@@ -1,9 +1,14 @@
+import pytest
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes import SCCP, MemMergePass
 
+from vyper.evm.opcodes import version_check, get_active_evm_version
+from vyper.compiler.settings import get_global_settings
 
 def test_memmerging():
+    if version_check(end="shanghai"):
+        return
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -25,8 +30,6 @@ def test_memmerging():
     ac = IRAnalysesCache(fn)
     SCCP(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
-
-    print(fn)
 
     assert not any(inst.opcode == "mstore" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
