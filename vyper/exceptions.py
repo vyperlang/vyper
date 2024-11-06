@@ -147,7 +147,7 @@ class _BaseVyperException(Exception):
 
     def _add_hint(self, msg):
         hint = self.hint
-        if hint is None:
+        if hint is None or hint == "":
             return msg
         return msg + f"\n  (hint: {self.hint})"
 
