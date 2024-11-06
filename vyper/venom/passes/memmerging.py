@@ -80,6 +80,7 @@ class MemMergePass(IRPass):
             return
 
         for bb in self.function.get_basic_blocks():
+            self._handle_bb_zeroing(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy")
             self._handle_bb(bb, "mload", "mcopy")
 
@@ -102,8 +103,8 @@ class MemMergePass(IRPass):
 
         intervals.clear()
 
-    def _add_interval(self, intervals: list[_Interval], new_inter: _Interval) -> bool:
-        if new_inter.self_overlap():
+    def _add_interval(self, intervals: list[_Interval], new_inter: _Interval, ok_self_overlap: bool = False) -> bool:
+        if not ok_self_overlap and new_inter.self_overlap():
             return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
@@ -130,8 +131,6 @@ class MemMergePass(IRPass):
             loads.clear()
 
         for inst in bb.instructions:
-            # if len(intervals) > 0:
-            # print(intervals)
             if inst.opcode == load_inst:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
@@ -162,13 +161,89 @@ class MemMergePass(IRPass):
                     dst.value,
                     [self.dfg.get_producing_instruction(var), inst],  # type: ignore
                 )
-                if len(intervals) == 0:
-                    intervals.append(n_inter)
-                else:
-                    if not self._add_interval(intervals, n_inter):
-                        opt()
+                if not self._add_interval(intervals, n_inter):
+                    opt()
             # why wont this trigger some error
             elif False and Effects.MEMORY in inst.get_write_effects():
                 self._opt_intervals(bb, intervals, copy_inst)
                 loads.clear()
         self._opt_intervals(bb, intervals, copy_inst)
+
+    def _zero_opt(self, bb: IRBasicBlock, intervals: list[_Interval]):
+        for inter in intervals:
+            if inter.length <= 32:
+                continue
+            index = bb.instructions.index(inter.insts[0])
+            tmp_var = bb.parent.get_next_variable()
+            bb.insert_instruction(IRInstruction("calldatasize", [], output=tmp_var), index)
+            inter.insts[0].output = None
+            inter.insts[0].opcode = "calldatacopy"
+            inter.insts[0].operands = [
+                IRLiteral(inter.length),
+                tmp_var,
+                IRLiteral(inter.dst_start),
+            ]
+            for inst in inter.insts[1:]:
+                bb.remove_instruction(inst)
+
+        intervals.clear()
+
+    def _handle_bb_zeroing(self, bb: IRBasicBlock):
+        loads: dict[IRVariable, int] = dict()
+        intervals: list[_Interval] = []
+
+        def opt():
+            self._zero_opt(bb, intervals)
+            loads.clear()
+
+        for inst in bb.instructions:
+            if inst.opcode == "mstore":
+                zero = inst.operands[0]
+                dst = inst.operands[1]
+                if not (
+                    isinstance(dst, IRLiteral)
+                    and isinstance(zero, IRLiteral)
+                    and zero.value == 0
+                ):
+                    opt()
+                    continue
+                n_inter = _Interval(
+                    dst.value,
+                    dst.value + 32,
+                    dst.value,
+                    [inst],  # type: ignore
+                )
+                if len(intervals) == 0:
+                    intervals.append(n_inter)
+                else:
+                    if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
+                        opt()
+            elif inst.opcode == "calldatacopy":
+                dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
+                if not isinstance(dst, IRLiteral):
+                    continue
+                if not isinstance(length, IRLiteral):
+                    continue
+                if not isinstance(var, IRVariable):
+                    continue
+                src_inst = self.dfg.get_producing_instruction(var)
+                if src_inst is None:
+                    continue
+                if src_inst.opcode != "calldatasize":
+                    continue
+                n_inter = _Interval(
+                    dst.value,
+                    dst.value + length.value,
+                    dst.value,
+                    [inst],  # type: ignore
+                )
+                if len(intervals) == 0:
+                    intervals.append(n_inter)
+                else:
+                    if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
+                        opt()
+            # why wont this trigger some error
+            elif False and Effects.MEMORY in inst.get_write_effects():
+                self._opt_intervals(bb, intervals, copy_inst)
+                loads.clear()
+        self._zero_opt(bb, intervals)
