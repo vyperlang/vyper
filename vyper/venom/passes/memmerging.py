@@ -67,6 +67,9 @@ class _Interval:
     def __lt__(self, other) -> bool:
         return self.src_start < other.src_start
 
+    def __repr__(self) -> str:
+        return f"({self.src_start}, {self.src_end}, {self.length}, {self.dst_start}, {self.dst_end})"
+
 
 class MemMergePass(IRPass):
     dfg: DFGAnalysis
@@ -100,32 +103,22 @@ class MemMergePass(IRPass):
         intervals.clear()
 
     def _add_interval(self, intervals: list[_Interval], new_inter: _Interval) -> bool:
-        # print(intervals)
-        # print(new_inter)
         if new_inter.self_overlap():
-            # print("a")
             return False
         index = bisect_left(intervals, new_inter)
-        if index == 0:
-            if intervals[0].overlap(new_inter):
-                # print("b")
-                return False
-            intervals.insert(0, new_inter)
-            return True
+        intervals.insert(index, new_inter)
+        
+        i = max(index - 1, 0)
+        while i < min(index + 1, len(intervals) - 1):
+            merged = intervals[i].merge(intervals[i + 1])
+            i += 1
+            if merged is None:
+                continue
+            if merged.self_overlap():
+                continue
+            intervals[i - 1] = merged
+            del intervals[i]
 
-        bef_inter = intervals[index - 1]
-        merged = bef_inter.merge(new_inter)
-        if merged is None:
-            intervals.insert(index, new_inter)
-            return True
-        if merged.self_overlap():
-            # print("c")
-            return False
-        if index < len(intervals) and merged.overlap(intervals[index]):
-            # print("d")
-            return False
-
-        intervals[index - 1] = merged
         return True
 
     def _handle_bb(self, bb: IRBasicBlock, load_inst: str, copy_inst: str):
@@ -153,14 +146,14 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 var = inst.operands[0]
                 dst = inst.operands[1]
-                if not isinstance(dst, IRLiteral):
-                    self._opt_intervals(bb, intervals, copy_inst)
-                    continue
-                if not isinstance(var, IRVariable):
-                    self._opt_intervals(bb, intervals, copy_inst)
+                if not (
+                    isinstance(dst, IRLiteral)
+                    and isinstance(var, IRVariable)
+                ):
+                    opt()
                     continue
                 if var not in loads:
-                    self._opt_intervals(bb, intervals, copy_inst)
+                    opt()
                     continue
                 src: int = loads[var]
                 n_inter = _Interval(
@@ -173,8 +166,7 @@ class MemMergePass(IRPass):
                     intervals.append(n_inter)
                 else:
                     if not self._add_interval(intervals, n_inter):
-                        self._opt_intervals(bb, intervals, copy_inst)
-                        loads.clear()
+                        opt()
             # why wont this trigger some error
             elif False and Effects.MEMORY in inst.get_write_effects():
                 self._opt_intervals(bb, intervals, copy_inst)
