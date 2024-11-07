@@ -46,5 +46,5 @@ def test_exception_reports_correct_file(make_input_bundle):
     code_b = "import A"
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
 
-    with raises(SyntaxException, match=r'contract ".*A\.vy"'):
+    with raises(SyntaxException, match=r'contract ".*A\.vy:\d+"'):
         compile_code(code_b, input_bundle=input_bundle)

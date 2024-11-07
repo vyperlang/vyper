@@ -60,7 +60,7 @@ def test_invalid_version_pragma(file_version, mock_version):
 
 def test_invalid_version_contains_file(mock_version):
     mock_version(COMPILER_VERSION)
-    with pytest.raises(VersionException, match=r'contract ".*\.vy"'):
+    with pytest.raises(VersionException, match=r'contract ".*\.vy:\d+"'):
         compile_code("# pragma version ^0.3.10", resolved_path=Path("mock.vy"))
 
 
@@ -70,7 +70,7 @@ def test_imported_invalid_version_contains_correct_file(mock_version, make_input
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
     mock_version(COMPILER_VERSION)
 
-    with pytest.raises(VersionException, match=r'contract ".*A\.vy"'):
+    with pytest.raises(VersionException, match=r'contract ".*A\.vy:\d+"'):
         compile_code(code_b, input_bundle=input_bundle)
 
 

@@ -238,7 +238,7 @@ def test_wrong_language():
 
 def test_exc_handler_raises_syntax(input_json):
     input_json["sources"]["badcode.vy"] = {"content": BAD_SYNTAX_CODE}
-    with pytest.raises(SyntaxException, match=r'contract ".*badcode\.vy"'):
+    with pytest.raises(SyntaxException, match=r'contract ".*badcode\.vy:\d+"'):
         compile_json(input_json)
 
 

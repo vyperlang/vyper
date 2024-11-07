@@ -450,5 +450,5 @@ def foo() -> (int128,uint256):
     return 1, 2
     """
 
-    with pytest.raises(NatSpecSyntaxException, match=r'contract ".*\.vy"'):
+    with pytest.raises(NatSpecSyntaxException, match=r'contract ".*\.vy:\d+"'):
         parse_natspec(code)
