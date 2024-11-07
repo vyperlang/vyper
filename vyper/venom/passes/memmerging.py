@@ -33,7 +33,9 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def add(self, src, dst, length, insts: list[IRInstruction], ok_self_overlap: bool = False) -> bool:
+    def add(
+        self, src, dst, length, insts: list[IRInstruction], ok_self_overlap: bool = False
+    ) -> bool:
         if src != self.src_end:
             return False
         if dst != self.dst_end:
@@ -53,13 +55,17 @@ class _Interval:
     def merge(self, other: "_Interval", ok_self_overlap: bool) -> "_Interval | None":
         if self.src_start < other.src_start:
             n_inter = self.copy()
-            if n_inter.add(other.src_start, other.dst_start, other.length, other.insts, ok_self_overlap):
+            if n_inter.add(
+                other.src_start, other.dst_start, other.length, other.insts, ok_self_overlap
+            ):
                 return n_inter
             else:
                 return None
         else:
             n_inter = other.copy()
-            if n_inter.add(self.src_start, self.dst_start, self.length, self.insts, ok_self_overlap):
+            if n_inter.add(
+                self.src_start, self.dst_start, self.length, self.insts, ok_self_overlap
+            ):
                 return n_inter
             else:
                 return None
@@ -68,7 +74,9 @@ class _Interval:
         return self.src_start < other.src_start
 
     def __repr__(self) -> str:
-        return f"({self.src_start}, {self.src_end}, {self.length}, {self.dst_start}, {self.dst_end})"
+        return (
+            f"({self.src_start}, {self.src_end}, {self.length}, {self.dst_start}, {self.dst_end})"
+        )
 
 
 class MemMergePass(IRPass):
@@ -76,12 +84,12 @@ class MemMergePass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        if not version_check(begin="cancun"):
-            return
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb_zeroing(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy")
+            if not version_check(begin="cancun"):
+                continue
             self._handle_bb(bb, "mload", "mcopy")
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -103,12 +111,14 @@ class MemMergePass(IRPass):
 
         intervals.clear()
 
-    def _add_interval(self, intervals: list[_Interval], new_inter: _Interval, ok_self_overlap: bool = False) -> bool:
+    def _add_interval(
+        self, intervals: list[_Interval], new_inter: _Interval, ok_self_overlap: bool = False
+    ) -> bool:
         if not ok_self_overlap and new_inter.self_overlap():
             return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
-        
+
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
             merged = intervals[i].merge(intervals[i + 1], ok_self_overlap)
@@ -145,10 +155,7 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 var = inst.operands[0]
                 dst = inst.operands[1]
-                if not (
-                    isinstance(dst, IRLiteral)
-                    and isinstance(var, IRVariable)
-                ):
+                if not (isinstance(dst, IRLiteral) and isinstance(var, IRVariable)):
                     opt()
                     continue
                 if var not in loads:
@@ -178,11 +185,7 @@ class MemMergePass(IRPass):
             bb.insert_instruction(IRInstruction("calldatasize", [], output=tmp_var), index)
             inter.insts[0].output = None
             inter.insts[0].opcode = "calldatacopy"
-            inter.insts[0].operands = [
-                IRLiteral(inter.length),
-                tmp_var,
-                IRLiteral(inter.dst_start),
-            ]
+            inter.insts[0].operands = [IRLiteral(inter.length), tmp_var, IRLiteral(inter.dst_start)]
             for inst in inter.insts[1:]:
                 bb.remove_instruction(inst)
 
@@ -201,18 +204,11 @@ class MemMergePass(IRPass):
                 zero = inst.operands[0]
                 dst = inst.operands[1]
                 if not (
-                    isinstance(dst, IRLiteral)
-                    and isinstance(zero, IRLiteral)
-                    and zero.value == 0
+                    isinstance(dst, IRLiteral) and isinstance(zero, IRLiteral) and zero.value == 0
                 ):
                     opt()
                     continue
-                n_inter = _Interval(
-                    dst.value,
-                    dst.value + 32,
-                    dst.value,
-                    [inst],  # type: ignore
-                )
+                n_inter = _Interval(dst.value, dst.value + 32, dst.value, [inst])  # type: ignore
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
                     opt()
             elif inst.opcode == "calldatacopy":
@@ -229,10 +225,7 @@ class MemMergePass(IRPass):
                 if src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(
-                    dst.value,
-                    dst.value + length.value,
-                    dst.value,
-                    [inst],  # type: ignore
+                    dst.value, dst.value + length.value, dst.value, [inst]  # type: ignore
                 )
                 if len(intervals) == 0:
                     intervals.append(n_inter)
