@@ -7,6 +7,7 @@ import pytest
 
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_json
+from vyper.compiler import INTERFACE_OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
@@ -445,7 +446,7 @@ def baz() -> uint8:
 
     """
     file = make_file("interface.vyi", interface)
-    compile_files([file], ["ast", "annotated_ast", "interface", "external_interface", "abi"])
+    compile_files([file], INTERFACE_OUTPUT_FORMATS)
 
     unallowed_formats = [
         "layout",
