@@ -1,5 +1,6 @@
 from typing import Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
@@ -7,7 +8,7 @@ from vyper.venom.function import IRFunction
 
 
 class DFGAnalysis(IRAnalysis):
-    _dfg_inputs: dict[IRVariable, list[IRInstruction]]
+    _dfg_inputs: dict[IRVariable, OrderedSet[IRInstruction]]
     _dfg_outputs: dict[IRVariable, IRInstruction]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
@@ -16,19 +17,19 @@ class DFGAnalysis(IRAnalysis):
         self._dfg_outputs = dict()
 
     # return uses of a given variable
-    def get_uses(self, op: IRVariable) -> list[IRInstruction]:
-        return self._dfg_inputs.get(op, [])
+    def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
+        return self._dfg_inputs.get(op, OrderedSet())
 
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
 
     def add_use(self, op: IRVariable, inst: IRInstruction):
-        uses = self._dfg_inputs.setdefault(op, [])
-        uses.append(inst)
+        uses = self._dfg_inputs.setdefault(op, OrderedSet())
+        uses.add(inst)
 
     def remove_use(self, op: IRVariable, inst: IRInstruction):
-        uses = self._dfg_inputs.get(op, [])
+        uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
 
     @property
@@ -48,10 +49,11 @@ class DFGAnalysis(IRAnalysis):
                 res = inst.get_outputs()
 
                 for op in operands:
-                    inputs = self._dfg_inputs.setdefault(op, [])
-                    inputs.append(inst)
+                    inputs = self._dfg_inputs.setdefault(op, OrderedSet())
+                    inputs.add(inst)
 
                 for op in res:  # type: ignore
+                    assert isinstance(op, IRVariable)
                     self._dfg_outputs[op] = inst
 
     def as_graph(self) -> str:
