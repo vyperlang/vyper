@@ -33,14 +33,14 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def add(self, src, dst, length, insts: list[IRInstruction]) -> bool:
+    def add(self, src, dst, length, insts: list[IRInstruction], ok_self_overlap: bool = False) -> bool:
         if src != self.src_end:
             return False
         if dst != self.dst_end:
             return False
 
         n_inter = _Interval(self.src_start, self.src_end + length, self.dst_start, [])
-        if n_inter.self_overlap():
+        if not ok_self_overlap and n_inter.self_overlap():
             return False
 
         self.src_end = n_inter.src_end
@@ -50,16 +50,16 @@ class _Interval:
     def copy(self) -> "_Interval":
         return _Interval(self.src_start, self.src_end, self.dst_start, self.insts)
 
-    def merge(self, other: "_Interval") -> "_Interval | None":
+    def merge(self, other: "_Interval", ok_self_overlap: bool) -> "_Interval | None":
         if self.src_start < other.src_start:
             n_inter = self.copy()
-            if n_inter.add(other.src_start, other.dst_start, other.length, other.insts):
+            if n_inter.add(other.src_start, other.dst_start, other.length, other.insts, ok_self_overlap):
                 return n_inter
             else:
                 return None
         else:
             n_inter = other.copy()
-            if n_inter.add(self.src_start, self.dst_start, self.length, self.insts):
+            if n_inter.add(self.src_start, self.dst_start, self.length, self.insts, ok_self_overlap):
                 return n_inter
             else:
                 return None
@@ -111,11 +111,11 @@ class MemMergePass(IRPass):
         
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
-            merged = intervals[i].merge(intervals[i + 1])
+            merged = intervals[i].merge(intervals[i + 1], ok_self_overlap)
             i += 1
             if merged is None:
                 continue
-            if merged.self_overlap():
+            if not ok_self_overlap and merged.self_overlap():
                 continue
             intervals[i - 1] = merged
             del intervals[i]
@@ -213,11 +213,8 @@ class MemMergePass(IRPass):
                     dst.value,
                     [inst],  # type: ignore
                 )
-                if len(intervals) == 0:
-                    intervals.append(n_inter)
-                else:
-                    if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
-                        opt()
+                if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
+                    opt()
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
                 if not isinstance(dst, IRLiteral):
@@ -242,8 +239,4 @@ class MemMergePass(IRPass):
                 else:
                     if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
                         opt()
-            # why wont this trigger some error
-            elif False and Effects.MEMORY in inst.get_write_effects():
-                self._opt_intervals(bb, intervals, copy_inst)
-                loads.clear()
         self._zero_opt(bb, intervals)
