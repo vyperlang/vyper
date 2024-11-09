@@ -79,7 +79,7 @@ def get_levenshtein_error_suggestions(*args, **kwargs) -> Callable:
 
 def _get_levenshtein_error_suggestions(
     key: str, namespace: dict[str, Any], threshold: float
-) -> str:
+) -> str|None:
     """
     Generate an error message snippet for the suggested closest values in the provided namespace
     with the shortest normalized Levenshtein distance from the given key if that distance
@@ -99,12 +99,12 @@ def _get_levenshtein_error_suggestions(
         or an empty string.
     """
 
-    if key is None or key == "":
-        return ""
+    if not key:
+        return None
 
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
     if len(distances) > 0 and distances[0][1] <= threshold:
         if len(distances) > 1 and distances[1][1] <= threshold:
             return f"Did you mean '{distances[0][0]}', or maybe '{distances[1][0]}'?"
         return f"Did you mean '{distances[0][0]}'?"
-    return ""
+    return None
