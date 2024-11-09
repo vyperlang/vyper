@@ -559,3 +559,18 @@ class ModuleT(VyperType):
     @cached_property
     def interface(self):
         return InterfaceT.from_ModuleT(self)
+
+    def is_stateless(self):
+        """
+        Determine whether ModuleT is stateless by examining its top-level declarations.
+        A module has state if it contains storage variables, transient variables, or
+        immutables, or if it includes a "uses" or "initializes" declaration.
+        """
+        for i in self._module.body:
+            if isinstance(i, (vy_ast.InitializesDecl, vy_ast.UsesDecl)):
+                return False
+            if isinstance(i, vy_ast.VariableDecl) and not i.is_constant:
+                return False
+            if isinstance(i, vy_ast.FunctionDef) and i.name == "__init__":
+                return False
+        return True

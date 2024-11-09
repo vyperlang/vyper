@@ -736,19 +736,3 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
         msg = f"{typeclass} instantiation missing fields:"
         msg += f" {', '.join(list(missing))}"
         raise InstantiationException(msg, node)
-
-
-def is_stateless(module: vy_ast.Module):
-    """
-    Determine whether a module is stateless by examining its top-level declarations.
-    A module has state if it contains storage variables, transient variables, or
-    immutables, or if it includes a "uses" or "initializes" declaration.
-    """
-    for i in module.body:
-        if isinstance(i, (vy_ast.InitializesDecl, vy_ast.UsesDecl)):
-            return False
-        if isinstance(i, vy_ast.VariableDecl) and not i.is_constant:
-            return False
-        if isinstance(i, vy_ast.FunctionDef) and i.name == "__init__":
-            return False
-    return True
