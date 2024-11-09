@@ -44,7 +44,6 @@ from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
-    is_stateless,
     structurally_equivalent,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -597,7 +596,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_info = get_expr_info(module_ref).module_info
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
-        if is_stateless(module_info.module_node):
+        if module_info.module_t.is_stateless():
             raise StructureException(
                 f"Cannot initialize a stateless module {module_info.alias}!", module_ref
             )

@@ -731,22 +731,6 @@ def resolve_name(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
     return info
 
 
-def is_stateless(module: vy_ast.Module):
-    """
-    Determine whether a module is stateless by examining its top-level declarations.
-    A module has state if it contains storage variables, transient variables, or
-    immutables, or if it includes a "uses" or "initializes" declaration.
-    """
-    for i in module.body:
-        if isinstance(i, (vy_ast.InitializesDecl, vy_ast.UsesDecl)):
-            return False
-        if isinstance(i, vy_ast.VariableDecl) and not i.is_constant:
-            return False
-        if isinstance(i, vy_ast.FunctionDef) and i.name == "__init__":
-            return False
-    return True
-
-
 def _structurally_equivalent_r(v1: Any, v2: Any) -> bool:
     if type(v1) is not type(v2):
         return False
