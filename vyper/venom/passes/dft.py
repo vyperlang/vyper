@@ -78,11 +78,11 @@ class DFTPass(IRPass):
 
         children = list(self.ida[inst])
 
-        children = sorted(
-            children,
-            key=lambda x: (inst.operands.index(x.output) if x.output in inst.operands else 0)
-            - len(self.inst_offspring[x]) * 0.5,
-        )
+        def key(x):
+            cost = inst.operands.index(x.output) if x.output in inst.operands else 0
+            return cost - len(self.inst_offspring[x]) * 0.5
+
+        children.sort(key=key)
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
@@ -126,9 +126,11 @@ class DFTPass(IRPass):
 
         self.inst_offspring[inst] = self.ida[inst].copy()
 
-        children = list(self.ida[inst])
-        for dep_inst in children:
+        deps = self.ida[inst]
+        for dep_inst in deps:
             assert inst.parent == dep_inst.parent
+            if dep_inst.opcode == "store":
+                continue
             res = self._calculate_instruction_offspring(dep_inst)
             self.inst_offspring[inst] |= res
 
