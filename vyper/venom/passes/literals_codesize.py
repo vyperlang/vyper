@@ -1,4 +1,4 @@
-from vyper.utils import SizeLimits, evm_not
+from vyper.utils import evm_not
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
