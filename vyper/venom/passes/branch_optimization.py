@@ -1,5 +1,6 @@
-from vyper.venom.analysis import DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis,CFGAnalysis
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.basicblock import IRInstruction
 
 
 class BranchOptimizationPass(IRPass):
@@ -14,17 +15,28 @@ class BranchOptimizationPass(IRPass):
             if term_inst.opcode != "jnz":
                 continue
 
-            prev_inst = self.dfg.get_producing_instruction(term_inst.operands[0])
-            if prev_inst.opcode == "iszero":
+            fst, snd = bb.cfg_out
+
+            fst_liveness = fst.instructions[0].liveness
+            snd_liveness = snd.instructions[0].liveness
+
+            cond = term_inst.operands[0]
+            prev_inst = self.dfg.get_producing_instruction(cond)
+            if len(snd_liveness) <= len(fst_liveness) and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
-
-                # Since the DFG update is simple we do in place to avoid invalidating the DFG
-                # and having to recompute it (which is expensive(er))
-                self.dfg.remove_use(prev_inst.output, term_inst)
-                self.dfg.add_use(new_cond, term_inst)
+            elif len(snd_liveness) < len(fst_liveness):
+                new_cond = fn.get_next_variable()
+                inst = IRInstruction("iszero", [term_inst.operands[0]], output=new_cond)
+                bb.insert_instruction(inst, index=-1)
+                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
 
     def run_pass(self):
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self._optimize_branches()
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(CFGAnalysis)
