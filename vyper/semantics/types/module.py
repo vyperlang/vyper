@@ -357,7 +357,10 @@ class ModuleT(VyperType):
 
         # module.__at__(addr)
         self.add_member("__at__", _module_at(self))
-        # `module.__interface__` (in type position)
+
+        # allow `module.__interface__` (in exports declarations)
+        self.add_member("__interface__", TYPE_T(self.interface))
+        # allow `module.__interface__` (in type position)
         self._helper.add_member("__interface__", TYPE_T(self.interface))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
