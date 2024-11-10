@@ -134,7 +134,7 @@ In codesize optimized mode, the compiler will try hard to minimize codesize by
 * out-lining code, and
 * using more loops for data copies.
 
-Enabling Experimental Codegen
+Enabling Experimental Code Generation
 ===========================
 
 When compiling, you can use the CLI flag ``"experimental-codegen"`` or its alias ``"venom"`` to activate the new Venom IR.
