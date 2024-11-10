@@ -23,7 +23,7 @@ class ReduceLiteralsCodesize(IRPass):
             val = op.value % (2**256)
 
             # transform things like 0xffff...01 to (not 0xfe)
-            if len(hex(val)) // 2 - len(hex(evm_not(val))) // 2 > 0:
+            if len(hex(val)) // 2 - len(hex(evm_not(val))) // 2 > 1:  # not is 1 byte
                 inst.opcode = "not"
                 op.value = evm_not(val)
                 continue
