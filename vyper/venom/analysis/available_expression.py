@@ -1,3 +1,5 @@
+# REVIEW: rename this to cse_analysis or common_subexpression_analysis
+
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -24,8 +26,11 @@ _NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatec
 
 @dataclass
 class _Expression:
+    # REVIEW: rename to root_inst
     first_inst: IRInstruction
     opcode: str
+    # REVIEW: bad type: this list only contains _Expressions, otherwise
+    # we could not call same(self_op, other_op) in the recursion.
     operands: list["IROperand | _Expression"]
     ignore_msize: bool
 
@@ -37,6 +42,11 @@ class _Expression:
         return self.first_inst == other.first_inst
 
     # Full equality for expressions based on opcode and operands
+    # REVIEW: this is inefficient. we do not need to do the recursion if
+    # we do a shallow comparison - we can check `self_op is other_op` for
+    # in the loop over zip(self.operands, other.operands). because of
+    # how expressions are computed, we are guaranteed uniqueness of expressions
+    # in available_expressions
     def same(self, other) -> bool:
         if type(self) is not type(other):
             return False
@@ -61,6 +71,8 @@ class _Expression:
 
         return True
 
+    # REVIEW: move this closer in the file to __eq__ because they are
+    # related functions
     def __hash__(self) -> int:
         return hash(self.first_inst)
 
@@ -109,6 +121,7 @@ class _Expression:
         return self.first_inst.is_commutative
 
 
+# REVIEW: rename to CSEAnalysis
 class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
@@ -181,6 +194,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
                 continue
 
+            # REVIEW: why replace inst_to_available if they are not equal?
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
                 self.inst_to_available[inst] = available_expr.copy()
             inst_expr = self.get_expression(inst, available_expr)
@@ -194,6 +208,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 if write_effects_expr & write_effects != EMPTY:
                     available_expr.remove(expr)
 
+            # REVIEW: we should not care about depth if `same()` is not
+            # implemented recursively.
             if (
                 inst_expr.get_depth in range(self.min_depth, self.max_depth + 1)
                 and inst.opcode not in _NONIDEMPOTENT_INSTRUCTIONS
@@ -245,6 +261,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
             return self.inst_to_expr[inst]
 
+        # REVIEW: performance issue - loop over available_exprs.
         for e in available_exprs:
             if expr.same(e):
                 self.inst_to_expr[inst] = e
@@ -253,5 +270,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.inst_to_expr[inst] = expr
         return expr
 
+    # REVIEW: dead code
     def get_available(self, inst: IRInstruction) -> OrderedSet[_Expression]:
         return self.inst_to_available.get(inst, OrderedSet())
