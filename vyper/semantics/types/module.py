@@ -19,7 +19,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
@@ -270,6 +270,19 @@ class InterfaceT(_UserType):
         return cls._from_lists(node.name, node, functions)
 
 
+def _module_at(module_t):
+    return MemberFunctionT(
+        # set underlying_type to a TYPE_T as a bit of a kludge, since it's
+        # kind of like a class method (but we don't have classmethod
+        # abstraction)
+        underlying_type=TYPE_T(module_t),
+        name="__at__",
+        arg_types=[AddressT()],
+        return_type=module_t.interface,
+        is_modifying=False,
+    )
+
+
 # Datatype to store all module information.
 class ModuleT(VyperType):
     typeclass = "module"
@@ -342,8 +355,9 @@ class ModuleT(VyperType):
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
-        # can use module.__interface__ in call position
-        self.add_member("__interface__", TYPE_T(self.interface))
+        # module.__at__(addr)
+        self.add_member("__at__", _module_at(self))
+        # `module.__interface__` (in type position)
         self._helper.add_member("__interface__", TYPE_T(self.interface))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
