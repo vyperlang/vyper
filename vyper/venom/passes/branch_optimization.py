@@ -20,12 +20,14 @@ class BranchOptimizationPass(IRPass):
             fst_liveness = fst.instructions[0].liveness
             snd_liveness = snd.instructions[0].liveness
 
+            cost_a, cost_b = len(fst_liveness), len(snd_liveness)
+
             cond = term_inst.operands[0]
             prev_inst = self.dfg.get_producing_instruction(cond)
-            if len(snd_liveness) <= len(fst_liveness) and prev_inst.opcode == "iszero":
+            if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
-            elif len(snd_liveness) < len(fst_liveness):
+            elif cost_a > cost_b:
                 new_cond = fn.get_next_variable()
                 inst = IRInstruction("iszero", [term_inst.operands[0]], output=new_cond)
                 bb.insert_instruction(inst, index=-1)
