@@ -1,7 +1,7 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.available_expression import (
     UNINTERESTING_OPCODES,
-    AvailableExpressionAnalysis,
+    CSEAnalysis,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -13,13 +13,13 @@ _MIN_DEPTH = 2
 
 
 class CSE(IRPass):
-    available_expression_analysis: AvailableExpressionAnalysis
+    available_expression_analysis: CSEAnalysis
 
     def run_pass(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
         available_expression_analysis = self.analyses_cache.request_analysis(
-            AvailableExpressionAnalysis, min_depth, max_depth
+            CSEAnalysis, min_depth, max_depth
         )
-        assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
+        assert isinstance(available_expression_analysis, CSEAnalysis)
         self.available_expression_analysis = available_expression_analysis
 
         while True:
@@ -47,9 +47,9 @@ class CSE(IRPass):
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
                 if inst_expr in avail and (
-                    inst_expr.get_depth > 2 or inst.parent == inst_expr.first_inst.parent
+                    inst_expr.get_depth > 2 or inst.parent == inst_expr.inst.parent
                 ):
-                    res[inst] = inst_expr.first_inst
+                    res[inst] = inst_expr.inst
 
         return res
 

@@ -26,20 +26,23 @@ _NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatec
 
 @dataclass
 class _Expression:
-    # REVIEW: rename to root_inst
-    first_inst: IRInstruction
+    inst: IRInstruction
     opcode: str
     # REVIEW: bad type: this list only contains _Expressions, otherwise
     # we could not call same(self_op, other_op) in the recursion.
     operands: list["IROperand | _Expression"]
     ignore_msize: bool
 
-    # equality for lattices only based on first_inst
+    # equality for lattices only based on original instruction
     def __eq__(self, other) -> bool:
         if not isinstance(other, _Expression):
             return False
 
-        return self.first_inst == other.first_inst
+        return self.inst == other.inst
+
+    def __hash__(self) -> int:
+        return hash(self.inst)
+
 
     # Full equality for expressions based on opcode and operands
     # REVIEW: this is inefficient. we do not need to do the recursion if
@@ -54,7 +57,7 @@ class _Expression:
         if self.opcode != other.opcode:
             return False
 
-        if self.first_inst == other.first_inst:
+        if self.inst == other.inst:
             return True
 
         # Early return special case for commutative instructions
@@ -66,15 +69,13 @@ class _Expression:
 
         # General case
         for self_op, other_op in zip(self.operands, other.operands):
+            #if self_op is not other_op: #.same(other_op):
+                #return False
             if not self_op.same(other_op):
                 return False
 
         return True
 
-    # REVIEW: move this closer in the file to __eq__ because they are
-    # related functions
-    def __hash__(self) -> int:
-        return hash(self.first_inst)
 
     def __repr__(self) -> str:
         if self.opcode == "store":
@@ -98,7 +99,7 @@ class _Expression:
 
     @cached_property
     def get_reads(self) -> Effects:
-        tmp_reads = self.first_inst.get_read_effects()
+        tmp_reads = self.inst.get_read_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
                 tmp_reads = tmp_reads | op.get_reads
@@ -108,7 +109,7 @@ class _Expression:
 
     @cached_property
     def get_writes(self) -> Effects:
-        tmp_reads = self.first_inst.get_write_effects()
+        tmp_reads = self.inst.get_write_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
                 tmp_reads = tmp_reads | op.get_writes
@@ -118,11 +119,10 @@ class _Expression:
 
     @property
     def is_commutative(self) -> bool:
-        return self.first_inst.is_commutative
+        return self.inst.is_commutative
 
 
-# REVIEW: rename to CSEAnalysis
-class AvailableExpressionAnalysis(IRAnalysis):
+class CSEAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     inst_to_available: dict[IRInstruction, OrderedSet[_Expression]]
@@ -234,7 +234,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             # this can both create better solutions and is necessery
             # for correct effect handle, otherwise you could go over
             # effect bounderies
-            if inst.is_volatile:
+            if inst.is_volatile or inst.opcode == "phi":
                 return op
             if inst in self.inst_to_expr:
                 return self.inst_to_expr[inst]
@@ -270,6 +270,5 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.inst_to_expr[inst] = expr
         return expr
 
-    # REVIEW: dead code
     def get_available(self, inst: IRInstruction) -> OrderedSet[_Expression]:
         return self.inst_to_available.get(inst, OrderedSet())
