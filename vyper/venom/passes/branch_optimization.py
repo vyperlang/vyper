@@ -1,6 +1,6 @@
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis,CFGAnalysis
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
+from vyper.venom.passes.base_pass import IRPass
 
 
 class BranchOptimizationPass(IRPass):
