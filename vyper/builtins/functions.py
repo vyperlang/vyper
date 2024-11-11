@@ -1708,18 +1708,18 @@ class RawCreate(_CreateBase):
             (initcode, value, salt),
         ):
             bytecode_len = get_bytearray_length(initcode)
+            with bytecode_len.cache_when_complex("initcode_len") as (b2, bytecode_len):
+                maxlen = initcode.typ.maxlen
+                ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
 
-            maxlen = initcode.typ.maxlen
-            ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
+                argbuf = add_ofst(buf, bytecode_len)
+                argslen = abi_encode(
+                    argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
+                )
+                total_len = add_ofst(bytecode_len, argslen)
+                ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
 
-            argbuf = add_ofst(buf, bytecode_len)
-            argslen = abi_encode(
-                argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
-            )
-            total_len = add_ofst(bytecode_len, argslen)
-            ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
-
-            return b1.resolve(IRnode.from_list(ret))
+                return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
 class CreateMinimalProxyTo(_CreateBase):
