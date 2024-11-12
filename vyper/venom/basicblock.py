@@ -84,7 +84,7 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
-FLIPPABLE_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
+COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -233,8 +233,8 @@ class IRInstruction:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
 
     @property
-    def is_flippable(self) -> bool:
-        return self.opcode in FLIPPABLE_INSTRUCTIONS
+    def is_comparator(self) -> bool:
+        return self.opcode in COMPARATOR_INSTRUCTIONS
 
     @property
     def is_bb_terminator(self) -> bool:
@@ -288,8 +288,8 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
-    def flip_operands(self):
-        assert self.is_flippable
+    def flip_comparison(self):
+        assert self.is_comparator
         if self.opcode in ("gt", "sgt"):
             self.opcode = self.opcode.replace("g", "l")
         else:

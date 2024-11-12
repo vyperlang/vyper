@@ -72,11 +72,11 @@ class DFTPass(IRPass):
         # heuristic: sort by size of child dependency graph
         children.sort(key=key)
 
-        if inst.is_commutative and children != list(self.ida[inst]):
+        if inst.is_commutative and children == list(self.ida[inst]):
             inst.operands.reverse()
 
-        if inst.is_flippable and children != list(self.ida[inst]):
-            inst.flip_operands()
+        if inst.is_comparator and children != list(self.ida[inst]):
+            inst.flip_comparison()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
