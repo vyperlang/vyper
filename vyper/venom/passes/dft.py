@@ -25,15 +25,12 @@ class DFTPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         basic_blocks = list(self.function.get_basic_blocks())
 
-        self.function.clear_basic_blocks()
-        for bb in basic_blocks:
+        for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.function.append_basic_block(bb)
-
         self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)
@@ -46,13 +43,9 @@ class DFTPass(IRPass):
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
         for inst in non_phi_instructions:
             to_remove = self.ida.get(inst, OrderedSet())
-            if len(to_remove) > 0:
-                entry_instructions.dropmany(to_remove)
+            entry_instructions.dropmany(to_remove)
 
         entry_instructions_list = list(entry_instructions)
-
-        # Move the terminator instruction to the end of the list
-        self._move_terminator_to_end(entry_instructions_list)
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
@@ -60,13 +53,6 @@ class DFTPass(IRPass):
 
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
-
-    def _move_terminator_to_end(self, instructions: list[IRInstruction]) -> None:
-        terminator = next((inst for inst in instructions if inst.is_bb_terminator), None)
-        if terminator is None:
-            raise ValueError(f"Basic block should have a terminator instruction {self.function}")
-        instructions.remove(terminator)
-        instructions.append(terminator)
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
@@ -79,11 +65,16 @@ class DFTPass(IRPass):
         children = list(self.ida[inst])
 
         def key(x):
-            cost = inst.operands.index(x.output) if x.output in inst.operands else 0
+            cost = 0
+            if x.output in inst.operands and not inst.is_commutative:
+                cost = inst.operands.index(x.output)
             return cost - len(self.inst_offspring[x]) * 0.5
 
         # heuristic: sort by size of child dependency graph
         children.sort(key=key)
+
+        if inst.is_commutative and children != list(self.ida[inst]):
+            inst.operands.reverse()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
