@@ -268,7 +268,7 @@ class _ExprAnalyser:
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-            types_list = [i for i in left if _is_type_in_list(i, [i.value_type for i in right])]
+            types_list = [i for i in left if _any_compare_type(i, [i.value_type for i in right])]
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
@@ -289,7 +289,7 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
-        return_value = var.fetch_call_return(node)
+        return_value = var.get_return_type(node)
         if return_value:
             if isinstance(return_value, list):
                 return return_value
@@ -434,9 +434,9 @@ def _is_empty_list(node):
     return all(_is_empty_list(t) for t in node.elements)
 
 
-def _is_type_in_list(obj, types_list):
-    # check if a type object is in a list of types
-    return any(i.compare_type(obj) for i in types_list)
+def _any_compare_type(obj, types_list):
+    # check if an expression of a list of types can be assigned to a type object
+    return any(obj.compare_type(i) for i in types_list)
 
 
 # NOTE: dead fn
@@ -543,7 +543,7 @@ def _validate_literal_array(node, expected):
     for item in node.elements:
         try:
             validate_expected_type(item, expected.value_type)
-        except (InvalidType, TypeMismatch):
+        except TypeMismatch:
             return False
 
     return True
