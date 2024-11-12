@@ -10,7 +10,12 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    IRAnalysesCache,
+    LivenessAnalysis,
+    VarEquivalenceAnalysis,
+)
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -152,6 +157,7 @@ class VenomCompiler:
                 NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
                 self.equivalence = ac.request_analysis(VarEquivalenceAnalysis)
+                ac.request_analysis(CFGAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
 
@@ -308,7 +314,7 @@ class VenomCompiler:
 
         ref.extend(asm)
 
-        for bb in basicblock.reachable:
+        for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb

@@ -16,6 +16,7 @@ def test_simple_jump_case():
     fn.append_basic_block(br2)
 
     p1 = bb.append_instruction("param")
+    p2 = bb.append_instruction("param")
     op1 = bb.append_instruction("store", p1)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
@@ -24,7 +25,7 @@ def test_simple_jump_case():
 
     br1.append_instruction("add", op3, p1)
     br1.append_instruction("stop")
-    br2.append_instruction("add", op3, 10)
+    br2.append_instruction("add", op3, p2)
     br2.append_instruction("stop")
 
     term_inst = bb.instructions[-1]

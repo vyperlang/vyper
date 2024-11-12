@@ -5,7 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -50,7 +50,6 @@ class SCCP(IRPass):
     """
 
     fn: IRFunction
-    dom: DominatorTreeAnalysis
     dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -66,14 +65,13 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
-            self._fix_phi_nodes()
+            self.fn.remove_unreachable_blocks()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
@@ -269,7 +267,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        for bb in self.dom.dfs_walk:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
@@ -314,33 +312,6 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
-
-    def _fix_phi_nodes(self):
-        # fix basic blocks whose cfg in was changed
-        # maybe this should really be done in _visit_phi
-        for bb in self.fn.get_basic_blocks():
-            cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
-
-            needs_sort = False
-            for inst in bb.instructions:
-                if inst.opcode != "phi":
-                    break
-                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
-
-            # move phi instructions to the top of the block
-            if needs_sort:
-                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
-
-    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
-        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
-
-        if len(operands) != 1:
-            return False
-
-        assert inst.output is not None
-        inst.opcode = "store"
-        inst.operands = operands
-        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
