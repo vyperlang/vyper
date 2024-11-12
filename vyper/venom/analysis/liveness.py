@@ -12,11 +12,10 @@ class LivenessAnalysis(IRAnalysis):
     """
 
     def analyze(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
 
-        self._worklist = deque()
-        self._worklist.extend(self.function.get_basic_blocks())
+        self._worklist = deque(cfg.dfs_walk)
 
         while len(self._worklist) > 0:
             changed = False
