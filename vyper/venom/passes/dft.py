@@ -23,7 +23,6 @@ class DFTPass(IRPass):
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        basic_blocks = list(self.function.get_basic_blocks())
 
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
@@ -66,7 +65,7 @@ class DFTPass(IRPass):
 
         def key(x):
             cost = 0
-            if x.output in inst.operands and not inst.is_commutative:
+            if x.output in inst.operands and not inst.is_commutative and not inst.is_flippable:
                 cost = inst.operands.index(x.output)
             return cost - len(self.inst_offspring[x]) * 0.5
 
@@ -75,6 +74,9 @@ class DFTPass(IRPass):
 
         if inst.is_commutative and children != list(self.ida[inst]):
             inst.operands.reverse()
+
+        if inst.is_flippable and children != list(self.ida[inst]):
+            inst.flip_operands()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)

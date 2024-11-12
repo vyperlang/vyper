@@ -84,6 +84,8 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
+FLIPPABLE_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
+
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
@@ -231,6 +233,10 @@ class IRInstruction:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
 
     @property
+    def is_flippable(self) -> bool:
+        return self.opcode in FLIPPABLE_INSTRUCTIONS
+
+    @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
 
@@ -281,6 +287,14 @@ class IRInstruction:
         it as a list to be generic for the future)
         """
         return [self.output] if self.output else []
+
+    def flip_operands(self):
+        assert self.is_flippable
+        if self.opcode in ("gt", "sgt"):
+            self.opcode = self.opcode.replace("g", "l")
+        else:
+            self.opcode = self.opcode.replace("l", "g")
+        self.operands.reverse()
 
     def replace_operands(self, replacements: dict) -> None:
         """
