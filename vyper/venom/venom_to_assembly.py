@@ -600,10 +600,14 @@ class VenomCompiler:
         assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
-        return self.swap(assembly, stack, stack.get_depth(op))
+        depth = stack.get_depth(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
+        return self.swap(assembly, stack, depth)
 
     def dup_op(self, assembly, stack, op):
-        self.dup(assembly, stack, stack.get_depth(op))
+        depth = stack.get_depth(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot dup non-existent operand {op}"
+        self.dup(assembly, stack, depth)
 
 
 def _evm_swap_for(depth: int) -> str:
