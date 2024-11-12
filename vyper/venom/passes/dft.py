@@ -82,6 +82,7 @@ class DFTPass(IRPass):
             cost = inst.operands.index(x.output) if x.output in inst.operands else 0
             return cost - len(self.inst_offspring[x]) * 0.5
 
+        # heuristic: sort by size of child dependency graph
         children.sort(key=key)
 
         for dep_inst in children:
