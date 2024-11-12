@@ -22,9 +22,9 @@ def test_simple_jump_case():
     jnz_input = bb.append_instruction("iszero", op3)
     bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
 
-    br1.append_instruction("add", op3, 10)
+    br1.append_instruction("add", op3, p1)
     br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
+    br2.append_instruction("add", op3, 10)
     br2.append_instruction("stop")
 
     term_inst = bb.instructions[-1]
@@ -47,6 +47,6 @@ def test_simple_jump_case():
 
     # Test that the dfg is updated correctly
     dfg = ac.request_analysis(DFGAnalysis)
-    assert dfg is old_dfg, "DFG should not be invalidated by BranchOptimizationPass"
+    assert dfg is not old_dfg, "DFG should be invalidated by BranchOptimizationPass"
     assert term_inst in dfg.get_uses(op3), "jnz not using the new condition"
     assert term_inst not in dfg.get_uses(jnz_input), "jnz still using the old condition"
