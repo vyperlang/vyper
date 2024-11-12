@@ -98,21 +98,16 @@ class IRFunction:
             if not bb.is_reachable:
                 removed.add(bb)
 
-        for bb in removed:
-            self.remove_basic_block(bb)
-
         # Remove phi instructions that reference removed basic blocks
         for bb in self.get_basic_blocks():
-            modified = False
             for in_bb in list(bb.cfg_in):
                 if in_bb not in removed:
                     continue
 
-                modified = True
                 bb.remove_cfg_in(in_bb)
 
-            if modified or True:
-                bb.fix_phi_instructions()
+            # TODO: only run this if cfg_in changed
+            bb.fix_phi_instructions()
 
         return len(removed)
 
