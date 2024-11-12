@@ -65,7 +65,7 @@ class DFTPass(IRPass):
 
         def key(x):
             cost = 0
-            if x.output in inst.operands and not inst.is_commutative and not inst.is_flippable:
+            if x.output in inst.operands and not inst.is_commutative and not inst.is_comparator:
                 cost = inst.operands.index(x.output)
             return cost - len(self.inst_offspring[x]) * 0.5
 
