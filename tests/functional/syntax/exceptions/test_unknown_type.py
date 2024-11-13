@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import UnknownType
 
+
 def test_unknown_type_exception():
     code = """
 @internal
