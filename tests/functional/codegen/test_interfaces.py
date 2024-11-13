@@ -788,7 +788,7 @@ import lib1
 
 i: lib1.__interface__
 
-@external 
+@external
 def bar() -> lib1.__interface__:
     self.i = lib1.__at__(self)
     return self.i
@@ -845,13 +845,13 @@ def bar(a: address):
 
 
 def test_intrinsic_interface_defaults(env, make_input_bundle, get_contract):
-    lib1 = f"""
+    lib1 = """
 @external
 @payable
 def foo(i: uint256=1) -> uint256:
     return i
     """
-    main = f"""
+    main = """
 import lib1
 
 exports: lib1.__interface__

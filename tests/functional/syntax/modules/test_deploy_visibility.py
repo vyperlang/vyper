@@ -26,6 +26,7 @@ def foo():
 
     assert e.value.message == "Cannot call an @deploy function from an @external function!"
 
+
 @pytest.mark.parametrize("interface_syntax", ["__interface__", "__at__"])
 def test_module_interface_init(make_input_bundle, tmp_path, interface_syntax):
     lib1 = """

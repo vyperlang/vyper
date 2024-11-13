@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_import_interface_types(make_input_bundle, get_contract):
     ifaces = """
 interface IFoo:
