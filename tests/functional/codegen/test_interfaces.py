@@ -774,3 +774,26 @@ def foo(s: MyStruct) -> MyStruct:
     assert "b: uint256" in out
     assert "struct Voter:" in out
     assert "voted: bool" in out
+
+
+def test_intrinsic_interface_instantiation(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+i: lib1.__interface__
+
+@external
+def bar() -> lib1.__interface__:
+    self.i = lib1.__at__(self)
+    return self.i
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar() == c.address
