@@ -571,3 +571,31 @@ def bar():
         compiler.compile_code(code, input_bundle=input_bundle)
 
     assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+
+
+def test_interface_name_in_signature_is_short(make_input_bundle):
+    foo = """
+from ethereum.ercs import IERC20
+
+def foobar(token: IERC20):
+    ...
+        """
+    code = """
+from ethereum.ercs import IERC20
+import foo as Foo
+implements: Foo
+
+@internal
+def foobar(token: IERC20):
+    pass
+        """
+
+    input_bundle = make_input_bundle({"foo.vyi": foo})
+
+    with pytest.raises(InterfaceViolation) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert (
+        e.value.message
+        == "Contract does not implement all interface functions: foobar(interface IERC20)"
+    )
