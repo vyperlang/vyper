@@ -1,4 +1,5 @@
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
@@ -79,10 +80,10 @@ class InterfaceT(_UserType):
         return ABI_Address()
 
     def __str__(self):
-        return self._id
+        return Path(self._id).stem
 
     def __repr__(self):
-        return f"interface {self._id}"
+        return f"interface {Path(self._id).stem}"
 
     def _try_fold(self, node):
         if len(node.args) != 1:
