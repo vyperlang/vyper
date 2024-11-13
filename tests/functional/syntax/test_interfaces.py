@@ -598,3 +598,24 @@ def bar():
 
     with pytest.raises(TypeMismatch):
         compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def __default__():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    extcall lib1.__at__(self).__default__()
+
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(Exception):
+        compiler.compile_code(main, input_bundle=input_bundle)
