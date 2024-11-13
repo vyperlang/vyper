@@ -61,7 +61,8 @@ def foo() -> bool:
     assert c.foo() is True
 
 
-def test_intrinsic_interface(get_contract, make_input_bundle):
+@pytest.mark.parametrize("interface_syntax", ["__at__", "__interface__"])
+def test_intrinsic_interface(get_contract, make_input_bundle, interface_syntax):
     lib = """
 @external
 @view
@@ -72,7 +73,8 @@ def foo() -> uint256:
     else:
         return 5
     """
-    main = """
+
+    main = f"""
 import lib
 
 exports: lib.__interface__
@@ -80,7 +82,7 @@ exports: lib.__interface__
 @external
 @view
 def bar() -> uint256:
-    return staticcall lib.__interface__(self).foo()
+    return staticcall lib.{interface_syntax}(self).foo()
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
     c = get_contract(main, input_bundle=input_bundle)
