@@ -788,7 +788,7 @@ import lib1
 
 i: lib1.__interface__
 
-@external
+@external 
 def bar() -> lib1.__interface__:
     self.i = lib1.__at__(self)
     return self.i
@@ -817,3 +817,49 @@ def bar() -> lib1.__interface__:
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.bar() == c.address
+
+
+def test_intrinsic_interface_kws(env, make_input_bundle, get_contract):
+    value = 10**5
+    lib1 = f"""
+@external
+@payable
+def foo(a: address):
+    send(a, {value})
+    """
+    main = f"""
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar(a: address):
+    extcall lib1.__at__(self).foo(a, value={value})
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    env.set_balance(c.address, value)
+    original_balance = env.get_balance(env.deployer)
+    c.bar(env.deployer)
+    assert env.get_balance(env.deployer) == original_balance + value
+
+
+def test_intrinsic_interface_defaults(env, make_input_bundle, get_contract):
+    lib1 = f"""
+@external
+@payable
+def foo(i: uint256=1) -> uint256:
+    return i
+    """
+    main = f"""
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar() -> uint256:
+    return extcall lib1.__at__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.bar() == 1
