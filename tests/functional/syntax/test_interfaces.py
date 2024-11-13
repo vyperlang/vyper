@@ -599,3 +599,15 @@ def foobar(token: IERC20):
         e.value.message
         == "Contract does not implement all interface functions: foobar(interface IERC20)"
     )
+
+
+def test_interface_name_in_output_is_short(make_input_bundle):
+    code = """
+from ethereum.ercs import IERC20
+@external
+def test(input: IERC20):
+    pass
+        """
+    out = compiler.compile_code(code, output_formats=["interface"])
+
+    assert "def test(input: IERC20):" in out["interface"]
