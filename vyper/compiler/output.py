@@ -168,7 +168,7 @@ def _get_structs(m: ModuleT, visited: set[ModuleT] = None) -> [StructT]:
     visited.add(m)
     structs = list(m.interface.structs.values())
 
-    for key, val in m.imported_modules.items():
+    for val in m.imported_modules.values():
         structs += _get_structs(val.module_node._metadata["type"], visited)
 
     return structs
