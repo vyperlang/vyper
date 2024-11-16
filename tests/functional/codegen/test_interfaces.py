@@ -774,3 +774,67 @@ def foo(s: MyStruct) -> MyStruct:
     assert "b: uint256" in out
     assert "struct Voter:" in out
     assert "voted: bool" in out
+
+
+def test_interface_with_imported_structures(make_input_bundle):
+    a = """
+import b
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+import c
+
+struct Bar:
+    val:uint256
+        """
+    c = """
+struct Baz:
+    val:uint256
+        """
+    input_bundle = make_input_bundle({"a.vy": a, "b.vy": b, "c.vy": c})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+
+    assert "# Structs" in out
+    assert "struct Foo:" in out
+    assert "struct Bar:" in out
+    assert "struct Baz" in out
+
+
+def test_interface_with_doubly_imported_interface(make_input_bundle):
+    a = """
+import b
+import c
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+import d
+
+struct Bar:
+    val:uint256
+        """
+    c = """
+import d
+struct Baz:
+    val:uint256
+        """
+    d = """
+struct Boo:
+    val:uint256
+        """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vy": b, "c.vy": c, "d.vy": d})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+
+    assert "# Structs" in out
+    assert "struct Foo:" in out
+    assert "struct Bar:" in out
+    assert "struct Baz" in out
+    assert out.count("struct Boo") == 1
