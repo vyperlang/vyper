@@ -155,7 +155,11 @@ VYPER_CLASS_TYPES = {
 # simple statements that are replaced with `yield`
 CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 # expression types that are replaced with `await`
-CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
+CUSTOM_EXPRESSION_TYPES = {
+    "extcall": "ExtCall",
+    "staticcall": "StaticCall",
+    "staticall": "BadStaticCall",  # common typo - we parse it to AST for better error reporting
+}
 
 
 class PreParseResult:

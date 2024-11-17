@@ -350,6 +350,17 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
         self.generic_visit(node)
         node.ast_type = self._pre_parse_result.modification_offsets[start_pos]
+
+        # common typo - "staticcall" => "staticall"
+        if node.ast_type == "BadStaticCall":
+            raise SyntaxException(
+                "Possible typo: `staticall`",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+                hint="did you mean `staticcall`?",
+            )
+
         return node
 
     def visit_Call(self, node):
