@@ -255,6 +255,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
+        fn.get_basic_block().append_instruction("exit")
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -398,10 +399,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb = IRBasicBlock(label, fn)
         fn.append_basic_block(bb)
         code = ir.args[2]
-        if code.value == "pass":
-            bb.append_instruction("exit")
-        else:
-            _convert_ir_bb(fn, code, symbols)
+        _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args

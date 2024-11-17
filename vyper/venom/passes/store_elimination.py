@@ -1,6 +1,4 @@
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -29,16 +27,17 @@ class StoreElimination(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _process_store(self, dfg, inst, var, new_var):
+    def _process_store(self, dfg, inst, var: IRVariable, new_var: IRVariable):
         """
         Process store instruction. If the variable is only used by a load instruction,
         forward the variable to the load instruction.
         """
-        uses = dfg.get_uses(var)
-
-        if any([inst.opcode == "phi" for inst in uses]):
+        if any([inst.opcode == "phi" for inst in dfg.get_uses(new_var)]):
             return
 
+        uses = dfg.get_uses(var)
+        if any([inst.opcode == "phi" for inst in uses]):
+            return
         for use_inst in uses:
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:

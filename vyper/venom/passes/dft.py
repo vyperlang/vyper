@@ -1,81 +1,138 @@
+from collections import defaultdict
+
+import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.analysis import DFGAnalysis, IRAnalysesCache, LivenessAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
 class DFTPass(IRPass):
     function: IRFunction
-    inst_order: dict[IRInstruction, int]
-    inst_order_num: int
+    inst_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
+    visited_instructions: OrderedSet[IRInstruction]
+    ida: dict[IRInstruction, OrderedSet[IRInstruction]]
 
-    def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction, offset: int = 0):
-        for op in inst.get_outputs():
-            assert isinstance(op, IRVariable), f"expected variable, got {op}"
-            uses = self.dfg.get_uses(op)
-
-            for uses_this in uses:
-                if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
-                    # don't reorder across basic block or fence boundaries
-                    continue
-
-                # if the instruction is a terminator, we need to place
-                # it at the end of the basic block
-                # along with all the instructions that "lead" to it
-                self._process_instruction_r(bb, uses_this, offset)
-
-        if inst in self.visited_instructions:
-            return
-        self.visited_instructions.add(inst)
-        self.inst_order_num += 1
-
-        if inst.is_bb_terminator:
-            offset = len(bb.instructions)
-
-        if inst.opcode == "phi":
-            # phi instructions stay at the beginning of the basic block
-            # and no input processing is needed
-            # bb.instructions.append(inst)
-            self.inst_order[inst] = 0
-            return
-
-        for op in inst.get_input_variables():
-            target = self.dfg.get_producing_instruction(op)
-            assert target is not None, f"no producing instruction for {op}"
-            if target.parent != inst.parent or target.fence_id != inst.fence_id:
-                # don't reorder across basic block or fence boundaries
-                continue
-            self._process_instruction_r(bb, target, offset)
-
-        self.inst_order[inst] = self.inst_order_num + offset
-
-    def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        self.function.append_basic_block(bb)
-
-        for inst in bb.instructions:
-            inst.fence_id = self.fence_id
-            if inst.is_volatile:
-                self.fence_id += 1
-
-        # We go throught the instructions and calculate the order in which they should be executed
-        # based on the data flow graph. This order is stored in the inst_order dictionary.
-        # We then sort the instructions based on this order.
-        self.inst_order = {}
-        self.inst_order_num = 0
-        for inst in bb.instructions:
-            self._process_instruction_r(bb, inst)
-
-        bb.instructions.sort(key=lambda x: self.inst_order[x])
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        super().__init__(analyses_cache, function)
+        self.inst_offspring = {}
 
     def run_pass(self) -> None:
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
-        self.fence_id = 0
+        self.inst_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         basic_blocks = list(self.function.get_basic_blocks())
 
         self.function.clear_basic_blocks()
         for bb in basic_blocks:
             self._process_basic_block(bb)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        self.function.append_basic_block(bb)
+
+        self._calculate_dependency_graphs(bb)
+        self.instructions = list(bb.pseudo_instructions)
+        non_phi_instructions = list(bb.non_phi_instructions)
+
+        self.visited_instructions = OrderedSet()
+        for inst in non_phi_instructions:
+            self._calculate_instruction_offspring(inst)
+
+        # Compute entry points in the graph of instruction dependencies
+        entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
+        for inst in non_phi_instructions:
+            to_remove = self.ida.get(inst, OrderedSet())
+            if len(to_remove) > 0:
+                entry_instructions.dropmany(to_remove)
+
+        entry_instructions_list = list(entry_instructions)
+
+        # Move the terminator instruction to the end of the list
+        self._move_terminator_to_end(entry_instructions_list)
+
+        self.visited_instructions = OrderedSet()
+        for inst in entry_instructions_list:
+            self._process_instruction_r(self.instructions, inst)
+
+        bb.instructions = self.instructions
+        assert bb.is_terminated, f"Basic block should be terminated {bb}"
+
+    def _move_terminator_to_end(self, instructions: list[IRInstruction]) -> None:
+        terminator = next((inst for inst in instructions if inst.is_bb_terminator), None)
+        if terminator is None:
+            raise ValueError(f"Basic block should have a terminator instruction {self.function}")
+        instructions.remove(terminator)
+        instructions.append(terminator)
+
+    def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
+        if inst in self.visited_instructions:
+            return
+        self.visited_instructions.add(inst)
+
+        if inst.is_pseudo:
+            return
+
+        children = list(self.ida[inst])
+
+        def key(x):
+            cost = inst.operands.index(x.output) if x.output in inst.operands else 0
+            return cost - len(self.inst_offspring[x]) * 0.5
+
+        # heuristic: sort by size of child dependency graph
+        children.sort(key=key)
+
+        for dep_inst in children:
+            self._process_instruction_r(instructions, dep_inst)
+
+        instructions.append(inst)
+
+    def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
+        # ida: instruction dependency analysis
+        self.ida = defaultdict(OrderedSet)
+
+        non_phis = list(bb.non_phi_instructions)
+
+        #
+        # Compute dependency graph
+        #
+        last_write_effects: dict[effects.Effects, IRInstruction] = {}
+        last_read_effects: dict[effects.Effects, IRInstruction] = {}
+
+        for inst in non_phis:
+            for op in inst.operands:
+                dep = self.dfg.get_producing_instruction(op)
+                if dep is not None and dep.parent == bb:
+                    self.ida[inst].add(dep)
+
+            write_effects = inst.get_write_effects()
+            read_effects = inst.get_read_effects()
+
+            for write_effect in write_effects:
+                if write_effect in last_read_effects:
+                    self.ida[inst].add(last_read_effects[write_effect])
+                last_write_effects[write_effect] = inst
+
+            for read_effect in read_effects:
+                if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
+                    self.ida[inst].add(last_write_effects[read_effect])
+                last_read_effects[read_effect] = inst
+
+    def _calculate_instruction_offspring(self, inst: IRInstruction):
+        if inst in self.inst_offspring:
+            return self.inst_offspring[inst]
+
+        self.inst_offspring[inst] = self.ida[inst].copy()
+
+        deps = self.ida[inst]
+        for dep_inst in deps:
+            assert inst.parent == dep_inst.parent
+            if dep_inst.opcode == "store":
+                continue
+            res = self._calculate_instruction_offspring(dep_inst)
+            self.inst_offspring[inst] |= res
+
+        return self.inst_offspring[inst]

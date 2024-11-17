@@ -9,6 +9,7 @@ from vyper.cli.vyper_json import (
     compile_json,
     exc_handler_to_dict,
     get_inputs,
+    get_settings,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
@@ -295,3 +296,62 @@ def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
     input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
     compile_from_input_dict(input_json)
+
+
+def test_compile_json_with_abi_top(make_input_bundle):
+    stream = """
+{
+  "abi": [
+    {
+      "name": "validate",
+      "inputs": [
+        { "name": "creator", "type": "address" },
+        { "name": "token", "type": "address" },
+        { "name": "amount_per_second", "type": "uint256" },
+        { "name": "reason", "type": "bytes" }
+      ],
+      "outputs": [{ "name": "max_stream_life", "type": "uint256" }]
+    }
+  ]
+}
+    """
+    code = """
+from . import stream
+    """
+    input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
+    vyper.compiler.compile_code(code, input_bundle=input_bundle)
+
+
+def test_compile_json_with_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venom": True,
+            "search_paths": [],
+            "outputSelection": {"*": ["ast"]},
+        },
+    }
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen is True
+
+
+def test_compile_json_with_both_venom_aliases():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": ""}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "experimentalCodegen": False,
+            "venom": False,
+            "search_paths": [],
+            "outputSelection": {"*": ["ast"]},
+        },
+    }
+    with pytest.raises(JSONError) as e:
+        get_settings(code)
+    assert e.value.args[0] == "both experimentalCodegen and venom cannot be set"
