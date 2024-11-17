@@ -228,34 +228,6 @@ class PreParser:
                             compiler_version = pragma.removeprefix("version ").strip()
                             validate_version_pragma(compiler_version, code, start)
                             settings.compiler_version = compiler_version
-                    # TODO: refactor these to something like Settings.from_pragma
-                    elif pragma.startswith("optimize "):
-                        if settings.optimize is not None:
-                            raise StructureException("pragma optimize specified twice!", start)
-                        try:
-                            mode = pragma.removeprefix("optimize").strip()
-                            settings.optimize = OptimizationLevel.from_string(mode)
-                        except ValueError:
-                            raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    elif pragma.startswith("evm-version "):
-                        if settings.evm_version is not None:
-                            raise StructureException("pragma evm-version specified twice!", start)
-                        evm_version = pragma.removeprefix("evm-version").strip()
-                        if evm_version not in EVM_VERSIONS:
-                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
-                        settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
-                        if settings.experimental_codegen is not None:
-                            raise StructureException(
-                                "pragma experimental-codegen/venom specified twice!", start
-                            )
-                        settings.experimental_codegen = True
-                    elif pragma.startswith("enable-decimals"):
-                        if settings.enable_decimals is not None:
-                            raise StructureException(
-                                "pragma enable_decimals specified twice!", start
-                            )
-                        settings.enable_decimals = True
 
                         # TODO: refactor these to something like Settings.from_pragma
                         elif pragma.startswith("optimize "):
@@ -265,24 +237,18 @@ class PreParser:
                                 mode = pragma.removeprefix("optimize").strip()
                                 settings.optimize = OptimizationLevel.from_string(mode)
                             except ValueError:
-                                raise StructureException(
-                                    f"Invalid optimization mode `{mode}`", start
-                                )
+                                raise StructureException(f"Invalid optimization mode `{mode}`", start)
                         elif pragma.startswith("evm-version "):
                             if settings.evm_version is not None:
-                                raise StructureException(
-                                    "pragma evm-version specified twice!", start
-                                )
+                                raise StructureException("pragma evm-version specified twice!", start)
                             evm_version = pragma.removeprefix("evm-version").strip()
                             if evm_version not in EVM_VERSIONS:
-                                raise StructureException(
-                                    f"Invalid evm version: `{evm_version}`", start
-                                )
+                                raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                             settings.evm_version = evm_version
-                        elif pragma.startswith("experimental-codegen"):
+                        elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
                             if settings.experimental_codegen is not None:
                                 raise StructureException(
-                                    "pragma experimental-codegen specified twice!", start
+                                    "pragma experimental-codegen/venom specified twice!", start
                                 )
                             settings.experimental_codegen = True
                         elif pragma.startswith("enable-decimals"):
