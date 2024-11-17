@@ -204,8 +204,9 @@ pragma_venom = [
 
 @pytest.mark.parametrize("code", pragma_venom)
 def test_parse_venom_pragma(code):
-    pre_parse_result = pre_parse(code)
-    assert pre_parse_result.settings.experimental_codegen is True
+    pre_parser = PreParser()
+    pre_parser.parse(code)
+    assert pre_parser.settings.experimental_codegen is True
 
     compiler_data = CompilerData(code)
     assert compiler_data.settings.experimental_codegen is True
