@@ -165,6 +165,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._resolved_path = resolved_path
         self._source_code = source_code
         self._pre_parse_result = pre_parse_result
+        self._parent = None
 
         self.counter: int = 0
 
@@ -173,7 +174,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return self._source_code.splitlines(keepends=True)
 
     @cached_property
-    def line_offset(self):
+    def line_offsets(self):
         ofst = 0
         ret = {}
         for lineno, line in enumerate(self.source_lines):
@@ -196,25 +197,26 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.col_offset = 0
             node.end_lineno = len(self.source_lines)
             node.end_col_offset = len(self.source_lines[-1])
-            python_ast.fix_missing_locations(node)
 
         adjustments = self._pre_parse_result.adjustments
 
         for s in ("lineno", "end_lineno", "col_offset", "end_col_offset"):
             # ensure fields exist
-            setattr(node, s, getattr(node, s, None))
+            if (val := getattr(node, s, None)) is None and self._parent is not None:
+                val = getattr(self._parent, s)
+            setattr(node, s, val)
 
-        if (node.lineno, node.col_offset) != (None, None):
-            adj = adjustments.get((node.lineno, node.col_offset), 0)
-            node.col_offset += adj
+        self._parent = node
 
-        if (node.end_lineno, node.end_col_offset) != (None, None):
-            adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
-            node.end_col_offset += adj
+        adj = adjustments.get((node.lineno, node.col_offset), 0)
+        node.col_offset += adj
 
-        if node.lineno is not None and node.end_lineno is not None:
-            start_pos = self.line_offset[node.lineno] + node.col_offset
-            end_pos = self.line_offset[node.end_lineno] + node.end_col_offset
+        adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
+        node.end_col_offset += adj
+
+        if node.lineno in self.line_offsets and node.end_lineno in self.line_offsets:
+            start_pos = self.line_offsets[node.lineno] + node.col_offset
+            end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset
 
             node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
             node.node_source_code = self._source_code[start_pos:end_pos]

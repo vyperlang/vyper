@@ -242,8 +242,7 @@ def pre_parse(code: str) -> PreParseResult:
                 lineno, col = tok.start
                 adj = _col_adjustments[lineno]
                 newstart = lineno, col - adj
-
-                adjustments[lineno, newstart] = adj
+                adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -311,6 +310,7 @@ def pre_parse(code: str) -> PreParseResult:
                     _col_adjustments[lineno] += adjustment
 
                     modification_offsets[newstart] = VYPER_CLASS_TYPES[string]
+
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
                     adjustment = len(string) - len(new_keyword)
