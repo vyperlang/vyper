@@ -21,25 +21,44 @@ from vyper.venom.effects import EMPTY, Effects
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
-UNINTERESTING_OPCODES = [
-    "store",
-    "param",
-    "offset",
-    "phi",
-    "nop",
-    "calldatasize",
-    "returndatasize",
-    "gas",
-]
-_NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
+UNINTERESTING_OPCODES = frozenset(
+    [
+        "store",
+        "param",
+        "offset",
+        "phi",
+        "nop",
+        "calldatasize",
+        "returndatasize",
+        "gas",
+        "gaslimit",
+        "gasprice",
+        "gaslimit",
+        "address",
+        "origin",
+        "codesize",
+        "caller",
+        "callvalue",
+        "coinbase",
+        "timestamp",
+        "number",
+        "prevrandao",
+        "chainid",
+        "basefee",
+        "blobbasefee",
+        "pc",
+        "msize",
+    ]
+)
+NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
 
 @dataclass
 class _Expression:
     inst: IRInstruction
     opcode: str
-    # REVIEW: bad type: this list only contains _Expressions, otherwise
-    # we could not call same(self_op, other_op) in the recursion.
+    # the child is either expression of operand since
+    # there are possibilities for cycles
     operands: list["IROperand | _Expression"]
     ignore_msize: bool
 
@@ -54,16 +73,11 @@ class _Expression:
         return hash(self.inst)
 
     # Full equality for expressions based on opcode and operands
-    # REVIEW: this is inefficient. we do not need to do the recursion if
-    # we do a shallow comparison - we can check `self_op is other_op` for
-    # in the loop over zip(self.operands, other.operands). because of
-    # how expressions are computed, we are guaranteed uniqueness of expressions
-    # in available_expressions
     def same(self, other, eq_vars: VarEquivalenceAnalysis) -> bool:
         return same(self, other, eq_vars)
 
     def __repr__(self) -> str:
-        if False and self.opcode == "store":
+        if self.opcode == "store":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + " [ "
@@ -263,6 +277,8 @@ class CSEAnalysis(IRAnalysis):
             # this can both create better solutions and is necessery
             # for correct effect handle, otherwise you could go over
             # effect bounderies
+            # the phi condition is here because it is only way to
+            # create call loop
             if inst.is_volatile or inst.opcode == "phi":
                 return op
             if inst.opcode == "store":
@@ -291,14 +307,6 @@ class CSEAnalysis(IRAnalysis):
 
         if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
             return self.inst_to_expr[inst]
-
-        def cond() -> bool:
-            return False
-            return (
-                inst.opcode == "add"
-                and isinstance(inst.operands[0], IRVariable)
-                and inst.operands[0].value == "%13:3"
-            )
 
         # REVIEW: performance issue - loop over available_exprs.
         for e in available_exprs:

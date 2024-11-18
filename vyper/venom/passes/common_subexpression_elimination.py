@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.available_expression import (
-    _NONIDEMPOTENT_INSTRUCTIONS,
+    NONIDEMPOTENT_INSTRUCTIONS,
     UNINTERESTING_OPCODES,
     CSEAnalysis,
 )
@@ -47,7 +47,7 @@ class CSE(IRPass):
                 # wont be substituted
                 if (
                     inst.opcode in UNINTERESTING_OPCODES
-                    or inst.opcode in _NONIDEMPOTENT_INSTRUCTIONS
+                    or inst.opcode in NONIDEMPOTENT_INSTRUCTIONS
                 ):
                     continue
                 inst_expr = self.expression_analysis.get_expression(inst)
