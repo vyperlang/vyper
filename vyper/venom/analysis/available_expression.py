@@ -255,13 +255,6 @@ class CSEAnalysis(IRAnalysis):
             return self.inst_to_expr[inst]
 
         # REVIEW: performance issue - loop over available_exprs.
-        # e = next((e for e in available_exprs if expr.same(e, self.eq_vars)), expr)
-        # self.inst_to_expr[inst] = e
-        # return e
-        # if any(expr.same(e, self.eq_vars) for e in available_exprs):
-        # e = next(e for e in available_exprs if expr.same(e, self.eq_vars))
-        # self.inst_to_expr[inst] = e
-        # return e
         for e in available_exprs:
             if expr.same(e, self.eq_vars):
                 self.inst_to_expr[inst] = e
