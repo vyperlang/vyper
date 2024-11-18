@@ -303,7 +303,7 @@ class EventT(_UserType):
         msg = "Instantiating events with positional arguments is"
         msg += " deprecated as of v0.4.1 and will be disallowed"
         msg += " in a future release. Use kwargs instead e.g.:"
-        msg += f"\n ```\n{recommendation}\n```"
+        msg += f"\n```\n{recommendation}\n```"
 
         vyper_warn(msg, node)
 
