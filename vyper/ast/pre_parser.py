@@ -241,7 +241,7 @@ def pre_parse(code: str) -> PreParseResult:
             for tok in toks:
                 lineno, col = tok.start
                 adj = _col_adjustments[lineno]
-                adjustments[lineno, col + adj] = adj
+                adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()

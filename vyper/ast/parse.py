@@ -1,6 +1,7 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
+from functools import cached_property
 from typing import Any, Dict, List, Optional, Union
 
 import asttokens
@@ -137,14 +138,14 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    print(pre_parse_result.adjustments)
-    tokens = asttokens.ASTTokens(vyper_source)
-    assert isinstance(parsed_ast, python_ast.Module)  # help mypy
-    tokens.mark_tokens(parsed_ast)
+    # print(pre_parse_result.adjustments)
+    # tokens = asttokens.ASTTokens(vyper_source)
+    # assert isinstance(parsed_ast, python_ast.Module)  # help mypy
+    # tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
         vyper_source,
         pre_parse_result,
-        tokens,
+        None,  # tokens,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
@@ -176,6 +177,19 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         self.counter: int = 0
 
+    @cached_property
+    def source_lines(self):
+        return self._source_code.splitlines(keepends=True)
+
+    @cached_property
+    def line_offset(self):
+        ofst = 0
+        ret = {}
+        for lineno, line in enumerate(self.source_lines):
+            ret[lineno + 1] = ofst
+            ofst += len(line)
+        return ret
+
     def generic_visit(self, node):
         """
         Annotate a node with information that simplifies Vyper node generation.
@@ -203,20 +217,29 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         print(type(node))
         print(node.lineno, node.col_offset)
         print(start)
-        #node.lineno = start[0]
-        #node.col_offset = start[1]
-        #node.end_lineno = end[0]
-        #node.end_col_offset = end[1]
+        # node.lineno = start[0]
+        # node.col_offset = start[1]
+        # node.end_lineno = end[0]
+        # node.end_col_offset = end[1]
 
-        if (node.lineno, node.col_offset) != (None,None):
-            key = (node.lineno, node.col_offset)
-            adj = self._pre_parse_result.adjustments[node.lineno, node.col_offset]
+        adjustments = self._pre_parse_result.adjustments
+
+        if (node.lineno, node.col_offset) != (None, None):
+            adj = adjustments[node.lineno, node.col_offset]
             node.col_offset += adj
 
-        # TODO: adjust end_lineno and end_col_offset when this node is in
-        # modification_offsets
+        if (node.end_lineno, node.end_col_offset) != (None, None):
+            adj = adjustments[node.end_lineno, node.end_col_offset]
+            node.end_col_offset += adj
 
-        if hasattr(node, "last_token"):
+        if node.lineno is not None and node.end_lineno is not None:
+            start_pos = self.line_offset[node.lineno] + node.col_offset
+            end_pos = self.line_offset[node.end_lineno] + node.end_col_offset
+
+            node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
+            node.node_source_code = self._source_code[start_pos:end_pos]
+
+        if False:  # hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
 
@@ -260,9 +283,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_FunctionDef(self, node):
         if node.decorator_list:
             # start the source highlight at `def` to improve annotation readability
-            decorator_token = node.decorator_list[-1].last_token
-            def_token = self._tokens.find_token(decorator_token, tokenize.NAME, tok_str="def")
-            node.first_token = def_token
+            # decorator_token = node.decorator_list[-1].last_token
+            # def_token = self._tokens.find_token(decorator_token, tokenize.NAME, tok_str="def")
+            # node.first_token = def_token
+            pass
 
         return self._visit_docstring(node)
 
@@ -327,7 +351,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # fill in with asttokens info. note we can use `self._tokens` because
         # it is indented to exactly the same position where it appeared
         # in the original source!
-        self._tokens.mark_tokens(fake_node)
+        # self._tokens.mark_tokens(fake_node)
 
         # replace the dummy target name with the real target name.
         fake_node.target = node.target
