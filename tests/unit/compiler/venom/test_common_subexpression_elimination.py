@@ -18,7 +18,7 @@ def test_common_subexpression_elimination():
 
     ac = IRAnalysesCache(fn)
 
-    CSE(ac, fn).run_pass(1, 5)
+    CSE(ac, fn).run_pass()
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
     assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
@@ -37,7 +37,7 @@ def test_common_subexpression_elimination_commutative():
 
     ac = IRAnalysesCache(fn)
 
-    CSE(ac, fn).run_pass(1, 5)
+    CSE(ac, fn).run_pass()
 
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
     assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
@@ -136,7 +136,7 @@ def test_common_subexpression_elimination_effect_mstore():
 
     ac = IRAnalysesCache(fn)
 
-    CSE(ac, fn).run_pass(1, 5)
+    CSE(ac, fn).run_pass()
 
     assert (
         sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 1
@@ -164,7 +164,7 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
     ac = IRAnalysesCache(fn)
 
     StoreExpansionPass(ac, fn).run_pass()
-    CSE(ac, fn).run_pass(1, 5)
+    CSE(ac, fn).run_pass()
 
     assert (
         sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 2
@@ -206,7 +206,7 @@ def test_common_subexpression_elimination_different_branches():
     ac = IRAnalysesCache(fn)
 
     StoreExpansionPass(ac, fn).run_pass()
-    CSE(ac, fn).run_pass(1, 5)
+    CSE(ac, fn).run_pass()
 
     assert sum(1 for inst in br1.instructions if inst.opcode == "add") == 1, "wrong number of adds"
     assert sum(1 for inst in br2.instructions if inst.opcode == "add") == 1, "wrong number of adds"

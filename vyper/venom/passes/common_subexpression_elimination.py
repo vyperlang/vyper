@@ -1,7 +1,5 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.available_expression import (
-    NONIDEMPOTENT_INSTRUCTIONS,
-    UNINTERESTING_OPCODES,
     CSEAnalysis,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -9,16 +7,47 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
-_MAX_DEPTH = 5
-_MIN_DEPTH = 2
 
+# instruction that are not usefull to be
+# substituted
+UNINTERESTING_OPCODES = frozenset(
+    [
+        "store",
+        "param",
+        "offset",
+        "phi",
+        "nop",
+        "calldatasize",
+        "returndatasize",
+        "gas",
+        "gaslimit",
+        "gasprice",
+        "gaslimit",
+        "address",
+        "origin",
+        "codesize",
+        "caller",
+        "callvalue",
+        "coinbase",
+        "timestamp",
+        "number",
+        "prevrandao",
+        "chainid",
+        "basefee",
+        "blobbasefee",
+        "pc",
+        "msize",
+    ]
+)
+# intruction that cannot be substituted (without further analysis)
+NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
 class CSE(IRPass):
     expression_analysis: CSEAnalysis
 
-    def run_pass(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
+    def run_pass(self):
         available_expression_analysis = self.analyses_cache.request_analysis(
-            CSEAnalysis, min_depth, max_depth
+            CSEAnalysis
         )
         assert isinstance(available_expression_analysis, CSEAnalysis)
         self.expression_analysis = available_expression_analysis
@@ -33,7 +62,7 @@ class CSE(IRPass):
             # should be ok to be reevaluted
             # self.available_expression_analysis.analyze(min_depth, max_depth)
             self.expression_analysis = self.analyses_cache.force_analysis(
-                CSEAnalysis, min_depth, max_depth
+                CSEAnalysis
             )  # type: ignore
 
     # return instruction and to which instruction it could

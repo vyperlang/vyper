@@ -18,39 +18,6 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import EMPTY, Effects
 
-_MAX_DEPTH = 5
-_MIN_DEPTH = 2
-
-UNINTERESTING_OPCODES = frozenset(
-    [
-        "store",
-        "param",
-        "offset",
-        "phi",
-        "nop",
-        "calldatasize",
-        "returndatasize",
-        "gas",
-        "gaslimit",
-        "gasprice",
-        "gaslimit",
-        "address",
-        "origin",
-        "codesize",
-        "caller",
-        "callvalue",
-        "coinbase",
-        "timestamp",
-        "number",
-        "prevrandao",
-        "chainid",
-        "basefee",
-        "blobbasefee",
-        "pc",
-        "msize",
-    ]
-)
-NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
 
 @dataclass
@@ -143,11 +110,11 @@ def same(
     if not isinstance(a, _Expression) or not isinstance(b, _Expression):
         return False
 
-    if a.opcode != b.opcode:
-        return False
-
     if a.inst == b.inst:
         return True
+
+    if a.opcode != b.opcode:
+        return False
 
     # Early return special case for commutative instructions
     if a.is_commutative:
@@ -175,18 +142,12 @@ class CSEAnalysis(IRAnalysis):
     bb_outs: dict[IRBasicBlock, OrderedSet[_Expression]]
     eq_vars: VarEquivalenceAnalysis
 
-    # the size of the expressions
-    # that are considered in the analysis
-    min_depth: int
-    max_depth: int
     ignore_msize: bool
 
     def __init__(
         self,
         analyses_cache: IRAnalysesCache,
         function: IRFunction,
-        min_depth: int = _MIN_DEPTH,
-        max_depth: int = _MAX_DEPTH,
     ):
         super().__init__(analyses_cache, function)
         self.analyses_cache.request_analysis(CFGAnalysis)
@@ -195,19 +156,13 @@ class CSEAnalysis(IRAnalysis):
         self.dfg = dfg
         self.eq_vars = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)  # type: ignore
 
-        self.min_depth = min_depth
-        self.max_depth = max_depth
-
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
         self.bb_outs = dict()
 
         self.ignore_msize = not self._contains_msize()
 
-    def analyze(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
-        self.min_depth = min_depth
-        self.max_depth = max_depth
-
+    def analyze(self):
         worklist: OrderedSet = OrderedSet()
         worklist.add(self.function.entry)
         while len(worklist) > 0:
@@ -269,7 +224,7 @@ class CSEAnalysis(IRAnalysis):
         return change
 
     def _get_operand(
-        self, op: IROperand, available_exprs: OrderedSet[_Expression], depth: int
+        self, op: IROperand, available_exprs: OrderedSet[_Expression]
     ) -> IROperand | _Expression:
         if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
@@ -282,33 +237,38 @@ class CSEAnalysis(IRAnalysis):
             if inst.is_volatile or inst.opcode == "phi":
                 return op
             if inst.opcode == "store":
-                return self._get_operand(inst.operands[0], available_exprs, depth - 1)
+                return self._get_operand(inst.operands[0], available_exprs)
             if inst in self.inst_to_expr:
                 return self.inst_to_expr[inst]
-            return self.get_expression(inst, available_exprs, depth - 1)
+            return self.get_expression(inst, available_exprs)
         return op
 
     def _get_operands(
-        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression], depth: int
+        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression]
     ) -> list[IROperand | _Expression]:
-        return [self._get_operand(op, available_exprs, depth) for op in inst.operands]
+        return [self._get_operand(op, available_exprs) for op in inst.operands]
 
     def get_expression(
         self,
         inst: IRInstruction,
         available_exprs: OrderedSet[_Expression] | None = None,
-        depth: int | None = None,
     ) -> _Expression:
         available_exprs = available_exprs or self.inst_to_available.get(inst, OrderedSet())
         assert available_exprs is not None
-        depth = self.max_depth if depth is None else depth
-        operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs, depth)
+        operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
         if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
             return self.inst_to_expr[inst]
 
         # REVIEW: performance issue - loop over available_exprs.
+        #e = next((e for e in available_exprs if expr.same(e, self.eq_vars)), expr)
+        #self.inst_to_expr[inst] = e
+        #return e
+        #if any(expr.same(e, self.eq_vars) for e in available_exprs):
+            #e = next(e for e in available_exprs if expr.same(e, self.eq_vars))
+            #self.inst_to_expr[inst] = e
+            #return e
         for e in available_exprs:
             if expr.same(e, self.eq_vars):
                 self.inst_to_expr[inst] = e
