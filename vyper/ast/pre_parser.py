@@ -241,7 +241,9 @@ def pre_parse(code: str) -> PreParseResult:
             for tok in toks:
                 lineno, col = tok.start
                 adj = _col_adjustments[lineno]
-                adjustments[lineno, col - adj] = adj
+                newstart = lineno, col - adj
+
+                adjustments[lineno, newstart] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -308,7 +310,7 @@ def pre_parse(code: str) -> PreParseResult:
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
 
-                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                    modification_offsets[newstart] = VYPER_CLASS_TYPES[string]
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
                     adjustment = len(string) - len(new_keyword)
@@ -316,7 +318,7 @@ def pre_parse(code: str) -> PreParseResult:
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                    modification_offsets[newstart] = CUSTOM_STATEMENT_TYPES[string]
 
                 elif string in CUSTOM_EXPRESSION_TYPES:
                     # a bit cursed technique to get untokenize to put
@@ -333,7 +335,7 @@ def pre_parse(code: str) -> PreParseResult:
                     _col_adjustments[lineno] += adjustment
 
                     # fixup for when `extcall/staticcall` follows `log`
-                    modification_offsets[start] = vyper_type
+                    modification_offsets[newstart] = vyper_type
 
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
 
