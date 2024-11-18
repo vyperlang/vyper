@@ -191,17 +191,25 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.ast_type = node.__class__.__name__
         self.counter += 1
 
-        for s in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
-            setattr(node, s, getattr(node, s, None))
+        if isinstance(node, python_ast.Module):
+            node.lineno = 1
+            node.col_offset = 0
+            node.end_lineno = len(self.source_lines)
+            node.end_col_offset = len(self.source_lines[-1])
+            python_ast.fix_missing_locations(node)
 
         adjustments = self._pre_parse_result.adjustments
 
+        for s in ("lineno", "end_lineno", "col_offset", "end_col_offset"):
+            # ensure fields exist
+            setattr(node, s, getattr(node, s, None))
+
         if (node.lineno, node.col_offset) != (None, None):
-            adj = adjustments[node.lineno, node.col_offset]
+            adj = adjustments.get((node.lineno, node.col_offset), 0)
             node.col_offset += adj
 
         if (node.end_lineno, node.end_col_offset) != (None, None):
-            adj = adjustments[node.end_lineno, node.end_col_offset]
+            adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
             node.end_col_offset += adj
 
         if node.lineno is not None and node.end_lineno is not None:
