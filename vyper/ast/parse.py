@@ -137,6 +137,7 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
+    print(pre_parse_result.adjustments)
     tokens = asttokens.ASTTokens(vyper_source)
     assert isinstance(parsed_ast, python_ast.Module)  # help mypy
     tokens.mark_tokens(parsed_ast)
@@ -197,10 +198,20 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 # here we ignore it when building the node offsets
                 end = (end[0], end[1] - 1)
 
-        node.lineno = start[0]
-        node.col_offset = start[1]
-        node.end_lineno = end[0]
-        node.end_col_offset = end[1]
+        for s in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
+            setattr(node, s, getattr(node, s, None))
+        print(type(node))
+        print(node.lineno, node.col_offset)
+        print(start)
+        #node.lineno = start[0]
+        #node.col_offset = start[1]
+        #node.end_lineno = end[0]
+        #node.end_col_offset = end[1]
+
+        if (node.lineno, node.col_offset) != (None,None):
+            key = (node.lineno, node.col_offset)
+            adj = self._pre_parse_result.adjustments[node.lineno, node.col_offset]
+            node.col_offset += adj
 
         # TODO: adjust end_lineno and end_col_offset when this node is in
         # modification_offsets

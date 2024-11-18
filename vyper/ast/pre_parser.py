@@ -163,6 +163,10 @@ class PreParseResult:
     settings: Settings
     # A mapping of class names to their original class types.
     modification_offsets: dict[tuple[int, int], str]
+
+    # Magic adjustments
+    adjustments: dict[tuple[int, int], int]
+
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
     # A list of line/column offsets of native hex literals
@@ -174,12 +178,14 @@ class PreParseResult:
         self,
         settings,
         modification_offsets,
+        adjustments,
         for_loop_annotations,
         native_hex_literal_locations,
         reformatted_code,
     ):
         self.settings = settings
         self.modification_offsets = modification_offsets
+        self.adjustments = adjustments
         self.for_loop_annotations = for_loop_annotations
         self.native_hex_literal_locations = native_hex_literal_locations
         self.reformatted_code = reformatted_code
@@ -217,6 +223,7 @@ def pre_parse(code: str) -> PreParseResult:
     native_hex_parser = HexStringParser()
 
     _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
+    adjustments: dict[tuple[int, int], int] = dict()
 
     try:
         code_bytes = code.encode("utf-8")
@@ -230,6 +237,11 @@ def pre_parse(code: str) -> PreParseResult:
             start = token.start
             end = token.end
             line = token.line
+
+            for tok in toks:
+                lineno, col = tok.start
+                adj = _col_adjustments[lineno]
+                adjustments[lineno, col + adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -293,10 +305,12 @@ def pre_parse(code: str) -> PreParseResult:
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
                     adjustment = len(new_keyword) - len(string)
-                    # adjustments for following staticcall/extcall modification_offsets
-                    _col_adjustments[start[0]] += adjustment
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] -= adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
                     modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+
                 elif string in CUSTOM_EXPRESSION_TYPES:
                     # a bit cursed technique to get untokenize to put
                     # the new tokens in the right place so that modification_offsets
@@ -306,18 +320,10 @@ def pre_parse(code: str) -> PreParseResult:
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
-                    lineno, col_offset = start
-
                     # fixup for when `extcall/staticcall` follows `log`
-                    adjustment = _col_adjustments[lineno]
-                    new_start = (lineno, col_offset + adjustment)
-                    modification_offsets[new_start] = vyper_type
+                    modification_offsets[start] = vyper_type
 
-                    # tells untokenize to add whitespace, preserving locations
-                    diff = len(new_keyword) - len(string)
-                    new_end = end[0], end[1] + diff
-
-                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
@@ -335,6 +341,7 @@ def pre_parse(code: str) -> PreParseResult:
     return PreParseResult(
         settings,
         modification_offsets,
+        adjustments,
         for_loop_annotations,
         native_hex_parser.locations,
         untokenize(result).decode("utf-8"),
