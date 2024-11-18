@@ -196,7 +196,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.lineno = 1
             node.col_offset = 0
             node.end_lineno = len(self.source_lines)
-            node.end_col_offset = len(self.source_lines[-1])
+
+            if len(self.source_lines) > 0:
+                node.end_col_offset = len(self.source_lines[-1])
+            else:
+                node.end_col_offset = 0
 
         adjustments = self._pre_parse_result.adjustments
 
