@@ -19,7 +19,6 @@ from vyper.venom.context import IRFunction
 from vyper.venom.effects import EMPTY, Effects
 
 
-
 @dataclass
 class _Expression:
     inst: IRInstruction
@@ -144,11 +143,7 @@ class CSEAnalysis(IRAnalysis):
 
     ignore_msize: bool
 
-    def __init__(
-        self,
-        analyses_cache: IRAnalysesCache,
-        function: IRFunction,
-    ):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -249,9 +244,7 @@ class CSEAnalysis(IRAnalysis):
         return [self._get_operand(op, available_exprs) for op in inst.operands]
 
     def get_expression(
-        self,
-        inst: IRInstruction,
-        available_exprs: OrderedSet[_Expression] | None = None,
+        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression] | None = None
     ) -> _Expression:
         available_exprs = available_exprs or self.inst_to_available.get(inst, OrderedSet())
         assert available_exprs is not None
@@ -262,13 +255,13 @@ class CSEAnalysis(IRAnalysis):
             return self.inst_to_expr[inst]
 
         # REVIEW: performance issue - loop over available_exprs.
-        #e = next((e for e in available_exprs if expr.same(e, self.eq_vars)), expr)
-        #self.inst_to_expr[inst] = e
-        #return e
-        #if any(expr.same(e, self.eq_vars) for e in available_exprs):
-            #e = next(e for e in available_exprs if expr.same(e, self.eq_vars))
-            #self.inst_to_expr[inst] = e
-            #return e
+        # e = next((e for e in available_exprs if expr.same(e, self.eq_vars)), expr)
+        # self.inst_to_expr[inst] = e
+        # return e
+        # if any(expr.same(e, self.eq_vars) for e in available_exprs):
+        # e = next(e for e in available_exprs if expr.same(e, self.eq_vars))
+        # self.inst_to_expr[inst] = e
+        # return e
         for e in available_exprs:
             if expr.same(e, self.eq_vars):
                 self.inst_to_expr[inst] = e

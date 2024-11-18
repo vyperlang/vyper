@@ -1,12 +1,9 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.available_expression import (
-    CSEAnalysis,
-)
+from vyper.venom.analysis.available_expression import CSEAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-
 
 # instruction that are not usefull to be
 # substituted
@@ -42,13 +39,12 @@ UNINTERESTING_OPCODES = frozenset(
 # intruction that cannot be substituted (without further analysis)
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
+
 class CSE(IRPass):
     expression_analysis: CSEAnalysis
 
     def run_pass(self):
-        available_expression_analysis = self.analyses_cache.request_analysis(
-            CSEAnalysis
-        )
+        available_expression_analysis = self.analyses_cache.request_analysis(CSEAnalysis)
         assert isinstance(available_expression_analysis, CSEAnalysis)
         self.expression_analysis = available_expression_analysis
 
