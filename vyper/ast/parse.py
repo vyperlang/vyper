@@ -206,17 +206,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         for s in ("lineno", "end_lineno", "col_offset", "end_col_offset"):
             # ensure fields exist
-            if (val := getattr(node, s, None)) is None and self._parent is not None:
-                val = getattr(self._parent, s)
-            setattr(node, s, val)
+            setattr(node, s, getattr(node, s, None))
 
-        self._parent = node
+        if node.col_offset is not None:
+            adj = adjustments.get((node.lineno, node.col_offset), 0)
+            node.col_offset += adj
 
-        adj = adjustments.get((node.lineno, node.col_offset), 0)
-        node.col_offset += adj
-
-        adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
-        node.end_col_offset += adj
+        if node.end_col_offset is not None:
+            adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
+            node.end_col_offset += adj
 
         if node.lineno in self.line_offsets and node.end_lineno in self.line_offsets:
             start_pos = self.line_offsets[node.lineno] + node.col_offset
@@ -247,6 +245,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
+
     def visit_Module(self, node):
         # TODO: is this the best place for these? maybe they can be on
         # CompilerData instead.
@@ -271,6 +270,12 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         node.ast_type = self._pre_parse_result.modification_offsets[(node.lineno, node.col_offset)]
         return node
+
+    def visit_Load(self, node):
+        return None
+
+    def visit_Store(self, node):
+        return None
 
     def visit_For(self, node):
         """
