@@ -300,14 +300,21 @@ def pre_parse(code: str) -> PreParseResult:
 
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
-                    toks = [TokenInfo(NAME, "class", start, end, line)]
+                    new_keyword = "class"
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
+
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
+
                     modification_offsets[start] = VYPER_CLASS_TYPES[string]
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
-                    adjustment = len(new_keyword) - len(string)
+                    adjustment = len(string) - len(new_keyword)
                     # adjustments for following tokens
                     lineno, col = start
-                    _col_adjustments[lineno] -= adjustment
+                    _col_adjustments[lineno] += adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
                     modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
 
@@ -319,6 +326,11 @@ def pre_parse(code: str) -> PreParseResult:
                     # source code side by side to visualize the whitespace)
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
+
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
 
                     # fixup for when `extcall/staticcall` follows `log`
                     modification_offsets[start] = vyper_type
