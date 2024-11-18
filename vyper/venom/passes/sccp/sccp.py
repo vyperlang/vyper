@@ -76,7 +76,6 @@ class SCCP(IRPass):
     """
 
     fn: IRFunction
-    dom: DominatorTreeAnalysis
     dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -92,7 +91,6 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)  # type: ignore
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self.recalc_reachable = True
@@ -109,7 +107,7 @@ class SCCP(IRPass):
         self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
-            self._fix_phi_nodes()
+            self.fn.remove_unreachable_blocks()
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -314,7 +312,7 @@ class SCCP(IRPass):
         if self.recalc_reachable:
             self.function._compute_reachability()
         self.recalc_reachable = False
-        for bb in self.dom.dfs_walk:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
@@ -660,7 +658,6 @@ class SCCP(IRPass):
                 return True
 
         return False
-
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if x == LatticeEnum.TOP:

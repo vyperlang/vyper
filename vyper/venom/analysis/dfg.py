@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -29,6 +29,12 @@ class DFGAnalysis(IRAnalysis):
                 res.remove(item)
                 res.addmany(self.get_uses_ignore_stores(item.output))
         return res
+
+    def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
+        """
+        Get uses of a given variable in a specific basic block.
+        """
+        return [inst for inst in self.get_uses(op) if inst.parent == bb]
 
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
