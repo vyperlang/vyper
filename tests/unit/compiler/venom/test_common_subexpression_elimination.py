@@ -1,5 +1,3 @@
-import pytest
-
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
@@ -64,8 +62,6 @@ def test_common_subexpression_elimination_effects_1():
     assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
 
 
-# This is a limitation of current implementation
-@pytest.mark.xfail
 def test_common_subexpression_elimination_effects_2():
     ctx = IRContext()
     fn = ctx.create_function("test")
@@ -140,7 +136,6 @@ def test_common_subexpression_elimination_effect_mstore():
 
     ac = IRAnalysesCache(fn)
 
-    StoreExpansionPass(ac, fn).run_pass()
     CSE(ac, fn).run_pass(1, 5)
 
     assert (

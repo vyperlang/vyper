@@ -67,8 +67,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    CSE(ac, fn).run_pass(2, 100)
     StoreExpansionPass(ac, fn).run_pass()
-    CSE(ac, fn).run_pass(2, 10)
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
 

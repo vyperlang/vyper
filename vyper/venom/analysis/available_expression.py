@@ -7,6 +7,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
     IRBasicBlock,
@@ -20,7 +21,16 @@ from vyper.venom.effects import EMPTY, Effects
 _MAX_DEPTH = 5
 _MIN_DEPTH = 2
 
-UNINTERESTING_OPCODES = ["store", "param", "offset", "phi", "nop"]
+UNINTERESTING_OPCODES = [
+    "store",
+    "param",
+    "offset",
+    "phi",
+    "nop",
+    "calldatasize",
+    "returndatasize",
+    "gas",
+]
 _NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
 
@@ -43,42 +53,17 @@ class _Expression:
     def __hash__(self) -> int:
         return hash(self.inst)
 
-
     # Full equality for expressions based on opcode and operands
     # REVIEW: this is inefficient. we do not need to do the recursion if
     # we do a shallow comparison - we can check `self_op is other_op` for
     # in the loop over zip(self.operands, other.operands). because of
     # how expressions are computed, we are guaranteed uniqueness of expressions
     # in available_expressions
-    def same(self, other) -> bool:
-        if type(self) is not type(other):
-            return False
-
-        if self.opcode != other.opcode:
-            return False
-
-        if self.inst == other.inst:
-            return True
-
-        # Early return special case for commutative instructions
-        if self.is_commutative:
-            if self.operands[0].same(other.operands[1]) and self.operands[1].same(
-                other.operands[0]
-            ):
-                return True
-
-        # General case
-        for self_op, other_op in zip(self.operands, other.operands):
-            #if self_op is not other_op: #.same(other_op):
-                #return False
-            if not self_op.same(other_op):
-                return False
-
-        return True
-
+    def same(self, other, eq_vars: VarEquivalenceAnalysis) -> bool:
+        return same(self, other, eq_vars)
 
     def __repr__(self) -> str:
-        if self.opcode == "store":
+        if False and self.opcode == "store":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + " [ "
@@ -98,7 +83,7 @@ class _Expression:
         return max_depth + 1
 
     @cached_property
-    def get_reads(self) -> Effects:
+    def get_reads_deep(self) -> Effects:
         tmp_reads = self.inst.get_read_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
@@ -108,11 +93,25 @@ class _Expression:
         return tmp_reads
 
     @cached_property
-    def get_writes(self) -> Effects:
+    def get_reads(self) -> Effects:
+        tmp_reads = self.inst.get_read_effects()
+        if self.ignore_msize:
+            tmp_reads &= ~Effects.MSIZE
+        return tmp_reads
+
+    @cached_property
+    def get_writes_deep(self) -> Effects:
         tmp_reads = self.inst.get_write_effects()
         for op in self.operands:
             if isinstance(op, _Expression):
                 tmp_reads = tmp_reads | op.get_writes
+        if self.ignore_msize:
+            tmp_reads &= ~Effects.MSIZE
+        return tmp_reads
+
+    @cached_property
+    def get_writes(self) -> Effects:
+        tmp_reads = self.inst.get_write_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
@@ -122,11 +121,45 @@ class _Expression:
         return self.inst.is_commutative
 
 
+def same(
+    a: IROperand | _Expression, b: IROperand | _Expression, eq_vars: VarEquivalenceAnalysis
+) -> bool:
+    if isinstance(a, IROperand) and isinstance(b, IROperand):
+        return a.value == b.value
+    if not isinstance(a, _Expression) or not isinstance(b, _Expression):
+        return False
+
+    if a.opcode != b.opcode:
+        return False
+
+    if a.inst == b.inst:
+        return True
+
+    # Early return special case for commutative instructions
+    if a.is_commutative:
+        if same(a.operands[0], b.operands[1], eq_vars) and same(
+            a.operands[1], b.operands[0], eq_vars
+        ):
+            return True
+
+    # General case
+    for self_op, other_op in zip(a.operands, b.operands):
+        if (
+            self_op is not other_op
+            and not eq_vars.equivalent(self_op, other_op)
+            and self_op != other_op
+        ):
+            return False
+
+    return True
+
+
 class CSEAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     inst_to_available: dict[IRInstruction, OrderedSet[_Expression]]
     bb_outs: dict[IRBasicBlock, OrderedSet[_Expression]]
+    eq_vars: VarEquivalenceAnalysis
 
     # the size of the expressions
     # that are considered in the analysis
@@ -146,6 +179,7 @@ class CSEAnalysis(IRAnalysis):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         self.dfg = dfg
+        self.eq_vars = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)  # type: ignore
 
         self.min_depth = min_depth
         self.max_depth = max_depth
@@ -191,7 +225,8 @@ class CSEAnalysis(IRAnalysis):
         # bb_lat = self.lattice.data[bb]
         change = False
         for inst in bb.instructions:
-            if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
+            # if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
+            if inst.opcode in BB_TERMINATORS:
                 continue
 
             # REVIEW: why replace inst_to_available if they are not equal?
@@ -208,13 +243,7 @@ class CSEAnalysis(IRAnalysis):
                 if write_effects_expr & write_effects != EMPTY:
                     available_expr.remove(expr)
 
-            # REVIEW: we should not care about depth if `same()` is not
-            # implemented recursively.
-            if (
-                inst_expr.get_depth in range(self.min_depth, self.max_depth + 1)
-                and inst.opcode not in _NONIDEMPOTENT_INSTRUCTIONS
-                and write_effects & inst_expr.get_reads == EMPTY
-            ):
+            if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
                 available_expr.add(inst_expr)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
@@ -228,7 +257,7 @@ class CSEAnalysis(IRAnalysis):
     def _get_operand(
         self, op: IROperand, available_exprs: OrderedSet[_Expression], depth: int
     ) -> IROperand | _Expression:
-        if depth > 0 and isinstance(op, IRVariable):
+        if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
             # this can both create better solutions and is necessery
@@ -236,6 +265,8 @@ class CSEAnalysis(IRAnalysis):
             # effect bounderies
             if inst.is_volatile or inst.opcode == "phi":
                 return op
+            if inst.opcode == "store":
+                return self._get_operand(inst.operands[0], available_exprs, depth - 1)
             if inst in self.inst_to_expr:
                 return self.inst_to_expr[inst]
             return self.get_expression(inst, available_exprs, depth - 1)
@@ -261,9 +292,17 @@ class CSEAnalysis(IRAnalysis):
         if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
             return self.inst_to_expr[inst]
 
+        def cond() -> bool:
+            return False
+            return (
+                inst.opcode == "add"
+                and isinstance(inst.operands[0], IRVariable)
+                and inst.operands[0].value == "%13:3"
+            )
+
         # REVIEW: performance issue - loop over available_exprs.
         for e in available_exprs:
-            if expr.same(e):
+            if expr.same(e, self.eq_vars):
                 self.inst_to_expr[inst] = e
                 return e
 

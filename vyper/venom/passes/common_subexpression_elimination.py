@@ -1,5 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.available_expression import (
+    _NONIDEMPOTENT_INSTRUCTIONS,
     UNINTERESTING_OPCODES,
     CSEAnalysis,
 )
@@ -13,14 +14,14 @@ _MIN_DEPTH = 2
 
 
 class CSE(IRPass):
-    available_expression_analysis: CSEAnalysis
+    expression_analysis: CSEAnalysis
 
     def run_pass(self, min_depth: int = _MIN_DEPTH, max_depth: int = _MAX_DEPTH):
         available_expression_analysis = self.analyses_cache.request_analysis(
             CSEAnalysis, min_depth, max_depth
         )
         assert isinstance(available_expression_analysis, CSEAnalysis)
-        self.available_expression_analysis = available_expression_analysis
+        self.expression_analysis = available_expression_analysis
 
         while True:
             replace_dict = self._find_replaceble()
@@ -30,24 +31,31 @@ class CSE(IRPass):
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             # should be ok to be reevaluted
-            self.available_expression_analysis.analyze(min_depth, max_depth)
+            # self.available_expression_analysis.analyze(min_depth, max_depth)
+            self.expression_analysis = self.analyses_cache.force_analysis(
+                CSEAnalysis, min_depth, max_depth
+            )  # type: ignore
 
     # return instruction and to which instruction it could
     # replaced by
     def _find_replaceble(self) -> dict[IRInstruction, IRInstruction]:
         res: dict[IRInstruction, IRInstruction] = dict()
+
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 # skip instruction that for sure
                 # wont be substituted
-                if inst in UNINTERESTING_OPCODES:
+                if (
+                    inst.opcode in UNINTERESTING_OPCODES
+                    or inst.opcode in _NONIDEMPOTENT_INSTRUCTIONS
+                ):
                     continue
-                inst_expr = self.available_expression_analysis.get_expression(inst)
-                avail = self.available_expression_analysis.get_available(inst)
+                inst_expr = self.expression_analysis.get_expression(inst)
+                avail = self.expression_analysis.get_available(inst)
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
                 if inst_expr in avail and (
-                    inst_expr.get_depth > 2 or inst.parent == inst_expr.inst.parent
+                    inst_expr.get_depth > 1 or inst.parent == inst_expr.inst.parent
                 ):
                     res[inst] = inst_expr.inst
 
