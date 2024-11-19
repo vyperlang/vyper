@@ -237,6 +237,10 @@ class IRInstruction:
         return self.opcode in COMPARATOR_INSTRUCTIONS
 
     @property
+    def flippable(self) -> bool:
+        return self.is_commutative or self.is_comparator
+
+    @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
 
@@ -288,13 +292,20 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
-    def flip_comparison(self):
-        assert self.is_comparator
+    def flip(self):
+        """
+        Flip operands for commutative or comparator opcodes
+        """
+        assert self.flippable
+        self.operands.reverse()
+
+        if self.is_commutative:
+            return
+
         if self.opcode in ("gt", "sgt"):
             self.opcode = self.opcode.replace("g", "l")
         else:
             self.opcode = self.opcode.replace("l", "g")
-        self.operands.reverse()
 
     def replace_operands(self, replacements: dict) -> None:
         """

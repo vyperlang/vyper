@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, IRAnalysesCache, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -65,32 +65,21 @@ class DFTPass(IRPass):
 
         children = list(self.dda[inst] | self.eda[inst])
 
-        shared = OrderedSet()
-        if len(self.eda[inst]) > 0:
-            shared = OrderedSet.intersection(*[self.data_offspring[x] for x in self.eda[inst]])
-
-        def cost(x: IRInstruction) -> int|float:
-            ret = 0
-            #if x.output in inst.operands and not inst.is_commutative and not inst.is_comparator:
-            if x in self.eda[inst] or inst.is_commutative or inst.is_comparator:
-                #ret = -len(self.data_offspring[x] - shared) * 0.5
-                #ret = -len(self.data_offspring[x]) / len(inst.operands) # max(1, len(self.data_offspring[inst]))
-                ret = -(len(self.data_offspring[x]) > 0)
-            elif x in self.dda[inst]:
-                ret = inst.operands.index(x.output) == len(inst.operands) - 1
-            else: # pragma: nocover
-                raise CompilerPanic("unreachable")
+        def cost(x: IRInstruction) -> int | float:
+            if x in self.eda[inst] or inst.flippable:
+                ret = -1 * int(len(self.data_offspring[x]) > 0)
+            else:
+                assert x in self.dda[inst]  # sanity check
+                assert x.output is not None  # help mypy
+                ret = inst.operands.index(x.output)
             return ret
 
         # heuristic: sort by size of child dependency graph
         orig_children = children.copy()
         children.sort(key=cost)
 
-        if inst.is_commutative or inst.is_comparator and (orig_children != children):
-            if inst.is_commutative:
-                inst.operands.reverse()
-            else:
-                inst.flip_comparison()
+        if inst.flippable and (orig_children != children):
+            inst.flip()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
