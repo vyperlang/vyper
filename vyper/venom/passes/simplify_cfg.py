@@ -122,16 +122,16 @@ class SimplifyCFGPass(IRPass):
 
         for _ in range(fn.num_basic_blocks):
             changes = self._optimize_empty_basicblocks()
+            self.analyses_cache.force_analysis(CFGAnalysis)
             changes += fn.remove_unreachable_blocks()
             if changes == 0:
                 break
         else:
             raise CompilerPanic("Too many iterations removing empty basic blocks")
 
-        self.analyses_cache.force_analysis(CFGAnalysis)
-
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
             self._collapse_chained_blocks(entry)
+            self.analyses_cache.force_analysis(CFGAnalysis)
             if fn.remove_unreachable_blocks() == 0:
                 break
         else:
