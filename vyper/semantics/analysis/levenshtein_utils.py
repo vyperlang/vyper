@@ -99,7 +99,7 @@ def _get_levenshtein_error_suggestions(
         or an empty string.
     """
 
-    if not key:
+    if key is None or key == "":
         return None
 
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
