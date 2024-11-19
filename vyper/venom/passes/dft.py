@@ -12,9 +12,9 @@ class DFTPass(IRPass):
     function: IRFunction
     data_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
-    # data dependencies
+    # "data dependency analysis"
     dda: dict[IRInstruction, OrderedSet[IRInstruction]]
-    # effect dependencies
+    # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def run_pass(self) -> None:
