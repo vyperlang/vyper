@@ -67,9 +67,11 @@ class DFTPass(IRPass):
 
         def cost(x: IRInstruction) -> int|float:
             ret = 0
-            if x.output in inst.operands and not inst.is_commutative and not inst.is_comparator:
+            if x.output in inst.operands: #and not inst.is_commutative and not inst.is_comparator:
                 ret = inst.operands.index(x.output)
-            return ret - len(self.data_offspring[x]) * 0.5 #| self.effects_offspring[x]) * 0.5
+            #return ret - len(self.data_offspring[x]) * 0.5 - len(self.effects_offspring[x]) * 0.33
+            ret -= len(self.data_offspring[x]) * 0.5
+            return ret
 
         # heuristic: sort by size of child dependency graph
         children.sort(key=cost)
