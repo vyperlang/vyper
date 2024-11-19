@@ -67,20 +67,27 @@ class DFTPass(IRPass):
 
         def cost(x: IRInstruction) -> int|float:
             ret = 0
-            if x.output in inst.operands: #and not inst.is_commutative and not inst.is_comparator:
+            #if x.output in inst.operands and not inst.is_commutative and not inst.is_comparator:
+            if x in self.eda[inst] or inst.is_commutative or inst.is_comparator:
+                ret = -len(self.data_offspring[x] | self.effects_offspring[x])
+            else:
                 ret = inst.operands.index(x.output)
-            #return ret - len(self.data_offspring[x]) * 0.5 - len(self.effects_offspring[x]) * 0.33
-            ret -= len(self.data_offspring[x]) * 0.5
             return ret
 
-        # heuristic: sort by size of child dependency graph
-        children.sort(key=cost)
 
-        #if inst.is_commutative:
-        #    inst.operands.reverse()
+        if inst.is_commutative or inst.is_comparator:
+            dep0, dep1 = (self.dfg.get_producing_instruction(op) for op in inst.operands)
+            if dep0 is not None and dep1 is not None:
+                if len(self.data_offspring[dep0]) < len(self.data_offspring[dep1]):
+                    if inst.is_commutative:
+                        inst.operands.reverse()
+                    else:
+                        inst.flip_comparison()
+                    children.reverse()
+        else:
+            # heuristic: sort by size of child dependency graph
+            children.sort(key=cost)
 
-        #if inst.is_comparator and children != list(self.ida[inst]):
-        #    inst.flip_comparison()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)

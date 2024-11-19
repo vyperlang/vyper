@@ -434,7 +434,7 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        if inst.is_commutative:
+        if False and inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
