@@ -47,7 +47,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     ac = IRAnalysesCache(fn)
 
-    print("start")
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
@@ -63,13 +62,11 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #       without making the code generation more expensive by running
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
-    print("yoyo")
     BranchOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
-    print("end")
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:

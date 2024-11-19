@@ -102,7 +102,7 @@ class SCCP(IRPass):
         self._propagate_constants()
         self._algebraic_opt()
         if self.cfg_dirty:
-            self.analyses_cache.invalidate_analysis(CFGAnalysis)
+            self.analyses_cache.force_analysis(CFGAnalysis)
             self.fn.remove_unreachable_blocks()
 
     def _calculate_sccp(self, entry: IRBasicBlock):
@@ -341,13 +341,13 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
+                    inst.operands = []
                 elif len(inst.parent.cfg_in) == 1 or inst.parent == inst.parent.parent.entry:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
 
-                inst.operands = []
 
         elif inst.opcode == "phi":
             return
