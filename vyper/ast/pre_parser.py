@@ -190,6 +190,12 @@ class PreParser:
         code : str
             The vyper source code to be re-formatted.
         """
+        try:
+            self._parse(code)
+        except TokenError as e:
+            raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+
+    def _parse(self, code: str):
         result: list[TokenInfo] = []
         modification_offsets: dict[tuple[int, int], str] = {}
         settings = Settings()
@@ -198,125 +204,122 @@ class PreParser:
 
         _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
-        try:
-            code_bytes = code.encode("utf-8")
-            token_list = list(tokenize(io.BytesIO(code_bytes).readline))
+        code_bytes = code.encode("utf-8")
+        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
-            for token in token_list:
-                toks = [token]
+        for token in token_list:
+            toks = [token]
 
-                typ = token.type
-                string = token.string
-                start = token.start
-                end = token.end
-                line = token.line
+            typ = token.type
+            string = token.string
+            start = token.start
+            end = token.end
+            line = token.line
 
-                if typ == COMMENT:
-                    contents = string[1:].strip()
-                    if contents.startswith("@version"):
+            if typ == COMMENT:
+                contents = string[1:].strip()
+                if contents.startswith("@version"):
+                    if settings.compiler_version is not None:
+                        raise StructureException("compiler version specified twice!", start)
+                    compiler_version = contents.removeprefix("@version ").strip()
+                    validate_version_pragma(compiler_version, code, start)
+                    settings.compiler_version = compiler_version
+
+                if contents.startswith("pragma "):
+                    pragma = contents.removeprefix("pragma ").strip()
+                    if pragma.startswith("version "):
                         if settings.compiler_version is not None:
-                            raise StructureException("compiler version specified twice!", start)
-                        compiler_version = contents.removeprefix("@version ").strip()
+                            raise StructureException("pragma version specified twice!", start)
+                        compiler_version = pragma.removeprefix("version ").strip()
                         validate_version_pragma(compiler_version, code, start)
                         settings.compiler_version = compiler_version
 
-                    if contents.startswith("pragma "):
-                        pragma = contents.removeprefix("pragma ").strip()
-                        if pragma.startswith("version "):
-                            if settings.compiler_version is not None:
-                                raise StructureException("pragma version specified twice!", start)
-                            compiler_version = pragma.removeprefix("version ").strip()
-                            validate_version_pragma(compiler_version, code, start)
-                            settings.compiler_version = compiler_version
+                    # TODO: refactor these to something like Settings.from_pragma
+                    elif pragma.startswith("optimize "):
+                        if settings.optimize is not None:
+                            raise StructureException("pragma optimize specified twice!", start)
+                        try:
+                            mode = pragma.removeprefix("optimize").strip()
+                            settings.optimize = OptimizationLevel.from_string(mode)
+                        except ValueError:
+                            raise StructureException(
+                                f"Invalid optimization mode `{mode}`", start
+                            )
+                    elif pragma.startswith("evm-version "):
+                        if settings.evm_version is not None:
+                            raise StructureException(
+                                "pragma evm-version specified twice!", start
+                            )
+                        evm_version = pragma.removeprefix("evm-version").strip()
+                        if evm_version not in EVM_VERSIONS:
+                            raise StructureException(
+                                f"Invalid evm version: `{evm_version}`", start
+                            )
+                        settings.evm_version = evm_version
+                    elif pragma.startswith("experimental-codegen") or pragma.startswith(
+                        "venom"
+                    ):
+                        if settings.experimental_codegen is not None:
+                            raise StructureException(
+                                "pragma experimental-codegen/venom specified twice!", start
+                            )
+                        settings.experimental_codegen = True
+                    elif pragma.startswith("enable-decimals"):
+                        if settings.enable_decimals is not None:
+                            raise StructureException(
+                                "pragma enable_decimals specified twice!", start
+                            )
+                        settings.enable_decimals = True
 
-                        # TODO: refactor these to something like Settings.from_pragma
-                        elif pragma.startswith("optimize "):
-                            if settings.optimize is not None:
-                                raise StructureException("pragma optimize specified twice!", start)
-                            try:
-                                mode = pragma.removeprefix("optimize").strip()
-                                settings.optimize = OptimizationLevel.from_string(mode)
-                            except ValueError:
-                                raise StructureException(
-                                    f"Invalid optimization mode `{mode}`", start
-                                )
-                        elif pragma.startswith("evm-version "):
-                            if settings.evm_version is not None:
-                                raise StructureException(
-                                    "pragma evm-version specified twice!", start
-                                )
-                            evm_version = pragma.removeprefix("evm-version").strip()
-                            if evm_version not in EVM_VERSIONS:
-                                raise StructureException(
-                                    f"Invalid evm version: `{evm_version}`", start
-                                )
-                            settings.evm_version = evm_version
-                        elif pragma.startswith("experimental-codegen") or pragma.startswith(
-                            "venom"
-                        ):
-                            if settings.experimental_codegen is not None:
-                                raise StructureException(
-                                    "pragma experimental-codegen/venom specified twice!", start
-                                )
-                            settings.experimental_codegen = True
-                        elif pragma.startswith("enable-decimals"):
-                            if settings.enable_decimals is not None:
-                                raise StructureException(
-                                    "pragma enable_decimals specified twice!", start
-                                )
-                            settings.enable_decimals = True
+                    else:
+                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
 
-                        else:
-                            raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
+            if typ == NAME and string in ("class", "yield"):
+                raise SyntaxException(
+                    f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
+                )
 
-                if typ == NAME and string in ("class", "yield"):
-                    raise SyntaxException(
-                        f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
-                    )
+            if typ == NAME:
+                if string in VYPER_CLASS_TYPES and start[1] == 0:
+                    toks = [TokenInfo(NAME, "class", start, end, line)]
+                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                elif string in CUSTOM_STATEMENT_TYPES:
+                    new_keyword = "yield"
+                    adjustment = len(new_keyword) - len(string)
+                    # adjustments for following staticcall/extcall modification_offsets
+                    _col_adjustments[start[0]] += adjustment
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
+                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                elif string in CUSTOM_EXPRESSION_TYPES:
+                    # a bit cursed technique to get untokenize to put
+                    # the new tokens in the right place so that modification_offsets
+                    # will work correctly.
+                    # (recommend comparing the result of parse with the
+                    # source code side by side to visualize the whitespace)
+                    new_keyword = "await"
+                    vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
-                if typ == NAME:
-                    if string in VYPER_CLASS_TYPES and start[1] == 0:
-                        toks = [TokenInfo(NAME, "class", start, end, line)]
-                        modification_offsets[start] = VYPER_CLASS_TYPES[string]
-                    elif string in CUSTOM_STATEMENT_TYPES:
-                        new_keyword = "yield"
-                        adjustment = len(new_keyword) - len(string)
-                        # adjustments for following staticcall/extcall modification_offsets
-                        _col_adjustments[start[0]] += adjustment
-                        toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                        modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
-                    elif string in CUSTOM_EXPRESSION_TYPES:
-                        # a bit cursed technique to get untokenize to put
-                        # the new tokens in the right place so that modification_offsets
-                        # will work correctly.
-                        # (recommend comparing the result of parse with the
-                        # source code side by side to visualize the whitespace)
-                        new_keyword = "await"
-                        vyper_type = CUSTOM_EXPRESSION_TYPES[string]
+                    lineno, col_offset = start
 
-                        lineno, col_offset = start
+                    # fixup for when `extcall/staticcall` follows `log`
+                    adjustment = _col_adjustments[lineno]
+                    new_start = (lineno, col_offset + adjustment)
+                    modification_offsets[new_start] = vyper_type
 
-                        # fixup for when `extcall/staticcall` follows `log`
-                        adjustment = _col_adjustments[lineno]
-                        new_start = (lineno, col_offset + adjustment)
-                        modification_offsets[new_start] = vyper_type
+                    # tells untokenize to add whitespace, preserving locations
+                    diff = len(new_keyword) - len(string)
+                    new_end = end[0], end[1] + diff
 
-                        # tells untokenize to add whitespace, preserving locations
-                        diff = len(new_keyword) - len(string)
-                        new_end = end[0], end[1] + diff
+                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
 
-                        toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
+            if (typ, string) == (OP, ";"):
+                raise SyntaxException(
+                    "Semi-colon statements not allowed", code, start[0], start[1]
+                )
 
-                if (typ, string) == (OP, ";"):
-                    raise SyntaxException(
-                        "Semi-colon statements not allowed", code, start[0], start[1]
-                    )
+            if not for_parser.consume(token) and not hex_string_parser.consume(token, result):
+                result.extend(toks)
 
-                if not for_parser.consume(token) and not hex_string_parser.consume(token, result):
-                    result.extend(toks)
-
-        except TokenError as e:
-            raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
         for_loop_annotations = {}
         for k, v in for_parser.annotations.items():
