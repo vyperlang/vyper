@@ -11,7 +11,6 @@ from vyper.venom.passes.base_pass import IRPass
 class DFTPass(IRPass):
     function: IRFunction
     data_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
-    effects_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
     visited_instructions: OrderedSet[IRInstruction]
     # data dependencies
     dda: dict[IRInstruction, OrderedSet[IRInstruction]]
@@ -20,7 +19,6 @@ class DFTPass(IRPass):
 
     def run_pass(self) -> None:
         self.data_offspring = {}
-        self.effects_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -37,7 +35,6 @@ class DFTPass(IRPass):
 
         self.visited_instructions = OrderedSet()
         for inst in bb.instructions:
-            self._calculate_effects_offspring(inst)
             self._calculate_data_offspring(inst)
 
         # Compute entry points in the graph of instruction dependencies
@@ -117,20 +114,6 @@ class DFTPass(IRPass):
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
-
-    def _calculate_effects_offspring(self, inst: IRInstruction):
-        if inst in self.effects_offspring:
-            return self.effects_offspring[inst]
-
-        self.effects_offspring[inst] = self.eda[inst].copy()
-
-        deps = self.eda[inst]
-        for dep_inst in deps:
-            assert inst.parent == dep_inst.parent
-            res = self._calculate_effects_offspring(dep_inst)
-            self.effects_offspring[inst] |= res
-
-        return self.effects_offspring[inst]
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
