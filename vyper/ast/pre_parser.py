@@ -242,23 +242,15 @@ class PreParser:
                             mode = pragma.removeprefix("optimize").strip()
                             settings.optimize = OptimizationLevel.from_string(mode)
                         except ValueError:
-                            raise StructureException(
-                                f"Invalid optimization mode `{mode}`", start
-                            )
+                            raise StructureException(f"Invalid optimization mode `{mode}`", start)
                     elif pragma.startswith("evm-version "):
                         if settings.evm_version is not None:
-                            raise StructureException(
-                                "pragma evm-version specified twice!", start
-                            )
+                            raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
-                            raise StructureException(
-                                f"Invalid evm version: `{evm_version}`", start
-                            )
+                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen") or pragma.startswith(
-                        "venom"
-                    ):
+                    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
                         if settings.experimental_codegen is not None:
                             raise StructureException(
                                 "pragma experimental-codegen/venom specified twice!", start
@@ -313,13 +305,10 @@ class PreParser:
                     toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
 
             if (typ, string) == (OP, ";"):
-                raise SyntaxException(
-                    "Semi-colon statements not allowed", code, start[0], start[1]
-                )
+                raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
 
             if not for_parser.consume(token) and not hex_string_parser.consume(token, result):
                 result.extend(toks)
-
 
         for_loop_annotations = {}
         for k, v in for_parser.annotations.items():
