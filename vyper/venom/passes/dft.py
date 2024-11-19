@@ -65,29 +65,32 @@ class DFTPass(IRPass):
 
         children = list(self.dda[inst] | self.eda[inst])
 
+        shared = OrderedSet()
+        if len(self.eda[inst]) > 0:
+            shared = OrderedSet.intersection(*[self.data_offspring[x] for x in self.eda[inst]])
+
         def cost(x: IRInstruction) -> int|float:
             ret = 0
             #if x.output in inst.operands and not inst.is_commutative and not inst.is_comparator:
             if x in self.eda[inst] or inst.is_commutative or inst.is_comparator:
-                ret = -len(self.data_offspring[x] | self.effects_offspring[x])
-            else:
-                ret = inst.operands.index(x.output)
+                #ret = -len(self.data_offspring[x] - shared) * 0.5
+                #ret = -len(self.data_offspring[x]) / len(inst.operands) # max(1, len(self.data_offspring[inst]))
+                ret = -(len(self.data_offspring[x]) > 0)
+            elif x in self.dda[inst]:
+                ret = inst.operands.index(x.output) == len(inst.operands) - 1
+            else: # pragma: nocover
+                raise CompilerPanic("unreachable")
             return ret
 
+        # heuristic: sort by size of child dependency graph
+        orig_children = children.copy()
+        children.sort(key=cost)
 
-        if inst.is_commutative or inst.is_comparator:
-            dep0, dep1 = (self.dfg.get_producing_instruction(op) for op in inst.operands)
-            if dep0 is not None and dep1 is not None:
-                if len(self.data_offspring[dep0]) < len(self.data_offspring[dep1]):
-                    if inst.is_commutative:
-                        inst.operands.reverse()
-                    else:
-                        inst.flip_comparison()
-                    children.reverse()
-        else:
-            # heuristic: sort by size of child dependency graph
-            children.sort(key=cost)
-
+        if inst.is_commutative or inst.is_comparator and (orig_children != children):
+            if inst.is_commutative:
+                inst.operands.reverse()
+            else:
+                inst.flip_comparison()
 
         for dep_inst in children:
             self._process_instruction_r(instructions, dep_inst)
