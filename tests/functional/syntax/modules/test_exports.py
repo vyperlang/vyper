@@ -518,3 +518,35 @@ exports: Foo
 
     assert e.value._message == "invalid export"
     assert e.value._hint == "exports should look like <module>.<function | interface>"
+
+
+@pytest.mark.parametrize("exports_item", ["__at__", "__at__(self)", "__at__(self).__interface__"])
+def test_invalid_at_exports(get_contract, make_input_bundle, exports_item):
+    lib = """
+@external
+@view
+def foo() -> uint256:
+    return 5
+    """
+
+    main = f"""
+import lib
+
+exports: lib.{exports_item}
+
+@external
+@view
+def bar() -> uint256:
+    return staticcall lib.__at__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    with pytest.raises(Exception) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    if exports_item == "__at__":
+        assert "not a function or interface" in str(e.value)
+    if exports_item == "__at__(self)":
+        assert "invalid exports" in str(e.value)
+    if exports_item == "__at__(self).__interface__":
+        assert "has no member '__interface__'" in str(e.value)

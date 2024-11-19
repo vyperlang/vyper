@@ -27,7 +27,8 @@ def foo():
     assert e.value.message == "Cannot call an @deploy function from an @external function!"
 
 
-def test_module_interface_init(make_input_bundle, tmp_path):
+@pytest.mark.parametrize("interface_syntax", ["__interface__", "__at__"])
+def test_module_interface_init(make_input_bundle, tmp_path, interface_syntax):
     lib1 = """
 #lib1.vy
 k: uint256
@@ -42,12 +43,12 @@ def __init__():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
-    code = """
+    code = f"""
 import lib1
 
 @deploy
 def __init__():
-    lib1.__interface__(self).__init__()
+    lib1.{interface_syntax}(self).__init__()
     """
 
     with pytest.raises(UnknownAttribute) as e:
