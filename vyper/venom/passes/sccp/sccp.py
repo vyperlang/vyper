@@ -5,13 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet, int_bounds, int_log2, is_power_of_two
-from vyper.venom.analysis import (
-    CFGAnalysis,
-    DFGAnalysis,
-    DominatorTreeAnalysis,
-    IRAnalysesCache,
-    VarEquivalenceAnalysis,
-)
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -91,6 +85,7 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
+        self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self.recalc_reachable = True
@@ -104,9 +99,10 @@ class SCCP(IRPass):
                 self.last = True
                 break
 
+        self._propagate_constants()
         self._algebraic_opt()
         if self.cfg_dirty:
-            self.analyses_cache.force_analysis(CFGAnalysis)
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
             self.fn.remove_unreachable_blocks()
 
     def _calculate_sccp(self, entry: IRBasicBlock):
@@ -309,8 +305,9 @@ class SCCP(IRPass):
         # found to be false, but we still assume that
         # the unreachable basic block will be handled
         # with all other aspects in sccp test
-        if self.recalc_reachable:
-            self.function._compute_reachability()
+        #if self.recalc_reachable:
+            #self.analyses_cache.force_analysis(CFGAnalysis)
+            #self.function.remove_unreachable_blocks()
         self.recalc_reachable = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -344,7 +341,7 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
-                elif inst.parent.is_reachable:
+                elif len(inst.parent.cfg_in) == 1 or inst.parent == inst.parent.parent.entry:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
@@ -658,6 +655,7 @@ class SCCP(IRPass):
                 return True
 
         return False
+
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if x == LatticeEnum.TOP:
