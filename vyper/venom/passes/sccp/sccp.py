@@ -241,7 +241,7 @@ class SCCP(IRPass):
         for op in inst.operands:
             # Evaluate the operand according to the lattice
             if isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
+                return finalize(LatticeEnum.BOTTOM)
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
             else:
