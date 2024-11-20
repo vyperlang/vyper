@@ -207,7 +207,6 @@ class PreParser:
         for_parser = ForParser(code)
         hex_string_parser = HexStringParser()
 
-
         _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
         code_bytes = code.encode("utf-8")

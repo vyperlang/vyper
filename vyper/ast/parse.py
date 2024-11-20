@@ -138,11 +138,7 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
     visitor = AnnotatingVisitor(
-        vyper_source,
-        pre_parser,
-        source_id,
-        module_path=module_path,
-        resolved_path=resolved_path,
+        vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
     visitor.visit(parsed_ast)
 
@@ -245,7 +241,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 node.doc_string = n.value
 
         return node
-
 
     def visit_Module(self, node):
         # TODO: is this the best place for these? maybe they can be on
