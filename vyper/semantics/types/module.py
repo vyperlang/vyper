@@ -444,19 +444,19 @@ class ModuleT(VyperType):
                 return s
         return None
 
-    @property
+    @cached_property
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
 
-    @property
+    @cached_property
     def uses_decls(self):
         return self._module.get_children(vy_ast.UsesDecl)
 
-    @property
+    @cached_property
     def initializes_decls(self):
         return self._module.get_children(vy_ast.InitializesDecl)
 
-    @property
+    @cached_property
     def exports_decls(self):
         return self._module.get_children(vy_ast.ExportsDecl)
 
@@ -469,7 +469,7 @@ class ModuleT(VyperType):
                 ret.append(used_module)
         return ret
 
-    @property
+    @cached_property
     def initialized_modules(self):
         # modules which are initialized to
         ret = []
