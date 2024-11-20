@@ -253,8 +253,6 @@ class SCCP(IRPass):
             if opcode in ARITHMETIC_OPS:
                 fn = ARITHMETIC_OPS[opcode]
                 ret = IRLiteral(fn(ops))  # type: ignore
-            elif len(ops) > 0:
-                ret = ops[0]  # type: ignore
             else:
                 raise CompilerPanic("Bad constant evaluation")
 
