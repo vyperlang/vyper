@@ -253,7 +253,13 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
+    if experimental_codegen is None:
+        experimental_codegen = input_dict["settings"].get("venom")
+    elif input_dict["settings"].get("venom") is not None:
+        raise JSONError("both experimentalCodegen and venom cannot be set")
+
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(

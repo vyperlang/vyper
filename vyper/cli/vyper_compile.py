@@ -176,6 +176,7 @@ def _parse_args(argv):
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
+        "--venom",
         help="The compiler use the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
