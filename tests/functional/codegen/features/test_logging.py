@@ -1254,6 +1254,22 @@ def foo():
     assert log.topics == [event_id, topic1, topic2, topic3]
 
 
+valid_list = [
+    """
+topic: constant(bytes32) = 0x1212121212121210212801291212121212121210121212121212121212121212
+
+@external
+def foo():
+    raw_log([[topic]][0], b'')
+    """
+]
+
+
+@pytest.mark.parametrize("code", valid_list)
+def test_raw_log_pass(code):
+    assert compile_code(code) is not None
+
+
 fail_list = [
     (
         """
