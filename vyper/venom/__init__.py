@@ -48,13 +48,16 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     FunctionInlinerPass(ac, fn).run_pass()
 
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
-
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
+    # function inliner can insert bad variables, remove them before sccp
+
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
@@ -76,6 +79,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
+
     for fn in ctx.functions.values():
         _run_passes(fn, optimize)
 

@@ -31,8 +31,8 @@ class FunctionInlinerPass(IRPass):
         ret = {}
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode.startswith("alloca"):
-                    ret[tuple(inst.operands)] = inst
+                if inst.opcode == "alloca":
+                    ret[inst.operands[0]] = inst
         return ret
 
     @property
@@ -62,13 +62,12 @@ class FunctionInlinerPass(IRPass):
 
         next_bb = IRBasicBlock(ctx.get_next_label(), fn)
 
-        label_map = defaultdict(ctx.get_next_label)
+        label_map = defaultdict(lambda: ctx.get_next_label(f"inline {target_function.name}"))
 
         # make copies of every bb and inline them into the code
         for bb in bbs:
             new_label = label_map[bb.label]
             new_bb = IRBasicBlock(new_label, fn)
-
             if bb is target_function.entry:
                 target_bb = new_bb
 
@@ -87,18 +86,28 @@ class FunctionInlinerPass(IRPass):
                     inst.opcode = "jmp"
                     inst.operands = [next_bb.label]
                     inst.output = None
-                if inst.opcode.startswith("palloca"):
-                    alloca_id = tuple(inst.operands)
+                if inst.opcode == "palloca":
+                    alloca_id = inst.operands[0]
                     inst.opcode = "store"
                     inst.operands = [self._alloca_map[alloca_id].output]
                 if inst.opcode == "param":
                     inst.opcode = "store"
-                    op = invoke_inst.operands[-i - 1]
-                    inst.operands = [invoke_inst.operands[-i - 1]]
+                    inst.operands = [invoke_inst.operands[-i-1]]
+                if inst.opcode == "alloca":
+                    alloca_id = inst.operands[0]
+                    #assert alloca_id not in self._alloca_map, (alloca_id, inst, fn, target_function)
+                    if alloca_id in self._alloca_map:
+                        inst.opcode = "store"
+                        #inst.operands = self._alloca_map[alloca_id].
 
-                new_var = fn.get_next_variable()
-                var_map[inst.output] = new_var
-                inst.output = new_var
+                if inst.output is not None:
+                    if inst.output in var_map:
+                        # this can happen because we are not in SSA yet.
+                        inst.output = var_map[inst.output]
+                    else:
+                        new_var = fn.get_next_variable()
+                        var_map[inst.output] = new_var
+                        inst.output = new_var
 
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)
@@ -116,4 +125,6 @@ class FunctionInlinerPass(IRPass):
         invoke_inst.opcode = "jmp"
         invoke_inst.operands = [target_bb.label]
         invoke_inst.output = None
+
+        self._alloca_map = self._build_alloca_map()
         return True
