@@ -228,20 +228,28 @@ class SCCP(IRPass):
         changed.
         """
         opcode = inst.opcode
-
+        ret = None
         ops = []
         for op in inst.operands:
-            if isinstance(op, IRVariable):
-                ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
-            else:
-                ops.append(op)
+            # Evaluate the operand according to the lattice
+            match op:
+                case IRVariable():
+                    eval_result = self.lattice[op]
+                case IRLabel():
+                    eval_result = LatticeEnum.BOTTOM
+                case _:
+                    eval_result = op
 
-        ret = None
-        if LatticeEnum.BOTTOM in ops:
-            ret = LatticeEnum.BOTTOM
-        else:
+            # If any operand is BOTTOM, the whole operation is BOTTOM
+            # and we can stop the evaluation early
+            if eval_result is LatticeEnum.BOTTOM:
+                ret = LatticeEnum.BOTTOM
+                break
+
+            ops.append(eval_result)
+
+        # If we haven't found BOTTOM yet, evaluate the operation
+        if ret is None:
             if opcode in ARITHMETIC_OPS:
                 fn = ARITHMETIC_OPS[opcode]
                 ret = IRLiteral(fn(ops))  # type: ignore
@@ -250,6 +258,7 @@ class SCCP(IRPass):
             else:
                 raise CompilerPanic("Bad constant evaluation")
 
+        # Update the lattice if the value changed
         old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
         if old_val != ret:
             self.lattice[inst.output] = ret  # type: ignore
