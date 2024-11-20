@@ -233,10 +233,10 @@ class SCCP(IRPass):
         for op in inst.operands:
             # Evaluate the operand according to the lattice
             match op:
-                case IRVariable():
-                    eval_result = self.lattice[op]
                 case IRLabel():
                     return LatticeEnum.BOTTOM
+                case IRVariable():
+                    eval_result = self.lattice[op]
                 case _:
                     eval_result = op
 
