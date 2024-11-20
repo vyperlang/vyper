@@ -250,11 +250,8 @@ class SCCP(IRPass):
 
         # If we haven't found BOTTOM yet, evaluate the operation
         if ret is None:
-            if opcode in ARITHMETIC_OPS:
-                fn = ARITHMETIC_OPS[opcode]
-                ret = IRLiteral(fn(ops))  # type: ignore
-            else:
-                raise CompilerPanic("Bad constant evaluation")
+            fn = ARITHMETIC_OPS[opcode]
+            ret = IRLiteral(fn(ops))  # type: ignore
 
         # Update the lattice if the value changed
         old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
