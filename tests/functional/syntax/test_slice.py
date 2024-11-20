@@ -63,6 +63,11 @@ def foo():
 def foo(a: address):
     x: Bytes[32] = slice(a.code, 0, 31 + 1)
     """,
+    """
+@external
+def foo(inp: Bytes[5], start: uint256) -> Bytes[3]:
+    return slice(inp, 0, 1 + 1)
+    """,
 ]
 
 

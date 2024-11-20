@@ -305,7 +305,7 @@ class Slice(BuiltinFunctionT):
 
         arg = node.args[0]
         start_expr = node.args[1]
-        length_expr = node.args[2]
+        length_expr = node.args[2].reduced()
 
         # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
         is_adhoc_slice = arg.get("attr") == "code" or (
