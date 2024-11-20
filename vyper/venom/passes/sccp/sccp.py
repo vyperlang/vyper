@@ -99,7 +99,6 @@ class SCCP(IRPass):
                 self.last = True
                 break
 
-        self._propagate_constants()
         self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -300,14 +299,6 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        # the reachability is needed because of the
-        # unreachable assert that would be statically
-        # found to be false, but we still assume that
-        # the unreachable basic block will be handled
-        # with all other aspects in sccp test
-        #if self.recalc_reachable:
-            #self.analyses_cache.force_analysis(CFGAnalysis)
-            #self.function.remove_unreachable_blocks()
         self.recalc_reachable = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -347,7 +338,6 @@ class SCCP(IRPass):
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
-
 
         elif inst.opcode == "phi":
             return
@@ -562,6 +552,43 @@ class SCCP(IRPass):
             if inst.opcode == "mul":
                 return update("shl", operands[1], int_log2(val))
 
+        if inst.opcode == "assert" and isinstance(operands[0], IRVariable):
+            src = self.dfg.get_producing_instruction(operands[0])
+            print(inst)
+            print(inst.parent)
+            assert isinstance(src, IRInstruction), "yoyo"
+            print(src)
+            if src.opcode not in COMPARISON_OPS:
+                return False
+            uses = self.dfg.get_uses(src.output)
+            print(uses)
+            if len(uses) != 1:
+                return False
+
+            if not isinstance(src.operands[0], IRLiteral):
+                return False
+
+            n_op = src.operands[0].value
+            if "gt" in src.opcode:
+                n_op += 1
+            else:
+                n_op -= 1
+            unsigned = "s" not in src.opcode
+
+            assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+            n_opcode = src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+
+            src.opcode = n_opcode
+            src.operands = [src.operands[1], IRLiteral(n_op)]
+
+            var = add("iszero", src.output)
+            self.dfg.add_use(var, inst)
+            print(self.dfg.get_producing_instruction(var))
+
+            update("assert", var, force=True)
+
+            return True
+
         if inst.output is None:
             return False
 
@@ -649,10 +676,11 @@ class SCCP(IRPass):
 
                 assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
                 n_opcode = opcode.replace("g", "l") if "g" in opcode else opcode.replace("l", "g")
-                assert update(n_opcode, n_op, operands[1], force=True), "you stupid"
+                update(n_opcode, n_op, operands[1], force=True)
                 uses.first().opcode = "store"
                 self._visit_expr(uses.first())
                 return True
+            
 
         return False
 

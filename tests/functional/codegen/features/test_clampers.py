@@ -5,7 +5,6 @@ from eth.codecs import abi
 from eth_utils import keccak
 
 from tests.utils import ZERO_ADDRESS, decimal_to_int
-from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
 
