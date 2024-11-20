@@ -232,12 +232,12 @@ class SCCP(IRPass):
             # Update the lattice if the value changed
             old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
             if old_val != ret:
-                self.lattice[inst.output] = ret  # type: ignore
+                self.lattice[inst.output] = ret
                 self._add_ssa_work_items(inst)
             return ret
 
         opcode = inst.opcode
-        ops = []
+        ops: list[IROperand] = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
             if isinstance(op, IRLabel):
@@ -252,11 +252,12 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
 
+            assert isinstance(eval_result, IROperand)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
         fn = ARITHMETIC_OPS[opcode]
-        return finalize(IRLiteral(fn(ops)))  # type: ignore
+        return finalize(IRLiteral(fn(ops)))
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
