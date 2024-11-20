@@ -185,15 +185,6 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
-    def __eq__(self, other):
-        # no need for is_symbol to participate in equality
-        return super().__eq__(other)
-
-    def __hash__(self):
-        # __hash__ is required when __eq__ is overridden --
-        # https://docs.python.org/3/reference/datamodel.html#object.__hash__
-        return super().__hash__()
-
 
 class IRInstruction:
     """
@@ -211,7 +202,6 @@ class IRInstruction:
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
-    fence_id: int
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -228,7 +218,6 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
-        self.fence_id = -1
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
@@ -251,6 +240,22 @@ class IRInstruction:
     @property
     def is_bb_terminator(self) -> bool:
         return self.opcode in BB_TERMINATORS
+
+    @property
+    def is_phi(self) -> bool:
+        return self.opcode == "phi"
+
+    @property
+    def is_param(self) -> bool:
+        return self.opcode == "param"
+
+    @property
+    def is_pseudo(self) -> bool:
+        """
+        Check if instruction is pseudo, i.e. not an actual instruction but
+        a construct for intermediate representation like phi and param.
+        """
+        return self.is_phi or self.is_param
 
     def get_read_effects(self):
         return effects.reads.get(self.opcode, effects.EMPTY)
@@ -337,6 +342,20 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
+    def str_short(self) -> str:
+        s = ""
+        if self.output:
+            s += f"{self.output} = "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands = list(reversed(operands))
+        s += ", ".join(
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
+        )
+        return s
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
@@ -353,10 +372,7 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        if self.liveness:
-            return f"{s: <30} # {self.liveness}"
-
-        return s
+        return f"{s: <30}"
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
@@ -400,7 +416,6 @@ class IRBasicBlock:
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
-    reachable: OrderedSet["IRBasicBlock"]
     is_reachable: bool = False
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -411,7 +426,6 @@ class IRBasicBlock:
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
-        self.reachable = OrderedSet()
         self.is_reachable = False
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
@@ -495,12 +509,66 @@ class IRBasicBlock:
     def clear_instructions(self) -> None:
         self.instructions = []
 
+    @property
+    def phi_instructions(self) -> Iterator[IRInstruction]:
+        for inst in self.instructions:
+            if inst.opcode == "phi":
+                yield inst
+            else:
+                return
+
+    @property
+    def non_phi_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.opcode != "phi")
+
+    @property
+    def param_instructions(self) -> Iterator[IRInstruction]:
+        for inst in self.instructions:
+            if inst.opcode == "param":
+                yield inst
+            else:
+                return
+
+    @property
+    def pseudo_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions if inst.is_pseudo)
+
+    @property
+    def body_instructions(self) -> Iterator[IRInstruction]:
+        return (inst for inst in self.instructions[:-1] if not inst.is_pseudo)
+
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
+
+    def fix_phi_instructions(self):
+        cfg_in_labels = tuple(bb.label for bb in self.cfg_in)
+
+        needs_sort = False
+        for inst in self.instructions:
+            if inst.opcode != "phi":
+                continue
+
+            labels = inst.get_label_operands()
+            for label in labels:
+                if label not in cfg_in_labels:
+                    needs_sort = True
+                    inst.remove_phi_operand(label)
+
+            op_len = len(inst.operands)
+            if op_len == 2:
+                inst.opcode = "store"
+                inst.operands = [inst.operands[1]]
+            elif op_len == 0:
+                inst.opcode = "nop"
+                inst.output = None
+                inst.operands = []
+
+        if needs_sort:
+            self.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
     def get_assignments(self):
         """

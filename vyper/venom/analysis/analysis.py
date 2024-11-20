@@ -56,9 +56,9 @@ class IRAnalysesCache:
         if analysis_cls in self.analyses_cache:
             return self.analyses_cache[analysis_cls]
         analysis = analysis_cls(self, self.function)
+        self.analyses_cache[analysis_cls] = analysis
         analysis.analyze(*args, **kwargs)
 
-        self.analyses_cache[analysis_cls] = analysis
         return analysis
 
     def invalidate_analysis(self, analysis_cls: Type[IRAnalysis]):

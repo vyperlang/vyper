@@ -1,7 +1,4 @@
-import pytest
-
 from tests.evm_backends.base_env import _compile
-from vyper.exceptions import StackTooDeep
 from vyper.utils import method_id
 
 
@@ -169,7 +166,6 @@ def get_foo() -> uint256:
     assert c.get_foo() == 39
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynamic_array_constructor_arg_2(env, get_contract):
     code = """
 foo: int128
