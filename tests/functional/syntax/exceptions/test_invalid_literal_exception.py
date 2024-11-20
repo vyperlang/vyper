@@ -36,6 +36,13 @@ def foo():
 def foo():
     a: bytes32 = keccak256("ѓtest")
     """,
+    """
+BAR: constant(uint16) = 256
+
+@external
+def foo():
+    a: uint8 = convert(BAR, uint8)
+    """,
 ]
 
 
