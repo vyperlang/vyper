@@ -232,13 +232,12 @@ class SCCP(IRPass):
         ops = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
-            match op:
-                case IRLabel():
-                    return LatticeEnum.BOTTOM
-                case IRVariable():
-                    eval_result = self.lattice[op]
-                case _:
-                    eval_result = op
+            if isinstance(op, IRLabel):
+                return LatticeEnum.BOTTOM
+            elif isinstance(op, IRVariable):
+                eval_result = self.lattice[op]
+            else:
+                eval_result = op
 
             # If any operand is BOTTOM, the whole operation is BOTTOM
             # and we can stop the evaluation early
