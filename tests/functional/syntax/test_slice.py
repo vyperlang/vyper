@@ -53,6 +53,16 @@ def foo(inp: Bytes[10]) -> Bytes[4]:
 def foo() -> Bytes[10]:
     return slice(b"badmintonzzz", 1, 10)
     """,
+    """
+@external
+def foo():
+    x: Bytes[32] = slice(msg.data, 0, 31 + 1)
+    """,
+    """
+@external
+def foo(a: address):
+    x: Bytes[32] = slice(a.code, 0, 31 + 1)
+    """,
 ]
 
 
