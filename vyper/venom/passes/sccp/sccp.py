@@ -227,8 +227,16 @@ class SCCP(IRPass):
         instruction to the SSA work list if the knowledge about the variable
         changed.
         """
+
+        def finalize(ret):
+            # Update the lattice if the value changed
+            old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+            if old_val != ret:
+                self.lattice[inst.output] = ret  # type: ignore
+                self._add_ssa_work_items(inst)
+            return ret
+
         opcode = inst.opcode
-        ret = None
         ops = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
@@ -242,23 +250,13 @@ class SCCP(IRPass):
             # If any operand is BOTTOM, the whole operation is BOTTOM
             # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
-                ret = LatticeEnum.BOTTOM
-                break
+                return finalize(LatticeEnum.BOTTOM)
 
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
-        if ret is None:
-            fn = ARITHMETIC_OPS[opcode]
-            ret = IRLiteral(fn(ops))  # type: ignore
-
-        # Update the lattice if the value changed
-        old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
-        if old_val != ret:
-            self.lattice[inst.output] = ret  # type: ignore
-            self._add_ssa_work_items(inst)
-
-        return ret  # type: ignore
+        fn = ARITHMETIC_OPS[opcode]
+        return finalize(IRLiteral(fn(ops)))  # type: ignore
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
