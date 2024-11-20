@@ -236,7 +236,7 @@ class SCCP(IRPass):
                 case IRVariable():
                     eval_result = self.lattice[op]
                 case IRLabel():
-                    eval_result = LatticeEnum.BOTTOM
+                    return LatticeEnum.BOTTOM
                 case _:
                     eval_result = op
 
