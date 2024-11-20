@@ -426,6 +426,7 @@ class SCCP(IRPass):
                 if isinstance(op, IRVariable):
                     self._get_uses(op).add(new_inst)
             self._get_uses(var).add(inst)
+            self.dfg.set_producing_instruction(var, new_inst)
             self._visit_expr(new_inst)
             return var
 
@@ -554,14 +555,12 @@ class SCCP(IRPass):
 
         if inst.opcode == "assert" and isinstance(operands[0], IRVariable):
             src = self.dfg.get_producing_instruction(operands[0])
-            print(inst)
-            print(inst.parent)
             assert isinstance(src, IRInstruction), "yoyo"
-            print(src)
             if src.opcode not in COMPARISON_OPS:
                 return False
+
+            assert isinstance(src.output, IRVariable)
             uses = self.dfg.get_uses(src.output)
-            print(uses)
             if len(uses) != 1:
                 return False
 
@@ -576,14 +575,15 @@ class SCCP(IRPass):
             unsigned = "s" not in src.opcode
 
             assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
-            n_opcode = src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+            n_opcode = (
+                src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+            )
 
             src.opcode = n_opcode
-            src.operands = [src.operands[1], IRLiteral(n_op)]
+            src.operands = [IRLiteral(n_op), src.operands[1]]
 
             var = add("iszero", src.output)
             self.dfg.add_use(var, inst)
-            print(self.dfg.get_producing_instruction(var))
 
             update("assert", var, force=True)
 
@@ -680,7 +680,6 @@ class SCCP(IRPass):
                 uses.first().opcode = "store"
                 self._visit_expr(uses.first())
                 return True
-            
 
         return False
 

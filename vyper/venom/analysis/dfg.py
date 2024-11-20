@@ -39,7 +39,7 @@ class DFGAnalysis(IRAnalysis):
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
-    
+
     def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):
         self._dfg_outputs[op] = inst
 
