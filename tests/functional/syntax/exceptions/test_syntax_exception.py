@@ -118,7 +118,8 @@ def test_bad_staticcall_keyword():
 from ethereum.ercs import IERC20Detailed
 
 def foo():
-    staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
+    staticcall ERC20(msg.sender).transfer(
+        msg.sender, staticall IERC20Detailed(msg.sender).decimals())
     """.strip()
     with pytest.raises(SyntaxException) as e:
         compile_code(bad_code)
@@ -126,10 +127,10 @@ def foo():
     expected_error = """
 Possible typo: `staticall`
 
-  line 4:54 
-       3 def foo():
-  ---> 4     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
-  -------------------------------------------------------------^
+  line 5:20 
+       4     staticcall ERC20(msg.sender).transfer(
+  ---> 5         msg.sender, staticall IERC20Detailed(msg.sender).decimals())
+  ---------------------------^
 
   (hint: did you mean `staticcall`?)
     """  # noqa
