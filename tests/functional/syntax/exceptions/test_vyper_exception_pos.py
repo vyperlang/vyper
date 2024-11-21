@@ -41,10 +41,10 @@ def bar()>:
         compile_code(code, input_bundle=input_bundle)
 
 
-def test_exception_reports_correct_file(make_input_bundle):
+def test_exception_reports_correct_file(make_input_bundle, chdir_tmp_path):
     code_a = "def bar()>:"
     code_b = "import A"
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
 
-    with raises(SyntaxException, match=r'contract ".*A\.vy:\d+"'):
+    with raises(SyntaxException, match=r'contract "A\.vy:\d+"'):
         compile_code(code_b, input_bundle=input_bundle)
