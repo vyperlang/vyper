@@ -17,6 +17,7 @@ class NatspecOutput:
     userdoc: dict
     devdoc: dict
 
+
 def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     try:
         return _parse_natspec(annotated_vyper_module)
@@ -24,6 +25,7 @@ def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
         e.path = annotated_vyper_module.resolved_path
         raise e
     pass
+
 
 def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     """
