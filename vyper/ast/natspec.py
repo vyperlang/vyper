@@ -24,7 +24,6 @@ def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     except NatSpecSyntaxException as e:
         e.path = annotated_vyper_module.resolved_path
         raise e
-    pass
 
 
 def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
