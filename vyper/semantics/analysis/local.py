@@ -317,7 +317,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, location=location, modifiability=modifiability
+                arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
         for node in self.fn_node.body:
@@ -363,7 +363,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
 
-        self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
+        self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY, decl_node=node)
 
         self.expr_visitor.visit(node.target, typ)
 
@@ -575,7 +575,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             target_name = node.target.target.id
             # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
-                target_type, modifiability=Modifiability.RUNTIME_CONSTANT
+                target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
             )
 
             self.expr_visitor.visit(node.target.target, target_type)
@@ -810,13 +810,17 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, typ)
 
         elif is_type_t(func_type, EventT):
-            # events have no kwargs
+            # event ctors
             expected_types = func_type.typedef.arguments.values()  # type: ignore
-            for arg, typ in zip(node.args, expected_types):
-                self.visit(arg, typ)
+            # Handle keyword args if present, otherwise use positional args
+            if len(node.keywords) > 0:
+                for kwarg, arg_type in zip(node.keywords, expected_types):
+                    self.visit(kwarg.value, arg_type)
+            else:
+                for arg, typ in zip(node.args, expected_types):
+                    self.visit(arg, typ)
         elif is_type_t(func_type, StructT):
             # struct ctors
-            # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
             for kwarg, arg_type in zip(node.keywords, expected_types):
                 self.visit(kwarg.value, arg_type)

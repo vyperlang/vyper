@@ -97,10 +97,7 @@ class _BaseVyperException(Exception):
 
     @property
     def message(self):
-        msg = self._message
-        if self.hint:
-            msg += f"\n\n  (hint: {self.hint})"
-        return msg
+        return self._message
 
     def format_annotation(self, value):
         from vyper import ast as vy_ast
@@ -148,7 +145,16 @@ class _BaseVyperException(Exception):
         node_msg = textwrap.indent(node_msg, "  ")
         return node_msg
 
+    def _add_hint(self, msg):
+        hint = self.hint
+        if hint is None:
+            return msg
+        return msg + f"\n  (hint: {self.hint})"
+
     def __str__(self):
+        return self._add_hint(self._str_helper())
+
+    def _str_helper(self):
         if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"

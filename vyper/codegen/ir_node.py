@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Any, List, Optional, Union
 
 import vyper.ast as vy_ast
-from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.compiler.settings import VYPER_COLOR_OUTPUT, get_global_settings
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
@@ -405,7 +405,8 @@ class IRnode:
         for arg in children:
             s = arg.unique_symbols
             non_uniques = ret.intersection(s)
-            assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
+            if len(non_uniques) != 0:  # pragma: nocover
+                raise CompilerPanic(f"non-unique symbols {non_uniques}")
             ret |= s
         return ret
 
@@ -425,6 +426,10 @@ class IRnode:
 
     @property  # probably could be cached_property but be paranoid
     def _optimized(self):
+        if get_global_settings().experimental_codegen:
+            # in venom pipeline, we don't need to inline constants.
+            return self
+
         # TODO figure out how to fix this circular import
         from vyper.ir.optimizer import optimize
 
@@ -463,6 +468,18 @@ class IRnode:
 
         if getattr(self, "is_self_call", False):
             ret |= self.invoked_function_ir.func_ir.referenced_variables
+
+        return ret
+
+    @cached_property
+    def variable_writes(self):
+        ret = getattr(self, "_writes", set())
+
+        for arg in self.args:
+            ret |= arg.variable_writes
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.variable_writes
 
         return ret
 

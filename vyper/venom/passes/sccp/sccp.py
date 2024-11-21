@@ -5,9 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -52,12 +50,12 @@ class SCCP(IRPass):
     """
 
     fn: IRFunction
-    dom: DominatorTreeAnalysis
-    uses: dict[IRVariable, OrderedSet[IRInstruction]]
+    dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
-    cfg_dirty: bool
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+
+    cfg_dirty: bool
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
@@ -67,14 +65,15 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._compute_uses()
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
 
-        # self._propagate_variables()
+        if self.cfg_dirty:
+            self.analyses_cache.force_analysis(CFGAnalysis)
+            self.fn.remove_unreachable_blocks()
 
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -93,7 +92,7 @@ class SCCP(IRPass):
         self.work_list.append(FlowWorkItem(dummy, entry))
 
         # Initialize the lattice with TOP values for all variables
-        for v in self.uses.keys():
+        for v in self.dfg._dfg_outputs:
             self.lattice[v] = LatticeEnum.TOP
 
         # Iterate over the work list until it is empty
@@ -178,7 +177,7 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ["store", "alloca"]:
+        if opcode in ["store", "alloca", "palloca"]:
             assert inst.output is not None, "Got store/alloca without output"
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
@@ -228,55 +227,41 @@ class SCCP(IRPass):
         instruction to the SSA work list if the knowledge about the variable
         changed.
         """
+
+        def finalize(ret):
+            # Update the lattice if the value changed
+            old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+            if old_val != ret:
+                self.lattice[inst.output] = ret
+                self._add_ssa_work_items(inst)
+            return ret
+
         opcode = inst.opcode
-
-        ops = []
+        ops: list[IROperand] = []
         for op in inst.operands:
-            if isinstance(op, IRVariable):
-                ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
+            # Evaluate the operand according to the lattice
+            if isinstance(op, IRLabel):
+                return finalize(LatticeEnum.BOTTOM)
+            elif isinstance(op, IRVariable):
+                eval_result = self.lattice[op]
             else:
-                ops.append(op)
+                eval_result = op
 
-        ret = None
-        if LatticeEnum.BOTTOM in ops:
-            ret = LatticeEnum.BOTTOM
-        else:
-            if opcode in ARITHMETIC_OPS:
-                fn = ARITHMETIC_OPS[opcode]
-                ret = IRLiteral(fn(ops))  # type: ignore
-            elif len(ops) > 0:
-                ret = ops[0]  # type: ignore
-            else:
-                raise CompilerPanic("Bad constant evaluation")
+            # If any operand is BOTTOM, the whole operation is BOTTOM
+            # and we can stop the evaluation early
+            if eval_result is LatticeEnum.BOTTOM:
+                return finalize(LatticeEnum.BOTTOM)
 
-        old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
-        if old_val != ret:
-            self.lattice[inst.output] = ret  # type: ignore
-            self._add_ssa_work_items(inst)
+            assert isinstance(eval_result, IROperand)
+            ops.append(eval_result)
 
-        return ret  # type: ignore
+        # If we haven't found BOTTOM yet, evaluate the operation
+        fn = ARITHMETIC_OPS[opcode]
+        return finalize(IRLiteral(fn(ops)))
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self._get_uses(inst.output):  # type: ignore
+        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
-
-    def _compute_uses(self):
-        """
-        This method computes the uses for each variable in the IR.
-        It iterates over the dominator tree and collects all the
-        instructions that use each variable.
-        """
-        self.uses = {}
-        for bb in self.dom.dfs_walk:
-            for var, insts in bb.get_uses().items():
-                self._get_uses(var).update(insts)
-
-    def _get_uses(self, var: IRVariable):
-        if var not in self.uses:
-            self.uses[var] = OrderedSet()
-        return self.uses[var]
 
     def _propagate_constants(self):
         """
@@ -284,7 +269,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        for bb in self.dom.dfs_walk:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
@@ -304,6 +289,7 @@ class SCCP(IRPass):
                     target = inst.operands[1]
                 inst.opcode = "jmp"
                 inst.operands = [target]
+
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):

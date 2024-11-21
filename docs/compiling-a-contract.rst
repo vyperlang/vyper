@@ -31,7 +31,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 .. code:: shell
 
-    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,blueprint_bytecode,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+    $ vyper -f abi,abi_python,bb,bb_runtime,bytecode,bytecode_runtime,blueprint_bytecode,cfg,cfg_runtime,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
 
 .. note::
     The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
@@ -134,6 +134,11 @@ In codesize optimized mode, the compiler will try hard to minimize codesize by
 * out-lining code, and
 * using more loops for data copies.
 
+Enabling Experimental Code Generation
+===========================
+
+When compiling, you can use the CLI flag ``--experimental-codegen`` or its alias ``--venom`` to activate the new `Venom IR <https://github.com/vyperlang/vyper/blob/master/vyper/venom/README.md>`_.
+Venom IR is inspired by LLVM IR and enables new advanced analysis and optimizations.
 
 .. _evm-version:
 
@@ -308,10 +313,10 @@ The following example describes the expected input format of ``vyper-json``. (Co
             //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object
             //    evm.bytecode.opcodes - Opcodes list
+            //    evm.bytecode.sourceMap - Source mapping (useful for debugging)
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
-            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
@@ -388,15 +393,37 @@ The following example describes the output format of ``vyper-json``. Comments ar
                             // The bytecode as a hex string.
                             "object": "00fe",
                             // Opcodes list (string)
-                            "opcodes": ""
+                            "opcodes": "",
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         "deployedBytecode": {
                             // The deployed bytecode as a hex string.
                             "object": "00fe",
                             // Deployed opcodes list (string)
                             "opcodes": "",
-                            // The deployed source mapping as a string.
-                            "sourceMap": ""
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         // The list of function hashes
                         "methodIdentifiers": {

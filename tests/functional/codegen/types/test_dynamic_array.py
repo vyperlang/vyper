@@ -8,9 +8,9 @@ from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
+    CompilerPanic,
     ImmutableViolation,
     OverflowException,
-    StackTooDeep,
     StateAccessViolation,
     TypeMismatch,
 )
@@ -736,7 +736,6 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1887,3 +1886,18 @@ def boo() -> uint256:
 
     c = get_contract(code)
     assert c.foo() == [1, 2, 3, 4]
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+def test_dangling_reference(get_contract, tx_failed):
+    code = """
+a: DynArray[DynArray[uint256, 5], 5]
+
+@external
+def foo():
+    self.a = [[1]]
+    self.a.pop().append(2)
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()

@@ -107,14 +107,18 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = {}
+_global_symbols: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
+_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
-    global _global_symbols
+    _ = ir.unique_symbols  # run unique symbols check
+
+    global _global_symbols, _external_functions
     _global_symbols = {}
+    _external_functions = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -214,10 +218,6 @@ def _convert_ir_bb_list(fn, ir, symbols):
     return ret
 
 
-current_func = None
-var_list: list[str] = []
-
-
 def pop_source_on_return(func):
     @functools.wraps(func)
     def pop_source(*args, **kwargs):
@@ -232,7 +232,10 @@ def pop_source_on_return(func):
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list, _global_symbols
+    # TODO: refactor these to not be globals
+    global _break_target, _continue_target, _global_symbols, _external_functions
+
+    # keep a map from external functions to all possible entry points
 
     ctx = fn.ctx
     fn.push_source(ir)
@@ -252,6 +255,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
+        fn.get_basic_block().append_instruction("exit")
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -274,7 +278,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 return ret
             elif is_external:
-                _global_symbols = {}
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
                 _append_return_args(fn)
         else:
@@ -382,6 +385,13 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
+        function_id_pattern = r"external (\d+)"
+        function_name = ir.args[0].value
+        m = re.match(function_id_pattern, function_name)
+        if m is not None:
+            function_id = m.group(1)
+            _global_symbols = _external_functions.setdefault(function_id, {})
+
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
@@ -389,10 +399,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb = IRBasicBlock(label, fn)
         fn.append_basic_block(bb)
         code = ir.args[2]
-        if code.value == "pass":
-            bb.append_instruction("exit")
-        else:
-            _convert_ir_bb(fn, code, symbols)
+        _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
@@ -539,7 +546,7 @@ def _convert_ir_bb(fn, ir, symbols):
             _global_symbols[ir.value] = ptr
         elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("store", alloca.offset)
+            ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
             _global_symbols[ir.value] = ptr
 
         return _global_symbols.get(ir.value) or symbols.get(ir.value)
