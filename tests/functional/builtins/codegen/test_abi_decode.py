@@ -509,12 +509,9 @@ def f(x: Bytes[{buffer_size}]):
 
     data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
-    buffer_payload = (
-        # parent payload - this word will be considered as the head of the abi-encoded inner array
-        # and it will be added to base ptr leading to an arithmetic overflow
-        2**256
-        - 0x60,
-    )
+    # parent payload - this word will be considered as the head of the abi-encoded inner array
+    # and it will be added to base ptr leading to an arithmetic overflow
+    buffer_payload = (2**256 - 0x60,)
 
     data += _abi_payload_from_tuple(buffer_payload, buffer_size)
 
