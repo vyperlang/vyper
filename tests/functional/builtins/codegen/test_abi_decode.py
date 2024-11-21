@@ -505,9 +505,9 @@ def f(x: Bytes[{buffer_size}]):
     """
     c = get_contract(code)
 
-    head = 0x20
-    parent_array_length = 0x60
-    msg_call_overhead = (method_id("f(bytes)"), head, parent_array_length)
+    tuple_head_ofst = 0x20
+    parent_array_len = 0x60
+    msg_call_overhead = (method_id("f(bytes)"), tuple_head_ofst, parent_array_len)
 
     data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
@@ -539,7 +539,9 @@ def f(x: Bytes[{buffer_size}]):
     """
     c = get_contract(code)
 
-    msg_call_overhead = (method_id("f(bytes)"), 0x20, 0xA0)  # tuple head  # parent array length
+    tuple_head_ofst = 0x20
+    parent_array_len = 0xA0
+    msg_call_overhead = (method_id("f(bytes)"), tuple_head_ofst, parent_array_len)
 
     data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
