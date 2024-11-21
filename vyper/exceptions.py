@@ -129,14 +129,14 @@ class _BaseVyperException(Exception):
 
             # TODO: handle cases where module is None or vy_ast.Module
             if module_node.get("path") not in (None, "<unknown>"):
-                node_msg = self._append_contract(node_msg, module_node.path, node.lineno)
+                node_msg = self._format_contract_details(node_msg, module_node.path, node.lineno)
 
             fn_node = node.get_ancestor(vy_ast.FunctionDef)
             if fn_node:
                 node_msg = f'{node_msg}function "{fn_node.name}", '
 
         elif self.path is not None:
-            node_msg = self._append_contract(node_msg, self.path, node.lineno)
+            node_msg = self._format_contract_details(node_msg, self.path, node.lineno)
 
         col_offset_str = "" if node.col_offset is None else str(node.col_offset)
         node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
@@ -155,7 +155,7 @@ class _BaseVyperException(Exception):
             return msg
         return msg + f"\n  (hint: {self.hint})"
 
-    def _append_contract(self, msg, path, lineno):
+    def _format_contract_details(self, msg, path, lineno):
         return f'{msg}contract "{path}:{lineno}", '
 
     def __str__(self):
