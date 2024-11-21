@@ -505,12 +505,15 @@ def f(x: Bytes[{buffer_size}]):
     """
     c = get_contract(code)
 
-    msg_call_overhead = (method_id("f(bytes)"), 0x20, 0x60)  # tuple head  # parent array length
+    head = 0x20
+    parent_array_length = 0x60
+    msg_call_overhead = (method_id("f(bytes)"), head, parent_array_length)
 
     data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
-    # parent payload - this word will be considered as the head of the abi-encoded inner array
-    # and it will be added to base ptr leading to an arithmetic overflow
+    # parent payload - this word will be considered as the head of the
+    # abi-encoded inner array and it will be added to base ptr leading to an
+    # arithmetic overflow
     buffer_payload = (2**256 - 0x60,)
 
     data += _abi_payload_from_tuple(buffer_payload, buffer_size)
@@ -558,7 +561,8 @@ def f(x: Bytes[{buffer_size}]):
 
 def test_abi_decode_child_head_points_to_parent(tx_failed, get_contract):
     # data isn't strictly encoded and the head for the inner array
-    # skipts the corresponding payload and points to other valid section of the parent buffer
+    # skips the corresponding payload and points to other valid section of the
+    # parent buffer
     buffer_size = 14 * 32
     code = f"""
 @external
@@ -614,10 +618,11 @@ def run(x: Bytes[{buffer_size}]):
     buffer_payload = (
         0x20,  # DynArray head
         0x03,  # DynArray length
-        # non_strict_head - if the length pointed to by this head is 0x60 (which is valid
-        # length for the Bytes[32*3] buffer), the decoding function  would decode
-        # 1 byte over the end of the buffer
-        # we define the non_strict_head as: skip the remaining heads, 1st and 2nd tail
+        # non_strict_head - if the length pointed to by this head is 0x60
+        # (which is valid length for the Bytes[32*3] buffer), the decoding
+        # function  would decode 1 byte over the end of the buffer
+        # we define the non_strict_head as:
+        # skip the remaining heads, 1st and 2nd tail
         # to the third tail + 1B
         0x20 * 8 + 0x20 * 3 + 0x01,  # inner array0 head
         0x20 * 4 + 0x20 * 3,  # inner array1 head
@@ -696,7 +701,8 @@ def run(x: Bytes[{buffer_size}]):
 
 
 def test_abi_decode_bytearray_clamp(tx_failed, get_contract):
-    # data has valid encoding, but the length of DynArray[Bytes[96], 3][0] is set to 0x61
+    # data has valid encoding, but the length of DynArray[Bytes[96], 3][0] is
+    # set to 0x61
     # and thus the decoding should fail on bytestring clamp
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
     code = f"""
@@ -729,10 +735,10 @@ def run(x: Bytes[{buffer_size}]):
 
 
 def test_abi_decode_runtimesz_oob(tx_failed, get_contract, env):
-    # provide enough data, but set the runtime size to be smaller than the actual size
-    # so after y: [..] = x, y will have the incorrect size set and only part of the
-    # original data will be copied. This will cause oob read outside the
-    # runtime sz (but still within static size of the buffer)
+    # provide enough data, but set the runtime size to be smaller than the
+    # actual size so after y: [..] = x, y will have the incorrect size set and
+    # only part of the original data will be copied. This will cause oob read
+    # outside the runtime sz (but still within static size of the buffer)
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
     code = f"""
 @external
@@ -746,7 +752,8 @@ def f(x: Bytes[{buffer_size}]):
         method_id("f(bytes)"),
         0x20,  # tuple head
         # the correct size is 0x220 (2*32+3*32+4*3*32)
-        # therefore we will decode after the end of runtime size (but still within the buffer)
+        # therefore we will decode after the end of runtime size (but still
+        # within the buffer)
         0x01E4,  # top-level bytes array length
     )
 
@@ -908,8 +915,8 @@ def foo():
 
 def test_abi_decode_extcall_oob(tx_failed, get_contract):
     # the head returned from the extcall is 1 byte bigger than expected
-    # thus we'll take the last 31 0-bytes from tuple[1] and the 1st byte from tuple[2]
-    # and consider this the length - thus the length is 2**5
+    # thus we'll take the last 31 0-bytes from tuple[1] and the 1st byte from
+    # tuple[2] and consider this the length - thus the length is 2**5
     # and thus we'll read 1B over the buffer end (33 + 32 + 32)
     code = """
 @external
@@ -930,7 +937,8 @@ def foo():
 
 def test_abi_decode_extcall_runtimesz_oob(tx_failed, get_contract):
     # the runtime size (33) is bigger than the actual payload (32 bytes)
-    # thus we'll read 1B over the runtime size - but still within the static size of the buffer
+    # thus we'll read 1 byte over the runtime size - but still within the
+    # static size of the buffer
     code = """
 @external
 def bar() -> (uint256, uint256, uint256):
