@@ -438,7 +438,7 @@ def test_natspec_parsed_implicitly():
         compile_code(code, output_formats=["annotated_ast_dict"])
 
 
-def test_natspec_exception_contains_file_path(chdir_tmp_path):
+def test_natspec_exception_contains_file_path():
     code = """
 @external
 def foo() -> (int128,uint256):
