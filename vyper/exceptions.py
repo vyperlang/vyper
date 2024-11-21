@@ -129,7 +129,9 @@ class _BaseVyperException(Exception):
 
             # TODO: handle cases where module is None or vy_ast.Module
             if module_node.get("path") not in (None, "<unknown>"):
-                node_msg = self._format_contract_details(node_msg, module_node.resolved_path, node.lineno)
+                node_msg = self._format_contract_details(
+                    node_msg, module_node.resolved_path, node.lineno
+                )
 
             fn_node = node.get_ancestor(vy_ast.FunctionDef)
             if fn_node:
@@ -157,6 +159,7 @@ class _BaseVyperException(Exception):
 
     def _format_contract_details(self, msg, path, lineno):
         from vyper.utils import safe_relpath
+
         return f'{msg}contract "{safe_relpath(path)}:{lineno}", '
 
     def __str__(self):
