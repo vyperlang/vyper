@@ -9,7 +9,7 @@ from hypothesis.extra.lark import LarkStrategy
 
 from vyper.ast import Module, parse_to_ast
 from vyper.ast.grammar import parse_vyper_source, vyper_grammar
-from vyper.ast.pre_parser import pre_parse
+from vyper.ast.pre_parser import PreParser
 
 
 def test_basic_grammar():
@@ -102,6 +102,7 @@ def has_no_docstrings(c):
     max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
 )
 def test_grammar_bruteforce(code):
-    pre_parse_result = pre_parse(code + "\n")
-    tree = parse_to_ast(pre_parse_result.reformatted_code)
+    pre_parser = PreParser()
+    pre_parser.parse(code + "\n")
+    tree = parse_to_ast(pre_parser.reformatted_code)
     assert isinstance(tree, Module)
