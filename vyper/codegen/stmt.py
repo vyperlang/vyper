@@ -156,9 +156,7 @@ class Stmt:
         else:
             ir_node = ["if", ["iszero", test_expr], revert_seq]
 
-        ir_node = IRnode.from_list(ir_node)
-        ir_node.set_error_msg("user revert with reason")
-        return ir_node
+        return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
