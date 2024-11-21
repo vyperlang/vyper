@@ -42,9 +42,25 @@ def foo(x: uint256) -> Bytes[36]:
         """
 @external
 def foo(x: uint256) -> Bytes[36]:
+    return _abi_encode(x, method_id=b"abc")
+    """,
+        InvalidLiteral,  # len(method_id) must be greater than 3
+    ),
+    (
+        """
+@external
+def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=0x1234567890)
     """,
         TypeMismatch,  # len(method_id) must be less than 4
+    ),
+    (
+        """
+@external
+def foo(x: uint256) -> Bytes[36]:
+    return _abi_encode(x, method_id=0x123456)
+    """,
+        TypeMismatch,  # len(method_id) must be greater than 3
     ),
 ]
 
