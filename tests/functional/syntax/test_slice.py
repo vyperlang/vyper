@@ -53,6 +53,7 @@ def foo(inp: Bytes[10]) -> Bytes[4]:
 def foo() -> Bytes[10]:
     return slice(b"badmintonzzz", 1, 10)
     """,
+    # test constant folding for `slice()` `length` argument
     """
 @external
 def foo():

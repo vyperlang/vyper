@@ -1255,6 +1255,7 @@ def foo():
 
 
 valid_list = [
+    # test constant folding inside raw_log
     """
 topic: constant(bytes32) = 0x1212121212121210212801291212121212121210121212121212121212121212
 

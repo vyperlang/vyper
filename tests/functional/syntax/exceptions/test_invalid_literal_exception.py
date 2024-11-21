@@ -36,6 +36,7 @@ def foo():
 def foo():
     a: bytes32 = keccak256("ѓtest")
     """,
+    # test constant folding inside of `convert()`
     """
 BAR: constant(uint16) = 256
 
