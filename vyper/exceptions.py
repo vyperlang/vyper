@@ -156,7 +156,8 @@ class _BaseVyperException(Exception):
         return msg + f"\n  (hint: {self.hint})"
 
     def _format_contract_details(self, msg, path, lineno):
-        return f'{msg}contract "{path}:{lineno}", '
+        from vyper.utils import safe_relpath
+        return f'{msg}contract "{safe_relpath(path)}:{lineno}", '
 
     def __str__(self):
         return self._add_hint(self._str_helper())
