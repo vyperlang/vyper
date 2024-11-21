@@ -10,7 +10,6 @@ from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
-from vyper.exceptions import SyntaxException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
@@ -175,11 +174,7 @@ class CompilerData:
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
         module = self._resolve_imports[0]
         analyze_module(module)
-        try:
-            nspec = natspec.parse_natspec(module)
-        except SyntaxException as e:
-            e.path = module.resolved_path
-            raise e
+        nspec = natspec.parse_natspec(module)
         return nspec, module
 
     @cached_property
