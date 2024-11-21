@@ -468,8 +468,6 @@ VALID_IR_MACROS = {
     "seq",
     "set",
     "sge",
-    "sha3_32",
-    "sha3_64",
     "sle",
     "with",
     "label",

@@ -30,7 +30,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
-from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
+from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, MemoryPositions, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
@@ -610,7 +610,14 @@ def _get_element_ptr_mapping(parent, key):
     if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
         raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
-    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
+    ret = [
+        "seq",
+        ["mstore", MemoryPositions.FREE_VAR_SPACE, parent],
+        ["mstore", MemoryPositions.FREE_VAR_SPACE2, key],
+        ["sha3", MemoryPositions.FREE_VAR_SPACE, 64],
+    ]
+
+    return IRnode.from_list(ret, typ=subtype, location=parent.location)
 
 
 # Take a value representing a memory or storage location, and descend down to
