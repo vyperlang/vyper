@@ -107,7 +107,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = None  # type: ignore
+_alloca_table: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 _external_functions: dict[int, SymbolTable] = None  # type: ignore
 
@@ -116,8 +116,8 @@ _external_functions: dict[int, SymbolTable] = None  # type: ignore
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _global_symbols, _external_functions
-    _global_symbols = {}
+    global _alloca_table, _external_functions
+    _alloca_table = {}
     _external_functions = {}
 
     ctx = IRContext()
@@ -236,7 +236,7 @@ def pop_source_on_return(func):
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
-    global _break_target, _continue_target, _global_symbols, _external_functions
+    global _break_target, _continue_target, _alloca_table, _external_functions
 
     # keep a map from external functions to all possible entry points
 
@@ -531,17 +531,17 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str):
         if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _global_symbols:
+            if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-                _global_symbols[alloca._id] = ptr
-            return _global_symbols[alloca._id]
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _global_symbols:
+            if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
-                _global_symbols[alloca._id] = ptr
-            return _global_symbols[alloca._id]
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
         return symbols.get(ir.value)
     elif ir.is_literal:
