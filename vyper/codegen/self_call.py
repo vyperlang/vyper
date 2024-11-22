@@ -1,4 +1,6 @@
-from vyper.codegen.context import Context
+import dataclasses
+import copy
+from vyper.codegen.context import Context,Alloca
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
@@ -70,11 +72,21 @@ def ir_for_self_call(stmt_expr, context):
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
     if context.settings.experimental_codegen:
         arg_items = ["multi"]
-        framestart = func_t._ir_info.frame_info.frame_start
-        freshctx = Context(context.module_ctx, MemoryAllocator(framestart))
-        for arg_t in func_t.argument_types:
-            varname = freshctx.fresh_varname("param")  # dummy varname
-            arg_items.append(freshctx.new_variable(varname, arg_t))
+        #framestart = func_t._ir_info.frame_info.frame_start
+        frame_info = func_t._ir_info.frame_info
+
+        for var in frame_info.frame_vars.values():
+            var = copy.copy(var)
+            alloca = var.alloca
+            assert alloca is not None
+            assert isinstance(var.pos, str)  # help mypy
+            if not var.pos.startswith("$palloca"):
+                continue
+            newname = var.pos.replace("$palloca", "$alloca")
+            var.pos = newname
+            irnode = var.as_ir_node()
+            irnode.passthrough_metadata["alloca"] = alloca
+            arg_items.append(irnode)
         args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
     else:
         args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)

@@ -32,7 +32,7 @@ class FunctionInlinerPass(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "alloca":
-                    ret[inst.operands[0]] = inst
+                    ret.setdefault(inst.operands[2], []).append( inst)
         return ret
 
     @property
@@ -87,9 +87,11 @@ class FunctionInlinerPass(IRPass):
                     inst.operands = [next_bb.label]
                     inst.output = None
                 if inst.opcode == "palloca":
-                    alloca_id = inst.operands[0]
+                    alloca_id = inst.operands[2]
+                    allocas = self._alloca_map[alloca_id]
+                    assert len(allocas) == 1, allocas
                     inst.opcode = "store"
-                    inst.operands = [self._alloca_map[alloca_id].output]
+                    inst.operands = [allocas[0].output]
                 if inst.opcode == "param":
                     inst.opcode = "store"
                     inst.operands = [invoke_inst.operands[-i-1]]
