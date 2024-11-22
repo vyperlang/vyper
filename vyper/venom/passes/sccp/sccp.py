@@ -99,6 +99,7 @@ class SCCP(IRPass):
                 self.last = True
                 break
 
+        self._propagate_constants()
         self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -152,6 +153,7 @@ class SCCP(IRPass):
                 # Stop at the first non-phi instruction
                 # as phis are only valid at the beginning of a block
                 break
+
 
         if len(self.cfg_in_exec[end]) == 1:
             for inst in end.instructions:
@@ -222,6 +224,7 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
+                self.cfg_dirty = True
                 if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
                     target = self.fn.get_basic_block(inst.operands[1].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -380,17 +383,33 @@ class SCCP(IRPass):
     def _algebraic_opt(self) -> bool:
         self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
         assert isinstance(self.eq, VarEquivalenceAnalysis)
+        return self._algebraic_traverse_r(self.fn.entry, OrderedSet())
+    
+    def _algebraic_traverse_r(self, bb: IRBasicBlock, visited: OrderedSet[IRBasicBlock]) -> bool:
+        if bb in visited:
+            return False
+        visited.add(bb)
+        
         full_change = False
         while True:
             change = False
-            for bb in self.function.get_basic_blocks():
-                for inst in bb.instructions:
-                    change |= self._handle_inst_peephole(inst)
+            for inst in bb.instructions:
+                change |= self._handle_inst_peephole(inst)
             full_change |= change
-
             if not change:
                 break
-        return full_change
+
+        term = bb.instructions[len(bb.instructions) - 1]
+
+        # this is done so I dont need to compute the CFG multiple times
+        if term.opcode == "jmp":
+            target = self.fn.get_basic_block(term.operands[0].value)
+            return full_change | self._algebraic_traverse_r(target, visited)
+        else:
+            for out in bb.cfg_out:
+                full_change |= self._algebraic_traverse_r(out, visited)
+            return full_change
+
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
