@@ -93,21 +93,15 @@ class FunctionInlinerPass(IRPass):
                 if inst.opcode == "param":
                     inst.opcode = "store"
                     inst.operands = [invoke_inst.operands[-i-1]]
-                if inst.opcode == "alloca":
-                    alloca_id = inst.operands[0]
-                    #assert alloca_id not in self._alloca_map, (alloca_id, inst, fn, target_function)
-                    if alloca_id in self._alloca_map:
-                        inst.opcode = "store"
-                        #inst.operands = self._alloca_map[alloca_id].
 
+                # remap variable output
                 if inst.output is not None:
-                    if inst.output in var_map:
-                        # this can happen because we are not in SSA yet.
-                        inst.output = var_map[inst.output]
+                    if inst.output not in var_map:
+                        var_map[inst.output] = fn.get_next_variable()
                     else:
-                        new_var = fn.get_next_variable()
-                        var_map[inst.output] = new_var
-                        inst.output = new_var
+                        # this can happen because we are not in SSA yet.
+                        pass
+                    inst.output = var_map[inst.output]
 
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)
