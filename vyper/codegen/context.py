@@ -22,6 +22,8 @@ class Alloca:
     typ: VyperType
     size: int
 
+    _id: Any
+
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
 
@@ -233,7 +235,10 @@ class Context:
                 pos = f"$palloca_{ofst}_{size}"
             else:
                 pos = f"$alloca_{ofst}_{size}"
-            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size)
+
+            alloca_id = (self.func_t._function_id, self.fresh_varname("alloca"))
+
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size, _id = alloca_id)
 
         var = VariableRecord(
             name=name,
