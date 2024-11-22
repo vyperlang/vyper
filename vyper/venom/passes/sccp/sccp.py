@@ -252,7 +252,7 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
 
-            assert isinstance(eval_result, IROperand), (op, eval_result)
+            assert isinstance(eval_result, IROperand)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
