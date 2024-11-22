@@ -36,7 +36,7 @@ extras_require = {
 
 extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
-with open("README.md", "r") as f:
+with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 

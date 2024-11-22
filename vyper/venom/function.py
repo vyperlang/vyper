@@ -93,60 +93,31 @@ class IRFunction:
         return f"%{self.last_variable}"
 
     def remove_unreachable_blocks(self) -> int:
-        self._compute_reachability()
-
-        removed = []
-
         # Remove unreachable basic blocks
+        # pre: requires CFG analysis!
+        # NOTE: should this be a pass?
+
+        removed = set()
+
         for bb in self.get_basic_blocks():
             if not bb.is_reachable:
-                removed.append(bb)
+                removed.add(bb)
 
         for bb in removed:
             self.remove_basic_block(bb)
 
         # Remove phi instructions that reference removed basic blocks
-        for bb in removed:
-            for out_bb in bb.cfg_out:
-                out_bb.remove_cfg_in(bb)
-                for inst in out_bb.instructions:
-                    if inst.opcode != "phi":
-                        continue
-                    in_labels = inst.get_label_operands()
-                    if bb.label in in_labels:
-                        inst.remove_phi_operand(bb.label)
-                    op_len = len(inst.operands)
-                    if op_len == 2:
-                        inst.opcode = "store"
-                        inst.operands = [inst.operands[1]]
-                    elif op_len == 0:
-                        out_bb.remove_instruction(inst)
+        for bb in self.get_basic_blocks():
+            for in_bb in list(bb.cfg_in):
+                if in_bb not in removed:
+                    continue
+
+                bb.remove_cfg_in(in_bb)
+
+            # TODO: only run this if cfg_in changed
+            bb.fix_phi_instructions()
 
         return len(removed)
-
-    def _compute_reachability(self) -> None:
-        """
-        Compute reachability of basic blocks.
-        """
-        for bb in self.get_basic_blocks():
-            bb.reachable = OrderedSet()
-            bb.is_reachable = False
-
-        self._compute_reachability_from(self.entry)
-
-    def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
-        """
-        Compute reachability of basic blocks from bb.
-        """
-        if bb.is_reachable:
-            return
-        bb.is_reachable = True
-        for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
-                for op in inst.get_label_operands():
-                    out_bb = self.get_basic_block(op.value)
-                    bb.reachable.add(out_bb)
-                    self._compute_reachability_from(out_bb)
 
     @property
     def normalized(self) -> bool:
@@ -199,17 +170,19 @@ class IRFunction:
         """
         bbs = list(self.get_basic_blocks())
         for i, bb in enumerate(bbs):
-            if not bb.is_terminated:
-                if i < len(bbs) - 1:
-                    # TODO: revisit this. When contructor calls internal functions they
-                    # are linked to the last ctor block. Should separate them before this
-                    # so we don't have to handle this here
-                    if bbs[i + 1].label.value.startswith("internal"):
-                        bb.append_instruction("stop")
-                    else:
-                        bb.append_instruction("jmp", bbs[i + 1].label)
+            if bb.is_terminated:
+                continue
+
+            if i < len(bbs) - 1:
+                # TODO: revisit this. When contructor calls internal functions
+                # they are linked to the last ctor block. Should separate them
+                # before this so we don't have to handle this here
+                if bbs[i + 1].label.value.startswith("internal"):
+                    bb.append_instruction("stop")
                 else:
-                    bb.append_instruction("exit")
+                    bb.append_instruction("jmp", bbs[i + 1].label)
+            else:
+                bb.append_instruction("stop")
 
     def copy(self):
         new = IRFunction(self.name)
