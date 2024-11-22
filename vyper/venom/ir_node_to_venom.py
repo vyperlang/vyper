@@ -128,7 +128,7 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
     ctx.chain_basic_blocks()
 
     # errors in make_ssa whether this is commented or not
-    #ctx.float_allocas()
+    ctx.float_allocas()
 
     return ctx
 
@@ -541,16 +541,19 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str):
         if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _alloca_table:
+            if alloca._id not in _global_symbols:
                 ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-                _alloca_table[ir.value] = ptr
+                _global_symbols[alloca._id] = ptr
+            return _global_symbols[alloca._id]
+
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _alloca_table:
+            if alloca._id not in _global_symbols:
                 ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
-                _alloca_table[ir.value] = ptr
+                _global_symbols[alloca._id] = ptr
+            return _global_symbols[alloca._id]
 
-        return _alloca_table.get(ir.value) or symbols.get(ir.value)
+        return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
