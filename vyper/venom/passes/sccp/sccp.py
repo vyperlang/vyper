@@ -154,7 +154,6 @@ class SCCP(IRPass):
                 # as phis are only valid at the beginning of a block
                 break
 
-
         if len(self.cfg_in_exec[end]) == 1:
             for inst in end.instructions:
                 if inst.opcode == "phi":
@@ -384,12 +383,12 @@ class SCCP(IRPass):
         self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
         assert isinstance(self.eq, VarEquivalenceAnalysis)
         return self._algebraic_traverse_r(self.fn.entry, OrderedSet())
-    
+
     def _algebraic_traverse_r(self, bb: IRBasicBlock, visited: OrderedSet[IRBasicBlock]) -> bool:
         if bb in visited:
             return False
         visited.add(bb)
-        
+
         full_change = False
         while True:
             change = False
@@ -409,7 +408,6 @@ class SCCP(IRPass):
             for out in bb.cfg_out:
                 full_change |= self._algebraic_traverse_r(out, visited)
             return full_change
-
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
