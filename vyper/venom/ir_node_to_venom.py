@@ -274,14 +274,11 @@ def _convert_ir_bb(fn, ir, symbols):
                 var_list = ir.args[0].args[1]
                 assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-                saved_global_symbols = _global_symbols
-                # _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
                     ret = _convert_ir_bb(new_fn, ir_node, symbols)
 
-                _global_symbols = saved_global_symbols
                 return ret
             elif is_external:
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
@@ -386,13 +383,6 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
-        function_id_pattern = r"external (\d+)"
-        function_name = ir.args[0].value
-        m = re.match(function_id_pattern, function_name)
-        if m is not None:
-            function_id = m.group(1)
-            # _global_symbols = _external_functions.setdefault(function_id, {})
-
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
@@ -464,7 +454,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "repeat":
 
         def emit_body_blocks():
-            global _break_target, _continue_target, _global_symbols
+            global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
             _convert_ir_bb(fn, body, symbols.copy())
