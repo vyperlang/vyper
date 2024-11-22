@@ -2166,10 +2166,9 @@ else:
                 variables_2=variables_2,
                 memory_allocator=context.memory_allocator,
             )
+            z_ir = new_ctx.vars["z"].as_ir_node()
             ret = IRnode.from_list(
-                ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-                typ=DecimalT(),
-                location=MEMORY,
+                ["seq", placeholder_copy, sqrt_ir, z_ir], typ=DecimalT(), location=MEMORY
             )
             return b1.resolve(ret)
 

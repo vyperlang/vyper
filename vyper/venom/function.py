@@ -179,6 +179,25 @@ class IRFunction:
             else:
                 bb.append_instruction("stop")
 
+    def float_allocas(self):
+        entry_bb = self.entry
+        assert entry_bb.is_terminated
+        tmp = entry_bb.instructions.pop()
+
+        for bb in self.get_basic_blocks():
+            if bb is entry_bb:
+                continue
+
+            # "fast" way to strip allocas from each basic block
+            def is_alloca(inst):
+                return inst.opcode in ("alloca", "palloca")
+
+            bb.instructions.sort(key=is_alloca)
+            while len(bb.instructions) > 0 and is_alloca(bb.instructions[-1]):
+                entry_bb.insert_instruction(bb.instructions.pop())
+
+        entry_bb.instructions.append(tmp)
+
     def copy(self):
         new = IRFunction(self.name)
         new._basic_block_dict = self._basic_block_dict.copy()

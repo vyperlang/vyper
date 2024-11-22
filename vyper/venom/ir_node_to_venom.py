@@ -107,18 +107,16 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = None  # type: ignore
+_alloca_table: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
-_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _global_symbols, _external_functions
-    _global_symbols = {}
-    _external_functions = {}
+    global _alloca_table
+    _alloca_table = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -126,6 +124,13 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
     _convert_ir_bb(fn, ir, {})
 
     ctx.chain_basic_blocks()
+
+    # float allocas to the front of the function. we could probably move
+    # them to the immediate dominator of the basic block defining the alloca
+    # instead of the entry (which dominates all basic blocks), but this is
+    # done for expedience. without this step, sccp fails, possibly because
+    # dominators are not guaranteed to be traversed first.
+    ctx.float_allocas()
 
     return ctx
 
@@ -233,7 +238,7 @@ def pop_source_on_return(func):
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
-    global _break_target, _continue_target, _global_symbols, _external_functions
+    global _break_target, _continue_target, _alloca_table
 
     # keep a map from external functions to all possible entry points
 
@@ -269,8 +274,8 @@ def _convert_ir_bb(fn, ir, symbols):
             if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
                 # Internal definition
                 var_list = ir.args[0].args[1]
+                assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-                _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
@@ -298,8 +303,6 @@ def _convert_ir_bb(fn, ir, symbols):
         cont_ret = _convert_ir_bb(fn, cond, symbols)
         cond_block = fn.get_basic_block()
 
-        saved_global_symbols = _global_symbols.copy()
-
         then_block = IRBasicBlock(ctx.get_next_label("then"), fn)
         else_block = IRBasicBlock(ctx.get_next_label("else"), fn)
 
@@ -314,7 +317,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # convert "else"
         cond_symbols = symbols.copy()
-        _global_symbols = saved_global_symbols.copy()
         fn.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
@@ -342,8 +344,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
-
-        _global_symbols = saved_global_symbols
 
         return if_ret
 
@@ -385,13 +385,6 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "label":
-        function_id_pattern = r"external (\d+)"
-        function_name = ir.args[0].value
-        m = re.match(function_id_pattern, function_name)
-        if m is not None:
-            function_id = m.group(1)
-            _global_symbols = _external_functions.setdefault(function_id, {})
-
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
@@ -463,13 +456,11 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "repeat":
 
         def emit_body_blocks():
-            global _break_target, _continue_target, _global_symbols
+            global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
-            saved_global_symbols = _global_symbols.copy()
             _convert_ir_bb(fn, body, symbols.copy())
             _break_target, _continue_target = old_targets
-            _global_symbols = saved_global_symbols
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
@@ -540,16 +531,25 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(fn, ir, symbols)
     elif isinstance(ir.value, str):
-        if ir.value.startswith("$alloca") and ir.value not in _global_symbols:
+        if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
-        elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
-            alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "alloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
-        return _global_symbols.get(ir.value) or symbols.get(ir.value)
+        elif ir.value.startswith("$palloca"):
+            alloca = ir.passthrough_metadata["alloca"]
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "palloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
+
+        return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
