@@ -272,6 +272,7 @@ def _convert_ir_bb(fn, ir, symbols):
             if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
                 # Internal definition
                 var_list = ir.args[0].args[1]
+                assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
                 saved_global_symbols = _global_symbols
                 _global_symbols = {}
