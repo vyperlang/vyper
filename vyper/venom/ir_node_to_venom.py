@@ -539,16 +539,18 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(fn, ir, symbols)
     elif isinstance(ir.value, str):
-        if ir.value.startswith("$alloca") and ir.value not in _global_symbols:
+        if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
-        elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
+                _alloca_table[ir.value] = ptr
+        elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction("palloca", alloca.offset, alloca.size)
+                _alloca_table[ir.value] = ptr
 
-        return _global_symbols.get(ir.value) or symbols.get(ir.value)
+        return _alloca_table.get(ir.value) or symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:
