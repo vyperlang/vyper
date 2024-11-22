@@ -109,16 +109,14 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, Optional[IROperand]]
 _alloca_table: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
-_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _external_functions
+    global _alloca_table
     _alloca_table = {}
-    _external_functions = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -240,7 +238,7 @@ def pop_source_on_return(func):
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
-    global _break_target, _continue_target, _alloca_table, _external_functions
+    global _break_target, _continue_target, _alloca_table
 
     # keep a map from external functions to all possible entry points
 
