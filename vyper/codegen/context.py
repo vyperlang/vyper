@@ -15,6 +15,17 @@ class Constancy(enum.Enum):
     Constant = 1
 
 
+_alloca_id = 0
+
+
+def _generate_alloca_id():
+    # it is ok for this to be a global since the value does not affect generated code
+    global _alloca_id
+
+    _alloca_id += 1
+    return _alloca_id
+
+
 @dataclass(frozen=True)
 class Alloca:
     name: str
@@ -22,7 +33,7 @@ class Alloca:
     typ: VyperType
     size: int
 
-    _id: Any
+    _id: int
 
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
@@ -236,9 +247,8 @@ class Context:
             else:
                 pos = f"$alloca_{ofst}_{size}"
 
-            alloca_id = (self.func_t._function_id, self.fresh_varname("alloca"))
-
-            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size, _id = alloca_id)
+            alloca_id = _generate_alloca_id()
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size, _id=alloca_id)
 
         var = VariableRecord(
             name=name,

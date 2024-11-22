@@ -275,7 +275,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
                 saved_global_symbols = _global_symbols
-                #_global_symbols = {}
+                # _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
@@ -391,7 +391,7 @@ def _convert_ir_bb(fn, ir, symbols):
         m = re.match(function_id_pattern, function_name)
         if m is not None:
             function_id = m.group(1)
-            #_global_symbols = _external_functions.setdefault(function_id, {})
+            # _global_symbols = _external_functions.setdefault(function_id, {})
 
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
