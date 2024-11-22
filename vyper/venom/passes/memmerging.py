@@ -132,7 +132,7 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _handle_bb(self, bb: IRBasicBlock, load_inst: str, copy_inst: str):
+    def _handle_bb(self, bb: IRBasicBlock, load_inst: str, copy_inst: str, ok_overlap: bool = False):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 
@@ -140,7 +140,7 @@ class MemMergePass(IRPass):
             self._opt_intervals(bb, intervals, copy_inst)
             loads.clear()
 
-        for inst in bb.instructions:
+        for inst in bb.instructions.copy():
             if inst.opcode == load_inst:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
@@ -168,12 +168,13 @@ class MemMergePass(IRPass):
                     dst.value,
                     [self.dfg.get_producing_instruction(var), inst],  # type: ignore
                 )
-                if not self._add_interval(intervals, n_inter):
+                if not self._add_interval(intervals, n_inter, ok_self_overlap=ok_overlap):
                     opt()
             # why wont this trigger some error
             elif False and Effects.MEMORY in inst.get_write_effects():
-                self._opt_intervals(bb, intervals, copy_inst)
-                loads.clear()
+                opt()
+                #self._opt_intervals(bb, intervals, copy_inst)
+                #loads.clear()
         self._opt_intervals(bb, intervals, copy_inst)
 
     def _zero_opt(self, bb: IRBasicBlock, intervals: list[_Interval]):
