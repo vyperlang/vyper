@@ -53,7 +53,7 @@ class FunctionInlinerPass(IRPass):
         bbs = list(target_function.get_basic_blocks())
 
         # TODO: the number of times a function is called globally is also
-        # important
+        # important. e.g., always inline functions that are called 1 time.
         # TODO: check the threshold after the function is optimized
         if sum(len(bb.instructions) for bb in bbs) > self._threshold:
             return False
@@ -62,7 +62,10 @@ class FunctionInlinerPass(IRPass):
 
         next_bb = IRBasicBlock(ctx.get_next_label(), fn)
 
-        label_map = defaultdict(lambda: ctx.get_next_label(f"inline {target_function.name}"))
+        # generate a debuggable label
+        def generate_label():
+            return ctx.get_next_label(f"inline {target_function.name}")
+        label_map = defaultdict(generate_label)
 
         # make copies of every bb and inline them into the code
         for bb in bbs:
