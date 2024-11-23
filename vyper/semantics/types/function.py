@@ -209,7 +209,7 @@ class ContractFunctionT(VyperType):
 
     @cached_property
     def _pp_signature(self):
-        ret = ",".join(repr(arg.typ) for arg in self.arguments)
+        ret = ",".join(str(arg.typ) for arg in self.arguments)
         return f"{self.name}({ret})"
 
     # override parent implementation. function type equality does not

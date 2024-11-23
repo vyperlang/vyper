@@ -597,7 +597,7 @@ def foobar(token: IERC20):
 
     assert (
         e.value.message
-        == "Contract does not implement all interface functions: foobar(interface IERC20)"
+        == "Contract does not implement all interface functions: foobar(IERC20)"
     )
 
 
