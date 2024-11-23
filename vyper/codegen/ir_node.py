@@ -598,7 +598,7 @@ class IRnode:
     ) -> "IRnode":
         if isinstance(typ, str):  # pragma: nocover
             raise CompilerPanic(f"Expected type, not string: {typ}")
-        ret = None
+
         if isinstance(obj, IRnode):
             # note: this modify-and-returnclause is a little weird since
             # the input gets modified. CC 20191121.
@@ -610,10 +610,12 @@ class IRnode:
                 obj.location = location
             if obj.encoding is None:
                 obj.encoding = encoding
+            if obj.error_msg is None:
+                obj.error_msg = error_msg
 
-            ret = obj
+            return obj
         elif not isinstance(obj, list):
-            ret = cls(
+            return cls(
                 obj,
                 [],
                 typ,
@@ -623,13 +625,14 @@ class IRnode:
                 add_gas_estimate=add_gas_estimate,
                 ast_source=ast_source,
                 encoding=encoding,
+                error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
             )
         else:
-            ret = cls(
+            return cls(
                 obj[0],
-                [cls.from_list(o, ast_source=ast_source) for o in obj[1:]],
+                [cls.from_list(o, ast_source=ast_source, error_msg=error_msg) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
@@ -637,9 +640,7 @@ class IRnode:
                 ast_source=ast_source,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
+                error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
             )
-        if error_msg is not None:
-            ret.set_error_msg(error_msg)
-        return ret
