@@ -83,7 +83,7 @@ class InterfaceT(_UserType):
         return Path(self._id).stem
 
     def __repr__(self):
-        return f"interface {Path(self._id).stem}"
+        return f"interface {self._id}"
 
     def _try_fold(self, node):
         if len(node.args) != 1:
