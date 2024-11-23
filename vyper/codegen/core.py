@@ -1,5 +1,5 @@
-from vyper.codegen.ir_node import Encoding, IRnode
 import vyper.codegen.context as ctx
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
     CALLDATA,
