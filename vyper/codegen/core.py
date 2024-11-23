@@ -1,4 +1,5 @@
 from vyper.codegen.ir_node import Encoding, IRnode
+import vyper.codegen.context as ctx
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
     CALLDATA,
@@ -854,6 +855,9 @@ def _freshname(name):
 def reset_names():
     global _label
     _label = 0
+
+    # could be refactored
+    ctx._alloca_id = 0
 
 
 # returns True if t is ABI encoded and is a type that needs any kind of

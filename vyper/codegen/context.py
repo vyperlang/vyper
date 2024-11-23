@@ -19,7 +19,7 @@ _alloca_id = 0
 
 
 def _generate_alloca_id():
-    # it is ok for this to be a global since the value does not affect generated code
+    # note: this gets reset between compiler runs by codegen.core.reset_names
     global _alloca_id
 
     _alloca_id += 1
