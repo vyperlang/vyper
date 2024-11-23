@@ -605,7 +605,6 @@ def bar():
         compiler.compile_code(main, input_bundle=input_bundle)
 
 
-@pytest.mark.xfail
 def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
     lib1 = """
 @external
