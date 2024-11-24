@@ -116,7 +116,7 @@ def bar():
                 return True
         return False
 
-    assert has_suffix_key(out, "<unknown>: foo")
+    assert has_suffix_key(out, "0: foo")
     assert has_suffix_key(out, "bar")
-    assert has_suffix_key(out, "A.vy: foo")
+    assert has_suffix_key(out, "1: foo")
     assert not has_suffix_key(out, "faa")
