@@ -14,7 +14,7 @@ from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.semantics.types.module import InterfaceT
+from vyper.semantics.types.module import InterfaceT, ModuleT, StructT
 from vyper.typing import StorageLayout
 from vyper.utils import vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
@@ -125,12 +125,14 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    interface = module_t.interface
     out = ""
 
-    if len(interface.structs) > 0:
+    structs = _get_structs(module_t)
+    if len(structs) > 0:
         out += "# Structs\n\n"
-        for struct in interface.structs.values():
+        for struct in structs:
             out += f"struct {struct.name}:\n"
             for member_name, member_type in struct.members.items():
                 out += f"    {member_name}: {member_type}\n"
@@ -157,6 +159,22 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     out += "\n"
 
     return out
+
+
+def _get_structs(m: ModuleT) -> list[StructT]:
+    visited = set()
+    structs = list(m.interface.structs.values())
+
+    for val in m.reachable_imports:
+        if isinstance(val.typ, ModuleInfo):
+            i_t = val.typ.module_t.interface
+        elif isinstance(val.typ, InterfaceT):
+            i_t = val.typ
+        if i_t not in visited:
+            structs += list(i_t.structs.values())
+            visited.add(i_t)
+
+    return structs
 
 
 def build_bb_output(compiler_data: CompilerData) -> IRnode:
