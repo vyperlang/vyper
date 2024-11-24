@@ -1,4 +1,5 @@
 import contextlib
+import json
 import sys
 import zipfile
 from pathlib import Path
@@ -297,6 +298,9 @@ def foo() -> uint256:
 import lib
 import jsonabi
 
+a: uint256
+b: uint256
+
 @external
 def foo() -> uint256:
     return lib.foo()
@@ -305,25 +309,40 @@ def foo() -> uint256:
 def bar(x: uint256) -> uint256:
     return extcall jsonabi(msg.sender).test_json(x)
     """
+    storage_layout_overrides = {
+        "storage_layout": {
+            "a": {"type": "uint256", "n_slots": 1, "slot": 0},
+            "b": {"type": "uint256", "n_slots": 1, "slot": 1},
+        }
+    }
+
     tmpdir = tmp_path_factory.mktemp("fake-package")
     with open(tmpdir / "lib.vy", "w") as f:
         f.write(library_source)
     with open(tmpdir / "jsonabi.json", "w") as f:
         f.write(json_source)
+    with open(tmpdir / "layout.json", "w") as f:
+        f.write(json.dumps(storage_layout_overrides))
 
     contract_file = make_file("contract.vy", contract_source)
 
-    return (tmpdir, tmpdir / "lib.vy", tmpdir / "jsonabi.json", contract_file)
+    return (
+        tmpdir,
+        tmpdir / "lib.vy",
+        tmpdir / "jsonabi.json",
+        tmpdir / "layout.json",
+        contract_file,
+    )
 
 
 def test_import_sys_path(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file = input_files
     with mock_sys_path(tmpdir):
         assert compile_files([contract_file], ["combined_json"]) is not None
 
 
 def test_archive_output(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     s = compile_files([contract_file], ["archive"], paths=search_paths)
@@ -342,7 +361,7 @@ def test_archive_output(input_files):
 
 
 def test_archive_b64_output(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     out = compile_files(
@@ -361,11 +380,16 @@ def test_archive_b64_output(input_files):
 
 
 def test_solc_json_output(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
+    storage_layout_paths = [storage_layout_path]
 
-    out = compile_files([contract_file], ["solc_json"], paths=search_paths)
-
+    out = compile_files(
+        [contract_file],
+        ["solc_json"],
+        paths=search_paths,
+        storage_layout_paths=storage_layout_paths,
+    )
     json_input = out[contract_file]["solc_json"]
 
     # check that round-tripping solc_json thru standard json produces
@@ -380,7 +404,7 @@ def test_solc_json_output(input_files):
 
 # maybe this belongs in tests/unit/compiler?
 def test_integrity_sum(input_files):
-    tmpdir, library_file, jsonabi_file, contract_file = input_files
+    tmpdir, library_file, jsonabi_file, _, contract_file = input_files
     search_paths = [".", tmpdir]
 
     out = compile_files([contract_file], ["integrity"], paths=search_paths)
