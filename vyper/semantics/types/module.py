@@ -19,7 +19,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
@@ -240,9 +240,6 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
-        if (fn_t := module_t.init_function) is not None:
-            funcs.append((fn_t.name, fn_t))
-
         event_set: OrderedSet[EventT] = OrderedSet()
         event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
         event_set.update(module_t.used_events)
@@ -271,6 +268,19 @@ class InterfaceT(_UserType):
             functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
 
         return cls._from_lists(node.name, node, functions)
+
+
+def _module_at(module_t):
+    return MemberFunctionT(
+        # set underlying_type to a TYPE_T as a bit of a kludge, since it's
+        # kind of like a class method (but we don't have classmethod
+        # abstraction)
+        underlying_type=TYPE_T(module_t),
+        name="__at__",
+        arg_types=[AddressT()],
+        return_type=module_t.interface,
+        is_modifying=False,
+    )
 
 
 # Datatype to store all module information.
@@ -330,16 +340,28 @@ class ModuleT(VyperType):
 
         for i in self.import_stmts:
             import_info = i._metadata["import_info"]
-            self.add_member(import_info.alias, import_info.typ)
 
             if hasattr(import_info.typ, "module_t"):
-                self._helper.add_member(import_info.alias, TYPE_T(import_info.typ))
+                module_info = import_info.typ
+                # get_expr_info uses ModuleInfo
+                self.add_member(import_info.alias, module_info)
+                # type_from_annotation uses TYPE_T
+                self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
+            else:  # interfaces
+                assert isinstance(import_info.typ, InterfaceT)
+                self.add_member(import_info.alias, TYPE_T(import_info.typ))
 
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
-        self.add_member("__interface__", self.interface)
+        # module.__at__(addr)
+        self.add_member("__at__", _module_at(self))
+
+        # allow `module.__interface__` (in exports declarations)
+        self.add_member("__interface__", TYPE_T(self.interface))
+        # allow `module.__interface__` (in type position)
+        self._helper.add_member("__interface__", TYPE_T(self.interface))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,

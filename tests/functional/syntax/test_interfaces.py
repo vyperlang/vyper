@@ -571,3 +571,72 @@ def bar():
         compiler.compile_code(code, input_bundle=input_bundle)
 
     assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+
+
+def test_intrinsic_interfaces_different_types(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    lib2 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+@external
+def bar():
+    assert lib1.__at__(self) == lib2.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def __default__():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    extcall lib1.__at__(self).__default__()
+
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ValueError):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function_staticcall(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def __default__() -> int128:
+    return 43
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    foo:int128 = 0
+    foo = staticcall lib1.__at__(self).__default__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ValueError):
+        compiler.compile_code(main, input_bundle=input_bundle)
