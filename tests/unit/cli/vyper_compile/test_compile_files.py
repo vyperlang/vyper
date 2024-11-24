@@ -343,7 +343,9 @@ def test_archive_output(input_files):
     tmpdir, _, _, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
 
-    s = compile_files([contract_file], ["archive"], paths=search_paths, storage_layout_paths=[storage_layout_path])
+    s = compile_files(
+        [contract_file], ["archive"], paths=search_paths, storage_layout_paths=[storage_layout_path]
+    )
     archive_bytes = s[contract_file]["archive"]
 
     archive_path = Path("foo.zip")
@@ -353,7 +355,12 @@ def test_archive_output(input_files):
     assert zipfile.is_zipfile(archive_path)
 
     # compare compiling the two input bundles
-    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths, storage_layout_paths=[storage_layout_path])
+    out = compile_files(
+        [contract_file],
+        ["integrity", "bytecode"],
+        paths=search_paths,
+        storage_layout_paths=[storage_layout_path],
+    )
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
 
