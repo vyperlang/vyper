@@ -208,13 +208,14 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
 
 def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, StorageLayout]:
-    storage_layout_overrides: dict[PurePath, list[str]] = {}
+    storage_layout_overrides: dict[PurePath, StorageLayout] = {}
+
     for path, value in input_dict.get("storage_layout_overrides", {}).items():
         if path not in input_dict["sources"]:
             raise JSONError(f"unknown target for storage layout override: {path}")
 
         path = PurePath(path)
-        storage_layout_overrides[path] = value["content"]
+        storage_layout_overrides[path] = value["content"]["storage_layout"]
 
     return storage_layout_overrides
 
@@ -313,7 +314,7 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
-        storage_layout_override = storage_layout_overrides.get(PurePath(contract_path), None)
+        storage_layout_override = storage_layout_overrides.get(contract_path, None)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id
