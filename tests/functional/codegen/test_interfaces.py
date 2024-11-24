@@ -804,7 +804,7 @@ struct Baz:
     assert "struct Baz" in out
 
 
-def test_interface_with_doubly_imported_interface(make_input_bundle):
+def test_interface_with_doubly_imported_structure(make_input_bundle):
     a = """
 import b
 import c
@@ -838,3 +838,28 @@ struct Boo:
     assert "struct Bar:" in out
     assert "struct Baz" in out
     assert out.count("struct Boo") == 1
+
+
+def test_interface_with_imported_struct_via_interface(make_input_bundle):
+    a = """
+import b
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+struct Bar:
+    val:uint256
+
+def foobar(number: uint256):
+    ...
+        """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vyi": b})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+    print(out)
+    assert "# Structs" in out
+    assert "struct Foo:" in out
+    assert "struct Bar:" in out
