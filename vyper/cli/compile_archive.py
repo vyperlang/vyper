@@ -45,7 +45,12 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
     fcontents = archive.read("MANIFEST/compilation_targets").decode("utf-8")
     compilation_targets = fcontents.splitlines()
 
-    storage_layout = json.loads(archive.read("MANIFEST/storage_layout.json").decode("utf-8"))
+    storage_layout_path = "MANIFEST/storage_layout.json"
+    storage_layout = (
+        json.loads(archive.read(storage_layout_path).decode("utf-8"))
+        if storage_layout_path in archive.namelist()
+        else None
+    )
 
     if len(compilation_targets) != 1:
         raise BadArchive("Multiple compilation targets not supported!")
