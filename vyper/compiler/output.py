@@ -161,15 +161,18 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def _get_structs(m: ModuleT, visited: set[ModuleT] = None) -> [StructT]:
-    visited = visited or set()
-    if m in visited:
-        return []
-    visited.add(m)
+def _get_structs(m: ModuleT) -> list[StructT]:
+    visited = set()
     structs = list(m.interface.structs.values())
 
-    for val in m.imported_modules.values():
-        structs += _get_structs(val.module_node._metadata["type"], visited)
+    for val in m.reachable_imports:
+        if isinstance(val.typ, ModuleInfo):
+            i_t = val.typ.module_t.interface
+        elif isinstance(val.typ, InterfaceT):
+            i_t = val.typ
+        if i_t not in visited:
+            structs += list(i_t.structs.values())
+            visited.add(i_t)
 
     return structs
 
