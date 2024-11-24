@@ -1,3 +1,4 @@
+import json
 import re
 
 import pytest
@@ -39,23 +40,19 @@ b: uint256"""
 
     input_json = {
         "language": "Vyper",
-        "sources": {
-            "contracts/foo.vy": {"content": code},
-        },
+        "sources": {"contracts/foo.vy": {"content": code}},
         "storage_layout_overrides": {
-            "contracts/foo.vy": {
-                "content": storage_layout_overrides
-            },
+            "contracts/foo.vy": {"content": {"storage_layout": storage_layout_overrides}}
         },
-        "settings": {
-            "outputSelection": {"*": ["*"]},
-        },
+        "settings": {"outputSelection": {"*": ["*"]}},
     }
 
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
     )
-    compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == out
+    assert compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == json.dumps(
+        out["layout"]
+    )
 
 
 def test_storage_layout_for_more_complex():
