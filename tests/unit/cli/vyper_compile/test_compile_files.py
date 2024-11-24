@@ -310,10 +310,8 @@ def bar(x: uint256) -> uint256:
     return extcall jsonabi(msg.sender).test_json(x)
     """
     storage_layout_overrides = {
-        "storage_layout": {
-            "a": {"type": "uint256", "n_slots": 1, "slot": 0},
-            "b": {"type": "uint256", "n_slots": 1, "slot": 1},
-        }
+        "a": {"type": "uint256", "n_slots": 1, "slot": 0},
+        "b": {"type": "uint256", "n_slots": 1, "slot": 1},
     }
 
     tmpdir = tmp_path_factory.mktemp("fake-package")
@@ -342,10 +340,10 @@ def test_import_sys_path(input_files):
 
 
 def test_archive_output(input_files):
-    tmpdir, _, _, _, contract_file = input_files
+    tmpdir, _, _, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
 
-    s = compile_files([contract_file], ["archive"], paths=search_paths)
+    s = compile_files([contract_file], ["archive"], paths=search_paths, storage_layout_paths=[storage_layout_path])
     archive_bytes = s[contract_file]["archive"]
 
     archive_path = Path("foo.zip")
@@ -355,7 +353,7 @@ def test_archive_output(input_files):
     assert zipfile.is_zipfile(archive_path)
 
     # compare compiling the two input bundles
-    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+    out = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths, storage_layout_paths=[storage_layout_path])
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
 
