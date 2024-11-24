@@ -60,7 +60,18 @@ def parse_to_ast_with_settings(
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
+        new_e = SyntaxException(str(e), vyper_source, e.lineno, e.offset)
+
+        likely_errors = ("staticall", "staticcal")
+        hint = None
+        tmp = str(new_e)
+        for s in likely_errors:
+            if s in tmp:
+                new_e._hint = "did you mean `staticcall`?"
+                break
+
+        raise new_e from None
+
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
