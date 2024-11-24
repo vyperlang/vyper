@@ -215,7 +215,12 @@ def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, StorageLayo
             raise JSONError(f"unknown target for storage layout override: {path}")
 
         path = PurePath(path)
-        storage_layout_overrides[path] = value["content"]["storage_layout"]
+        storage_layout_overrides_for_path: StorageLayout = {}
+        for layout_type in ("storage_layout", "transient_storage_layout"):
+            if layout := value["content"].get(layout_type):
+                storage_layout_overrides_for_path.update(layout)
+
+        storage_layout_overrides[path] = storage_layout_overrides_for_path
 
     return storage_layout_overrides
 
