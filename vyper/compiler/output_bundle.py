@@ -254,6 +254,11 @@ class VyperArchiveWriter(OutputBundleWriter):
         for path, c in sources.items():
             self.archive.writestr(_anonymize(path), c.contents)
 
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: StorageLayout
+    ):
+        self.archive.writestr("MANIFEST/storage_layout.json", json.dumps(storage_layout_override))
+
     def write_search_paths(self, search_paths: list[str]):
         self.archive.writestr("MANIFEST/searchpaths", "\n".join(search_paths))
 
