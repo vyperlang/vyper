@@ -35,6 +35,34 @@ def test_memmerging():
     assert bb.instructions[6].opcode == "mcopy"
 
 
+def test_memmerging_imposs():
+    if version_check(end="shanghai"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    addr0 = bb.append_instruction("store", 64)
+    addr1 = bb.append_instruction("store", 96)
+    addr2 = bb.append_instruction("store", 128)
+    oaddr0 = bb.append_instruction("store", 96)
+    oaddr1 = bb.append_instruction("store", 128)
+    oaddr2 = bb.append_instruction("store", 160)
+    val0 = bb.append_instruction("mload", addr0)
+    val1 = bb.append_instruction("mload", addr1)
+    val2 = bb.append_instruction("mload", addr2)
+    bb.append_instruction("mstore", val0, oaddr0)
+    bb.append_instruction("mstore", val1, oaddr1)
+    bb.append_instruction("mstore", val2, oaddr2)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+
+
 def test_memzeroing_1():
     ctx = IRContext()
     fn = ctx.create_function("_global")

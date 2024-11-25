@@ -172,7 +172,6 @@ class MemMergePass(IRPass):
                 )
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=ok_overlap):
                     opt()
-            # why wont this trigger some error
             elif Effects.MEMORY in inst.get_write_effects():
                 opt()
         self._opt_intervals(bb, intervals, copy_inst)
