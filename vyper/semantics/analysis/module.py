@@ -497,6 +497,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 decl = info.var_info.decl_node
                 if not info.var_info.is_public:
                     raise StructureException("not a public variable!", decl, item)
+                # e.g. self.foo_variable
+                if not isinstance(item, vy_ast.Attribute) or not isinstance(
+                    get_expr_info(item.value).typ, (ModuleT, TYPE_T)
+                ):
+                    raise StructureException(
+                        "invalid export of a value",
+                        item.value,
+                        hint="exports should look like <module>.<function | interface>",
+                    )
+
                 funcs = [decl._expanded_getter._metadata["func_type"]]
             elif isinstance(info.typ, ContractFunctionT):
                 # regular function
