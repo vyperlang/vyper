@@ -200,7 +200,7 @@ class MemMergePass(IRPass):
             self._zero_opt(bb, intervals)
             loads.clear()
 
-        for inst in bb.instructions:
+        for inst in bb.instructions.copy():
             if inst.opcode == "mstore":
                 zero = inst.operands[0]
                 dst = inst.operands[1]
