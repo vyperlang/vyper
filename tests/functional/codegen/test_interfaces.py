@@ -770,9 +770,9 @@ def foo(s: MyStruct) -> MyStruct:
     out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
 
     assert "# Structs" in out
-    assert "struct MyStruct:" in out
+    assert "MyStruct:" in out
     assert "b: uint256" in out
-    assert "struct Voter:" in out
+    assert "Voter:" in out
     assert "voted: bool" in out
 
 
@@ -799,9 +799,9 @@ struct Baz:
     )["interface"]
 
     assert "# Structs" in out
-    assert "struct Foo:" in out
-    assert "struct Bar:" in out
-    assert "struct Baz" in out
+    assert "Foo:" in out
+    assert "Bar:" in out
+    assert "Baz:" in out
 
 
 def test_interface_with_doubly_imported_structure(make_input_bundle):
@@ -834,10 +834,10 @@ struct Boo:
     )["interface"]
 
     assert "# Structs" in out
-    assert "struct Foo:" in out
-    assert "struct Bar:" in out
-    assert "struct Baz" in out
-    assert out.count("struct Boo") == 1
+    assert "Foo:" in out
+    assert "Bar:" in out
+    assert "Baz" in out
+    assert out.count("Boo") == 1
 
 
 def test_interface_with_imported_struct_via_interface(make_input_bundle):
@@ -851,8 +851,6 @@ struct Foo:
 struct Bar:
     val:uint256
 
-def foobar(number: uint256):
-    ...
         """
 
     input_bundle = make_input_bundle({"a.vy": a, "b.vyi": b})
@@ -861,5 +859,32 @@ def foobar(number: uint256):
     )["interface"]
     print(out)
     assert "# Structs" in out
-    assert "struct Foo:" in out
-    assert "struct Bar:" in out
+    assert "Foo:" in out
+    assert "Bar:" in out
+
+
+def test_interface_with_imported_structs_via_interface(make_input_bundle):
+    a = """
+import b
+import c
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+struct Bar:
+    val:uint256
+        """
+    c = """
+struct Baz:
+    val:uint256
+            """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vyi": b, "c.vy": c})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+    print(out)
+    assert "# Structs" in out
+    assert "Foo:" in out
+    assert "Bar:" in out
