@@ -199,7 +199,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             else:
                 node.end_col_offset = 0
 
-        adjustments = self._pre_parse_result.adjustments
+        adjustments = self._pre_parser.adjustments
 
         for s in ("lineno", "end_lineno", "col_offset", "end_col_offset"):
             # ensure fields exist
