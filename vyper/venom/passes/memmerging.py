@@ -132,7 +132,9 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _handle_bb(self, bb: IRBasicBlock, load_inst: str, copy_inst: str, ok_overlap: bool = False):
+    def _handle_bb(
+        self, bb: IRBasicBlock, load_inst: str, copy_inst: str, ok_overlap: bool = False
+    ):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 

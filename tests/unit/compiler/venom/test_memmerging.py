@@ -36,7 +36,6 @@ def test_memmerging():
 
 
 def test_memzeroing_1():
-    pass
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -56,8 +55,8 @@ def test_memzeroing_1():
     assert bb.instructions[1].operands[2].value == 32
     assert len(bb.instructions) == 3
 
+
 def test_memzeroing_2():
-    pass
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -79,8 +78,8 @@ def test_memzeroing_2():
     assert bb.instructions[1].operands[2].value == 64
     assert len(bb.instructions) == 3
 
+
 def test_memzeroing_3():
-    pass
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
