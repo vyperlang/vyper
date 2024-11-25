@@ -8,8 +8,9 @@ import json
 import zipfile
 from pathlib import PurePath
 
-from vyper.compiler import compile_from_file_input
+from vyper.compiler import outputs_from_compiler_data
 from vyper.compiler.input_bundle import FileInput, ZipInputBundle
+from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, merge_settings
 from vyper.exceptions import BadArchive
 
@@ -19,6 +20,11 @@ class NotZipInput(Exception):
 
 
 def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
+    compiler_data = compiler_data_from_zip(file_name, settings, no_bytecode_metadata)
+    return outputs_from_compiler_data(compiler_data, output_formats)
+
+
+def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
     with open(file_name, "rb") as f:
         bcontents = f.read()
 
@@ -59,11 +65,9 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
         settings, archive_settings, lhs_source="command line", rhs_source="archive settings"
     )
 
-    # TODO: validate integrity sum (probably in CompilerData)
-    return compile_from_file_input(
+    return CompilerData(
         file,
         input_bundle=input_bundle,
-        output_formats=output_formats,
         integrity_sum=integrity,
         settings=settings,
         no_bytecode_metadata=no_bytecode_metadata,
