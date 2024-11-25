@@ -619,5 +619,5 @@ def bar():
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
     # TODO make the exception more precise once fixed
-    with pytest.raises(Exception):
+    with pytest.raises():
         compiler.compile_code(main, input_bundle=input_bundle)
