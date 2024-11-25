@@ -171,10 +171,8 @@ class MemMergePass(IRPass):
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=ok_overlap):
                     opt()
             # why wont this trigger some error
-            elif False and Effects.MEMORY in inst.get_write_effects():
+            elif Effects.MEMORY in inst.get_write_effects():
                 opt()
-                #self._opt_intervals(bb, intervals, copy_inst)
-                #loads.clear()
         self._opt_intervals(bb, intervals, copy_inst)
 
     def _zero_opt(self, bb: IRBasicBlock, intervals: list[_Interval]):
@@ -233,4 +231,6 @@ class MemMergePass(IRPass):
                 else:
                     if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
                         opt()
+            elif Effects.MEMORY in inst.get_write_effects():
+                opt()
         self._zero_opt(bb, intervals)

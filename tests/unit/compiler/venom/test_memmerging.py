@@ -1,7 +1,7 @@
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, MemMergePass
+from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
 
 def test_memmerging():
@@ -33,3 +33,73 @@ def test_memmerging():
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert bb.instructions[6].opcode == "mcopy"
+
+
+def test_memzeroing_1():
+    pass
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("mstore", 0, 32)
+    bb.append_instruction("mstore", 0, 64)
+    bb.append_instruction("mstore", 0, 96)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatasize"
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 96
+    assert bb.instructions[1].operands[2].value == 32
+    assert len(bb.instructions) == 3
+
+def test_memzeroing_2():
+    pass
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 128, calldatasize, 64)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 128, calldatasize, 192)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatasize"
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 256
+    assert bb.instructions[1].operands[2].value == 64
+    assert len(bb.instructions) == 3
+
+def test_memzeroing_3():
+    pass
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 128, calldatasize, 64)
+    bb.append_instruction("mstore", 0, 192)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 128, calldatasize, 224)
+    bb.append_instruction("mstore", 0, 128 + 224)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatasize"
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 256 + 2 * 32
+    assert bb.instructions[1].operands[2].value == 64
+    assert len(bb.instructions) == 3
