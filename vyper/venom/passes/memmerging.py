@@ -23,7 +23,7 @@ class _Interval:
     def dst_end(self) -> int:
         return self.dst_start + self.length
 
-    def self_overlap(self) -> bool:
+    def dst_overlap(self) -> bool:
         a = max(self.src_start, self.dst_start)
         b = min(self.src_end, self.dst_end)
         return a < b
@@ -33,14 +33,14 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def _add(self, other: "_Interval", ok_self_overlap: bool) -> bool:
+    def _add(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
         if other.src_start != self.src_end:
             return False
         if other.dst_start != self.dst_end:
             return False
 
         n_inter = _Interval(self.dst_start, self.src_start, self.length + other.length, [])
-        if not ok_self_overlap and n_inter.self_overlap():
+        if not ok_dst_overlap and n_inter.dst_overlap():
             return False
 
         self.length = n_inter.length
@@ -50,9 +50,9 @@ class _Interval:
     def copy(self) -> "_Interval":
         return self.__class__(**self.__dict__)
 
-    def merge(self, other: "_Interval", ok_self_overlap: bool) -> bool:
+    def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
         assert self.src_start <= other.src_start, "bad bisect_left"
-        return self._add(other, ok_self_overlap)
+        return self._add(other, ok_dst_overlap)
 
     def __lt__(self, other) -> bool:
         return self.src_start < other.src_start
@@ -97,16 +97,16 @@ class MemMergePass(IRPass):
         intervals.clear()
 
     def _add_interval(
-        self, intervals: list[_Interval], new_inter: _Interval, ok_self_overlap: bool = False
+        self, intervals: list[_Interval], new_inter: _Interval, ok_dst_overlap: bool = False
     ) -> bool:
-        if not ok_self_overlap and new_inter.self_overlap():
+        if not ok_dst_overlap and new_inter.dst_overlap():
             return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
-            merged = intervals[i].merge(intervals[i + 1], ok_self_overlap)
+            merged = intervals[i].merge(intervals[i + 1], ok_dst_overlap)
             if merged:
                 del intervals[i + 1]
             # if not ok_self_overlap and merged.self_overlap():
@@ -152,7 +152,7 @@ class MemMergePass(IRPass):
                 mload_inst = self.dfg.get_producing_instruction(var)
                 assert mload_inst is not None  # help mypy
                 n_inter = _Interval(dst.value, src, 32, [mload_inst, inst])
-                if not self._add_interval(intervals, n_inter, ok_self_overlap=ok_overlap):
+                if not self._add_interval(intervals, n_inter, ok_dst_overlap=ok_overlap):
                     _opt()
             elif Effects.MEMORY in inst.get_write_effects():
                 _opt()
@@ -195,7 +195,7 @@ class MemMergePass(IRPass):
                     _opt()
                     continue
                 n_inter = _Interval(dst.value, dst.value, 32, [inst])
-                if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
+                if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
                     _opt()
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
@@ -214,7 +214,7 @@ class MemMergePass(IRPass):
                 if len(intervals) == 0:
                     intervals.append(n_inter)
                 else:
-                    if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
+                    if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
                         _opt()
             elif Effects.MEMORY in inst.get_write_effects():
                 _opt()
