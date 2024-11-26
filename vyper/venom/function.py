@@ -188,13 +188,16 @@ class IRFunction:
             if bb is entry_bb:
                 continue
 
-            # "fast" way to strip allocas from each basic block
-            def is_alloca(inst):
-                return inst.opcode in ("alloca", "palloca")
+            # Extract alloca instructions
+            non_alloca_instructions = []
+            for inst in bb.instructions:
+                if inst.opcode in ("alloca", "palloca"):
+                    entry_bb.insert_instruction(inst)
+                else:
+                    non_alloca_instructions.append(inst)
 
-            bb.instructions.sort(key=is_alloca)
-            while len(bb.instructions) > 0 and is_alloca(bb.instructions[-1]):
-                entry_bb.insert_instruction(bb.instructions.pop())
+            # Replace original instructions with filtered list
+            bb.instructions = non_alloca_instructions
 
         entry_bb.instructions.append(tmp)
 
