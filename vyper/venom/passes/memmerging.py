@@ -169,7 +169,7 @@ class MemMergePass(IRPass):
 
             inst.output = None
             inst.opcode = "calldatacopy"
-            inst.operands = [IRLiteral(interval.src_start), calldatasize, IRLiteral(interval.dst_start)]
+            inst.operands = [IRLiteral(interval.length), calldatasize, IRLiteral(interval.dst_start)]
             for inst in interval.insts[1:]:
                 bb.remove_instruction(inst)
 
