@@ -24,6 +24,8 @@ class _Interval:
         return self.dst_start + self.length
 
     def dst_overlap(self) -> bool:
+        # return true if dst overlaps src. this is important for blocking
+        # mcopy batching in certain cases.
         a = max(self.src_start, self.dst_start)
         b = min(self.src_end, self.dst_end)
         return a < b
@@ -46,9 +48,6 @@ class _Interval:
         self.length = n_inter.length
         self.insts.extend(other.insts)
         return True
-
-    def copy(self) -> "_Interval":
-        return self.__class__(**self.__dict__)
 
     def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
         assert self.src_start <= other.src_start, "bad bisect_left"
@@ -139,7 +138,7 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 var = inst.operands[0]
                 dst = inst.operands[1]
-                if not (isinstance(dst, IRLiteral) and isinstance(var, IRVariable)):
+                if not isinstance(dst, IRLiteral) or not isinstance(var, IRVariable):
                     _opt()
                     continue
                 if var not in loads:
@@ -203,16 +202,11 @@ class MemMergePass(IRPass):
                 if not isinstance(var, IRVariable):
                     continue
                 src_inst = self.dfg.get_producing_instruction(var)
-                if src_inst is None:
-                    continue
-                if src_inst.opcode != "calldatasize":
+                if src_inst is None or src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
-                if len(intervals) == 0:
-                    intervals.append(n_inter)
-                else:
-                    if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
-                        _opt()
+                if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
+                    _opt()
             elif Effects.MEMORY in (inst.get_write_effects() | inst.get_read_effects()):
                 _opt()
         self._optimize_memzero(bb, intervals)
