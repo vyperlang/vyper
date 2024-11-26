@@ -10,10 +10,9 @@ from vyper.venom.passes.base_pass import IRPass
 
 @dataclass
 class _Interval:
-    # TODO: reorder to dst, src, length
+    dst_start: int
     src_start: int
     length: int
-    dst_start: int
     insts: list[IRInstruction]
 
     @property
@@ -40,7 +39,7 @@ class _Interval:
         if other.dst_start != self.dst_end:
             return False
 
-        n_inter = _Interval(self.src_start, self.length + other.length, self.dst_start, [])
+        n_inter = _Interval(self.dst_start, self.src_start, self.length + other.length, [])
         if not ok_self_overlap and n_inter.self_overlap():
             return False
 
@@ -152,7 +151,7 @@ class MemMergePass(IRPass):
                 src: int = loads[var]
                 mload_inst = self.dfg.get_producing_instruction(var)
                 assert mload_inst is not None  # help mypy
-                n_inter = _Interval(src, 32, dst.value, [mload_inst, inst])
+                n_inter = _Interval(dst.value, src, 32, [mload_inst, inst])
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=ok_overlap):
                     _opt()
             elif Effects.MEMORY in inst.get_write_effects():
@@ -165,16 +164,15 @@ class MemMergePass(IRPass):
         for interval in intervals:
             if interval.length <= 32:
                 continue
-            index = bb.instructions.index(interval.insts[0])
+            inst = interval.insts[0]
+
+            index = bb.instructions.index(inst)
             calldatasize = bb.parent.get_next_variable()
             bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
-            interval.insts[0].output = None
-            interval.insts[0].opcode = "calldatacopy"
-            interval.insts[0].operands = [
-                IRLiteral(interval.length),
-                calldatasize,
-                IRLiteral(interval.dst_start),
-            ]
+
+            inst.output = None
+            inst.opcode = "calldatacopy"
+            inst.operands = [IRLiteral(interval.src_start), calldatasize, IRLiteral(interval.dst_start)]
             for inst in interval.insts[1:]:
                 bb.remove_instruction(inst)
 
@@ -196,7 +194,7 @@ class MemMergePass(IRPass):
                 if not (isinstance(dst, IRLiteral) and is_zero_literal):
                     _opt()
                     continue
-                n_inter = _Interval(dst.value, dst.value + 32, dst.value, [inst])
+                n_inter = _Interval(dst.value, dst.value, 32, [inst])
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
                     _opt()
             elif inst.opcode == "calldatacopy":
@@ -212,7 +210,7 @@ class MemMergePass(IRPass):
                     continue
                 if src_inst.opcode != "calldatasize":
                     continue
-                n_inter = _Interval(dst.value, length.value, dst.value, [inst])
+                n_inter = _Interval(dst.value, dst.value, length.value, [inst])
                 if len(intervals) == 0:
                     intervals.append(n_inter)
                 else:
