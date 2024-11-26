@@ -207,11 +207,8 @@ class MemMergePass(IRPass):
                 if src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
-                if len(intervals) == 0:
-                    intervals.append(n_inter)
-                else:
-                    if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
-                        _opt()
+                if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
+                    _opt()
             elif Effects.MEMORY in inst.get_write_effects():
                 _opt()
         self._optimize_memzero(bb, intervals)
