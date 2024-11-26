@@ -8,7 +8,7 @@ from vyper.venom.passes import ReduceLiteralsCodesize
 
 should_invert = [0xFFFF << 240, 2**256 - 1]
 
-@pytest.mark.parametrize("orig_value", [0xFFFF << 240, 2**256 - 1, -1])
+@pytest.mark.parametrize("orig_value", should_invert)
 def test_ff_inversion(orig_value):
     ctx = IRContext()
     fn = ctx.create_function("_global")
