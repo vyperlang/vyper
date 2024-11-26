@@ -170,7 +170,11 @@ class MemMergePass(IRPass):
 
             inst.output = None
             inst.opcode = "calldatacopy"
-            inst.operands = [IRLiteral(interval.length), calldatasize, IRLiteral(interval.dst_start)]
+            inst.operands = [
+                IRLiteral(interval.length),
+                calldatasize,
+                IRLiteral(interval.dst_start),
+            ]
             for inst in interval.insts[1:]:
                 bb.remove_instruction(inst)
 
@@ -212,6 +216,7 @@ class MemMergePass(IRPass):
             elif _volatile_memory(inst):
                 _barrier()
         self._optimize_memzero(bb, intervals)
+
 
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()
