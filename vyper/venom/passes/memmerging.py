@@ -151,7 +151,7 @@ class MemMergePass(IRPass):
                 n_inter = _Interval(dst.value, src, 32, [mload_inst, inst])
                 if not self._add_interval(intervals, n_inter, ok_dst_overlap=ok_overlap):
                     _opt()
-            elif Effects.MEMORY in inst.get_write_effects():
+            elif Effects.MEMORY in (inst.get_write_effects() | inst.get_read_effects()):
                 _opt()
 
         self._optimize_copy(bb, intervals, copy_inst)
@@ -213,6 +213,6 @@ class MemMergePass(IRPass):
                 else:
                     if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
                         _opt()
-            elif Effects.MEMORY in inst.get_write_effects():
+            elif Effects.MEMORY in (inst.get_write_effects() | inst.get_read_effects()):
                 _opt()
         self._optimize_memzero(bb, intervals)
