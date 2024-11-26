@@ -542,6 +542,15 @@ def _convert_ir_bb(fn, ir, symbols):
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
 
+        elif ir.value.startswith("$calloca"):
+            alloca = ir.passthrough_metadata["alloca"]
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "calloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
+
         return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
