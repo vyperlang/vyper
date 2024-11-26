@@ -200,7 +200,7 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperand]
-    output: Optional[IROperand]
+    output: Optional[IRVariable]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
@@ -212,7 +212,7 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
-        output: Optional[IROperand] = None,
+        output: Optional[IRVariable] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"

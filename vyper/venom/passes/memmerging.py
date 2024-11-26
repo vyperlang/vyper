@@ -34,7 +34,7 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def add(self, other: _Interval, ok_self_overlap: bool ) -> bool:
+    def _add(self, other: "_Interval", ok_self_overlap: bool) -> bool:
         if other.src_start != self.src_end:
             return False
         if other.dst_start != self.dst_end:
@@ -45,17 +45,15 @@ class _Interval:
             return False
 
         self.length = n_inter.length
-        self.insts.extend(insts)
+        self.insts.extend(other.insts)
         return True
 
     def copy(self) -> "_Interval":
         return self.__class__(**self.__dict__)
 
-    def merge(self, other: "_Interval", ok_self_overlap: bool) -> bool:  # returns True if successfully merged
-        if self.src_start < other.src_start:
-            return self.add(other, ok_self_overlap)
-        else:
-            return other.add(self, ok_self_overlap)
+    def merge(self, other: "_Interval", ok_self_overlap: bool) -> bool:
+        assert self.src_start <= other.src_start, "bad bisect_left"
+        return self._add(other, ok_self_overlap)
 
     def __lt__(self, other) -> bool:
         return self.src_start < other.src_start
@@ -112,7 +110,7 @@ class MemMergePass(IRPass):
             merged = intervals[i].merge(intervals[i + 1], ok_self_overlap)
             if merged:
                 del intervals[i + 1]
-            #if not ok_self_overlap and merged.self_overlap():
+            # if not ok_self_overlap and merged.self_overlap():
             #    #unreachable!
             #    continue
             i += 1
@@ -134,8 +132,8 @@ class MemMergePass(IRPass):
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
                     continue
-                assert inst.output is not None   # help mypy
-                uses = self.dfg.get_uses(inst.output)  
+                assert inst.output is not None  # help mypy
+                uses = self.dfg.get_uses(inst.output)
                 if len(uses) != 1:
                     continue
                 if uses.first().opcode != "mstore":
@@ -172,13 +170,17 @@ class MemMergePass(IRPass):
             bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
             interval.insts[0].output = None
             interval.insts[0].opcode = "calldatacopy"
-            interval.insts[0].operands = [IRLiteral(interval.length), calldatasize, IRLiteral(interval.dst_start)]
-            for inst in inter.insts[1:]:
+            interval.insts[0].operands = [
+                IRLiteral(interval.length),
+                calldatasize,
+                IRLiteral(interval.dst_start),
+            ]
+            for inst in interval.insts[1:]:
                 bb.remove_instruction(inst)
 
         intervals.clear()
 
-    def _handle_bb_memzeroing(self, bb: IRBasicBlock):
+    def _handle_bb_memzero(self, bb: IRBasicBlock):
         loads: dict[IRVariable, int] = {}
         intervals: list[_Interval] = []
 
@@ -188,14 +190,13 @@ class MemMergePass(IRPass):
 
         for inst in bb.instructions.copy():
             if inst.opcode == "mstore":
-                zero = inst.operands[0]
+                val = inst.operands[0]
                 dst = inst.operands[1]
-                if not (
-                    isinstance(dst, IRLiteral) and isinstance(zero, IRLiteral) and zero.value == 0
-                ):
+                is_zero_literal = isinstance(val, IRLiteral) and val.value == 0
+                if not (isinstance(dst, IRLiteral) and is_zero_literal):
                     _opt()
                     continue
-                n_inter = _Interval(dst.value, dst.value + 32, dst.value, [inst])  # type: ignore
+                n_inter = _Interval(dst.value, dst.value + 32, dst.value, [inst])
                 if not self._add_interval(intervals, n_inter, ok_self_overlap=True):
                     _opt()
             elif inst.opcode == "calldatacopy":
@@ -211,9 +212,7 @@ class MemMergePass(IRPass):
                     continue
                 if src_inst.opcode != "calldatasize":
                     continue
-                n_inter = _Interval(
-                    dst.value, length.value, dst.value, [inst]  # type: ignore
-                )
+                n_inter = _Interval(dst.value, length.value, dst.value, [inst])
                 if len(intervals) == 0:
                     intervals.append(n_inter)
                 else:
