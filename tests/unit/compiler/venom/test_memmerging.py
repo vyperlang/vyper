@@ -116,7 +116,6 @@ def test_memmerging_partial_msize():
     ac = IRAnalysesCache(fn)
     SCCP(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
-    print(fn)
 
     assert bb.instructions[-2].opcode ==  "mstore"
     assert bb.instructions[-3].opcode ==  "msize"
@@ -124,6 +123,37 @@ def test_memmerging_partial_msize():
     assert bb.instructions[-5].opcode ==  "mcopy"
     assert bb.instructions[-5].operands[0].value == 64
     
+def test_memmerging_partial_different_effect():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    addr0 = bb.append_instruction("store", 0)
+    addr1 = bb.append_instruction("store", 32)
+    addr2 = bb.append_instruction("store", 64)
+    oaddr0 = bb.append_instruction("store", 96)
+    oaddr1 = bb.append_instruction("store", 128)
+    oaddr2 = bb.append_instruction("store", 160)
+    val0 = bb.append_instruction("mload", addr0)
+    val1 = bb.append_instruction("mload", addr1)
+    val2 = bb.append_instruction("mload", addr2)
+    bb.append_instruction("mstore", val0, oaddr0)
+    bb.append_instruction("mstore", val1, oaddr1)
+    bb.append_instruction("dloadbytes", 1024, 1024, 2048)
+    bb.append_instruction("mstore", val2, oaddr2)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[-2].opcode ==  "mstore"
+    assert bb.instructions[-3].opcode ==  "dloadbytes"
+    assert bb.instructions[-4].opcode ==  "mload"
+    assert bb.instructions[-5].opcode ==  "mcopy"
+    assert bb.instructions[-5].operands[0].value == 64
 
 def test_memzeroing_1():
     ctx = IRContext()
