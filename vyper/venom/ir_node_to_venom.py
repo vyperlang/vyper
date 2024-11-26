@@ -125,13 +125,6 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     ctx.chain_basic_blocks()
 
-    # float allocas to the front of the function. we could probably move
-    # them to the immediate dominator of the basic block defining the alloca
-    # instead of the entry (which dominates all basic blocks), but this is
-    # done for expedience. without this step, sccp fails, possibly because
-    # dominators are not guaranteed to be traversed first.
-    ctx.float_allocas()
-
     return ctx
 
 
