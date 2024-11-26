@@ -138,7 +138,7 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 var = inst.operands[0]
                 dst = inst.operands[1]
-                if not (isinstance(dst, IRLiteral) and isinstance(var, IRVariable)):
+                if not isinstance(dst, IRLiteral) or not isinstance(var, IRVariable):
                     _opt()
                     continue
                 if var not in loads:
@@ -202,9 +202,7 @@ class MemMergePass(IRPass):
                 if not isinstance(var, IRVariable):
                     continue
                 src_inst = self.dfg.get_producing_instruction(var)
-                if src_inst is None:
-                    continue
-                if src_inst.opcode != "calldatasize":
+                if src_inst is None or src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
                 if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
