@@ -118,7 +118,7 @@ class MemMergePass(IRPass):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
 
-        def _opt():
+        def _barrier():
             self._optimize_copy(bb, intervals, copy_inst)
             loads.clear()
 
@@ -139,19 +139,19 @@ class MemMergePass(IRPass):
                 var = inst.operands[0]
                 dst = inst.operands[1]
                 if not isinstance(dst, IRLiteral) or not isinstance(var, IRVariable):
-                    _opt()
+                    _barrier()
                     continue
                 if var not in loads:
-                    _opt()
+                    _barrier()
                     continue
                 src: int = loads[var]
                 mload_inst = self.dfg.get_producing_instruction(var)
                 assert mload_inst is not None  # help mypy
                 n_inter = _Interval(dst.value, src, 32, [mload_inst, inst])
                 if not self._add_interval(intervals, n_inter, ok_dst_overlap=ok_overlap):
-                    _opt()
-            elif Effects.MEMORY in (inst.get_write_effects() | inst.get_read_effects()):
-                _opt()
+                    _barrier()
+            elif _volatile_memory(inst):
+                _barrier()
 
         self._optimize_copy(bb, intervals, copy_inst)
 
@@ -159,6 +159,8 @@ class MemMergePass(IRPass):
     def _optimize_memzero(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for interval in intervals:
             if interval.length <= 32:
+                # TODO: if interval.length == 32, then we actually want to
+                # turn calldatacopy into (mstore 0)
                 continue
             inst = interval.insts[0]
 
@@ -178,7 +180,7 @@ class MemMergePass(IRPass):
         loads: dict[IRVariable, int] = {}
         intervals: list[_Interval] = []
 
-        def _opt():
+        def _barrier():
             self._optimize_memzero(bb, intervals)
             loads.clear()
 
@@ -188,11 +190,11 @@ class MemMergePass(IRPass):
                 dst = inst.operands[1]
                 is_zero_literal = isinstance(val, IRLiteral) and val.value == 0
                 if not (isinstance(dst, IRLiteral) and is_zero_literal):
-                    _opt()
+                    _barrier()
                     continue
                 n_inter = _Interval(dst.value, dst.value, 32, [inst])
                 if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
-                    _opt()
+                    _barrier()
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
                 if not isinstance(dst, IRLiteral):
@@ -206,7 +208,11 @@ class MemMergePass(IRPass):
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
                 if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
-                    _opt()
-            elif Effects.MEMORY in (inst.get_write_effects() | inst.get_read_effects()):
-                _opt()
+                    _barrier()
+            elif _volatile_memory(inst):
+                _barrier()
         self._optimize_memzero(bb, intervals)
+
+def _volatile_memory(inst):
+    inst_effects = inst.get_read_effects() | inst.get_write_effects()
+    return Effects.MEMORY in inst_effects or Effects.MSIZE in inst_effects
