@@ -5,7 +5,7 @@ from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
 
 def test_memmerging():
-    if not version_check(begin="shanghai"):
+    if not version_check(begin="cancun"):
         return
     ctx = IRContext()
     fn = ctx.create_function("_global")
