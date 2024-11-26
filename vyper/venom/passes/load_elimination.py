@@ -1,5 +1,5 @@
-from vyper.venom.effects import Effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
 
 
