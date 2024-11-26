@@ -132,8 +132,8 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     structs = _get_structs(module_t)
     if len(structs) > 0:
         out += "# Structs\n\n"
-        for struct in structs:
-            out += f"struct {struct.name}:\n"
+        for prefix, struct in structs:
+            out += f"struct " f"struct {prefix[1:] + ' ' if prefix else ''}{struct.name}:\n"
             for member_name, member_type in struct.members.items():
                 out += f"    {member_name}: {member_type}\n"
             out += "\n\n"
@@ -161,18 +161,21 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def _get_structs(m: ModuleT) -> list[StructT]:
-    visited = set()
-    structs = list(m.interface.structs.values())
+def _get_structs(m: ModuleT, prefix="", visited: set[ModuleT] = None) -> list:
+    visited = visited or set()
+    if m in visited:
+        return []
+    visited.add(m)
 
-    for val in m.reachable_imports:
-        if isinstance(val.typ, ModuleInfo):
-            i_t = val.typ.module_t.interface
-        elif isinstance(val.typ, InterfaceT):
-            i_t = val.typ
-        if i_t not in visited:
-            structs += list(i_t.structs.values())
-            visited.add(i_t)
+    structs = [(prefix, val) for val in m.interface.structs.values()]
+
+    for alias, interface in m.interfaces.items():
+        structs += [(prefix + "." + alias, val) for val in interface.structs.values()]
+
+    for val in m.imported_modules.values():
+        structs += _get_structs(
+            val.module_node._metadata["type"], prefix + "." + val.alias, visited
+        )
 
     return structs
 
