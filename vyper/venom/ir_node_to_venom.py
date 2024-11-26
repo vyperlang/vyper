@@ -177,8 +177,13 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 def _handle_internal_func(
     fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
 ) -> IRFunction:
+    global _alloca_table
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
     bb = fn.get_basic_block()
+
+    _saved_alloca_table = _alloca_table
+    _alloca_table = {}
 
     # return buffer
     if does_return_data:
@@ -191,6 +196,7 @@ def _handle_internal_func(
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
+    _alloca_table = _saved_alloca_table
     return fn
 
 
