@@ -166,7 +166,7 @@ class OutputBundleWriter:
         self.write_settings(self.compiler_data.original_settings)
         self.write_integrity(self.compiler_data.resolved_imports.integrity_sum)
         self.write_sources(self.bundle.compiler_inputs)
-        if self.compiler_data.storage_layout_override:
+        if self.compiler_data.storage_layout_override is not None:
             self.write_storage_layout_overrides(
                 self.bundle.compilation_target_path, self.compiler_data.storage_layout_override
             )

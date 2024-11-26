@@ -314,7 +314,7 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
-        storage_layout_override = storage_layout_overrides.get(contract_path, None)
+        storage_layout_override = storage_layout_overrides.get(contract_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id
