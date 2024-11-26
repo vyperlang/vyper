@@ -800,8 +800,8 @@ struct Baz:
 
     assert "# Structs" in out
     assert "Foo:" in out
-    assert "Bar:" in out
-    assert "Baz:" in out
+    assert "b Bar:" in out
+    assert "b.c Baz:" in out
 
 
 def test_interface_with_doubly_imported_structure(make_input_bundle):
@@ -835,8 +835,8 @@ struct Boo:
 
     assert "# Structs" in out
     assert "Foo:" in out
-    assert "Bar:" in out
-    assert "Baz" in out
+    assert "b Bar:" in out
+    assert "c Baz" in out
     assert out.count("Boo") == 1
 
 
@@ -860,7 +860,7 @@ struct Bar:
     print(out)
     assert "# Structs" in out
     assert "Foo:" in out
-    assert "Bar:" in out
+    assert "b Bar:" in out
 
 
 def test_interface_with_imported_structs_via_interface(make_input_bundle):
@@ -887,4 +887,5 @@ struct Baz:
     print(out)
     assert "# Structs" in out
     assert "Foo:" in out
-    assert "Bar:" in out
+    assert "b Bar:" in out
+    assert "c Baz:" in out
