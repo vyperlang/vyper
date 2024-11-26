@@ -24,6 +24,8 @@ class _Interval:
         return self.dst_start + self.length
 
     def dst_overlap(self) -> bool:
+        # return true if dst overlaps src. this is important for blocking
+        # mcopy batching in certain cases.
         a = max(self.src_start, self.dst_start)
         b = min(self.src_end, self.dst_end)
         return a < b
@@ -46,9 +48,6 @@ class _Interval:
         self.length = n_inter.length
         self.insts.extend(other.insts)
         return True
-
-    def copy(self) -> "_Interval":
-        return self.__class__(**self.__dict__)
 
     def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
         assert self.src_start <= other.src_start, "bad bisect_left"
