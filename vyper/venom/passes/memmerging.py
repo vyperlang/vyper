@@ -109,9 +109,6 @@ class MemMergePass(IRPass):
             merged = intervals[i].merge(intervals[i + 1], ok_dst_overlap)
             if merged:
                 del intervals[i + 1]
-            # if not ok_self_overlap and merged.self_overlap():
-            #    #unreachable!
-            #    continue
             i += 1
 
         return True
