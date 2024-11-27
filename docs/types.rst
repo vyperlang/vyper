@@ -141,7 +141,7 @@ Unsigned Integer (N bit)
 
 **Keyword:** ``uintN`` (e.g., ``uint8``)
 
-A unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
+An unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
 Values
 ******
