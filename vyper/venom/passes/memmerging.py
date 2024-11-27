@@ -31,7 +31,7 @@ class _Interval:
         return a < b
 
     def overlap(self, other: "_Interval") -> bool:
-        a = max(self.src_start, other.src_end)
+        a = max(self.src_start, other.src_start)
         b = min(self.src_end, other.src_end)
         return a < b
 
@@ -83,14 +83,15 @@ class MemMergePass(IRPass):
         for inter in intervals:
             if inter.length <= 32:
                 continue
-            inter.insts[0].output = None
-            inter.insts[0].opcode = copy_inst
-            inter.insts[0].operands = [
+            #last_inst = len(inter.insts) - 1
+            inter.insts[-1].output = None
+            inter.insts[-1].opcode = copy_inst
+            inter.insts[-1].operands = [
                 IRLiteral(inter.length),
                 IRLiteral(inter.src_start),
                 IRLiteral(inter.dst_start),
             ]
-            for inst in inter.insts[1:]:
+            for inst in inter.insts[0:-1]:
                 bb.remove_instruction(inst)
 
         intervals.clear()
@@ -102,13 +103,21 @@ class MemMergePass(IRPass):
             return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
+        if index > 0:
+            if intervals[index - 1].overlap(new_inter):
+                return False
+
+        if index < len(intervals)  - 1:
+            if intervals[index + 1].overlap(new_inter):
+                return False
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
             merged = intervals[i].merge(intervals[i + 1], ok_dst_overlap)
             if merged:
                 del intervals[i + 1]
-            i += 1
+            else:
+                i += 1
 
         return True
 
@@ -126,12 +135,15 @@ class MemMergePass(IRPass):
             if inst.opcode == load_inst:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
+                    _barrier()
                     continue
                 assert inst.output is not None  # help mypy
                 uses = self.dfg.get_uses(inst.output)
                 if len(uses) != 1:
+                    _barrier()
                     continue
                 if uses.first().opcode != "mstore":
+                    _barrier()
                     continue
                 assert isinstance(inst.output, IRVariable)
                 loads[inst.output] = src_op.value
