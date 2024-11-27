@@ -121,6 +121,19 @@ class MemMergePass(IRPass):
 
         return True
 
+    def _overlap_exist(self, intervals: list[_Interval], inter: _Interval) -> bool:
+        index = bisect_left(intervals, inter)
+
+        if index > 0:
+            if intervals[index - 1].overlap(inter):
+                return True
+
+        if index < len(intervals):
+            if intervals[index].overlap(inter):
+                return True
+
+        return False
+
     def _handle_bb(
         self, bb: IRBasicBlock, load_inst: str, copy_inst: str, ok_overlap: bool = False
     ):
@@ -143,6 +156,11 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 if uses.first().opcode != "mstore":
+                    _barrier()
+                    continue
+                if self._overlap_exist(
+                    intervals, _Interval(src_op.value + 32, src_op.value, 32, [])
+                ):
                     _barrier()
                     continue
                 assert isinstance(inst.output, IRVariable)

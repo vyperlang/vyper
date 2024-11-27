@@ -63,6 +63,28 @@ def test_memmerging_imposs():
     assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
 
 
+def test_memmerging_imposs_mload():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 0)
+    val1 = bb.append_instruction("mload", 32)
+    bb.append_instruction("mstore", val0, 1024)
+    val2 = bb.append_instruction("mload", 0)
+    bb.append_instruction("mstore", val1, 1024 + 32)
+    bb.append_instruction("mstore", val2, 2048)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+
+
 def test_memmerging_imposs_msize():
     if not version_check(begin="cancun"):
         return
