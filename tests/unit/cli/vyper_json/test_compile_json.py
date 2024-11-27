@@ -170,6 +170,7 @@ def test_compile_json(input_json, input_bundle):
             "interface": data["interface"],
             "ir": data["ir_dict"],
             "userdoc": data["userdoc"],
+            "layout": json.dumps(data["layout"]),
             "metadata": data["metadata"],
             "evm": {
                 "bytecode": {
@@ -217,7 +218,16 @@ def test_different_outputs(input_bundle, input_json):
 
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
-    assert sorted(bar.keys()) == ["abi", "devdoc", "evm", "interface", "ir", "metadata", "userdoc"]
+    assert sorted(bar.keys()) == [
+        "abi",
+        "devdoc",
+        "evm",
+        "interface",
+        "ir",
+        "layout",
+        "metadata",
+        "userdoc",
+    ]
 
     assert sorted(foo.keys()) == ["evm"]
 
