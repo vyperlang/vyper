@@ -106,7 +106,7 @@ Online Compilers
 Try VyperLang!
 -----------------
 
-`Try VyperLang! <https://try.vyperlang.org>`_ is a JupterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
+`Try VyperLang! <https://try.vyperlang.org>`_ is a JupyterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
 
 Remix IDE
 ---------
