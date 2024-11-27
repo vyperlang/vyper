@@ -203,7 +203,7 @@ The following is a list of supported EVM versions, and changes in the compiler i
 Integrity Hash
 ==============
 
-To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports).
+To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports) and storage layout overrides (if provided).
 
 .. _vyper-archives:
 
@@ -219,8 +219,9 @@ A Vyper archive is a compileable bundle of input sources and settings. Technical
     ├── compilation_targets
     ├── compiler_version
     ├── integrity
+    ├── settings.json
     ├── searchpaths
-    └── settings.json
+    └── storage_layout.json [OPTIONAL]
 
 * ``cli_settings.txt`` is a text representation of the settings that were used on the compilation run that generated this archive.
 * ``compilation_targets`` is a newline separated list of compilation targets. Currently only one compilation is supported
@@ -228,6 +229,7 @@ A Vyper archive is a compileable bundle of input sources and settings. Technical
 * ``integrity`` is the :ref:`integrity hash <integrity-hash>` of the input contract
 * ``searchpaths`` is a newline-separated list of the search paths used on this compilation run
 * ``settings.json`` is a json representation of the settings used on this compilation run. It is 1:1 with ``cli_settings.txt``, but both are provided as they are convenient for different workflows (typically, manually vs automated).
+* ``storage_layout.json`` is a json representation of the storage layout overrides to be used on this compilation run. It is optional.
 
 A Vyper archive file can be produced by requesting the ``-f archive`` output format. The compiler can also produce the archive in base64 encoded form using the ``--base64`` flag. The Vyper compiler can accept both ``.vyz`` and base64-encoded Vyper archives directly as input.
 
@@ -278,6 +280,14 @@ The following example describes the expected input format of ``vyper-json``. (Co
             },
             "contracts/baz.json": {
                 "abi": []
+            }
+        },
+        // Optional
+        // Storage layout overrides for the contracts that are compiled
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {
+                "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+                "b": {"type": "uint256", "slot": 0, "n_slots": 1},
             }
         },
         // Optional
@@ -364,6 +374,13 @@ The following example describes the output format of ``vyper-json``. Comments ar
             "formattedMessage": "line 5:11 Unsupported type conversion: int128 to bool"
             }
         ],
+        // Optional: not present if there are no storage layout overrides
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {
+                "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+                "b": {"type": "uint256", "slot": 0, "n_slots": 1},
+            }
+        },
         // This contains the file-level outputs. Can be limited/filtered by the outputSelection settings.
         "sources": {
             "source_file.vy": {
