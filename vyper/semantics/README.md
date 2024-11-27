@@ -23,7 +23,7 @@ Vyper abstract syntax tree (AST).
   * [`base.py`](analysis/base.py): Base validation class
   * [`common.py`](analysis/common.py): Base AST visitor class
   * [`data_positions`](analysis/data_positions.py): Functions for tracking storage variables and allocating storage slots
-  * [`levenhtein_utils.py`](analysis/levenshtein_utils.py): Helper for better error messages
+  * [`levenshtein_utils.py`](analysis/levenshtein_utils.py): Helper for better error messages
   * [`local.py`](analysis/local.py): Validates the local namespace of each function within a contract
   * [`pre_typecheck.py`](analysis/pre_typecheck.py): Evaluate foldable nodes and populate their metadata with the replacement nodes.
   * [`module.py`](analysis/module.py): Validates the module namespace of a contract.
