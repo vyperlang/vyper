@@ -83,7 +83,7 @@ class MemMergePass(IRPass):
         for inter in intervals:
             if inter.length <= 32:
                 continue
-            #last_inst = len(inter.insts) - 1
+
             inter.insts[-1].output = None
             inter.insts[-1].opcode = copy_inst
             inter.insts[-1].operands = [
@@ -107,7 +107,7 @@ class MemMergePass(IRPass):
             if intervals[index - 1].overlap(new_inter):
                 return False
 
-        if index < len(intervals)  - 1:
+        if index < len(intervals) - 1:
             if intervals[index + 1].overlap(new_inter):
                 return False
 

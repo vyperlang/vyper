@@ -153,13 +153,11 @@ def test_memmerging_imposs_overlap():
     SCCP(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
 
-
     assert bb.instructions[0].opcode == "mload"
     assert bb.instructions[1].opcode == "mload"
     assert bb.instructions[2].opcode == "mcopy"
     assert bb.instructions[3].opcode == "mstore"
     assert bb.instructions[4].opcode == "mstore"
-
 
 
 def test_memmerging_partial_different_effect():
