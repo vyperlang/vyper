@@ -188,24 +188,26 @@ class MemMergePass(IRPass):
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for interval in intervals:
-            if interval.length <= 32:
-                # TODO: if interval.length == 32, then we actually want to
-                # turn calldatacopy into (mstore 0)
+            inst = interval.insts[-1]
+            if interval.length == 32 and inst.opcode == "calldatacopy":
+                dst = inst.operands[2]
+                inst.opcode = "mstore"
+                inst.operands = [IRLiteral(0), dst]
+            elif interval.length <= 32:
                 continue
-            inst = interval.insts[0]
+            else:
+                index = bb.instructions.index(inst)
+                calldatasize = bb.parent.get_next_variable()
+                bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
 
-            index = bb.instructions.index(inst)
-            calldatasize = bb.parent.get_next_variable()
-            bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
-
-            inst.output = None
-            inst.opcode = "calldatacopy"
-            inst.operands = [
-                IRLiteral(interval.length),
-                calldatasize,
-                IRLiteral(interval.dst_start),
-            ]
-            for inst in interval.insts[1:]:
+                inst.output = None
+                inst.opcode = "calldatacopy"
+                inst.operands = [
+                    IRLiteral(interval.length),
+                    calldatasize,
+                    IRLiteral(interval.dst_start),
+                ]
+            for inst in interval.insts[0:-1]:
                 bb.remove_instruction(inst)
 
         intervals.clear()

@@ -282,3 +282,22 @@ def test_memzeroing_3():
     assert bb.instructions[1].operands[0].value == 256 + 2 * 32
     assert bb.instructions[1].operands[2].value == 64
     assert len(bb.instructions) == 3
+
+
+def test_memzeroing_small_calldatacopy():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 32, calldatasize, 64)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mstore"
+    assert bb.instructions[0].operands[0].value == 0
+    assert bb.instructions[0].operands[1].value == 64
