@@ -310,8 +310,8 @@ def bar(x: uint256) -> uint256:
     return extcall jsonabi(msg.sender).test_json(x)
     """
     storage_layout_overrides = {
-        "a": {"type": "uint256", "n_slots": 1, "slot": 0},
-        "b": {"type": "uint256", "n_slots": 1, "slot": 1},
+        "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+        "b": {"type": "uint256", "n_slots": 1, "slot": 0},
     }
 
     tmpdir = tmp_path_factory.mktemp("fake-package")
@@ -387,13 +387,12 @@ def test_archive_b64_output(input_files):
 def test_solc_json_output(input_files):
     tmpdir, _, _, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
-    storage_layout_paths = [storage_layout_path]
 
     out = compile_files(
         [contract_file],
         ["solc_json"],
         paths=search_paths,
-        storage_layout_paths=storage_layout_paths,
+        storage_layout_paths=[storage_layout_path],
     )
     json_input = out[contract_file]["solc_json"]
 
@@ -402,7 +401,12 @@ def test_solc_json_output(input_files):
     json_out = compile_json(json_input)["contracts"]["contract.vy"]
     json_out_bytecode = json_out["contract"]["evm"]["bytecode"]["object"]
 
-    out2 = compile_files([contract_file], ["integrity", "bytecode"], paths=search_paths)
+    out2 = compile_files(
+        [contract_file],
+        ["integrity", "bytecode"],
+        paths=search_paths,
+        storage_layout_paths=[storage_layout_path],
+    )
 
     assert out2[contract_file]["bytecode"] == json_out_bytecode
 
