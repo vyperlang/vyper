@@ -189,7 +189,7 @@ class SolcJSONWriter(OutputBundleWriter):
         self, compilation_target_path: str, storage_layout_override: StorageLayout
     ):
         self._output["storage_layout_overrides"] = {
-            compilation_target_path: {"content": storage_layout_override}
+            compilation_target_path: storage_layout_override
         }
 
     def write_search_paths(self, search_paths: list[str]):

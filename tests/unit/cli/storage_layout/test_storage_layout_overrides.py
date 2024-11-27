@@ -41,7 +41,7 @@ b: uint256"""
     input_json = {
         "language": "Vyper",
         "sources": {"contracts/foo.vy": {"content": code}},
-        "storage_layout_overrides": {"contracts/foo.vy": {"content": storage_layout_overrides}},
+        "storage_layout_overrides": {"contracts/foo.vy": storage_layout_overrides},
         "settings": {"outputSelection": {"*": ["*"]}},
     }
 
@@ -66,7 +66,7 @@ b: uint256"""
     input_json = {
         "language": "Vyper",
         "sources": {"contracts/foo.vy": {"content": code}},
-        "storage_layout_overrides": {"contracts/foo.vy": {"content": storage_layout_overrides}},
+        "storage_layout_overrides": {"contracts/foo.vy": storage_layout_overrides},
         "settings": {"outputSelection": {"*": ["*"]}},
     }
 
