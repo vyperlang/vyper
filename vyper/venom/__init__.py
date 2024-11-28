@@ -16,6 +16,7 @@ from vyper.venom.passes import (
     AllocaElimination,
     BranchOptimizationPass,
     DFTPass,
+    FloatAllocas,
     MakeSSA,
     Mem2Var,
     RemoveUnusedVariablesPass,
@@ -49,6 +50,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # TODO: Add support for optimization levels
 
     ac = IRAnalysesCache(fn)
+
+    FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     AllocaElimination(ac, fn).run_pass()

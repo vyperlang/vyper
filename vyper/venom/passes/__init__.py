@@ -2,6 +2,7 @@ from .algebraic_optimization import AlgebraicOptimizationPass
 from .alloca_elimination import AllocaElimination
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
+from .float_allocas import FloatAllocas
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .normalization import NormalizationPass
