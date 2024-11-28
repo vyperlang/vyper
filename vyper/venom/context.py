@@ -19,9 +19,7 @@ class IRContext:
         self.immutables_len = None
         self.data_segment = []
         self.last_label = 0
-        self.mem_allocator = MemoryAllocator(
-            4096, 0x100000
-        )  # TODO: Should get this from the original IR
+        self.mem_allocator = MemoryAllocator(0xFFFFFFFFFFFFFFFF, 256)
 
     def add_function(self, fn: IRFunction) -> None:
         fn.ctx = self
