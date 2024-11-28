@@ -94,6 +94,7 @@ setup(
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
         "packaging>=23.1,<24",
+        "lark>=1.0.0,<2",
         "importlib-metadata",
         "wheel",
     ],
@@ -105,6 +106,7 @@ setup(
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
+            "venom=vyper.cli.vyper_venom:_parse_cli_args"
         ]
     },
     classifiers=[
