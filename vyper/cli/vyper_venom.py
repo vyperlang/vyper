@@ -3,7 +3,8 @@ import argparse
 import sys
 import vyper
 from vyper.venom.parser import parse_venom
-from vyper.venom import generate_assembly_experimental
+from vyper.venom import generate_assembly_experimental, run_passes_on
+from vyper.compiler.settings import OptimizationLevel
 from vyper.compiler.phases import generate_bytecode
 
 
@@ -34,6 +35,7 @@ def _parse_args(argv: list[str]):
 
     ctx = parse_venom(venom_source)
     print(ctx)
+    run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
     print(asm)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
