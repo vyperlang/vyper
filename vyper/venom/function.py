@@ -34,7 +34,7 @@ class IRFunction:
         self._ast_source_stack = []
         self._error_msg_stack = []
 
-        self._mem_allocator = MemoryAllocator(0xFFFFFFFFFFFFFFFF, 32)
+        self._mem_allocator = MemoryAllocator(0xFFFFFFFFFFFFFFFF, 64)
 
         self.append_basic_block(IRBasicBlock(name, self))
 

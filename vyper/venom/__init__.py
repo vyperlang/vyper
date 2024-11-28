@@ -74,7 +74,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     StoreExpansionPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()
-    Stack2Mem(ac, fn).run_pass()
+    # Stack2Mem(ac, fn).run_pass()
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
