@@ -58,7 +58,7 @@ class HashMapT(_SubscriptableT):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
     # TODO not sure this is used?
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         return (
             super().compare_type(other)
             and self.key_type == other.key_type
@@ -196,7 +196,7 @@ class SArrayT(_SequenceT):
     def get_subscripted_type(self, node):
         return self.value_type
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
@@ -273,7 +273,7 @@ class DArrayT(_SequenceT):
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         # TODO allow static array to be assigned to dyn array?
         # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
@@ -384,7 +384,7 @@ class TupleT(VyperType):
         node = node.reduced()
         return self.member_types[node.value]
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:

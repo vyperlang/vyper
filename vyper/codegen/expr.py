@@ -16,6 +16,7 @@ from vyper.codegen.core import (
     is_array_like,
     is_bytes_m_type,
     is_flag_type,
+    is_integer_type,
     is_numeric_type,
     is_tuple_like,
     make_setter,
@@ -131,6 +132,13 @@ class Expr:
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
+            return IRnode.from_list(val, typ=t)
+
+        elif is_integer_type(t):
+            n_bits = n_bytes * 8
+            assert t.bits <= n_bits
+
+            val = self.expr.int_value
             return IRnode.from_list(val, typ=t)
 
     # String literals

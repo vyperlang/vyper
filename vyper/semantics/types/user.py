@@ -34,7 +34,7 @@ class _UserType(VyperType):
     def __eq__(self, other):
         return self is other
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         # object exact comparison is a bit tricky here since we have
         # to be careful to construct any given user type exactly
         # only one time. however, the alternative requires reasoning

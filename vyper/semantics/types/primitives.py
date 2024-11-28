@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
@@ -100,7 +100,9 @@ class BytesM_T(_PrimT):
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
-    def compare_type(self, other: VyperType) -> bool:
+    def compare_type(
+        self, other: VyperType, constant_node: Optional[vy_ast.Constant] = None
+    ) -> bool:
         if not super().compare_type(other):
             return False
         assert isinstance(other, BytesM_T)
@@ -291,7 +293,18 @@ class IntegerT(NumericT):
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
 
-    def compare_type(self, other: VyperType) -> bool:
+    def compare_type(
+        self, other: VyperType, constant_node: Optional[vy_ast.Constant] = None
+    ) -> bool:
+        # handle hex integers
+        if (
+            not self.is_signed
+            and isinstance(other, BytesM_T)
+            and isinstance(constant_node, IntegerT)
+        ):
+            lo, hi = self.ast_bounds
+            return lo <= constant_node.int_value <= hi
+
         # this function is performance sensitive
         # originally:
         # if not super().compare_type(other):
@@ -414,6 +427,6 @@ class AddressT(_PrimT):
 class SelfT(AddressT):
     _id = "self"
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         # compares true to AddressT
         return isinstance(other, type(self)) or isinstance(self, type(other))

@@ -103,7 +103,7 @@ class _BytestringT(VyperType):
             raise CompilerPanic("Cannot reduce the min_length of ArrayValueType")
         self._min_length = min_length
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         if not super().compare_type(other):
             return False
 

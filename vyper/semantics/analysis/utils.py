@@ -595,7 +595,8 @@ def validate_expected_type(node, expected_type):
                 return
     else:
         for given, expected in itertools.product(given_types, expected_type):
-            if expected.compare_type(given):
+            constant_node = node if isinstance(node, vy_ast.Constant) else None
+            if expected.compare_type(given, constant_node):
                 return
 
     # validation failed, prepare a meaningful error message

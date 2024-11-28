@@ -96,7 +96,8 @@ class BuiltinFunctionT(VyperType):
 
     # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
-        if TYPE_T.any().compare_type(expected_type):
+        constant_node = arg if isinstance(arg, vy_ast.Constant) else None
+        if TYPE_T.any().compare_type(expected_type, constant_node):
             # try to parse the type - call type_from_annotation
             # for its side effects (will throw if is not a type)
             type_from_annotation(arg)

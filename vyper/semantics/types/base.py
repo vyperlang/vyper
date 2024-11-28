@@ -25,7 +25,7 @@ class _GenericTypeAcceptor:
     def __init__(self, type_):
         self.type_ = type_
 
-    def compare_type(self, other):
+    def compare_type(self, other, is_constant):
         if isinstance(other, self.type_):
             return True
         # compare two GenericTypeAcceptors -- they are the same if the base
@@ -290,7 +290,9 @@ class VyperType:
     def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
-    def compare_type(self, other: "VyperType") -> bool:
+    def compare_type(
+        self, other: "VyperType", constant_node: Optional[vy_ast.Constant] = None
+    ) -> bool:
         """
         Compare this type object against another type object.
 
