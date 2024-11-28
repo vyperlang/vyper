@@ -2,7 +2,9 @@ from vyper.venom.context import IRContext
 from vyper.venom.basicblock import (
     IRLabel, IRVariable, IRLiteral, IROperand, IRInstruction, IRBasicBlock
 )
+from vyper.venom.function import IRFunction
 from lark import Lark, Transformer
+from functools import reduce
 
 
 VENOM_PARSER = Lark(
@@ -37,6 +39,24 @@ VENOM_PARSER = Lark(
 )
 
 
+def set_last_var(fn: IRFunction):
+    for block in fn.get_basic_blocks():
+        output_vars = (
+            instruction.output
+            for instruction in block.instructions
+            if instruction.output is not None
+        )
+        for output_var in output_vars:
+            assert isinstance(output_var, IRVariable)
+            value = output_var.value
+            assert value.startswith('%')
+            value = value.replace('%', '', 1)
+            if not value.isdigit():
+                continue
+            fn.last_variable = max(fn.last_variable, int(value))
+    print(f'({fn.last_variable}) {fn}')
+
+
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
@@ -52,6 +72,8 @@ class VenomTransformer(Transformer):
 
                 # Manually insert because we need to override function entry
                 fn._basic_block_dict[block_name] = bb
+
+            set_last_var(fn)
 
         ctx.data_segment = data_section
 
