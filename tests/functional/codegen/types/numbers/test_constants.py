@@ -5,7 +5,7 @@ import pytest
 from tests.utils import ZERO_ADDRESS, decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
-from vyper.utils import MemoryPositions
+from vyper.utils import MemoryPositions, hex_to_int
 
 
 def search_for_sublist(ir, sublist):
@@ -195,6 +195,23 @@ def test() -> Bytes[100]:
     c = get_contract(code)
 
     assert c.test() == test_str
+
+
+def test_constant_hex_int(get_contract):
+    test_value = "0xfa"
+    code = f"""
+X: constant(uint8) = {test_value}
+
+@external
+def test() -> uint8:
+    y: uint8 = X
+
+    return y
+    """
+
+    c = get_contract(code)
+
+    assert c.test() == hex_to_int(test_value)
 
 
 def test_constant_folds(experimental_codegen):
