@@ -68,6 +68,8 @@ _reads = {
     "balance": BALANCE,
     "selfbalance": BALANCE,
     "extcodecopy": EXTCODE,
+    "extcodesize": EXTCODE,
+    "extcodehash": EXTCODE,
     "selfdestruct": BALANCE,  # may modify code, but after the transaction
     "log": MEMORY,
     "revert": MEMORY,
