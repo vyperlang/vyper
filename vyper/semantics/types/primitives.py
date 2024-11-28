@@ -300,7 +300,7 @@ class IntegerT(NumericT):
         if (
             not self.is_signed
             and isinstance(other, BytesM_T)
-            and isinstance(constant_node, IntegerT)
+            and isinstance(constant_node, vy_ast.Hex)
         ):
             lo, hi = self.ast_bounds
             return lo <= constant_node.int_value <= hi
