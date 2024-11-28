@@ -40,7 +40,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
+from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -499,9 +499,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     raise StructureException("not a public variable!", decl, item)
                 funcs = [decl._expanded_getter._metadata["func_type"]]
             elif isinstance(info.typ, ContractFunctionT):
+                # e.g. lib1.__interface__(self._addr).foo
+                if not isinstance(get_expr_info(item.value).typ, (ModuleT, TYPE_T)):
+                    raise StructureException(
+                        "invalid export of a value",
+                        item.value,
+                        hint="exports should look like <module>.<function | interface>",
+                    )
+
                 # regular function
                 funcs = [info.typ]
-            elif isinstance(info.typ, InterfaceT):
+            elif is_type_t(info.typ, InterfaceT):
+                interface_t = info.typ.typedef
+
                 if not isinstance(item, vy_ast.Attribute):
                     raise StructureException(
                         "invalid export",
@@ -512,7 +522,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if module_info is None:
                     raise StructureException("not a valid module!", item.value)
 
-                if info.typ not in module_info.typ.implemented_interfaces:
+                if interface_t not in module_info.typ.implemented_interfaces:
                     iface_str = item.node_source_code
                     module_str = item.value.node_source_code
                     msg = f"requested `{iface_str}` but `{module_str}`"
@@ -523,9 +533,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # find the specific implementation of the function in the module
                 funcs = [
                     module_exposed_fns[fn.name]
-                    for fn in info.typ.functions.values()
+                    for fn in interface_t.functions.values()
                     if fn.is_external
                 ]
+
+                if len(funcs) == 0:
+                    path = module_info.module_node.path
+                    msg = f"{module_info.alias} (located at `{path}`) has no external functions!"
+                    raise StructureException(msg, item)
+
             else:
                 raise StructureException(
                     f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
