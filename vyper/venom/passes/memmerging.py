@@ -23,7 +23,7 @@ class _Interval:
     def dst_end(self) -> int:
         return self.dst_start + self.length
 
-    def dst_overlap(self) -> bool:
+    def dst_overlaps_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
         a = max(self.src_start, self.dst_start)
@@ -42,7 +42,7 @@ class _Interval:
             return False
 
         n_inter = _Interval(self.dst_start, self.src_start, self.length + other.length, [])
-        if not ok_dst_overlap and n_inter.dst_overlap():
+        if not ok_dst_overlap and n_inter.dst_overlaps_src():
             return False
 
         self.length = n_inter.length
@@ -97,9 +97,9 @@ class MemMergePass(IRPass):
         intervals.clear()
 
     def _add_interval(
-        self, intervals: list[_Interval], new_inter: _Interval, ok_dst_overlap: bool = False
+        self, intervals: list[_Interval], new_inter: _Interval, allow_dst_overlap_src: bool = False
     ) -> bool:
-        if not ok_dst_overlap and new_inter.dst_overlap():
+        if not allow_dst_overlap_src and new_inter.dst_overlaps_src():
             return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
@@ -113,7 +113,7 @@ class MemMergePass(IRPass):
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
-            merged = intervals[i].merge(intervals[i + 1], ok_dst_overlap)
+            merged = intervals[i].merge(intervals[i + 1], allow_dst_overlap_src)
             if merged:
                 del intervals[i + 1]
             else:
@@ -135,7 +135,7 @@ class MemMergePass(IRPass):
         return False
 
     def _handle_bb(
-        self, bb: IRBasicBlock, load_inst: str, copy_inst: str, ok_overlap: bool = False
+        self, bb: IRBasicBlock, load_inst: str, copy_inst: str, allow_dst_overlaps_src: bool = False
     ):
         loads: dict[IRVariable, int] = dict()
         intervals: list[_Interval] = []
@@ -178,7 +178,9 @@ class MemMergePass(IRPass):
                 mload_inst = self.dfg.get_producing_instruction(var)
                 assert mload_inst is not None  # help mypy
                 n_inter = _Interval(dst.value, src, 32, [mload_inst, inst])
-                if not self._add_interval(intervals, n_inter, ok_dst_overlap=ok_overlap):
+                if not self._add_interval(
+                    intervals, n_inter, allow_dst_overlap_src=allow_dst_overlaps_src
+                ):
                     _barrier()
             elif _volatile_memory(inst):
                 _barrier()
@@ -229,7 +231,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_inter = _Interval(dst.value, dst.value, 32, [inst])
-                if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
+                if not self._add_interval(intervals, n_inter, allow_dst_overlap_src=True):
                     _barrier()
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
@@ -243,7 +245,7 @@ class MemMergePass(IRPass):
                 if src_inst is None or src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
-                if not self._add_interval(intervals, n_inter, ok_dst_overlap=True):
+                if not self._add_interval(intervals, n_inter, allow_dst_overlap_src=True):
                     _barrier()
             elif _volatile_memory(inst):
                 _barrier()
