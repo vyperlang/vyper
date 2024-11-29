@@ -107,7 +107,8 @@ class VenomTransformer(Transformer):
 
     def call(self, children) -> IRInstruction:
         name, operands = children
-        return IRInstruction(name, operands)
+        # reverse operands because top->bottom is more intuitive but Venom does bottom->top
+        return IRInstruction(name, reversed(operands))
 
     def operands_list(self, children) -> list[IROperand]:
         return children
