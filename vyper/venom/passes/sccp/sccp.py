@@ -612,7 +612,7 @@ class SCCP(IRPass):
             return False
 
         assert isinstance(inst.output, IRVariable), "must be variable"
-        uses = self.dfg.get_uses_ignore_stores(inst.output)
+        uses = self.dfg.get_uses_ignore_nops(inst.output)
         is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
 
         if is_truthy:

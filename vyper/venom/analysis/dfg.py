@@ -21,13 +21,19 @@ class DFGAnalysis(IRAnalysis):
         return self._dfg_inputs.get(op, OrderedSet())
 
     # return uses of a given variable while following chains
-    def get_uses_ignore_stores(self, op: IRVariable) -> OrderedSet[IRInstruction]:
+    def get_uses_ignore_nops(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         tmp = self._dfg_inputs.get(op, OrderedSet())
         res = tmp.copy()
         for item in tmp:
             if item.opcode == "store":
                 res.remove(item)
-                res.addmany(self.get_uses_ignore_stores(item.output))
+                res.addmany(self.get_uses_ignore_nops(item.output))
+            elif item.opcode == "add" and item.operands[0].value == 0:
+                res.remove(item)
+                res.addmany(self.get_uses_ignore_nops(item.output))
+            elif item.opcode == "add" and item.operands[1].value == 0:
+                res.remove(item)
+                res.addmany(self.get_uses_ignore_nops(item.output))
         return res
 
     def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
