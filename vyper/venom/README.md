@@ -189,15 +189,16 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
-    out = alloca size, offset
+    out = alloca size, offset, id
     ```
   - Allocates memory of a given `size` at a given `offset` in memory.
+  - The `id` argument is there to help debugging translation into venom
   - The output is the offset value itself.
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   
 - `palloca`
   - ```
-    out = palloca size, offset
+    out = palloca size, offset, id
     ```
   - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `iload`
