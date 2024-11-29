@@ -54,7 +54,6 @@ def set_last_var(fn: IRFunction):
             if not value.isdigit():
                 continue
             fn.last_variable = max(fn.last_variable, int(value))
-    print(f'({fn.last_variable}) {fn}')
 
 
 class VenomTransformer(Transformer):
