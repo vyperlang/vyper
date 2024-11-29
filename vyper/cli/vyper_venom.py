@@ -4,8 +4,9 @@ import sys
 import vyper
 from vyper.venom.parser import parse_venom
 from vyper.venom import generate_assembly_experimental, run_passes_on
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, set_global_settings, Settings
 from vyper.compiler.phases import generate_bytecode
+import vyper.evm.opcodes as evm
 
 
 def _parse_cli_args():
@@ -19,8 +20,17 @@ def _parse_args(argv: list[str]):
     )
     parser.add_argument("input_file", help="Venom sourcefile", nargs='?')
     parser.add_argument("--version", action="version", version=vyper.__long_version__)
+    parser.add_argument(
+        "--evm-version",
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
+        choices=list(evm.EVM_VERSIONS),
+        dest="evm_version",
+    )
 
     args = parser.parse_args(argv)
+
+    if args.evm_version is not None:
+        set_global_settings(Settings(evm_version=args.evm_version))
 
     if args.input_file is None:
         if not sys.stdin.isatty():
@@ -34,10 +44,8 @@ def _parse_args(argv: list[str]):
             venom_source = f.read()
 
     ctx = parse_venom(venom_source)
-    print(ctx)
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
-    print(asm)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
     print(bytecode.hex())
 
