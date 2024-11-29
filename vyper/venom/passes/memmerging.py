@@ -101,15 +101,10 @@ class MemMergePass(IRPass):
     ) -> bool:
         if not allow_dst_overlap_src and new_inter.dst_overlaps_src():
             return False
+        if self._overlap_exist(intervals, new_inter):
+            return False
         index = bisect_left(intervals, new_inter)
         intervals.insert(index, new_inter)
-        if index > 0:
-            if intervals[index - 1].overlap(new_inter):
-                return False
-
-        if index < len(intervals) - 1:
-            if intervals[index + 1].overlap(new_inter):
-                return False
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
