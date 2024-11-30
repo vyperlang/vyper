@@ -106,7 +106,7 @@ setup(
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
-            "venom=vyper.cli.vyper_venom:_parse_cli_args"
+            "venom=vyper.cli.vyper_venom:_parse_cli_args",
         ]
     },
     classifiers=[

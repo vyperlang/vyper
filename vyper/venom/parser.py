@@ -1,14 +1,18 @@
 from vyper.venom.context import IRContext
 from vyper.venom.basicblock import (
-    IRLabel, IRVariable, IRLiteral, IROperand, IRInstruction, IRBasicBlock
+    IRLabel,
+    IRVariable,
+    IRLiteral,
+    IROperand,
+    IRInstruction,
+    IRBasicBlock,
 )
 from vyper.venom.function import IRFunction
 from lark import Lark, Transformer
-from functools import reduce
 
 
 VENOM_PARSER = Lark(
-    '''
+    """
     %import common.CNAME
     %import common.DIGIT
     %import common.LETTER
@@ -35,7 +39,7 @@ VENOM_PARSER = Lark(
     NAME: (DIGIT|LETTER|"_")+
 
     %ignore WS
-    '''
+    """
 )
 
 
@@ -49,8 +53,8 @@ def set_last_var(fn: IRFunction):
         for output_var in output_vars:
             assert isinstance(output_var, IRVariable)
             value = output_var.value
-            assert value.startswith('%')
-            value = value.replace('%', '', 1)
+            assert value.startswith("%")
+            value = value.replace("%", "", 1)
             if not value.isdigit():
                 continue
             fn.last_variable = max(fn.last_variable, int(value))
@@ -97,9 +101,9 @@ class VenomTransformer(Transformer):
             value.output = to
             return value
         elif isinstance(value, IRLiteral):
-            return IRInstruction('store', [value], output=to)
+            return IRInstruction("store", [value], output=to)
         else:
-            raise TypeError(f'Unexpected value {value} of type {type(value)}')
+            raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children):
         return children[0]
@@ -119,7 +123,7 @@ class VenomTransformer(Transformer):
         return IRLabel(label[1:])
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
-        parts = var_ident[1:].split(':', maxsplit=1)
+        parts = var_ident[1:].split(":", maxsplit=1)
         return IRVariable(*parts)
 
     def CONST(self, val) -> IRLiteral:

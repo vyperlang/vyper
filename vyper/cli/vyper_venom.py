@@ -15,10 +15,9 @@ def _parse_cli_args():
 
 def _parse_args(argv: list[str]):
     parser = argparse.ArgumentParser(
-        description="Venom EVM IR parser & compiler",
-        formatter_class=argparse.RawTextHelpFormatter,
+        description="Venom EVM IR parser & compiler", formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("input_file", help="Venom sourcefile", nargs='?')
+    parser.add_argument("input_file", help="Venom sourcefile", nargs="?")
     parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "--evm-version",
@@ -40,7 +39,7 @@ def _parse_args(argv: list[str]):
             print("Error: No input provided")
             sys.exit(1)
     else:
-        with open(args.input_file, 'r') as f:
+        with open(args.input_file, "r") as f:
             venom_source = f.read()
 
     ctx = parse_venom(venom_source)
