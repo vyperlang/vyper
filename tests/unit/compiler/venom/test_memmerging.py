@@ -301,3 +301,37 @@ def test_memzeroing_small_calldatacopy():
     assert bb.instructions[0].opcode == "mstore"
     assert bb.instructions[0].operands[0].value == 0
     assert bb.instructions[0].operands[1].value == 64
+
+def test_memzeroing_smaller_calldatacopy():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 8, calldatasize, 64)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 16, calldatasize, 64 + 8)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 8, calldatasize, 128)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 16, calldatasize, 128 + 8)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 8, calldatasize, 128 + 8 + 16)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatasize"
+
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 24
+    assert bb.instructions[1].operands[2].value == 64
+
+    assert bb.instructions[2].opcode == "mstore"
+    assert bb.instructions[2].operands[0].value == 0
+    assert bb.instructions[2].operands[1].value == 128
+
+

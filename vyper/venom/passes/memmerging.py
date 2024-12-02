@@ -35,7 +35,8 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def _add(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
+    def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
+        assert self.src_start <= other.src_start, "bad bisect_left"
         if other.src_start != self.src_end:
             return False
         if other.dst_start != self.dst_end:
@@ -48,10 +49,6 @@ class _Interval:
         self.length = n_inter.length
         self.insts.extend(other.insts)
         return True
-
-    def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
-        assert self.src_start <= other.src_start, "bad bisect_left"
-        return self._add(other, ok_dst_overlap)
 
     def __lt__(self, other) -> bool:
         return self.src_start < other.src_start
@@ -101,9 +98,9 @@ class MemMergePass(IRPass):
     ) -> bool:
         if not allow_dst_overlap_src and new_inter.dst_overlaps_src():
             return False
-        if self._overlap_exist(intervals, new_inter):
-            return False
         index = bisect_left(intervals, new_inter)
+        if self._overlap_exist(intervals, new_inter, index = index):
+            return False
         intervals.insert(index, new_inter)
 
         i = max(index - 1, 0)
@@ -116,8 +113,9 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _overlap_exist(self, intervals: list[_Interval], inter: _Interval) -> bool:
-        index = bisect_left(intervals, inter)
+    def _overlap_exist(self, intervals: list[_Interval], inter: _Interval, index: int | None = None) -> bool:
+        if index is None:
+            index = bisect_left(intervals, inter)
 
         if index > 0:
             if intervals[index - 1].overlap(inter):
@@ -187,10 +185,9 @@ class MemMergePass(IRPass):
         for interval in intervals:
             inst = interval.insts[-1]
             if interval.length == 32 and inst.opcode == "calldatacopy":
-                dst = inst.operands[2]
                 inst.opcode = "mstore"
-                inst.operands = [IRLiteral(0), dst]
-            elif interval.length <= 32:
+                inst.operands = [IRLiteral(0), IRLiteral(interval.dst_start)]
+            elif interval.length == 32:
                 continue
             else:
                 index = bb.instructions.index(inst)
