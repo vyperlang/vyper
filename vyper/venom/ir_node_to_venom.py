@@ -551,8 +551,10 @@ def _convert_ir_bb(fn, ir, symbols):
         elif ir.value.startswith("$calloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
+                assert alloca._callsite is not None
+                callsite = IRLabel(alloca._callsite)
                 ptr = fn.get_basic_block().append_instruction(
-                    "calloca", alloca.offset, alloca.size, alloca._id
+                    "calloca", alloca.offset, alloca.size, alloca._id, callsite
                 )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]

@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
@@ -81,6 +82,7 @@ def ir_for_self_call(stmt_expr, context):
                 continue
             newname = var.pos.replace("$palloca", "$calloca")
             var.pos = newname
+            alloca = dataclasses.replace(alloca, _callsite=return_label)
             irnode = var.as_ir_node()
             irnode.passthrough_metadata["alloca"] = alloca
             arg_items.append(irnode)
