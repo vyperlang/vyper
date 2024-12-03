@@ -25,20 +25,28 @@ def _parse_args(argv: list[str]):
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
+    parser.add_argument(
+        "--stdin",
+        action="store_true",
+        help="whether to pull venom input from stdin"
+    )
 
     args = parser.parse_args(argv)
 
     if args.evm_version is not None:
         set_global_settings(Settings(evm_version=args.evm_version))
 
-    if args.input_file is None:
+    if args.stdin:
         if not sys.stdin.isatty():
             venom_source = sys.stdin.read()
         else:
             # No input provided
-            print("Error: No input provided")
+            print("Error: --stdin flag used but no input provided")
             sys.exit(1)
     else:
+        if args.input_file is None:
+            print("Error: No input file provided, either use --stdin or provide a path")
+            sys.exit(1)
         with open(args.input_file, "r") as f:
             venom_source = f.read()
 
