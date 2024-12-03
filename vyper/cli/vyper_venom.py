@@ -46,7 +46,7 @@ def _parse_args(argv: list[str]):
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
-    print(bytecode.hex())
+    print(f"0x{bytecode.hex()}")
 
 
 if __name__ == "__main__":

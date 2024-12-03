@@ -5,7 +5,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "revert"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -348,7 +348,7 @@ class IRInstruction:
         assert self.opcode == "phi", "instruction must be a phi"
         for i in range(0, len(self.operands), 2):
             if self.operands[i] == label:
-                del self.operands[i : i + 2]
+                del self.operands[i: i + 2]
                 return
 
     def get_ast_source(self) -> Optional[IRnode]:

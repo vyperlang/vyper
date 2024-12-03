@@ -20,7 +20,7 @@ VENOM_PARSER = Lark(
     %import common.INT
 
     start: function* data_section
-    function: "fn" NAME "=>" "{" block* "}"
+    function: "function" NAME "=>" "{" block* "}"
     data_section: "data:" call*
 
     block: NAME ":" (call | assignment)*
@@ -43,7 +43,7 @@ VENOM_PARSER = Lark(
 )
 
 
-def set_last_var(fn: IRFunction):
+def _set_last_var(fn: IRFunction):
     for block in fn.get_basic_blocks():
         output_vars = (
             instruction.output
@@ -76,11 +76,11 @@ class VenomTransformer(Transformer):
                 # Manually insert because we need to override function entry
                 fn._basic_block_dict[block_name] = bb
 
-            set_last_var(fn)
+            _set_last_var(fn)
 
         ctx.data_segment = data_section
 
-        ctx.chain_basic_blocks()
+        # ctx.chain_basic_blocks()
 
         return ctx
 
@@ -100,10 +100,9 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        elif isinstance(value, IRLiteral):
+        if isinstance(value, IRLiteral):
             return IRInstruction("store", [value], output=to)
-        else:
-            raise TypeError(f"Unexpected value {value} of type {type(value)}")
+        raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children):
         return children[0]
@@ -124,7 +123,12 @@ class VenomTransformer(Transformer):
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
         parts = var_ident[1:].split(":", maxsplit=1)
-        return IRVariable(*parts)
+        assert 1 <= len(parts) <= 2
+        varname = parts[0]
+        version = None
+        if len(parts) > 1:
+            version = parts[1]
+        return IRVariable(varname, version=version)
 
     def CONST(self, val) -> IRLiteral:
         return IRLiteral(int(val))
