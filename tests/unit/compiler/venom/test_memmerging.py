@@ -449,3 +449,42 @@ def test_memzeroing_overlap():
     assert bb.instructions[1].operands[0].value == 64
     assert bb.instructions[1].operands[2].value == 128
     assert bb.instructions[2].opcode == "stop"
+
+
+def test_memzeroing_imposs():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    par = bb.append_instruction("param")
+    bb.append_instruction("mstore", 0, 32)
+    bb.append_instruction("mstore", 0, par)  # barier
+    bb.append_instruction("mstore", 0, 64)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", par, calldatasize, 10)  # barier
+    bb.append_instruction("mstore", 0, 96)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 10, calldatasize, par)  # barier
+    bb.append_instruction("mstore", 0, 128)
+    bb.append_instruction("calldatacopy", 10, par, 10)  # barier
+    bb.append_instruction("mstore", 0, 160)
+    bb.append_instruction("stop")
+
+    print(fn)
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    print(fn)
+
+    assert bb.instructions[1].opcode == "mstore"
+    assert bb.instructions[2].opcode == "mstore"
+    assert bb.instructions[3].opcode == "mstore"
+    assert bb.instructions[4].opcode == "calldatasize"
+    assert bb.instructions[5].opcode == "calldatacopy"
+    assert bb.instructions[6].opcode == "mstore"
+    assert bb.instructions[7].opcode == "calldatasize"
+    assert bb.instructions[8].opcode == "calldatacopy"
+    assert bb.instructions[9].opcode == "mstore"
+    assert bb.instructions[10].opcode == "calldatacopy"
+    assert bb.instructions[11].opcode == "mstore"
+    assert bb.instructions[12].opcode == "stop"
