@@ -54,10 +54,7 @@ def _set_last_var(fn: IRFunction):
             assert isinstance(output_var, IRVariable)
             value = output_var.value
             assert value.startswith("%")
-            value = value.replace("%", "", 1)
-            if not value.isdigit():
-                continue
-            fn.last_variable = max(fn.last_variable, int(value))
+            fn.last_variable = max(fn.last_variable, int(value[1:]))
 
 
 class VenomTransformer(Transformer):
