@@ -175,7 +175,6 @@ def foo(b: int128) -> int128:
         c.foo(max_power + 1)
 
 
-
 valid_list = [
     """
 @external
