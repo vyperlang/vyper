@@ -452,6 +452,10 @@ def test_memzeroing_overlap():
 
 
 def test_memzeroing_imposs():
+    """
+    Test of memzeroing bariers caused
+    by non constant arguments
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -470,11 +474,9 @@ def test_memzeroing_imposs():
     bb.append_instruction("mstore", 0, 160)
     bb.append_instruction("stop")
 
-    print(fn)
     ac = IRAnalysesCache(fn)
     MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    print(fn)
 
     assert bb.instructions[1].opcode == "mstore"
     assert bb.instructions[2].opcode == "mstore"
@@ -488,3 +490,24 @@ def test_memzeroing_imposs():
     assert bb.instructions[10].opcode == "calldatacopy"
     assert bb.instructions[11].opcode == "mstore"
     assert bb.instructions[12].opcode == "stop"
+
+def test_memzeroing_imposs_effect():
+    """
+    Test of memzeroing bariers caused
+    by different effect
+    """
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mstore", 0, 32)
+    bb.append_instruction("dloadbytes", 10, 20, 30)
+    bb.append_instruction("mstore", 0, 64)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "calldatacopy" for inst in bb.instructions)
+
