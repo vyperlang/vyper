@@ -5,24 +5,23 @@ from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
 
 def test_memmerging():
+    """
+    Basic memory merge test
+    All mloads and mstores can be
+    transformed into mload
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
     bb = fn.get_basic_block()
-    addr0 = bb.append_instruction("store", 0)
-    addr1 = bb.append_instruction("store", 32)
-    addr2 = bb.append_instruction("store", 64)
-    oaddr0 = bb.append_instruction("store", 96)
-    oaddr1 = bb.append_instruction("store", 128)
-    oaddr2 = bb.append_instruction("store", 160)
-    val0 = bb.append_instruction("mload", addr0)
-    val1 = bb.append_instruction("mload", addr1)
-    val2 = bb.append_instruction("mload", addr2)
-    bb.append_instruction("mstore", val0, oaddr0)
-    bb.append_instruction("mstore", val1, oaddr1)
-    bb.append_instruction("mstore", val2, oaddr2)
+    val0 = bb.append_instruction("mload", 0)
+    val1 = bb.append_instruction("mload", 32)
+    val2 = bb.append_instruction("mload", 64)
+    bb.append_instruction("mstore", val0, 96)
+    bb.append_instruction("mstore", val1, 128)
+    bb.append_instruction("mstore", val2, 160)
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
@@ -32,10 +31,16 @@ def test_memmerging():
     assert not any(inst.opcode == "mstore" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
-    assert bb.instructions[6].opcode == "mcopy"
+    assert bb.instructions[0].opcode == "mcopy"
 
 
 def test_memmerging_imposs():
+    """
+    Test case of impossible merge
+    Impossible because of the overlap
+    [64        160]
+          [96        192]
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -64,6 +69,10 @@ def test_memmerging_imposs():
 
 
 def test_memmerging_imposs_mload():
+    """
+    Test case of impossible merge
+    Impossible because of the mload barier
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -86,6 +95,10 @@ def test_memmerging_imposs_mload():
 
 
 def test_memmerging_imposs_msize():
+    """
+    Test case of impossible merge
+    Impossible because of the msize barier
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -116,6 +129,10 @@ def test_memmerging_imposs_msize():
 
 
 def test_memmerging_partial_msize():
+    """
+    Only partial merge possible
+    because of the msize barier
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -148,7 +165,14 @@ def test_memmerging_partial_msize():
     assert bb.instructions[-5].opcode == "mload"
 
 
-def test_memmerging_imposs_overlap():
+def test_memmerging_partial_overlap():
+    """
+    Only partial merge possible
+    because of the source overlap
+
+    [0                     128]
+        [24    88]
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -183,6 +207,11 @@ def test_memmerging_imposs_overlap():
 
 
 def test_memmerging_partial_different_effect():
+    """
+    Only partial merge possible
+    because of the generic memory
+    effect barier
+    """
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -216,6 +245,10 @@ def test_memmerging_partial_different_effect():
 
 
 def test_memzeroing_1():
+    """
+    Test of basic memzeroing
+    done with mstore only
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -237,6 +270,15 @@ def test_memzeroing_1():
 
 
 def test_memzeroing_2():
+    """
+    Test of basic memzeroing
+    done with calldatacopy only
+
+    sequence of these instruction will
+    zero out the memory at destination
+    %1 = calldatasize
+    calldatacopy <dst> %1 <size>
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -260,6 +302,11 @@ def test_memzeroing_2():
 
 
 def test_memzeroing_3():
+    """
+    Test of basic memzeroing
+    done with combination of
+    mstores and calldatacopies
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -285,6 +332,10 @@ def test_memzeroing_3():
 
 
 def test_memzeroing_small_calldatacopy():
+    """
+    Test of converting calldatacopy of
+    size 32 into the mstore
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -302,7 +353,12 @@ def test_memzeroing_small_calldatacopy():
     assert bb.instructions[0].operands[0].value == 0
     assert bb.instructions[0].operands[1].value == 64
 
+
 def test_memzeroing_smaller_calldatacopy():
+    """
+    Test of converting smaller (<32) calldatacopies
+    into either calldatacopy or mstore
+    """
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -335,3 +391,30 @@ def test_memzeroing_smaller_calldatacopy():
     assert bb.instructions[2].operands[1].value == 128
 
 
+def test_memzeroing_overlap():
+    """
+    Test of merging ovelaping zeroing intervals
+
+    [128        160]
+        [136                  192]
+    """
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("mstore", 0, 128)
+    calldatasize = bb.append_instruction("calldatasize")
+    bb.append_instruction("calldatacopy", 32 + 24, calldatasize, 128 + 8)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatasize"
+
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[2].value == 128
+    assert bb.instructions[2].opcode == "stop"

@@ -50,6 +50,14 @@ class _Interval:
         self.insts.extend(other.insts)
         return True
 
+    def inclusive_merge(self, other: "_Interval") -> bool:
+        assert self.src_start <= other.src_start, "bad bisect_left"
+        if other.src_start > self.src_end:
+            return False
+        self.length = max(self.src_end, other.src_end) - self.src_start
+        self.insts.extend(other.insts)
+        return True
+
     def __lt__(self, other) -> bool:
         return self.src_start < other.src_start
 
@@ -99,7 +107,7 @@ class MemMergePass(IRPass):
         if not allow_dst_overlap_src and new_inter.dst_overlaps_src():
             return False
         index = bisect_left(intervals, new_inter)
-        if self._overlap_exist(intervals, new_inter, index = index):
+        if self._overlap_exist(intervals, new_inter, index=index):
             return False
         intervals.insert(index, new_inter)
 
@@ -113,7 +121,9 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _overlap_exist(self, intervals: list[_Interval], inter: _Interval, index: int | None = None) -> bool:
+    def _overlap_exist(
+        self, intervals: list[_Interval], inter: _Interval, index: int | None = None
+    ) -> bool:
         if index is None:
             index = bisect_left(intervals, inter)
 
@@ -180,6 +190,20 @@ class MemMergePass(IRPass):
 
         self._optimize_copy(bb, intervals, copy_inst)
 
+    def _add_zero_interval(self, intervals: list[_Interval], new_inter: _Interval) -> bool:
+        index = bisect_left(intervals, new_inter)
+        intervals.insert(index, new_inter)
+
+        i = max(index - 1, 0)
+        while i < min(index + 1, len(intervals) - 1):
+            merged = intervals[i].inclusive_merge(intervals[i + 1])
+            if merged:
+                del intervals[i + 1]
+            else:
+                i += 1
+
+        return True
+
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock, intervals: list[_Interval]):
         for interval in intervals:
@@ -223,7 +247,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_inter = _Interval(dst.value, dst.value, 32, [inst])
-                if not self._add_interval(intervals, n_inter, allow_dst_overlap_src=True):
+                if not self._add_zero_interval(intervals, n_inter):
                     _barrier()
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
@@ -237,7 +261,7 @@ class MemMergePass(IRPass):
                 if src_inst is None or src_inst.opcode != "calldatasize":
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
-                if not self._add_interval(intervals, n_inter, allow_dst_overlap_src=True):
+                if not self._add_zero_interval(intervals, n_inter):
                     _barrier()
             elif _volatile_memory(inst):
                 _barrier()
