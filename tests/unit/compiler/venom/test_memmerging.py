@@ -491,6 +491,7 @@ def test_memzeroing_imposs():
     assert bb.instructions[11].opcode == "mstore"
     assert bb.instructions[12].opcode == "stop"
 
+
 def test_memzeroing_imposs_effect():
     """
     Test of memzeroing bariers caused
@@ -510,4 +511,3 @@ def test_memzeroing_imposs_effect():
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     assert not any(inst.opcode == "calldatacopy" for inst in bb.instructions)
-
