@@ -159,7 +159,6 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 if uses.first().opcode != "mstore":
-                    _barrier()
                     continue
                 if self._overlap_exist(
                     intervals, _Interval(src_op.value + 32, src_op.value, 32, [])
@@ -252,13 +251,17 @@ class MemMergePass(IRPass):
             elif inst.opcode == "calldatacopy":
                 dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
                 if not isinstance(dst, IRLiteral):
+                    _barrier()
                     continue
                 if not isinstance(length, IRLiteral):
+                    _barrier()
                     continue
                 if not isinstance(var, IRVariable):
+                    _barrier()
                     continue
                 src_inst = self.dfg.get_producing_instruction(var)
                 if src_inst is None or src_inst.opcode != "calldatasize":
+                    _barrier()
                     continue
                 n_inter = _Interval(dst.value, dst.value, length.value, [inst])
                 if not self._add_zero_interval(intervals, n_inter):

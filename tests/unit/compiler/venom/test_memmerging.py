@@ -94,6 +94,37 @@ def test_memmerging_imposs_mload():
     assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
 
 
+def test_memmerging_imposs_unkown_place():
+    """
+    Test case of impossible merge
+    Impossible because of the
+    non constant address mload and mstore barier
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    par = bb.append_instruction("param")
+    val0 = bb.append_instruction("mload", 0)
+    unknown_place = bb.append_instruction("mload", par)
+    val1 = bb.append_instruction("mload", 32)
+    val2 = bb.append_instruction("mload", 64)
+    bb.append_instruction("mstore", val0, 96)
+    bb.append_instruction("mstore", val1, 128)
+    bb.append_instruction("mstore", 10, par)
+    bb.append_instruction("mstore", val2, 160)
+    bb.append_instruction("mstore", unknown_place, 1024)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+
+
 def test_memmerging_imposs_msize():
     """
     Test case of impossible merge
