@@ -99,7 +99,6 @@ class SCCP(IRPass):
                 self.last = True
                 break
 
-        self._propagate_constants()
         self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
@@ -283,7 +282,7 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
 
-            assert isinstance(eval_result, IROperand), (inst.parent.label, op, inst)
+            assert isinstance(eval_result, IROperand), f"yes {(inst.parent.label, op, inst)}"
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
@@ -382,7 +381,12 @@ class SCCP(IRPass):
     def _algebraic_opt(self) -> bool:
         self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
         assert isinstance(self.eq, VarEquivalenceAnalysis)
-        return self._algebraic_traverse_r(self.fn.entry, OrderedSet())
+        change = False
+        for bb in self.fn.get_basic_blocks():
+            for inst in bb.instructions:
+                change |= self._handle_inst_peephole(inst)
+
+        return change
 
     def _algebraic_traverse_r(self, bb: IRBasicBlock, visited: OrderedSet[IRBasicBlock]) -> bool:
         if bb in visited:
@@ -464,7 +468,7 @@ class SCCP(IRPass):
                 if op.value != cond_op:
                     return False
             return True
-
+        
         def is_lit(index: int) -> bool:
             if isinstance(operands[index], IRLabel):
                 return False
@@ -495,11 +499,6 @@ class SCCP(IRPass):
 
         if inst.is_commutative and is_lit(1):
             operands = [operands[1], operands[0]]
-
-        if inst.opcode in ARITHMETIC_OPS and all(is_lit(i) for i in range(len(operands))):
-            oper = ARITHMETIC_OPS[inst.opcode]
-            val = oper([get_lit(i) for i in range(len(operands))])
-            return store(val)
 
         if inst.opcode == "iszero" and is_lit(0):
             lit = get_lit(0).value
@@ -574,7 +573,7 @@ class SCCP(IRPass):
 
         if inst.opcode == "assert" and isinstance(operands[0], IRVariable):
             src = self.dfg.get_producing_instruction(operands[0])
-            assert isinstance(src, IRInstruction), "yoyo"
+            assert isinstance(src, IRInstruction)
             if src.opcode not in COMPARISON_OPS:
                 return False
 
@@ -631,7 +630,7 @@ class SCCP(IRPass):
         if inst.opcode in COMPARISON_OPS:
             prefer_strict = not is_truthy
             opcode = inst.opcode
-            if is_lit(1):  # _is_int(args[0]):
+            if is_lit(1):
                 opcode = _flip_comparison_op(inst.opcode)
                 operands = [operands[1], operands[0]]
 
