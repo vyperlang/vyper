@@ -38,11 +38,11 @@ class _Interval:
     def merge(self, other: "_Interval", ok_dst_overlap: bool = True) -> bool:
         assert self.src_start <= other.src_start, "bad bisect_left"
 
-        # both source and destionation have to be offset by same amount
+        # both source and destination have to be offset by same amount
         if self.src_start - other.src_start != self.dst_start - other.dst_start:
             return False
 
-        # the intervals must atleast touch each other
+        # the intervals must at least touch each other
         if other.src_start > self.src_end:
             return False
         length = max(self.src_end, other.src_end) - self.src_start
