@@ -19,9 +19,9 @@ def test_memmerging():
     val0 = bb.append_instruction("mload", 0)
     val1 = bb.append_instruction("mload", 32)
     val2 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mstore", val0, 96)
-    bb.append_instruction("mstore", val1, 128)
-    bb.append_instruction("mstore", val2, 160)
+    bb.append_instruction("mstore", val0, 1024)
+    bb.append_instruction("mstore", val1, 1024 + 32)
+    bb.append_instruction("mstore", val2, 1024 + 64)
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
@@ -32,6 +32,9 @@ def test_memmerging():
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 96
+    assert bb.instructions[0].operands[1].value == 0
+    assert bb.instructions[0].operands[2].value == 1024
 
 
 def test_memmerging_out_of_order():
