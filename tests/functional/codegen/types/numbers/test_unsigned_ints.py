@@ -223,10 +223,6 @@ def test() -> {typ}:
     return o
     """
 
-    def _to_hex_int(v):
-        n_nibbles = typ.bits // 4
-        return "0x" + hex(v)[2:].rjust(n_nibbles, "0")
-
     for val in good_cases:
         input_val = val
         if is_hex_int:
