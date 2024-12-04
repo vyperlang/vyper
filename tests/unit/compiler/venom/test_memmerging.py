@@ -101,10 +101,10 @@ def test_memmerging_imposs():
     assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
 
 
-def test_memmerging_imposs_mload():
+def test_memmerging_imposs_mstore():
     """
     Test case of impossible merge
-    Impossible because of the mload barier
+    Impossible because of the mstore barrier
     """
     if not version_check(begin="cancun"):
         return
