@@ -255,19 +255,22 @@ def test_memmerging_partial_overlap():
     bb.append_instruction("mstore", val3, 1024 + 96)
     bb.append_instruction("mstore", val0, 1024)
     bb.append_instruction("mstore", val1, 1024 + 32)
-    bb.append_instruction("mstore", val4, 1024 + 24)
-    bb.append_instruction("mstore", val5, 1024 + 24 + 32)
+    bb.append_instruction("mstore", val4, 2048 + 24)
+    bb.append_instruction("mstore", val5, 2048 + 24 + 32)
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
     SCCP(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[1].opcode == "mload"
-    assert bb.instructions[2].opcode == "mcopy"
-    assert bb.instructions[3].opcode == "mstore"
-    assert bb.instructions[4].opcode == "mstore"
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 128
+    assert bb.instructions[0].operands[1].value == 0
+    assert bb.instructions[0].operands[2].value == 1024
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 24
+    assert bb.instructions[1].operands[2].value == 2048 + 24
 
 
 def test_memmerging_partial_different_effect():
@@ -306,6 +309,35 @@ def test_memmerging_partial_different_effect():
     assert bb.instructions[-4].opcode == "mcopy"
     assert bb.instructions[-4].operands[0].value == 64
     assert bb.instructions[-5].opcode == "mload"
+
+
+def test_memmerging_ok_overlap():
+    """
+    Test for with source overlap
+    which is ok to do
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 32)
+    val1 = bb.append_instruction("mload", 32 + 24)
+    val2 = bb.append_instruction("mload", 32 + 24 + 24)
+
+    bb.append_instruction("mstore", val0, 1024)
+    bb.append_instruction("mstore", val1, 1024 + 24)
+    bb.append_instruction("mstore", val2, 1024 + 24 + 24)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 32 + 24 + 24
+    assert bb.instructions[0].operands[1].value == 32
+    assert bb.instructions[0].operands[2].value == 1024
 
 
 def test_memzeroing_1():
