@@ -26,13 +26,13 @@ class _Interval:
     def dst_overlaps_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
-        a = max(self.src_start, self.dst_start)
-        b = min(self.src_end, self.dst_end)
+        a = max(self.dst_start, self.src_start)
+        b = min(self.dst_end, self.src_end)
         return a < b
 
     def overlap(self, other: "_Interval") -> bool:
-        a = max(self.src_start, other.src_start)
-        b = min(self.src_end, other.src_end)
+        a = max(self.dst_start, other.src_start)
+        b = min(self.dst_end, other.src_end)
         return a < b
 
     def merge(self, other: "_Interval", ok_dst_overlap: bool = True) -> bool:
@@ -115,7 +115,7 @@ class MemMergePass(IRPass):
         return True
 
     def _overlap_exist(self, intervals: list[_Interval], inter: _Interval) -> bool:
-        index = bisect_left(intervals, inter)
+        index = bisect_left(intervals, inter.src_start, key=lambda x: x.dst_start)
 
         if index > 0:
             if intervals[index - 1].overlap(inter):

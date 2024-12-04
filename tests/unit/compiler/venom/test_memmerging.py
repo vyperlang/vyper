@@ -115,7 +115,7 @@ def test_memmerging_imposs_mload():
     val0 = bb.append_instruction("mload", 0)
     val1 = bb.append_instruction("mload", 32)
     bb.append_instruction("mstore", val0, 1024)
-    val2 = bb.append_instruction("mload", 0)
+    val2 = bb.append_instruction("mload", 1024)
     bb.append_instruction("mstore", val1, 1024 + 32)
     bb.append_instruction("mstore", val2, 2048)
     bb.append_instruction("stop")
