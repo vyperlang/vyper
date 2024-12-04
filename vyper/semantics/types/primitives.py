@@ -138,9 +138,14 @@ class NumericT(_PrimT):
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
         lower, upper = self.ast_bounds
-        if node.value < lower:
+
+        value = node.value
+        if isinstance(node, vy_ast.Hex):
+            value = node.int_value
+
+        if value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
-        if node.value > upper:
+        if value > upper:
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
 
     def validate_numeric_op(
@@ -242,7 +247,7 @@ class IntegerT(NumericT):
 
     typeclass = "integer"
 
-    _valid_literal = (vy_ast.Int,)
+    _valid_literal = (vy_ast.Hex, vy_ast.Int)
     _equality_attrs = ("is_signed", "bits")
 
     ast_type = int
