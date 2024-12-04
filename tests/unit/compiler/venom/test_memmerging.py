@@ -8,7 +8,7 @@ def test_memmerging():
     """
     Basic memory merge test
     All mloads and mstores can be
-    transformed into mload
+    transformed into mcopy
     """
     if not version_check(begin="cancun"):
         return
@@ -22,6 +22,36 @@ def test_memmerging():
     bb.append_instruction("mstore", val0, 96)
     bb.append_instruction("mstore", val1, 128)
     bb.append_instruction("mstore", val2, 160)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mstore" for inst in bb.instructions)
+    assert not any(inst.opcode == "mload" for inst in bb.instructions)
+    assert not any(inst.opcode == "mload" for inst in bb.instructions)
+    assert bb.instructions[0].opcode == "mcopy"
+
+
+def test_memmerging_out_of_order():
+    """
+    Test with out of order memory
+    operations which all can be
+    transformed into the mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val1 = bb.append_instruction("mload", 32)
+    val0 = bb.append_instruction("mload", 0)
+    bb.append_instruction("mstore", val1, 128)
+    val2 = bb.append_instruction("mload", 64)
+    bb.append_instruction("mstore", val2, 160)
+    bb.append_instruction("mstore", val0, 96)
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
