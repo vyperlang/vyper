@@ -35,26 +35,21 @@ class _Interval:
         b = min(self.src_end, other.src_end)
         return a < b
 
-    def merge(self, other: "_Interval", ok_dst_overlap: bool) -> bool:
+    def merge(self, other: "_Interval", ok_dst_overlap: bool = True) -> bool:
         assert self.src_start <= other.src_start, "bad bisect_left"
-        if other.src_start != self.src_end:
-            return False
-        if other.dst_start != self.dst_end:
-            return False
 
-        n_inter = _Interval(self.dst_start, self.src_start, self.length + other.length, [])
-        if not ok_dst_overlap and n_inter.dst_overlaps_src():
+        # both source and destionation have to be offset by same amount
+        if self.src_start - other.src_start != self.dst_start - other.dst_start:
             return False
 
-        self.length = n_inter.length
-        self.insts.extend(other.insts)
-        return True
-
-    def inclusive_merge(self, other: "_Interval") -> bool:
-        assert self.src_start <= other.src_start, "bad bisect_left"
+        # the intervals must atleast touch each other
         if other.src_start > self.src_end:
             return False
-        self.length = max(self.src_end, other.src_end) - self.src_start
+        length = max(self.src_end, other.src_end) - self.src_start
+        n_inter = _Interval(self.dst_start, self.src_start, length, [])
+        if not ok_dst_overlap and n_inter.dst_overlaps_src():
+            return False
+        self.length = length
         self.insts.extend(other.insts)
         return True
 
@@ -195,7 +190,7 @@ class MemMergePass(IRPass):
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(intervals) - 1):
-            merged = intervals[i].inclusive_merge(intervals[i + 1])
+            merged = intervals[i].merge(intervals[i + 1])
             if merged:
                 del intervals[i + 1]
             else:
