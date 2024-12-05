@@ -332,8 +332,6 @@ def __init__():
 def test_event_export_from_init(make_input_bundle):
     # test that events get exported when used in init functions
     lib1 = """
-phony: uint32
-
 event MyEvent:
     pass
 

@@ -1,7 +1,5 @@
 def test_export_nonreentrant(make_input_bundle, get_contract, tx_failed):
     lib1 = """
-phony: uint32
-
 interface Foo:
     def foo() -> uint256: nonpayable
 
@@ -40,8 +38,6 @@ def __default__():
 
 def test_internal_nonreentrant(make_input_bundle, get_contract, tx_failed):
     lib1 = """
-phony: uint32
-
 interface Foo:
     def foo() -> uint256: nonpayable
 
