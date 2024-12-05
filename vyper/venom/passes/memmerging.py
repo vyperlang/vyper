@@ -193,7 +193,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-                src_ptr: int = loads[var]
+                src_ptr = loads[var]
                 load_inst = self.dfg.get_producing_instruction(var)
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [load_inst, inst])
@@ -233,6 +233,7 @@ class MemMergePass(IRPass):
                 inst.output = None
                 inst.opcode = "calldatacopy"
                 inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+
             for inst in copy.insts[0:-1]:
                 bb.mark_for_removal(inst)
 
@@ -257,26 +258,27 @@ class MemMergePass(IRPass):
                 n_copy = _Copy(dst.value, dst.value, 32, [inst])
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=True):
                     _barrier()
+                    continue
             elif inst.opcode == "calldatacopy":
-                dst, var, length = inst.operands[2], inst.operands[1], inst.operands[0]
-                if not isinstance(dst, IRLiteral):
-                    _barrier()
-                    continue
-                if not isinstance(length, IRLiteral):
-                    _barrier()
-                    continue
+                length, var, dst = inst.operands
                 if not isinstance(var, IRVariable):
                     _barrier()
                     continue
+                if not isinstance(dst, IRLiteral) or not isinstance(length, IRLiteral):
+                    _barrier()
+                    continue
                 src_inst = self.dfg.get_producing_instruction(var)
-                if src_inst is None or src_inst.opcode != "calldatasize":
+                assert src_inst is not None, f"bad variable {var}"
+                if src_inst.opcode != "calldatasize":
                     _barrier()
                     continue
                 n_copy = _Copy(dst.value, dst.value, length.value, [inst])
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=True):
                     _barrier()
+                    continue
             elif _volatile_memory(inst):
                 _barrier()
+                continue
 
         _barrier()
         bb.clear_dead_instructions()
