@@ -27,13 +27,14 @@ VENOM_PARSER = Lark(
 
     assignment: VAR_IDENT "=" expr
     expr: call | CONST
-    call: CNAME operands_list
+    call: OPCODE operands_list
 
     operands_list: (operand ("," operand)*)?
 
     operand: VAR_IDENT | CONST | LABEL
-    CONST: INT
 
+    CONST: INT
+    OPCODE: CNAME
     VAR_IDENT: "%" INT (":" INT)?
     LABEL: "@" NAME
     NAME: (DIGIT|LETTER|"_")+
@@ -57,6 +58,14 @@ def _set_last_var(fn: IRFunction):
             fn.last_variable = max(fn.last_variable, int(value[1:]))
 
 
+def _set_last_label(ctx: IRContext):
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            label = bb.label.value
+            if label.isdigit():
+                ctx.last_label = max(int(label), ctx.last_label)
+
+
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
@@ -65,19 +74,31 @@ class VenomTransformer(Transformer):
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
             for block_name, instructions in blocks:
-                bb = IRBasicBlock(IRLabel(block_name), fn)
+                # Get default function block if entry bb
+                if block_name == fn_name:
+                    bb = fn.get_basic_block(block_name)
+                else:
+                    bb = IRBasicBlock(IRLabel(block_name), fn)
+                    fn.append_basic_block(bb)
 
                 for instruction in instructions:
+                    assert isinstance(instruction, IRInstruction)
                     bb.insert_instruction(instruction)
 
-                # Manually insert because we need to override function entry
-                fn._basic_block_dict[block_name] = bb
+                # Since "revert" is not considered terminal explicitly check for it to ensure basic
+                # blocks are terminating
+                if not bb.is_terminated:
+                    has_revert = any(
+                        instruction.opcode == 'revert'
+                        for instruction in bb.instructions
+                    )
+                    if has_revert:
+                        bb.append_instruction('stop')
 
             _set_last_var(fn)
+        _set_last_label(ctx)
 
         ctx.data_segment = data_section
-
-        # ctx.chain_basic_blocks()
 
         return ctx
 
