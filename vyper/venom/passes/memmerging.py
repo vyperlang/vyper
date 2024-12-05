@@ -137,7 +137,11 @@ class MemMergePass(IRPass):
         return False
 
     def _handle_bb(
-        self, bb: IRBasicBlock, load_inst: str, copy_inst: str, allow_dst_overlaps_src: bool = False
+        self,
+        bb: IRBasicBlock,
+        load_opcode: str,
+        copy_inst: str,
+        allow_dst_overlaps_src: bool = False,
     ):
         loads: dict[IRVariable, int] = dict()
         copies: list[_Copy] = []
@@ -147,7 +151,7 @@ class MemMergePass(IRPass):
             loads.clear()
 
         for inst in bb.instructions.copy():
-            if inst.opcode == load_inst:
+            if inst.opcode == load_opcode:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
                     _barrier()
@@ -175,34 +179,34 @@ class MemMergePass(IRPass):
                 loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
-                var = inst.operands[0]
-                dst = inst.operands[1]
-                if not isinstance(dst, IRLiteral) or not isinstance(var, IRVariable):
+                var, dst = inst.operands
+
+                if not isinstance(var, IRVariable) or not isinstance(dst, IRLiteral):
                     _barrier()
                     continue
+
                 if var not in loads:
                     _barrier()
                     continue
-                src: int = loads[var]
-                mload_inst = self.dfg.get_producing_instruction(var)
-                assert mload_inst is not None  # help mypy
-                n_copy = _Copy(dst.value, src, 32, [mload_inst, inst])
+
+                src_ptr: int = loads[var]
+                load_inst = self.dfg.get_producing_instruction(var)
+                assert load_inst is not None  # help mypy
+                n_copy = _Copy(dst.value, src_ptr, 32, [load_inst, inst])
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
-                    _barrier()
-            elif inst.opcode == copy_inst:
-                length = inst.operands[0]
-                src_op = inst.operands[1]
-                dst = inst.operands[2]
-                if (
-                    not isinstance(length, IRLiteral)
-                    or not isinstance(src_op, IRLiteral)
-                    or not isinstance(dst, IRLiteral)
-                ):
                     _barrier()
                     continue
-                n_copy = _Copy(dst.value, src_op.value, length.value, [inst])
+
+            elif inst.opcode == copy_inst:
+                if not all(isinstance(op, IRLiteral) for op in inst.operands):
+                    _barrier()
+                    continue
+
+                length, src, dst = inst.operands
+                n_copy = _Copy(dst.value, src.value, length.value, [inst])
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
                     _barrier()
+                    continue
 
             elif _volatile_memory(inst):
                 _barrier()
