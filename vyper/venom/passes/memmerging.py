@@ -101,7 +101,7 @@ class MemMergePass(IRPass):
                     IRLiteral(copy.dst),
                 ]
             for inst in copy.insts[0:-1]:
-                bb.remove_instruction(inst)
+                bb.mark_for_removal(inst)
 
         copies.clear()
 
@@ -150,7 +150,7 @@ class MemMergePass(IRPass):
             self._optimize_copy(bb, copies, copy_inst, load_inst)
             loads.clear()
 
-        for inst in bb.instructions.copy():
+        for inst in bb.instructions:
             if inst.opcode == load_opcode:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
@@ -211,7 +211,8 @@ class MemMergePass(IRPass):
             elif _volatile_memory(inst):
                 _barrier()
 
-        self._optimize_copy(bb, copies, copy_inst, load_inst)
+        _barrier()
+        bb.clear_dead_instructions()
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock, copies: list[_Copy]):
@@ -229,7 +230,7 @@ class MemMergePass(IRPass):
                 inst.opcode = "calldatacopy"
                 inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
             for inst in copy.insts[0:-1]:
-                bb.remove_instruction(inst)
+                bb.mark_for_removal(inst)
 
         copies.clear()
 
@@ -241,7 +242,7 @@ class MemMergePass(IRPass):
             self._optimize_memzero(bb, copies)
             loads.clear()
 
-        for inst in bb.instructions.copy():
+        for inst in bb.instructions:
             if inst.opcode == "mstore":
                 val = inst.operands[0]
                 dst = inst.operands[1]
@@ -272,7 +273,9 @@ class MemMergePass(IRPass):
                     _barrier()
             elif _volatile_memory(inst):
                 _barrier()
-        self._optimize_memzero(bb, copies)
+
+        _barrier()
+        bb.clear_dead_instructions()
 
 
 def _volatile_memory(inst):
