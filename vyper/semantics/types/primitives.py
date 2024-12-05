@@ -143,9 +143,7 @@ class NumericT(_PrimT):
         if isinstance(node, vy_ast.Hex):
             # TODO: raise if signed integer
             if node.value not in (node.value.lower(), node.value.upper()):
-                raise InvalidLiteral(
-                    f"Cannot mix uppercase and lowercase for hex integers", node
-                )
+                raise InvalidLiteral("Cannot mix uppercase and lowercase for hex integers", node)
             value = node.int_value
 
         if value < lower:
