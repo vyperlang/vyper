@@ -394,7 +394,7 @@ class SCCP(IRPass):
         return change
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
-        if inst.is_volatile:
+        if inst.opcode != "assert" and inst.is_volatile:
             return False
         if inst.opcode == "store":
             return False
