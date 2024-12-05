@@ -561,7 +561,7 @@ class ModuleT(VyperType):
         return InterfaceT.from_ModuleT(self)
 
     @cached_property
-    def is_stateless(self):
+    def is_initializable(self):
         """
         Determine whether ModuleT is stateless by examining its top-level
         declarations. A module has state if it contains storage variables,
