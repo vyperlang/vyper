@@ -63,7 +63,6 @@ def test_memmerging_out_of_order():
 
     assert not any(inst.opcode == "mstore" for inst in bb.instructions)
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
-    assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert bb.instructions[0].opcode == "mcopy"
 
 
