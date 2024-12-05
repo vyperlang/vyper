@@ -2363,7 +2363,16 @@ class ABIEncode(BuiltinFunctionT):
         for kwarg in node.keywords:
             kwarg_name = kwarg.arg
             validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
-            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+            if kwarg_name == "method_id":
+                # Filter out unsigned integer types in the case of hex integers
+                p_types = [
+                    t
+                    for t in get_possible_types_from_node(kwarg.value)
+                    if not isinstance(t, IntegerT)
+                ]
+                ret[kwarg_name] = p_types.pop()
+            else:
+                ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
         return ret
 
     def fetch_call_return(self, node):
