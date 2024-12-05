@@ -446,7 +446,7 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
         self.is_reachable = False
 
-        self._garbage_instructions = set()
+        self._garbage_instructions: set[IRInstruction] = set()
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
@@ -527,7 +527,9 @@ class IRBasicBlock:
 
     def clear_dead_instructions(self) -> None:
         if len(self._garbage_instructions) > 0:
-            self.instructions = [inst for inst in self.instructions if inst not in self._garbage_instructions]
+            self.instructions = [
+                inst for inst in self.instructions if inst not in self._garbage_instructions
+            ]
             self._garbage_instructions.clear()
 
     def remove_instruction(self, instruction: IRInstruction) -> None:

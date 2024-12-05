@@ -387,6 +387,7 @@ def test_memmerging_mcopy():
     assert bb.instructions[0].operands[1].value == 0
     assert bb.instructions[0].operands[2].value == 1024
 
+
 def test_memmerging_mcopy_small():
     if not version_check(begin="cancun"):
         return
