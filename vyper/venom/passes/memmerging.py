@@ -152,8 +152,10 @@ class MemMergePass(IRPass):
                 if not isinstance(src_op, IRLiteral):
                     _barrier()
                     continue
-                assert inst.output is not None  # help mypy
-                uses = self.dfg.get_uses(inst.output)
+
+                # construct a dummy write to detect if there is a
+                # read-after-write inside of any of the copies we have
+                # accumulated
                 ptr = src_op.value
                 fake_write = _Copy(ptr, ptr, 32, [])
                 if self._overlap_exist(copies, fake_write):
@@ -163,12 +165,15 @@ class MemMergePass(IRPass):
                 # if the mload is used by anything but an mstore, we can't
                 # delete it. (in the future this may be handled by "remove
                 # unused effects" pass).
+                assert inst.output is not None  # help mypy
+                uses = self.dfg.get_uses(inst.output)
                 if len(uses) != 1:
                     continue
                 if uses.first().opcode != "mstore":
                     continue
-                assert isinstance(inst.output, IRVariable)
+
                 loads[inst.output] = src_op.value
+
             elif inst.opcode == "mstore":
                 var = inst.operands[0]
                 dst = inst.operands[1]
