@@ -2,6 +2,7 @@ from pathlib import PurePath
 
 import pytest
 
+from vyper import compiler
 from vyper.cli.vyper_json import TRANSLATE_MAP, get_output_formats
 from vyper.exceptions import JSONError
 
@@ -76,3 +77,46 @@ def test_solc_style():
 def test_metadata():
     input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"*": ["metadata"]}}}
     assert get_output_formats(input_json) == {PurePath("foo.vy"): ["metadata"]}
+
+
+def test_metadata_contain_all_reachable_functions(make_input_bundle):
+    code_a = """
+@internal
+def foo() -> uint256:
+    return 43
+
+@internal
+def faa() -> uint256:
+    return 76
+        """
+
+    code_b = """
+import A
+
+@internal
+def foo() -> uint256:
+    return 43
+
+@external
+def bar():
+    self.foo()
+    A.foo()
+    assert 1 != 12
+        """
+
+    input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
+
+    out = compiler.compile_code(code_b, input_bundle=input_bundle, output_formats=["metadata"])[
+        "metadata"
+    ]["function_info"]
+
+    def has_suffix_key(data: dict, suffix: str) -> bool:
+        for key in data.keys():
+            if key.endswith(suffix):
+                return True
+        return False
+
+    assert has_suffix_key(out, "0: foo")
+    assert has_suffix_key(out, "bar")
+    assert has_suffix_key(out, "1: foo")
+    assert not has_suffix_key(out, "faa")

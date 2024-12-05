@@ -13,7 +13,7 @@ from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.analysis.base import ModuleInfo
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
 from vyper.utils import vyper_warn
@@ -206,7 +206,16 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    sigs = compiler_data.function_signatures
+    # need ir info to be computed
+    _ = compiler_data.function_signatures
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    sigs = dict[str, ContractFunctionT]()
+
+    for fn_t in module_t.exposed_functions:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+        for rif_t in fn_t.reachable_internal_functions:
+            sigs[str(rif_t._ir_info.func_t._function_id) + ": " + rif_t.name] = rif_t
+        sigs[fn_t.name] = fn_t
 
     def _var_rec_dict(variable_record):
         ret = vars(variable_record).copy()
