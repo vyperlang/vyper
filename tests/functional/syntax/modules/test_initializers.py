@@ -1422,17 +1422,29 @@ initializes: lib1
     assert e.value._hint is None
 
 
-storage_var_modules = [
+initializable_modules = [
     """
 phony: uint32
     """,
     """
 ended: public(bool)
     """,
+    """
+@external
+@nonreentrant
+def foo():
+    pass
+    """,
+    """
+@internal
+@nonreentrant
+def foo():
+    pass
+    """,
 ]
 
 
-@pytest.mark.parametrize("module", storage_var_modules)
+@pytest.mark.parametrize("module", initializable_modules)
 def test_initializes_on_modules_with_state_related_vars(module, make_input_bundle):
     main = """
 import lib
