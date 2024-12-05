@@ -574,4 +574,9 @@ class ModuleT(VyperType):
             return False
         if self.init_function is not None:
             return False
+
+        for fun in self.functions.values():
+            if fun.nonreentrant:
+                return False
+
         return True
