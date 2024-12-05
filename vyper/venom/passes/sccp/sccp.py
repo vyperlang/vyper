@@ -4,8 +4,8 @@ from functools import reduce
 from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
-from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
+from vyper.utils import OrderedSet, int_bounds, int_log2, is_power_of_two
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, signed_to_unsigned, unsigned_to_signed
 
 
 class LatticeEnum(Enum):
@@ -40,6 +40,26 @@ LatticeItem = Union[LatticeEnum, IRLiteral]
 Lattice = dict[IRVariable, LatticeItem]
 
 
+COMPARISON_OPS = {"gt", "sgt", "lt", "slt"}
+
+
+def _flip_comparison_op(opname):
+    assert opname in COMPARISON_OPS
+    if "g" in opname:
+        return opname.replace("g", "l")
+    if "l" in opname:
+        return opname.replace("l", "g")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
+
+
+def _wrap256(x, unsigned: bool):
+    x %= 2**256
+    # wrap in a signed way.
+    if not unsigned:
+        x = unsigned_to_signed(x, 256, strict=True)
+    return x
+
+
 class SCCP(IRPass):
     """
     This class implements the Sparse Conditional Constant Propagation
@@ -54,6 +74,7 @@ class SCCP(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    sccp_calculated: set[IRBasicBlock]
 
     cfg_dirty: bool
 
@@ -65,15 +86,25 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self._calculate_sccp(self.fn.entry)
-        self._propagate_constants()
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.sccp_calculated = set()
 
+        self.recalc_reachable = True
+        self._calculate_sccp(self.fn.entry)
+        self.last = False
+        while True:
+            # TODO compute uses and sccp only once
+            # and then modify them on the fly
+            self._propagate_constants()
+            if not self._algebraic_opt():
+                self.last = True
+                break
+
+        self._algebraic_opt()
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self.fn.remove_unreachable_blocks()
-
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -115,6 +146,8 @@ class SCCP(IRPass):
         if start in self.cfg_in_exec[end]:
             return
         self.cfg_in_exec[end].add(start)
+
+        self.sccp_calculated.add(end)
 
         for inst in end.instructions:
             if inst.opcode == "phi":
@@ -193,6 +226,7 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
+                self.cfg_dirty = True
                 if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
                     target = self.fn.get_basic_block(inst.operands[1].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -252,7 +286,7 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
 
-            assert isinstance(eval_result, IROperand), (inst.parent.label, op, inst)
+            assert isinstance(eval_result, IROperand), f"yes {(inst.parent.label, op, inst)}"
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
@@ -263,12 +297,16 @@ class SCCP(IRPass):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
+    def _get_uses(self, var: IRVariable) -> OrderedSet:
+        return self.dfg.get_uses(var)
+
     def _propagate_constants(self):
         """
         This method iterates over the IR and replaces constant values
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
+        self.recalc_reachable = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
@@ -287,9 +325,12 @@ class SCCP(IRPass):
                     target = inst.operands[2]
                 else:
                     target = inst.operands[1]
+                if isinstance(inst.operands[0], IRVariable):
+                    self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
 
+                self.recalc_reachable = True
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
@@ -298,13 +339,12 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
-                else:
+                    inst.operands = []
+                elif len(inst.parent.cfg_in) == 1 or inst.parent == inst.parent.parent.entry:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
-
-                inst.operands = []
 
         elif inst.opcode == "phi":
             return
@@ -314,6 +354,330 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
+
+    def _fix_phi_nodes(self):
+        # fix basic blocks whose cfg in was changed
+        # maybe this should really be done in _visit_phi
+        for bb in self.fn.get_basic_blocks():
+            cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
+
+            needs_sort = False
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    break
+                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
+
+            # move phi instructions to the top of the block
+            if needs_sort:
+                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
+
+    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
+        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
+
+        if len(operands) != 1:
+            return False
+
+        assert inst.output is not None
+        inst.opcode = "store"
+        inst.operands = operands
+        return True
+
+    def _algebraic_opt(self) -> bool:
+        self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
+        assert isinstance(self.eq, VarEquivalenceAnalysis)
+
+        change = False
+        for bb in self.sccp_calculated:
+            for inst in bb.instructions:
+                change |= self._handle_inst_peephole(inst)
+
+        return change
+
+    def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
+        if inst.opcode != "assert" and inst.is_volatile:
+            return False
+        if inst.opcode == "store":
+            return False
+        if inst.is_pseudo:
+            return False
+        if inst.is_bb_terminator:
+            return False
+
+        def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
+            assert opcode != "phi"
+            if not force and inst.opcode == opcode:
+                return False
+
+            for op in inst.operands:
+                if isinstance(op, IRVariable):
+                    uses = self._get_uses(op)
+                    if inst in uses:
+                        uses.remove(inst)
+            inst.opcode = opcode
+            inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+
+            for op in inst.operands:
+                if isinstance(op, IRVariable):
+                    self._get_uses(op).add(inst)
+
+            self._visit_expr(inst)
+
+            return True
+
+        def store(*args: IROperand | int) -> bool:
+            return update("store", *args)
+
+        def add(opcode: str, *args: IROperand | int) -> IRVariable:
+            assert opcode != "phi"
+            index = inst.parent.instructions.index(inst)
+            var = inst.parent.parent.get_next_variable()
+            operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+            new_inst = IRInstruction(opcode, operands, output=var)
+            inst.parent.insert_instruction(new_inst, index)
+            for op in new_inst.operands:
+                if isinstance(op, IRVariable):
+                    self._get_uses(op).add(new_inst)
+            self._get_uses(var).add(inst)
+            self.dfg.set_producing_instruction(var, new_inst)
+            self._visit_expr(new_inst)
+            return var
+
+        operands = inst.operands
+
+        def is_lit(index: int) -> bool:
+            if isinstance(operands[index], IRLabel):
+                return False
+            if isinstance(operands[index], IRVariable) and operands[index] not in self.lattice:
+                return False
+            return isinstance(self._eval_from_lattice(operands[index]), IRLiteral)
+
+        def get_lit(index: int) -> IRLiteral:
+            x = self._eval_from_lattice(operands[index])
+            assert isinstance(x, IRLiteral), f"is not literal {x}"
+            return x
+
+        def lit_eq(index: int, val: int) -> bool:
+            return is_lit(index) and get_lit(index).value == val
+
+        def op_eq(idx_a: int, idx_b: int) -> bool:
+            if is_lit(idx_a) and is_lit(idx_b):
+                return get_lit(idx_a) == get_lit(idx_b)
+            else:
+                assert isinstance(self.eq, VarEquivalenceAnalysis)
+                return self.eq.equivalent(operands[idx_a], operands[idx_b])
+
+        if (
+            inst.opcode == "add"
+            and is_lit(0)
+            and isinstance(get_lit(0), IRLiteral)
+            and isinstance(inst.operands[1], IRLabel)
+        ):
+            inst.opcode = "offset"
+            return True
+
+        if inst.is_commutative and is_lit(1):
+            operands = [operands[1], operands[0]]
+
+        if inst.opcode == "iszero" and is_lit(0):
+            lit = get_lit(0).value
+            val = int(lit == 0)
+            return store(val)
+
+        if inst.opcode in {"shl", "shr", "sar"} and lit_eq(1, 0):
+            return store(operands[0])
+
+        if inst.opcode in {"add", "sub", "xor", "or"} and lit_eq(0, 0):
+            return store(operands[1])
+
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and lit_eq(0, 0):
+            return store(0)
+
+        if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(0, 1):
+            return store(operands[1])
+
+        if inst.opcode == "sub" and lit_eq(1, -1):
+            return update("not", operands[0])
+
+        if inst.opcode == "exp" and lit_eq(0, 0):
+            return store(1)
+
+        if inst.opcode == "exp" and lit_eq(1, 1):
+            return store(1)
+
+        if inst.opcode == "exp" and lit_eq(1, 0):
+            return update("iszero", operands[0])
+
+        if inst.opcode == "exp" and lit_eq(0, 1):
+            return store(operands[1])
+
+        if inst.opcode == "eq" and lit_eq(0, 0):
+            return update("iszero", operands[1])
+
+        if inst.opcode == "eq" and lit_eq(1, 0):
+            return update("iszero", operands[0])
+
+        if inst.opcode in {"sub", "xor", "ne"} and op_eq(0, 1):
+            # (x - x) == (x ^ x) == (x != x) == 0
+            return store(0)
+
+        if inst.opcode in COMPARISON_OPS and op_eq(0, 1):
+            # (x < x) == (x > x) == 0
+            return store(0)
+
+        if inst.opcode in {"eq"} and op_eq(0, 1):
+            # (x == x) == 1
+            return store(1)
+
+        if inst.opcode in {"mod", "smod"} and lit_eq(0, 1):
+            return store(0)
+
+        if inst.opcode == "and" and lit_eq(0, signed_to_unsigned(-1, 256)):
+            return store(operands[1])
+
+        if inst.opcode == "xor" and lit_eq(0, signed_to_unsigned(-1, 256)):
+            return update("not", operands[1])
+
+        if inst.opcode == "or" and lit_eq(0, signed_to_unsigned(-1, 256)):
+            return store(signed_to_unsigned(-1, 256))
+
+        if inst.opcode in {"mod", "div", "mul"} and is_lit(0) and is_power_of_two(get_lit(0).value):
+            val = get_lit(0).value
+            if inst.opcode == "mod":
+                return update("and", val - 1, operands[1])
+            if inst.opcode == "div":
+                return update("shr", operands[1], int_log2(val))
+            if inst.opcode == "mul":
+                return update("shl", operands[1], int_log2(val))
+
+        if inst.opcode == "assert" and isinstance(operands[0], IRVariable):
+            src = self.dfg.get_producing_instruction(operands[0])
+            assert isinstance(src, IRInstruction)
+            if src.opcode not in COMPARISON_OPS:
+                return False
+
+            assert isinstance(src.output, IRVariable)
+            uses = self.dfg.get_uses(src.output)
+            if len(uses) != 1:
+                return False
+
+            if not isinstance(src.operands[0], IRLiteral):
+                return False
+
+            n_op = src.operands[0].value
+            if "gt" in src.opcode:
+                n_op += 1
+            else:
+                n_op -= 1
+            unsigned = "s" not in src.opcode
+
+            assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+            n_opcode = (
+                src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+            )
+
+            src.opcode = n_opcode
+            src.operands = [IRLiteral(n_op), src.operands[1]]
+
+            var = add("iszero", src.output)
+            self.dfg.add_use(var, inst)
+
+            update("assert", var, force=True)
+
+            return True
+
+        if inst.output is None:
+            return False
+
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses_ignore_nops(inst.output)
+        is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
+
+        if is_truthy:
+            if inst.opcode == "eq":
+                # (eq x y) has the same truthyness as (iszero (xor x y))
+                # it also has the same truthyness as (iszero (sub x y)),
+                # but xor is slightly easier to optimize because of being
+                # commutative.
+                # note that (xor (-1) x) has its own rule
+                tmp = add("xor", operands[0], operands[1])
+
+                return update("iszero", tmp)
+            if inst.opcode == "or" and is_lit(0) and get_lit(0).value != 0:
+                return store(1)
+
+        if inst.opcode in COMPARISON_OPS:
+            prefer_strict = not is_truthy
+            opcode = inst.opcode
+            if is_lit(1):
+                opcode = _flip_comparison_op(inst.opcode)
+                operands = [operands[1], operands[0]]
+
+            is_gt = "g" in opcode
+
+            unsigned = "s" not in opcode
+
+            lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+            # for comparison operators, we have three special boundary cases:
+            # almost always, never and almost never.
+            # almost_always is always true for the non-strict ("ge" and co)
+            # comparators. for strict comparators ("gt" and co), almost_always
+            # is true except for one case. never is never true for the strict
+            # comparators. never is almost always false for the non-strict
+            # comparators, except for one case. and almost_never is almost
+            # never true (except one case) for the strict comparators.
+            if is_gt:
+                almost_always, never = lo, hi
+                almost_never = hi - 1
+            else:
+                almost_always, never = hi, lo
+                almost_never = lo + 1
+
+            if is_lit(0) and get_lit(0).value == never:
+                # e.g. gt x MAX_UINT256, slt x MIN_INT256
+                return store(0)
+
+            if is_lit(0) and get_lit(0).value == almost_never:
+                # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+                return update("eq", operands[1], never)
+
+            # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+            if not prefer_strict and is_lit(0) and get_lit(0).value == almost_always:
+                # e.g. gt x 0, slt x MAX_INT256
+                tmp = add("eq", *operands)
+                return update("iszero", tmp)
+
+            # special cases that are not covered by others:
+
+            if opcode == "gt" and is_lit(0) and get_lit(0) == 0:
+                # improve codesize (not gas), and maybe trigger
+                # downstream optimizations
+                tmp = add("iszero", operands[1])
+                return update("iszero", tmp)
+
+            # only done in last iteration because on average if not already optimize
+            # this rule creates bigger codesize because it could interfere with other
+            # optimizations
+            if self.last and len(uses) == 1 and uses.first().opcode == "iszero" and is_lit(0):
+                after = uses.first()
+                n_uses = self.dfg.get_uses(after.output)
+                if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+                    return False
+
+                n_op = get_lit(0).value
+                if "gt" in opcode:
+                    n_op += 1
+                else:
+                    n_op -= 1
+
+                assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+                n_opcode = opcode.replace("g", "l") if "g" in opcode else opcode.replace("l", "g")
+                update(n_opcode, n_op, operands[1], force=True)
+                uses.first().opcode = "store"
+                self._visit_expr(uses.first())
+                return True
+
+        return False
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
