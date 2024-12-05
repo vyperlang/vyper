@@ -171,6 +171,13 @@ def hello() :
     """,
         ImmutableViolation,
     ),
+    (
+        # hex values not allowed for signed integer types
+        """
+FOO: constant(int8) = 0xff
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
