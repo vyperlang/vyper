@@ -339,6 +339,26 @@ def test_memmerging_ok_overlap():
     assert bb.instructions[0].operands[1].value == 32
     assert bb.instructions[0].operands[2].value == 1024
 
+def test_memmerging_mcopy():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mcopy", 32, 0, 1024)
+    bb.append_instruction("mcopy", 32, 32, 1024 + 32)
+    bb.append_instruction("mcopy", 64, 64, 1024 + 64)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 128
+    assert bb.instructions[0].operands[1].value == 0
+    assert bb.instructions[0].operands[2].value == 1024
+
 
 def test_memzeroing_1():
     """
@@ -576,3 +596,4 @@ def test_memzeroing_imposs_effect():
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     assert not any(inst.opcode == "calldatacopy" for inst in bb.instructions)
+

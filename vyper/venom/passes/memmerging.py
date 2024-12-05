@@ -171,8 +171,24 @@ class MemMergePass(IRPass):
                 n_copy = _Copy(dst.value, src, 32, [mload_inst, inst])
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
                     _barrier()
+            elif inst.opcode == copy_inst:
+                length = inst.operands[0]
+                src_op = inst.operands[1]
+                dst = inst.operands[2]
+                if (
+                    not isinstance(length, IRLiteral) 
+                    or not isinstance(src_op, IRLiteral)
+                    or not isinstance(dst, IRLiteral)
+                ):
+                    _barrier()
+                    continue
+                n_copy = _Copy(dst.value, src_op.value, length.value, [inst])
+                if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
+                    _barrier()
+
             elif _volatile_memory(inst):
                 _barrier()
+
 
         self._optimize_copy(bb, copies, copy_inst)
 
