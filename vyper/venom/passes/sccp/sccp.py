@@ -74,6 +74,7 @@ class SCCP(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    sccp_calculated: set[IRBasicBlock]
 
     cfg_dirty: bool
 
@@ -87,6 +88,7 @@ class SCCP(IRPass):
         self.fn = self.function
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.sccp_calculated = set()
 
         self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
@@ -144,6 +146,8 @@ class SCCP(IRPass):
         if start in self.cfg_in_exec[end]:
             return
         self.cfg_in_exec[end].add(start)
+
+        self.sccp_calculated.add(end)
 
         for inst in end.instructions:
             if inst.opcode == "phi":
@@ -381,39 +385,24 @@ class SCCP(IRPass):
     def _algebraic_opt(self) -> bool:
         self.eq = self.analyses_cache.force_analysis(VarEquivalenceAnalysis)
         assert isinstance(self.eq, VarEquivalenceAnalysis)
+
         change = False
         for bb in self.fn.get_basic_blocks():
+            if bb not in self.sccp_calculated:
+                continue
             for inst in bb.instructions:
                 change |= self._handle_inst_peephole(inst)
 
         return change
 
-    def _algebraic_traverse_r(self, bb: IRBasicBlock, visited: OrderedSet[IRBasicBlock]) -> bool:
-        if bb in visited:
-            return False
-        visited.add(bb)
-
-        full_change = False
-        while True:
-            change = False
-            for inst in bb.instructions:
-                change |= self._handle_inst_peephole(inst)
-            full_change |= change
-            if not change:
-                break
-
-        term = bb.instructions[len(bb.instructions) - 1]
-
-        # this is done so I dont need to compute the CFG multiple times
-        if term.opcode == "jmp":
-            target = self.fn.get_basic_block(term.operands[0].value)
-            return full_change | self._algebraic_traverse_r(target, visited)
-        else:
-            for out in bb.cfg_out:
-                full_change |= self._algebraic_traverse_r(out, visited)
-            return full_change
-
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
+        if inst.is_volatile:
+            return False
+        if inst.opcode == "store":
+            return False
+        if inst.is_pseudo:
+            return False
+
         def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
             assert opcode != "phi"
             if not force and inst.opcode == opcode:
@@ -468,7 +457,7 @@ class SCCP(IRPass):
                 if op.value != cond_op:
                     return False
             return True
-        
+
         def is_lit(index: int) -> bool:
             if isinstance(operands[index], IRLabel):
                 return False
@@ -480,6 +469,9 @@ class SCCP(IRPass):
             x = self._eval_from_lattice(operands[index])
             assert isinstance(x, IRLiteral), f"is not literal {x}"
             return x
+
+        def lit_eq(index: int, val: int) -> bool:
+            return is_lit(index) and get_lit(index).value == val
 
         def op_eq(idx_a: int, idx_b: int) -> bool:
             if is_lit(idx_a) and is_lit(idx_b):
