@@ -603,6 +603,7 @@ def test_multiple() -> (uint256, uint256, uint256):
     assert c.test_multiple() == (10, 20, 30)
 
 
+# Testing the `initializes` statement to verify how transient variables interact with and relate to state.
 def test_transient_is_state(make_input_bundle):
     lib = """
 message: transient(bool)
