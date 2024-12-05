@@ -404,8 +404,8 @@ def test_memmerging_mcopy_small():
     assert bb.instructions[0].opcode == "mload"
     assert bb.instructions[0].operands[0].value == 0
     assert bb.instructions[1].opcode == "mstore"
-    assert bb.instructions[1].operands[0].value == 1024
-    assert bb.instructions[1].operands[1] == bb.instructions[0].output
+    assert bb.instructions[1].operands[0] == bb.instructions[0].output
+    assert bb.instructions[1].operands[1].value == 1024
 
 
 def test_memzeroing_1():

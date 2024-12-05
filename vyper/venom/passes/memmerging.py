@@ -94,7 +94,7 @@ class MemMergePass(IRPass):
 
                 inst.opcode = "mstore"
                 inst.output = None
-                inst.operands = [IRLiteral(copy.dst), var]
+                inst.operands = [var, IRLiteral(copy.dst)]
             else:
                 copy.insts[-1].output = None
                 copy.insts[-1].opcode = copy_opcode
