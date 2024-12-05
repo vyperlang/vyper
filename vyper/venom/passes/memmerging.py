@@ -28,9 +28,7 @@ class _Copy:
     def dst_overlaps_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
-        a = max(self.dst, self.src)
-        b = min(self.dst_end, self.src_end)
-        return a < b
+        return self.overlap(self)
 
     def overlap(self, other: "_Copy") -> bool:
         a = max(self.dst, other.src)
