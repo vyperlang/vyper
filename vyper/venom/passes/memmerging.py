@@ -38,7 +38,7 @@ class _Copy:
         return a < b
 
     def merge(self, other: "_Copy", ok_dst_overlap: bool = True) -> bool:
-        assert self.src<= other.src, "bad bisect_left"
+        assert self.src <= other.src, "bad bisect_left"
 
         # both source and destination have to be offset by same amount,
         # otherwise they do not represent the same copy. e.g.
@@ -48,7 +48,7 @@ class _Copy:
             return False
 
         # the copies must at least touch each other
-        if other.src> self.src_end:
+        if other.src > self.src_end:
             return False
         length = max(self.src_end, other.src_end) - self.src
         n_copy = _Copy(self.dst, self.src, length, [])
@@ -59,12 +59,10 @@ class _Copy:
         return True
 
     def __lt__(self, other) -> bool:
-        return self.src< other.src
+        return self.src < other.src
 
     def __repr__(self) -> str:
-        return (
-            f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
-        )
+        return f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
 
 
 class MemMergePass(IRPass):
@@ -155,9 +153,7 @@ class MemMergePass(IRPass):
                     continue
                 if uses.first().opcode != "mstore":
                     continue
-                if self._overlap_exist(
-                    copies, _Copy(src_op.value + 32, src_op.value, 32, [])
-                ):
+                if self._overlap_exist(copies, _Copy(src_op.value + 32, src_op.value, 32, [])):
                     _barrier()
                     continue
                 assert isinstance(inst.output, IRVariable)
@@ -175,9 +171,7 @@ class MemMergePass(IRPass):
                 mload_inst = self.dfg.get_producing_instruction(var)
                 assert mload_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src, 32, [mload_inst, inst])
-                if not self._add_copy(
-                    copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src
-                ):
+                if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
                     _barrier()
             elif _volatile_memory(inst):
                 _barrier()
@@ -198,11 +192,7 @@ class MemMergePass(IRPass):
 
                 inst.output = None
                 inst.opcode = "calldatacopy"
-                inst.operands = [
-                    IRLiteral(copy.length),
-                    calldatasize,
-                    IRLiteral(copy.dst),
-                ]
+                inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
             for inst in copy.insts[0:-1]:
                 bb.remove_instruction(inst)
 
