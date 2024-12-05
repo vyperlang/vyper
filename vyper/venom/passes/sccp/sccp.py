@@ -387,9 +387,7 @@ class SCCP(IRPass):
         assert isinstance(self.eq, VarEquivalenceAnalysis)
 
         change = False
-        for bb in self.fn.get_basic_blocks():
-            if bb not in self.sccp_calculated:
-                continue
+        for bb in self.sccp_calculated:
             for inst in bb.instructions:
                 change |= self._handle_inst_peephole(inst)
 
@@ -401,6 +399,8 @@ class SCCP(IRPass):
         if inst.opcode == "store":
             return False
         if inst.is_pseudo:
+            return False
+        if inst.is_bb_terminator:
             return False
 
         def update(opcode: str, *args: IROperand | int, force: bool = False) -> bool:
@@ -444,20 +444,6 @@ class SCCP(IRPass):
 
         operands = inst.operands
 
-        def match(opcodes: set[str], *ops: int | None):
-            if inst.opcode not in opcodes:
-                return False
-
-            assert len(ops) == len(operands), "wrong number of operands"
-            for cond_op, op in zip(ops, operands):
-                if cond_op is None:
-                    continue
-                if not isinstance(op, IRLiteral):
-                    return False
-                if op.value != cond_op:
-                    return False
-            return True
-
         def is_lit(index: int) -> bool:
             if isinstance(operands[index], IRLabel):
                 return False
@@ -497,37 +483,37 @@ class SCCP(IRPass):
             val = int(lit == 0)
             return store(val)
 
-        if match({"shl", "shr", "sar"}, None, 0):
+        if inst.opcode in {"shl", "shr", "sar"} and lit_eq(1, 0):
             return store(operands[0])
 
-        if match({"add", "sub", "xor", "or"}, 0, None):
+        if inst.opcode in {"add", "sub", "xor", "or"} and lit_eq(0, 0):
             return store(operands[1])
 
-        if match({"mul", "div", "sdiv", "mod", "smod", "and"}, 0, None):
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and lit_eq(0, 0):
             return store(0)
 
-        if match({"mul", "div", "sdiv"}, 1, None):
+        if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(0, 1):
             return store(operands[1])
 
-        if match({"sub"}, None, -1):
+        if inst.opcode == "sub" and lit_eq(1, -1):
             return update("not", operands[0])
 
-        if match({"exp"}, 0, None):
+        if inst.opcode == "exp" and lit_eq(0, 0):
             return store(1)
 
-        if match({"exp"}, None, 1):
+        if inst.opcode == "exp" and lit_eq(1, 1):
             return store(1)
 
-        if match({"exp"}, None, 0):
+        if inst.opcode == "exp" and lit_eq(1, 0):
             return update("iszero", operands[0])
 
-        if match({"exp"}, 1, None):
+        if inst.opcode == "exp" and lit_eq(0, 1):
             return store(operands[1])
 
-        if match({"eq"}, 0, None):
+        if inst.opcode == "eq" and lit_eq(0, 0):
             return update("iszero", operands[1])
 
-        if match({"eq"}, None, 0):
+        if inst.opcode == "eq" and lit_eq(1, 0):
             return update("iszero", operands[0])
 
         if inst.opcode in {"sub", "xor", "ne"} and op_eq(0, 1):
@@ -542,16 +528,16 @@ class SCCP(IRPass):
             # (x == x) == 1
             return store(1)
 
-        if match({"mod", "smod"}, 1, None):
+        if inst.opcode in {"mod", "smod"} and lit_eq(0, 1):
             return store(0)
 
-        if match({"and"}, signed_to_unsigned(-1, 256), None):
+        if inst.opcode == "and" and lit_eq(0, signed_to_unsigned(-1, 256)):
             return store(operands[1])
 
-        if match({"xor"}, signed_to_unsigned(-1, 256), None):
+        if inst.opcode == "xor" and lit_eq(0, signed_to_unsigned(-1, 256)):
             return update("not", operands[1])
 
-        if match({"or"}, signed_to_unsigned(-1, 256), None):
+        if inst.opcode == "or" and lit_eq(0, signed_to_unsigned(-1, 256)):
             return store(signed_to_unsigned(-1, 256))
 
         if inst.opcode in {"mod", "div", "mul"} and is_lit(0) and is_power_of_two(get_lit(0).value):
