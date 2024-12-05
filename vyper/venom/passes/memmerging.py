@@ -48,11 +48,12 @@ class _Copy:
         # the copies must at least touch each other
         if other.src > self.src_end:
             return False
-        length = max(self.src_end, other.src_end) - self.src
-        n_copy = _Copy(self.dst, self.src, length, [])
+
+        new_length = max(self.src_end, other.src_end) - self.src
+        n_copy = _Copy(self.dst, self.src, new_length, [])
         if not ok_dst_overlap and n_copy.dst_overlaps_src():
             return False
-        self.length = length
+        self.length = new_length
         self.insts.extend(other.insts)
         return True
 
