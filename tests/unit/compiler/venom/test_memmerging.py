@@ -366,6 +366,7 @@ def test_memmerging_ok_overlap():
     assert bb.instructions[0].operands[1].value == 32
     assert bb.instructions[0].operands[2].value == 1024
 
+
 def test_memmerging_mcopy():
     if not version_check(begin="cancun"):
         return
@@ -623,4 +624,3 @@ def test_memzeroing_imposs_effect():
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     assert not any(inst.opcode == "calldatacopy" for inst in bb.instructions)
-

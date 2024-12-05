@@ -181,7 +181,7 @@ class MemMergePass(IRPass):
                 src_op = inst.operands[1]
                 dst = inst.operands[2]
                 if (
-                    not isinstance(length, IRLiteral) 
+                    not isinstance(length, IRLiteral)
                     or not isinstance(src_op, IRLiteral)
                     or not isinstance(dst, IRLiteral)
                 ):
@@ -193,7 +193,6 @@ class MemMergePass(IRPass):
 
             elif _volatile_memory(inst):
                 _barrier()
-
 
         self._optimize_copy(bb, copies, copy_inst)
 
