@@ -116,7 +116,7 @@ class MemMergePass(IRPass):
         return True
 
     def _overlap_exist(self, copies: list[_Copy], copy: _Copy) -> bool:
-        index = bisect_left(copies, copy.src, key=lambda x: x.dst)
+        index = bisect_left(copies, copy)
 
         if index > 0:
             if copies[index - 1].overlap(copy):
@@ -146,13 +146,18 @@ class MemMergePass(IRPass):
                     continue
                 assert inst.output is not None  # help mypy
                 uses = self.dfg.get_uses(inst.output)
-                if len(uses) != 1:
+                ptr = src_op.value
+                fake_write = _Copy(ptr, ptr, 32, [])
+                if self._overlap_exist(copies, fake_write):
                     _barrier()
+                    continue
+
+                # if the mload is used by anything but an mstore, we can't
+                # delete it. (in the future this may be handled by "remove
+                # unused effects" pass).
+                if len(uses) != 1:
                     continue
                 if uses.first().opcode != "mstore":
-                    continue
-                if self._overlap_exist(copies, _Copy(src_op.value + 32, src_op.value, 32, [])):
-                    _barrier()
                     continue
                 assert isinstance(inst.output, IRVariable)
                 loads[inst.output] = src_op.value
