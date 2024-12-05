@@ -387,6 +387,25 @@ def test_memmerging_mcopy():
     assert bb.instructions[0].operands[1].value == 0
     assert bb.instructions[0].operands[2].value == 1024
 
+def test_memmerging_mcopy_small():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mcopy", 16, 0, 1024)
+    bb.append_instruction("mcopy", 16, 16, 1024 + 16)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    assert bb.instructions[0].opcode == "mload"
+    assert bb.instructions[0].operands[0].value == 0
+    assert bb.instructions[1].opcode == "mstore"
+    assert bb.instructions[1].operands[0].value == 1024
+    assert bb.instructions[1].operands[1] == bb.instructions[0].output
+
 
 def test_memzeroing_1():
     """

@@ -80,18 +80,26 @@ class MemMergePass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(self, bb: IRBasicBlock, copies: list[_Copy], copy_inst: str):
+    def _optimize_copy(self, bb: IRBasicBlock, copies: list[_Copy], copy_inst: str, load_opcode: str):
         for copy in copies:
-            if copy.length <= 32:
+            if copy.length == 32 and copy.insts[-1].opcode == copy_inst:
+                inst = copy.insts[-1]
+                index = inst.parent.instructions.index(inst)
+                load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=inst.parent.parent.get_next_variable())
+                inst.parent.insert_instruction(load, index)
+                inst.opcode = "mstore"
+                assert load.output is not None, load
+                inst.operands = [IRLiteral(copy.dst), load.output]
+            elif copy.length == 32:
                 continue
-
-            copy.insts[-1].output = None
-            copy.insts[-1].opcode = copy_inst
-            copy.insts[-1].operands = [
-                IRLiteral(copy.length),
-                IRLiteral(copy.src),
-                IRLiteral(copy.dst),
-            ]
+            else:
+                copy.insts[-1].output = None
+                copy.insts[-1].opcode = copy_inst
+                copy.insts[-1].operands = [
+                    IRLiteral(copy.length),
+                    IRLiteral(copy.src),
+                    IRLiteral(copy.dst),
+                ]
             for inst in copy.insts[0:-1]:
                 bb.remove_instruction(inst)
 
@@ -135,7 +143,7 @@ class MemMergePass(IRPass):
         copies: list[_Copy] = []
 
         def _barrier():
-            self._optimize_copy(bb, copies, copy_inst)
+            self._optimize_copy(bb, copies, copy_inst, load_inst)
             loads.clear()
 
         for inst in bb.instructions.copy():
@@ -194,7 +202,7 @@ class MemMergePass(IRPass):
             elif _volatile_memory(inst):
                 _barrier()
 
-        self._optimize_copy(bb, copies, copy_inst)
+        self._optimize_copy(bb, copies, copy_inst, load_inst)
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock, copies: list[_Copy]):
