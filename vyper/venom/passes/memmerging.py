@@ -84,20 +84,16 @@ class MemMergePass(IRPass):
         self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
     ):
         for copy in copies:
-            if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
+            if copy.length == 32:
                 inst = copy.insts[-1]
                 index = inst.parent.instructions.index(inst)
-                load = IRInstruction(
-                    load_opcode,
-                    [IRLiteral(copy.src)],
-                    output=inst.parent.parent.get_next_variable(),
-                )
+                var = bb.parent.get_next_variable()
+                load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
                 inst.parent.insert_instruction(load, index)
+
                 inst.opcode = "mstore"
-                assert load.output is not None, load
-                inst.operands = [IRLiteral(copy.dst), load.output]
-            elif copy.length == 32:
-                continue
+                inst.output = None
+                inst.operands = [IRLiteral(copy.dst), var]
             else:
                 copy.insts[-1].output = None
                 copy.insts[-1].opcode = copy_opcode
@@ -106,6 +102,7 @@ class MemMergePass(IRPass):
                     IRLiteral(copy.src),
                     IRLiteral(copy.dst),
                 ]
+
             for inst in copy.insts[0:-1]:
                 bb.mark_for_removal(inst)
 
