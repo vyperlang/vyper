@@ -80,12 +80,18 @@ class MemMergePass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(self, bb: IRBasicBlock, copies: list[_Copy], copy_inst: str, load_opcode: str):
+    def _optimize_copy(
+        self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
+    ):
         for copy in copies:
-            if copy.length == 32 and copy.insts[-1].opcode == copy_inst:
+            if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
                 inst = copy.insts[-1]
                 index = inst.parent.instructions.index(inst)
-                load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=inst.parent.parent.get_next_variable())
+                load = IRInstruction(
+                    load_opcode,
+                    [IRLiteral(copy.src)],
+                    output=inst.parent.parent.get_next_variable(),
+                )
                 inst.parent.insert_instruction(load, index)
                 inst.opcode = "mstore"
                 assert load.output is not None, load
@@ -94,7 +100,7 @@ class MemMergePass(IRPass):
                 continue
             else:
                 copy.insts[-1].output = None
-                copy.insts[-1].opcode = copy_inst
+                copy.insts[-1].opcode = copy_opcode
                 copy.insts[-1].operands = [
                     IRLiteral(copy.length),
                     IRLiteral(copy.src),
@@ -140,14 +146,14 @@ class MemMergePass(IRPass):
         self,
         bb: IRBasicBlock,
         load_opcode: str,
-        copy_inst: str,
+        copy_opcode: str,
         allow_dst_overlaps_src: bool = False,
     ):
         loads: dict[IRVariable, int] = dict()
         copies: list[_Copy] = []
 
         def _barrier():
-            self._optimize_copy(bb, copies, copy_inst, load_inst)
+            self._optimize_copy(bb, copies, copy_opcode, load_opcode)
             loads.clear()
 
         for inst in bb.instructions:
@@ -197,7 +203,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-            elif inst.opcode == copy_inst:
+            elif inst.opcode == copy_opcode:
                 if not all(isinstance(op, IRLiteral) for op in inst.operands):
                     _barrier()
                     continue
