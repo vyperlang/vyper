@@ -131,10 +131,11 @@ class ConstantFolder(VyperNodeVisitorBase):
 
     def visit_BinOp(self, node):
         left, right = [i.get_folded_value() for i in (node.left, node.right)]
-        if type(left) is not type(right):
-            raise UnfoldableNode("invalid operation", node)
-        if not isinstance(left, vy_ast.Num):
+        valid_integer_nodes = (vy_ast.Hex, vy_ast.Int)
+        if not type(left) not in valid_integer_nodes:
             raise UnfoldableNode("not a number!", node.left)
+        if not type(right) not in valid_integer_nodes:
+            raise UnfoldableNode("invalid operation", node)
 
         # this validation is performed to prevent the compiler from hanging
         # on very large shifts and improve the error message for negative
