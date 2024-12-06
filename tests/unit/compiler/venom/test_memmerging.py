@@ -6,6 +6,12 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
 
+def _nochange(instructions, bb):
+    if len(instructions) != len(bb.instructions):
+        return False
+    return all(inst1 is inst2 for (inst1, inst2) in zip(instructions, bb.instructions))
+
+
 def test_memmerging():
     """
     Basic memory merge test
@@ -442,23 +448,40 @@ def test_memmerging_not_allowed_overlapping():
     fn = ctx.create_function("_global")
 
     bb = fn.get_basic_block()
+
     val0 = bb.append_instruction("mload", 1024)
     bb.append_instruction("mcopy", 128, 64, 1024)
     bb.append_instruction("mstore", val0, 2048)
     bb.append_instruction("stop")
 
+    pre = bb.instructions.copy()
+
     ac = IRAnalysesCache(fn)
     MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0].value == 1024
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 128
-    assert bb.instructions[1].operands[1].value == 64
-    assert bb.instructions[1].operands[2].value == 1024
-    assert bb.instructions[2].opcode == "mstore"
-    assert bb.instructions[2].operands[0] == val0
-    assert bb.instructions[2].operands[1].value == 2048
+    assert _nochange(pre, bb)
+
+
+def test_memmerging_not_allowed_overlapping2():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 1024)
+    val1 = bb.append_instruction("mload", 1024 + 32)
+    bb.append_instruction("mcopy", 128, 64, 1024)  # src 128 dst 1024
+    bb.append_instruction("mstore", val0, 2048)  # dst 2048
+    bb.append_instruction("mstore", val1, 2048 + 32)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb)
 
 
 def test_memmerging_existing_copy_overwrite():
