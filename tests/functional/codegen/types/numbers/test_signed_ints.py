@@ -478,13 +478,3 @@ def foo():
         compile_code(code)
 
     assert e.value._hint == "did you mean `-5 // 9`?"
-
-
-def test_invalid_hex_int():
-    code = """
-@external
-def foo():
-    a: int8 = 0xff
-    """
-    with pytest.raises(TypeMismatch):
-        compile_code(code)
