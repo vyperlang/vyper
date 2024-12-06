@@ -75,7 +75,7 @@ class MemMergePass(IRPass):
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb_memzero(bb)
-            self._handle_bb(bb, "calldataload", "calldatacopy")
+            self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -174,7 +174,7 @@ class MemMergePass(IRPass):
                 # accumulated
                 ptr = src_op.value
                 fake_write = _Copy(ptr, ptr, 32, [])
-                if self._overlap_exist(copies, fake_write):
+                if not allow_dst_overlaps_src and self._overlap_exist(copies, fake_write):
                     _barrier()
                     continue
 

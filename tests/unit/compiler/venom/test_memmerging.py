@@ -481,6 +481,26 @@ def test_memmerging_existing_copy_overwrite():
     assert orig == bb.instructions
 
 
+def test_memmerging_calldataload():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("calldataload", 32)
+    bb.append_instruction("mstore", val0, 64)
+    val1 = bb.append_instruction("calldataload", 64)
+    bb.append_instruction("mstore", val1, 64 + 32)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatacopy"
+    assert bb.instructions[0].operands[0].value == 64
+    assert bb.instructions[0].operands[1].value == 32
+    assert bb.instructions[0].operands[2].value == 64
+
+
 def test_memzeroing_1():
     """
     Test of basic memzeroing
