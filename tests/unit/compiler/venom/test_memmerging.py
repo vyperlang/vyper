@@ -517,6 +517,29 @@ def test_memmerging_unused_mload_1():
     assert bb.instructions[2].opcode == "return"
 
 
+def test_memmerging_write_after_write():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    val00 = bb.append_instruction("mload", 0)
+    val10 = bb.append_instruction("mload", 100)
+    val01 = bb.append_instruction("mload", 32)
+    val11 = bb.append_instruction("mload", 132)
+    bb.append_instruction("mstore", val00, 1000)
+    bb.append_instruction("mstore", val10, 1000)
+    bb.append_instruction("mstore", val11, 1032)
+    bb.append_instruction("mstore", val01, 1032)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb), bb
 
 def test_memmerging_not_allowed_overlapping2():
     if not version_check(begin="cancun"):
