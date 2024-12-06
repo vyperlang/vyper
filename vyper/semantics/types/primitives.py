@@ -146,7 +146,7 @@ class NumericT(_PrimT):
 
             value = node.uint_value
             if self.is_signed:
-                value = unsigned_to_signed(value, self.bits, strict=True)
+                value = unsigned_to_signed(value, self.bits)
 
         if value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
