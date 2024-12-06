@@ -540,6 +540,48 @@ def test_memmerging_write_after_write():
 
     assert _nochange(pre, bb), bb
 
+def test_memmerging_write_after_write_mstore_and_mcopy():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    val0 = bb.append_instruction("mload", 0)
+    val1 = bb.append_instruction("mload", 132)
+    bb.append_instruction("mstore", val0, 1000)
+    bb.append_instruction("mcopy", 16, 100, 1000)
+    bb.append_instruction("mstore", val1, 1032)
+    bb.append_instruction("mcopy", 64, 116, 1016)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb), bb
+
+def test_memmerging_write_after_write_only_mcopy():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("mcopy", 16, 0, 1000)
+    bb.append_instruction("mcopy", 16, 100, 1000)
+    bb.append_instruction("mcopy", 64, 116, 1016)
+    bb.append_instruction("mcopy", 64, 16, 1016)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb), bb
+
 
 def test_memmerging_not_allowed_overlapping2():
     if not version_check(begin="cancun"):
