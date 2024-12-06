@@ -37,7 +37,7 @@ def test_memmerging():
     MemMergePass(ac, fn).run_pass()
 
     assert not any(inst.opcode == "mstore" for inst in bb.instructions)
-    assert not any(inst.opcode == "mload" for inst in bb.instructions)
+    assert not any(inst.opcode == "mload" for inst in bb.instructions), bb
     assert not any(inst.opcode == "mload" for inst in bb.instructions)
     assert bb.instructions[0].opcode == "mcopy"
     assert bb.instructions[0].operands[0].value == 96
@@ -450,8 +450,10 @@ def test_memmerging_not_allowed_overlapping():
     bb = fn.get_basic_block()
 
     val0 = bb.append_instruction("mload", 1024)
+    val1 = bb.append_instruction("mload", 1024 + 32)
     bb.append_instruction("mcopy", 128, 64, 1024)
     bb.append_instruction("mstore", val0, 2048)
+    bb.append_instruction("mstore", val1, 2048 + 32)
     bb.append_instruction("stop")
 
     pre = bb.instructions.copy()
@@ -460,6 +462,60 @@ def test_memmerging_not_allowed_overlapping():
     MemMergePass(ac, fn).run_pass()
 
     assert _nochange(pre, bb)
+
+
+def test_memmerging_unused_mload():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val1 = bb.append_instruction("mload", 100)
+    val2 = bb.append_instruction("mload", 132)
+    bb.append_instruction("mstore", val2, 64)
+    val = bb.append_instruction("mload", 32)
+    bb.append_instruction("mstore", val1, 32)
+    bb.append_instruction("return", val, val)
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mload"
+    assert bb.instructions[0].operands[0].value == 32
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 100
+    assert bb.instructions[1].operands[2].value == 32
+    assert bb.instructions[2].opcode == "return"
+
+
+
+def test_memmerging_unused_mload_1():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val1 = bb.append_instruction("mload", 100)
+    val2 = bb.append_instruction("mload", 132)
+    bb.append_instruction("mstore", val1, 0)
+    val = bb.append_instruction("mload", 32)
+    bb.append_instruction("mstore", val2, 32)
+    bb.append_instruction("return", val, val)
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mload"
+    assert bb.instructions[0].operands[0].value == 32
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 100
+    assert bb.instructions[1].operands[2].value == 0
+    assert bb.instructions[2].opcode == "return"
+
 
 
 def test_memmerging_not_allowed_overlapping2():

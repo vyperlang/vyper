@@ -98,6 +98,8 @@ class MemMergePass(IRPass):
 
     def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
         for copy in self._copies:
+            copy.insts.sort(key=bb.instructions.index, reverse=True)
+
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
 
@@ -131,7 +133,6 @@ class MemMergePass(IRPass):
                     IRLiteral(copy.src),
                     IRLiteral(copy.dst),
                 ]
-
 
         self._copies.clear()
         self._loads.clear()
@@ -190,6 +191,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
+                assert inst.output is not None
                 self._loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
