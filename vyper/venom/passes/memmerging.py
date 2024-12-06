@@ -119,23 +119,25 @@ class MemMergePass(IRPass):
                     uses = self.dfg.get_uses(inst.output)
                     if not all(use in copy.insts for use in uses):
                         continue
+                    if len(uses) != 1 or uses.first().opcode == "mstore":
+                        continue
 
                 bb.mark_for_removal(inst)
 
             inst = copy.insts[-1]
-            if copy.length == 32:
+            if copy.length != 32:
+                inst.output = None
+                inst.opcode = copy_opcode
+                inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
+            elif inst.opcode != "mstore":
                 index = inst.parent.instructions.index(inst)
                 var = bb.parent.get_next_variable()
                 load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
                 inst.parent.insert_instruction(load, index)
 
+                inst.output = None
                 inst.opcode = "mstore"
-                inst.output = None
                 inst.operands = [var, IRLiteral(copy.dst)]
-            else:
-                inst.output = None
-                inst.opcode = copy_opcode
-                inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
 
         self._copies.clear()
         self._loads.clear()
