@@ -88,6 +88,7 @@ class MemMergePass(IRPass):
     dfg: DFGAnalysis
     _copies: list[_Copy]
     _loads: dict[IRVariable, int]
+    _untracted_loads: set[int]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
@@ -109,8 +110,6 @@ class MemMergePass(IRPass):
 
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
-
-
 
             inst = copy.insts[-1]
             if copy.length != 32:
@@ -134,16 +133,15 @@ class MemMergePass(IRPass):
 
         self._copies.clear()
         self._loads.clear()
+        self._untracted_loads.clear()
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> bool:
         for copy in self._copies:
             # note, these are the same:
             # - new_copy.overwrites(copy.dst_interval())
             # - copy.overwrites(new_copy.dst_interval())
-            if (
-                new_copy.overwrites(copy.dst_interval())
-                and not (copy.can_merge(new_copy)
-                or new_copy.can_merge(copy))
+            if new_copy.overwrites(copy.dst_interval()) and not (
+                copy.can_merge(new_copy) or new_copy.can_merge(copy)
             ):
                 return True
         return False
@@ -153,6 +151,10 @@ class MemMergePass(IRPass):
         if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
             return True
         for _, load_ptr in self._loads.items():
+            read_interval = _Interval(load_ptr, 32)
+            if self._overwrites(read_interval):
+                return True
+        for load_ptr in self._untracted_loads:
             read_interval = _Interval(load_ptr, 32)
             if self._overwrites(read_interval):
                 return True
@@ -185,6 +187,7 @@ class MemMergePass(IRPass):
         allow_dst_overlaps_src: bool = False,
     ):
         self._loads = {}
+        self._untracted_loads = set()
         self._copies = []
 
         def _barrier():
@@ -200,6 +203,7 @@ class MemMergePass(IRPass):
                 assert inst.output is not None  # help mypy
                 uses = self.dfg.get_uses(inst.output)
                 if len(uses) != 1 or not uses.first().opcode == "mstore":
+                    self._untracted_loads.add(src_op.value)
                     continue
                 self._loads[inst.output] = src_op.value
 
