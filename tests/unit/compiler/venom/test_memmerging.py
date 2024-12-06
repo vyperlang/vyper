@@ -134,7 +134,7 @@ def test_memmerging_bypass_fence():
     We should be able to optimize this to an mcopy(0, 1024, 64)
     """
     if not version_check(begin="cancun"):
-        return
+        assert False
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
