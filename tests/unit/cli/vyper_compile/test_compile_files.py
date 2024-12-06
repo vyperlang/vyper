@@ -436,7 +436,7 @@ def test_compile_vyz_with_options(input_files):
             # would have to normalize paths and imports, so just verify it compiles
             continue
 
-        if option in ["ir_runtime", "ir", "asm", "archive", "solc_json"]:
+        if option in ["ir_runtime", "ir", "archive", "solc_json"]:
             # TODO investigate why these don't pass the assert
             continue
 
