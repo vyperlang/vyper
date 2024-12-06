@@ -47,7 +47,7 @@ class _Copy:
         return self.overwrites(self.src_interval())
 
     def overwrites(self, interval: _Interval) -> bool:
-        # return true if dst of self overwrites src of the other.
+        # return true if dst of self overwrites the interval
         a = max(self.dst, interval.start)
         b = min(self.dst_end, interval.end)
         return a < b
@@ -142,8 +142,13 @@ class MemMergePass(IRPass):
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> bool:
         for copy in self._copies:
-            if new_copy.overwrites(copy.dst_interval()) and not (
-                copy.can_merge(new_copy) or new_copy.can_merge(copy)
+            # note, these are the same:
+            # - new_copy.overwrites(copy.dst_interval())
+            # - copy.overwrites(new_copy.dst_interval())
+            if (
+                new_copy.overwrites(copy.dst_interval())
+                and not (copy.can_merge(new_copy))
+                or new_copy.can_merge(copy)
             ):
                 return True
         return False
