@@ -88,7 +88,7 @@ class MemMergePass(IRPass):
         self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
     ):
         for copy in copies:
-            if copy.length == 32:
+            if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
                 inst = copy.insts[0]
                 index = inst.parent.instructions.index(inst)
                 var = bb.parent.get_next_variable()
@@ -98,6 +98,8 @@ class MemMergePass(IRPass):
                 inst.opcode = "mstore"
                 inst.output = None
                 inst.operands = [var, IRLiteral(copy.dst)]
+            elif copy.length == 32:
+                continue
             else:
                 copy.insts[0].output = None
                 copy.insts[0].opcode = copy_opcode
@@ -117,6 +119,9 @@ class MemMergePass(IRPass):
     ) -> bool:
         if not allow_dst_overlap_src and new_copy.dst_overlaps_src():
             return False
+        if not allow_dst_overlap_src and any(new_copy.overlap(copy) for copy in copies):
+            return False
+
         index = bisect_left(copies, new_copy)
         copies.insert(index, new_copy)
 

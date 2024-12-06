@@ -134,7 +134,7 @@ def test_memmerging_bypass_fence():
     We should be able to optimize this to an mcopy(0, 1024, 64)
     """
     if not version_check(begin="cancun"):
-        assert False
+        raise AssertionError()
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -406,6 +406,79 @@ def test_memmerging_mcopy_small():
     assert bb.instructions[1].opcode == "mstore"
     assert bb.instructions[1].operands[0] == bb.instructions[0].output
     assert bb.instructions[1].operands[1].value == 1024
+
+
+def test_memmerging_allowed_overlapping():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 64)
+    bb.append_instruction("mcopy", 128, 64, 1024)
+    val1 = bb.append_instruction("mload", 32)
+    bb.append_instruction("mstore", val0, 2048 + 32)
+    bb.append_instruction("mstore", val1, 2048)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 128
+    assert bb.instructions[0].operands[1].value == 64
+    assert bb.instructions[0].operands[2].value == 1024
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 32
+    assert bb.instructions[1].operands[2].value == 2048
+
+
+def test_memmerging_not_allowed_overlapping():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 1024)
+    bb.append_instruction("mcopy", 128, 64, 1024)
+    bb.append_instruction("mstore", val0, 2048)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mload"
+    assert bb.instructions[0].operands[0].value == 1024
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 128
+    assert bb.instructions[1].operands[1].value == 64
+    assert bb.instructions[1].operands[2].value == 1024
+    assert bb.instructions[2].opcode == "mstore"
+    assert bb.instructions[2].operands[0] == val0
+    assert bb.instructions[2].operands[1].value == 2048
+
+
+def test_memmerging_existing_copy_overwrite():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mcopy", 64, 64, 1024)
+    val = bb.append_instruction("mload", 2048)
+    bb.append_instruction("mstore", val, 64)
+    bb.append_instruction("mcopy", 64, 64 + 64, 1024 + 64)
+    bb.append_instruction("stop")
+
+    orig = bb.instructions.copy()
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert orig == bb.instructions
 
 
 def test_memzeroing_1():
