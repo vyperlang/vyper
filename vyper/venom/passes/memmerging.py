@@ -235,11 +235,9 @@ class MemMergePass(IRPass):
 
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
@@ -252,11 +250,9 @@ class MemMergePass(IRPass):
 
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 self._add_copy(n_copy)
 
             elif _volatile_memory(inst):
@@ -305,7 +301,6 @@ class MemMergePass(IRPass):
                 n_copy = _Copy(dst.value, dst.value, 32, [inst])
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
                 length, var, dst = inst.operands
@@ -323,7 +318,6 @@ class MemMergePass(IRPass):
                 n_copy = _Copy(dst.value, dst.value, length.value, [inst])
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
-                    continue
                 self._add_copy(n_copy)
             elif _volatile_memory(inst):
                 _barrier()

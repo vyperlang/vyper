@@ -540,6 +540,7 @@ def test_memmerging_write_after_write():
 
     assert _nochange(pre, bb), bb
 
+
 def test_memmerging_write_after_write_mstore_and_mcopy():
     if not version_check(begin="cancun"):
         return
@@ -562,6 +563,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
 
     assert _nochange(pre, bb), bb
 
+
 def test_memmerging_write_after_write_only_mcopy():
     if not version_check(begin="cancun"):
         return
@@ -576,11 +578,21 @@ def test_memmerging_write_after_write_only_mcopy():
     bb.append_instruction("mcopy", 64, 16, 1016)
     bb.append_instruction("stop")
 
-    pre = bb.instructions.copy()
     ac = IRAnalysesCache(fn)
     MemMergePass(ac, fn).run_pass()
 
-    assert _nochange(pre, bb), bb
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 16
+    assert bb.instructions[0].operands[1].value == 0
+    assert bb.instructions[0].operands[2].value == 1000
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 16 + 64
+    assert bb.instructions[1].operands[1].value == 100
+    assert bb.instructions[1].operands[2].value == 1000
+    assert bb.instructions[2].opcode == "mcopy"
+    assert bb.instructions[2].operands[0].value == 64
+    assert bb.instructions[2].operands[1].value == 16
+    assert bb.instructions[2].operands[2].value == 1016
 
 
 def test_memmerging_not_allowed_overlapping2():
