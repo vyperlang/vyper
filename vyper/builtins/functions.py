@@ -2370,9 +2370,16 @@ class ABIEncode(BuiltinFunctionT):
                     for t in get_possible_types_from_node(kwarg.value)
                     if not isinstance(t, IntegerT)
                 ]
-                ret[kwarg_name] = p_types.pop()
+                typ = p_types.pop()
+
+                if isinstance(typ, BytesT) and typ.length != 4:
+                    raise InvalidLiteral("method_id must be exactly 4 bytes!", kwarg.value)
+
             else:
-                ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+                typ = get_exact_type_from_node(kwarg.value)
+
+            ret[kwarg_name] = typ
+
         return ret
 
     def fetch_call_return(self, node):
