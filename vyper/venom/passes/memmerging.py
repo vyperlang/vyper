@@ -88,7 +88,6 @@ class MemMergePass(IRPass):
     dfg: DFGAnalysis
     _copies: list[_Copy]
     _loads: dict[IRVariable, int]
-    _untracted_loads: set[int]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
@@ -111,12 +110,23 @@ class MemMergePass(IRPass):
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
 
+            pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32:
                 inst.output = None
                 inst.opcode = copy_opcode
                 inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
-            elif inst.opcode != "mstore":
+            elif inst.opcode == "mstore":
+                # we already have a load which is the val for this mstore;
+                # leave it in place.
+                var, _ = inst.operands
+                assert isinstance(var, IRVariable)  # help mypy
+                pin_inst = self.dfg.get_producing_instruction(var)
+                assert pin_inst is not None  # help mypy
+
+            else:
+                # we are converting an mcopy into an mload+mstore (mload+mstore
+                # is 1 byte smaller than mcopy).
                 index = inst.parent.instructions.index(inst)
                 var = bb.parent.get_next_variable()
                 load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
@@ -125,15 +135,24 @@ class MemMergePass(IRPass):
                 inst.output = None
                 inst.opcode = "mstore"
                 inst.operands = [var, IRLiteral(copy.dst)]
-            else:
-                continue
 
             for inst in copy.insts[:-1]:
+                if inst.opcode == load_opcode:
+                    if inst is pin_inst:
+                        continue
+
+                    # if the load is used by any instructions besides the ones
+                    # we are removing, we can't delete it. (in the future this
+                    # may be handled by "remove unused effects" pass).
+                    assert inst.output is not None  # help mypy
+                    uses = self.dfg.get_uses(inst.output)
+                    if not all(use in copy.insts for use in uses):
+                        continue
+
                 bb.mark_for_removal(inst)
 
         self._copies.clear()
         self._loads.clear()
-        self._untracted_loads.clear()
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> bool:
         for copy in self._copies:
@@ -151,10 +170,6 @@ class MemMergePass(IRPass):
         if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
             return True
         for _, load_ptr in self._loads.items():
-            read_interval = _Interval(load_ptr, 32)
-            if self._overwrites(read_interval):
-                return True
-        for load_ptr in self._untracted_loads:
             read_interval = _Interval(load_ptr, 32)
             if self._overwrites(read_interval):
                 return True
@@ -187,7 +202,6 @@ class MemMergePass(IRPass):
         allow_dst_overlaps_src: bool = False,
     ):
         self._loads = {}
-        self._untracted_loads = set()
         self._copies = []
 
         def _barrier():
@@ -200,11 +214,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-                assert inst.output is not None  # help mypy
-                uses = self.dfg.get_uses(inst.output)
-                if len(uses) != 1 or not uses.first().opcode == "mstore":
-                    self._untracted_loads.add(src_op.value)
-                    continue
+                assert inst.output is not None
                 self._loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
