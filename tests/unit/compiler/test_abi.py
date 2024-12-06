@@ -645,6 +645,8 @@ def update_counter():
 import lib1
 uses: lib1
 
+phony: uint32
+
 @internal
 def use_lib1():
     lib1.update_counter()

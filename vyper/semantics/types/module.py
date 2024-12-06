@@ -565,10 +565,10 @@ class ModuleT(VyperType):
         """
         Determine whether ModuleT is stateless by examining its top-level
         declarations. A module has state if it contains storage variables,
-        transient variables, or immutables, or if it includes a "uses" or
-        "initializes" declaration, or any nonreentrancy locks.
+        transient variables, or immutables, or if it includes a "initializes"
+        declaration, or any nonreentrancy locks.
         """
-        if len(self.initializes_decls) > 0 or len(self.uses_decls) > 0:
+        if len(self.initializes_decls) > 0:
             return False
         if any(not v.is_constant for v in self.variable_decls):
             return False
