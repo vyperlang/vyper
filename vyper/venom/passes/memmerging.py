@@ -110,19 +110,7 @@ class MemMergePass(IRPass):
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
 
-            for inst in copy.insts[:-1]:
-                if inst.opcode == load_opcode:
-                    # if the load is used by anything but an mstore, we can't
-                    # delete it. (in the future this may be handled by "remove
-                    # unused effects" pass).
-                    assert inst.output is not None  # help mypy
-                    uses = self.dfg.get_uses(inst.output)
-                    if not all(use in copy.insts for use in uses):
-                        continue
-                    if len(uses) != 1 or uses.first().opcode == "mstore":
-                        continue
 
-                bb.mark_for_removal(inst)
 
             inst = copy.insts[-1]
             if copy.length != 32:
@@ -138,6 +126,11 @@ class MemMergePass(IRPass):
                 inst.output = None
                 inst.opcode = "mstore"
                 inst.operands = [var, IRLiteral(copy.dst)]
+            else:
+                continue
+
+            for inst in copy.insts[:-1]:
+                bb.mark_for_removal(inst)
 
         self._copies.clear()
         self._loads.clear()
@@ -149,8 +142,8 @@ class MemMergePass(IRPass):
             # - copy.overwrites(new_copy.dst_interval())
             if (
                 new_copy.overwrites(copy.dst_interval())
-                and not (copy.can_merge(new_copy))
-                or new_copy.can_merge(copy)
+                and not (copy.can_merge(new_copy)
+                or new_copy.can_merge(copy))
             ):
                 return True
         return False
@@ -204,7 +197,10 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-                assert inst.output is not None
+                assert inst.output is not None  # help mypy
+                uses = self.dfg.get_uses(inst.output)
+                if len(uses) != 1 or not uses.first().opcode == "mstore":
+                    continue
                 self._loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
