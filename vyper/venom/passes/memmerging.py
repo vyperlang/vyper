@@ -152,19 +152,8 @@ class MemMergePass(IRPass):
     def _overwrites(self, inter: _Interval) -> bool:
         # check if any of self._copies tramples the interval
 
-        # use bisect_left to optimize:
-        # return any(c.overwrites(inter) for c in self._copies)
-
-        index = bisect_left(self._copies, inter.start, key=lambda t: t.dst)
-
-        to_check = []
-
-        if index > 0:
-            to_check.append(self._copies[index - 1])
-        if index < len(self._copies):
-            to_check.append(self._copies[index])
-
-        return any(c.overwrites(inter) for c in to_check)
+        # could use bisect_left to optimize, but it's harder to reason about
+        return any(c.overwrites(inter) for c in self._copies)
 
     def _handle_bb(
         self,
