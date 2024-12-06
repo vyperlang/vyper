@@ -885,9 +885,9 @@ class Hex(Constant):
         return bytes.fromhex(self.value.removeprefix("0x"))
 
     @property
-    def int_value(self):
+    def uint_value(self):
         """
-        This value as integer
+        This value as unsigned integer
         """
         return hex_to_int(self.value)
 

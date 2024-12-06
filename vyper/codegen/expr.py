@@ -67,6 +67,7 @@ from vyper.utils import (
     bytes_to_int,
     is_checksum_encoded,
     string_to_bytes,
+    unsigned_to_signed,
     vyper_warn,
 )
 
@@ -135,9 +136,9 @@ class Expr:
             return IRnode.from_list(val, typ=t)
 
         elif is_integer_type(t):
-            assert not t.is_signed
-
-            val = self.expr.int_value
+            val = self.expr.uint_value
+            if t.is_signed:
+                val = unsigned_to_signed(val, t.bits, strict=True)
             return IRnode.from_list(val, typ=t)
 
     # String literals

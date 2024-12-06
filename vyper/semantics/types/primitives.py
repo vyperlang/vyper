@@ -13,7 +13,7 @@ from vyper.exceptions import (
     OverflowException,
     VyperException,
 )
-from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
+from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded, unsigned_to_signed
 
 from .base import VyperType
 from .bytestrings import BytesT
@@ -141,12 +141,12 @@ class NumericT(_PrimT):
 
         value = node.value
         if isinstance(node, vy_ast.Hex):
-            if self.is_signed:
-                raise InvalidLiteral("Hex integers must be unsigned", node)
             if node.value not in (node.value.lower(), node.value.upper()):
                 raise InvalidLiteral("Cannot mix uppercase and lowercase for hex integers", node)
 
-            value = node.int_value
+            value = node.uint_value
+            if self.is_signed:
+                value = unsigned_to_signed(value, self.bits, strict=True)
 
         if value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
