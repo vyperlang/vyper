@@ -163,6 +163,10 @@ class PreParser:
     settings: Settings
     # A mapping of class names to their original class types.
     modification_offsets: dict[tuple[int, int], str]
+
+    # Magic adjustments
+    adjustments: dict[tuple[int, int], int]
+
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
     # A list of line/column offsets of hex string literals
@@ -196,6 +200,7 @@ class PreParser:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
     def _parse(self, code: str):
+        adjustments: dict = {}
         result: list[TokenInfo] = []
         modification_offsets: dict[tuple[int, int], str] = {}
         settings = Settings()
@@ -215,6 +220,12 @@ class PreParser:
             start = token.start
             end = token.end
             line = token.line
+
+            for tok in toks:
+                lineno, col = tok.start
+                adj = _col_adjustments[lineno]
+                newstart = lineno, col - adj
+                adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -273,15 +284,25 @@ class PreParser:
 
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
-                    toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                    new_keyword = "class"
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
+
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
+
+                    modification_offsets[newstart] = VYPER_CLASS_TYPES[string]
+
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
-                    adjustment = len(new_keyword) - len(string)
-                    # adjustments for following staticcall/extcall modification_offsets
-                    _col_adjustments[start[0]] += adjustment
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                    modification_offsets[newstart] = CUSTOM_STATEMENT_TYPES[string]
+
                 elif string in CUSTOM_EXPRESSION_TYPES:
                     # a bit cursed technique to get untokenize to put
                     # the new tokens in the right place so that modification_offsets
@@ -291,18 +312,15 @@ class PreParser:
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
-                    lineno, col_offset = start
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
 
                     # fixup for when `extcall/staticcall` follows `log`
-                    adjustment = _col_adjustments[lineno]
-                    new_start = (lineno, col_offset + adjustment)
-                    modification_offsets[new_start] = vyper_type
+                    modification_offsets[newstart] = vyper_type
 
-                    # tells untokenize to add whitespace, preserving locations
-                    diff = len(new_keyword) - len(string)
-                    new_end = end[0], end[1] + diff
-
-                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
@@ -314,6 +332,7 @@ class PreParser:
         for k, v in for_parser.annotations.items():
             for_loop_annotations[k] = v.copy()
 
+        self.adjustments = adjustments
         self.settings = settings
         self.modification_offsets = modification_offsets
         self.for_loop_annotations = for_loop_annotations
