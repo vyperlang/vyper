@@ -31,6 +31,7 @@ from vyper.utils import (
     SizeLimits,
     annotate_source_code,
     evm_div,
+    hex_to_int,
     quantize,
     sha256sum,
 )
@@ -882,6 +883,13 @@ class Hex(Constant):
         This value as bytes
         """
         return bytes.fromhex(self.value.removeprefix("0x"))
+
+    @property
+    def uint_value(self):
+        """
+        This value as unsigned integer
+        """
+        return hex_to_int(self.value)
 
 
 class Str(Constant):
