@@ -100,7 +100,7 @@ class MemMergePass(IRPass):
         for copy in self._copies:
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
-            if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
+            if copy.length == 32:
                 inst = copy.insts[0]
                 index = inst.parent.instructions.index(inst)
                 var = bb.parent.get_next_variable()
@@ -110,8 +110,6 @@ class MemMergePass(IRPass):
                 inst.opcode = "mstore"
                 inst.output = None
                 inst.operands = [var, IRLiteral(copy.dst)]
-            elif copy.length == 32:
-                continue
             else:
                 copy.insts[0].output = None
                 copy.insts[0].opcode = copy_opcode
@@ -122,6 +120,17 @@ class MemMergePass(IRPass):
                 ]
 
             for inst in copy.insts[1:]:
+                if inst.opcode == load_opcode:
+                    # if the load is used by anything but an mstore, we can't
+                    # delete it. (in the future this may be handled by "remove
+                    # unused effects" pass).
+                    assert inst.output is not None  # help mypy
+                    uses = self.dfg.get_uses(inst.output)
+                    if len(uses) != 1:
+                        continue
+                    if uses.first().opcode != "mstore":
+                        continue
+
                 bb.mark_for_removal(inst)
 
         self._copies.clear()
@@ -179,16 +188,6 @@ class MemMergePass(IRPass):
                 read_interval = _Interval(load_ptr, 32)
                 if not allow_dst_overlaps_src and self._overwrites(read_interval):
                     _barrier()
-                    continue
-
-                # if the mload is used by anything but an mstore, we can't
-                # delete it. (in the future this may be handled by "remove
-                # unused effects" pass).
-                assert inst.output is not None  # help mypy
-                uses = self.dfg.get_uses(inst.output)
-                if len(uses) != 1:
-                    continue
-                if uses.first().opcode != "mstore":
                     continue
 
                 self._loads[inst.output] = src_op.value
