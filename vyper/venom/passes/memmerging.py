@@ -72,8 +72,8 @@ class _Copy:
 
 class MemMergePass(IRPass):
     dfg: DFGAnalysis
-    copies: list[_Copy]
-    loads: dict[IRVariable, int]
+    _copies: list[_Copy]
+    _loads: dict[IRVariable, int]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
@@ -92,7 +92,7 @@ class MemMergePass(IRPass):
     def _optimize_copy(
         self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str
     ):
-        for copy in self.copies:
+        for copy in self._copies:
             if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
                 inst = copy.insts[0]
                 index = inst.parent.instructions.index(inst)
@@ -117,7 +117,8 @@ class MemMergePass(IRPass):
             for inst in copy.insts[1:]:
                 bb.mark_for_removal(inst)
 
-        self.copies.clear()
+        self._copies.clear()
+        self._loads.clear()
 
     def _add_copy(
         self,
@@ -127,35 +128,35 @@ class MemMergePass(IRPass):
         if not allow_dst_overlap_src:
             if new_copy.dst_overlaps_src():
                 return False
-            if any(new_copy.overwrites(copy) for copy in self.copies):
+            if any(new_copy.overwrites(copy) for copy in self._copies):
                 return False
-            for _, src in self.loads.copy().items():
+            for _, src in self._loads.items():
                 dummy = _Copy(src, src, 32, [])
                 if self._overwrite_exist(dummy):
                     return False
 
-        index = bisect_left(self.copies, new_copy)
-        self.copies.insert(index, new_copy)
+        index = bisect_left(self._copies, new_copy)
+        self._copies.insert(index, new_copy)
 
         i = max(index - 1, 0)
-        while i < min(index + 1, len(self.copies) - 1):
-            merged = self.copies[i].merge(self.copies[i + 1], allow_dst_overlap_src)
+        while i < min(index + 1, len(self._copies) - 1):
+            merged = self._copies[i].merge(self._copies[i + 1], allow_dst_overlap_src)
             if merged:
-                del self.copies[i + 1]
+                del self._copies[i + 1]
             else:
                 i += 1
 
         return True
 
     def _overwrite_exist(self, copy: _Copy) -> bool:
-        index = bisect_left(self.copies, copy.reverse())
+        index = bisect_left(self._copies, copy.reverse())
 
         if index > 0:
-            if self.copies[index - 1].overwrites(copy):
+            if self._copies[index - 1].overwrites(copy):
                 return True
 
-        if index < len(self.copies):
-            if self.copies[index].overwrites(copy):
+        if index < len(self._copies):
+            if self._copies[index].overwrites(copy):
                 return True
 
         return False
@@ -167,12 +168,11 @@ class MemMergePass(IRPass):
         copy_opcode: str,
         allow_dst_overlaps_src: bool = False,
     ):
-        self.loads = dict()
-        self.copies = []
+        self._loads = {}
+        self._copies = []
 
         def _barrier():
             self._optimize_copy(bb, copy_opcode, load_opcode)
-            self.loads.clear()
 
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
@@ -200,7 +200,7 @@ class MemMergePass(IRPass):
                 if uses.first().opcode != "mstore":
                     continue
 
-                self.loads[inst.output] = src_op.value
+                self._loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
                 var, dst = inst.operands
@@ -209,11 +209,11 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-                if var not in self.loads:
+                if var not in self._loads:
                     _barrier()
                     continue
 
-                src_ptr = self.loads[var]
+                src_ptr = self._loads[var]
                 load_inst = self.dfg.get_producing_instruction(var)
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
@@ -247,7 +247,7 @@ class MemMergePass(IRPass):
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
-        for copy in self.copies:
+        for copy in self._copies:
             inst = copy.insts[0]
             if copy.length == 32:
                 inst.opcode = "mstore"
@@ -264,15 +264,15 @@ class MemMergePass(IRPass):
             for inst in copy.insts[1:]:
                 bb.mark_for_removal(inst)
 
-        self.copies.clear()
+        self._copies.clear()
+        self._loads.clear()
 
     def _handle_bb_memzero(self, bb: IRBasicBlock):
-        self.loads = {}
-        self.copies = []
+        self._loads = {}
+        self._copies = []
 
         def _barrier():
             self._optimize_memzero(bb)
-            self.loads.clear()
 
         for inst in bb.instructions:
             if inst.opcode == "mstore":
