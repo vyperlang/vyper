@@ -9,6 +9,16 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 @dataclass
+class _Interval:
+    start: int
+    length: int
+
+    @property
+    def end(self):
+        return self.start + self.length
+
+
+@dataclass
 class _Copy:
     # abstract "copy" operation which contains a list of copy instructions
     # and can fuse them into a single copy operation.
@@ -25,18 +35,18 @@ class _Copy:
     def dst_end(self) -> int:
         return self.dst + self.length
 
-    def reverse(self) -> "_Copy":
-        return _Copy(dst=self.src, src=self.dst, length=self.length, insts=self.insts)
+    def src_interval(self) -> _Interval:
+        return _Interval(self.src, self.length)
 
-    def dst_overlaps_src(self) -> bool:
+    def overwrites_self_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
-        return self.overwrites(self)
+        return self.overwrites(self.src_interval())
 
-    def overwrites(self, other: "_Copy") -> bool:
+    def overwrites(self, interval: _Interval) -> bool:
         # return true if dst of self overwrites src of the other.
-        a = max(self.dst, other.src)
-        b = min(self.dst_end, other.src_end)
+        a = max(self.dst, interval.start)
+        b = min(self.dst_end, interval.end)
         return a < b
 
     def merge(self, other: "_Copy", ok_dst_overlap: bool = True) -> bool:
@@ -57,8 +67,8 @@ class _Copy:
 
         new_length = max(self.src_end, other.src_end) - self.src
         n_copy = _Copy(self.dst, self.src, new_length, [])
-        if not ok_dst_overlap and n_copy.dst_overlaps_src():
-            return False
+        if not ok_dst_overlap:
+            assert not n_copy.overwrites(n_copy.src_interval())
         self.length = new_length
         self.insts.extend(other.insts)
         return True
@@ -89,9 +99,7 @@ class MemMergePass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(
-        self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str
-    ):
+    def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
         for copy in self._copies:
             if copy.length == 32 and copy.insts[-1].opcode == copy_opcode:
                 inst = copy.insts[0]
@@ -120,19 +128,14 @@ class MemMergePass(IRPass):
         self._copies.clear()
         self._loads.clear()
 
-    def _add_copy(
-        self,
-        new_copy: _Copy,
-        allow_dst_overlap_src: bool = False,
-    ) -> bool:
+    def _add_copy(self, new_copy: _Copy, allow_dst_overlap_src: bool = False) -> bool:
         if not allow_dst_overlap_src:
-            if new_copy.dst_overlaps_src():
+            new_copies = self._copies + [new_copy]
+            if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
                 return False
-            if any(new_copy.overwrites(copy) for copy in self._copies):
-                return False
-            for _, src in self._loads.items():
-                dummy = _Copy(src, src, 32, [])
-                if self._overwrite_exist(dummy):
+            for _, load_ptr in self._loads.items():
+                read_interval = _Interval(load_ptr, 32)
+                if self._overwrites(read_interval):
                     return False
 
         index = bisect_left(self._copies, new_copy)
@@ -148,18 +151,22 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _overwrite_exist(self, copy: _Copy) -> bool:
-        index = bisect_left(self._copies, copy.reverse())
+    def _overwrites(self, inter: _Interval) -> bool:
+        # check if any of self._copies tramples the interval
+
+        # use bisect_left to optimize:
+        # return any(c.overwrites(inter) for c in self._copies)
+
+        index = bisect_left(self._copies, inter.start, key=lambda t: t.dst)
+
+        to_check = []
 
         if index > 0:
-            if self._copies[index - 1].overwrites(copy):
-                return True
-
+            to_check.append(self._copies[index - 1])
         if index < len(self._copies):
-            if self._copies[index].overwrites(copy):
-                return True
+            to_check.append(self._copies[index])
 
-        return False
+        return any(c.overwrites(inter) for c in to_check)
 
     def _handle_bb(
         self,
@@ -181,12 +188,9 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
-                # construct a dummy write to detect if there is a
-                # read-after-write inside of any of the copies we have
-                # accumulated
-                ptr = src_op.value
-                fake_write = _Copy(ptr, ptr, 32, [])
-                if not allow_dst_overlaps_src and self._overwrite_exist(fake_write):
+                load_ptr = src_op.value
+                read_interval = _Interval(load_ptr, 32)
+                if not allow_dst_overlaps_src and self._overwrites(read_interval):
                     _barrier()
                     continue
 
@@ -217,9 +221,7 @@ class MemMergePass(IRPass):
                 load_inst = self.dfg.get_producing_instruction(var)
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
-                if not self._add_copy(
-                    n_copy, allow_dst_overlap_src=allow_dst_overlaps_src
-                ):
+                if not self._add_copy(n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
                     _barrier()
                     continue
 
@@ -230,12 +232,10 @@ class MemMergePass(IRPass):
 
                 length, src, dst = inst.operands
                 n_copy = _Copy(dst.value, src.value, length.value, [inst])
-                if self._overwrite_exist(n_copy):
+                if self._overwrites(n_copy.src_interval()):
                     _barrier()
                     continue
-                if not self._add_copy(
-                    n_copy, allow_dst_overlap_src=allow_dst_overlaps_src
-                ):
+                if not self._add_copy(n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
                     _barrier()
                     continue
 
