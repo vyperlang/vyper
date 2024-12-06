@@ -280,6 +280,8 @@ import lib1
 
 uses: lib1
 
+phony: uint32
+
 @internal
 def foo():
     lib1.counter += 1
@@ -1469,6 +1471,7 @@ initializes: lib2[
 import lib3
 
 uses: lib3
+phony: uint32
 
 @external
 def set_some_mod():
@@ -1615,7 +1618,8 @@ import lib0
 initializes: lib0[lib1 := lib1]
            """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
-    compile_code(main, input_bundle=input_bundle)
+    with pytest.raises(StructureException):
+        compile_code(main, input_bundle=input_bundle)
 
 
 def test_initializes_on_modules_with_initializes(make_input_bundle):
