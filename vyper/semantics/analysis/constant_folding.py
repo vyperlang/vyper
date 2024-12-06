@@ -155,7 +155,13 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise InvalidLiteral("Shift bits must be between 0 and 256", node.right)
 
         value = node.op._op(l_val, r_val)
-        return type(left).from_node(node, value=value)
+
+        new_node_type = type(left)
+        # fold hex integers into Int nodes
+        if isinstance(left, vy_ast.Hex):
+            new_node_type = vy_ast.Int
+
+        return new_node_type.from_node(node, value=value)
 
     def visit_BoolOp(self, node):
         values = [v.get_folded_value() for v in node.values]
