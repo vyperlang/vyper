@@ -41,6 +41,8 @@ class _Copy:
 
     def merge(self, other: "_Copy", ok_dst_overlap: bool = True) -> bool:
         assert self.dst <= other.dst, "bad bisect_left"
+        # merge other into self. e.g.
+        # Copy(0, 64, 16); Copy(16, 80, 8) => Copy(0, 64, 24)
 
         # both source and destination have to be offset by same amount,
         # otherwise they do not represent the same copy. e.g.
