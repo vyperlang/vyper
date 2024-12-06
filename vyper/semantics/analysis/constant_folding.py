@@ -132,10 +132,12 @@ class ConstantFolder(VyperNodeVisitorBase):
     def visit_BinOp(self, node):
         left, right = [i.get_folded_value() for i in (node.left, node.right)]
         valid_integer_nodes = (vy_ast.Hex, vy_ast.Int)
-        if not isinstance(left, valid_integer_nodes):
-            raise UnfoldableNode("not a number!", node.left)
-        if not isinstance(right, valid_integer_nodes):
+        dissimilar_integer_nodes = isinstance(left, valid_integer_nodes) and not isinstance(right, valid_integer_nodes)
+        dissimilar_decimal_nodes = isinstance(left, vy_ast.Decimal) and type(left) is not type(right)
+        if dissimilar_decimal_nodes and dissimilar_integer_nodes:
             raise UnfoldableNode("invalid operation", node)
+        if not isinstance(left, (vy_ast.Hex, vy_ast.Num)):
+            raise UnfoldableNode("not a number!", node.left)
 
         l_val = left.value
         r_val = right.value
