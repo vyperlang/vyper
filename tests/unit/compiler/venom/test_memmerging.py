@@ -490,7 +490,6 @@ def test_memmerging_unused_mload():
     assert bb.instructions[2].opcode == "return"
 
 
-
 def test_memmerging_unused_mload_1():
     if not version_check(begin="cancun"):
         return
@@ -540,6 +539,7 @@ def test_memmerging_write_after_write():
     MemMergePass(ac, fn).run_pass()
 
     assert _nochange(pre, bb), bb
+
 
 def test_memmerging_not_allowed_overlapping2():
     if not version_check(begin="cancun"):

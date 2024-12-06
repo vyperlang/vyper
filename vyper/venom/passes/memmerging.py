@@ -38,6 +38,9 @@ class _Copy:
     def src_interval(self) -> _Interval:
         return _Interval(self.src, self.length)
 
+    def dst_interval(self) -> _Interval:
+        return _Interval(self.dst, self.length)
+
     def overwrites_self_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
@@ -49,11 +52,7 @@ class _Copy:
         b = min(self.dst_end, interval.end)
         return a < b
 
-    def merge(self, other: "_Copy") -> bool:
-        assert self.dst <= other.dst, "bad bisect_left"
-        # merge other into self. e.g.
-        # Copy(0, 64, 16); Copy(16, 80, 8) => Copy(0, 64, 24)
-
+    def can_merge(self, other: "_Copy"):
         # both source and destination have to be offset by same amount,
         # otherwise they do not represent the same copy. e.g.
         # Copy(0, 64, 16)
@@ -65,10 +64,18 @@ class _Copy:
         if other.src > self.src_end:
             return False
 
+        return True
+
+    def merge(self, other: "_Copy"):
+        # merge other into self. e.g.
+        # Copy(0, 64, 16); Copy(16, 80, 8) => Copy(0, 64, 24)
+
+        assert self.dst <= other.dst, "bad bisect_left"
+        assert self.can_merge(other)
+
         new_length = max(self.src_end, other.src_end) - self.src
         self.length = new_length
         self.insts.extend(other.insts)
-        return True
 
     def __lt__(self, other) -> bool:
         return self.dst < other.dst
@@ -98,12 +105,12 @@ class MemMergePass(IRPass):
 
     def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
         for copy in self._copies:
-            copy.insts.sort(key=bb.instructions.index, reverse=True)
+            copy.insts.sort(key=bb.instructions.index)
 
             if copy_opcode == "mcopy":
                 assert not copy.overwrites_self_src()
 
-            for inst in copy.insts[1:]:
+            for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
                     # if the load is used by anything but an mstore, we can't
                     # delete it. (in the future this may be handled by "remove
@@ -115,8 +122,8 @@ class MemMergePass(IRPass):
 
                 bb.mark_for_removal(inst)
 
+            inst = copy.insts[-1]
             if copy.length == 32:
-                inst = copy.insts[0]
                 index = inst.parent.instructions.index(inst)
                 var = bb.parent.get_next_variable()
                 load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
@@ -126,13 +133,9 @@ class MemMergePass(IRPass):
                 inst.output = None
                 inst.operands = [var, IRLiteral(copy.dst)]
             else:
-                copy.insts[0].output = None
-                copy.insts[0].opcode = copy_opcode
-                copy.insts[0].operands = [
-                    IRLiteral(copy.length),
-                    IRLiteral(copy.src),
-                    IRLiteral(copy.dst),
-                ]
+                inst.output = None
+                inst.opcode = copy_opcode
+                inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
 
         self._copies.clear()
         self._loads.clear()
@@ -141,10 +144,16 @@ class MemMergePass(IRPass):
         new_copies = self._copies + [new_copy]
         if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
             return False
+        for copy in self._copies:
+            if new_copy.overwrites(copy.dst_interval()) and not (
+                copy.can_merge(new_copy) or new_copy.can_merge(copy)
+            ):
+                return False
         for _, load_ptr in self._loads.items():
             read_interval = _Interval(load_ptr, 32)
             if self._overwrites(read_interval):
                 return False
+
         return True
 
     def _add_copy(self, new_copy: _Copy):
@@ -153,8 +162,8 @@ class MemMergePass(IRPass):
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(self._copies) - 1):
-            merged = self._copies[i].merge(self._copies[i + 1])
-            if merged:
+            if self._copies[i].can_merge(self._copies[i + 1]):
+                self._copies[i].merge(self._copies[i + 1])
                 del self._copies[i + 1]
             else:
                 i += 1
