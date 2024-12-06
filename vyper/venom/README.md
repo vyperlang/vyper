@@ -193,7 +193,7 @@ An operand can be a label, a variable, or a literal.
 By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. However, the prefix is not required.
 
 ## Instructions
-To enable Venom IR in Vyper, use the `--experimental-codegen` flag. To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or its alias `--venom`, or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
 
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
@@ -209,15 +209,16 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
-    out = alloca size, offset
+    out = alloca size, offset, id
     ```
   - Allocates memory of a given `size` at a given `offset` in memory.
+  - The `id` argument is there to help debugging translation into venom
   - The output is the offset value itself.
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   
 - `palloca`
   - ```
-    out = palloca size, offset
+    out = palloca size, offset, id
     ```
   - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `iload`
