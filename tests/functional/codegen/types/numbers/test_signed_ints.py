@@ -13,7 +13,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, evm_mod
+from vyper.utils import evm_div, evm_mod, unsigned_to_signed
 
 types = sorted(IntegerT.signeds())
 
@@ -253,8 +253,9 @@ ARITHMETIC_OPS = {
 
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("is_hex_int", [True, False])
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, tx_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, op, typ, is_hex_int):
     # both variables
     code_1 = f"""
 @external
@@ -329,9 +330,16 @@ def foo() -> {typ}:
 
         ok = in_bounds and not div_by_zero
 
-        code_2 = code_2_template.format(typ=typ, op=op, y=y)
-        code_3 = code_3_template.format(typ=typ, op=op, x=x)
-        code_4 = code_4_template.format(typ=typ, op=op, x=x, y=y)
+        formatted_x = x
+        formatted_y = y
+
+        if is_hex_int:
+            formatted_x = unsigned_to_signed(x, typ.bits)
+            formatted_y = unsigned_to_signed(y, typ.bits)
+
+        code_2 = code_2_template.format(typ=typ, op=op, y=formatted_y)
+        code_3 = code_3_template.format(typ=typ, op=op, x=formatted_x)
+        code_4 = code_4_template.format(typ=typ, op=op, x=formatted_x, y=formatted_y)
 
         if ok:
             assert c.foo(x, y) == expected
