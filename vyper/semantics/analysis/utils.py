@@ -306,7 +306,6 @@ class _ExprAnalyser:
                 if not isinstance(node, t._valid_literal):
                     continue
 
-                print("type: ", t)
                 # special handling for bytestrings since their
                 # class objects are in the type map, not the type itself
                 # (worth rethinking this design at some point.)
@@ -316,7 +315,7 @@ class _ExprAnalyser:
                 # any more validation which needs to occur
                 t.validate_literal(node)
                 types_list.append(t)
-            except VyperException as e:
+            except VyperException:
                 continue
 
         if types_list:
