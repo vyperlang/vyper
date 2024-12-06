@@ -12,6 +12,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
+from vyper.ir.compile_ir import reset_symbols
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
@@ -307,6 +308,7 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
     """
     # make IR output the same between runs
     codegen.reset_names()
+    reset_symbols()
 
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
