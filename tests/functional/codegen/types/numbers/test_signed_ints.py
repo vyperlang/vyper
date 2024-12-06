@@ -13,7 +13,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, evm_mod, unsigned_to_signed
+from vyper.utils import evm_div, evm_mod, signed_to_unsigned
 
 types = sorted(IntegerT.signeds())
 
@@ -334,8 +334,9 @@ def foo() -> {typ}:
         formatted_y = y
 
         if is_hex_int:
-            formatted_x = unsigned_to_signed(x, typ.bits)
-            formatted_y = unsigned_to_signed(y, typ.bits)
+            n_nibbles = typ.bits // 4
+            formatted_x = "0x" + hex(signed_to_unsigned(x, typ.bits))[2:].rjust(n_nibbles, "0")
+            formatted_y = "0x" + hex(signed_to_unsigned(y, typ.bits))[2:].rjust(n_nibbles, "0")
 
         code_2 = code_2_template.format(typ=typ, op=op, y=formatted_y)
         code_3 = code_3_template.format(typ=typ, op=op, x=formatted_x)
