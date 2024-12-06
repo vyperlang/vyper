@@ -31,9 +31,10 @@ class _Copy:
     def dst_overlaps_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
-        return self.overlap(self)
+        return self.overwrites(self)
 
-    def overlap(self, other: "_Copy") -> bool:
+    def overwrites(self, other: "_Copy") -> bool:
+        # return true if dst of self overwrites src of the other.
         a = max(self.dst, other.src)
         b = min(self.dst_end, other.src_end)
         return a < b
@@ -117,10 +118,11 @@ class MemMergePass(IRPass):
     def _add_copy(
         self, copies: list[_Copy], new_copy: _Copy, allow_dst_overlap_src: bool = False
     ) -> bool:
-        if not allow_dst_overlap_src and new_copy.dst_overlaps_src():
-            return False
-        if not allow_dst_overlap_src and any(new_copy.overlap(copy) for copy in copies):
-            return False
+        if not allow_dst_overlap_src:
+            if new_copy.dst_overlaps_src():
+                return False
+            if any(new_copy.overwrites(copy) for copy in copies):
+                return False
 
         index = bisect_left(copies, new_copy)
         copies.insert(index, new_copy)
@@ -135,15 +137,15 @@ class MemMergePass(IRPass):
 
         return True
 
-    def _overlap_exist(self, copies: list[_Copy], copy: _Copy) -> bool:
+    def _overwrite_exist(self, copies: list[_Copy], copy: _Copy) -> bool:
         index = bisect_left(copies, copy.reverse())
 
         if index > 0:
-            if copies[index - 1].overlap(copy):
+            if copies[index - 1].overwrites(copy):
                 return True
 
         if index < len(copies):
-            if copies[index].overlap(copy):
+            if copies[index].overwrites(copy):
                 return True
 
         return False
@@ -174,7 +176,7 @@ class MemMergePass(IRPass):
                 # accumulated
                 ptr = src_op.value
                 fake_write = _Copy(ptr, ptr, 32, [])
-                if not allow_dst_overlaps_src and self._overlap_exist(copies, fake_write):
+                if not allow_dst_overlaps_src and self._overwrite_exist(copies, fake_write):
                     _barrier()
                     continue
 
@@ -216,7 +218,7 @@ class MemMergePass(IRPass):
 
                 length, src, dst = inst.operands
                 n_copy = _Copy(dst.value, src.value, length.value, [inst])
-                if self._overlap_exist(copies, n_copy):
+                if self._overwrite_exist(copies, n_copy):
                     _barrier()
                     continue
                 if not self._add_copy(copies, n_copy, allow_dst_overlap_src=allow_dst_overlaps_src):
