@@ -84,10 +84,38 @@ class _Copy:
         return f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
 
 
+@dataclass
+class _ZeroInterval:
+    dst: int
+    length: int
+    insts: list[IRInstruction]
+
+    @property
+    def dst_end(self) -> int:
+        return self.dst + self.length
+
+    def can_merge(self, other: "_ZeroInterval") -> bool:
+        a = max(self.dst, other.dst)
+        b = min(self.dst_end, other.dst_end)
+        return a <= b
+
+    def merge(self, other: "_ZeroInterval"):
+        assert self.can_merge(other)
+        dst = min(self.dst, other.dst)
+        end = max(self.dst_end, other.dst_end)
+        self.dst = dst
+        self.length = end - dst
+        self.insts.extend(other.insts)
+
+    def __lt__(self, other) -> bool:
+        return self.dst < other.dst
+
+
 class MemMergePass(IRPass):
     dfg: DFGAnalysis
     _copies: list[_Copy]
     _loads: dict[IRVariable, int]
+    _zeroing: list[_ZeroInterval]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
@@ -176,17 +204,20 @@ class MemMergePass(IRPass):
 
         return False
 
-    def _add_copy(self, new_copy: _Copy):
-        index = bisect_left(self._copies, new_copy)
-        self._copies.insert(index, new_copy)
+    def _add_helper(self, existing, new):
+        index = bisect_left(existing, new)  # type: ignore
+        existing.insert(index, new)  # type: ignore
 
         i = max(index - 1, 0)
-        while i < min(index + 1, len(self._copies) - 1):
-            if self._copies[i].can_merge(self._copies[i + 1]):
-                self._copies[i].merge(self._copies[i + 1])
-                del self._copies[i + 1]
+        while i < min(index + 1, len(existing) - 1):
+            if existing[i].can_merge(existing[i + 1]):
+                existing[i].merge(existing[i + 1])
+                del existing[i + 1]
             else:
                 i += 1
+
+    def _add_copy(self, new_copy: _Copy):
+        return self._add_helper(self._copies, new_copy)
 
     def _overwrites(self, inter: _Interval) -> bool:
         # check if any of self._copies tramples the interval
@@ -263,9 +294,12 @@ class MemMergePass(IRPass):
         _barrier()
         bb.clear_dead_instructions()
 
+    def _add_zerointerval(self, new_interval: _ZeroInterval):
+        return self._add_helper(self._zeroing, new_interval)
+
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
-        for copy in self._copies:
+        for copy in self._zeroing:
             inst = copy.insts[0]
             if copy.length == 32:
                 inst.opcode = "mstore"
@@ -282,12 +316,10 @@ class MemMergePass(IRPass):
             for inst in copy.insts[1:]:
                 bb.mark_for_removal(inst)
 
-        self._copies.clear()
-        self._loads.clear()
+        self._zeroing.clear()
 
     def _handle_bb_memzero(self, bb: IRBasicBlock):
-        self._loads = {}
-        self._copies = []
+        self._zeroing = []
 
         def _barrier():
             self._optimize_memzero(bb)
@@ -302,10 +334,8 @@ class MemMergePass(IRPass):
                 if not (isinstance(dst, IRLiteral) and is_zero_literal):
                     _barrier()
                     continue
-                n_copy = _Copy(dst.value, dst.value, 32, [inst])
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
-                self._add_copy(n_copy)
+                new_zero_inter = _ZeroInterval(dst.value, 32, [inst])
+                self._add_zerointerval(new_zero_inter)
             elif inst.opcode == "calldatacopy":
                 length, var, dst = inst.operands
                 if not isinstance(var, IRVariable):
@@ -319,10 +349,8 @@ class MemMergePass(IRPass):
                 if src_inst.opcode != "calldatasize":
                     _barrier()
                     continue
-                n_copy = _Copy(dst.value, dst.value, length.value, [inst])
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
-                self._add_copy(n_copy)
+                new_zero_inter = _ZeroInterval(dst.value, length.value, [inst])
+                self._add_zerointerval(new_zero_inter)
             elif _volatile_memory(inst):
                 _barrier()
                 continue
