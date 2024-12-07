@@ -863,3 +863,73 @@ def bar() -> uint256:
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)
     assert c.bar() == 1
+
+
+def test_interface_with_flags():
+    code = """
+struct MyStruct:
+    a: address
+
+flag Foo:
+    BOO
+    MOO
+    POO
+
+event Transfer:
+    sender: indexed(address)
+
+@external
+def bar():
+    pass
+flag BAR:
+    BIZ
+    BAZ
+    BOO
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
+
+    assert "# Flags" in out
+    assert "flag Foo:" in out
+    assert "flag BAR" in out
+    assert "BOO" in out
+    assert "MOO" in out
+
+
+def test_external_interface_names():
+    code = """
+@external
+def foo():
+    ...
+    """
+
+    compile_code(code, contract_path="test__test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test__t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t__test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t__t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t_t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test_test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t_test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test_t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="_test_t__t_tt_.vyi", output_formats=["external_interface"])
+
+
+def test_external_interface_with_flag():
+    code = """
+flag Foo:
+    Blah
+
+@external
+def foo() -> Foo:
+    ...
+    """
+
+    out = compile_code(code, contract_path="test__test.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    assert "-> Foo:" in out
