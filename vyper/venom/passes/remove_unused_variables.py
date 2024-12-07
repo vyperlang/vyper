@@ -16,7 +16,7 @@ class RemoveUnusedVariablesPass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
+        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
 
         self.reads_msize = set()
         for bb in self.function.get_basic_blocks():
