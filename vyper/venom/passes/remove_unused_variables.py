@@ -1,5 +1,6 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom import effects
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, ReachableAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -11,9 +12,19 @@ class RemoveUnusedVariablesPass(IRPass):
 
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
+    reads_msize: bool
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
+
+        self.reads_msize = {}
+        self.instruction_index = {}
+        for bb in self.function.get_basic_blocks():
+            for idx, inst in enumerate(bb.instructions):
+                self.instruction_index[inst] = idx
+                if inst.opcode == "msize" and bb not in self.reads_msize:
+                    self.reads_msize[bb] = idx
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -33,6 +44,14 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
+        bb = inst.parent
+        if effects.MSIZE in inst.get_write_effects():
+            # msize after memory touch
+            if bb in self.reads_msize and self.instruction_index[inst] < self.reads_msize[bb]:
+                return
+            if any(reachable_bb in self.reachable[bb] for reachable_bb in self.reads_msize):
+                return
+
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
             return
