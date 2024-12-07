@@ -137,10 +137,11 @@ def test_memmerging_imposs_mstore():
 @pytest.mark.xfail
 def test_memmerging_bypass_fence():
     """
-    We should be able to optimize this to an mcopy(0, 1024, 64)
+    We should be able to optimize this to an mcopy(0, 1024, 64), but
+    currently do not
     """
     if not version_check(begin="cancun"):
-        raise AssertionError()
+        raise AssertionError()  # xfail
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
@@ -412,6 +413,70 @@ def test_memmerging_mcopy_small():
     assert bb.instructions[1].opcode == "mstore"
     assert bb.instructions[1].operands[0] == bb.instructions[0].output
     assert bb.instructions[1].operands[1].value == 1024
+
+def test_memmerging_mcopy_weird_bisect():
+    """
+    Check that bisect_left finds the correct merge
+    copy(80, 100, 2)
+    copy(150, 60, 1)
+    copy(82, 102, 3)
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("mcopy", 2, 100, 80)
+    bb.append_instruction("mcopy", 1, 60, 150)
+    bb.append_instruction("mcopy", 3, 102, 82)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 1
+    assert bb.instructions[0].operands[1].value == 60
+    assert bb.instructions[0].operands[2].value == 150
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 5
+    assert bb.instructions[1].operands[1].value == 100
+    assert bb.instructions[1].operands[2].value == 80
+    assert bb.instructions[2].opcode == "stop"
+
+
+def test_memmerging_mcopy_weird_bisect2():
+    """
+    Check that bisect_left finds the correct merge
+    copy(80, 50, 2)
+    copy(20, 100, 1)
+    copy(82, 52, 3)
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    bb.append_instruction("mcopy", 2, 50, 80)
+    bb.append_instruction("mcopy", 1, 100, 20)
+    bb.append_instruction("mcopy", 3, 52, 82)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 1
+    assert bb.instructions[0].operands[1].value == 100
+    assert bb.instructions[0].operands[2].value == 20
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 5
+    assert bb.instructions[1].operands[1].value == 50
+    assert bb.instructions[1].operands[2].value == 80
+    assert bb.instructions[2].opcode == "stop"
+
 
 
 def test_memmerging_allowed_overlapping():
