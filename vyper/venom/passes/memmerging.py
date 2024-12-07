@@ -78,15 +78,12 @@ class _Copy:
         # merge other into self. e.g.
         # Copy(0, 64, 16); Copy(16, 80, 8) => Copy(0, 64, 24)
 
-        assert self.__le__(other), "bad bisect_left"
+        assert self.dst <= other.dst, "bad bisect_left"
         assert self.can_merge(other)
 
         new_length = max(self.src_end, other.src_end) - self.src
         self.length = new_length
         self.insts.extend(other.insts)
-
-    def __lt__(self, other) -> bool:
-        return self.dst < other.dst
 
     def __repr__(self) -> str:
         return f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
@@ -184,8 +181,11 @@ class MemMergePass(IRPass):
 
         return False
 
+    def _find_insertion_point(self, new_copy: _Copy):
+        return bisect_left(self._copies, new_copy.dst, key=lambda c: c.dst)
+
     def _add_copy(self, new_copy: _Copy):
-        index = bisect_left(self._copies, new_copy)
+        index = self._find_insertion_point(new_copy)
         self._copies.insert(index, new_copy)
 
         i = max(index - 1, 0)
