@@ -69,7 +69,7 @@ class _Copy:
             return False
 
         # the copies must at least touch each other
-        if other.src > self.src_end:
+        if other.dst > self.dst_end:
             return False
 
         return True
@@ -78,7 +78,7 @@ class _Copy:
         # merge other into self. e.g.
         # Copy(0, 64, 16); Copy(16, 80, 8) => Copy(0, 64, 24)
 
-        assert self.dst <= other.dst, "bad bisect_left"
+        assert self.__le__(other), "bad bisect_left"
         assert self.can_merge(other)
 
         new_length = max(self.src_end, other.src_end) - self.src
