@@ -41,7 +41,7 @@ def _validate_op(node, types_list, validation_fn_name):
         try:
             _validate_fn(node)
             ret.append(type_)
-        except InvalidOperation as e:
+        except (InvalidOperation, OverflowException) as e:
             err_list.append(e)
 
     if ret:
