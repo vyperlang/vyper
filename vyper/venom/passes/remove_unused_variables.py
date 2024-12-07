@@ -42,6 +42,8 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
+        # TODO: improve this, we only need the fence if the msize is reachable
+        # from this basic block.
         if self.reads_msize and effects.MSIZE in inst.get_write_effects():
             return
 
