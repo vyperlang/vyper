@@ -207,7 +207,9 @@ class MemMergePass(IRPass):
         def _barrier():
             self._optimize_copy(bb, copy_opcode, load_opcode)
 
-        for inst in bb.instructions:
+        # copy in necessary because there is a possibility
+        # of insertion in optimizations
+        for inst in bb.instructions.copy():
             if inst.opcode == load_opcode:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
@@ -290,7 +292,9 @@ class MemMergePass(IRPass):
         def _barrier():
             self._optimize_memzero(bb)
 
-        for inst in bb.instructions:
+        # copy in necessary because there is a possibility
+        # of insertion in optimizations
+        for inst in bb.instructions.copy():
             if inst.opcode == "mstore":
                 val = inst.operands[0]
                 dst = inst.operands[1]
