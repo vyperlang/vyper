@@ -283,6 +283,9 @@ def build_abi_output(compiler_data: CompilerData) -> list:
         _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
+    if module_t.init_function:
+        abi += module_t.init_function.to_toplevel_abi_dict()
+
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)

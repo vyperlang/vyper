@@ -106,13 +106,6 @@ def compile_from_file_input(
     """
     settings = settings or get_global_settings() or Settings()
 
-    if output_formats is None:
-        output_formats = ("bytecode",)
-
-    # make IR output the same between runs
-    # TODO: move this to CompilerData.__init__()
-    codegen.reset_names()
-
     compiler_data = CompilerData(
         file_input,
         input_bundle,
@@ -122,6 +115,17 @@ def compile_from_file_input(
         show_gas_estimates=show_gas_estimates,
         no_bytecode_metadata=no_bytecode_metadata,
     )
+
+    return outputs_from_compiler_data(compiler_data, output_formats, exc_handler)
+
+
+def outputs_from_compiler_data(
+    compiler_data: CompilerData,
+    output_formats: Optional[OutputFormats] = None,
+    exc_handler: Optional[Callable] = None,
+):
+    if output_formats is None:
+        output_formats = ("bytecode",)
 
     ret = {}
 
@@ -141,7 +145,7 @@ def compile_from_file_input(
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(str(file_input.path), exc)
+                    exc_handler(str(compiler_data.file_input.path), exc)
                 else:
                     raise exc
 

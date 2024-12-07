@@ -4,6 +4,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
+import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
@@ -307,6 +308,9 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
+    # make IR output the same between runs
+    codegen.reset_names()
+
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if settings.optimize != OptimizationLevel.NONE:

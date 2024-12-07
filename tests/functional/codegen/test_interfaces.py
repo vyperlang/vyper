@@ -776,6 +776,95 @@ def foo(s: MyStruct) -> MyStruct:
     assert "voted: bool" in out
 
 
+def test_intrinsic_interface_instantiation(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+i: lib1.__interface__
+
+@external
+def bar() -> lib1.__interface__:
+    self.i = lib1.__at__(self)
+    return self.i
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar() == c.address
+
+
+def test_intrinsic_interface_converts(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar() -> lib1.__interface__:
+    return lib1.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar() == c.address
+
+
+def test_intrinsic_interface_kws(env, make_input_bundle, get_contract):
+    value = 10**5
+    lib1 = f"""
+@external
+@payable
+def foo(a: address):
+    send(a, {value})
+    """
+    main = f"""
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar(a: address):
+    extcall lib1.__at__(self).foo(a, value={value})
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    env.set_balance(c.address, value)
+    original_balance = env.get_balance(env.deployer)
+    c.bar(env.deployer)
+    assert env.get_balance(env.deployer) == original_balance + value
+
+
+def test_intrinsic_interface_defaults(env, make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def foo(i: uint256=1) -> uint256:
+    return i
+    """
+    main = """
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar() -> uint256:
+    return extcall lib1.__at__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.bar() == 1
+
+
 def test_interface_with_flags():
     code = """
 struct MyStruct:
