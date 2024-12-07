@@ -1,4 +1,5 @@
 from vyper.utils import OrderedSet
+from vyper.venom import effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
@@ -11,9 +12,17 @@ class RemoveUnusedVariablesPass(IRPass):
 
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
+    reads_msize: bool
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+
+        self.reads_msize = False
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode == "msize":
+                    self.reads_msize = True
+                    break
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -33,6 +42,9 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
+        if self.reads_msize and effects.MSIZE in inst.get_write_effects():
+            return
+
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
             return
