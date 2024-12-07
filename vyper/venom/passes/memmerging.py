@@ -29,6 +29,10 @@ class _Copy:
 
     @classmethod
     def memzero(cls, dst, length, insts):
+        # factory method to simplify creation of memory zeroing operations
+        # (which are similar to Copy operations but src is always
+        # `calldatasize`). choose src=dst, so that can_merge returns True
+        # for overlapping memzeros.
         return cls(dst, dst, length, insts)
 
     @property
