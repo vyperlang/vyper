@@ -48,3 +48,14 @@ def test_exception_reports_correct_file(make_input_bundle, chdir_tmp_path):
 
     with raises(SyntaxException, match=r'contract "A\.vy:\d+"'):
         compile_code(code_b, input_bundle=input_bundle)
+
+
+def test_syntax_exception_reports_correct_offset(make_input_bundle):
+    code = """
+def foo():
+    uint256 a = pass
+    """
+    input_bundle = make_input_bundle({"code.vy": code})
+
+    with raises(SyntaxException, match="line \d+:12"):
+        compile_code(code, input_bundle=input_bundle)
