@@ -76,6 +76,7 @@ def _parse_to_ast_with_settings(
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
+        # SyntaxError offset is 1-based, not 0-based
         raise SyntaxException(str(e.msg), vyper_source, e.lineno, e.offset - 1) from None
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
