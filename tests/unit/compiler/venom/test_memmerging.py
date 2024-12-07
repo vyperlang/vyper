@@ -662,7 +662,6 @@ def test_memmerging_calldataload_two_intervals_diff_offset():
     fn = ctx.create_function("_global")
 
     bb = fn.get_basic_block()
-    bb = fn.get_basic_block()
     val0 = bb.append_instruction("calldataload", 32)
     bb.append_instruction("mstore", val0, 64)
     bb.append_instruction("calldatacopy", 64, 32 + 32, 64 + 32)
