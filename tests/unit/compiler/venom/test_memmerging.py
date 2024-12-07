@@ -414,6 +414,7 @@ def test_memmerging_mcopy_small():
     assert bb.instructions[1].operands[0] == bb.instructions[0].output
     assert bb.instructions[1].operands[1].value == 1024
 
+
 def test_memmerging_mcopy_weird_bisect():
     """
     Check that bisect_left finds the correct merge
@@ -476,7 +477,6 @@ def test_memmerging_mcopy_weird_bisect2():
     assert bb.instructions[1].operands[1].value == 50
     assert bb.instructions[1].operands[2].value == 80
     assert bb.instructions[2].opcode == "stop"
-
 
 
 def test_memmerging_allowed_overlapping():
