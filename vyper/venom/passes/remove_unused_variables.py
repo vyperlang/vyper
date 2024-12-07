@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom import effects
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, ReachableAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -16,12 +16,13 @@ class RemoveUnusedVariablesPass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
 
-        self.reads_msize = False
+        self.reads_msize = set()
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "msize":
-                    self.reads_msize = True
+                    self.reads_msize.add(bb)
                     break
 
         work_list = OrderedSet()
@@ -44,7 +45,10 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         # TODO: improve this, we only need the fence if the msize is reachable
         # from this basic block.
-        if self.reads_msize and effects.MSIZE in inst.get_write_effects():
+        bb = inst.parent
+        if effects.MSIZE in inst.get_write_effects() and any(
+            reachable_bb in self.reachable[bb] for reachable_bb in self.reads_msize
+        ):
             return
 
         uses = self.dfg.get_uses(inst.output)
