@@ -128,7 +128,7 @@ class _BaseVyperException(Exception):
             module_node = node.module_node
 
             # TODO: handle cases where module is None or vy_ast.Module
-            if module_node.get("path") not in (None, "<unknown>"):
+            if module_node.get("resolved_path") not in (None, "<unknown>"):
                 node_msg = self._format_contract_details(
                     node_msg, module_node.resolved_path, node.lineno
                 )
