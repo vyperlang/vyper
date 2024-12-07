@@ -810,3 +810,21 @@ def foo(s: MyStruct) -> MyStruct:
     assert "flag BAR" in out
     assert "BOO" in out
     assert "MOO" in out
+
+
+def test_external_interface_names():
+    code = """
+@external
+def foo():
+    ...
+    """
+
+    compile_code(code, contract_path="test__test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test__t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t__test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t__t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t_t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test_test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="t_test.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="test_t.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="_test_t__t_tt_.vyi", output_formats=["external_interface"])
