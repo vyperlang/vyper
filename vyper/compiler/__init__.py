@@ -134,7 +134,7 @@ def outputs_from_compiler_data(
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
 
-            is_vyi = file_input.resolved_path.suffix == ".vyi"
+            is_vyi = compiler_data.file_input.resolved_path.suffix == ".vyi"
             if is_vyi and output_format not in INTERFACE_OUTPUT_FORMATS:
                 raise ValueError(
                     f"Unsupported format for compiling interface: {repr(output_format)}"
