@@ -657,6 +657,33 @@ def test_memmerging_calldataload():
     assert bb.instructions[0].operands[2].value == 64
 
 
+def test_memmerging_calldataload_two_intervals_diff_offset():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("calldataload", 32)
+    bb.append_instruction("mstore", val0, 64)
+    bb.append_instruction("calldatacopy", 64, 32 + 32, 64 + 32)
+    val1 = bb.append_instruction("calldataload", 32)
+    bb.append_instruction("mstore", val1, 64 + 8)
+    bb.append_instruction("calldatacopy", 64, 32 + 32, 64 + 32 + 8)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "calldatacopy"
+    assert bb.instructions[0].operands[0].value == 32 + 64
+    assert bb.instructions[0].operands[1].value == 32
+    assert bb.instructions[0].operands[2].value == 64
+    assert bb.instructions[1].opcode == "calldatacopy"
+    assert bb.instructions[1].operands[0].value == 32 + 64
+    assert bb.instructions[1].operands[1].value == 32
+    assert bb.instructions[1].operands[2].value == 64 + 8
+
+
 def test_memzeroing_1():
     """
     Test of basic memzeroing
