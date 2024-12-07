@@ -1,5 +1,6 @@
-from vyper.utils import OrderedSet
 from collections import defaultdict
+
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock
@@ -16,17 +17,18 @@ class ReachableAnalysis(IRAnalysis):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.reachable = defaultdict(OrderedSet)
 
+        self._compute_reachable_r(self.function.entry)
+
     def _compute_reachable_r(self, bb):
         if bb in self.reachable:
             return
 
-        downstream = bb.cfg_out.copy()
+        s = bb.cfg_out.copy()
+        self.reachable[bb] = s
 
         for out_bb in bb.cfg_out:
             self._compute_reachable_r(out_bb)
-            downstream.update(self.reachable[out_bb])
-
-        self.reachable[bb] = downstream
+            s.update(self.reachable[out_bb])
 
     def invalidate(self):
         from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
