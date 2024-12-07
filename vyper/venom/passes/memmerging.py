@@ -27,6 +27,10 @@ class _Copy:
     length: int
     insts: list[IRInstruction]
 
+    @classmethod
+    def memzero(cls, dst, length, insts):
+        return cls(dst, dst, length, insts)
+
     @property
     def src_end(self) -> int:
         return self.src + self.length
@@ -302,9 +306,8 @@ class MemMergePass(IRPass):
                 if not (isinstance(dst, IRLiteral) and is_zero_literal):
                     _barrier()
                     continue
-                n_copy = _Copy(dst.value, dst.value, 32, [inst])
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
+                n_copy = _Copy.memzero(dst.value, 32, [inst])
+                assert not self._write_after_write_hazard(n_copy)
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
                 length, var, dst = inst.operands
@@ -319,9 +322,8 @@ class MemMergePass(IRPass):
                 if src_inst.opcode != "calldatasize":
                     _barrier()
                     continue
-                n_copy = _Copy(dst.value, dst.value, length.value, [inst])
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
+                n_copy = _Copy.memzero(dst.value, length.value, [inst])
+                assert not self._write_after_write_hazard(n_copy)
                 self._add_copy(n_copy)
             elif _volatile_memory(inst):
                 _barrier()
