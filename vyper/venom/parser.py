@@ -73,13 +73,10 @@ class VenomTransformer(Transformer):
         data_section = children[-1]
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
+            fn._basic_block_dict = dict()
             for block_name, instructions in blocks:
-                # Get default function block if entry bb
-                if block_name == fn_name:
-                    bb = fn.get_basic_block(block_name)
-                else:
-                    bb = IRBasicBlock(IRLabel(block_name), fn)
-                    fn.append_basic_block(bb)
+                bb = IRBasicBlock(IRLabel(block_name), fn)
+                fn.append_basic_block(bb)
 
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)
