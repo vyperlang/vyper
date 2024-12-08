@@ -62,8 +62,9 @@ def _set_last_label(ctx: IRContext):
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             label = bb.label.value
-            if label.isdigit():
-                ctx.last_label = max(int(label), ctx.last_label)
+            label_head, *_ = label.split("_", maxsplit=1)
+            if label_head.isdigit():
+                ctx.last_label = max(int(label_head), ctx.last_label)
 
 
 class VenomTransformer(Transformer):
