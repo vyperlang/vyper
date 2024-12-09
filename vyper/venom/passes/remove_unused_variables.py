@@ -14,7 +14,7 @@ class RemoveUnusedVariablesPass(IRPass):
 
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
-    _msizes: dict[IRBasicBlock, int]
+    _msizes: dict[IRBasicBlock, list]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
