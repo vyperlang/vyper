@@ -1,7 +1,7 @@
 from vyper.utils import OrderedSet
 from vyper.venom import effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, ReachableAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -12,19 +12,20 @@ class RemoveUnusedVariablesPass(IRPass):
 
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
-    reads_msize: bool
+    last_msize_position: dict[IRBasicBlock, int]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
 
-        self.reads_msize = {}
+        self.last_msize_position = {}
         self.instruction_index = {}
         for bb in self.function.get_basic_blocks():
-            for idx, inst in enumerate(bb.instructions):
+            for idx in range(len(bb.instructions) - 1, -1, -1):
+                inst = bb.instructions[idx]
                 self.instruction_index[inst] = idx
-                if inst.opcode == "msize" and bb not in self.reads_msize:
-                    self.reads_msize[bb] = idx
+                if inst.opcode == "msize" and bb not in self.last_msize_position:
+                    self.last_msize_position[bb] = idx
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -47,9 +48,12 @@ class RemoveUnusedVariablesPass(IRPass):
         bb = inst.parent
         if effects.MSIZE in inst.get_write_effects():
             # msize after memory touch
-            if bb in self.reads_msize and self.instruction_index[inst] < self.reads_msize[bb]:
+            if (
+                bb in self.last_msize_position
+                and self.instruction_index[inst] < self.last_msize_position[bb]
+            ):
                 return
-            if any(reachable_bb in self.reachable[bb] for reachable_bb in self.reads_msize):
+            if any(reachable_bb in self.reachable[bb] for reachable_bb in self.last_msize_position):
                 return
 
         uses = self.dfg.get_uses(inst.output)
