@@ -64,6 +64,37 @@ def test_removeunused_msize_loop():
     assert bb.instructions[2].opcode == "jmp"
 
 
+def test_removeunused_msize_branches():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    branch1 = IRBasicBlock(IRLabel("branch1"), fn)
+    branch2 = IRBasicBlock(IRLabel("branch2"), fn)
+    end = IRBasicBlock(IRLabel("end"), fn)
+
+    fn.append_basic_block(branch1)
+    fn.append_basic_block(branch2)
+    fn.append_basic_block(end)
+
+    par = bb.append_instruction("param")
+    bb.append_instruction("mload", 10)
+    bb.append_instruction("jnz", par, branch1.label, branch2.label)
+
+    msize = branch1.append_instruction("msize")
+    branch1.append_instruction("mstore", msize, 10)
+    branch1.append_instruction("jmp", end.label)
+
+    branch2.append_instruction("jmp", end.label)
+
+    end.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[1].opcode == "mload"
+
+
 # Should this work?
 def test_removeunused_unused_msize_loop():
     ctx = IRContext()
