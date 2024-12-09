@@ -21,10 +21,10 @@ class RemoveUnusedVariablesPass(IRPass):
         self.last_msize_position = {}
         self.instruction_index = {}
         for bb in self.function.get_basic_blocks():
-            for idx in range(len(bb.instructions) - 1, -1, -1):
+            for idx, inst in enumerate(bb.instructions):
                 inst = bb.instructions[idx]
                 self.instruction_index[inst] = idx
-                if inst.opcode == "msize" and bb not in self.last_msize_position:
+                if inst.opcode == "msize":
                     self.last_msize_position[bb] = idx
 
         work_list = OrderedSet()
