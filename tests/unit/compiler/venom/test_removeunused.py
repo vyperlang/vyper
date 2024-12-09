@@ -92,7 +92,7 @@ def test_removeunused_msize_branches():
     ac = IRAnalysesCache(fn)
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    assert bb.instructions[1].opcode == "mload"
+    assert bb.instructions[1].opcode == "mload", bb
 
 
 # Should this work?

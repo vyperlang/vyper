@@ -56,18 +56,18 @@ class RemoveUnusedVariablesPass(IRPass):
             return None
         return max(msizes)
 
-    def msize_barrier(self, inst):
+    def msize_fence(self, inst):
         # return true if there is an msize after memory touch
         bb = inst.parent
-        if not self.has_msize(bb):
-            return False
-        if self.instruction_index[inst] < self.get_last_msize(bb):
-            return True
 
         for next_bb in self._msizes:
             if next_bb in self.reachable[bb] and self.has_msize(next_bb):
                 return True
-        return False
+
+        if not self.has_msize(bb):
+            return False
+
+        return self.instruction_index[inst] < self.get_last_msize(bb)
 
     def _process_instruction(self, inst):
         if inst.output is None:
@@ -76,7 +76,7 @@ class RemoveUnusedVariablesPass(IRPass):
             return
 
         bb = inst.parent
-        if effects.MSIZE in inst.get_write_effects() and self.msize_barrier(inst):
+        if effects.MSIZE in inst.get_write_effects() and self.msize_fence(inst):
             self._msize_gen0.add(inst)
             return
 
