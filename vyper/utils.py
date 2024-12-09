@@ -75,6 +75,9 @@ class OrderedSet(Generic[_T]):
         for item in iterable:
             self._data.pop(item, None)
 
+    def clear(self):
+        self._data.clear()
+
     def difference(self, other):
         ret = self.copy()
         ret.dropmany(other)
