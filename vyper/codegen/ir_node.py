@@ -627,7 +627,7 @@ class IRnode:
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, ast_source=ast_source) for o in obj[1:]],
+                [cls.from_list(o, ast_source=ast_source, error_msg=error_msg) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
