@@ -36,10 +36,27 @@ def test_removeunused_msize_two_msizes():
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0] == 32
+    assert bb.instructions[0].operands[0].value == 32
     assert bb.instructions[1].opcode == "msize"
     assert bb.instructions[2].opcode == "mload"
-    assert bb.instructions[2].operands[0] == 64
+    assert bb.instructions[2].operands[0].value == 64
     assert bb.instructions[3].opcode == "msize"
     assert bb.instructions[4].opcode == "return"
 
+
+def test_removeunused_msize_loop():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    msize = bb.append_instruction("msize")
+    bb.append_instruction("mload", msize)
+    bb.append_instruction("jmp", bb.label)
+
+    ac = IRAnalysesCache(fn)
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "msize"
+    assert bb.instructions[1].opcode == "mload"
+    assert bb.instructions[1].operands[0] == msize
+    assert bb.instructions[2].opcode == "jmp"
