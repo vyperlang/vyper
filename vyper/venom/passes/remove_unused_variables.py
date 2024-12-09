@@ -14,20 +14,20 @@ class RemoveUnusedVariablesPass(IRPass):
 
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
-    msizes: dict[IRBasicBlock, int]
+    _msizes: dict[IRBasicBlock, int]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
 
-        self.msizes = defaultdict(list)
+        self._msizes = defaultdict(list)
         self.instruction_index = {}
         for bb in self.function.get_basic_blocks():
             for idx, inst in enumerate(bb.instructions):
                 inst = bb.instructions[idx]
                 self.instruction_index[inst] = idx
                 if inst.opcode == "msize":
-                    self.msizes[bb].append(idx)
+                    self._msizes[bb].append(idx)
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -40,16 +40,25 @@ class RemoveUnusedVariablesPass(IRPass):
             self._process_instruction(inst)
 
         for bb in self.function.get_basic_blocks():
-            bb.clean_garbage()
+            bb.clear_dead_instructions()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
+    def has_msize(self, bb):
+        return len(self._msizes[bb]) > 0
+
     def get_last_msize(self, bb):
-        msizes = self.msizes[bb]
+        msizes = self._msizes[bb]
         if len(msizes) == 0:
             return None
         return max(msizes)
+
+    def msize_barrier(self, inst):
+        bb = inst.parent
+        if not self.has_msize(bb):
+            return False
+        return self.instruction_index[inst] < self.get_last_msize(bb)
 
     def _process_instruction(self, inst):
         if inst.output is None:
@@ -57,12 +66,13 @@ class RemoveUnusedVariablesPass(IRPass):
         if inst.is_volatile or inst.is_bb_terminator:
             return
         bb = inst.parent
-        if effects.MSIZE in inst.get_write_effects() and bb in self.msizes:
+        if effects.MSIZE in inst.get_write_effects():
             # msize after memory touch
-            if self.instruction_index[inst] < self.get_last_msize(bb):
+            if self.msize_barrier(inst):
                 return
-            if any(reachable_bb in self.reachable[bb] for reachable_bb in self.msizes):
-                return
+            for next_bb in self._msizes:
+                if next_bb in self.reachable[bb] and self.has_msize(next_bb):
+                    return
 
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
@@ -75,6 +85,6 @@ class RemoveUnusedVariablesPass(IRPass):
 
         # if we remove an msize, update the index
         if inst.opcode == "msize":
-            self.msizes[bb].remove(self.instruction_index[inst])
+            self._msizes[bb].remove(self.instruction_index[inst])
 
-        inst.parent.mark_for_removal(inst)
+        bb.mark_for_removal(inst)
