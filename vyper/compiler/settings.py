@@ -126,6 +126,7 @@ def merge_settings(
         one.experimental_codegen, two.experimental_codegen, "experimental codegen"
     )
     ret.enable_decimals = _merge_one(one.enable_decimals, two.enable_decimals, "enable-decimals")
+    ret.debug = _merge_one(one.debug, two.debug, "enable-decimals")
 
     return ret
 
