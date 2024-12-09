@@ -1,7 +1,7 @@
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
-from vyper.venom.passes import MakeSSA, RemoveUnusedVariablesPass
+from vyper.venom.passes import RemoveUnusedVariablesPass
 
 
 def test_removeunused_msize_basic():
