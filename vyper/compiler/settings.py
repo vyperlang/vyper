@@ -120,13 +120,12 @@ def merge_settings(
         return lhs if rhs is None else rhs
 
     ret = Settings()
-    ret.evm_version = _merge_one(one.evm_version, two.evm_version, "evm version")
-    ret.optimize = _merge_one(one.optimize, two.optimize, "optimize")
-    ret.experimental_codegen = _merge_one(
-        one.experimental_codegen, two.experimental_codegen, "experimental codegen"
-    )
-    ret.enable_decimals = _merge_one(one.enable_decimals, two.enable_decimals, "enable-decimals")
-    ret.debug = _merge_one(one.debug, two.debug, "enable-decimals")
+    for field in dataclasses.fields(ret):
+        if field.name == "compiler_version":
+            continue
+        pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
+        val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
+        setattr(ret, field.name, val)
 
     return ret
 
