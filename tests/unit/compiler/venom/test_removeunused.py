@@ -79,7 +79,7 @@ def test_removeunused_msize_branches():
 
     par = bb.append_instruction("param")
     bb.append_instruction("mload", 10)
-    bb.append_instruction("jmp", par, branch1.label, branch2.label)
+    bb.append_instruction("jnz", par, branch1.label, branch2.label)
 
     msize = branch1.append_instruction("msize")
     branch1.append_instruction("mstore", msize, 10)
