@@ -272,8 +272,13 @@ def get_settings(input_dict: dict) -> Settings:
     else:
         assert optimize is None
 
+    debug = input_dict["settings"].get("debug", None)
+
     return Settings(
-        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+        evm_version=evm_version,
+        optimize=optimize,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
     )
 
 
