@@ -54,6 +54,11 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
+def reset_symbols():
+    global _next_symbol
+    _next_symbol = 0
+
+
 def mkdebug(pc_debugger, ast_source):
     i = Instruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
