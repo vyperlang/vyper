@@ -1,8 +1,7 @@
 import contextlib
-import json
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -22,7 +21,6 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.analysis.base import ImportInfo
-from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath, sha256sum
 
 """
@@ -74,15 +72,9 @@ class _ImportGraph:
 
 
 class ImportAnalyzer:
-    def __init__(
-        self,
-        input_bundle: InputBundle,
-        graph: _ImportGraph,
-        storage_layout: Optional[StorageLayout],
-    ):
+    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph):
         self.input_bundle = input_bundle
         self.graph = graph
-        self.storage_layout = storage_layout
         self._ast_of: dict[int, vy_ast.Module] = {}
 
         self.seen: set[int] = set()
@@ -103,9 +95,6 @@ class ImportAnalyzer:
                 acc.append(info.compiler_input.sha256sum)
             else:
                 acc.append(self._calculate_integrity_sum_r(info.parsed))
-
-        if self.storage_layout is not None:
-            acc.append(json.dumps(self.storage_layout))
 
         return sha256sum("".join(acc))
 
@@ -336,11 +325,9 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     return file, interface_ast
 
 
-def resolve_imports(
-    module_ast: vy_ast.Module, input_bundle: InputBundle, storage_layout: StorageLayout
-):
+def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
     graph = _ImportGraph()
-    analyzer = ImportAnalyzer(input_bundle, graph, storage_layout)
+    analyzer = ImportAnalyzer(input_bundle, graph)
     analyzer.resolve_imports(module_ast)
 
     return analyzer
