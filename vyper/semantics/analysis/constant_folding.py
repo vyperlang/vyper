@@ -131,19 +131,37 @@ class ConstantFolder(VyperNodeVisitorBase):
 
     def visit_BinOp(self, node):
         left, right = [i.get_folded_value() for i in (node.left, node.right)]
-        if type(left) is not type(right):
+        valid_integer_nodes = (vy_ast.Hex, vy_ast.Int)
+        dissimilar_integer_nodes = isinstance(left, valid_integer_nodes) and not isinstance(right, valid_integer_nodes)
+        dissimilar_decimal_nodes = isinstance(left, vy_ast.Decimal) and type(left) is not type(right)
+        if dissimilar_decimal_nodes and dissimilar_integer_nodes:
             raise UnfoldableNode("invalid operation", node)
-        if not isinstance(left, vy_ast.Num):
+        if not isinstance(left, (vy_ast.Hex, vy_ast.Num)):
             raise UnfoldableNode("not a number!", node.left)
+
+        l_val = left.value
+        r_val = right.value
+
+        # hex literals default to unsigned values during constant folding
+        if isinstance(left, vy_ast.Hex):
+            l_val = left.uint_value
+        if isinstance(right, vy_ast.Hex):
+            r_val = right.uint_value
 
         # this validation is performed to prevent the compiler from hanging
         # on very large shifts and improve the error message for negative
         # values.
-        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and not (0 <= right.value <= 256):
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and not (0 <= r_val <= 256):
             raise InvalidLiteral("Shift bits must be between 0 and 256", node.right)
 
-        value = node.op._op(left.value, right.value)
-        return type(left).from_node(node, value=value)
+        value = node.op._op(l_val, r_val)
+
+        new_node_type = type(left)
+        # fold hex integers into Int nodes
+        if isinstance(left, vy_ast.Hex):
+            new_node_type = vy_ast.Int
+
+        return new_node_type.from_node(node, value=value)
 
     def visit_BoolOp(self, node):
         values = [v.get_folded_value() for v in node.values]
