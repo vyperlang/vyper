@@ -435,23 +435,14 @@ class SCCP(IRPass):
         return var
 
     def is_lit(self, operand: IROperand) -> bool:
-        if isinstance(operand, IRLabel):
-            return False
-        if isinstance(operand, IRVariable) and operand not in self.lattice:
-            return False
-        return isinstance(self._eval_from_lattice(operand), IRLiteral)
-
-    def get_lit(self, operand: IROperand) -> IRLiteral:
-        x = self._eval_from_lattice(operand)
-        assert isinstance(x, IRLiteral), f"is not literal {x}"
-        return x
+        return isinstance(operand, IRLiteral)
 
     def lit_eq(self, operand: IROperand, val: int) -> bool:
-        return self.is_lit(operand) and self.get_lit(operand).value == val
+        return self.is_lit(operand) and operand.value == val
 
     def op_eq(self, operands, idx_a: int, idx_b: int) -> bool:
         if self.is_lit(operands[idx_a]) and self.is_lit(operands[idx_b]):
-            return self.get_lit(operands[idx_a]) == self.get_lit(operands[idx_b])
+            return operands[idx_a].value == operands[idx_b].value
         else:
             assert isinstance(self.eq, VarEquivalenceAnalysis)
             return self.eq.equivalent(operands[idx_a], operands[idx_b])
@@ -473,7 +464,6 @@ class SCCP(IRPass):
         if (
             inst.opcode == "add"
             and self.is_lit(operands[0])
-            and isinstance(self.get_lit(operands[0]), IRLiteral)
             and isinstance(inst.operands[1], IRLabel)
         ):
             inst.opcode = "offset"
@@ -484,7 +474,7 @@ class SCCP(IRPass):
 
         if inst.opcode == "iszero":
             if self.is_lit(operands[0]):
-                lit = self.get_lit(operands[0]).value
+                lit = operands[0].value
                 val = int(lit == 0)
                 return self.store(inst, val)
             # iszero does not is checked as main instruction
@@ -508,12 +498,6 @@ class SCCP(IRPass):
                 return self.update(inst, "not", operands[1])
             return False
 
-        if inst.opcode == "or" and self.lit_eq(operands[0], 0):
-            return self.store(inst, operands[1])
-
-        if inst.opcode == "or" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-            return self.store(inst, signed_to_unsigned(-1, 256))
-
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
             if self.lit_eq(operands[0], 0):
                 return self.store(inst, 0)
@@ -526,8 +510,8 @@ class SCCP(IRPass):
             if inst.opcode == "and" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self.store(inst, operands[1])
 
-            if self.is_lit(operands[0]) and is_power_of_two(self.get_lit(operands[0]).value):
-                val = self.get_lit(operands[0]).value
+            if self.is_lit(operands[0]) and is_power_of_two(operands[0].value):
+                val = operands[0].value
                 if inst.opcode == "mod":
                     return self.update(inst, "and", val - 1, operands[1])
                 if inst.opcode == "div":
@@ -551,15 +535,21 @@ class SCCP(IRPass):
 
             return False
 
+        if inst.opcode in COMPARISON_OPS and self.op_eq(operands, 0, 1):
+            # (x < x) == (x > x) == 0
+            return self.store(inst, 0)
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], 0):
+            return self.store(inst, operands[1])
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            return self.store(inst, signed_to_unsigned(-1, 256))
+
         if inst.opcode == "eq" and self.lit_eq(operands[0], 0):
             return self.update(inst, "iszero", operands[1])
 
         if inst.opcode == "eq" and self.lit_eq(operands[1], 0):
             return self.update(inst, "iszero", operands[0])
-
-        if inst.opcode in COMPARISON_OPS and self.op_eq(operands, 0, 1):
-            # (x < x) == (x > x) == 0
-            return self.store(inst, 0)
 
         if inst.opcode in {"eq"} and self.op_eq(operands, 0, 1):
             # (x == x) == 1
@@ -585,7 +575,7 @@ class SCCP(IRPass):
             if (
                 inst.opcode == "or"
                 and self.is_lit(operands[0])
-                and self.get_lit(operands[0]).value != 0
+                and operands[0].value != 0
             ):
                 return self.store(inst, 1)
 
@@ -617,11 +607,11 @@ class SCCP(IRPass):
                 almost_always, never = hi, lo
                 almost_never = lo + 1
 
-            if self.is_lit(operands[0]) and self.get_lit(operands[0]).value == never:
+            if self.is_lit(operands[0]) and operands[0].value == never:
                 # e.g. gt x MAX_UINT256, slt x MIN_INT256
                 return self.store(inst, 0)
 
-            if self.is_lit(operands[0]) and self.get_lit(operands[0]).value == almost_never:
+            if self.is_lit(operands[0]) and operands[0].value == almost_never:
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
                 return self.update(inst, "eq", operands[1], never)
 
@@ -629,7 +619,7 @@ class SCCP(IRPass):
             if (
                 not prefer_strict
                 and self.is_lit(operands[0])
-                and self.get_lit(operands[0]).value == almost_always
+                and operands[0].value == almost_always
             ):
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = self.add(inst, "eq", *operands)
@@ -637,7 +627,7 @@ class SCCP(IRPass):
 
             # special cases that are not covered by others:
 
-            if opcode == "gt" and self.is_lit(operands[0]) and self.get_lit(operands[0]) == 0:
+            if opcode == "gt" and self.is_lit(operands[0]) and operands[0].value == 0:
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
                 tmp = self.add(inst, "iszero", operands[1])
@@ -657,7 +647,7 @@ class SCCP(IRPass):
                 if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
                     return False
 
-                n_op = self.get_lit(operands[0]).value
+                n_op = operands[0].value
                 if "gt" in opcode:
                     n_op += 1
                 else:
