@@ -148,29 +148,41 @@ class CompilerData:
         _, ast = self._generate_ast
         return ast
 
+    def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
+        if self.storage_layout_override is not None:
+            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            return sha256sum(layout_sum + imports_integrity_sum)
+        return imports_integrity_sum
+
     @cached_property
     def _resolve_imports(self):
         # deepcopy so as to not interfere with `-f ast` output
         vyper_module = copy.deepcopy(self.vyper_module)
         with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+            imports = resolve_imports(vyper_module, self.input_bundle)
 
-    @cached_property
-    def resolved_imports(self):
-        imports = self._resolve_imports[1]
+        # check integrity sum
+        integrity_sum = self._compute_integrity_sum(imports._integrity_sum)
 
         expected = self.expected_integrity_sum
-
-        if expected is not None and imports.integrity_sum != expected:
+        if expected is not None and integrity_sum != expected:
             # warn for now. strict/relaxed mode was considered but it costs
             # interface and testing complexity to add another feature flag.
             vyper_warn(
                 f"Mismatched integrity sum! Expected {expected}"
-                f" but got {imports.integrity_sum}."
+                f" but got {integrity_sum}."
                 " (This likely indicates a corrupted archive)"
             )
 
-        return imports
+        return vyper_module, imports, integrity_sum
+
+    @cached_property
+    def integrity_sum(self):
+        return self._resolve_imports[2]
+
+    @cached_property
+    def resolved_imports(self):
+        return self._resolve_imports[1]
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
@@ -284,15 +296,6 @@ class CompilerData:
         deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
 
         return deploy_bytecode + blueprint_bytecode
-
-    @cached_property
-    def integrity_sum(self) -> str:
-        if self.storage_layout_override:
-            return sha256sum(
-                sha256sum(json.dumps(self.storage_layout_override))
-                + self.resolved_imports.integrity_sum
-            )
-        return self.resolved_imports.integrity_sum
 
 
 def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:
