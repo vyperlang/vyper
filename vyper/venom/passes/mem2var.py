@@ -37,10 +37,13 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload/return
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        uses = dfg.get_uses(var)
+        uses = dfg.get_uses_ignore_nops(var)
+
         if all([inst.opcode == "mload" for inst in uses]):
             return
         elif all([inst.opcode == "mstore" for inst in uses]):
+            return
+        elif all([inst.opcode == "return" for inst in uses]):
             return
         elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
             var_name = self._mk_varname(var.name)
@@ -65,7 +68,7 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        uses = dfg.get_uses(var)
+        uses = dfg.get_uses_ignore_nops(var)
         if not all(inst.opcode in ["mstore", "mload"] for inst in uses):
             return
 
