@@ -274,11 +274,15 @@ def get_settings(input_dict: dict) -> Settings:
 
     debug = input_dict["settings"].get("debug", None)
 
+    # TODO: maybe change these to camelCase for consistency
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
+
     return Settings(
         evm_version=evm_version,
         optimize=optimize,
         experimental_codegen=experimental_codegen,
         debug=debug,
+        enable_decimals=enable_decimals,
     )
 
 
