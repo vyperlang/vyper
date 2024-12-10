@@ -1,4 +1,5 @@
 import copy
+import json
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
@@ -18,7 +19,7 @@ from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, vyper_warn
+from vyper.utils import ERC5202_PREFIX, sha256sum, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -267,7 +268,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         metadata = None
         if not self.no_bytecode_metadata:
-            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
+            metadata = bytes.fromhex(self.integrity_sum)
         return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
@@ -283,6 +284,15 @@ class CompilerData:
         deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
 
         return deploy_bytecode + blueprint_bytecode
+
+    @cached_property
+    def integrity_sum(self) -> str:
+        if self.storage_layout_override:
+            return sha256sum(
+                sha256sum(json.dumps(self.storage_layout_override))
+                + self.resolved_imports.integrity_sum
+            )
+        return self.resolved_imports.integrity_sum
 
 
 def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:
