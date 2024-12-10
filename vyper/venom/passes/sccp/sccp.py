@@ -528,10 +528,7 @@ class SCCP(IRPass):
             if inst.opcode == "and" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self.store(inst, operands[1])
 
-            if (
-                self.is_lit(operands[0])
-                and is_power_of_two(self.get_lit(operands[0]).value)
-            ):
+            if self.is_lit(operands[0]) and is_power_of_two(self.get_lit(operands[0]).value):
                 val = self.get_lit(operands[0]).value
                 if inst.opcode == "mod":
                     return self.update(inst, "and", val - 1, operands[1])
