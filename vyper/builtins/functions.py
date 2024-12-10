@@ -2167,10 +2167,9 @@ else:
                 variables_2=variables_2,
                 memory_allocator=context.memory_allocator,
             )
+            z_ir = new_ctx.vars["z"].as_ir_node()
             ret = IRnode.from_list(
-                ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-                typ=DecimalT(),
-                location=MEMORY,
+                ["seq", placeholder_copy, sqrt_ir, z_ir], typ=DecimalT(), location=MEMORY
             )
             return b1.resolve(ret)
 
@@ -2364,7 +2363,13 @@ class ABIEncode(BuiltinFunctionT):
         for kwarg in node.keywords:
             kwarg_name = kwarg.arg
             validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
-            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+
+            typ = get_exact_type_from_node(kwarg.value)
+            if kwarg_name == "method_id" and isinstance(typ, BytesT):
+                if typ.length != 4:
+                    raise InvalidLiteral("method_id must be exactly 4 bytes!", kwarg.value)
+
+            ret[kwarg_name] = typ
         return ret
 
     def fetch_call_return(self, node):
