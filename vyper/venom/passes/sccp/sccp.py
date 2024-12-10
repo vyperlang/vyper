@@ -467,8 +467,6 @@ class SCCP(IRPass):
             return False
         if inst.is_pseudo:
             return False
-        if inst.is_bb_terminator:
-            return False
 
         operands = inst.operands
 
