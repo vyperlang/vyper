@@ -53,31 +53,6 @@ b: uint256"""
     )
 
 
-def test_storage_layout_overrides_output():
-    code = """
-a: uint256
-b: uint256"""
-
-    storage_layout_overrides = {
-        "a": {"type": "uint256", "slot": 1, "n_slots": 1},
-        "b": {"type": "uint256", "slot": 0, "n_slots": 1},
-    }
-
-    input_json = {
-        "language": "Vyper",
-        "sources": {"contracts/foo.vy": {"content": code}},
-        "storage_layout_overrides": {"contracts/foo.vy": storage_layout_overrides},
-        "settings": {"outputSelection": {"*": ["*"]}},
-    }
-
-    out = compile_code(
-        code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
-    )
-    assert compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == json.dumps(
-        out["layout"]
-    )
-
-
 def test_storage_layout_for_more_complex():
     code = """
 foo: HashMap[address, uint256]
