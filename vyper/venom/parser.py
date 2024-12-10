@@ -23,8 +23,9 @@ VENOM_PARSER = Lark(
     function: "function" NAME "=>" "{" block* "}"
     data_section: "data:" call*
 
-    block: NAME ":" (call | assignment)*
+    block: NAME ":" instruction*
 
+    instruction: call | assignment
     assignment: VAR_IDENT "=" expr
     expr: call | CONST
     call: OPCODE operands_list
@@ -103,6 +104,9 @@ class VenomTransformer(Transformer):
     def function(self, children) -> tuple[str, list[tuple[str, list[IRInstruction]]]]:
         name, *blocks = children
         return name, blocks
+
+    def instruction(self, children):
+        return children[0]
 
     def data_section(self, children):
         return children
