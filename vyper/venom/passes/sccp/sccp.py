@@ -457,7 +457,11 @@ class SCCP(IRPass):
             return self.eq.equivalent(operands[idx_a], operands[idx_b])
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
-        if inst.opcode != "assert" and inst.is_volatile:
+        if inst.opcode == "assert":
+            return self.handle_assert_inst(inst)
+        if inst.output is None:
+            return False
+        if inst.is_volatile:
             return False
         if inst.opcode == "store":
             return False
@@ -566,45 +570,6 @@ class SCCP(IRPass):
             if inst.opcode == "mul":
                 return self.update(inst, "shl", operands[1], int_log2(val))
 
-        if inst.opcode == "assert" and isinstance(operands[0], IRVariable):
-            src = self.dfg.get_producing_instruction(operands[0])
-            assert isinstance(src, IRInstruction)
-            if src.opcode not in COMPARISON_OPS:
-                return False
-
-            assert isinstance(src.output, IRVariable)
-            uses = self.dfg.get_uses(src.output)
-            if len(uses) != 1:
-                return False
-
-            if not isinstance(src.operands[0], IRLiteral):
-                return False
-
-            n_op = src.operands[0].value
-            if "gt" in src.opcode:
-                n_op += 1
-            else:
-                n_op -= 1
-            unsigned = "s" not in src.opcode
-
-            assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
-            n_opcode = (
-                src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
-            )
-
-            src.opcode = n_opcode
-            src.operands = [IRLiteral(n_op), src.operands[1]]
-
-            var = self.add(inst, "iszero", src.output)
-            self.dfg.add_use(var, inst)
-
-            self.update(inst, "assert", var, force=True)
-
-            return True
-
-        if inst.output is None:
-            return False
-
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses_ignore_nops(inst.output)
         is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
@@ -708,6 +673,45 @@ class SCCP(IRPass):
                 return True
 
         return False
+
+    def handle_assert_inst(self, inst: IRInstruction) -> bool:
+        operands = inst.operands
+        if not isinstance(operands[0], IRVariable):
+            return False
+        src = self.dfg.get_producing_instruction(operands[0])
+        assert isinstance(src, IRInstruction)
+        if src.opcode not in COMPARISON_OPS:
+            return False
+
+        assert isinstance(src.output, IRVariable)
+        uses = self.dfg.get_uses(src.output)
+        if len(uses) != 1:
+            return False
+
+        if not isinstance(src.operands[0], IRLiteral):
+            return False
+
+        n_op = src.operands[0].value
+        if "gt" in src.opcode:
+            n_op += 1
+        else:
+            n_op -= 1
+        unsigned = "s" not in src.opcode
+
+        assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+        n_opcode = (
+            src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+        )
+
+        src.opcode = n_opcode
+        src.operands = [IRLiteral(n_op), src.operands[1]]
+
+        var = self.add(inst, "iszero", src.output)
+        self.dfg.add_use(var, inst)
+
+        self.update(inst, "assert", var, force=True)
+
+        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
