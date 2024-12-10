@@ -495,11 +495,26 @@ class SCCP(IRPass):
         if inst.opcode in {"shl", "shr", "sar"}:
             if self.lit_eq(operands[1], 0):
                 return self.store(inst, operands[0])
-            # iszero does not is checked as main instruction
+            # no more cases for these instructions
             return False
 
-        if inst.opcode in {"add", "sub", "xor", "or"} and self.lit_eq(operands[0], 0):
+        if inst.opcode in {"add", "sub", "xor"}:
+            if self.lit_eq(operands[0], 0):
+                return self.store(inst, operands[1])
+            if inst.opcode == "sub" and self.lit_eq(operands[1], -1):
+                return self.update(inst, "not", operands[0])
+            if inst.opcode != "add" and self.op_eq(operands, 0, 1):
+                # (x - x) == (x ^ x) == (x != x) == 0
+                return self.store(inst, 0)
+            if inst.opcode == "xor" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+                return self.update(inst, "not", operands[1])
+            return False
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], 0):
             return self.store(inst, operands[1])
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            return self.store(inst, signed_to_unsigned(-1, 256))
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"} and self.lit_eq(
             operands[0], 0
@@ -509,8 +524,24 @@ class SCCP(IRPass):
         if inst.opcode in {"mul", "div", "sdiv"} and self.lit_eq(operands[0], 1):
             return self.store(inst, operands[1])
 
-        if inst.opcode == "sub" and self.lit_eq(operands[1], -1):
-            return self.update(inst, "not", operands[0])
+        if inst.opcode in {"mod", "smod"} and self.lit_eq(operands[0], 1):
+            return self.store(inst, 0)
+
+        if inst.opcode == "and" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            return self.store(inst, operands[1])
+
+        if (
+            inst.opcode in {"mod", "div", "mul"}
+            and self.is_lit(operands[0])
+            and is_power_of_two(self.get_lit(operands[0]).value)
+        ):
+            val = self.get_lit(operands[0]).value
+            if inst.opcode == "mod":
+                return self.update(inst, "and", val - 1, operands[1])
+            if inst.opcode == "div":
+                return self.update(inst, "shr", operands[1], int_log2(val))
+            if inst.opcode == "mul":
+                return self.update(inst, "shl", operands[1], int_log2(val))
 
         if inst.opcode == "exp":
             if self.lit_eq(operands[0], 0):
@@ -533,10 +564,6 @@ class SCCP(IRPass):
         if inst.opcode == "eq" and self.lit_eq(operands[1], 0):
             return self.update(inst, "iszero", operands[0])
 
-        if inst.opcode in {"sub", "xor", "ne"} and self.op_eq(operands, 0, 1):
-            # (x - x) == (x ^ x) == (x != x) == 0
-            return self.store(inst, 0)
-
         if inst.opcode in COMPARISON_OPS and self.op_eq(operands, 0, 1):
             # (x < x) == (x > x) == 0
             return self.store(inst, 0)
@@ -545,30 +572,8 @@ class SCCP(IRPass):
             # (x == x) == 1
             return self.store(inst, 1)
 
-        if inst.opcode in {"mod", "smod"} and self.lit_eq(operands[0], 1):
-            return self.store(inst, 0)
-
-        if inst.opcode == "and" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-            return self.store(inst, operands[1])
-
-        if inst.opcode == "xor" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-            return self.update(inst, "not", operands[1])
-
-        if inst.opcode == "or" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-            return self.store(inst, signed_to_unsigned(-1, 256))
-
-        if (
-            inst.opcode in {"mod", "div", "mul"}
-            and self.is_lit(operands[0])
-            and is_power_of_two(self.get_lit(operands[0]).value)
-        ):
-            val = self.get_lit(operands[0]).value
-            if inst.opcode == "mod":
-                return self.update(inst, "and", val - 1, operands[1])
-            if inst.opcode == "div":
-                return self.update(inst, "shr", operands[1], int_log2(val))
-            if inst.opcode == "mul":
-                return self.update(inst, "shl", operands[1], int_log2(val))
+        if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
+            return False
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses_ignore_nops(inst.output)
