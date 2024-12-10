@@ -480,13 +480,19 @@ class SCCP(IRPass):
         if inst.is_commutative and self.is_lit(operands[1]):
             operands = [operands[1], operands[0]]
 
-        if inst.opcode == "iszero" and self.is_lit(operands[0]):
-            lit = self.get_lit(operands[0]).value
-            val = int(lit == 0)
-            return self.store(inst, val)
+        if inst.opcode == "iszero":
+            if self.is_lit(operands[0]):
+                lit = self.get_lit(operands[0]).value
+                val = int(lit == 0)
+                return self.store(inst, val)
+            # iszero does not is checked as main instruction
+            return False
 
-        if inst.opcode in {"shl", "shr", "sar"} and self.lit_eq(operands[1], 0):
-            return self.store(inst, operands[0])
+        if inst.opcode in {"shl", "shr", "sar"}:
+            if self.lit_eq(operands[1], 0):
+                return self.store(inst, operands[0])
+            # iszero does not is checked as main instruction
+            return False
 
         if inst.opcode in {"add", "sub", "xor", "or"} and self.lit_eq(operands[0], 0):
             return self.store(inst, operands[1])
@@ -502,17 +508,20 @@ class SCCP(IRPass):
         if inst.opcode == "sub" and self.lit_eq(operands[1], -1):
             return self.update(inst, "not", operands[0])
 
-        if inst.opcode == "exp" and self.lit_eq(operands[0], 0):
-            return self.store(inst, 1)
+        if inst.opcode == "exp":
+            if self.lit_eq(operands[0], 0):
+                return self.store(inst, 1)
 
-        if inst.opcode == "exp" and self.lit_eq(operands[1], 1):
-            return self.store(inst, 1)
+            if self.lit_eq(operands[1], 1):
+                return self.store(inst, 1)
 
-        if inst.opcode == "exp" and self.lit_eq(operands[1], 0):
-            return self.update(inst, "iszero", operands[0])
+            if self.lit_eq(operands[1], 0):
+                return self.update(inst, "iszero", operands[0])
 
-        if inst.opcode == "exp" and self.lit_eq(operands[0], 1):
-            return self.store(inst, operands[1])
+            if self.lit_eq(operands[0], 1):
+                return self.store(inst, operands[1])
+
+            return False
 
         if inst.opcode == "eq" and self.lit_eq(operands[0], 0):
             return self.update(inst, "iszero", operands[1])
