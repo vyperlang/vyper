@@ -26,7 +26,9 @@ def test_literal_codesize_ff_inversion(orig_value):
     assert evm_not(bb.instructions[0].operands[0].value) == orig_value
 
 
-should_not_invert = [1, 0xFE << 248 | (2**248 - 1)]
+should_not_invert = [1, 0xFE << 248 | (2**248 - 1)] + [
+    ((2**255 - 1) >> i) << i for i in range(0, 3 * 8)
+]
 
 
 @pytest.mark.parametrize("orig_value", should_not_invert)
@@ -45,9 +47,9 @@ def test_literal_codesize_no_inversion(orig_value):
 
 
 should_shl = (
-    [0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000]
-    + [1 << i for i in range(3 * 8, 255)]
+    [1 << i for i in range(3 * 8, 255)]
     + [((1 << i) - 1) << (256 - i) for i in range(1, 121)]
+    + [((2**255 - 1) >> i) << i for i in range(3 * 8, 254)]
 )
 
 
