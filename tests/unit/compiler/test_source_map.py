@@ -111,6 +111,17 @@ def foo():
     assert "user revert with reason" in error_map.values()
 
 
+def test_error_map_with_user_error2():
+    code = """
+@external
+def foo(i: uint256):
+    a: DynArray[uint256, 10] = [1]
+    a[i % 10] = 2
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "safemod" in error_map.values()
+
+
 def test_error_map_not_overriding_errors():
     code = """
 @external
