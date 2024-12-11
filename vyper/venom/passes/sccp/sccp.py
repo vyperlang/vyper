@@ -93,10 +93,11 @@ class SCCP(IRPass):
         self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
         self.last = False
+        self.changed_bbs = set(self.fn.get_basic_blocks())
         while True:
             # TODO compute uses and sccp only once
             # and then modify them on the fly
-            self._propagate_constants()
+            # self._propagate_constants()
             if not self._algebraic_opt():
                 self.last = True
                 break
@@ -387,10 +388,17 @@ class SCCP(IRPass):
         assert isinstance(self.eq, VarEquivalenceAnalysis)
 
         change = False
-        for bb in self.sccp_calculated:
+        new_changed_bbs = set()
+        for bb in self.fn.get_basic_blocks():
+            update_constants = bb in self.changed_bbs
+            bb_in_calculated = bb in self.sccp_calculated
             for inst in bb.instructions:
-                change |= self._handle_inst_peephole(inst)
-
+                if update_constants:
+                    self._replace_constants(inst)
+                if bb_in_calculated and self._handle_inst_peephole(inst):
+                    new_changed_bbs.add(bb)
+                    change |= True
+        self.changed_bbs = new_changed_bbs
         return change
 
     def update(
