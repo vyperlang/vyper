@@ -38,20 +38,24 @@ class ReduceLiteralsCodesize(IRPass):
             ix = len(binz) - binz.rfind("1")
             shl_benefit = ix - SHL_THRESHOLD * 8
 
-            if not_benefit >= shl_benefit:
-                # transform things like 0xffff...01 to (not 0xfe)
-                if not_benefit > 0:
-                    inst.opcode = "not"
-                    op.value = evm_not(val)
-                    continue
-            else:
-                # transform things like 0x123400....000 to 0x1234 << ...
-                if shl_benefit > 0:
-                    ix -= 1
-                    # sanity check
-                    assert (val >> ix) << ix == val, val
-                    assert (val >> ix) & 1 == 1, val
+            if not_benefit <= 0 and shl_benefit <= 0:
+                # no optimization can be done here
+                continue
 
-                    inst.opcode = "shl"
-                    inst.operands = [IRLiteral(val >> ix), IRLiteral(ix)]
-                    continue
+            if not_benefit >= shl_benefit:
+                assert not_benefit > 0  # implied by previous conditions
+                # transform things like 0xffff...01 to (not 0xfe)
+                inst.opcode = "not"
+                op.value = evm_not(val)
+                continue
+            else:
+                assert shl_benefit > 0  # implied by previous conditions
+                # transform things like 0x123400....000 to 0x1234 << ...
+                ix -= 1
+                # sanity check
+                assert (val >> ix) << ix == val, val
+                assert (val >> ix) & 1 == 1, val
+
+                inst.opcode = "shl"
+                inst.operands = [IRLiteral(val >> ix), IRLiteral(ix)]
+                continue
