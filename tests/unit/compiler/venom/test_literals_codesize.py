@@ -53,7 +53,6 @@ should_shl = (
 
 @pytest.mark.parametrize("orig_value", should_shl)
 def test_literal_codesize_shl(orig_value):
-    print(hex(orig_value))
     ctx = IRContext()
     fn = ctx.create_function("_global")
     bb = fn.get_basic_block()
@@ -73,7 +72,6 @@ should_not_shl = [0x0, 2 ** (256 - 2) - 1 << (2 * 8) ^ 2**255] + [1 << i for i i
 
 @pytest.mark.parametrize("orig_value", should_not_shl)
 def test_literal_codesize_no_shl(orig_value):
-    print(hex(orig_value))
     ctx = IRContext()
     fn = ctx.create_function("_global")
     bb = fn.get_basic_block()
