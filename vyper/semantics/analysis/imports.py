@@ -224,7 +224,7 @@ class ImportAnalyzer:
             res = self.input_bundle.load_file(path)
 
         if level != 0:
-            self.input_bundle.search_paths += [current_search_path]
+            self.input_bundle.search_paths.append(current_search_path)
 
         return res
 
