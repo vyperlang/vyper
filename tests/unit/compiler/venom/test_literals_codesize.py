@@ -6,7 +6,7 @@ from vyper.venom.basicblock import IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.passes import ReduceLiteralsCodesize
 
-should_invert = [2**256 - 1] + [((1 << i) - 1) << (256 - i) for i in range(121, 256 + 1)]
+should_invert = [2**256 - 1] + [((2**i) - 1) << (256 - i) for i in range(121, 256 + 1)]
 
 
 @pytest.mark.parametrize("orig_value", should_invert)
@@ -47,8 +47,8 @@ def test_literal_codesize_no_inversion(orig_value):
 
 
 should_shl = (
-    [1 << i for i in range(3 * 8, 255)]
-    + [((1 << i) - 1) << (256 - i) for i in range(1, 121)]
+    [2**i for i in range(3 * 8, 255)]
+    + [((2**i) - 1) << (256 - i) for i in range(1, 121)]
     + [((2**255 - 1) >> i) << i for i in range(3 * 8, 254)]
 )
 
@@ -69,7 +69,9 @@ def test_literal_codesize_shl(orig_value):
     assert op0.value << op1.value == orig_value
 
 
-should_not_shl = [0x0, 2 ** (256 - 2) - 1 << (2 * 8) ^ 2**255] + [1 << i for i in range(0, 3 * 8)]
+should_not_shl = [0x0, (((2 ** (256 - 2)) - 1) << (2 * 8)) ^ (2**255)] + [
+    1 << i for i in range(0, 3 * 8)
+]
 
 
 @pytest.mark.parametrize("orig_value", should_not_shl)
