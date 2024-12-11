@@ -572,11 +572,7 @@ class SCCP(IRPass):
                 tmp = self.add(inst, "xor", operands[0], operands[1])
 
                 return self.update(inst, "iszero", tmp)
-            if (
-                inst.opcode == "or"
-                and self.is_lit(operands[0])
-                and operands[0].value != 0
-            ):
+            if inst.opcode == "or" and self.is_lit(operands[0]) and operands[0].value != 0:
                 return self.store(inst, 1)
 
         if inst.opcode in COMPARISON_OPS:
