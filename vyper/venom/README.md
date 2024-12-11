@@ -29,7 +29,7 @@ Venom employs two scopes: global and function level.
 ### Example code
 
 ```llvm
-fn global => {
+function global:
     global:
         %1 = calldataload 0
         %2 = shr 224, %1
@@ -54,9 +54,8 @@ fn global => {
 
     fallback:
         revert 0, 0
-}
 
-data:
+[data]
 ```
 
 ### Grammar

@@ -20,17 +20,17 @@ VENOM_PARSER = Lark(
     %import common.INT
 
     start: function* data_section
-    function: "function" NAME "=>" "{" block* "}"
-    data_section: "data:" call*
+    function: "function" NAME ":" block*
+    data_section: "[data]" instruction*
 
-    block: NAME ":" instruction*
+    block: NAME ":" statement*
 
-    instruction: call | assignment
+    statement: instruction | assignment
     assignment: VAR_IDENT "=" expr
-    expr: call | CONST
-    call: OPCODE operands_list
+    expr: instruction | CONST
+    instruction: OPCODE operands_list?
 
-    operands_list: (operand ("," operand)*)?
+    operands_list: operand ("," operand)*
 
     operand: VAR_IDENT | CONST | LABEL
 
@@ -105,7 +105,7 @@ class VenomTransformer(Transformer):
         name, *blocks = children
         return name, blocks
 
-    def instruction(self, children):
+    def statement(self, children):
         return children[0]
 
     def data_section(self, children):
@@ -127,8 +127,13 @@ class VenomTransformer(Transformer):
     def expr(self, children):
         return children[0]
 
-    def call(self, children) -> IRInstruction:
-        name, operands = children
+    def instruction(self, children) -> IRInstruction:
+        if len(children) == 1:
+            name = children[0]
+            operands = []
+        else:
+            assert len(children) == 2
+            name, operands = children
         # reverse operands because top->bottom is more intuitive but Venom does bottom->top
         return IRInstruction(name, reversed(operands))
 
