@@ -36,7 +36,7 @@ extras_require = {
 
 extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
-with open("README.md", "r") as f:
+with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 
@@ -113,6 +113,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],
