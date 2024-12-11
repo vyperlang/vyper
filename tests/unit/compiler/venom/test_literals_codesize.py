@@ -11,8 +11,6 @@ should_invert = [2**256 - 1] + [((2**i) - 1) << (256 - i) for i in range(121, 25
 
 @pytest.mark.parametrize("orig_value", should_invert)
 def test_literal_codesize_ff_inversion(orig_value):
-    print(hex(orig_value))
-    print(hex(orig_value % 2**256))
     ctx = IRContext()
     fn = ctx.create_function("_global")
     bb = fn.get_basic_block()
