@@ -6,11 +6,13 @@ from vyper.venom.basicblock import IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.passes import ReduceLiteralsCodesize
 
-should_invert = [0xFFFF << 240, 2**256 - 1]
+should_invert = [2**256 - 1] + [((1 << i) - 1) << (256 - i) for i in range(121, 256 + 1)]
 
 
 @pytest.mark.parametrize("orig_value", should_invert)
 def test_literal_codesize_ff_inversion(orig_value):
+    print(hex(orig_value))
+    print(hex(orig_value % 2**256))
     ctx = IRContext()
     fn = ctx.create_function("_global")
     bb = fn.get_basic_block()
@@ -42,9 +44,11 @@ def test_literal_codesize_no_inversion(orig_value):
     assert bb.instructions[0].operands[0].value == orig_value
 
 
-should_shl = [0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000] + [
-    1 << i for i in range(3 * 8, 255)
-]
+should_shl = (
+    [0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000]
+    + [1 << i for i in range(3 * 8, 255)]
+    + [((1 << i) - 1) << (256 - i) for i in range(1, 121)]
+)
 
 
 @pytest.mark.parametrize("orig_value", should_shl)
