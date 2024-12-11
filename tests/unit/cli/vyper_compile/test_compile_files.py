@@ -1,6 +1,8 @@
 import contextlib
+import io
 import json
 import sys
+import warnings
 import zipfile
 from pathlib import Path
 
@@ -340,7 +342,7 @@ def test_import_sys_path(input_files):
 
 
 def test_archive_output(input_files):
-    tmpdir, _, _, storage_layout_path, contract_file = input_files
+    tmpdir, library_file, jsonabi_file, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
 
     s = compile_files(
@@ -363,6 +365,50 @@ def test_archive_output(input_files):
     )
     out2 = compile_files([archive_path], ["integrity", "bytecode"])
     assert out[contract_file] == out2[archive_path]
+
+    # tamper the integrity sum by using the resolved imports hash, which excludes the storage layout
+    with (
+        library_file.open() as f,
+        contract_file.open() as g,
+        jsonabi_file.open() as h,
+        storage_layout_path.open() as i,
+    ):
+        library_contents = f.read()
+        contract_contents = g.read()
+        jsonabi_contents = h.read()
+        storage_layout_contents = i.read()
+
+    contract_hash = sha256sum(contract_contents)
+    library_hash = sha256sum(library_contents)
+    jsonabi_hash = sha256sum(jsonabi_contents)
+    resolved_imports_hash = sha256sum(contract_hash + sha256sum(library_hash) + jsonabi_hash)
+    storage_layout_hash = sha256sum(storage_layout_contents)
+    expected_hash = sha256sum(storage_layout_hash + resolved_imports_hash)
+
+    integrity_filename = "MANIFEST/integrity"
+    with zipfile.ZipFile(archive_path, "r") as zip_read:
+        memory_zip = io.BytesIO()
+
+        with zipfile.ZipFile(memory_zip, "w") as zip_write:
+            for item in zip_read.infolist():
+                if item.filename == integrity_filename:
+                    zip_write.writestr(item, resolved_imports_hash.encode())
+                else:
+                    zip_write.writestr(item, zip_read.read(item.filename))
+
+        memory_zip.seek(0)
+        with open(archive_path, "wb") as f:
+            f.write(memory_zip.read())
+
+    with warnings.catch_warnings(record=True) as w:
+        assert compile_files([archive_path], ["integrity", "bytecode"]) is not None
+
+    expected = f"Mismatched integrity sum! Expected {resolved_imports_hash}"
+    expected += f" but got {expected_hash}."
+    expected += " (This likely indicates a corrupted archive)"
+
+    assert len(w) == 1, [s.message for s in w]
+    assert str(w[0].message).startswith(expected)
 
 
 def test_archive_b64_output(input_files):
@@ -413,20 +459,33 @@ def test_solc_json_output(input_files):
 
 # maybe this belongs in tests/unit/compiler?
 def test_integrity_sum(input_files):
-    tmpdir, library_file, jsonabi_file, _, contract_file = input_files
+    tmpdir, library_file, jsonabi_file, storage_layout_path, contract_file = input_files
     search_paths = [".", tmpdir]
 
-    out = compile_files([contract_file], ["integrity"], paths=search_paths)
+    out = compile_files(
+        [contract_file],
+        ["integrity"],
+        paths=search_paths,
+        storage_layout_paths=[storage_layout_path],
+    )
 
-    with library_file.open() as f, contract_file.open() as g, jsonabi_file.open() as h:
+    with (
+        library_file.open() as f,
+        contract_file.open() as g,
+        jsonabi_file.open() as h,
+        storage_layout_path.open() as i,
+    ):
         library_contents = f.read()
         contract_contents = g.read()
         jsonabi_contents = h.read()
+        storage_layout_contents = i.read()
 
     contract_hash = sha256sum(contract_contents)
     library_hash = sha256sum(library_contents)
     jsonabi_hash = sha256sum(jsonabi_contents)
-    expected = sha256sum(contract_hash + sha256sum(library_hash) + jsonabi_hash)
+    resolved_imports_hash = sha256sum(contract_hash + sha256sum(library_hash) + jsonabi_hash)
+    storage_layout_hash = sha256sum(storage_layout_contents)
+    expected = sha256sum(storage_layout_hash + resolved_imports_hash)
     assert out[contract_file]["integrity"] == expected
 
 
