@@ -374,11 +374,11 @@ def test_archive_output(input_files):
     # compare compiling the two input bundles
     out = compile_files(
         [contract_file],
-        ["integrity", "bytecode"],
+        ["integrity", "bytecode", "layout"],
         paths=search_paths,
         storage_layout_paths=[storage_layout_path],
     )
-    out2 = compile_files([archive_path], ["integrity", "bytecode"])
+    out2 = compile_files([archive_path], ["integrity", "bytecode", "layout"])
     assert out[contract_file] == out2[archive_path]
 
     # tamper with the integrity sum
@@ -430,7 +430,7 @@ def test_solc_json_output(input_files):
 
     out2 = compile_files(
         [contract_file],
-        ["integrity", "bytecode"],
+        ["integrity", "bytecode", "layout"],
         paths=search_paths,
         storage_layout_paths=[storage_layout_path],
     )

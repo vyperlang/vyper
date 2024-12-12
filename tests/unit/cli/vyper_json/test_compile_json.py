@@ -20,6 +20,9 @@ import contracts.ibar as IBar
 
 import contracts.library as library
 
+a: uint256
+b: uint256
+
 @external
 def foo(a: address) -> bool:
     return extcall IBar(a).bar(1)
@@ -28,6 +31,11 @@ def foo(a: address) -> bool:
 def baz() -> uint256:
     return self.balance + library.foo()
 """
+
+FOO_STORAGE_LAYOUT_OVERRIDES = {
+    "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+    "b": {"type": "uint256", "n_slots": 1, "slot": 0},
+}
 
 BAR_CODE = """
 import contracts.ibar as IBar
@@ -88,6 +96,7 @@ def input_json(optimize, evm_version, experimental_codegen):
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
         },
+        "storage_layout_overrides": {"contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES},
     }
 
 
@@ -127,7 +136,10 @@ def test_compile_json(input_json, input_bundle):
     del output_formats["cfg"]
     del output_formats["cfg_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=output_formats, input_bundle=input_bundle
+        foo_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=FOO_STORAGE_LAYOUT_OVERRIDES,
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
