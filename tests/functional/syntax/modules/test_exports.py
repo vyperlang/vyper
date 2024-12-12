@@ -385,6 +385,28 @@ exports: lib1.ifoo
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
 
 
+def test_no_export_unimplemented_inline_interface(make_input_bundle):
+    lib1 = """
+interface ifoo:
+    def do_xyz(): nonpayable
+
+# technically implements ifoo, but missing `implements: ifoo`
+
+@external
+def do_xyz():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.ifoo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(InterfaceViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
+
+
 def test_export_selector_conflict(make_input_bundle):
     ifoo = """
 @external
@@ -444,3 +466,87 @@ def __init__():
     with pytest.raises(InterfaceViolation) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "requested `lib1.ifoo` but `lib1` does not implement `lib1.ifoo`!"
+
+
+def test_export_empty_interface(make_input_bundle, tmp_path):
+    lib1 = """
+def an_internal_function():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.__interface__
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    # as_posix() for windows
+    lib1_path = (tmp_path / "lib1.vy").as_posix()
+    assert e.value._message == f"lib1 (located at `{lib1_path}`) has no external functions!"
+
+
+def test_invalid_export(make_input_bundle):
+    lib1 = """
+@external
+def foo():
+    pass
+    """
+    main = """
+import lib1
+a: address
+
+exports: lib1.__interface__(self.a).foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "invalid export of a value"
+    assert e.value._hint == "exports should look like <module>.<function | interface>"
+
+    main = """
+interface Foo:
+    def foo(): nonpayable
+
+exports: Foo
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(main)
+
+    assert e.value._message == "invalid export"
+    assert e.value._hint == "exports should look like <module>.<function | interface>"
+
+
+@pytest.mark.parametrize("exports_item", ["__at__", "__at__(self)", "__at__(self).__interface__"])
+def test_invalid_at_exports(get_contract, make_input_bundle, exports_item):
+    lib = """
+@external
+@view
+def foo() -> uint256:
+    return 5
+    """
+
+    main = f"""
+import lib
+
+exports: lib.{exports_item}
+
+@external
+@view
+def bar() -> uint256:
+    return staticcall lib.__at__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    with pytest.raises(Exception) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    if exports_item == "__at__":
+        assert "not a function or interface" in str(e.value)
+    if exports_item == "__at__(self)":
+        assert "invalid exports" in str(e.value)
+    if exports_item == "__at__(self).__interface__":
+        assert "has no member '__interface__'" in str(e.value)
