@@ -57,7 +57,7 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
 def test_single_bb():
     source = '''
-    function main:
+    function main =>
         main:
             stop
 
@@ -76,7 +76,7 @@ def test_single_bb():
 
 def test_multi_bb_single_fn():
     source = '''
-    function start:
+    function start =>
         start:
             %1 = callvalue
             jnz @fine, @has_callvalue, %1
@@ -110,5 +110,165 @@ def test_multi_bb_single_fn():
     has_callvalue_bb.append_instruction("stop")
 
     start_fn.last_variable = 4
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
+def test_data_section():
+    parsed_ctx = parse_venom('''
+    function entry =>
+        entry:
+            stop
+
+    [data]
+    dbname @selector_buckets
+    db @selector_bucket_0
+    db @fallback
+    db @selector_bucket_2
+    db @selector_bucket_3
+    db @fallback
+    db @selector_bucket_5
+    db @selector_bucket_6
+    ''')
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
+    entry_fn.get_basic_block("entry").append_instruction("stop")
+
+    expected_ctx.data_segment = [
+        IRInstruction("dbname", [IRLabel("selector_buckets")]),
+        IRInstruction("db", [IRLabel("selector_bucket_0")]),
+        IRInstruction("db", [IRLabel("fallback")]),
+        IRInstruction("db", [IRLabel("selector_bucket_2")]),
+        IRInstruction("db", [IRLabel("selector_bucket_3")]),
+        IRInstruction("db", [IRLabel("fallback")]),
+        IRInstruction("db", [IRLabel("selector_bucket_5")]),
+        IRInstruction("db", [IRLabel("selector_bucket_6")])
+    ]
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
+def test_multi_function():
+    parsed_ctx = parse_venom('''
+    function entry =>
+        entry:
+            invoke @check_cv
+            jmp @wow
+        wow:
+            mstore 0, 1
+            return 0, 32
+
+    function check_cv =>
+        check_cv:
+            %1 = callvalue
+            %2 = param
+            jnz @no_value, @has_value, %1
+        no_value:
+            ret %2
+        has_value:
+            revert 0, 0
+
+    [data]
+    ''')
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
+
+    entry_bb = entry_fn.get_basic_block("entry")
+    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_instruction("jmp", IRLabel("wow"))
+
+    entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
+    wow_bb.append_instruction("mstore", IRLiteral(1), IRLiteral(0))
+    wow_bb.append_instruction("return", IRLiteral(32), IRLiteral(0))
+
+    expected_ctx.add_function(check_fn := IRFunction(IRLabel("check_cv")))
+
+    check_entry_bb = check_fn.get_basic_block("check_cv")
+    check_entry_bb.append_instruction("callvalue", ret=IRVariable("1"))
+    check_entry_bb.append_instruction("param", ret=IRVariable("2"))
+    check_entry_bb.append_instruction(
+        "jnz",
+        IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
+    )
+    check_fn.append_basic_block(no_value_bb := IRBasicBlock(IRLabel("no_value"), check_fn))
+    no_value_bb.append_instruction("ret", IRVariable("2"))
+
+    check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
+    value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+    value_bb.append_instruction("stop")
+
+    check_fn.last_variable = 2
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
+def test_multi_function_and_data():
+    parsed_ctx = parse_venom('''
+    function entry =>
+        entry:
+            invoke @check_cv
+            jmp @wow
+        wow:
+            mstore 0, 1
+            return 0, 32
+
+    function check_cv =>
+        check_cv:
+            %1 = callvalue
+            %2 = param
+            jnz @no_value, @has_value, %1
+        no_value:
+            ret %2
+        has_value:
+            revert 0, 0
+
+    [data]
+    dbname @selector_buckets
+    db @selector_bucket_0
+    db @fallback
+    db @selector_bucket_2
+    db @selector_bucket_3
+    db @selector_bucket_6
+    ''')
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
+
+    entry_bb = entry_fn.get_basic_block("entry")
+    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_instruction("jmp", IRLabel("wow"))
+
+    entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
+    wow_bb.append_instruction("mstore", IRLiteral(1), IRLiteral(0))
+    wow_bb.append_instruction("return", IRLiteral(32), IRLiteral(0))
+
+    expected_ctx.add_function(check_fn := IRFunction(IRLabel("check_cv")))
+
+    check_entry_bb = check_fn.get_basic_block("check_cv")
+    check_entry_bb.append_instruction("callvalue", ret=IRVariable("1"))
+    check_entry_bb.append_instruction("param", ret=IRVariable("2"))
+    check_entry_bb.append_instruction(
+        "jnz",
+        IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
+    )
+    check_fn.append_basic_block(no_value_bb := IRBasicBlock(IRLabel("no_value"), check_fn))
+    no_value_bb.append_instruction("ret", IRVariable("2"))
+
+    check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
+    value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+    value_bb.append_instruction("stop")
+
+    check_fn.last_variable = 2
+
+    expected_ctx.data_segment = [
+        IRInstruction("dbname", [IRLabel("selector_buckets")]),
+        IRInstruction("db", [IRLabel("selector_bucket_0")]),
+        IRInstruction("db", [IRLabel("fallback")]),
+        IRInstruction("db", [IRLabel("selector_bucket_2")]),
+        IRInstruction("db", [IRLabel("selector_bucket_3")]),
+        IRInstruction("db", [IRLabel("selector_bucket_6")])
+    ]
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
