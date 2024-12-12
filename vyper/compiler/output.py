@@ -214,7 +214,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     for fn_t in module_t.exposed_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
         for rif_t in fn_t.reachable_internal_functions:
-            sigs[str(rif_t._ir_info.func_t._function_id) + ": " + rif_t.name] = rif_t
+            fn_id = rif_t._ir_info.func_t._function_id
+            k = f"{rif_t.name} ({fn_id})"
+            sigs[k] = rif_t
         sigs[fn_t.name] = fn_t
 
     def _var_rec_dict(variable_record):
