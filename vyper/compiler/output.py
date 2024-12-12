@@ -109,14 +109,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
 
-    # capitalize words separated by '_'
-    # ex: test_interface.vy -> TestInterface
-    def capitalize_part(part):
-        if len(part) > 0:  # safe even if 1 cause [1:] will be just empty string
-            return part[0].upper() + part[1:]
-        return ""
-
-    name = "".join([capitalize_part(x) for x in stem.split("_")])
+    name = stem.title().replace("_", "")
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():

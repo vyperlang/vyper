@@ -917,6 +917,7 @@ def foo():
     compile_code(code, contract_path="t_test.vyi", output_formats=["external_interface"])
     compile_code(code, contract_path="test_t.vyi", output_formats=["external_interface"])
     compile_code(code, contract_path="_test_t__t_tt_.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path="foo_bar_baz.vyi", output_formats=["external_interface"])
 
 
 def test_external_interface_with_flag():
