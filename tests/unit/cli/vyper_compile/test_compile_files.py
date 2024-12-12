@@ -7,7 +7,7 @@ import pytest
 
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_json
-from vyper.compiler import INTERFACE_OUTPUT_FORMATS
+from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
@@ -476,6 +476,8 @@ def baz() -> uint8:
         "opcodes_runtime",
     ]
 
-    for f in unallowed_formats:
+    for f in OUTPUT_FORMATS:
+        if f in INTERFACE_OUTPUT_FORMATS:
+            continue
         with pytest.raises(ValueError):
             compile_files([file], [f])
