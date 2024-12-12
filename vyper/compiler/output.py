@@ -263,7 +263,6 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "_ir_identifier",
             "nonreentrant_key",
             "resolved_path",
-
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
