@@ -20,7 +20,7 @@ VENOM_PARSER = Lark(
     %import common.INT
 
     start: function* data_section
-    function: "function" NAME ":" block*
+    function: "function" NAME "=>" block*
     data_section: "[data]" instruction*
 
     block: NAME ":" statement*
@@ -142,6 +142,9 @@ class VenomTransformer(Transformer):
 
     def operand(self, children) -> IROperand:
         return children[0]
+
+    def OPCODE(self, token):
+        return token.value
 
     def LABEL(self, label) -> IRLabel:
         return IRLabel(label[1:])
