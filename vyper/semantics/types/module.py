@@ -561,22 +561,22 @@ class ModuleT(VyperType):
         return InterfaceT.from_ModuleT(self)
 
     @cached_property
-    def is_not_initializable(self):
+    def is_initializable(self):
         """
-        Determine whether ModuleT is stateless by examining its top-level
+        Determine whether ModuleT can be initialised by examining its top-level
         declarations. A module has state if it contains storage variables,
         transient variables, or immutables, or if it includes a "initializes"
         declaration, or any nonreentrancy locks.
         """
         if len(self.initializes_decls) > 0:
-            return False
+            return True
         if any(not v.is_constant for v in self.variable_decls):
-            return False
+            return True
         if self.init_function is not None:
-            return False
+            return True
 
         for fun in self.functions.values():
             if fun.nonreentrant:
-                return False
+                return True
 
-        return True
+        return False

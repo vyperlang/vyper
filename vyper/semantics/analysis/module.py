@@ -409,7 +409,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_info = get_expr_info(module_ref).module_info
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
-        if module_info.module_t.is_not_initializable:
+        if not module_info.module_t.is_initializable:
             raise StructureException(
                 f"Cannot initialize a stateless module {module_info.alias}!", module_ref
             )
