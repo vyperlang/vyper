@@ -33,7 +33,7 @@ def baz() -> uint256:
 """
 
 FOO_STORAGE_LAYOUT_OVERRIDES = {
-    "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+    "a": {"type": "uint256", "n_slots": 1, "slot": 5},
     "b": {"type": "uint256", "n_slots": 1, "slot": 0},
 }
 

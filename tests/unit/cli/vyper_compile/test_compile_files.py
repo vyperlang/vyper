@@ -318,7 +318,7 @@ def bar(x: uint256) -> uint256:
     return extcall jsonabi(msg.sender).test_json(x)
     """
     storage_layout_overrides = {
-        "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+        "a": {"type": "uint256", "n_slots": 1, "slot": 5},
         "b": {"type": "uint256", "n_slots": 1, "slot": 0},
     }
     storage_layout_source = json.dumps(storage_layout_overrides)
