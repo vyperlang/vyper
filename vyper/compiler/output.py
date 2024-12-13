@@ -211,13 +211,21 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     sigs = dict[str, ContractFunctionT]()
 
+    def _fn_identifier(fn_t):
+        fn_id = fn_t._ir_info.func_t._function_id
+        return f"{fn_t.name} ({fn_id})"
+
     for fn_t in module_t.exposed_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
         for rif_t in fn_t.reachable_internal_functions:
-            fn_id = rif_t._ir_info.func_t._function_id
-            k = f"{rif_t.name} ({fn_id})"
+            k = _fn_identifier(rif_t)
+            if k in sigs:
+                assert sigs[k] == fn_t
             sigs[k] = rif_t
-        sigs[fn_t.name] = fn_t
+
+        fn_id = _fn_identifier(fn_t)
+        assert fn_id not in sigs
+        sigs[fn_id] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
