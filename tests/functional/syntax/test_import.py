@@ -27,8 +27,9 @@ def foo():
         {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
     )
 
+    file_input = input_bundle.load_file("top.vy")
     with pytest.raises(ModuleNotFound):
-        compiler.compile_code(top, input_bundle=input_bundle)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
 
     lib0 = """
 from subdir1 import lib1 as lib1
@@ -40,8 +41,9 @@ def foo():
         {"top.vy": top, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": lib1}
     )
 
+    file_input = input_bundle.load_file("top.vy")
     with pytest.raises(ModuleNotFound):
-        compiler.compile_code(top, input_bundle=input_bundle)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_relative_import_searches_only_current_path(make_input_bundle):
