@@ -212,7 +212,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     sigs = dict[str, ContractFunctionT]()
 
     def _fn_identifier(fn_t):
-        fn_id = fn_t._ir_info.func_t._function_id
+        fn_id = fn_t._function_id
         return f"{fn_t.name} ({fn_id})"
 
     for fn_t in module_t.exposed_functions:
@@ -248,7 +248,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
-        ret["resolved_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
+        ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
+        ret["source_id"] = func_t.decl_node.module_node.source_id
+        ret["function_id"] = func_t._function_id
 
         keep_keys = {
             "name",
@@ -261,7 +263,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "visibility",
             "_ir_identifier",
             "nonreentrant_key",
-            "resolved_path",
+            "module_path",
+            "source_id",
+            "function_id",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
