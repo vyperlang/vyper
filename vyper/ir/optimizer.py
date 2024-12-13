@@ -2,6 +2,7 @@ import operator
 from typing import List, Optional, Tuple, Union
 
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import (
@@ -417,6 +418,9 @@ def _check_symbols(symbols, ir_node):
 
 
 def optimize(node: IRnode) -> IRnode:
+    settings = get_global_settings()
+    if settings is not None and settings.experimental_codegen:
+        return node
     _, ret = _optimize(node, parent=None)
     return ret
 
