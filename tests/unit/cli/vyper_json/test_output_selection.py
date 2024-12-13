@@ -110,13 +110,8 @@ def bar():
         "metadata"
     ]["function_info"]
 
-    def has_suffix_key(data: dict, suffix: str) -> bool:
-        for key in data.keys():
-            if key.endswith(suffix):
-                return True
-        return False
-
-    assert has_suffix_key(out, "foo (0)")
-    assert has_suffix_key(out, "foo (1)")
-    assert has_suffix_key(out, "bar (2)")
-    assert not has_suffix_key(out, "faa")
+    assert "foo (0)" in out
+    assert "foo (1)" in out
+    assert "bar (2)" in out
+    # faa is unreachable, should not be in metadata or bytecode
+    assert not any("faa" in key for key in out.keys())
