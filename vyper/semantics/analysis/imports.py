@@ -216,17 +216,14 @@ class ImportAnalyzer:
 
     def _load_file(self, path: PathLike, level: int) -> CompilerInput:
         ast = self.graph.current_module
-        current_search_path = Path(ast.resolved_path).parent
 
-        search_paths = self.absolute_search_paths if level == 0 else [current_search_path]
+        if level != 0:  # relative import
+            search_paths = [Path(ast.resolved_path).parent]
+        else:
+            search_paths = self.absolute_search_paths
 
         with self.input_bundle.temporary_search_paths(search_paths):
-            res = self.input_bundle.load_file(path)
-
-        if level != 0:
-            self.input_bundle.search_paths.append(current_search_path)
-
-        return res
+            return self.input_bundle.load_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
