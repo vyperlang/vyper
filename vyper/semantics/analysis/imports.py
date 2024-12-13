@@ -217,6 +217,7 @@ class ImportAnalyzer:
     def _load_file(self, path: PathLike, level: int) -> CompilerInput:
         ast = self.graph.current_module
 
+        search_paths: list[PathLike]  # help mypy
         if level != 0:  # relative import
             search_paths = [Path(ast.resolved_path).parent]
         else:
