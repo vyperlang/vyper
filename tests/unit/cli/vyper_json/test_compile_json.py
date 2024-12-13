@@ -182,7 +182,7 @@ def test_compile_json(input_json, input_bundle):
             "interface": data["interface"],
             "ir": data["ir_dict"],
             "userdoc": data["userdoc"],
-            "layout": json.dumps(data["layout"]),
+            "layout": data["layout"],
             "metadata": data["metadata"],
             "evm": {
                 "bytecode": {

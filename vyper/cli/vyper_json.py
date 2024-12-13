@@ -365,7 +365,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 output_contracts[key] = data[key]
 
         if "layout" in data:
-            output_contracts["layout"] = json.dumps(data["layout"])
+            output_contracts["layout"] = data["layout"]
 
         if "method_identifiers" in data:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
