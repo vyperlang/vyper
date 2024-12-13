@@ -219,16 +219,6 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             sigs[k] = rif_t
         sigs[fn_t.name] = fn_t
 
-    def _var_rec_dict(variable_record):
-        ret = vars(variable_record).copy()
-        ret["typ"] = str(ret["typ"])
-        if ret["data_offset"] is None:
-            del ret["data_offset"]
-        for k in ("blockscopes", "defined_at", "encoding"):
-            del ret[k]
-        ret["location"] = ret["location"].name
-        return ret
-
     def _to_dict(func_t):
         ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
