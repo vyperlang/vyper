@@ -319,9 +319,8 @@ def test_compile_json_with_abi_top(make_input_bundle):
 from . import stream
     """
     input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
-    vyper.compiler.compile_code(
-        code, resolved_path=input_bundle.search_paths[0] / "code.vy", input_bundle=input_bundle
-    )
+    file_input = input_bundle.load_file("code.vy")
+    vyper.compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_compile_json_with_experimental_codegen():
