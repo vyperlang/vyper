@@ -149,7 +149,7 @@ class MemMergePass(IRPass):
                     # if the load is used by any instructions besides the ones
                     # we are removing, we can't delete it. (in the future this
                     # may be handled by "remove unused effects" pass).
-                    assert isinstance(inst.output, IRVariable) # help mypy
+                    assert isinstance(inst.output, IRVariable)  # help mypy
                     uses = self.dfg.get_uses(inst.output)
                     if not all(use in copy.insts for use in uses):
                         continue
@@ -172,13 +172,13 @@ class MemMergePass(IRPass):
 
     def _read_after_write_hazard(self, new_copy: _Copy) -> bool:
         new_copies = self._copies + [new_copy]
-        
+
         # new copy would overwrite memory that
         # needs to be read to optimize copy
         if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
             return True
 
-        # existing copies would overwrite memory that the 
+        # existing copies would overwrite memory that the
         # new copy would need
         if any(copy.overwrites(new_copy.src_interval()) for copy in self._copies):
             return True

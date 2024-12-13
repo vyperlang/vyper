@@ -579,6 +579,7 @@ def test_memmerging_unused_mload_1():
     assert bb.instructions[1].operands[2].value == 0
     assert bb.instructions[2].opcode == "return"
 
+
 def test_memmerging_mload_read_after_write_hazard():
     if not version_check(begin="cancun"):
         return
@@ -615,6 +616,7 @@ def test_memmerging_mload_read_after_write_hazard():
     assert bb.instructions[4].operands[1].value == 1024 + 32
     assert bb.instructions[5].opcode == "stop"
 
+
 def test_memmerging_mcopy_read_after_write_hazard():
     if not version_check(begin="cancun"):
         return
@@ -632,6 +634,7 @@ def test_memmerging_mcopy_read_after_write_hazard():
     MemMergePass(ac, fn).run_pass()
 
     assert _nochange(pre, bb), bb
+
 
 def test_memmerging_write_after_write():
     if not version_check(begin="cancun"):
