@@ -57,5 +57,5 @@ def foo():
     """
     input_bundle = make_input_bundle({"code.vy": code})
 
-    with raises(SyntaxException, match="line \d+:12"):
+    with raises(SyntaxException, match=r"line \d+:12"):
         compile_code(code, input_bundle=input_bundle)
