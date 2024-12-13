@@ -390,11 +390,12 @@ class SCCP(IRPass):
         change = False
         new_changed_bbs = set()
         for bb in self.fn.get_basic_blocks():
-            update_constants = bb in self.changed_bbs
+            changed = bb in self.changed_bbs
+            if not changed:
+                continue
             bb_in_calculated = bb in self.sccp_calculated
             for inst in bb.instructions:
-                if update_constants:
-                    self._replace_constants(inst)
+                self._replace_constants(inst)
                 if bb_in_calculated and self._handle_inst_peephole(inst):
                     new_changed_bbs.add(bb)
                     change |= True
