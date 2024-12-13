@@ -220,6 +220,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         for rif_t in fn_t.reachable_internal_functions:
             k = _fn_identifier(rif_t)
             if k in sigs:
+                # sanity check that keys are injective with functions
                 assert sigs[k] == rif_t, (k, sigs[k], rif_t)
             sigs[k] = rif_t
 
