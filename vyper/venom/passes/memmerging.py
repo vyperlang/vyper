@@ -149,7 +149,7 @@ class MemMergePass(IRPass):
                     # if the load is used by any instructions besides the ones
                     # we are removing, we can't delete it. (in the future this
                     # may be handled by "remove unused effects" pass).
-                    assert inst.output is not None  # help mypy
+                    assert isinstance(inst.output, IRVariable) # help mypy
                     uses = self.dfg.get_uses(inst.output)
                     if not all(use in copy.insts for use in uses):
                         continue
@@ -172,12 +172,16 @@ class MemMergePass(IRPass):
 
     def _read_after_write_hazard(self, new_copy: _Copy) -> bool:
         new_copies = self._copies + [new_copy]
+        
+        # new copy would overwrite memory that
+        # needs to be read to optimize copy
         if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
             return True
-        for _, load_ptr in self._loads.items():
-            read_interval = _Interval(load_ptr, 32)
-            if self._overwrites(read_interval):
-                return True
+
+        # existing copies would overwrite memory that the 
+        # new copy would need
+        if any(copy.overwrites(new_copy.src_interval()) for copy in self._copies):
+            return True
 
         return False
 
@@ -196,11 +200,11 @@ class MemMergePass(IRPass):
             else:
                 i += 1
 
-    def _overwrites(self, inter: _Interval) -> bool:
+    def _overwrites(self, read_interval: _Interval) -> bool:
         # check if any of self._copies tramples the interval
 
         # could use bisect_left to optimize, but it's harder to reason about
-        return any(c.overwrites(inter) for c in self._copies)
+        return any(c.overwrites(read_interval) for c in self._copies)
 
     def _handle_bb(
         self,
@@ -223,6 +227,12 @@ class MemMergePass(IRPass):
                 if not isinstance(src_op, IRLiteral):
                     _barrier()
                     continue
+
+                read_interval = _Interval(src_op.value, 32)
+
+                # we will read from this memory so we need to put barier
+                if not allow_dst_overlaps_src and self._overwrites(read_interval):
+                    _barrier()
 
                 assert inst.output is not None
                 self._loads[inst.output] = src_op.value

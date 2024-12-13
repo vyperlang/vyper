@@ -579,6 +579,59 @@ def test_memmerging_unused_mload_1():
     assert bb.instructions[1].operands[2].value == 0
     assert bb.instructions[2].opcode == "return"
 
+def test_memmerging_mload_read_after_write_hazard():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val1 = bb.append_instruction("mload", 100)
+    val2 = bb.append_instruction("mload", 132)
+    bb.append_instruction("mstore", val1, 0)
+    val3 = bb.append_instruction("mload", 32)
+    bb.append_instruction("mstore", val2, 32)
+    val4 = bb.append_instruction("mload", 64)
+    bb.append_instruction("mstore", val3, 1024)
+    bb.append_instruction("mstore", val4, 1024 + 32)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mload"
+    assert bb.instructions[0].operands[0].value == 32
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 100
+    assert bb.instructions[1].operands[2].value == 0
+    assert bb.instructions[2].opcode == "mload"
+    assert bb.instructions[2].operands[0].value == 64
+    assert bb.instructions[3].opcode == "mstore"
+    assert bb.instructions[3].operands[0] == bb.instructions[0].output
+    assert bb.instructions[3].operands[1].value == 1024
+    assert bb.instructions[4].opcode == "mstore"
+    assert bb.instructions[4].operands[0] == bb.instructions[2].output
+    assert bb.instructions[4].operands[1].value == 1024 + 32
+    assert bb.instructions[5].opcode == "stop"
+
+def test_memmerging_mcopy_read_after_write_hazard():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mcopy", 64, 32, 1024)
+    bb.append_instruction("mcopy", 64, 1024, 2048)
+    bb.append_instruction("mcopy", 64, 32 + 64, 1024 + 64)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb), bb
 
 def test_memmerging_write_after_write():
     if not version_check(begin="cancun"):
