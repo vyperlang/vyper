@@ -81,7 +81,7 @@ class _Copy:
         assert self.dst <= other.dst, "bad bisect_left"
         assert self.can_merge(other)
 
-        new_length = max(self.src_end, other.src_end) - self.src
+        new_length = max(self.dst_end, other.dst_end) - self.dst
         self.length = new_length
         self.insts.extend(other.insts)
 
