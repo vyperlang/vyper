@@ -1,4 +1,3 @@
-import json
 import re
 
 import pytest
@@ -48,8 +47,8 @@ b: uint256"""
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
     )
-    assert compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == json.dumps(
-        out["layout"]
+    assert (
+        compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == out["layout"]
     )
 
 
