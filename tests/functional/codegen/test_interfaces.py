@@ -901,23 +901,29 @@ def foo(s: MyStruct) -> MyStruct:
     assert "MOO" in out
 
 
-def test_external_interface_names():
+vyi_filenames = [
+    "test__test.vyi",
+    "test__t.vyi",
+    "t__test.vyi",
+    "t__t.vyi",
+    "t_t.vyi",
+    "test_test.vyi",
+    "t_test.vyi",
+    "test_t.vyi",
+    "_test_t__t_tt_.vyi",
+    "foo_bar_baz.vyi",
+]
+
+
+@pytest.mark.parametrize("vyi_filename", vyi_filenames)
+def test_external_interface_names(vyi_filename):
     code = """
 @external
 def foo():
     ...
     """
 
-    compile_code(code, contract_path="test__test.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="test__t.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="t__test.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="t__t.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="t_t.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="test_test.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="t_test.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="test_t.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="_test_t__t_tt_.vyi", output_formats=["external_interface"])
-    compile_code(code, contract_path="foo_bar_baz.vyi", output_formats=["external_interface"])
+    compile_code(code, contract_path=vyi_filename, output_formats=["external_interface"])
 
 
 def test_external_interface_with_flag():
