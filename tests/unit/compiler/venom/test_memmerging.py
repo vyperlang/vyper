@@ -724,7 +724,7 @@ def test_memmerging_not_allowed_overlapping2():
     bb = fn.get_basic_block()
     val0 = bb.append_instruction("mload", 1024)
     val1 = bb.append_instruction("mload", 1024 + 32)
-    bb.append_instruction("mcopy", 128, 64, 1024)  # src 128 dst 1024
+    bb.append_instruction("mcopy", 128, 64, 1024)  # src 64 dst 1024
     bb.append_instruction("mstore", val0, 2048)  # dst 2048
     bb.append_instruction("mstore", val1, 2048 + 32)
     bb.append_instruction("stop")
@@ -735,6 +735,55 @@ def test_memmerging_not_allowed_overlapping2():
     MemMergePass(ac, fn).run_pass()
 
     assert _nochange(pre, bb)
+
+
+def test_memmerging_not_allowed_overlapping3():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 1024 + 32)
+    bb.append_instruction("mcopy", 64, 64, 1024)  # src 64 dst 1024
+    bb.append_instruction("mstore", val0, 2048)  # dst 2048
+    val1 = bb.append_instruction("mload", 1024 + 64)
+    bb.append_instruction("mstore", val1, 2048 + 32)
+    bb.append_instruction("stop")
+
+    pre = bb.instructions.copy()
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert _nochange(pre, bb)
+
+
+def test_memmerging_allowed_overlapping2():
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    bb.append_instruction("mcopy", 64, 64, 1024)  # src 64 dst 1024
+    val0 = bb.append_instruction("mload", 1024 + 32)
+    bb.append_instruction("mstore", val0, 2048)  # dst 2048
+    val1 = bb.append_instruction("mload", 1024 + 64)
+    bb.append_instruction("mstore", val1, 2048 + 32)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 64
+    assert bb.instructions[0].operands[1].value == 64
+    assert bb.instructions[0].operands[2].value == 1024
+    assert bb.instructions[1].opcode == "mcopy"
+    assert bb.instructions[1].operands[0].value == 64
+    assert bb.instructions[1].operands[1].value == 1024 + 32
+    assert bb.instructions[1].operands[2].value == 2048
 
 
 def test_memmerging_existing_copy_overwrite():

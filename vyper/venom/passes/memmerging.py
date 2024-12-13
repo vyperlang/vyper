@@ -258,6 +258,11 @@ class MemMergePass(IRPass):
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
                     _barrier()
+                    # this continue is necessary since if there is
+                    # read write overlap in this case it must be from
+                    # load that is above of problematic copy so we cannot
+                    # add this as a new inteval
+                    continue
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
