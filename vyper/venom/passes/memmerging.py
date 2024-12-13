@@ -284,7 +284,7 @@ class MemMergePass(IRPass):
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
         for copy in self._copies:
-            inst = copy.insts[0]
+            inst = copy.insts[-1]
             if copy.length == 32:
                 inst.opcode = "mstore"
                 inst.operands = [IRLiteral(0), IRLiteral(copy.dst)]
@@ -297,7 +297,7 @@ class MemMergePass(IRPass):
                 inst.opcode = "calldatacopy"
                 inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
 
-            for inst in copy.insts[1:]:
+            for inst in copy.insts[:-1]:
                 bb.mark_for_removal(inst)
 
         self._copies.clear()
