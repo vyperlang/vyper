@@ -9,6 +9,11 @@ from vyper.compiler.settings import OptimizationLevel, Settings, set_global_sett
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.parser import parse_venom
 
+"""
+Standalone entry point into venom compiler. Parses venom input and emits
+bytecode.
+"""
+
 
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
