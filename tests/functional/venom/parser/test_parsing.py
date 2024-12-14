@@ -26,6 +26,9 @@ def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
         assert name1 in fn2._basic_block_dict
         assert_bb_eq(bb1, fn2._basic_block_dict[name1])
 
+    # check function entry is the same
+    assert fn1.entry.label == fn2.entry.label
+
 
 def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     assert ctx1.last_label == ctx2.last_label
@@ -33,6 +36,10 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     for label1, fn1 in ctx1.functions.items():
         assert label1 in ctx2.functions
         assert_fn_eq(fn1, ctx2.functions[label1])
+
+    # check entry function is the same
+    assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
+
     assert len(ctx1.data_segment) == len(ctx2.data_segment)
     for d1, d2 in zip(ctx1.data_segment, ctx2.data_segment):
         assert instructions_eq(d1, d2), f"data: [{d1}] != [{d2}]"
