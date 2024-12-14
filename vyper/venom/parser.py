@@ -19,8 +19,13 @@ VENOM_PARSER = Lark(
     %import common.WS
     %import common.INT
 
+    # TODO: make data_section optional -- `function* data_section?`
     start: function* data_section
+
+    # TODO: consider making entry block implicit, e.g.
+    # `"{" instruction+ block* "}"`
     function: "function" NAME "{" block* "}"
+
     data_section: "[data]" instruction*
 
     block: NAME ":" statement*
@@ -46,15 +51,11 @@ VENOM_PARSER = Lark(
 
 
 def _set_last_var(fn: IRFunction):
-    for block in fn.get_basic_blocks():
-        output_vars = (
-            instruction.output
-            for instruction in block.instructions
-            if instruction.output is not None
-        )
-        for output_var in output_vars:
-            assert isinstance(output_var, IRVariable)
-            value = output_var.value
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.output is None:
+                continue
+            value = inst.output.value
             assert value.startswith("%")
             fn.last_variable = max(fn.last_variable, int(value[1:]))
 
@@ -89,7 +90,7 @@ class VenomTransformer(Transformer):
                 fn.append_basic_block(bb)
 
                 for instruction in instructions:
-                    assert isinstance(instruction, IRInstruction)
+                    assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
 
                 _ensure_terminated(bb)
@@ -134,7 +135,9 @@ class VenomTransformer(Transformer):
         else:
             assert len(children) == 2
             name, operands = children
-        # reverse operands because top->bottom is more intuitive but Venom does bottom->top
+
+        # reverse operands, venom internally represents top of stack
+        # as rightmost operand
         return IRInstruction(name, reversed(operands))
 
     def operands_list(self, children) -> list[IROperand]:
@@ -171,5 +174,5 @@ class VenomTransformer(Transformer):
 def parse_venom(source: str) -> IRContext:
     tree = VENOM_PARSER.parse(source)
     ctx = VenomTransformer().transform(tree)
-    assert isinstance(ctx, IRContext)
+    assert isinstance(ctx, IRContext)  # help mypy
     return ctx
