@@ -63,6 +63,10 @@ function global {
 
 To see a definition of grammar see the [venom parser](./parser.py)
 
+### Compiling Venom
+
+Vyper ships with a venom compiler which compiles venom code to bytecode directly. It can be run by running `venom`, which is installed as a standalone binary when `vyper` is installed via `pip`.
+
 ## Implementation
 
 In the current implementation the compiler was extended to incorporate a new pass responsible for translating the original s-expr based IR into Venom. Subsequently, the generated Venom code undergoes processing by the actual Venom compiler, ultimately converting it to assembly code. That final assembly code is then passed to the original assembler of Vyper to produce the executable bytecode.
