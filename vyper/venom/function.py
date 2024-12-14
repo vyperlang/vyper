@@ -168,7 +168,7 @@ class IRFunction:
                 continue
 
             if i < len(bbs) - 1:
-                # TODO: revisit this. When contructor calls internal functions
+                # TODO: revisit this. When constructor calls internal functions
                 # they are linked to the last ctor block. Should separate them
                 # before this so we don't have to handle this here
                 if bbs[i + 1].label.value.startswith("internal"):
