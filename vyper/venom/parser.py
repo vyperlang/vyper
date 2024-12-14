@@ -20,7 +20,7 @@ VENOM_PARSER = Lark(
     %import common.INT
 
     start: function* data_section
-    function: "function" NAME "=>" block*
+    function: "function" NAME "{" block* "}"
     data_section: "[data]" instruction*
 
     block: NAME ":" statement*

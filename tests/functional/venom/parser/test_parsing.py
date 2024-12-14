@@ -57,9 +57,10 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
 def test_single_bb():
     source = '''
-    function main =>
+    function main {
         main:
             stop
+    }
 
     [data]
     '''
@@ -76,7 +77,7 @@ def test_single_bb():
 
 def test_multi_bb_single_fn():
     source = '''
-    function start =>
+    function start {
         start:
             %1 = callvalue
             jnz @fine, @has_callvalue, %1
@@ -86,6 +87,7 @@ def test_multi_bb_single_fn():
             return %2, %4
         has_callvalue:
             revert 0, 0
+    }
 
     [data]
     '''
@@ -116,9 +118,10 @@ def test_multi_bb_single_fn():
 
 def test_data_section():
     parsed_ctx = parse_venom('''
-    function entry =>
+    function entry {
         entry:
             stop
+    }
 
     [data]
     dbname @selector_buckets
@@ -151,15 +154,16 @@ def test_data_section():
 
 def test_multi_function():
     parsed_ctx = parse_venom('''
-    function entry =>
+    function entry {
         entry:
             invoke @check_cv
             jmp @wow
         wow:
             mstore 0, 1
             return 0, 32
+    }
 
-    function check_cv =>
+    function check_cv {
         check_cv:
             %1 = callvalue
             %2 = param
@@ -168,6 +172,7 @@ def test_multi_function():
             ret %2
         has_value:
             revert 0, 0
+    }
 
     [data]
     ''')
@@ -206,15 +211,16 @@ def test_multi_function():
 
 def test_multi_function_and_data():
     parsed_ctx = parse_venom('''
-    function entry =>
+    function entry {
         entry:
             invoke @check_cv
             jmp @wow
         wow:
             mstore 0, 1
             return 0, 32
+    }
 
-    function check_cv =>
+    function check_cv {
         check_cv:
             %1 = callvalue
             %2 = param
@@ -223,6 +229,7 @@ def test_multi_function_and_data():
             ret %2
         has_value:
             revert 0, 0
+    }
 
     [data]
     dbname @selector_buckets
