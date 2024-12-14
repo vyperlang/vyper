@@ -1,11 +1,4 @@
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
@@ -13,28 +6,8 @@ from vyper.venom.parser import parse_venom
 # TODO: Refactor tests with these helpers
 
 
-def get_operand_comparable(
-    operand: IROperand,
-) -> tuple[str, int] | tuple[str, str] | tuple[str, str, bool]:
-    if isinstance(operand, IRLiteral):
-        return "IRLiteral", operand.value
-    if isinstance(operand, IRVariable):
-        return "IRVariable", operand.value
-    if isinstance(operand, IRLabel):
-        return "IRLabel", operand.value, operand.is_symbol
-    raise TypeError(f"operand {operand} was not of type IRLiteral, IRVariable or IRLabel")
-
-
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
-    return (
-        i1.output == i2.output
-        and i1.opcode == i2.opcode
-        and len(i1.operands) == len(i2.operands)
-        and all(
-            get_operand_comparable(o1) == get_operand_comparable(o2)
-            for o1, o2 in zip(i1.operands, i2.operands)
-        )
-    )
+    return i1.output == i2.output and i1.opcode == i2.opcode and i1.operands == i2.operands
 
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
