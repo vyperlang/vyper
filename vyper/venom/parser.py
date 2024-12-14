@@ -67,6 +67,12 @@ def _set_last_label(ctx: IRContext):
             if label_head.isdigit():
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
+def _ensure_terminated(bb):
+    # Since "revert" is not considered terminal explicitly check for it to ensure basic
+    # blocks are terminating
+    if not bb.is_terminated and any(inst.opcode == "revert" for inst in bb.instructions):
+        bb.append_instruction('stop')
+
 
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
@@ -75,7 +81,8 @@ class VenomTransformer(Transformer):
         data_section = children[-1]
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
-            fn._basic_block_dict = dict()
+            fn._basic_block_dict.clear()
+
             for block_name, instructions in blocks:
                 bb = IRBasicBlock(IRLabel(block_name), fn)
                 fn.append_basic_block(bb)
@@ -84,15 +91,7 @@ class VenomTransformer(Transformer):
                     assert isinstance(instruction, IRInstruction)
                     bb.insert_instruction(instruction)
 
-                # Since "revert" is not considered terminal explicitly check for it to ensure basic
-                # blocks are terminating
-                if not bb.is_terminated:
-                    has_revert = any(
-                        instruction.opcode == 'revert'
-                        for instruction in bb.instructions
-                    )
-                    if has_revert:
-                        bb.append_instruction('stop')
+                _ensure_terminated(bb)
 
             _set_last_var(fn)
         _set_last_label(ctx)
