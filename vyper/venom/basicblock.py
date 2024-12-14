@@ -348,7 +348,7 @@ class IRInstruction:
         assert self.opcode == "phi", "instruction must be a phi"
         for i in range(0, len(self.operands), 2):
             if self.operands[i] == label:
-                del self.operands[i: i + 2]
+                del self.operands[i : i + 2]
                 return
 
     def get_ast_source(self) -> Optional[IRnode]:

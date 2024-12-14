@@ -1,15 +1,15 @@
-from vyper.venom.context import IRContext
-from vyper.venom.basicblock import (
-    IRLabel,
-    IRVariable,
-    IRLiteral,
-    IROperand,
-    IRInstruction,
-    IRBasicBlock,
-)
-from vyper.venom.function import IRFunction
 from lark import Lark, Transformer
 
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
+from vyper.venom.context import IRContext
+from vyper.venom.function import IRFunction
 
 VENOM_PARSER = Lark(
     """
@@ -67,11 +67,12 @@ def _set_last_label(ctx: IRContext):
             if label_head.isdigit():
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
+
 def _ensure_terminated(bb):
     # Since "revert" is not considered terminal explicitly check for it to ensure basic
     # blocks are terminating
     if not bb.is_terminated and any(inst.opcode == "revert" for inst in bb.instructions):
-        bb.append_instruction('stop')
+        bb.append_instruction("stop")
 
 
 class VenomTransformer(Transformer):

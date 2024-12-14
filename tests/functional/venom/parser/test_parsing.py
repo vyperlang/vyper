@@ -1,37 +1,47 @@
-from typing import Optional
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
-from vyper.venom.context import IRContext
-from vyper.venom.basicblock import IRBasicBlock, IROperand, IRInstruction, IRLabel, IRVariable, IRLiteral
 
 # TODO: Refactor tests with these helpers
 
 
-def get_operand_comparable(operand: IROperand) -> tuple[str, int] | tuple[str, str] | tuple[str, str, bool]:
+def get_operand_comparable(
+    operand: IROperand,
+) -> tuple[str, int] | tuple[str, str] | tuple[str, str, bool]:
     if isinstance(operand, IRLiteral):
-        return 'IRLiteral', operand.value
+        return "IRLiteral", operand.value
     if isinstance(operand, IRVariable):
-        return 'IRVariable', operand.value
+        return "IRVariable", operand.value
     if isinstance(operand, IRLabel):
-        return 'IRLabel', operand.value, operand.is_symbol
-    raise TypeError(f'operand {operand} was not of type IRLiteral, IRVariable or IRLabel')
+        return "IRLabel", operand.value, operand.is_symbol
+    raise TypeError(f"operand {operand} was not of type IRLiteral, IRVariable or IRLabel")
 
 
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
-    return i1.output == i2.output\
-        and i1.opcode == i2.opcode\
-        and len(i1.operands) == len(i2.operands)\
+    return (
+        i1.output == i2.output
+        and i1.opcode == i2.opcode
+        and len(i1.operands) == len(i2.operands)
         and all(
             get_operand_comparable(o1) == get_operand_comparable(o2)
             for o1, o2 in zip(i1.operands, i2.operands)
         )
+    )
 
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
     assert bb1.label.value == bb2.label.value
     assert len(bb1.instructions) == len(bb2.instructions)
     for i1, i2 in zip(bb1.instructions, bb2.instructions):
-        assert instructions_eq(i1, i2), f'[{i1}] != [{i2}]'
+        assert instructions_eq(i1, i2), f"[{i1}] != [{i2}]"
 
 
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
@@ -52,18 +62,18 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
         assert_fn_eq(fn1, ctx2.functions[label1])
     assert len(ctx1.data_segment) == len(ctx2.data_segment)
     for d1, d2 in zip(ctx1.data_segment, ctx2.data_segment):
-        assert instructions_eq(d1, d2), f'data: [{d1}] != [{d2}]'
+        assert instructions_eq(d1, d2), f"data: [{d1}] != [{d2}]"
 
 
 def test_single_bb():
-    source = '''
+    source = """
     function main {
         main:
             stop
     }
 
     [data]
-    '''
+    """
 
     parsed_ctx = parse_venom(source)
 
@@ -76,7 +86,7 @@ def test_single_bb():
 
 
 def test_multi_bb_single_fn():
-    source = '''
+    source = """
     function start {
         start:
             %1 = callvalue
@@ -90,7 +100,7 @@ def test_multi_bb_single_fn():
     }
 
     [data]
-    '''
+    """
 
     parsed_ctx = parse_venom(source)
 
@@ -117,7 +127,8 @@ def test_multi_bb_single_fn():
 
 
 def test_data_section():
-    parsed_ctx = parse_venom('''
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             stop
@@ -132,7 +143,8 @@ def test_data_section():
     db @fallback
     db @selector_bucket_5
     db @selector_bucket_6
-    ''')
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -146,14 +158,15 @@ def test_data_section():
         IRInstruction("db", [IRLabel("selector_bucket_3")]),
         IRInstruction("db", [IRLabel("fallback")]),
         IRInstruction("db", [IRLabel("selector_bucket_5")]),
-        IRInstruction("db", [IRLabel("selector_bucket_6")])
+        IRInstruction("db", [IRLabel("selector_bucket_6")]),
     ]
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
 def test_multi_function():
-    parsed_ctx = parse_venom('''
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             invoke @check_cv
@@ -175,7 +188,8 @@ def test_multi_function():
     }
 
     [data]
-    ''')
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -194,8 +208,7 @@ def test_multi_function():
     check_entry_bb.append_instruction("callvalue", ret=IRVariable("1"))
     check_entry_bb.append_instruction("param", ret=IRVariable("2"))
     check_entry_bb.append_instruction(
-        "jnz",
-        IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
+        "jnz", IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
     )
     check_fn.append_basic_block(no_value_bb := IRBasicBlock(IRLabel("no_value"), check_fn))
     no_value_bb.append_instruction("ret", IRVariable("2"))
@@ -210,7 +223,8 @@ def test_multi_function():
 
 
 def test_multi_function_and_data():
-    parsed_ctx = parse_venom('''
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             invoke @check_cv
@@ -238,7 +252,8 @@ def test_multi_function_and_data():
     db @selector_bucket_2
     db @selector_bucket_3
     db @selector_bucket_6
-    ''')
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -257,8 +272,7 @@ def test_multi_function_and_data():
     check_entry_bb.append_instruction("callvalue", ret=IRVariable("1"))
     check_entry_bb.append_instruction("param", ret=IRVariable("2"))
     check_entry_bb.append_instruction(
-        "jnz",
-        IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
+        "jnz", IRVariable("1"), IRLabel("has_value"), IRLabel("no_value")
     )
     check_fn.append_basic_block(no_value_bb := IRBasicBlock(IRLabel("no_value"), check_fn))
     no_value_bb.append_instruction("ret", IRVariable("2"))
@@ -275,7 +289,7 @@ def test_multi_function_and_data():
         IRInstruction("db", [IRLabel("fallback")]),
         IRInstruction("db", [IRLabel("selector_bucket_2")]),
         IRInstruction("db", [IRLabel("selector_bucket_3")]),
-        IRInstruction("db", [IRLabel("selector_bucket_6")])
+        IRInstruction("db", [IRLabel("selector_bucket_6")]),
     ]
 
     assert_ctx_eq(parsed_ctx, expected_ctx)

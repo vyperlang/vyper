@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+
 import vyper
-from vyper.venom.parser import parse_venom
-from vyper.venom import generate_assembly_experimental, run_passes_on
-from vyper.compiler.settings import OptimizationLevel, set_global_settings, Settings
-from vyper.compiler.phases import generate_bytecode
 import vyper.evm.opcodes as evm
+from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
+from vyper.venom import generate_assembly_experimental, run_passes_on
+from vyper.venom.parser import parse_venom
 
 
 def _parse_cli_args():
@@ -26,9 +27,7 @@ def _parse_args(argv: list[str]):
         dest="evm_version",
     )
     parser.add_argument(
-        "--stdin",
-        action="store_true",
-        help="whether to pull venom input from stdin"
+        "--stdin", action="store_true", help="whether to pull venom input from stdin"
     )
 
     args = parser.parse_args(argv)
