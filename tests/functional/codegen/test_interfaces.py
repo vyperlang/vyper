@@ -900,6 +900,8 @@ def foo(s: MyStruct) -> MyStruct:
     assert "BOO" in out
     assert "MOO" in out
 
+    compile_code(out, contract_path="code.vyi", output_formats=["interface"])
+
 
 vyi_filenames = [
     "test__test.vyi",
@@ -940,3 +942,19 @@ def foo() -> Foo:
         "external_interface"
     ]
     assert "-> Foo:" in out
+
+
+def test_external_interface_compiles_again():
+    code = """
+@external
+def foo() -> uint256:
+    ...
+@external
+def bar(a:int32) -> uint256:
+    ...
+    """
+
+    out = compile_code(code, contract_path="test.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    compile_code(out, contract_path="test.vyi", output_formats=["external_interface"])
