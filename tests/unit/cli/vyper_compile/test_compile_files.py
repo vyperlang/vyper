@@ -448,6 +448,7 @@ def baz() -> uint8:
     file = make_file("interface.vyi", interface)
     compile_files([file], INTERFACE_OUTPUT_FORMATS)
 
+    # check unallowed output formats
     for f in OUTPUT_FORMATS:
         if f in INTERFACE_OUTPUT_FORMATS:
             continue
