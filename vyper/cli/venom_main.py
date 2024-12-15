@@ -29,11 +29,16 @@ def _parse_args(argv: list[str]):
         usage=usage,
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
         "input_file",
         nargs="?",
         help="path to the Venom source file (required if --stdin is not used)",
     )
+    group.add_argument(
+        "--stdin", action="store_true", help="read the Venom source code from standard input"
+    )
+
     parser.add_argument(
         "--version",
         action="version",
@@ -46,30 +51,38 @@ def _parse_args(argv: list[str]):
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
-    parser.add_argument(
-        "--stdin", action="store_true", help="read the Venom source code from standard input"
-    )
 
     args = parser.parse_args(argv)
 
-    if args.evm_version is not None:
+    if args.evm_version:
         set_global_settings(Settings(evm_version=args.evm_version))
 
+    if args.stdin:
+        venom_source = read_from_stdin()
     elif args.input_file:
-        try:
-            with open(args.input_file, "r") as f:
-                venom_source = f.read()
-        except FileNotFoundError:
-            print(f"Error: File '{args.input_file}' not found.")
-            sys.exit(1)
-        except IOError as e:
-            print(f"Error: Unable to read file '{args.input_file}': {e}")
-            sys.exit(1)
-    else:
-        print("Error: No input file provided. Either use --stdin or provide a file path.")
-        sys.exit(1)
+        venom_source = read_from_file(args.input_file)
 
     process_venom_source(venom_source)
+
+
+def read_from_stdin():
+    if not sys.stdin.isatty():
+        return sys.stdin.read()
+    else:
+        print("Error: --stdin flag used but no input provided.")
+        sys.exit(1)
+
+
+def read_from_file(input_file):
+    try:
+        with open(input_file, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
+        sys.exit(1)
+    except IOError as e:
+        print(f"Error: Unable to read file '{input_file}': {e}")
+        sys.exit(1)
 
 
 def process_venom_source(source: str):
@@ -85,4 +98,4 @@ def process_venom_source(source: str):
 
 
 if __name__ == "__main__":
-    _parse_args(sys.argv[1:])
+    _parse_cli_args()
