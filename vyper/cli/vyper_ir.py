@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-import sys
 import os
+import sys
 
 import vyper
 from vyper.codegen.ir_node import IRnode
