@@ -23,16 +23,16 @@ def _parse_args(argv: list[str]):
     parser = argparse.ArgumentParser(
         description="Venom EVM IR parser & compiler", formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("input_file", help="Venom sourcefile", nargs="?")
+    parser.add_argument("input_file", nargs="?", help="path to the Venom source file (required if --stdin is not used)")
     parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
+        help=f"select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument(
-        "--stdin", action="store_true", help="whether to pull venom input from stdin"
+        "--stdin", action="store_true", help="read Venom source code from standard input"
     )
 
     args = parser.parse_args(argv)
@@ -40,26 +40,33 @@ def _parse_args(argv: list[str]):
     if args.evm_version is not None:
         set_global_settings(Settings(evm_version=args.evm_version))
 
-    if args.stdin:
-        if not sys.stdin.isatty():
-            venom_source = sys.stdin.read()
-        else:
-            # No input provided
-            print("Error: --stdin flag used but no input provided")
+    elif args.input_file:
+        try:
+            with open(args.input_file, "r") as f:
+                venom_source = f.read()
+        except FileNotFoundError:
+            print(f"Error: File '{args.input_file}' not found.")
+            sys.exit(1)
+        except IOError as e:
+            print(f"Error: Unable to read file '{args.input_file}': {e}.")
             sys.exit(1)
     else:
-        if args.input_file is None:
-            print("Error: No input file provided, either use --stdin or provide a path")
-            sys.exit(1)
-        with open(args.input_file, "r") as f:
-            venom_source = f.read()
+        print("Error: No input file provided. Either use --stdin or provide a file path.")
+        sys.exit(1)
 
-    ctx = parse_venom(venom_source)
-    run_passes_on(ctx, OptimizationLevel.default())
-    asm = generate_assembly_experimental(ctx)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
-    print(f"0x{bytecode.hex()}")
+    process_venom_source(venom_source)
 
+def process_venom_source(source: str):
+    """Parse, optimize, and compile the Venom source code."""
+    try:
+        ctx = parse_venom(source)
+        run_passes_on(ctx, OptimizationLevel.default())
+        asm = generate_assembly_experimental(ctx)
+        bytecode = generate_bytecode(asm, compiler_metadata=None)
+        print(f"0x{bytecode.hex()}")
+    except Exception as e:
+        print(f"Error: Compilation failed: {e}.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     _parse_args(sys.argv[1:])

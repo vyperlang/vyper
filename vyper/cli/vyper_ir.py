@@ -13,7 +13,7 @@ def _parse_cli_args():
 
 
 def _parse_args(argv):
-    parser = argparse.ArgumentParser(description="Vyper IR IR compiler")
+    parser = argparse.ArgumentParser(description="Vyper IR compiler")
     parser.add_argument("input_file", help="Vyper sourcecode to compile")
     parser.add_argument(
         "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
