@@ -1425,7 +1425,7 @@ initializes: lib1
 
 initializable_modules = [
     """
-phony: uint32
+counter: uint32
     """,
     """
 ended: public(bool)
@@ -1507,12 +1507,12 @@ def test_initializes_on_modules_with_uses(make_input_bundle):
 import lib1
 uses: lib1
 
-@external
+@internal
 def foo() -> uint32:
-    return lib1.phony
+    return lib1.counter
            """
     lib1 = """
-phony: uint32
+counter: uint32
            """
     main = """
 import lib1
@@ -1520,6 +1520,10 @@ initializes: lib1
 
 import lib0
 initializes: lib0[lib1 := lib1]
+
+@internal
+def use_lib0():
+    lib0.foo()
            """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
     with pytest.raises(StructureException):
@@ -1532,7 +1536,7 @@ import lib1
 initializes: lib1
            """
     lib1 = """
-phony: uint32
+counter: uint32
            """
     main = """
 import lib0
