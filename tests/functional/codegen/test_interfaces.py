@@ -958,3 +958,11 @@ def bar(a:int32) -> uint256:
         "external_interface"
     ]
     compile_code(out, contract_path="test.vyi", output_formats=["external_interface"])
+
+
+@pytest.mark.xfail
+def test_weird_interface_name():
+    out = compile_code("", contract_path="_.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    assert "interface _:" in out
