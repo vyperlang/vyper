@@ -710,8 +710,8 @@ class ModuleT(VyperType):
         if self.init_function is not None:
             return True
 
-        for fun in self.functions.values():
-            if fun.nonreentrant:
+        for fn_t in self.functions.values():
+            if fn_t.nonreentrant:
                 return True
 
         return False
