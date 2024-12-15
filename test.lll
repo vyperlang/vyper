@@ -1,5 +1,0 @@
-(with x pass
- (with y pass
-  (with baseUnit pass
-   (div (with t (mul x y) (seq (assert (eq (div t x) y)) t)) baseUnit)
-    )))
