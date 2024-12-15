@@ -57,6 +57,8 @@ def _parse_args(argv: list[str]):
     if args.evm_version:
         set_global_settings(Settings(evm_version=args.evm_version))
 
+    venom_source = None
+
     if args.stdin:
         venom_source = read_from_stdin()
     elif args.input_file:
