@@ -64,6 +64,7 @@ def _parse_args(argv: list[str]):
     elif args.input_file:
         venom_source = read_from_file(args.input_file)
 
+    assert venom_source is not None
     process_venom_source(venom_source)
 
 
@@ -75,7 +76,7 @@ def read_from_stdin():
         sys.exit(1)
 
 
-def read_from_file(input_file):
+def read_from_file(input_file: str):
     try:
         with open(input_file, "r") as f:
             return f.read()
