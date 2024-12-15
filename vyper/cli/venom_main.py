@@ -20,19 +20,34 @@ def _parse_cli_args():
 
 
 def _parse_args(argv: list[str]):
-    parser = argparse.ArgumentParser(
-        description="Venom EVM IR parser & compiler", formatter_class=argparse.RawTextHelpFormatter
+    usage = (
+        f"venom [-h] [--version] [--evm-version {{{','.join(evm.EVM_VERSIONS)}}}] "
+        "[--stdin | input_file]"
     )
-    parser.add_argument("input_file", nargs="?", help="path to the Venom source file (required if --stdin is not used)")
-    parser.add_argument("--version", action="version", version=vyper.__long_version__)
+    parser = argparse.ArgumentParser(
+        description="Venom EVM IR parser & compiler",
+        usage=usage,
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument(
+        "input_file",
+        nargs="?",
+        help="path to the Venom source file (required if --stdin is not used)",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=vyper.__long_version__,
+        help="display the version of the Vyper compiler",
+    )
     parser.add_argument(
         "--evm-version",
-        help=f"select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
+        help=f"select the desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument(
-        "--stdin", action="store_true", help="read Venom source code from standard input"
+        "--stdin", action="store_true", help="read the Venom source code from standard input"
     )
 
     args = parser.parse_args(argv)
@@ -48,7 +63,7 @@ def _parse_args(argv: list[str]):
             print(f"Error: File '{args.input_file}' not found.")
             sys.exit(1)
         except IOError as e:
-            print(f"Error: Unable to read file '{args.input_file}': {e}.")
+            print(f"Error: Unable to read file '{args.input_file}': {e}")
             sys.exit(1)
     else:
         print("Error: No input file provided. Either use --stdin or provide a file path.")
@@ -56,8 +71,8 @@ def _parse_args(argv: list[str]):
 
     process_venom_source(venom_source)
 
+
 def process_venom_source(source: str):
-    """Parse, optimize, and compile the Venom source code."""
     try:
         ctx = parse_venom(source)
         run_passes_on(ctx, OptimizationLevel.default())
@@ -67,6 +82,7 @@ def process_venom_source(source: str):
     except Exception as e:
         print(f"Error: Compilation failed: {e}.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     _parse_args(sys.argv[1:])
