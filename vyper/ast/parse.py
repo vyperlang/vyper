@@ -47,6 +47,9 @@ def parse_to_ast_with_settings(
     resolved_path: str, optional
         The resolved path of the source code
         Corresponds to FileInput.resolved_path
+    is_interface: bool
+        Indicates whether the source code should
+        be parsed as an interface file.
 
     Returns
     -------
