@@ -218,8 +218,6 @@ def bar(x: {type}):
 
 def test_exports_abi(make_input_bundle):
     lib1 = """
-phony: uint32
-
 @external
 def foo():
     pass
@@ -231,8 +229,6 @@ def bar():
 
     main = """
 import lib1
-
-initializes: lib1
 
 exports: lib1.foo
     """
@@ -363,8 +359,6 @@ def __init__():
 def test_event_export_from_function_export(make_input_bundle):
     # test events used in exported functions are exported
     lib1 = """
-phony: uint32
-
 event MyEvent:
     pass
 
@@ -374,8 +368,6 @@ def foo():
     """
     main = """
 import lib1
-
-initializes: lib1
 
 exports: lib1.foo
     """
@@ -400,8 +392,6 @@ exports: lib1.foo
 def test_event_export_unused_function(make_input_bundle):
     # test events in unused functions are not exported
     lib1 = """
-phony: uint32
-
 event MyEvent:
     pass
 
@@ -411,7 +401,6 @@ def foo():
     """
     main = """
 import lib1
-initializes: lib1
 
 # not exported/reachable from selector table
 @internal

@@ -837,8 +837,6 @@ counter: uint256
     lib2 = """
 import lib1
 
-phony: uint32
-
 @internal
 def foo():
     pass
@@ -847,7 +845,7 @@ def foo():
 import lib1
 import lib2
 
-initializes: lib2
+uses: lib2
 
 @external
 def foo(new_value: uint256):
