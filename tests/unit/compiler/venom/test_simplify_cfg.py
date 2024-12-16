@@ -19,12 +19,6 @@ def test_phi_reduction_after_block_pruning():
             stop
     }
     """
-    ctx1 = parse_venom(pre)
-    for fn in ctx1.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        SimplifyCFGPass(ac, fn).run_pass()
-
     post = """
     function _global {
         _global:
@@ -33,5 +27,11 @@ def test_phi_reduction_after_block_pruning():
             stop
     }
     """
+    ctx1 = parse_venom(pre)
+    for fn in ctx1.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        SimplifyCFGPass(ac, fn).run_pass()
+
     ctx2 = parse_venom(post)
     assert_ctx_eq(ctx1, ctx2)
