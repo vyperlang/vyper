@@ -427,7 +427,7 @@ def test_solc_json_output(input_files):
     # the same as compiling directly
     json_out = compile_json(json_input)["contracts"]["contract.vy"]
     json_out_bytecode = json_out["contract"]["evm"]["bytecode"]["object"]
-    json_out_layout = json.loads(json_out["contract"]["layout"])["storage_layout"]
+    json_out_layout = json_out["contract"]["layout"]["storage_layout"]
 
     out2 = compile_files(
         [contract_file],
