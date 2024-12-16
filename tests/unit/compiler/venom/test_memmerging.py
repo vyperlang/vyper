@@ -544,11 +544,11 @@ def test_memmerging_not_allowed_overlapping():
 
     bb = fn.get_basic_block()
 
-    val0 = bb.append_instruction("mload", 1024)
-    val1 = bb.append_instruction("mload", 1024 + 32)
-    bb.append_instruction("mcopy", 128, 64, 1024)
-    bb.append_instruction("mstore", val0, 2048)
-    bb.append_instruction("mstore", val1, 2048 + 32)
+    val0 = bb.append_instruction("mload", 1000)
+    val1 = bb.append_instruction("mload", 1032)
+    bb.append_instruction("mcopy", 128, 0, 1000)
+    bb.append_instruction("mstore", val0, 2000)
+    bb.append_instruction("mstore", val1, 2032)
     bb.append_instruction("stop")
 
     pre = bb.instructions.copy()
@@ -753,11 +753,12 @@ def test_memmerging_not_allowed_overlapping2():
     fn = ctx.create_function("_global")
 
     bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 1024)
-    val1 = bb.append_instruction("mload", 1024 + 32)
-    bb.append_instruction("mcopy", 128, 64, 1024)  # src 64 dst 1024
-    bb.append_instruction("mstore", val0, 2048)  # dst 2048
-    bb.append_instruction("mstore", val1, 2048 + 32)
+    val0 = bb.append_instruction("mload", 1000)
+    val1 = bb.append_instruction("mload", 1032)
+    bb.append_instruction("mcopy", 128, 0, 1000)  # src 0 dst 1000
+    # BARRIER - mstore uses mload (stale after trampled by mcopy)
+    bb.append_instruction("mstore", val0, 2000)  # dst 2000
+    bb.append_instruction("mstore", val1, 2032)
     bb.append_instruction("stop")
 
     pre = bb.instructions.copy()
