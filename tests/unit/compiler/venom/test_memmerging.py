@@ -344,6 +344,37 @@ def test_memmerging_partial_different_effect():
     assert bb.instructions[-5].opcode == "mload"
 
 
+def test_memmerge_ok_interval_subset():
+    """
+    Test subintervals get subsumed by larger intervals
+    mstore(<dst>, mload(<src>))
+    mcopy(<dst>, <src>, 64)
+    =>
+    mcopy(<dst>, <src>, 64)
+    Because the first mload/mstore is contained in the mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+    val0 = bb.append_instruction("mload", 0)
+
+    bb.append_instruction("mstore", val0, 100)
+    bb.append_instruction("mcopy", 33, 0, 100)
+    bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+    MemMergePass(ac, fn).run_pass()
+
+    assert bb.instructions[0].opcode == "mcopy"
+    assert bb.instructions[0].operands[0].value == 33
+    assert bb.instructions[0].operands[1].value == 0
+    assert bb.instructions[0].operands[2].value == 100
+
+
+
 def test_memmerging_ok_overlap():
     """
     Test for with source overlap
