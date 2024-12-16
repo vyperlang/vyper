@@ -33,7 +33,7 @@ a: uint256
 b: uint256"""
 
     storage_layout_overrides = {
-        "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+        "a": {"type": "uint256", "slot": 5, "n_slots": 1},
         "b": {"type": "uint256", "slot": 0, "n_slots": 1},
     }
 
