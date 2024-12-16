@@ -1,7 +1,6 @@
 import contextlib
-from typing import Optional, NamedTuple
-from enum import Enum
-from vyper.utils import OrderedSet
+from typing import Optional
+
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.passes.base_pass import IRPass
@@ -9,12 +8,14 @@ from vyper.venom.passes.base_pass import IRPass
 
 class MemoryAccess:
     """Base class for memory SSA nodes"""
+
     def __init__(self, version: int):
         self.version = version
 
 
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
+
     def __init__(self, version: int, store_inst: IRInstruction):
         super().__init__(version)
         self.store_inst = store_inst
@@ -22,6 +23,7 @@ class MemoryDef(MemoryAccess):
 
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
+
     def __init__(self, version: int, load_inst: IRInstruction):
         super().__init__(version)
         self.load_inst = load_inst
@@ -30,10 +32,11 @@ class MemoryUse(MemoryAccess):
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
+
     def __init__(self, version: int, block: IRBasicBlock):
         super().__init__(version)
         self.block = block
-        self.operands: list[tuple[IRBasicBlock, MemoryAccess]] = []
+        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
 
 class MemSSA(IRPass):
@@ -51,7 +54,7 @@ class MemSSA(IRPass):
         self.location_type = location_type
         self.load_op = "mload" if location_type == "memory" else "sload"
         self.store_op = "mstore" if location_type == "memory" else "sstore"
-        
+
         # Memory SSA specific state
         self.next_version = 0
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
@@ -103,7 +106,7 @@ class MemSSA(IRPass):
     def _insert_phi_nodes(self):
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
-        
+
         while worklist:
             block = worklist.pop()
             for frontier in self.dom.dominator_frontiers[block]:
@@ -122,7 +125,7 @@ class MemSSA(IRPass):
         """Connect memory uses to their reaching definitions"""
         for block in self.dom.dfs_walk:
             reaching_def = self._get_reaching_def(block)
-            
+
             if block in self.memory_uses:
                 for use in self.memory_uses[block]:
                     use.reaching_def = reaching_def
@@ -131,15 +134,15 @@ class MemSSA(IRPass):
         """Get the reaching definition for a block"""
         if block in self.memory_phis:
             return self.memory_phis[block]
-        
+
         if block in self.memory_defs:
             return self.memory_defs[block][-1]
-        
+
         if block.cfg_in:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators[block]
             return self._get_reaching_def(idom) if idom else None
-        
+
         return None
 
     def _remove_redundant_phis(self):
@@ -147,7 +150,6 @@ class MemSSA(IRPass):
         for phi in list(self.memory_phis.values()):
             if all(op[1] == phi for op in phi.operands):
                 del self.memory_phis[phi.block]
-
 
     def _post_instruction(self, inst: IRInstruction) -> str:
         s = ""
@@ -159,9 +161,9 @@ class MemSSA(IRPass):
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
                     s += f"\t!def: {def_.version}"
-        
+
         return s
-    
+
     def _pre_block(self, bb: IRBasicBlock):
         s = ""
         if bb in self.memory_phis:
