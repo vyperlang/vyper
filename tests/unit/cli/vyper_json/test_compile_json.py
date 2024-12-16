@@ -291,6 +291,14 @@ def test_exc_handler_to_dict_compiler(input_json):
     assert error["type"] == "TypeMismatch"
 
 
+def test_unknown_storage_layout_overrides(input_json):
+    unknown_contract_path = "contracts/baz.vy"
+    input_json["storage_layout_overrides"] = {unknown_contract_path: FOO_STORAGE_LAYOUT_OVERRIDES}
+    with pytest.raises(JSONError) as e:
+        compile_json(input_json)
+    assert e.value.args[0] == f"unknown target for storage layout override: {unknown_contract_path}"
+
+
 def test_source_ids_increment(input_json):
     input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMap"]}
     result = compile_json(input_json)
