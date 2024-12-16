@@ -1,6 +1,7 @@
 import contextlib
-from typing import Optional
+from typing import Callable, Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.passes.base_pass import IRPass
@@ -38,7 +39,6 @@ class MemoryPhi(MemoryAccess):
         self.block = block
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
-
 class MemSSA(IRPass):
     """
     This pass converts memory/storage operations into Memory SSA form,
@@ -56,7 +56,8 @@ class MemSSA(IRPass):
         self.store_op = "mstore" if location_type == "memory" else "sstore"
 
         # Memory SSA specific state
-        self.next_version = 0
+        self.next_version = 1  # Start from 1 since 0 will be liveOnEntry
+        self.live_on_entry = MemoryAccess(0)  # liveOnEntry node
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
@@ -64,9 +65,8 @@ class MemSSA(IRPass):
 
     def run_pass(self):
         # Request required analyses
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.analyses_cache.request_analysis(LivenessAnalysis)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -74,14 +74,13 @@ class MemSSA(IRPass):
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
 
-        # Invalidate liveness analysis
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
-        # First pass: create defs and uses
-        for bb in self.dom.dfs_walk:
-            self._process_block_definitions(bb)
+        # Initialize entry block with liveOnEntry
+        entry_block = self.dom.entry_block
+        self.current_def[entry_block] = self.live_on_entry
+
+        self._visit(self._process_block_definitions)
 
         # Second pass: insert phi nodes where needed
         self._insert_phi_nodes()
@@ -123,27 +122,32 @@ class MemSSA(IRPass):
 
     def _connect_uses_to_defs(self):
         """Connect memory uses to their reaching definitions"""
-        for block in self.dom.dfs_walk:
-            reaching_def = self._get_reaching_def(block)
+        def _visit_block(bb: IRBasicBlock):
+            reaching_def = self._get_reaching_def(bb)
 
-            if block in self.memory_uses:
-                for use in self.memory_uses[block]:
+            if bb in self.memory_uses:
+                for use in self.memory_uses[bb]:
                     use.reaching_def = reaching_def
 
-    def _get_reaching_def(self, block: IRBasicBlock) -> Optional[MemoryAccess]:
+        self._visit(_visit_block)
+
+    def _get_reaching_def(self, block: IRBasicBlock) -> Optional[MemoryAccess]:        
         """Get the reaching definition for a block"""
         if block in self.memory_phis:
             return self.memory_phis[block]
-
+        
         if block in self.memory_defs:
             return self.memory_defs[block][-1]
-
+        
+        if block == self.dom.entry_block:
+            return self.live_on_entry
+         
         if block.cfg_in:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators[block]
-            return self._get_reaching_def(idom) if idom else None
-
-        return None
+            return self._get_reaching_def(idom) if idom else self.live_on_entry
+        
+        return self.live_on_entry
 
     def _remove_redundant_phis(self):
         """Remove unnecessary phi nodes"""
@@ -172,6 +176,21 @@ class MemSSA(IRPass):
             s += ", ".join(f"{op[0].version} from @{op[1].label}" for op in phi.operands)
             s += "\n"
         return s
+    
+    def _visit(self, func: Callable[[IRBasicBlock], None]):
+        visited = OrderedSet()
+
+        def _visit_r(bb: IRBasicBlock):
+            if bb in visited:
+                return
+            visited.add(bb)
+
+            func(bb)
+
+            for out_bb in bb.cfg_out:
+                _visit_r(out_bb)
+            
+        _visit_r(self.function.entry)
 
     @contextlib.contextmanager
     def print_context(self):
