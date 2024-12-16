@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
@@ -7,19 +9,23 @@ from vyper.venom.passes.base_pass import IRPass
 class MemSSA(IRPass):
     """
     This pass converts memory/storage operations into Static Single Assignment (SSA) form.
-    Similar to variable SSA but specifically for memory/storage operations (mload/mstore/sload/sstore).
+    Similar to variable SSA but specifically for memory/storage operations.
     """
 
-    def __init__(self, location_type: str = "memory"):
+    VALID_LOCATION_TYPES = {"memory", "storage"}
+
+    def __init__(self, analyses_cache, function, location_type: str = "memory"):
         """
         Initialize the pass with the location type to process.
-        
+
         Args:
+            analyses_cache: The analyses cache
+            function: The function to process
             location_type: Either "memory" for memory or "storage" for storage
         """
-        super().__init__()
-        if location_type not in ("memory", "storage"):
-            raise ValueError("location_type must be either 'memory' or 'storage'")
+        super().__init__(analyses_cache, function)
+        if location_type not in self.VALID_LOCATION_TYPES:
+            raise ValueError(f"location_type must be one of: {self.VALID_LOCATION_TYPES}")
         self.location_type = location_type
         self.load_op = "mload" if location_type == "memory" else "sload"
         self.store_op = "mstore" if location_type == "memory" else "sstore"
@@ -39,14 +45,14 @@ class MemSSA(IRPass):
 
         # Add phi nodes for operations
         self._add_phi_nodes()
-        
+
         # Initialize version tracking
         self.version_counters = {}  # offset -> counter
-        self.version_stacks = {}    # offset -> version stack
-        
+        self.version_stacks = {}  # offset -> version stack
+
         # Rename operations starting from entry block
         self._rename_ops(fn.entry)
-        
+
         # Clean up unnecessary phi nodes
         self._remove_degenerate_phis(fn.entry)
 
@@ -55,17 +61,23 @@ class MemSSA(IRPass):
 
     def _compute_defs(self):
         """
-        Compute definition points in the function.
+        Compute definition points (store operations) for each memory/storage offset in the function.
+
+        Returns a mapping of offsets to the basic blocks containing their definitions.
         """
         self.defs = {}
         for bb in self.dom.dfs_walk:
-            for inst in bb.instructions:
-                if inst.opcode == self.store_op:
-                    offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else None
-                    if offset is not None:
-                        if offset not in self.defs:
-                            self.defs[offset] = OrderedSet()
-                        self.defs[offset].add(bb)
+            for instruction in bb.instructions:
+                if instruction.opcode != self.store_op:
+                    continue
+
+                offset = self._get_offset(instruction.operands[1])
+                if offset is None:
+                    continue
+
+                if offset not in self.defs:
+                    self.defs[offset] = OrderedSet()
+                self.defs[offset].add(bb)
 
     def _add_phi_nodes(self):
         """
@@ -99,7 +111,7 @@ class MemSSA(IRPass):
         for bb in basic_block.cfg_in:
             if bb == basic_block:
                 continue
-            
+
             args.append(bb.label)
             args.append(IRVariable(f"{self.var_prefix}{offset}"))
 
@@ -116,12 +128,10 @@ class MemSSA(IRPass):
         # Pre-action
         for inst in basic_block.instructions:
             if inst.opcode == self.store_op:
-                offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else None
+                offset = self._get_offset(inst.operands[1])
                 if offset is not None:
-                    if offset not in self.version_counters:
-                        self.version_counters[offset] = 0
-                        self.version_stacks[offset] = [0]
-                    
+                    self._init_version_tracking(offset)
+
                     i = self.version_counters[offset]
                     self.version_stacks[offset].append(i)
                     self.version_counters[offset] = i + 1
@@ -130,8 +140,9 @@ class MemSSA(IRPass):
             elif inst.opcode == self.load_op:
                 offset = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else None
                 if offset is not None and offset in self.version_stacks:
-                    inst.output = IRVariable(f"{self.var_prefix}{offset}", 
-                                          version=self.version_stacks[offset][-1])
+                    inst.output = IRVariable(
+                        f"{self.var_prefix}{offset}", version=self.version_stacks[offset][-1]
+                    )
 
         # Process dominated blocks
         for bb in self.dom.dominated[basic_block]:
@@ -156,7 +167,7 @@ class MemSSA(IRPass):
                 if op == inst.output:
                     continue
                 new_ops.extend([label, op])
-            
+
             if len(new_ops) == 0 or len(new_ops) == 2:
                 entry.instructions.remove(inst)
             else:
@@ -166,3 +177,13 @@ class MemSSA(IRPass):
             if bb == entry:
                 continue
             self._remove_degenerate_phis(bb)
+
+    def _get_offset(self, operand: IROperand) -> Optional[int]:
+        """Extract offset value from an operand if it's a literal."""
+        return operand.value if isinstance(operand, IRLiteral) else None
+
+    def _init_version_tracking(self, offset: int):
+        """Initialize version tracking for a new offset."""
+        if offset not in self.version_counters:
+            self.version_counters[offset] = 0
+            self.version_stacks[offset] = [0]
