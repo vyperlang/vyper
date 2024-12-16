@@ -6,12 +6,28 @@ from vyper.venom.passes.base_pass import IRPass
 
 class MemSSA(IRPass):
     """
-    This pass converts memory operations into Static Single Assignment (SSA) form.
-    Similar to variable SSA but specifically for memory operations (mload/mstore).
+    This pass converts memory/storage operations into Static Single Assignment (SSA) form.
+    Similar to variable SSA but specifically for memory/storage operations (mload/mstore/sload/sstore).
     """
 
+    def __init__(self, location_type: str = "memory"):
+        """
+        Initialize the pass with the location type to process.
+        
+        Args:
+            location_type: Either "memory" for memory or "storage" for storage
+        """
+        super().__init__()
+        if location_type not in ("memory", "storage"):
+            raise ValueError("location_type must be either 'memory' or 'storage'")
+        self.location_type = location_type
+        self.load_op = "mload" if location_type == "memory" else "sload"
+        self.store_op = "mstore" if location_type == "memory" else "sstore"
+        self.phi_op = "mphi" if location_type == "memory" else "sphi"
+        self.var_prefix = "mem" if location_type == "memory" else "store"
+
     dom: DominatorTreeAnalysis
-    mem_defs: dict[int, OrderedSet[IRBasicBlock]]  # memory offset -> defining blocks
+    defs: dict[int, OrderedSet[IRBasicBlock]]  # offset -> defining blocks
 
     def run_pass(self):
         fn = self.function
@@ -21,15 +37,15 @@ class MemSSA(IRPass):
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.analyses_cache.request_analysis(LivenessAnalysis)
 
-        # Add phi nodes for memory operations
-        self._add_mem_phi_nodes()
+        # Add phi nodes for operations
+        self._add_phi_nodes()
         
         # Initialize version tracking
-        self.mem_version_counters = {}  # offset -> counter
-        self.mem_version_stacks = {}    # offset -> version stack
+        self.version_counters = {}  # offset -> counter
+        self.version_stacks = {}    # offset -> version stack
         
-        # Rename memory operations starting from entry block
-        self._rename_mem_ops(fn.entry)
+        # Rename operations starting from entry block
+        self._rename_ops(fn.entry)
         
         # Clean up unnecessary phi nodes
         self._remove_degenerate_phis(fn.entry)
@@ -37,31 +53,30 @@ class MemSSA(IRPass):
         # Invalidate liveness analysis since we modified instructions
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _compute_mem_defs(self):
+    def _compute_defs(self):
         """
-        Compute memory definition points in the function.
+        Compute definition points in the function.
         """
-        self.mem_defs = {}
+        self.defs = {}
         for bb in self.dom.dfs_walk:
             for inst in bb.instructions:
-                if inst.opcode == "mstore":
+                if inst.opcode == self.store_op:
                     offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else None
                     if offset is not None:
-                        if offset not in self.mem_defs:
-                            self.mem_defs[offset] = OrderedSet()
-                        self.mem_defs[offset].add(bb)
+                        if offset not in self.defs:
+                            self.defs[offset] = OrderedSet()
+                        self.defs[offset].add(bb)
 
-    def _add_mem_phi_nodes(self):
+    def _add_phi_nodes(self):
         """
-        Add phi nodes for memory operations where necessary.
+        Add phi nodes where necessary.
         """
-        self._compute_mem_defs()
+        self._compute_defs()
         work = {var: 0 for var in self.dom.dfs_walk}
         has_already = {var: 0 for var in self.dom.dfs_walk}
         i = 0
 
-        # Iterate over all memory locations that are written to
-        for offset, d in self.mem_defs.items():
+        for offset, d in self.defs.items():
             i += 1
             defs = list(d)
             while len(defs) > 0:
@@ -70,15 +85,15 @@ class MemSSA(IRPass):
                     if has_already[dom] >= i:
                         continue
 
-                    self._place_mem_phi(offset, dom)
+                    self._place_phi(offset, dom)
                     has_already[dom] = i
                     if work[dom] < i:
                         work[dom] = i
                         defs.append(dom)
 
-    def _place_mem_phi(self, offset: int, basic_block: IRBasicBlock):
+    def _place_phi(self, offset: int, basic_block: IRBasicBlock):
         """
-        Place a phi node for a memory location in a basic block.
+        Place a phi node in a basic block.
         """
         args: list[IROperand] = []
         for bb in basic_block.cfg_in:
@@ -86,51 +101,54 @@ class MemSSA(IRPass):
                 continue
             
             args.append(bb.label)
-            args.append(IRVariable(f"mem{offset}"))
+            args.append(IRVariable(f"{self.var_prefix}{offset}"))
 
-        basic_block.insert_instruction(IRInstruction("mphi", args, IRVariable(f"mem{offset}")), 0)
+        basic_block.insert_instruction(
+            IRInstruction(self.phi_op, args, IRVariable(f"{self.var_prefix}{offset}")), 0
+        )
 
-    def _rename_mem_ops(self, basic_block: IRBasicBlock):
+    def _rename_ops(self, basic_block: IRBasicBlock):
         """
-        Rename memory operations to maintain SSA form.
+        Rename operations to maintain SSA form.
         """
         outs = []
 
         # Pre-action
         for inst in basic_block.instructions:
-            if inst.opcode == "mstore":
+            if inst.opcode == self.store_op:
                 offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else None
                 if offset is not None:
-                    if offset not in self.mem_version_counters:
-                        self.mem_version_counters[offset] = 0
-                        self.mem_version_stacks[offset] = [0]
+                    if offset not in self.version_counters:
+                        self.version_counters[offset] = 0
+                        self.version_stacks[offset] = [0]
                     
-                    i = self.mem_version_counters[offset]
-                    self.mem_version_stacks[offset].append(i)
-                    self.mem_version_counters[offset] = i + 1
+                    i = self.version_counters[offset]
+                    self.version_stacks[offset].append(i)
+                    self.version_counters[offset] = i + 1
                     outs.append(offset)
 
-            elif inst.opcode == "mload":
+            elif inst.opcode == self.load_op:
                 offset = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else None
-                if offset is not None and offset in self.mem_version_stacks:
-                    inst.output = IRVariable(f"mem{offset}", version=self.mem_version_stacks[offset][-1])
+                if offset is not None and offset in self.version_stacks:
+                    inst.output = IRVariable(f"{self.var_prefix}{offset}", 
+                                          version=self.version_stacks[offset][-1])
 
         # Process dominated blocks
         for bb in self.dom.dominated[basic_block]:
             if bb == basic_block:
                 continue
-            self._rename_mem_ops(bb)
+            self._rename_ops(bb)
 
         # Post-action
         for offset in outs:
-            self.mem_version_stacks[offset].pop()
+            self.version_stacks[offset].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
         """
         Remove unnecessary phi nodes.
         """
         for inst in entry.instructions.copy():
-            if inst.opcode != "mphi":
+            if inst.opcode != self.phi_op:
                 continue
 
             new_ops: list[IROperand] = []
