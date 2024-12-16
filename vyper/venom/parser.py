@@ -32,7 +32,7 @@ VENOM_PARSER = Lark(
 
     statement: instruction | assignment
     assignment: VAR_IDENT "=" expr
-    expr: instruction | CONST
+    expr: instruction | operand
     instruction: OPCODE operands_list?
 
     operands_list: operand ("," operand)*
@@ -121,7 +121,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, IRLiteral):
+        if isinstance(value, (IRLiteral, IRVariable)):
             return IRInstruction("store", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
