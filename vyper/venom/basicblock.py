@@ -735,16 +735,14 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
+        printer = ir_printer.get()
+
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
             f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         )
-        s += self.__repr_instructions()
-        return s
-    
-    def __repr_instructions(self) -> str:
-        printer = ir_printer.get()
-        s = ""
+        if printer and hasattr(printer, '_pre_block'):
+            s += printer._pre_block(self)
         for inst in self.instructions:
             if printer and hasattr(printer, '_pre_instruction'):
                 s += printer._pre_instruction(inst)
@@ -753,7 +751,7 @@ class IRBasicBlock:
                 s += printer._post_instruction(inst)
             s += "\n"
         return s
-
+    
 class IRPrinter:
     def _pre_instruction(self, inst: IRInstruction) -> str:
         return ""
