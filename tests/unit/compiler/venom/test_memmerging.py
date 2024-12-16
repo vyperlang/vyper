@@ -374,7 +374,6 @@ def test_memmerge_ok_interval_subset():
     assert bb.instructions[0].operands[2].value == 100
 
 
-
 def test_memmerging_ok_overlap():
     """
     Test for with source overlap
@@ -534,29 +533,6 @@ def test_memmerging_allowed_overlapping():
     assert bb.instructions[1].operands[0].value == 64
     assert bb.instructions[1].operands[1].value == 32
     assert bb.instructions[1].operands[2].value == 2048
-
-
-def test_memmerging_not_allowed_overlapping():
-    if not version_check(begin="cancun"):
-        return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-
-    bb = fn.get_basic_block()
-
-    val0 = bb.append_instruction("mload", 1000)
-    val1 = bb.append_instruction("mload", 1032)
-    bb.append_instruction("mcopy", 128, 0, 1000)
-    bb.append_instruction("mstore", val0, 2000)
-    bb.append_instruction("mstore", val1, 2032)
-    bb.append_instruction("stop")
-
-    pre = bb.instructions.copy()
-
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-
-    assert _nochange(pre, bb)
 
 
 def test_memmerging_unused_mload():
@@ -746,7 +722,7 @@ def test_memmerging_write_after_write_only_mcopy():
     assert bb.instructions[2].operands[2].value == 1016
 
 
-def test_memmerging_not_allowed_overlapping2():
+def test_memmerging_not_allowed_overlapping():
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -769,7 +745,7 @@ def test_memmerging_not_allowed_overlapping2():
     assert _nochange(pre, bb)
 
 
-def test_memmerging_not_allowed_overlapping3():
+def test_memmerging_not_allowed_overlapping2():
     if not version_check(begin="cancun"):
         return
     ctx = IRContext()
@@ -794,6 +770,7 @@ def test_memmerging_not_allowed_overlapping3():
 def test_memmerging_allowed_overlapping2():
     if not version_check(begin="cancun"):
         return
+
     ctx = IRContext()
     fn = ctx.create_function("_global")
 
