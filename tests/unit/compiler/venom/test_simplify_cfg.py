@@ -18,7 +18,6 @@ def test_phi_reduction_after_block_pruning():
             %3 = phi %1, @then, %2, @else
             stop
     }
-    [data]
     """
     post = """
     function _global {
@@ -27,7 +26,6 @@ def test_phi_reduction_after_block_pruning():
             %3 = %1
             stop
     }
-    [data]
     """
     ctx1 = parse_venom(pre)
     fn = next(iter(ctx1.functions.values()))
