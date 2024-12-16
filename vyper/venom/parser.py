@@ -130,15 +130,17 @@ class VenomTransformer(Transformer):
 
     def instruction(self, children) -> IRInstruction:
         if len(children) == 1:
-            name = children[0]
+            opcode = children[0]
             operands = []
         else:
             assert len(children) == 2
-            name, operands = children
+            opcode , operands = children
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
-        return IRInstruction(name, reversed(operands))
+        if opcode not in ("jmp", "jnz", "invoke"):
+            operands.reverse()
+        return IRInstruction(opcode, operands)
 
     def operands_list(self, children) -> list[IROperand]:
         return children
