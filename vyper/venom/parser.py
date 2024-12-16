@@ -41,8 +41,8 @@ VENOM_PARSER = Lark(
 
     CONST: INT
     OPCODE: CNAME
-    VAR_IDENT: "%" INT (":" INT)?
-    LABEL: "@" NAME
+    VAR_IDENT: "%" INT (":" INT)?  # TODO: allow arbitrary strings
+    LABEL: "@" NAME  # TODO: allow arbitrary strings
     NAME: (DIGIT|LETTER|"_")+
 
     %ignore WS

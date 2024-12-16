@@ -1,3 +1,4 @@
+import textwrap
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
@@ -222,7 +223,9 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        str = f"IRFunction: {self.name}\n"
+        ret = f"function {self.name} {{\n"
         for bb in self.get_basic_blocks():
-            str += f"{bb}\n"
-        return str.strip()
+            bb_str = textwrap.indent(str(bb), "  ")
+            ret += f"{bb_str}\n"
+        ret = ret.strip() + "\n}"
+        return ret.strip()

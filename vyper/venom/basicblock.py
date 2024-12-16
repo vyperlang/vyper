@@ -105,7 +105,7 @@ class IRDebugInfo:
 
     def __repr__(self) -> str:
         src = self.src if self.src else ""
-        return f"\t# line {self.line_no}: {src}".expandtabs(20)
+        return f"\t; line {self.line_no}: {src}".expandtabs(20)
 
 
 class IROperand:
@@ -360,20 +360,6 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
-    def str_short(self) -> str:
-        s = ""
-        if self.output:
-            s += f"{self.output} = "
-        opcode = f"{self.opcode} " if self.opcode != "store" else ""
-        s += opcode
-        operands = self.operands
-        if opcode not in ["jmp", "jnz", "invoke"]:
-            operands = list(reversed(operands))
-        s += ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
-        )
-        return s
-
     def __repr__(self) -> str:
         s = ""
         if self.output:
@@ -383,9 +369,7 @@ class IRInstruction:
         operands = self.operands
         if opcode not in ["jmp", "jnz", "invoke"]:
             operands = reversed(operands)  # type: ignore
-        s += ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
-        )
+        s += ", ".join([(f'@"{op}"' if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
             s += f" <{self.annotation}>"
@@ -645,9 +629,9 @@ class IRBasicBlock:
 
     def __repr__(self) -> str:
         s = (
-            f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
+            f"{self.label}:  ;  IN={[bb.label for bb in self.cfg_in]}"
             f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         )
         for instruction in self.instructions:
-            s += f"    {str(instruction).strip()}\n"
+            s += f"  {str(instruction).strip()}\n"
         return s
