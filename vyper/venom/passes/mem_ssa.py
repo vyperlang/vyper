@@ -109,6 +109,11 @@ class MemSSA(IRPass):
             for frontier in self.dom.dominator_frontiers[block]:
                 if frontier not in self.memory_phis:
                     phi = MemoryPhi(self.next_version, frontier)
+                    # Add operands from each predecessor block
+                    for pred in frontier.cfg_in:
+                        reaching_def = self._get_reaching_def(pred)
+                        if reaching_def:
+                            phi.operands.append((reaching_def, pred))
                     self.next_version += 1
                     self.memory_phis[frontier] = phi
                     worklist.append(frontier)
@@ -149,12 +154,21 @@ class MemSSA(IRPass):
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
                 if use.load_inst == inst:
-                    s += f"\t!use: {use.version} -> {use.reaching_def.version if use.reaching_def else None}"
+                    s += f"\t!use: {use.reaching_def.version if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
                     s += f"\t!def: {def_.version}"
         
+        return s
+    
+    def _pre_block(self, bb: IRBasicBlock):
+        s = ""
+        if bb in self.memory_phis:
+            phi = self.memory_phis[bb]
+            s += f"    !phi: {phi.version} <- "
+            s += ", ".join(f"{op[0].version} from @{op[1].label}" for op in phi.operands)
+            s += "\n"
         return s
 
     @contextlib.contextmanager
