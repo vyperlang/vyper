@@ -134,7 +134,7 @@ class VenomTransformer(Transformer):
             operands = []
         else:
             assert len(children) == 2
-            opcode , operands = children
+            opcode, operands = children
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
