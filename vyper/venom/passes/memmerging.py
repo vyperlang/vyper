@@ -180,7 +180,7 @@ class MemMergePass(IRPass):
 
         # existing copies would overwrite memory that the
         # new copy would need
-        if any(copy.overwrites(new_copy.src_interval()) for copy in self._copies):
+        if self._overwrites(new_copy.src_interval()):
             return True
 
         return False
@@ -255,13 +255,13 @@ class MemMergePass(IRPass):
 
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
+                    # no continue needed, we have not invalidated the loads dict
+
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
                     _barrier()
-                    # this continue is necessary since if there is
-                    # read write overlap in this case it must be from
-                    # load that is above of problematic copy so we cannot
-                    # add this as a new inteval
+                    # this continue is necessary because we have invalidated
+                    # the _loads dict, so src_ptr is no longer valid.
                     continue
                 self._add_copy(n_copy)
 
