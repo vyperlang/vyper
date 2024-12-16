@@ -123,10 +123,17 @@ class MemSSA(IRPass):
     def _connect_uses_to_defs(self):
         """Connect memory uses to their reaching definitions"""
         def _visit_block(bb: IRBasicBlock):
-            reaching_def = self._get_reaching_def(bb)
-
             if bb in self.memory_uses:
-                for use in self.memory_uses[bb]:
+                uses = self.memory_uses[bb]
+                for use in uses:
+                    reaching_def = self._get_reaching_def(bb)
+                    for inst in bb.instructions:
+                        if inst == use.load_inst:
+                            break
+                        if inst.opcode == self.store_op:
+                            for def_ in self.memory_defs[bb]:
+                                if def_.store_inst.operands[1] == use.load_inst.operands[0]:
+                                    reaching_def = def_
                     use.reaching_def = reaching_def
 
         self._visit(_visit_block)
@@ -136,10 +143,7 @@ class MemSSA(IRPass):
         if block in self.memory_phis:
             return self.memory_phis[block]
         
-        if block in self.memory_defs:
-            return self.memory_defs[block][-1]
-        
-        if block == self.dom.entry_block:
+        if block == self.function.entry:
             return self.live_on_entry
          
         if block.cfg_in:
