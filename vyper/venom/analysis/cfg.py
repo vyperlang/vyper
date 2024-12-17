@@ -1,4 +1,4 @@
-from typing import Callable, Iterator
+from typing import Iterator
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
@@ -48,7 +48,8 @@ class CFGAnalysis(IRAnalysis):
 
     @property
     def dfs_pre_walk(self) -> Iterator[IRBasicBlock]:
-        visited = OrderedSet()
+        visited: OrderedSet[IRBasicBlock] = OrderedSet()
+
         def _visit_dfs_pre_r(bb: IRBasicBlock):
             if bb in visited:
                 return

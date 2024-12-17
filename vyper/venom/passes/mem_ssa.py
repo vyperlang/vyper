@@ -1,8 +1,7 @@
 import contextlib
-from typing import Callable, Optional
+from typing import Optional
 
-from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.passes.base_pass import IRPass
 
@@ -38,6 +37,7 @@ class MemoryPhi(MemoryAccess):
         super().__init__(version)
         self.block = block
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
+
 
 class MemSSA(IRPass):
     """
@@ -122,6 +122,7 @@ class MemSSA(IRPass):
 
     def _connect_uses_to_defs(self):
         """Connect memory uses to their reaching definitions"""
+
         def _visit_block(bb: IRBasicBlock):
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
@@ -130,22 +131,24 @@ class MemSSA(IRPass):
 
         self._visit(_visit_block)
 
-    def _get_reaching_def(self, bb: IRBasicBlock, use: Optional[MemoryUse] = None) -> Optional[MemoryAccess]:        
+    def _get_reaching_def(
+        self, bb: IRBasicBlock, use: Optional[MemoryUse] = None
+    ) -> Optional[MemoryAccess]:
         """Get the reaching definition for a block"""
         if bb in self.memory_phis:
             return self.memory_phis[bb]
-        
+
         if use is None and bb in self.memory_defs:
             return self.memory_defs[bb][-1]
-         
+
         if bb.cfg_in:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators[bb]
             return self._get_reaching_def(idom, use) if idom else self.live_on_entry
-        
+
         if use is None:
             return self.live_on_entry
-        
+
         for inst in bb.instructions:
             if inst == use.load_inst:
                 break
@@ -153,7 +156,7 @@ class MemSSA(IRPass):
                 for def_ in reversed(self.memory_defs[bb]):
                     if def_.store_inst.operands[1] == use.load_inst.operands[0]:
                         return def_
-        
+
         return self.live_on_entry
 
     def _remove_redundant_phis(self):
@@ -183,21 +186,6 @@ class MemSSA(IRPass):
             s += ", ".join(f"{op[0].version} from @{op[1].label}" for op in phi.operands)
             s += "\n"
         return s
-    
-    def _visit(self, func: Callable[[IRBasicBlock], None]):
-        visited = OrderedSet()
-
-        def _visit_r(bb: IRBasicBlock):
-            if bb in visited:
-                return
-            visited.add(bb)
-
-            func(bb)
-
-            for out_bb in bb.cfg_out:
-                _visit_r(out_bb)
-            
-        _visit_r(self.function.entry)
 
     @contextlib.contextmanager
     def print_context(self):
