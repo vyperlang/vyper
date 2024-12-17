@@ -43,7 +43,7 @@ VENOM_PARSER = Lark(
 
     CONST: INT
     OPCODE: CNAME
-    VAR_IDENT: "%" NAME
+    VAR_IDENT: "%" NAME (":" INT)?
     LABEL: "@" NAME  # TODO: allow arbitrary strings
     NAME: (DIGIT|LETTER|"_")+
 
@@ -175,7 +175,7 @@ class VenomTransformer(Transformer):
         varname = parts[0]
         version = None
         if len(parts) > 1:
-            version = int(parts[1])
+            version = parts[1]
         return IRVariable(varname, version=version)
 
     def CONST(self, val) -> IRLiteral:
