@@ -6,6 +6,18 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass
 
 
+def _check_pre_post(pre, post):
+    ctx = parse_from_basic_block(pre)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+def _check_no_change(pre):
+    _check_pre_post(pre, pre)
+
+
 def test_memmerging():
     """
     Basic memory merge test
@@ -31,15 +43,7 @@ def test_memmerging():
         mcopy 1000, 0, 96
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_out_of_order():
@@ -67,15 +71,7 @@ def test_memmerging_out_of_order():
         mcopy 100, 0, 96
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_imposs():
@@ -98,15 +94,7 @@ def test_memmerging_imposs():
         mstore 96, %3
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_imposs_mstore():
@@ -127,15 +115,7 @@ def test_memmerging_imposs_mstore():
         mstore 2000, %3
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 @pytest.mark.xfail
@@ -158,7 +138,6 @@ def test_memmerging_bypass_fence():
             mstore 2000, %3
             stop
     }
-    [data]
     """
 
     ctx = parse_venom(pre)
@@ -168,7 +147,8 @@ def test_memmerging_bypass_fence():
         SCCP(ac, fn).run_pass()
         MemMergePass(ac, fn).run_pass()
 
-    bb = next(next(iter(ctx.functions.values())).get_basic_blocks())
+    fn = next(iter(ctx.functions.values()))
+    bb = fn.entry
     assert bb.instructions[0].opcode == "mcopy"
 
 
@@ -194,15 +174,7 @@ def test_memmerging_imposs_unkown_place():
         mstore 1064, %5
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_imposs_msize():
@@ -225,15 +197,7 @@ def test_memmerging_imposs_msize():
         mstore 1064, %4
         return %2, %5
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_partial_msize():
@@ -264,15 +228,7 @@ def test_memmerging_partial_msize():
         mstore 1064, %3
         return %4
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_partial_overlap():
@@ -309,15 +265,7 @@ def test_memmerging_partial_overlap():
         mcopy 2024, 24, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_partial_different_effect():
@@ -349,15 +297,7 @@ def test_memmerging_partial_different_effect():
         mstore 1064, %3
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerge_ok_interval_subset():
@@ -385,14 +325,7 @@ def test_memmerge_ok_interval_subset():
         mcopy 100, 0, 33
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_ok_overlap():
@@ -420,13 +353,7 @@ def test_memmerging_ok_overlap():
         stop
     """
 
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mcopy():
@@ -446,14 +373,7 @@ def test_memmerging_mcopy():
         mcopy 1000, 0, 128
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mcopy_small():
@@ -473,14 +393,7 @@ def test_memmerging_mcopy_small():
         mstore 1000, %1
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mcopy_weird_bisect():
@@ -507,14 +420,7 @@ def test_memmerging_mcopy_weird_bisect():
         mcopy 80, 100, 5
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mcopy_weird_bisect2():
@@ -541,14 +447,7 @@ def test_memmerging_mcopy_weird_bisect2():
         mcopy 80, 50, 5
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_allowed_overlapping():
@@ -571,14 +470,7 @@ def test_memmerging_allowed_overlapping():
         mcopy 2000, 0, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_unused_mload():
@@ -602,13 +494,7 @@ def test_memmerging_unused_mload():
         return %3
     """
 
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_unused_mload_1():
@@ -631,14 +517,7 @@ def test_memmerging_unused_mload_1():
         mcopy 0, 100, 64
         return %3
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mload_read_after_write_hazard():
@@ -667,14 +546,7 @@ def test_memmerging_mload_read_after_write_hazard():
         mstore 1032, %4
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_mcopy_read_after_write_hazard():
@@ -688,14 +560,7 @@ def test_memmerging_mcopy_read_after_write_hazard():
         mcopy 1064, 96, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_write_after_write():
@@ -713,14 +578,7 @@ def test_memmerging_write_after_write():
         mstore 1032, %4
         mstore 1032, %3
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_write_after_write_mstore_and_mcopy():
@@ -737,14 +595,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
         mcopy 1016, 116, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_write_after_write_only_mcopy():
@@ -767,14 +618,7 @@ def test_memmerging_write_after_write_only_mcopy():
         mcopy 1016, 16, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_not_allowed_overlapping():
@@ -790,14 +634,7 @@ def test_memmerging_not_allowed_overlapping():
         mstore 2032, %2
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_not_allowed_overlapping2():
@@ -814,13 +651,7 @@ def test_memmerging_not_allowed_overlapping2():
         stop
     """
 
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_allowed_overlapping2():
@@ -843,14 +674,7 @@ def test_memmerging_allowed_overlapping2():
         mcopy 2000, 1032, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_existing_copy_overwrite():
@@ -866,13 +690,7 @@ def test_memmerging_existing_copy_overwrite():
         stop
     """
 
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memmerging_calldataload():
@@ -890,14 +708,7 @@ def test_memmerging_calldataload():
         calldatacopy 32, 0, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_calldataload_two_intervals_diff_offset():
@@ -918,14 +729,7 @@ def test_memmerging_calldataload_two_intervals_diff_offset():
         calldatacopy 8, 0, 96
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_1():
@@ -948,14 +752,7 @@ def test_memzeroing_1():
         calldatacopy 32, %1, 96
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_2():
@@ -986,14 +783,7 @@ def test_memzeroing_2():
         calldatacopy 64, %3, 256
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_3():
@@ -1022,14 +812,7 @@ def test_memzeroing_3():
         calldatacopy 0, %3, 264
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_small_calldatacopy():
@@ -1051,14 +834,7 @@ def test_memzeroing_small_calldatacopy():
         mstore 0, 0
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_smaller_calldatacopy():
@@ -1094,14 +870,7 @@ def test_memzeroing_smaller_calldatacopy():
         mstore 100, 0
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_overlap():
@@ -1127,14 +896,7 @@ def test_memzeroing_overlap():
         calldatacopy 100, %2, 64
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
 
 
 def test_memzeroing_imposs():
@@ -1159,13 +921,7 @@ def test_memzeroing_imposs():
         mstore 160, 0
         stop
     """
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memzeroing_imposs_effect():
@@ -1181,14 +937,7 @@ def test_memzeroing_imposs_effect():
         mstore 64, 0
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+    _check_no_change(pre)
 
 
 def test_memzeroing_overlaping():
@@ -1212,11 +961,4 @@ def test_memzeroing_overlaping():
         calldatacopy 32, %1, 96
         stop
     """
-
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    _check_pre_post(pre, post)
