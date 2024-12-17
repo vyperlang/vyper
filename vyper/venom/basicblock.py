@@ -149,28 +149,23 @@ class IRVariable(IROperand):
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
-    value: str
+    _name: str
+    version: Optional[int]
 
-    def __init__(self, value: str, version: Optional[str | int] = None) -> None:
-        assert isinstance(value, str)
-        assert ":" not in value, "Variable name cannot contain ':'"
-        if version:
-            assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
-            value = f"{value}:{version}"
-        if value[0] != "%":
-            value = f"%{value}"
-        self.value = value
+    def __init__(self, name: str, version: Optional[int] = None) -> None:
+        assert isinstance(name, str)
+        self._name = name
+        self.version = version
 
     @property
     def name(self) -> str:
-        return self.value.split(":")[0]
+        return self._name
 
     @property
-    def version(self) -> int:
-        if ":" not in self.value:
-            return 0
-        return int(self.value.split(":")[1])
-
+    def value(self) -> str:
+        if self.version:
+            return f"%{self.name}:{self.version}"
+        return f"%{self.name}"
 
 class IRLabel(IROperand):
     """
@@ -464,7 +459,7 @@ class IRBasicBlock:
         self.cfg_out.remove(bb)
 
     def append_instruction(
-        self, opcode: str, *args: Union[IROperand, int], ret: IRVariable = None
+        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None
     ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
