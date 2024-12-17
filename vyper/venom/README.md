@@ -223,7 +223,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `calloca`
   - ```
-    out = calloca size, offset, id
+    out = calloca size, offset, id, <callsite label>
     ```
   - Similar to the `calloca` instruction but only used for parameters of internal functions which are passed by memory. Used at the call-site of a call.
 - `iload`
