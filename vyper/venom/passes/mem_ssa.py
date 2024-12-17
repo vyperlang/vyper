@@ -80,7 +80,8 @@ class MemSSA(IRPass):
         entry_block = self.dom.entry_block
         self.current_def[entry_block] = self.live_on_entry
 
-        self._visit(self._process_block_definitions)
+        for bb in self.cfg.dfs_pre_walk:
+            self._process_block_definitions(bb)
 
         # Second pass: insert phi nodes where needed
         self._insert_phi_nodes()
@@ -99,7 +100,6 @@ class MemSSA(IRPass):
 
             elif inst.opcode == self.load_op:
                 mem_use = MemoryUse(self.next_version, inst)
-                self.next_version += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
 
     def _insert_phi_nodes(self):
@@ -126,30 +126,33 @@ class MemSSA(IRPass):
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
                 for use in uses:
-                    reaching_def = self._get_reaching_def(bb)
-                    for inst in bb.instructions:
-                        if inst == use.load_inst:
-                            break
-                        if inst.opcode == self.store_op:
-                            for def_ in self.memory_defs[bb]:
-                                if def_.store_inst.operands[1] == use.load_inst.operands[0]:
-                                    reaching_def = def_
-                    use.reaching_def = reaching_def
+                    use.reaching_def = self._get_reaching_def(bb, use)
 
         self._visit(_visit_block)
 
-    def _get_reaching_def(self, block: IRBasicBlock) -> Optional[MemoryAccess]:        
+    def _get_reaching_def(self, bb: IRBasicBlock, use: Optional[MemoryUse] = None) -> Optional[MemoryAccess]:        
         """Get the reaching definition for a block"""
-        if block in self.memory_phis:
-            return self.memory_phis[block]
+        if bb in self.memory_phis:
+            return self.memory_phis[bb]
         
-        if block == self.function.entry:
-            return self.live_on_entry
+        if use is None and bb in self.memory_defs:
+            return self.memory_defs[bb][-1]
          
-        if block.cfg_in:
+        if bb.cfg_in:
             # Get reaching def from immediate dominator
-            idom = self.dom.immediate_dominators[block]
-            return self._get_reaching_def(idom) if idom else self.live_on_entry
+            idom = self.dom.immediate_dominators[bb]
+            return self._get_reaching_def(idom, use) if idom else self.live_on_entry
+        
+        if use is None:
+            return self.live_on_entry
+        
+        for inst in bb.instructions:
+            if inst == use.load_inst:
+                break
+            if inst.opcode == self.store_op:
+                for def_ in reversed(self.memory_defs[bb]):
+                    if def_.store_inst.operands[1] == use.load_inst.operands[0]:
+                        return def_
         
         return self.live_on_entry
 

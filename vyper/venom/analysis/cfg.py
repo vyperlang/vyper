@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Callable, Iterator
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
