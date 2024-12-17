@@ -230,10 +230,9 @@ def test_memmerging_partial_msize():
 
 
 def test_memmerging_partial_overlap():
-    # REVIEW - this comment seems wrong
     """
-    Only partial merge possible
-    because of the source overlap
+    Two different copies from overlapping
+    source range
 
     [0                     128]
         [24    88]
