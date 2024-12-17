@@ -12,6 +12,16 @@ class MemoryAccess:
     def __init__(self, version: int):
         self.version = version
 
+    @property
+    def is_live_on_entry(self) -> bool:
+        return self.version == 0
+    
+    @property
+    def version_str(self) -> str:
+        if self.is_live_on_entry:
+            return "live_on_entry"
+        return f"{self.version}"
+
 
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
@@ -56,8 +66,8 @@ class MemSSA(IRPass):
         self.store_op = "mstore" if location_type == "memory" else "sstore"
 
         # Memory SSA specific state
-        self.next_version = 1  # Start from 1 since 0 will be liveOnEntry
-        self.live_on_entry = MemoryAccess(0)  # liveOnEntry node
+        self.next_version = 1  # Start from 1 since 0 will be live_on_entry
+        self.live_on_entry = MemoryAccess(0)  # live_on_entry node
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
@@ -123,13 +133,11 @@ class MemSSA(IRPass):
     def _connect_uses_to_defs(self):
         """Connect memory uses to their reaching definitions"""
 
-        def _visit_block(bb: IRBasicBlock):
+        for bb in self.cfg.dfs_pre_walk:
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(bb, use)
-
-        self._visit(_visit_block)
 
     def _get_reaching_def(
         self, bb: IRBasicBlock, use: Optional[MemoryUse] = None
@@ -170,11 +178,11 @@ class MemSSA(IRPass):
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
                 if use.load_inst == inst:
-                    s += f"\t!use: {use.reaching_def.version if use.reaching_def else None}"
+                    s += f"\t!use: {use.reaching_def.version_str if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
-                    s += f"\t!def: {def_.version}"
+                    s += f"\t!def: {def_.version_str}"
 
         return s
 
@@ -182,8 +190,8 @@ class MemSSA(IRPass):
         s = ""
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
-            s += f"    !phi: {phi.version} <- "
-            s += ", ".join(f"{op[0].version} from @{op[1].label}" for op in phi.operands)
+            s += f"    !phi: {phi.version_str} <- "
+            s += ", ".join(f"{op[0].version_str} from @{op[1].label}" for op in phi.operands)
             s += "\n"
         return s
 
