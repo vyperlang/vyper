@@ -47,8 +47,6 @@ VENOM_PARSER = Lark(
     LABEL: "@" NAME
     NAME: (DIGIT|LETTER|"_")+
 
-    COMMENT: ";"  /[^\\n]/*
-
     %ignore WS
     %ignore COMMENT
     """
