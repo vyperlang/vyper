@@ -19,6 +19,9 @@ VENOM_PARSER = Lark(
     %import common.WS
     %import common.INT
 
+    # Allow multiple comment styles
+    COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
+
     # TODO: make data_section optional -- `function* data_section?`
     start: function* data_section
 
@@ -41,11 +44,12 @@ VENOM_PARSER = Lark(
 
     CONST: INT
     OPCODE: CNAME
-    VAR_IDENT: "%" INT (":" INT)?
+    VAR_IDENT: "%" NAME
     LABEL: "@" NAME
     NAME: (DIGIT|LETTER|"_")+
 
     %ignore WS
+    %ignore COMMENT
     """
 )
 
@@ -57,7 +61,9 @@ def _set_last_var(fn: IRFunction):
                 continue
             value = inst.output.value
             assert value.startswith("%")
-            fn.last_variable = max(fn.last_variable, int(value[1:]))
+            varname = value[1:]
+            if varname.isdigit():
+                fn.last_variable = max(fn.last_variable, int(varname))
 
 
 def _set_last_label(ctx: IRContext):
