@@ -702,6 +702,9 @@ def test_memmerging_not_allowed_overlapping2():
 
 
 def test_memmerging_existing_copy_overwrite():
+    """
+    Check that memmerge does not write over source of another copy
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -710,8 +713,9 @@ def test_memmerging_existing_copy_overwrite():
         mcopy 1000, 0, 64
         %1 = mload 2000
 
-        ; barrier, write over source of existing copy
+        # barrier, write over source of existing copy
         mstore 0, %1
+
         mcopy 1064, 64, 64
         stop
     """
