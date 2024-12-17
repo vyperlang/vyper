@@ -177,7 +177,7 @@ class VenomTransformer(Transformer):
         varname = parts[0]
         version = None
         if len(parts) > 1:
-            version = parts[1]
+            version = int(parts[1])
         return IRVariable(varname, version=version)
 
     def CONST(self, val) -> IRLiteral:
