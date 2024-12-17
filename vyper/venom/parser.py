@@ -170,13 +170,7 @@ class VenomTransformer(Transformer):
         return IRLabel(label[1:])
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
-        parts = var_ident[1:].split(":", maxsplit=1)
-        assert 1 <= len(parts) <= 2
-        varname = parts[0]
-        version = None
-        if len(parts) > 1:
-            version = int(parts[1])
-        return IRVariable(varname, version=version)
+        return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
         return IRLiteral(int(val))
