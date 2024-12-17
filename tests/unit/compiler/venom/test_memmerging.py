@@ -569,8 +569,10 @@ def test_memmerging_mload_read_after_write_hazard():
         %2 = mload 132
         mstore 0, %1
         %3 = mload 32
-        mstore 32, %2  ; REVIEW - barrier?
+        mstore 32, %2
         %4 = mload 64
+
+        ; BARRIER - the load is overriden by existing copy
         mstore 1000, %3
         mstore 1032, %4
         stop
