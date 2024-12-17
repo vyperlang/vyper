@@ -30,11 +30,11 @@ VENOM_PARSER = Lark(
 
     # TODO: consider making entry block implicit, e.g.
     # `"{" instruction+ block* "}"`
-    function: "function" LABEL "{" block* "}"
+    function: "function" LABEL_IDENT "{" block* "}"
 
     data_section: "[data]" instruction*
 
-    block: LABEL ":" statement*
+    block: LABEL_IDENT ":" "\\n" statement*
 
     statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
@@ -43,7 +43,7 @@ VENOM_PARSER = Lark(
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | ("@" LABEL)
+    operand: VAR_IDENT | CONST | LABEL
 
     CONST: SIGNED_INT
     OPCODE: CNAME
@@ -51,7 +51,8 @@ VENOM_PARSER = Lark(
 
     # handy for identifier to be an escaped string sometimes
     # (especially for machine-generated labels)
-    LABEL: (NAME | ESCAPED_STRING)
+    LABEL_IDENT: (NAME | ESCAPED_STRING)
+    LABEL: "@" LABEL_IDENT
 
     NAME: (DIGIT|LETTER|"_")+
 
@@ -108,7 +109,7 @@ class VenomTransformer(Transformer):
             fn._basic_block_dict.clear()
 
             for block_name, instructions in blocks:
-                bb = IRBasicBlock(IRLabel(block_name), fn)
+                bb = IRBasicBlock(IRLabel(block_name, True), fn)
                 fn.append_basic_block(bb)
 
                 for instruction in instructions:
@@ -174,12 +175,18 @@ class VenomTransformer(Transformer):
     def OPCODE(self, token):
         return token.value
 
+    def LABEL_IDENT(self, label) -> str:
+        if label.startswith('"'):
+            # unescape the escaped string
+            label = json.loads(label)
+        return label
+
     def LABEL(self, label) -> IRLabel:
         label = label[1:]
         if label.startswith('"'):
             # unescape the escaped string
             label = json.loads(label)
-        return IRLabel(label)
+        return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
         parts = var_ident[1:].split(":", maxsplit=1)

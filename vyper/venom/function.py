@@ -42,7 +42,7 @@ class IRFunction:
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        assert bb.label.name not in self._basic_block_dict
+        assert bb.label.name not in self._basic_block_dict, bb.label
         self._basic_block_dict[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):

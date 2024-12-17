@@ -185,7 +185,7 @@ class IRLabel(IROperand):
     value: str
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
-        assert isinstance(value, str), "value must be an str"
+        assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
         self.value = value
         self.is_symbol = is_symbol
