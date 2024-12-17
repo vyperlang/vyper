@@ -48,9 +48,7 @@ def test_memmerging():
 
 def test_memmerging_out_of_order():
     """
-    Test with out of order memory
-    operations which all can be
-    transformed into the mcopy
+    interleaved mloads/mstores which can be transformed into mcopy
     """
     if not version_check(begin="cancun"):
         return
@@ -89,7 +87,7 @@ def test_memmerging_imposs():
         %1 = mload 0
         %2 = mload 32
         %3 = mload 64
-        mstore 32, %1
+        mstore 32, %1  ; BARRIER - overwrites source
         mstore 64, %2
         mstore 96, %3
         stop
@@ -109,7 +107,7 @@ def test_memmerging_imposs_mstore():
     _global:
         %1 = mload 0
         %2 = mload 16
-        mstore 1000, %1
+        mstore 1000, %1  ; BARRIER
         %3 = mload 1000
         mstore 1016, %2
         mstore 2000, %3
@@ -149,7 +147,7 @@ def test_memmerging_bypass_fence():
 
     fn = next(iter(ctx.functions.values()))
     bb = fn.entry
-    assert bb.instructions[0].opcode == "mcopy"
+    assert any(inst.opcode == "mcopy" for inst in bb.instructions)
 
 
 def test_memmerging_imposs_unkown_place():
@@ -170,7 +168,7 @@ def test_memmerging_imposs_unkown_place():
         %5 = mload 64
         mstore 1000, %2
         mstore 1032, %4
-        mstore 10, %1
+        mstore 10, %1  ; BARRIER
         mstore 1064, %5
         stop
     """
@@ -193,7 +191,7 @@ def test_memmerging_imposs_msize():
         %4 = mload 64
         mstore 1000, %1
         mstore 1032, %3
-        %5 = msize
+        %5 = msize  ; BARRIER
         mstore 1064, %4
         return %2, %5
     """
@@ -215,7 +213,7 @@ def test_memmerging_partial_msize():
         %3 = mload 64
         mstore 1000, %1
         mstore 1032, %2
-        %4 = msize
+        %4 = msize  ; BARRIER
         mstore 1064, %3
         return %4
     """
@@ -232,6 +230,7 @@ def test_memmerging_partial_msize():
 
 
 def test_memmerging_partial_overlap():
+    # REVIEW - this comment seems wrong
     """
     Only partial merge possible
     because of the source overlap
@@ -284,7 +283,7 @@ def test_memmerging_partial_different_effect():
         %3 = mload 64
         mstore 1000, %1
         mstore 1032, %2
-        dloadbytes 2000, 1000, 1000
+        dloadbytes 2000, 1000, 1000  ; BARRIER
         mstore 1064, %3
         stop
     """
@@ -357,6 +356,9 @@ def test_memmerging_ok_overlap():
 
 
 def test_memmerging_mcopy():
+    """
+    Test that sequences of mcopy get merged (not just loads/stores)
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -377,6 +379,10 @@ def test_memmerging_mcopy():
 
 
 def test_memmerging_mcopy_small():
+    """
+    Test that sequences of mcopies get merged, and that mcopy of 32 bytes
+    gets transformed to mload/mstore (saves 1 byte)
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -451,6 +457,9 @@ def test_memmerging_mcopy_weird_bisect2():
 
 
 def test_memmerging_allowed_overlapping():
+    """
+    Test merge of interleaved mload/mstore/mcopy works
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -471,187 +480,6 @@ def test_memmerging_allowed_overlapping():
         stop
     """
     _check_pre_post(pre, post)
-
-
-def test_memmerging_unused_mload():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 100
-        %2 = mload 132
-        mstore 64, %2
-        %3 = mload 32
-        mstore 32, %1
-        return %3
-    """
-
-    post = """
-    _global:
-        %3 = mload 32
-        mcopy 32, 100, 64
-        return %3
-    """
-
-    _check_pre_post(pre, post)
-
-
-def test_memmerging_unused_mload_1():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 100
-        %2 = mload 132
-        mstore 0, %1
-        %3 = mload 32
-        mstore 32, %2
-        return %3
-    """
-
-    post = """
-    _global:
-        %3 = mload 32
-        mcopy 0, 100, 64
-        return %3
-    """
-    _check_pre_post(pre, post)
-
-
-def test_memmerging_mload_read_after_write_hazard():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 100
-        %2 = mload 132
-        mstore 0, %1
-        %3 = mload 32
-        mstore 32, %2
-        %4 = mload 64
-        mstore 1000, %3
-        mstore 1032, %4
-        stop
-    """
-
-    post = """
-    _global:
-        %3 = mload 32
-        mcopy 0, 100, 64
-        %4 = mload 64
-        mstore 1000, %3
-        mstore 1032, %4
-        stop
-    """
-    _check_pre_post(pre, post)
-
-
-def test_memmerging_mcopy_read_after_write_hazard():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        mcopy 1000, 32, 64
-        mcopy 2000, 1000, 64
-        mcopy 1064, 96, 64
-        stop
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_write_after_write():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = mload 100
-        %3 = mload 32
-        %4 = mload 132
-        mstore 1000, %1
-        mstore 1000, %2
-        mstore 1032, %4
-        mstore 1032, %3
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_write_after_write_mstore_and_mcopy():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = mload 132
-        mstore 1000, %1
-        mcopy 1000, 100, 16
-        mstore 1032, %2
-        mcopy 1016, 116, 64
-        stop
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_write_after_write_only_mcopy():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        mcopy 1000, 0, 16
-        mcopy 1000, 100, 16
-        mcopy 1016, 116, 64
-        mcopy 1016, 16, 64
-        stop
-    """
-
-    post = """
-    _global:
-        mcopy 1000, 0, 16
-        mcopy 1000, 100, 80
-        mcopy 1016, 16, 64
-        stop
-    """
-    _check_pre_post(pre, post)
-
-
-def test_memmerging_not_allowed_overlapping():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 1000
-        %2 = mload 1032
-        mcopy 1000, 0, 128
-        mstore 2000, %1
-        mstore 2032, %2
-        stop
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_not_allowed_overlapping2():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 1032
-        mcopy 1000, 0, 64
-        mstore 2000, %1
-        %2 = mload 1064
-        mstore 2032, %2
-        stop
-    """
-
-    _check_no_change(pre)
 
 
 def test_memmerging_allowed_overlapping2():
@@ -677,7 +505,203 @@ def test_memmerging_allowed_overlapping2():
     _check_pre_post(pre, post)
 
 
+def test_memmerging_unused_mload():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 64, %2
+
+        # does not interfere with the mload/mstore merging even though
+        # it cannot be removed
+        %3 = mload 32
+
+        mstore 32, %1
+        return %3, %3
+    """
+
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 32, 100, 64
+        return %3, %3
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_memmerging_unused_mload1():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 0, %1
+
+        # does not interfere with the mload/mstore merging even though
+        # it cannot be removed
+        %3 = mload 32
+
+        mstore 32, %2
+        return %3, %3
+    """
+
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 0, 100, 64
+        return %3, %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_memmerging_mload_read_after_write_hazard():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 0, %1
+        %3 = mload 32
+        mstore 32, %2  ; REVIEW - barrier?
+        %4 = mload 64
+        mstore 1000, %3
+        mstore 1032, %4
+        stop
+    """
+
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 0, 100, 64
+        %4 = mload 64
+        mstore 1000, %3
+        mstore 1032, %4
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_memmerging_mcopy_read_after_write_hazard():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 1000, 32, 64
+        mcopy 2000, 1000, 64  ; BARRIER
+        mcopy 1064, 96, 64
+        stop
+    """
+    _check_no_change(pre)
+
+
+def test_memmerging_write_after_write():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 100
+        %3 = mload 32
+        %4 = mload 132
+        mstore 1000, %1
+        mstore 1000, %2  ; BARRIER
+        mstore 1032, %4
+        mstore 1032, %3  ; BARRIER
+    """
+    _check_no_change(pre)
+
+
+def test_memmerging_write_after_write_mstore_and_mcopy():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 132
+        mstore 1000, %1
+        mcopy 1000, 100, 16
+        mstore 1032, %2  ; BARRIER
+        mcopy 1016, 116, 64
+        stop
+    """
+    _check_no_change(pre)
+
+
+def test_memmerging_write_after_write_only_mcopy():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 1000, 0, 16
+        mcopy 1000, 100, 16  ; write barrier
+        mcopy 1016, 116, 64
+        mcopy 1016, 16, 64
+        stop
+    """
+
+    post = """
+    _global:
+        mcopy 1000, 0, 16
+        mcopy 1000, 100, 80
+        mcopy 1016, 16, 64
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_memmerging_not_allowed_overlapping():
+    if not version_check(begin="cancun"):
+        return
+
+    # NOTE: maybe optimization is possible here, to:
+    # mcopy 2000, 1000, 64
+    # mcopy 1000, 0, 128
+    pre = """
+    _global:
+        %1 = mload 1000
+        %2 = mload 1032
+        mcopy 1000, 0, 128  ; BARRIER
+        mstore 2000, %1
+        mstore 2032, %2
+        stop
+    """
+    _check_no_change(pre)
+
+
+def test_memmerging_not_allowed_overlapping2():
+    if not version_check(begin="cancun"):
+        return
+
+    # NOTE: maybe optimization is possible here, to:
+    # mcopy 2000, 1000, 64
+    # mcopy 1000, 0, 128
+    pre = """
+    _global:
+        %1 = mload 1032
+        mcopy 1000, 0, 64
+        mstore 2000, %1
+        %2 = mload 1064
+        mstore 2032, %2
+        stop
+    """
+
+    _check_no_change(pre)
+
+
 def test_memmerging_existing_copy_overwrite():
+    # REVIEW - what is being tested here?
     if not version_check(begin="cancun"):
         return
 
@@ -712,6 +736,9 @@ def test_memmerging_calldataload():
 
 
 def test_memmerging_calldataload_two_intervals_diff_offset():
+    """
+    Test different calldatacopy sequences are separately merged
+    """
     pre = """
     _global:
         %1 = calldataload 0
@@ -734,8 +761,7 @@ def test_memmerging_calldataload_two_intervals_diff_offset():
 
 def test_memzeroing_1():
     """
-    Test of basic memzeroing
-    done with mstore only
+    Test of basic memzeroing done with mstore only
     """
 
     pre = """
@@ -757,8 +783,7 @@ def test_memzeroing_1():
 
 def test_memzeroing_2():
     """
-    Test of basic memzeroing
-    done with calldatacopy only
+    Test of basic memzeroing done with calldatacopy only
 
     sequence of these instruction will
     zero out the memory at destination
@@ -788,8 +813,7 @@ def test_memzeroing_2():
 
 def test_memzeroing_3():
     """
-    Test of basic memzeroing
-    done with combination of
+    Test of basic memzeroing done with combination of
     mstores and calldatacopies
     """
 
@@ -818,7 +842,7 @@ def test_memzeroing_3():
 def test_memzeroing_small_calldatacopy():
     """
     Test of converting calldatacopy of
-    size 32 into the mstore
+    size 32 into mstore
     """
 
     pre = """
@@ -839,7 +863,7 @@ def test_memzeroing_small_calldatacopy():
 
 def test_memzeroing_smaller_calldatacopy():
     """
-    Test of converting smaller (<32) calldatacopies
+    Test merging smaller (<32) calldatacopies
     into either calldatacopy or mstore
     """
 
@@ -875,7 +899,7 @@ def test_memzeroing_smaller_calldatacopy():
 
 def test_memzeroing_overlap():
     """
-    Test of merging ovelaping zeroing intervals
+    Test of merging overlaping zeroing intervals
 
     [128        160]
         [136                  192]
@@ -901,13 +925,13 @@ def test_memzeroing_overlap():
 
 def test_memzeroing_imposs():
     """
-    Test of memzeroing bariers caused
+    Test of memzeroing barriers caused
     by non constant arguments
     """
 
     pre = """
     _global:
-        %1 = param
+        %1 = param  ; abstract location, causes barrier
         mstore 32, 0
         mstore %1, 0
         mstore 64, 0
@@ -933,7 +957,7 @@ def test_memzeroing_imposs_effect():
     pre = """
     _global:
         mstore 32, 0
-        dloadbytes 10, 20, 30
+        dloadbytes 10, 20, 30  ; BARRIER
         mstore 64, 0
         stop
     """
@@ -942,8 +966,8 @@ def test_memzeroing_imposs_effect():
 
 def test_memzeroing_overlaping():
     """
-    Test of memzeroing bariers caused
-    by different effect
+    Test merging overlapping memzeroes (they can be merged
+    since both result in zeroes being written to destination)
     """
 
     pre = """
@@ -959,6 +983,32 @@ def test_memzeroing_overlaping():
     _global:
         %1 = calldatasize
         calldatacopy 32, %1, 96
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_memzeroing_interleaved():
+    """
+    Test merging overlapping memzeroes (they can be merged
+    since both result in zeroes being written to destination)
+    """
+
+    pre = """
+    _global:
+        mstore 32, 0
+        mstore 1000, 0
+        mstore 64, 0
+        mstore 1032, 0
+        stop
+    """
+
+    post = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 32, %1, 64
+        %2 = calldatasize
+        calldatacopy 1000, %2, 64
         stop
     """
     _check_pre_post(pre, post)
