@@ -1,15 +1,9 @@
 import pytest
 
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
-
-
-def _nochange(instructions, bb):
-    if len(instructions) != len(bb.instructions):
-        return False
-    return all(inst1 is inst2 for (inst1, inst2) in zip(instructions, bb.instructions))
+from vyper.venom.passes import SCCP, MemMergePass
 
 
 def test_memmerging():
@@ -20,28 +14,32 @@ def test_memmerging():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 0)
-    val1 = bb.append_instruction("mload", 32)
-    val2 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mstore", val0, 1024)
-    bb.append_instruction("mstore", val1, 1024 + 32)
-    bb.append_instruction("mstore", val2, 1024 + 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        %3 = mload 64
+        mstore 1000, %1
+        mstore 1032, %2
+        mstore 1064, %3
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        mcopy 1000, 0, 96
+        stop
+    """
 
-    assert not any(inst.opcode == "mstore" for inst in bb.instructions)
-    assert not any(inst.opcode == "mload" for inst in bb.instructions), bb
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 96
-    assert bb.instructions[0].operands[1].value == 0
-    assert bb.instructions[0].operands[2].value == 1024
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_out_of_order():
@@ -52,59 +50,63 @@ def test_memmerging_out_of_order():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val1 = bb.append_instruction("mload", 32)
-    val0 = bb.append_instruction("mload", 0)
-    bb.append_instruction("mstore", val1, 128)
-    val2 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mstore", val2, 160)
-    bb.append_instruction("mstore", val0, 96)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 32
+        %2 = mload 0
+        mstore 132, %1
+        %3 = mload 64
+        mstore 164, %3
+        mstore 100, %2
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        mcopy 100, 0, 96
+        stop
+    """
 
-    assert not any(inst.opcode == "mstore" for inst in bb.instructions)
-    assert not any(inst.opcode == "mload" for inst in bb.instructions)
-    assert bb.instructions[0].opcode == "mcopy"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_imposs():
     """
     Test case of impossible merge
     Impossible because of the overlap
-    [64        160]
-          [96        192]
+    [0        96]
+          [32        128]
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    addr0 = bb.append_instruction("store", 64)
-    addr1 = bb.append_instruction("store", 96)
-    addr2 = bb.append_instruction("store", 128)
-    oaddr0 = bb.append_instruction("store", 96)
-    oaddr1 = bb.append_instruction("store", 128)
-    oaddr2 = bb.append_instruction("store", 160)
-    val0 = bb.append_instruction("mload", addr0)
-    val1 = bb.append_instruction("mload", addr1)
-    val2 = bb.append_instruction("mload", addr2)
-    bb.append_instruction("mstore", val0, oaddr0)
-    bb.append_instruction("mstore", val1, oaddr1)
-    bb.append_instruction("mstore", val2, oaddr2)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        %3 = mload 64
+        mstore 32, %1
+        mstore 64, %2
+        mstore 96, %3
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_imposs_mstore():
@@ -114,49 +116,59 @@ def test_memmerging_imposs_mstore():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 0)
-    val1 = bb.append_instruction("mload", 16)
-    bb.append_instruction("mstore", val0, 1024)
-    val2 = bb.append_instruction("mload", 1024)
-    bb.append_instruction("mstore", val1, 1024 + 16)
-    bb.append_instruction("mstore", val2, 2048)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 16
+        mstore 1000, %1
+        %3 = mload 1000
+        mstore 1016, %2
+        mstore 2000, %3
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 @pytest.mark.xfail
 def test_memmerging_bypass_fence():
     """
-    We should be able to optimize this to an mcopy(0, 1024, 64), but
+    We should be able to optimize this to an mcopy(0, 1000, 64), but
     currently do not
     """
     if not version_check(begin="cancun"):
         raise AssertionError()  # xfail
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 0)
-    val1 = bb.append_instruction("mload", 32)
-    bb.append_instruction("mstore", val0, 1024)
-    val2 = bb.append_instruction("mload", 1024)
-    bb.append_instruction("mstore", val1, 1024 + 32)
-    bb.append_instruction("mstore", val2, 2048)
-    bb.append_instruction("stop")
+    pre = """
+    function _global {
+        _global:
+            %1 = mload 0
+            %2 = mload 32
+            mstore %1, 1000
+            %3 = mload 1000
+            mstore 1032, %2
+            mstore 2000, %3
+            stop
+    }
+    [data]
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_venom(pre)
 
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    bb = next(next(iter(ctx.functions.values())).get_basic_blocks())
     assert bb.instructions[0].opcode == "mcopy"
 
 
@@ -168,27 +180,29 @@ def test_memmerging_imposs_unkown_place():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    par = bb.append_instruction("param")
-    val0 = bb.append_instruction("mload", 0)
-    unknown_place = bb.append_instruction("mload", par)
-    val1 = bb.append_instruction("mload", 32)
-    val2 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mstore", val0, 96)
-    bb.append_instruction("mstore", val1, 128)
-    bb.append_instruction("mstore", 10, par)
-    bb.append_instruction("mstore", val2, 160)
-    bb.append_instruction("mstore", unknown_place, 1024)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = param
+        %2 = mload 0
+        %3 = mload %1
+        %4 = mload 32
+        %5 = mload 64
+        mstore 1000, %2
+        mstore 1032, %4
+        mstore 10, %1
+        mstore 1064, %5
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_imposs_msize():
@@ -198,31 +212,28 @@ def test_memmerging_imposs_msize():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    addr0 = bb.append_instruction("store", 0)
-    addr1 = bb.append_instruction("store", 32)
-    addr2 = bb.append_instruction("store", 64)
-    oaddr0 = bb.append_instruction("store", 96)
-    oaddr1 = bb.append_instruction("store", 128)
-    oaddr2 = bb.append_instruction("store", 160)
-    val0 = bb.append_instruction("mload", addr0)
-    bb.append_instruction("msize")
-    val1 = bb.append_instruction("mload", addr1)
-    val2 = bb.append_instruction("mload", addr2)
-    bb.append_instruction("mstore", val0, oaddr0)
-    bb.append_instruction("mstore", val1, oaddr1)
-    bb.append_instruction("msize")
-    bb.append_instruction("mstore", val2, oaddr2)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = msize
+        %3 = mload 32
+        %4 = mload 64
+        mstore 1000, %1
+        mstore 1032, %3
+        %5 = msize
+        mstore 1064, %4
+        return %2, %5
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert not any(inst.opcode == "mcopy" for inst in bb.instructions)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_partial_msize():
@@ -232,34 +243,36 @@ def test_memmerging_partial_msize():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    addr0 = bb.append_instruction("store", 0)
-    addr1 = bb.append_instruction("store", 32)
-    addr2 = bb.append_instruction("store", 64)
-    oaddr0 = bb.append_instruction("store", 96)
-    oaddr1 = bb.append_instruction("store", 128)
-    oaddr2 = bb.append_instruction("store", 160)
-    val0 = bb.append_instruction("mload", addr0)
-    val1 = bb.append_instruction("mload", addr1)
-    val2 = bb.append_instruction("mload", addr2)
-    bb.append_instruction("mstore", val0, oaddr0)
-    bb.append_instruction("mstore", val1, oaddr1)
-    bb.append_instruction("msize")
-    bb.append_instruction("mstore", val2, oaddr2)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        %3 = mload 64
+        mstore 1000, %1
+        mstore 1032, %2
+        %4 = msize
+        mstore 1064, %3
+        return %4
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        %3 = mload 64
+        mcopy 1000, 0, 64
+        %4 = msize
+        mstore 1064, %3
+        return %4
+    """
 
-    assert bb.instructions[-2].opcode == "mstore"
-    assert bb.instructions[-3].opcode == "msize"
-    assert bb.instructions[-4].opcode == "mcopy"
-    assert bb.instructions[-4].operands[0].value == 64
-    assert bb.instructions[-5].opcode == "mload"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_partial_overlap():
@@ -272,38 +285,39 @@ def test_memmerging_partial_overlap():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        %3 = mload 64
+        %4 = mload 96
+        %5 = mload 24
+        %6 = mload 56
+        mstore 1064, %3
+        mstore 1096, %4
+        mstore 1000, %1
+        mstore 1032, %2
+        mstore 2024, %5
+        mstore 2056, %6
+        stop
+    """
 
-    val0 = bb.append_instruction("mload", 0)
-    val1 = bb.append_instruction("mload", 32)
-    val2 = bb.append_instruction("mload", 64)
-    val3 = bb.append_instruction("mload", 96)
-    val4 = bb.append_instruction("mload", 24)
-    val5 = bb.append_instruction("mload", 24 + 32)
+    post = """
+    _global:
+        mcopy 1000, 0, 128
+        mcopy 2024, 24, 64
+        stop
+    """
 
-    bb.append_instruction("mstore", val2, 1024 + 64)
-    bb.append_instruction("mstore", val3, 1024 + 96)
-    bb.append_instruction("mstore", val0, 1024)
-    bb.append_instruction("mstore", val1, 1024 + 32)
-    bb.append_instruction("mstore", val4, 2048 + 24)
-    bb.append_instruction("mstore", val5, 2048 + 24 + 32)
-    bb.append_instruction("stop")
+    ctx = parse_from_basic_block(pre)
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 128
-    assert bb.instructions[0].operands[1].value == 0
-    assert bb.instructions[0].operands[2].value == 1024
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 24
-    assert bb.instructions[1].operands[2].value == 2048 + 24
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_partial_different_effect():
@@ -314,34 +328,36 @@ def test_memmerging_partial_different_effect():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    addr0 = bb.append_instruction("store", 0)
-    addr1 = bb.append_instruction("store", 32)
-    addr2 = bb.append_instruction("store", 64)
-    oaddr0 = bb.append_instruction("store", 96)
-    oaddr1 = bb.append_instruction("store", 128)
-    oaddr2 = bb.append_instruction("store", 160)
-    val0 = bb.append_instruction("mload", addr0)
-    val1 = bb.append_instruction("mload", addr1)
-    val2 = bb.append_instruction("mload", addr2)
-    bb.append_instruction("mstore", val0, oaddr0)
-    bb.append_instruction("mstore", val1, oaddr1)
-    bb.append_instruction("dloadbytes", 1024, 1024, 2048)
-    bb.append_instruction("mstore", val2, oaddr2)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        %3 = mload 64
+        mstore 1000, %1
+        mstore 1032, %2
+        dloadbytes 2000, 1000, 1000
+        mstore 1064, %3
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        %3 = mload 64
+        mcopy 1000, 0, 64
+        dloadbytes 2000, 1000, 1000
+        mstore 1064, %3
+        stop
+    """
 
-    assert bb.instructions[-2].opcode == "mstore"
-    assert bb.instructions[-3].opcode == "dloadbytes"
-    assert bb.instructions[-4].opcode == "mcopy"
-    assert bb.instructions[-4].operands[0].value == 64
-    assert bb.instructions[-5].opcode == "mload"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerge_ok_interval_subset():
@@ -355,23 +371,28 @@ def test_memmerge_ok_interval_subset():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 0)
+    pre = """
+    _global:
+        %1 = mload 0
+        mstore 100, %1
+        mcopy 100, 0, 33
+        stop
+    """
 
-    bb.append_instruction("mstore", val0, 100)
-    bb.append_instruction("mcopy", 33, 0, 100)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 100, 0, 33
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 33
-    assert bb.instructions[0].operands[1].value == 0
-    assert bb.instructions[0].operands[2].value == 100
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_ok_overlap():
@@ -381,67 +402,85 @@ def test_memmerging_ok_overlap():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 32)
-    val1 = bb.append_instruction("mload", 32 + 24)
-    val2 = bb.append_instruction("mload", 32 + 24 + 24)
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 24
+        %3 = mload 48
+        mstore 1000, %1
+        mstore 1024, %2
+        mstore 1048, %3
+        stop
+    """
 
-    bb.append_instruction("mstore", val0, 1024)
-    bb.append_instruction("mstore", val1, 1024 + 24)
-    bb.append_instruction("mstore", val2, 1024 + 24 + 24)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 1000, 0, 80
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 32 + 24 + 24
-    assert bb.instructions[0].operands[1].value == 32
-    assert bb.instructions[0].operands[2].value == 1024
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mcopy():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mcopy", 32, 0, 1024)
-    bb.append_instruction("mcopy", 32, 32, 1024 + 32)
-    bb.append_instruction("mcopy", 64, 64, 1024 + 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mcopy 1000, 0, 32
+        mcopy 1032, 32, 32
+        mcopy 1064, 64, 64
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        mcopy 1000, 0, 128
+        stop
+    """
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 128
-    assert bb.instructions[0].operands[1].value == 0
-    assert bb.instructions[0].operands[2].value == 1024
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mcopy_small():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mcopy", 16, 0, 1024)
-    bb.append_instruction("mcopy", 16, 16, 1024 + 16)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mcopy 1000, 0, 16
+        mcopy 1016, 16, 16
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0].value == 0
-    assert bb.instructions[1].opcode == "mstore"
-    assert bb.instructions[1].operands[0] == bb.instructions[0].output
-    assert bb.instructions[1].operands[1].value == 1024
+    post = """
+    _global:
+        %1 = mload 0
+        mstore 1000, %1
+        stop
+    """
+
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mcopy_weird_bisect():
@@ -453,27 +492,29 @@ def test_memmerging_mcopy_weird_bisect():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        mcopy 80, 100, 2
+        mcopy 150, 60, 1
+        mcopy 82, 102, 3
+        stop
+    """
 
-    bb.append_instruction("mcopy", 2, 100, 80)
-    bb.append_instruction("mcopy", 1, 60, 150)
-    bb.append_instruction("mcopy", 3, 102, 82)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 150, 60, 1
+        mcopy 80, 100, 5
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 1
-    assert bb.instructions[0].operands[1].value == 60
-    assert bb.instructions[0].operands[2].value == 150
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 5
-    assert bb.instructions[1].operands[1].value == 100
-    assert bb.instructions[1].operands[2].value == 80
-    assert bb.instructions[2].opcode == "stop"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mcopy_weird_bisect2():
@@ -485,380 +526,406 @@ def test_memmerging_mcopy_weird_bisect2():
     """
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        mcopy 80, 50, 2
+        mcopy 20, 100, 1
+        mcopy 82, 52, 3
+        stop
+    """
 
-    bb.append_instruction("mcopy", 2, 50, 80)
-    bb.append_instruction("mcopy", 1, 100, 20)
-    bb.append_instruction("mcopy", 3, 52, 82)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 20, 100, 1
+        mcopy 80, 50, 5
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 1
-    assert bb.instructions[0].operands[1].value == 100
-    assert bb.instructions[0].operands[2].value == 20
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 5
-    assert bb.instructions[1].operands[1].value == 50
-    assert bb.instructions[1].operands[2].value == 80
-    assert bb.instructions[2].opcode == "stop"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_allowed_overlapping():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mcopy", 128, 64, 1024)
-    val1 = bb.append_instruction("mload", 32)
-    bb.append_instruction("mstore", val0, 2048 + 32)
-    bb.append_instruction("mstore", val1, 2048)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 32
+        mcopy 1000, 32, 128
+        %2 = mload 0
+        mstore 2032, %1
+        mstore 2000, %2
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        mcopy 1000, 32, 128
+        mcopy 2000, 0, 64
+        stop
+    """
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 128
-    assert bb.instructions[0].operands[1].value == 64
-    assert bb.instructions[0].operands[2].value == 1024
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 32
-    assert bb.instructions[1].operands[2].value == 2048
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_unused_mload():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val1 = bb.append_instruction("mload", 100)
-    val2 = bb.append_instruction("mload", 132)
-    bb.append_instruction("mstore", val2, 64)
-    val = bb.append_instruction("mload", 32)
-    bb.append_instruction("mstore", val1, 32)
-    bb.append_instruction("return", val, val)
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 64, %2
+        %3 = mload 32
+        mstore 32, %1
+        return %3
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 32, 100, 64
+        return %3
+    """
 
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0].value == 32
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 100
-    assert bb.instructions[1].operands[2].value == 32
-    assert bb.instructions[2].opcode == "return"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_unused_mload_1():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val1 = bb.append_instruction("mload", 100)
-    val2 = bb.append_instruction("mload", 132)
-    bb.append_instruction("mstore", val1, 0)
-    val = bb.append_instruction("mload", 32)
-    bb.append_instruction("mstore", val2, 32)
-    bb.append_instruction("return", val, val)
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 0, %1
+        %3 = mload 32
+        mstore 32, %2
+        return %3
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 0, 100, 64
+        return %3
+    """
 
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0].value == 32
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 100
-    assert bb.instructions[1].operands[2].value == 0
-    assert bb.instructions[2].opcode == "return"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mload_read_after_write_hazard():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val1 = bb.append_instruction("mload", 100)
-    val2 = bb.append_instruction("mload", 132)
-    bb.append_instruction("mstore", val1, 0)
-    val3 = bb.append_instruction("mload", 32)
-    bb.append_instruction("mstore", val2, 32)
-    val4 = bb.append_instruction("mload", 64)
-    bb.append_instruction("mstore", val3, 1024)
-    bb.append_instruction("mstore", val4, 1024 + 32)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = mload 132
+        mstore 0, %1
+        %3 = mload 32
+        mstore 32, %2
+        %4 = mload 64
+        mstore 1000, %3
+        mstore 1032, %4
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    post = """
+    _global:
+        %3 = mload 32
+        mcopy 0, 100, 64
+        %4 = mload 64
+        mstore 1000, %3
+        mstore 1032, %4
+        stop
+    """
 
-    assert bb.instructions[0].opcode == "mload"
-    assert bb.instructions[0].operands[0].value == 32
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 100
-    assert bb.instructions[1].operands[2].value == 0
-    assert bb.instructions[2].opcode == "mload"
-    assert bb.instructions[2].operands[0].value == 64
-    assert bb.instructions[3].opcode == "mstore"
-    assert bb.instructions[3].operands[0] == bb.instructions[0].output
-    assert bb.instructions[3].operands[1].value == 1024
-    assert bb.instructions[4].opcode == "mstore"
-    assert bb.instructions[4].operands[0] == bb.instructions[2].output
-    assert bb.instructions[4].operands[1].value == 1024 + 32
-    assert bb.instructions[5].opcode == "stop"
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_mcopy_read_after_write_hazard():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mcopy", 64, 32, 1024)
-    bb.append_instruction("mcopy", 64, 1024, 2048)
-    bb.append_instruction("mcopy", 64, 32 + 64, 1024 + 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mcopy 1000, 32, 64
+        mcopy 2000, 1000, 64
+        mcopy 1064, 96, 64
+        stop
+    """
 
-    pre = bb.instructions.copy()
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert _nochange(pre, bb), bb
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_write_after_write():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 100
+        %3 = mload 32
+        %4 = mload 132
+        mstore 1000, %1
+        mstore 1000, %2
+        mstore 1032, %4
+        mstore 1032, %3
+    """
 
-    val00 = bb.append_instruction("mload", 0)
-    val10 = bb.append_instruction("mload", 100)
-    val01 = bb.append_instruction("mload", 32)
-    val11 = bb.append_instruction("mload", 132)
-    bb.append_instruction("mstore", val00, 1000)
-    bb.append_instruction("mstore", val10, 1000)
-    bb.append_instruction("mstore", val11, 1032)
-    bb.append_instruction("mstore", val01, 1032)
-    bb.append_instruction("stop")
+    ctx = parse_from_basic_block(pre)
 
-    pre = bb.instructions.copy()
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert _nochange(pre, bb), bb
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_write_after_write_mstore_and_mcopy():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 132
+        mstore 1000, %1
+        mcopy 1000, 100, 16
+        mstore 1032, %2
+        mcopy 1016, 116, 64
+        stop
+    """
 
-    val0 = bb.append_instruction("mload", 0)
-    val1 = bb.append_instruction("mload", 132)
-    bb.append_instruction("mstore", val0, 1000)
-    bb.append_instruction("mcopy", 16, 100, 1000)
-    bb.append_instruction("mstore", val1, 1032)
-    bb.append_instruction("mcopy", 64, 116, 1016)
-    bb.append_instruction("stop")
+    ctx = parse_from_basic_block(pre)
 
-    pre = bb.instructions.copy()
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert _nochange(pre, bb), bb
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_write_after_write_only_mcopy():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        mcopy 1000, 0, 16
+        mcopy 1000, 100, 16
+        mcopy 1016, 116, 64
+        mcopy 1016, 16, 64
+        stop
+    """
 
-    bb.append_instruction("mcopy", 16, 0, 1000)
-    bb.append_instruction("mcopy", 16, 100, 1000)
-    bb.append_instruction("mcopy", 64, 116, 1016)
-    bb.append_instruction("mcopy", 64, 16, 1016)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 1000, 0, 16
+        mcopy 1000, 100, 80
+        mcopy 1016, 16, 64
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 16
-    assert bb.instructions[0].operands[1].value == 0
-    assert bb.instructions[0].operands[2].value == 1000
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 16 + 64
-    assert bb.instructions[1].operands[1].value == 100
-    assert bb.instructions[1].operands[2].value == 1000
-    assert bb.instructions[2].opcode == "mcopy"
-    assert bb.instructions[2].operands[0].value == 64
-    assert bb.instructions[2].operands[1].value == 16
-    assert bb.instructions[2].operands[2].value == 1016
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_not_allowed_overlapping():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 1000)
-    val1 = bb.append_instruction("mload", 1032)
-    bb.append_instruction("mcopy", 128, 0, 1000)  # src 0 dst 1000
-    # BARRIER - mstore uses mload (stale after trampled by mcopy)
-    bb.append_instruction("mstore", val0, 2000)  # dst 2000
-    bb.append_instruction("mstore", val1, 2032)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 1000
+        %2 = mload 1032
+        mcopy 1000, 0, 128
+        mstore 2000, %1
+        mstore 2032, %2
+        stop
+    """
 
-    pre = bb.instructions.copy()
+    ctx = parse_from_basic_block(pre)
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert _nochange(pre, bb)
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_not_allowed_overlapping2():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("mload", 1024 + 32)
-    bb.append_instruction("mcopy", 64, 64, 1024)  # src 64 dst 1024
-    bb.append_instruction("mstore", val0, 2048)  # dst 2048
-    val1 = bb.append_instruction("mload", 1024 + 64)
-    bb.append_instruction("mstore", val1, 2048 + 32)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = mload 1032
+        mcopy 1000, 0, 64
+        mstore 2000, %1
+        %2 = mload 1064
+        mstore 2032, %2
+        stop
+    """
 
-    pre = bb.instructions.copy()
+    ctx = parse_from_basic_block(pre)
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert _nochange(pre, bb)
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_allowed_overlapping2():
     if not version_check(begin="cancun"):
         return
 
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    _global:
+        mcopy 1000, 0, 64
+        %1 = mload 1032
+        mstore 2000, %1
+        %2 = mload 1064
+        mstore 2032, %2
+        stop
+    """
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mcopy", 64, 64, 1024)  # src 64 dst 1024
-    val0 = bb.append_instruction("mload", 1024 + 32)
-    bb.append_instruction("mstore", val0, 2048)  # dst 2048
-    val1 = bb.append_instruction("mload", 1024 + 64)
-    bb.append_instruction("mstore", val1, 2048 + 32)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        mcopy 1000, 0, 64
+        mcopy 2000, 1032, 64
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "mcopy"
-    assert bb.instructions[0].operands[0].value == 64
-    assert bb.instructions[0].operands[1].value == 64
-    assert bb.instructions[0].operands[2].value == 1024
-    assert bb.instructions[1].opcode == "mcopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[1].value == 1024 + 32
-    assert bb.instructions[1].operands[2].value == 2048
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_existing_copy_overwrite():
     if not version_check(begin="cancun"):
         return
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mcopy", 64, 64, 1024)
-    val = bb.append_instruction("mload", 2048)
-    bb.append_instruction("mstore", val, 64)
-    bb.append_instruction("mcopy", 64, 64 + 64, 1024 + 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mcopy 1000, 0, 64
+        %1 = mload 2000
+        mstore 0, %1
+        mcopy 1064, 64, 64
+        stop
+    """
 
-    orig = bb.instructions.copy()
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert orig == bb.instructions
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memmerging_calldataload():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    _global:
+        %1 = calldataload 0
+        mstore 32, %1
+        %2 = calldataload 32
+        mstore 64, %2
+        stop
+    """
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("calldataload", 32)
-    bb.append_instruction("mstore", val0, 64)
-    val1 = bb.append_instruction("calldataload", 64)
-    bb.append_instruction("mstore", val1, 64 + 32)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        calldatacopy 32, 0, 64
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatacopy"
-    assert bb.instructions[0].operands[0].value == 64
-    assert bb.instructions[0].operands[1].value == 32
-    assert bb.instructions[0].operands[2].value == 64
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memmerging_calldataload_two_intervals_diff_offset():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    _global:
+        %1 = calldataload 0
+        mstore 0, %1
+        calldatacopy 32, 32, 64
+        %2 = calldataload 0
+        mstore 8, %2
+        calldatacopy 40, 32, 64
+        stop
+    """
 
-    bb = fn.get_basic_block()
-    val0 = bb.append_instruction("calldataload", 32)
-    bb.append_instruction("mstore", val0, 64)
-    bb.append_instruction("calldatacopy", 64, 32 + 32, 64 + 32)
-    val1 = bb.append_instruction("calldataload", 32)
-    bb.append_instruction("mstore", val1, 64 + 8)
-    bb.append_instruction("calldatacopy", 64, 32 + 32, 64 + 32 + 8)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        calldatacopy 0, 0, 96
+        calldatacopy 8, 0, 96
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatacopy"
-    assert bb.instructions[0].operands[0].value == 32 + 64
-    assert bb.instructions[0].operands[1].value == 32
-    assert bb.instructions[0].operands[2].value == 64
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 32 + 64
-    assert bb.instructions[1].operands[1].value == 32
-    assert bb.instructions[1].operands[2].value == 64 + 8
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_1():
@@ -866,24 +933,29 @@ def test_memzeroing_1():
     Test of basic memzeroing
     done with mstore only
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        mstore 32, 0
+        mstore 64, 0
+        mstore 96, 0
+        stop
+    """
 
-    bb.append_instruction("mstore", 0, 32)
-    bb.append_instruction("mstore", 0, 64)
-    bb.append_instruction("mstore", 0, 96)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 32, %1, 96
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatasize"
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 96
-    assert bb.instructions[1].operands[2].value == 32
-    assert len(bb.instructions) == 3
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_2():
@@ -896,26 +968,32 @@ def test_memzeroing_2():
     %1 = calldatasize
     calldatacopy <dst> %1 <size>
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 64, %1, 128
+        %2 = calldatasize
+        calldatacopy 192, %2, 128
+        stop
+    """
 
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 128, calldatasize, 64)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 128, calldatasize, 192)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        %2 = calldatasize
+        %3 = calldatasize
+        calldatacopy 64, %3, 256
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatasize"
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 256
-    assert bb.instructions[1].operands[2].value == 64
-    assert len(bb.instructions) == 3
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_3():
@@ -924,28 +1002,34 @@ def test_memzeroing_3():
     done with combination of
     mstores and calldatacopies
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 0, %1, 100
+        mstore 100, 0
+        %2 = calldatasize
+        calldatacopy 132, %2, 100
+        mstore 232, 0
+        stop
+    """
 
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 128, calldatasize, 64)
-    bb.append_instruction("mstore", 0, 192)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 128, calldatasize, 224)
-    bb.append_instruction("mstore", 0, 128 + 224)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        %2 = calldatasize
+        %3 = calldatasize
+        calldatacopy 0, %3, 264
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatasize"
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 256 + 2 * 32
-    assert bb.instructions[1].operands[2].value == 64
-    assert len(bb.instructions) == 3
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_small_calldatacopy():
@@ -953,22 +1037,28 @@ def test_memzeroing_small_calldatacopy():
     Test of converting calldatacopy of
     size 32 into the mstore
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 0, %1, 32
+        stop
+    """
 
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 32, calldatasize, 64)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        mstore 0, 0
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "mstore"
-    assert bb.instructions[0].operands[0].value == 0
-    assert bb.instructions[0].operands[1].value == 64
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_smaller_calldatacopy():
@@ -976,36 +1066,42 @@ def test_memzeroing_smaller_calldatacopy():
     Test of converting smaller (<32) calldatacopies
     into either calldatacopy or mstore
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 0, %1, 8
+        %2 = calldatasize
+        calldatacopy 8, %2, 16
+        %3 = calldatasize
+        calldatacopy 100, %3, 8
+        %4 = calldatasize
+        calldatacopy 108, %4, 16
+        %5 = calldatasize
+        calldatacopy 124, %5, 8
+        stop
+    """
 
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 8, calldatasize, 64)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 16, calldatasize, 64 + 8)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 8, calldatasize, 128)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 16, calldatasize, 128 + 8)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 8, calldatasize, 128 + 8 + 16)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        %2 = calldatasize
+        %6 = calldatasize
+        calldatacopy 0, %6, 24
+        %3 = calldatasize
+        %4 = calldatasize
+        %5 = calldatasize
+        mstore 100, 0
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatasize"
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 24
-    assert bb.instructions[1].operands[2].value == 64
-
-    assert bb.instructions[2].opcode == "mstore"
-    assert bb.instructions[2].operands[0].value == 0
-    assert bb.instructions[2].operands[1].value == 128
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_overlap():
@@ -1015,26 +1111,30 @@ def test_memzeroing_overlap():
     [128        160]
         [136                  192]
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    pre = """
+    _global:
+        mstore 100, 0
+        %1 = calldatasize
+        calldatacopy 108, %1, 56
+        stop
+    """
 
-    bb.append_instruction("mstore", 0, 128)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 32 + 24, calldatasize, 128 + 8)
-    bb.append_instruction("stop")
+    post = """
+    _global:
+        %1 = calldatasize
+        %2 = calldatasize
+        calldatacopy 100, %2, 64
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert bb.instructions[0].opcode == "calldatasize"
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 64
-    assert bb.instructions[1].operands[2].value == 128
-    assert bb.instructions[2].opcode == "stop"
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
 def test_memzeroing_imposs():
@@ -1042,40 +1142,30 @@ def test_memzeroing_imposs():
     Test of memzeroing bariers caused
     by non constant arguments
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    par = bb.append_instruction("param")
-    bb.append_instruction("mstore", 0, 32)
-    bb.append_instruction("mstore", 0, par)  # barier
-    bb.append_instruction("mstore", 0, 64)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", par, calldatasize, 10)  # barier
-    bb.append_instruction("mstore", 0, 96)
-    calldatasize = bb.append_instruction("calldatasize")
-    bb.append_instruction("calldatacopy", 10, calldatasize, par)  # barier
-    bb.append_instruction("mstore", 0, 128)
-    bb.append_instruction("calldatacopy", 10, par, 10)  # barier
-    bb.append_instruction("mstore", 0, 160)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        %1 = param
+        mstore 32, 0
+        mstore %1, 0
+        mstore 64, 0
+        %2 = calldatasize
+        calldatacopy %1, %2, 10
+        mstore 96, 0
+        %3 = calldatasize
+        calldatacopy 10, %3, %1
+        mstore 128, 0
+        calldatacopy 10, %1, 10
+        mstore 160, 0
+        stop
+    """
+    ctx = parse_from_basic_block(pre)
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
 
-    assert bb.instructions[1].opcode == "mstore"
-    assert bb.instructions[2].opcode == "mstore"
-    assert bb.instructions[3].opcode == "mstore"
-    assert bb.instructions[4].opcode == "calldatasize"
-    assert bb.instructions[5].opcode == "calldatacopy"
-    assert bb.instructions[6].opcode == "mstore"
-    assert bb.instructions[7].opcode == "calldatasize"
-    assert bb.instructions[8].opcode == "calldatacopy"
-    assert bb.instructions[9].opcode == "mstore"
-    assert bb.instructions[10].opcode == "calldatacopy"
-    assert bb.instructions[11].opcode == "mstore"
-    assert bb.instructions[12].opcode == "stop"
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memzeroing_imposs_effect():
@@ -1083,20 +1173,22 @@ def test_memzeroing_imposs_effect():
     Test of memzeroing bariers caused
     by different effect
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mstore", 0, 32)
-    bb.append_instruction("dloadbytes", 10, 20, 30)
-    bb.append_instruction("mstore", 0, 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mstore 32, 0
+        dloadbytes 10, 20, 30
+        mstore 64, 0
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    ctx = parse_from_basic_block(pre)
 
-    assert not any(inst.opcode == "calldatacopy" for inst in bb.instructions)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
 
 
 def test_memzeroing_overlaping():
@@ -1104,22 +1196,27 @@ def test_memzeroing_overlaping():
     Test of memzeroing bariers caused
     by different effect
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("mstore", 0, 32)
-    bb.append_instruction("mstore", 0, 96)
-    bb.append_instruction("mstore", 0, 32)
-    bb.append_instruction("mstore", 0, 64)
-    bb.append_instruction("stop")
+    pre = """
+    _global:
+        mstore 32, 0
+        mstore 96, 0
+        mstore 32, 0
+        mstore 64, 0
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-    MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    post = """
+    _global:
+        %1 = calldatasize
+        calldatacopy 32, %1, 96
+        stop
+    """
 
-    assert bb.instructions[0].opcode == "calldatasize"
-    assert bb.instructions[1].opcode == "calldatacopy"
-    assert bb.instructions[1].operands[0].value == 128 - 32
-    assert bb.instructions[1].operands[1] == bb.instructions[0].output
-    assert bb.instructions[1].operands[2].value == 32
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MemMergePass(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
