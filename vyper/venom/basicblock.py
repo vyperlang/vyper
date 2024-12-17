@@ -154,11 +154,16 @@ class IRVariable(IROperand):
 
     def __init__(self, name: str, version: Optional[int] = None) -> None:
         assert isinstance(name, str)
+        assert isinstance(version, int | None)
         self._name = name
         self.version = version
 
     @property
     def name(self) -> str:
+        """
+        Get the name of the variable. Used for checking variable identity
+        regardless of version.
+        """
         return self._name
 
     @property
@@ -166,6 +171,7 @@ class IRVariable(IROperand):
         if self.version:
             return f"%{self.name}:{self.version}"
         return f"%{self.name}"
+
 
 class IRLabel(IROperand):
     """
