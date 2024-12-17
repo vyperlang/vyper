@@ -1,3 +1,5 @@
+import json
+import re
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -184,8 +186,17 @@ class IRLabel(IROperand):
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
         assert isinstance(value, str), "value must be an str"
+        assert len(value) > 0
         self.value = value
         self.is_symbol = is_symbol
+
+    _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")
+
+    def __repr__(self):
+        if self.__class__._IS_IDENTIFIER.fullmatch(self.value):
+            return self.value
+
+        return json.dumps(self.value)  # escape it
 
 
 class IRInstruction:
@@ -370,10 +381,10 @@ class IRInstruction:
         if self.opcode not in ("jmp", "jnz", "invoke", "phi"):
             # TODO: for invoke, maybe reverse the non-label instructions
             operands = reversed(operands)  # type: ignore
-        s += ", ".join([(f'@"{op}"' if isinstance(op, IRLabel) else str(op)) for op in operands])
+        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
-            s += f" <{self.annotation}>"
+            s += f" ; {self.annotation}"
 
         return f"{s: <30}"
 
@@ -629,10 +640,8 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = (
-            f"{self.label}:  ;  IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        )
+        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
+        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         for instruction in self.instructions:
             s += f"  {str(instruction).strip()}\n"
         return s

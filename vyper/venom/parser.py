@@ -1,3 +1,5 @@
+import json
+
 from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
@@ -19,6 +21,7 @@ VENOM_PARSER = Lark(
     %import common.WS
     %import common.INT
     %import common.SIGNED_INT
+    %import common.ESCAPED_STRING
 
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
@@ -27,11 +30,11 @@ VENOM_PARSER = Lark(
 
     # TODO: consider making entry block implicit, e.g.
     # `"{" instruction+ block* "}"`
-    function: "function" NAME "{" block* "}"
+    function: "function" LABEL "{" block* "}"
 
     data_section: "[data]" instruction*
 
-    block: NAME ":" statement*
+    block: LABEL ":" statement*
 
     statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
@@ -40,12 +43,16 @@ VENOM_PARSER = Lark(
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | LABEL
+    operand: VAR_IDENT | CONST | ("@" LABEL)
 
     CONST: SIGNED_INT
     OPCODE: CNAME
     VAR_IDENT: "%" NAME (":" INT)?
-    LABEL: "@" NAME  # TODO: allow arbitrary strings
+
+    # handy for identifier to be an escaped string sometimes
+    # (especially for machine-generated labels)
+    LABEL: (NAME | ESCAPED_STRING)
+
     NAME: (DIGIT|LETTER|"_")+
 
     %ignore WS
@@ -168,7 +175,11 @@ class VenomTransformer(Transformer):
         return token.value
 
     def LABEL(self, label) -> IRLabel:
-        return IRLabel(label[1:])
+        label = label[1:]
+        if label.startswith('"'):
+            # unescape the escaped string
+            label = json.loads(label)
+        return IRLabel(label)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
         parts = var_ident[1:].split(":", maxsplit=1)
