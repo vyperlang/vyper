@@ -19,6 +19,9 @@ VENOM_PARSER = Lark(
     %import common.WS
     %import common.INT
 
+    # Allow multiple comment styles
+    COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
+
     start: function* data_section?
 
     # TODO: consider making entry block implicit, e.g.
@@ -40,11 +43,9 @@ VENOM_PARSER = Lark(
 
     CONST: INT
     OPCODE: CNAME
-    VAR_IDENT: "%" INT (":" INT)?  # TODO: allow arbitrary strings
+    VAR_IDENT: "%" NAME
     LABEL: "@" NAME  # TODO: allow arbitrary strings
     NAME: (DIGIT|LETTER|"_")+
-
-    COMMENT: ";"  /[^\\n]/*
 
     %ignore WS
     %ignore COMMENT
@@ -59,7 +60,9 @@ def _set_last_var(fn: IRFunction):
                 continue
             value = inst.output.value
             assert value.startswith("%")
-            fn.last_variable = max(fn.last_variable, int(value[1:]))
+            varname = value[1:]
+            if varname.isdigit():
+                fn.last_variable = max(fn.last_variable, int(varname))
 
 
 def _set_last_label(ctx: IRContext):
@@ -172,7 +175,7 @@ class VenomTransformer(Transformer):
         varname = parts[0]
         version = None
         if len(parts) > 1:
-            version = parts[1]
+            version = int(parts[1])
         return IRVariable(varname, version=version)
 
     def CONST(self, val) -> IRLiteral:
