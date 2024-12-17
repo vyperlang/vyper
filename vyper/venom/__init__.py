@@ -55,25 +55,25 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
-    # Mem2Var(ac, fn).run_pass()
-    # MakeSSA(ac, fn).run_pass()
-    # SCCP(ac, fn).run_pass()
-    # StoreElimination(ac, fn).run_pass()
-    # SimplifyCFGPass(ac, fn).run_pass()
-    # AlgebraicOptimizationPass(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a
     #       problem for us, but we need to be aware of it, and should be
     #       removed when the dft pass is fixed to produce the smallest code
     #       without making the code generation more expensive by running
     #       MakeSSA again.
-    # MakeSSA(ac, fn).run_pass()
-    # BranchOptimizationPass(ac, fn).run_pass()
-    # RemoveUnusedVariablesPass(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    # StoreExpansionPass(ac, fn).run_pass()
+    StoreExpansionPass(ac, fn).run_pass()
     # MemSSA(ac, fn).run_pass()
-    # DFTPass(ac, fn).run_pass()
+    DFTPass(ac, fn).run_pass()
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
