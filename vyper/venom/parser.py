@@ -149,7 +149,8 @@ class VenomTransformer(Transformer):
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
-        if opcode not in ("jmp", "jnz", "invoke"):
+        if opcode not in ("jmp", "jnz", "invoke", "phi"):
+            # special cases: operands with labels look better un-reversed
             operands.reverse()
         return IRInstruction(opcode, operands)
 

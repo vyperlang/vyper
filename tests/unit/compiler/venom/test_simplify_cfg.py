@@ -15,7 +15,7 @@ def test_phi_reduction_after_block_pruning():
             %2 = 2
             jmp @join
         join:
-            %3 = phi %1, @then, %2, @else
+            %3 = phi @then, %1, @else, %2
             stop
     }
     """
