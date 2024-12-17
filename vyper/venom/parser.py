@@ -18,6 +18,7 @@ VENOM_PARSER = Lark(
     %import common.LETTER
     %import common.WS
     %import common.INT
+    %import common.SIGNED_INT
 
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
@@ -32,7 +33,7 @@ VENOM_PARSER = Lark(
 
     block: NAME ":" statement*
 
-    statement: instruction | assignment
+    statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
     expr: instruction | operand
     instruction: OPCODE operands_list?
@@ -41,7 +42,7 @@ VENOM_PARSER = Lark(
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: INT
+    CONST: SIGNED_INT
     OPCODE: CNAME
     VAR_IDENT: "%" NAME (":" INT)?
     LABEL: "@" NAME  # TODO: allow arbitrary strings
