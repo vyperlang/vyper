@@ -13,8 +13,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
-VENOM_PARSER = Lark(
-    """
+VENOM_GRAMMAR = """
     %import common.CNAME
     %import common.DIGIT
     %import common.LETTER
@@ -59,7 +58,8 @@ VENOM_PARSER = Lark(
     %ignore WS
     %ignore COMMENT
     """
-)
+
+VENOM_PARSER = Lark(VENOM_GRAMMAR)
 
 
 def _set_last_var(fn: IRFunction):
