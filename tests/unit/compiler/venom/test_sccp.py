@@ -1,5 +1,6 @@
 import pytest
 
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
@@ -112,7 +113,7 @@ def test_cont_jump_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
+    bb.append_instruction("jnz", p1, br1.label, br2.label)
 
     br1.append_instruction("add", op3, 10)
     br1.append_instruction("stop")
@@ -149,7 +150,7 @@ def test_cont_phi_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
+    bb.append_instruction("jnz", p1, br1.label, br2.label)
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
@@ -207,10 +208,9 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    # dependent on cfg traversal order
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
     assert sccp.lattice[IRVariable("%5", version=1)].value == 97
-    assert sccp.lattice[IRVariable("%5")].value == 2
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
+    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
 
 
 def test_phi_reduction_after_unreachable_block():
@@ -242,3 +242,203 @@ def test_phi_reduction_after_unreachable_block():
     assert join.instructions[0].operands == [op1]
 
     assert join.instructions[1].opcode == "stop"
+
+
+def test_sccp_offsets_opt():
+    ctx = IRContext()
+    fn = ctx.create_function("_global")
+
+    bb = fn.get_basic_block()
+
+    br1 = IRBasicBlock(IRLabel("then"), fn)
+    fn.append_basic_block(br1)
+    br2 = IRBasicBlock(IRLabel("else"), fn)
+    fn.append_basic_block(br2)
+
+    p1 = bb.append_instruction("param")
+    op1 = bb.append_instruction("store", 32)
+    op2 = bb.append_instruction("add", 0, IRLabel("mem"))
+    op3 = bb.append_instruction("store", 64)
+    bb.append_instruction("dloadbytes", op1, op2, op3)
+    op5 = bb.append_instruction("mload", op3)
+    op6 = bb.append_instruction("iszero", op5)
+    bb.append_instruction("jnz", op6, br1.label, br2.label)
+
+    op01 = br1.append_instruction("store", 32)
+    op02 = br1.append_instruction("add", 0, IRLabel("mem"))
+    op03 = br1.append_instruction("store", 64)
+    br1.append_instruction("dloadbytes", op01, op02, op03)
+    op05 = br1.append_instruction("mload", op03)
+    op06 = br1.append_instruction("iszero", op05)
+    br1.append_instruction("return", p1, op06)
+
+    op11 = br2.append_instruction("store", 32)
+    op12 = br2.append_instruction("add", 0, IRLabel("mem"))
+    op13 = br2.append_instruction("store", 64)
+    br2.append_instruction("dloadbytes", op11, op12, op13)
+    op15 = br2.append_instruction("mload", op13)
+    op16 = br2.append_instruction("iszero", op15)
+    br2.append_instruction("return", p1, op16)
+
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    # RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    offset_count = 0
+    for bb in fn.get_basic_blocks():
+        for instruction in bb.instructions:
+            assert instruction.opcode != "add"
+            if instruction.opcode == "offset":
+                offset_count += 1
+
+    assert offset_count == 3
+
+
+venom_progs = [
+    (
+        """
+    _global:
+        %par = param
+        %1 = sub %par, %par
+        %2 = xor %par, %par
+        return %1, %2
+    """,
+        """
+    _global:
+        %par = param
+        %1 = store 0
+        %2 = store 0
+        return 0, 0
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = sub %par, 0
+        %2 = xor %par, 0
+        %3 = add 0, %par
+        %4 = sub 0, %par
+        return %1, %2, %3, %4
+    """,
+        """
+    _global:
+        %par = param
+        %1 = %par
+        %2 = %par
+        %3 = %par
+        %4 = sub 0, %par
+        return %1, %2, %3, %4
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %1 = xor %tmp, %par
+        return %1
+    """,
+        """
+    _global:
+        %par = param
+        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %1 = not %par
+        return %1
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = shl 0, %par
+        %2 = shr 0, %1
+        %3 = sar 0, %2
+        return %1, %2, %3
+    """,
+        """
+    _global:
+        %par = param
+        %1 = %par
+        %2 = %1
+        %3 = %2
+        return %1, %2, %3
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1_1 = mul 0, %par
+        %1_2 = mul %par, 0
+        %2_1 = div 0, %par
+        %2_2 = div %par, 0
+        %3_1 = sdiv 0, %par
+        %3_2 = sdiv %par, 0
+        %4_1 = mod 0, %par
+        %4_2 = mod %par, 0
+        %5_1 = smod 0, %par
+        %5_2 = smod %par, 0
+        %6_1 = and 0, %par
+        %6_2 = and %par, 0
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2, %4_1, %4_2, %5_1, %5_2, %6_1, %6_2
+    """,
+        """
+    _global:
+        %par = param
+        %1_1 = 0
+        %1_2 = 0
+        %2_1 = div 0, %par
+        %2_2 = 0
+        %3_1 = sdiv 0, %par
+        %3_2 = 0
+        %4_1 = mod 0, %par
+        %4_2 = 0
+        %5_1 = smod 0, %par
+        %5_2 = 0
+        %6_1 = 0
+        %6_2 = 0
+        return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1_1 = mul 1, %par
+        %1_2 = mul %par, 1
+        %2_1 = div 1, %par
+        %2_2 = div %par, 1
+        %3_1 = sdiv 1, %par
+        %3_2 = sdiv %par, 1
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
+    """,
+        """
+    _global:
+        %par = param
+        %1_1 = %par
+        %1_2 = %par
+        %2_1 = div 1, %par
+        %2_2 = %par
+        %3_1 = sdiv 1, %par
+        %3_2 = %par
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
+    """,
+    ),
+]
+
+
+@pytest.mark.parametrize("correct_transformation", venom_progs)
+def test_sccp_binopt(correct_transformation):
+    pre, post = correct_transformation
+
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+
+    print(ctx)
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
