@@ -87,8 +87,8 @@ def test_memmerging_imposs():
         %1 = mload 0
         %2 = mload 32
         %3 = mload 64
-        mstore 32, %1  ; BARRIER - overwrites source
-        mstore 64, %2
+        mstore 32, %1
+        mstore 64, %2  ; BARRIER - overlap between the src and dst occurs
         mstore 96, %3
         stop
     """
