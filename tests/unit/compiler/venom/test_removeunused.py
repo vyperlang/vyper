@@ -20,6 +20,7 @@ def _check_pre_post(pre, post, scope="basicblock"):
 def _check_no_change(pre, scope="basicblock"):
     _check_pre_post(pre, pre, scope=scope)
 
+
 def test_removeunused_basic():
     """
     Check basic unused variable removal
@@ -128,7 +129,6 @@ def test_removeunused_unused_msize():
         stop
     """
     _check_pre_post(pre, post)
-
 
 
 def test_removeunused_loop():
