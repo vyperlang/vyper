@@ -1,6 +1,6 @@
 from vyper.utils import MemoryPositions
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -15,7 +15,7 @@ class LowerDloadPass(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _handle_bb(self, bb):  # inst: IRInstruction, idx: int):
+    def _handle_bb(self, bb: IRBasicBlock):
         fn = bb.parent
         for idx, inst in enumerate(bb.instructions):
             if inst.opcode == "dload":
