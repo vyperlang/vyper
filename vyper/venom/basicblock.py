@@ -118,7 +118,7 @@ class IROperand:
 
     @property
     def name(self) -> str:
-        return self.value
+        return str(self.value)
 
     def __hash__(self) -> int:
         return hash(self.value)
@@ -166,10 +166,6 @@ class IRVariable(IROperand):
 
     @property
     def name(self) -> str:
-        """
-        Get the name of the variable. Used for checking variable identity
-        regardless of version.
-        """
         return self._name
 
 
