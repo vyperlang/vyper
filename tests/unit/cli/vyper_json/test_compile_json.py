@@ -42,10 +42,18 @@ import contracts.ibar as IBar
 
 implements: IBar
 
+c: uint256
+d: uint256
+
 @external
 def bar(a: uint256) -> bool:
     return True
 """
+
+BAR_STORAGE_LAYOUT_OVERRIDES = {
+    "c": {"type": "uint256", "n_slots": 1, "slot": 13},
+    "d": {"type": "uint256", "n_slots": 1, "slot": 7},
+}
 
 BAR_VYI = """
 @external
@@ -96,7 +104,10 @@ def input_json(optimize, evm_version, experimental_codegen):
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
         },
-        "storage_layout_overrides": {"contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES},
+        "storage_layout_overrides": {
+            "contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES,
+            "contracts/bar.vy": BAR_STORAGE_LAYOUT_OVERRIDES,
+        },
     }
 
 
@@ -149,7 +160,10 @@ def test_compile_json(input_json, input_bundle):
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=output_formats, input_bundle=input_bundle
+        bar_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=BAR_STORAGE_LAYOUT_OVERRIDES,
     )
 
     compile_code_results = {
