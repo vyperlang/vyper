@@ -165,7 +165,7 @@ def test_memmerging_imposs_unkown_place():
     _global:
         %1 = param
         %2 = mload 0
-        %3 = mload %1
+        %3 = mload %1  ; BARRIER
         %4 = mload 32
         %5 = mload 64
         mstore 1000, %2
