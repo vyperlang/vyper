@@ -115,13 +115,20 @@ class IROperand:
     """
 
     value: Any
+    _hash: Optional[int]
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+        self._hash = None
 
     @property
     def name(self) -> str:
         return str(self.value)
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        if self._hash is None:
+            self._hash = hash(self.value)
+        return self._hash
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
@@ -140,6 +147,7 @@ class IRLiteral(IROperand):
     value: int
 
     def __init__(self, value: int) -> None:
+        super().__init__(value)
         assert isinstance(value, int), "value must be an int"
         self.value = value
 
@@ -153,6 +161,7 @@ class IRVariable(IROperand):
     version: Optional[int]
 
     def __init__(self, name: str, version: int = 0) -> None:
+        super().__init__(name)
         assert isinstance(name, str)
         assert isinstance(version, int | None)
         if not name.startswith("%"):
@@ -181,7 +190,7 @@ class IRLabel(IROperand):
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
         assert isinstance(value, str), "value must be an str"
-        self.value = value
+        super().__init__(value)
         self.is_symbol = is_symbol
 
 
