@@ -88,7 +88,11 @@ def test_memmerging_imposs():
         %2 = mload 32
         %3 = mload 64
         mstore 32, %1
-        mstore 64, %2  ; BARRIER - overlap between the src and dst occurs
+
+        ; BARRIER - overlap between src and dst
+        ; (writes to source of potential mcopy)
+        mstore 64, %2
+
         mstore 96, %3
         stop
     """
@@ -108,7 +112,7 @@ def test_memmerging_imposs_mstore():
         %1 = mload 0
         %2 = mload 16
         mstore 1000, %1
-        %3 = mload 1000  ; BARRIER - load from dst of potencial copy
+        %3 = mload 1000  ; BARRIER - load from dst of potential mcopy
         mstore 1016, %2
         mstore 2000, %3
         stop
@@ -605,6 +609,10 @@ def test_memmerging_mcopy_read_after_write_hazard():
 
 
 def test_memmerging_write_after_write():
+    """
+    Check that conflicting writes (from different source locations)
+    produce a barrier - mstore+mstore version
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -623,6 +631,10 @@ def test_memmerging_write_after_write():
 
 
 def test_memmerging_write_after_write_mstore_and_mcopy():
+    """
+    Check that conflicting writes (from different source locations)
+    produce a barrier - mstore+mcopy version
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -631,7 +643,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
         %1 = mload 0
         %2 = mload 132
         mstore 1000, %1
-        mcopy 1000, 100, 16  ; BARRIER
+        mcopy 1000, 100, 16  ; write barrier
         mstore 1032, %2
         mcopy 1016, 116, 64
         stop
@@ -640,6 +652,10 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
 
 
 def test_memmerging_write_after_write_only_mcopy():
+    """
+    Check that conflicting writes (from different source locations)
+    produce a barrier - mcopy+mcopy version
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -674,7 +690,7 @@ def test_memmerging_not_allowed_overlapping():
         %1 = mload 1000
         %2 = mload 1032
         mcopy 1000, 0, 128
-        mstore 2000, %1  ; BARRIER - the mload and and copy cannot be combined
+        mstore 2000, %1  ; BARRIER - the mload and mcopy cannot be combined
         mstore 2032, %2
         stop
     """
