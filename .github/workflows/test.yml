@@ -116,6 +116,7 @@ jobs:
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
           - python-version: ["3.12", "312"]
+          - python-version: ["3.13", "313"]
 
           # os-specific rules
           - os: windows
