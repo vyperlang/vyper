@@ -384,9 +384,11 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = self.operands
-        if self.opcode not in ("jmp", "jnz", "invoke", "phi"):
-            # TODO: for invoke, maybe reverse the non-label instructions
+        if self.opcode == "invoke":
+            operands = [operands[0]] + list(reversed(operands[1:]))
+        elif self.opcode not in ("jmp", "jnz", "phi"):
             operands = reversed(operands)  # type: ignore
+
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
