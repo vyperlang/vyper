@@ -369,10 +369,7 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         ctx.append_data("dbname", [label])
         for c in ir.args[1:]:
-            if isinstance(c, int):
-                assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c.value, bytes):
+            if isinstance(c.value, bytes):
                 ctx.append_data("db", [c.value])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
