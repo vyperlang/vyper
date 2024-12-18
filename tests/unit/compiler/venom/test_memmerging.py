@@ -115,8 +115,6 @@ def test_memmerging_imposs_mstore():
     """
     _check_no_change(pre)
 
-    assert False
-
 
 @pytest.mark.xfail
 def test_memmerging_bypass_fence():
@@ -633,8 +631,8 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
         %1 = mload 0
         %2 = mload 132
         mstore 1000, %1
-        mcopy 1000, 100, 16
-        mstore 1032, %2  ; BARRIER
+        mcopy 1000, 100, 16  ; BARRIER
+        mstore 1032, %2
         mcopy 1016, 116, 64
         stop
     """
