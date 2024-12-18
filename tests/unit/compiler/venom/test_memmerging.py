@@ -723,6 +723,29 @@ def test_memmerging_existing_copy_overwrite():
     _check_no_change(pre)
 
 
+def test_memmerging_double_use():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 32
+        mstore 1000, %1
+        mstore 1032, %2
+        return %1
+    """
+
+    post = """
+    _global:
+        %1 = mload 0
+        mcopy 1000, 0, 64
+        return %1
+    """
+
+    _check_pre_post(pre, post)
+
+
 def test_memmerging_calldataload():
     pre = """
     _global:
