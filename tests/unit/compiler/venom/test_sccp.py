@@ -402,6 +402,30 @@ venom_progs = [
         return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
     """,
     ),
+    (
+        """
+    _global:
+        %par = param
+        %1_1 = mul 1, %par
+        %1_2 = mul %par, 1
+        %2_1 = div 1, %par
+        %2_2 = div %par, 1
+        %3_1 = sdiv 1, %par
+        %3_2 = sdiv %par, 1
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
+    """,
+        """
+    _global:
+        %par = param
+        %1_1 = %par
+        %1_2 = %par
+        %2_1 = div 1, %par
+        %2_2 = %par
+        %3_1 = sdiv 1, %par
+        %3_2 = %par
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
+    """,
+    ),
 ]
 
 
