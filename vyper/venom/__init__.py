@@ -17,6 +17,7 @@ from vyper.venom.passes import (
     FloatAllocas,
     MakeSSA,
     Mem2Var,
+    ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
@@ -69,6 +70,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
+
+    if optimize == OptimizationLevel.CODESIZE:
+        ReduceLiteralsCodesize(ac, fn).run_pass()
+
     DFTPass(ac, fn).run_pass()
 
 
