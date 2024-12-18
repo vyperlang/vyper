@@ -107,13 +107,15 @@ def test_memmerging_imposs_mstore():
     _global:
         %1 = mload 0
         %2 = mload 16
-        mstore 1000, %1  ; BARRIER
-        %3 = mload 1000
+        mstore 1000, %1
+        %3 = mload 1000  ; BARRIER - load from dst of potencial copy
         mstore 1016, %2
         mstore 2000, %3
         stop
     """
     _check_no_change(pre)
+
+    assert False
 
 
 @pytest.mark.xfail
