@@ -21,13 +21,18 @@ class RemoveUnusedVariablesPass(IRPass):
         self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
 
         self._msizes = defaultdict(list)
-        self.instruction_index = {}
-        self._msize_gen0 = OrderedSet()
+        self._blocked_by_msize: OrderedSet[IRInstruction] = OrderedSet()
+
+        # map instructions to their indexes in the basic block.
+        # although the basic block can be updated during this pass,
+        # instruction_ordering only needs to be able to give us a total
+        # ordering of effects.
+        self.instruction_ordering: dict[IRInstruction, int] = {}
 
         for bb in self.function.get_basic_blocks():
             for idx, inst in enumerate(bb.instructions):
                 inst = bb.instructions[idx]
-                self.instruction_index[inst] = idx
+                self.instruction_ordering[inst] = idx
                 if inst.opcode == "msize":
                     self._msizes[bb].append(idx)
 
@@ -67,7 +72,7 @@ class RemoveUnusedVariablesPass(IRPass):
         if not self.has_msize(bb):
             return False
 
-        return self.instruction_index[inst] < self.get_last_msize(bb)
+        return self.instruction_ordering[inst] < self.get_last_msize(bb)
 
     def _process_instruction(self, inst):
         if inst.output is None:
@@ -77,7 +82,7 @@ class RemoveUnusedVariablesPass(IRPass):
 
         bb = inst.parent
         if effects.MSIZE in inst.get_write_effects() and self.msize_fence(inst):
-            self._msize_gen0.add(inst)
+            self._blocked_by_msize.add(inst)
             return
 
         uses = self.dfg.get_uses(inst.output)
@@ -90,10 +95,10 @@ class RemoveUnusedVariablesPass(IRPass):
             self.work_list.addmany(new_uses)
 
         # if we remove an msize, update the index and revisit all visited
-        # memory write instructions.
+        # memory instructions since they might now be free to be removed.
         if inst.opcode == "msize":
-            self._msizes[bb].remove(self.instruction_index[inst])
-            self.work_list.addmany(self._msize_gen0)
-            self._msize_gen0.clear()
+            self._msizes[bb].remove(self.instruction_ordering[inst])
+            self.work_list.addmany(self._blocked_by_msize)
+            self._blocked_by_msize.clear()
 
         bb.mark_for_removal(inst)
