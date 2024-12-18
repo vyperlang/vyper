@@ -212,7 +212,7 @@ class ImportAnalyzer:
 
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, hint=hint) from err
+        raise ModuleNotFound(module_str, node,  hint=hint) from err
 
     def _load_file(self, path: PathLike, level: int) -> CompilerInput:
         ast = self.graph.current_module
