@@ -109,37 +109,35 @@ class ForParser:
 class HexStringParser:
     def __init__(self):
         self.locations = []
-        self._current_x = None
+        self._tokens = []
         self._state = ParserState.NOT_RUNNING
 
     def consume(self, token, result):
         # prepare to check if the next token is a STRING
         if token.type == NAME and token.string == "x":
+            self._tokens.append(token)
             self._state = ParserState.RUNNING
-            self._current_x = token
             return True
 
         if self._state == ParserState.NOT_RUNNING:
             return False
 
-        if self._state == ParserState.RUNNING:
-            current_x = self._current_x
-            self._current_x = None
-            self._state = ParserState.NOT_RUNNING
+        assert self._state == ParserState.RUNNING, "unreachable"
 
-            toks = [current_x]
+        self._state = ParserState.NOT_RUNNING
 
-            # drop the leading x token if the next token is a STRING to avoid a python
-            # parser error
-            if token.type == STRING:
-                self.locations.append(current_x.start)
-                toks = [TokenInfo(STRING, token.string, current_x.start, token.end, token.line)]
-                result.extend(toks)
-                return True
+        if token.type != STRING:
+            # flush the tokens we have accumulated
+            result.extend(self._tokens)
+            self._tokens = []
+            return False
 
-            result.extend(toks)
+        # mark hex string in locations for later processing
+        self.locations.append(token.start)
+        result.append(token)
+        self._tokens = []  # dump tokens
+        return True
 
-        return False
 
 
 # compound statements that are replaced with `class`
