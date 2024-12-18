@@ -34,6 +34,7 @@ jobs:
           # lang: language changes
           # stdlib: changes to the stdlib
           # ux: language changes (UX)
+          # parser: parser changes
           # tool: integration
           # ir: (old) IR/codegen changes
           # codegen: lowering from vyper AST to codegen
@@ -46,6 +47,7 @@ jobs:
             lang
             stdlib
             ux
+            parser
             tool
             ir
             codegen
