@@ -527,15 +527,7 @@ def timeit(msg):
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds")
-
-
-@contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
-    yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
 
 
 def annotate_source_code(
