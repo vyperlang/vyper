@@ -23,7 +23,7 @@ class CFGAnalysis(IRAnalysis):
             bb.is_reachable = False
 
         for bb in fn.get_basic_blocks():
-            assert bb.is_terminated
+            assert bb.is_terminated, f"not terminating:\n{bb}"
 
             term = bb.instructions[-1]
             if term.opcode in CFG_ALTERING_INSTRUCTIONS:
