@@ -48,7 +48,7 @@ class LoadElimination(IRPass):
 
             if inst.opcode == "mload":
                 prev_memory = memory
-                ptr, = inst.operands
+                (ptr,) = inst.operands
                 memory = (ptr, inst.output)
                 if not prev_memory:
                     continue
@@ -59,7 +59,7 @@ class LoadElimination(IRPass):
 
             if inst.opcode == "sload":
                 prev_storage = storage
-                ptr, = inst.operands
+                (ptr,) = inst.operands
                 storage = (ptr, inst.output)
                 if not prev_storage:
                     continue
@@ -70,7 +70,7 @@ class LoadElimination(IRPass):
 
             if inst.opcode == "tload":
                 prev_transient = transient
-                ptr, = inst.operands
+                (ptr,) = inst.operands
                 transient = (ptr, inst.output)
                 if not prev_transient:
                     continue

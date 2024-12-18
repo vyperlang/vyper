@@ -1,134 +1,129 @@
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLiteral, IRVariable
-from vyper.venom.context import IRContext
 from vyper.venom.passes.load_elimination import LoadElimination
 
 
+def _check_pre_post(pre, post):
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        LoadElimination(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+def _check_no_change(pre):
+    _check_pre_post(pre, pre)
+
+
 def test_simple_load_elimination():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
+    pre = """
+    main:
+        %ptr = 11
+        %1 = mload %ptr
 
-    bb = fn.get_basic_block()
+        %2 = mload %ptr
 
-    ptr = IRLiteral(11)
-    bb.append_instruction("mload", ptr)
-    bb.append_instruction("mload", ptr)
-    bb.append_instruction("stop")
+        stop
+    """
+    post = """
+    main:
+        %ptr = 11
+        %1 = mload %ptr
 
-    ac = IRAnalysesCache(fn)
-    LoadElimination(ac, fn).run_pass()
+        %2 = %1
 
-    assert len([inst for inst in bb.instructions if inst.opcode == "mload"]) == 1
-
-    inst0, inst1, inst2 = bb.instructions
-
-    assert inst0.opcode == "mload"
-    assert inst1.opcode == "store"
-    assert inst1.operands[0] == inst0.output
-    assert inst2.opcode == "stop"
+        stop
+    """
+    _check_pre_post(pre, post)
 
 
 def test_equivalent_var_elimination():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
+    """
+    Test that the lattice can "peer through" equivalent vars
+    """
+    pre = """
+    main:
+        %1 = 11
+        %2 = %1
+        %3 = mload %1
 
-    bb = fn.get_basic_block()
+        %4 = mload %2
 
-    ptr1 = bb.append_instruction("store", IRLiteral(11))
-    ptr2 = bb.append_instruction("store", ptr1)
-    bb.append_instruction("mload", ptr1)
-    bb.append_instruction("mload", ptr2)
-    bb.append_instruction("stop")
+        stop
+    """
+    post = """
+    main:
+        %1 = 11
+        %2 = %1
+        %3 = mload %1
 
-    ac = IRAnalysesCache(fn)
-    LoadElimination(ac, fn).run_pass()
+        %4 = %3  # %2 == %1
 
-    assert len([inst for inst in bb.instructions if inst.opcode == "mload"]) == 1
-
-    inst0, inst1, inst2, inst3, inst4 = bb.instructions
-
-    assert inst0.opcode == "store"
-    assert inst1.opcode == "store"
-    assert inst2.opcode == "mload"
-    assert inst2.operands[0] == inst0.output
-    assert inst3.opcode == "store"
-    assert inst3.operands[0] == inst2.output
-    assert inst4.opcode == "stop"
+        stop
+    """
+    _check_pre_post(pre, post)
 
 
 def test_elimination_barrier():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-
-    bb = fn.get_basic_block()
-
-    ptr = IRLiteral(11)
-    bb.append_instruction("mload", ptr)
-
-    arbitrary = IRVariable("%100")
-    # fence, writes to memory
-    bb.append_instruction("staticcall", arbitrary, arbitrary, arbitrary, arbitrary)
-
-    bb.append_instruction("mload", ptr)
-    bb.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-
-    instructions = bb.instructions.copy()
-    LoadElimination(ac, fn).run_pass()
-
-    assert instructions == bb.instructions  # no change
+    """
+    Check for barrier between load/load
+    """
+    pre = """
+    main:
+        %1 = 11
+        %2 = mload %1
+        %3 = %100
+        # fence - writes to memory
+        staticcall %3, %3, %3, %3
+        %4 = mload %1
+    """
+    _check_no_change(pre)
 
 
 def test_store_load_elimination():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
+    """
+    Check that lattice stores the result of mstores (even through
+    equivalent variables)
+    """
+    pre = """
+    main:
+        %val = 55
+        %ptr1 = 11
+        %ptr2 = %ptr1
+        mstore %ptr1, %val
 
-    bb = fn.get_basic_block()
+        %3 = mload %ptr2
 
-    val = IRLiteral(55)
-    ptr1 = bb.append_instruction("store", IRLiteral(11))
-    ptr2 = bb.append_instruction("store", ptr1)
-    bb.append_instruction("mstore", val, ptr1)
-    bb.append_instruction("mload", ptr2)
-    bb.append_instruction("stop")
+        stop
+    """
+    post = """
+        main:
+        %val = 55
+        %ptr1 = 11
+        %ptr2 = %ptr1
+        mstore %ptr1, %val
 
-    ac = IRAnalysesCache(fn)
-    LoadElimination(ac, fn).run_pass()
+        %3 = %val
 
-    assert len([inst for inst in bb.instructions if inst.opcode == "mload"]) == 0
-
-    inst0, inst1, inst2, inst3, inst4 = bb.instructions
-
-    assert inst0.opcode == "store"
-    assert inst1.opcode == "store"
-    assert inst2.opcode == "mstore"
-    assert inst3.opcode == "store"
-    assert inst3.operands[0] == inst2.operands[0]
-    assert inst4.opcode == "stop"
+        stop
+    """
+    _check_pre_post(pre, post)
 
 
 def test_store_load_barrier():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-
-    bb = fn.get_basic_block()
-
-    val = IRLiteral(55)
-    ptr1 = bb.append_instruction("store", IRLiteral(11))
-    ptr2 = bb.append_instruction("store", ptr1)
-    bb.append_instruction("mstore", val, ptr1)
-
-    arbitrary = IRVariable("%100")
-    # fence, writes to memory
-    bb.append_instruction("staticcall", arbitrary, arbitrary, arbitrary, arbitrary)
-
-    bb.append_instruction("mload", ptr2)
-    bb.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-
-    instructions = bb.instructions.copy()
-    LoadElimination(ac, fn).run_pass()
-
-    assert instructions == bb.instructions
+    """
+    Check for barrier between store/load
+    """
+    pre = """
+    main:
+        %ptr = 11
+        %val = 55
+        mstore %ptr, %val
+        %3 = %100  ; arbitrary
+        # fence
+        staticcall %3, %3, %3, %3
+        %4 = mload %ptr
+    """
+    _check_no_change(pre)
