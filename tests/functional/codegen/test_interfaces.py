@@ -4,7 +4,7 @@ import pytest
 from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
-from vyper.compiler import compile_code
+from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import (
     ArgumentException,
     DuplicateImport,
@@ -161,8 +161,6 @@ VALID_IMPORT_CODE = [
     ("import Foo as Foo", "Foo.vyi"),
     ("from a import Foo", "a/Foo.vyi"),
     ("from b.a import Foo", "b/a/Foo.vyi"),
-    ("from .a import Foo", "./a/Foo.vyi"),
-    ("from ..a import Foo", "../a/Foo.vyi"),
 ]
 
 
@@ -172,6 +170,22 @@ def test_extract_file_interface_imports(code, filename, make_input_bundle):
     input_bundle = make_input_bundle({filename: ""})
 
     assert compile_code(code, input_bundle=input_bundle) is not None
+
+
+VALID_RELATIVE_IMPORT_CODE = [
+    # import statement, import path without suffix
+    ("from .a import Foo", "mock.vy"),
+    ("from ..a import Foo", "b/mock.vy"),
+]
+
+
+# TODO CMC 2024-10-13: should probably be in syntax tests
+@pytest.mark.parametrize("code,filename", VALID_RELATIVE_IMPORT_CODE)
+def test_extract_file_interface_relative_imports(code, filename, make_input_bundle):
+    input_bundle = make_input_bundle({"a/Foo.vyi": "", filename: code})
+
+    file_input = input_bundle.load_file(filename)
+    assert compile_from_file_input(file_input, input_bundle=input_bundle) is not None
 
 
 BAD_IMPORT_CODE = [
@@ -186,12 +200,11 @@ BAD_IMPORT_CODE = [
 
 # TODO CMC 2024-10-13: should probably be in syntax tests
 @pytest.mark.parametrize("code,exception_type", BAD_IMPORT_CODE)
-def test_extract_file_interface_imports_raises(
-    code, exception_type, assert_compile_failed, make_input_bundle
-):
-    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
+def test_extract_file_interface_imports_raises(code, exception_type, make_input_bundle):
+    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": "", "mock.vy": code})
+    file_input = input_bundle.load_file("mock.vy")
     with pytest.raises(exception_type):
-        compile_code(code, input_bundle=input_bundle)
+        compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
