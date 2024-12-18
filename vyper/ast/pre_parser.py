@@ -127,15 +127,15 @@ class HexStringParser:
         self._state = ParserState.NOT_RUNNING
 
         if token.type != STRING:
-            # flush the tokens we have accumulated
+            # flush the tokens we have accumulated and move on
             result.extend(self._tokens)
             self._tokens = []
             return False
 
         # mark hex string in locations for later processing
         self.locations.append(token.start)
+        self._tokens = []  # discard tokens
         result.append(token)
-        self._tokens = []  # dump tokens
         return True
 
 
