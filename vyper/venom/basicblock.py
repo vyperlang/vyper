@@ -152,13 +152,17 @@ class IRVariable(IROperand):
     _name: str
     version: Optional[int]
 
-    def __init__(self, name: str, version: Optional[int] = None) -> None:
+    def __init__(self, name: str, version: int = 0) -> None:
         assert isinstance(name, str)
         assert isinstance(version, int | None)
         if not name.startswith("%"):
             name = f"%{name}"
         self._name = name
         self.version = version
+        if version > 0:
+            self.value = f"{name}:{version}"
+        else:
+            self.value = f"{name}"
 
     @property
     def name(self) -> str:
@@ -167,12 +171,6 @@ class IRVariable(IROperand):
         regardless of version.
         """
         return self._name
-
-    @property
-    def value(self) -> str:
-        if self.version:
-            return f"{self.name}:{self.version}"
-        return f"{self.name}"
 
 
 class IRLabel(IROperand):
