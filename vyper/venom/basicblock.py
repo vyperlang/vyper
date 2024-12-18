@@ -123,7 +123,7 @@ class IROperand:
 
     @property
     def name(self) -> str:
-        return str(self.value)
+        return self.value
 
     def __hash__(self) -> int:
         if self._hash is None:
@@ -171,7 +171,7 @@ class IRVariable(IROperand):
         if version > 0:
             self.value = f"{name}:{version}"
         else:
-            self.value = f"{name}"
+            self.value = name
 
     @property
     def name(self) -> str:
