@@ -16,7 +16,7 @@ from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
-from vyper.utils import vyper_warn
+from vyper.utils import safe_relpath, vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -248,7 +248,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
-        ret["module_path"] = func_t.decl_node.module_node.resolved_path
+        ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
         ret["source_id"] = func_t.decl_node.module_node.source_id
         ret["function_id"] = func_t._function_id
 
