@@ -46,7 +46,7 @@ VENOM_GRAMMAR = """
 
     CONST: SIGNED_INT
     OPCODE: CNAME
-    VAR_IDENT: "%" NAME (":" INT)?
+    VAR_IDENT: "%" NAME
 
     # handy for identifier to be an escaped string sometimes
     # (especially for machine-generated labels)
@@ -189,13 +189,7 @@ class VenomTransformer(Transformer):
         return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
-        parts = var_ident[1:].split(":", maxsplit=1)
-        assert 1 <= len(parts) <= 2
-        varname = parts[0]
-        version = None
-        if len(parts) > 1:
-            version = parts[1]
-        return IRVariable(varname, version=version)
+        return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
         return IRLiteral(int(val))

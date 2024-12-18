@@ -117,13 +117,20 @@ class IROperand:
     """
 
     value: Any
+    _hash: Optional[int]
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+        self._hash = None
 
     @property
     def name(self) -> str:
         return self.value
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        if self._hash is None:
+            self._hash = hash(self.value)
+        return self._hash
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
@@ -142,6 +149,7 @@ class IRLiteral(IROperand):
     value: int
 
     def __init__(self, value: int) -> None:
+        super().__init__(value)
         assert isinstance(value, int), "value must be an int"
         self.value = value
 
@@ -151,27 +159,25 @@ class IRVariable(IROperand):
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
-    value: str
+    _name: str
+    version: Optional[int]
 
-    def __init__(self, value: str, version: Optional[str | int] = None) -> None:
-        assert isinstance(value, str)
-        assert ":" not in value, "Variable name cannot contain ':'"
-        if version:
-            assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
-            value = f"{value}:{version}"
-        if value[0] != "%":
-            value = f"%{value}"
-        self.value = value
+    def __init__(self, name: str, version: int = 0) -> None:
+        super().__init__(name)
+        assert isinstance(name, str)
+        assert isinstance(version, int | None)
+        if not name.startswith("%"):
+            name = f"%{name}"
+        self._name = name
+        self.version = version
+        if version > 0:
+            self.value = f"{name}:{version}"
+        else:
+            self.value = name
 
     @property
     def name(self) -> str:
-        return self.value.split(":")[0]
-
-    @property
-    def version(self) -> int:
-        if ":" not in self.value:
-            return 0
-        return int(self.value.split(":")[1])
+        return self._name
 
 
 class IRLabel(IROperand):
@@ -187,7 +193,7 @@ class IRLabel(IROperand):
     def __init__(self, value: str, is_symbol: bool = False) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
-        self.value = value
+        super().__init__(value)
         self.is_symbol = is_symbol
 
     _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")
@@ -211,7 +217,7 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperand]
-    output: Optional[IROperand]
+    output: Optional[IRVariable]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
@@ -223,7 +229,7 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
-        output: Optional[IROperand] = None,
+        output: Optional[IRVariable] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -442,6 +448,8 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
         self.is_reachable = False
 
+        self._garbage_instructions: set[IRInstruction] = set()
+
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
 
@@ -460,7 +468,7 @@ class IRBasicBlock:
         self.cfg_out.remove(bb)
 
     def append_instruction(
-        self, opcode: str, *args: Union[IROperand, int], ret: IRVariable = None
+        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None
     ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
@@ -516,12 +524,19 @@ class IRBasicBlock:
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
+    def mark_for_removal(self, instruction: IRInstruction) -> None:
+        self._garbage_instructions.add(instruction)
+
+    def clear_dead_instructions(self) -> None:
+        if len(self._garbage_instructions) > 0:
+            self.instructions = [
+                inst for inst in self.instructions if inst not in self._garbage_instructions
+            ]
+            self._garbage_instructions.clear()
+
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
-
-    def clear_instructions(self) -> None:
-        self.instructions = []
 
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
