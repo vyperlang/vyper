@@ -46,7 +46,7 @@ def test_removeunused_msize_basic():
     main:
         %a = mload 32
         %b = msize
-        %c = mload 64  # safe to remove
+        %c_unused = mload 64  # safe to remove
         return %b, %b
     """
     post = """
@@ -63,7 +63,7 @@ def test_removeunused_msize_two_msizes():
     main:
         %a = mload 32
         %b = msize
-        %c = mload 64  # not safe to remove
+        %c = mload 64  # not safe to remove - has MSIZE effect
         %d = msize
         return %b, %d
     """
