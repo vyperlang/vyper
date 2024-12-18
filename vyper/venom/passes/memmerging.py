@@ -118,7 +118,7 @@ class MemMergePass(IRPass):
 
             pin_inst = None
             inst = copy.insts[-1]
-            if copy.length != 32:
+            if copy.length != 32 or load_opcode == "dload":
                 inst.output = None
                 inst.opcode = copy_opcode
                 inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
