@@ -33,6 +33,7 @@ jobs:
           # test: test suite
           # lang: language changes
           # ux: language changes (UX)
+          # parser: parser changes
           # tool: integration
           # ir: (old) IR/codegen changes
           # codegen: lowering from vyper AST to codegen
@@ -44,6 +45,7 @@ jobs:
             test
             lang
             ux
+            parser
             tool
             ir
             codegen
