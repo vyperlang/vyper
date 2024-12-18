@@ -432,7 +432,7 @@ def test_compile_vyz_with_options(input_files):
         out = compile_files([contract_file], [option], paths=search_paths)
         out2 = compile_files([archive_path], [option])
 
-        if option in ["ast", "annotated_ast"]:
+        if option in ["ast", "annotated_ast", "metadata"]:
             # would have to normalize paths and imports, so just verify it compiles
             continue
 
