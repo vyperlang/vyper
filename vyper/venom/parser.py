@@ -46,7 +46,7 @@ VENOM_GRAMMAR = """
 
     CONST: SIGNED_INT
     OPCODE: CNAME
-    VAR_IDENT: "%" NAME
+    VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
     # handy for identifier to be an escaped string sometimes
     # (especially for machine-generated labels)
