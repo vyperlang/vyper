@@ -673,8 +673,8 @@ def test_memmerging_not_allowed_overlapping():
     _global:
         %1 = mload 1000
         %2 = mload 1032
-        mcopy 1000, 0, 128  ; BARRIER
-        mstore 2000, %1
+        mcopy 1000, 0, 128
+        mstore 2000, %1  ; BARRIER - the mload and and copy cannot be combined
         mstore 2032, %2
         stop
     """
