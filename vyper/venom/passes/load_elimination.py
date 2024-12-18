@@ -37,38 +37,44 @@ class LoadElimination(IRPass):
 
             if inst.opcode == "mstore":
                 # mstore [val, ptr]
-                memory = (inst.operands[1], inst.operands[0])
+                val, ptr = inst.operands
+                memory = (ptr, val)
             if inst.opcode == "sstore":
-                storage = (inst.operands[1], inst.operands[0])
+                val, ptr = inst.operands
+                storage = (ptr, val)
             if inst.opcode == "tstore":
-                transient = (inst.operands[1], inst.operands[0])
+                val, ptr = inst.operands
+                transient = (ptr, val)
 
             if inst.opcode == "mload":
                 prev_memory = memory
-                memory = (inst.operands[0], inst.output)
+                ptr, = inst.operands
+                memory = (ptr, inst.output)
                 if not prev_memory:
                     continue
-                if not self.equivalent(inst.operands[0], prev_memory[0]):
+                if not self.equivalent(ptr, prev_memory[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_memory[1]]
 
             if inst.opcode == "sload":
                 prev_storage = storage
-                storage = (inst.operands[0], inst.output)
+                ptr, = inst.operands
+                storage = (ptr, inst.output)
                 if not prev_storage:
                     continue
-                if not self.equivalent(inst.operands[0], prev_storage[0]):
+                if not self.equivalent(ptr, prev_storage[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_storage[1]]
 
             if inst.opcode == "tload":
                 prev_transient = transient
-                transient = (inst.operands[0], inst.output)
+                ptr, = inst.operands
+                transient = (ptr, inst.output)
                 if not prev_transient:
                     continue
-                if not self.equivalent(inst.operands[0], prev_transient[0]):
+                if not self.equivalent(ptr, prev_transient[0]):
                     continue
                 inst.opcode = "store"
                 inst.operands = [prev_transient[1]]
