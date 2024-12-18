@@ -454,7 +454,14 @@ class SCCP(IRPass):
             return operands[idx_a].value == operands[idx_b].value
         else:
             assert isinstance(self.eq, VarEquivalenceAnalysis)
-            return self.eq.equivalent(operands[idx_a], operands[idx_b])
+            print(
+                operands[idx_a],
+                operands[idx_b],
+                self.eq.equivalent(operands[idx_a], operands[idx_b]),
+            )
+            return operands[idx_a] == operands[idx_b] or self.eq.equivalent(
+                operands[idx_a], operands[idx_b]
+            )
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         if inst.opcode == "assert":
@@ -501,7 +508,7 @@ class SCCP(IRPass):
             if inst.opcode == "sub" and self.lit_eq(operands[1], -1):
                 return self.update(inst, "not", operands[0])
             if inst.opcode != "add" and self.op_eq(operands, 0, 1):
-                # (x - x) == (x ^ x) == (x != x) == 0
+                # (x - x) == (x ^ x) == 0
                 return self.store(inst, 0)
             if inst.opcode == "xor" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self.update(inst, "not", operands[1])

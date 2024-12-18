@@ -1,5 +1,6 @@
 import pytest
 
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
@@ -292,3 +293,126 @@ def test_sccp_offsets_opt():
                 offset_count += 1
 
     assert offset_count == 3
+
+
+venom_progs = [
+    (
+        """
+    _global:
+        %par = param
+        %1 = sub %par, %par
+        %2 = xor %par, %par
+        return %1, %2
+    """,
+        """
+    _global:
+        %par = param
+        %1 = store 0
+        %2 = store 0
+        return 0, 0
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = sub %par, 0
+        %2 = xor %par, 0
+        %3 = add 0, %par
+        %4 = sub 0, %par
+        return %1, %2, %3, %4
+    """,
+        """
+    _global:
+        %par = param
+        %1 = %par
+        %2 = %par
+        %3 = %par
+        %4 = sub 0, %par
+        return %1, %2, %3, %4
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = xor 115792089237316195423570985008687907853269984665640564039457584007913129639935, %par
+        return %1
+    """,
+        """
+    _global:
+        %par = param
+        %1 = not %par
+        return %1
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = shl 0, %par
+        %2 = shr 0, %1
+        %3 = sar 0, %2
+        return %1, %2, %3
+    """,
+        """
+    _global:
+        %par = param
+        %1 = %par
+        %2 = %1
+        %3 = %2
+        return %1, %2, %3
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1_1 = mul 0, %par
+        %1_2 = mul %par, 0
+        %2_1 = div 0, %par
+        %2_2 = div %par, 0
+        %3_1 = sdiv 0, %par
+        %3_2 = sdiv %par, 0
+        %4_1 = mod 0, %par
+        %4_2 = mod %par, 0
+        %5_1 = smod 0, %par
+        %5_2 = smod %par, 0
+        %6_1 = and 0, %par
+        %6_2 = and %par, 0
+        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2, %4_1, %4_2, %5_1, %5_2, %6_1, %6_2
+    """,
+        """
+    _global:
+        %par = param
+        %1_1 = 0
+        %1_2 = 0
+        %2_1 = div 0, %par
+        %2_2 = 0
+        %3_1 = sdiv 0, %par
+        %3_2 = 0
+        %4_1 = mod 0, %par
+        %4_2 = 0
+        %5_1 = smod 0, %par
+        %5_2 = 0
+        %6_1 = 0
+        %6_2 = 0
+        return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
+    """,
+    ),
+]
+
+
+@pytest.mark.parametrize("correct_transformation", venom_progs)
+def test_sccp_binopt(correct_transformation):
+    pre, post = correct_transformation
+
+    ctx = parse_from_basic_block(pre)
+
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        SCCP(ac, fn).run_pass()
+
+    print(ctx)
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
