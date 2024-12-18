@@ -188,7 +188,7 @@ def test_memmerging_imposs_msize():
     pre = """
     _global:
         %1 = mload 0
-        %2 = msize
+        %2 = msize  ; BARRIER
         %3 = mload 32
         %4 = mload 64
         mstore 1000, %1
