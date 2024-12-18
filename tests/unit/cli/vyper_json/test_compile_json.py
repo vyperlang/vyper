@@ -338,7 +338,7 @@ def test_source_ids_increment(input_json):
 def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/baz.vy"] = {"content": "from ... import foo"}
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
-    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
+    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from .baz import baz"}
     compile_from_input_dict(input_json)
 
 
@@ -363,7 +363,8 @@ def test_compile_json_with_abi_top(make_input_bundle):
 from . import stream
     """
     input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
-    vyper.compiler.compile_code(code, input_bundle=input_bundle)
+    file_input = input_bundle.load_file("code.vy")
+    vyper.compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_compile_json_with_experimental_codegen():
