@@ -26,15 +26,15 @@ def test_removeunused_basic():
     """
     pre = """
     main:
-        %1 = add 10 20
-        %2_unused = add 10 %1
-        mstore 20 %1
+        %1 = add 10, 20
+        %2_unused = add 10, %1
+        mstore 20, %1
         stop
     """
     post = """
     main:
-        %1 = add 10 20
-        mstore 20 %1
+        %1 = add 10, 20
+        mstore 20, %1
         stop
     """
     _check_pre_post(pre, post)
@@ -139,7 +139,7 @@ def test_removeunused_loop():
     after:
         %p = phi @main, %1, @after, %2
         %2 = add %p, 1
-        %3_unused add %2, %p
+        %3_unused = add %2, %p
         mstore 10, %2
         jmp @after
     """
