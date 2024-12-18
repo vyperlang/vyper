@@ -139,7 +139,6 @@ class HexStringParser:
         return True
 
 
-
 # compound statements that are replaced with `class`
 # TODO remove enum in favor of flag
 VYPER_CLASS_TYPES = {
