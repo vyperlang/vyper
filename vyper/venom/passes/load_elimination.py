@@ -14,7 +14,9 @@ class LoadElimination(IRPass):
         self.equivalence = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
 
         for bb in self.function.get_basic_blocks():
-            self._process_bb(bb)
+            self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
+            self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
+            self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -22,59 +24,25 @@ class LoadElimination(IRPass):
     def equivalent(self, op1, op2):
         return op1 == op2 or self.equivalence.equivalent(op1, op2)
 
-    def _process_bb(self, bb):
-        transient = ()
-        storage = ()
-        memory = ()
+    def _process_bb(self, bb, eff, load_opcode, store_opcode):
+        lattice = ()
 
         for inst in bb.instructions:
-            if Effects.MEMORY in inst.get_write_effects():
-                memory = ()
-            if Effects.STORAGE in inst.get_write_effects():
-                storage = ()
-            if Effects.TRANSIENT in inst.get_write_effects():
-                transient = ()
+            if eff in inst.get_write_effects():
+                lattice = ()
 
-            if inst.opcode == "mstore":
+            if inst.opcode == store_opcode:
                 # mstore [val, ptr]
                 val, ptr = inst.operands
-                memory = (ptr, val)
-            if inst.opcode == "sstore":
-                val, ptr = inst.operands
-                storage = (ptr, val)
-            if inst.opcode == "tstore":
-                val, ptr = inst.operands
-                transient = (ptr, val)
+                lattice = (ptr, val)
 
-            if inst.opcode == "mload":
-                prev_memory = memory
+            if inst.opcode == load_opcode:
+                prev_lattice = lattice
                 (ptr,) = inst.operands
-                memory = (ptr, inst.output)
-                if not prev_memory:
+                lattice = (ptr, inst.output)
+                if not prev_lattice:
                     continue
-                if not self.equivalent(ptr, prev_memory[0]):
+                if not self.equivalent(ptr, prev_lattice[0]):
                     continue
                 inst.opcode = "store"
-                inst.operands = [prev_memory[1]]
-
-            if inst.opcode == "sload":
-                prev_storage = storage
-                (ptr,) = inst.operands
-                storage = (ptr, inst.output)
-                if not prev_storage:
-                    continue
-                if not self.equivalent(ptr, prev_storage[0]):
-                    continue
-                inst.opcode = "store"
-                inst.operands = [prev_storage[1]]
-
-            if inst.opcode == "tload":
-                prev_transient = transient
-                (ptr,) = inst.operands
-                transient = (ptr, inst.output)
-                if not prev_transient:
-                    continue
-                if not self.equivalent(ptr, prev_transient[0]):
-                    continue
-                inst.opcode = "store"
-                inst.operands = [prev_transient[1]]
+                inst.operands = [prev_lattice[1]]
