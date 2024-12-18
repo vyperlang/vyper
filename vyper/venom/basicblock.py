@@ -381,7 +381,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "invoke"]:
+        if opcode not in ("jmp", "jnz", "invoke"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join(
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
@@ -513,7 +513,7 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
 
         if index is None:
-            assert not self.is_terminated, self
+            assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
         instruction.ast_source = self.parent.ast_source

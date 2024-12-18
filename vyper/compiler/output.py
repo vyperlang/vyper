@@ -13,10 +13,10 @@ from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.analysis.base import ModuleInfo
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
-from vyper.utils import vyper_warn
+from vyper.utils import safe_relpath, vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -206,17 +206,27 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    sigs = compiler_data.function_signatures
+    # need ir info to be computed
+    _ = compiler_data.function_signatures
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    sigs = dict[str, ContractFunctionT]()
 
-    def _var_rec_dict(variable_record):
-        ret = vars(variable_record).copy()
-        ret["typ"] = str(ret["typ"])
-        if ret["data_offset"] is None:
-            del ret["data_offset"]
-        for k in ("blockscopes", "defined_at", "encoding"):
-            del ret[k]
-        ret["location"] = ret["location"].name
-        return ret
+    def _fn_identifier(fn_t):
+        fn_id = fn_t._function_id
+        return f"{fn_t.name} ({fn_id})"
+
+    for fn_t in module_t.exposed_functions:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+        for rif_t in fn_t.reachable_internal_functions:
+            k = _fn_identifier(rif_t)
+            if k in sigs:
+                # sanity check that keys are injective with functions
+                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
+            sigs[k] = rif_t
+
+        fn_id = _fn_identifier(fn_t)
+        assert fn_id not in sigs
+        sigs[fn_id] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
@@ -238,6 +248,10 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
+        ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
+        ret["source_id"] = func_t.decl_node.module_node.source_id
+        ret["function_id"] = func_t._function_id
+
         keep_keys = {
             "name",
             "return_type",
@@ -249,6 +263,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "visibility",
             "_ir_identifier",
             "nonreentrant_key",
+            "module_path",
+            "source_id",
+            "function_id",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret

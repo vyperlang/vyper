@@ -12,7 +12,6 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    last_label: int
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
@@ -182,7 +181,6 @@ class IRFunction:
     def copy(self):
         new = IRFunction(self.name)
         new._basic_block_dict = self._basic_block_dict.copy()
-        new.last_label = self.last_label
         new.last_variable = self.last_variable
         return new
 
