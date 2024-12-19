@@ -7,6 +7,7 @@ import pytest
 
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_json
+from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
@@ -425,3 +426,31 @@ import lib
 
         used_dir = search_paths[-1].stem  # either dir1 or dir2
         assert output_bundle.used_search_paths == [".", "0/" + used_dir]
+
+
+def test_compile_interface_file(make_file):
+    interface = """
+@view
+@external
+def foo() -> String[1]:
+    ...
+
+@view
+@external
+def bar() -> String[1]:
+    ...
+
+@external
+def baz() -> uint8:
+    ...
+
+    """
+    file = make_file("interface.vyi", interface)
+    compile_files([file], INTERFACE_OUTPUT_FORMATS)
+
+    # check unallowed output formats
+    for f in OUTPUT_FORMATS:
+        if f in INTERFACE_OUTPUT_FORMATS:
+            continue
+        with pytest.raises(ValueError):
+            compile_files([file], [f])
