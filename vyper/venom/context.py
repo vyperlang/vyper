@@ -1,8 +1,9 @@
-from typing import Optional
 from dataclasses import dataclass, field
+from typing import Optional
 
-from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.function import IRFunction
+
 
 @dataclass
 class DataItem:
