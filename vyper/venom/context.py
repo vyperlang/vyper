@@ -1,14 +1,38 @@
 from typing import Optional
+from dataclasses import dataclass, field
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
+
+@dataclass
+class DataItem:
+    data: IRLabel | bytes  # can be raw data or bytes
+
+    def __repr__(self):
+        if isinstance(self.data, IRLabel):
+            return f"@{self.data}"
+        else:
+            assert isinstance(self.data, bytes)
+            return repr(self.data)
+
+
+@dataclass
+class DataSection:
+    label: IRLabel
+    data_items: list[DataItem] = field(default_factory=list)
+
+    def __repr__(self):
+        ret = [f"dbname {self.label.value}:"]
+        for item in self.data_items:
+            ret.append(f"  db {item}")
+        return "\n".join(ret)
 
 
 class IRContext:
     functions: dict[IRLabel, IRFunction]
     ctor_mem_size: Optional[int]
     immutables_len: Optional[int]
-    data_segment: list[IRInstruction]
+    data_segment: list[DataSection]
     last_label: int
 
     def __init__(self) -> None:
@@ -47,11 +71,16 @@ class IRContext:
         for fn in self.functions.values():
             fn.chain_basic_blocks()
 
-    def append_data(self, opcode: str, args: list[IROperand]) -> None:
+    def append_data_section(self, name: IRLabel) -> None:
+        self.data_segment.append(DataSection(name))
+
+    def append_data_item(self, data: IRLabel | bytes) -> None:
         """
-        Append data
+        Append data to current data section
         """
-        self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
+        assert len(self.data_segment) > 0
+        data_section = self.data_segment[-1]
+        data_section.data_items.append(DataItem(data))
 
     def as_graph(self) -> str:
         s = ["digraph G {"]
@@ -69,7 +98,7 @@ class IRContext:
 
         if len(self.data_segment) > 0:
             s.append("\n[data]")
-            for inst in self.data_segment:
-                s.append(f"  {inst}")
+            for data_section in self.data_segment:
+                s.append(DataSection.__repr__(data_section))
 
         return "\n".join(s)

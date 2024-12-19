@@ -182,19 +182,19 @@ class VenomCompiler:
                 asm.extend(_REVERT_POSTAMBLE)
 
             # Append data segment
-            data_segments: dict = dict()
-            for inst in ctx.data_segment:
-                if inst.opcode == "dbname":
-                    label = inst.operands[0]
-                    data_segments[label] = [DataHeader(f"_sym_{label.value}")]
-                elif inst.opcode == "db":
-                    data = inst.operands[0]
+            for data_section in ctx.data_segment:
+                label = data_section.label
+                asm_data_section = []
+                asm_data_section.append(DataHeader(f"_sym_{label.value}"))
+                for item in data_section.data_items:
+                    data = item.data
                     if isinstance(data, IRLabel):
-                        data_segments[label].append(f"_sym_{data.value}")
+                        asm_data_section.append(f"_sym_{data.value}")
                     else:
-                        data_segments[label].append(data)
+                        assert isinstance(data, bytes)
+                        asm_data_section.append(data)
 
-            asm.extend(list(data_segments.values()))
+                asm.append(asm_data_section)
 
         if no_optimize is False:
             optimize_assembly(top_asm)
@@ -469,8 +469,6 @@ class VenomCompiler:
         elif opcode == "param":
             pass
         elif opcode == "store":
-            pass
-        elif opcode == "dbname":
             pass
         elif opcode in ["codecopy", "dloadbytes"]:
             assembly.append("CODECOPY")
