@@ -16,12 +16,6 @@ class StoreElimination(IRPass):
         for var, inst in dfg.outputs.items():
             if inst.opcode != "store":
                 continue
-            if not isinstance(inst.operands[0], IRVariable):
-                continue
-            if inst.operands[0].name in ["%ret_ofst", "%ret_size"]:
-                continue
-            if inst.output.name in ["%ret_ofst", "%ret_size"]:
-                continue
             self._process_store(dfg, inst, var, inst.operands[0])
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
