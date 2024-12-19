@@ -119,9 +119,8 @@ class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
         if len(children) > 0 and isinstance(children[-1], _DataSegment):
-            ctx.data_segment = children[-1].children
+            ctx.data_segment = children.pop().children
 
-        children.pop()
         funcs = children
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)

@@ -10,7 +10,7 @@ from vyper.venom.function import IRFunction
 class DataItem:
     data: IRLabel | bytes  # can be raw data or bytes
 
-    def __repr__(self):
+    def __str__(self):
         if isinstance(self.data, IRLabel):
             return f"@{self.data}"
         else:
@@ -23,7 +23,7 @@ class DataSection:
     label: IRLabel
     data_items: list[DataItem] = field(default_factory=list)
 
-    def __repr__(self):
+    def __str__(self):
         ret = [f"dbsection {self.label.value}:"]
         for item in self.data_items:
             ret.append(f"  db {item}")
@@ -95,13 +95,13 @@ class IRContext:
     def __repr__(self) -> str:
         s = []
         for fn in self.functions.values():
-            s.append(fn.__repr__())
+            s.append(IRFunction.__repr__(fn))
             s.append("\n")
 
         if len(self.data_segment) > 0:
             s.append(".rodata {")
             for data_section in self.data_segment:
-                s.append(textwrap.indent(DataSection.__repr__(data_section), "  "))
+                s.append(textwrap.indent(DataSection.__str__(data_section), "  "))
             s.append("}")
 
         return "\n".join(s)

@@ -36,10 +36,10 @@ def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
 
 
 def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
-    assert len(ctx1.functions) == len(ctx2.functions)
     for label1, fn1 in ctx1.functions.items():
         assert label1 in ctx2.functions
         assert_fn_eq(fn1, ctx2.functions[label1])
+    assert len(ctx1.functions) == len(ctx2.functions)
 
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
