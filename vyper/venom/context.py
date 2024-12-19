@@ -14,7 +14,7 @@ class DataItem:
             return f"@{self.data}"
         else:
             assert isinstance(self.data, bytes)
-            return repr(self.data)
+            return f'x"{self.data.hex()}"'
 
 
 @dataclass
@@ -23,7 +23,7 @@ class DataSection:
     data_items: list[DataItem] = field(default_factory=list)
 
     def __repr__(self):
-        ret = [f"dbname {self.label.value}:"]
+        ret = [f"dbsection {self.label.value}:"]
         for item in self.data_items:
             ret.append(f"  db {item}")
         return "\n".join(ret)
@@ -98,8 +98,9 @@ class IRContext:
             s.append("\n")
 
         if len(self.data_segment) > 0:
-            s.append("\n[data]")
+            s.append(".rodata {")
             for data_section in self.data_segment:
                 s.append(DataSection.__repr__(data_section))
+            s.append("}")
 
         return "\n".join(s)
