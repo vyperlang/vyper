@@ -62,14 +62,14 @@ class IRContext:
         return "\n".join(s)
 
     def __repr__(self) -> str:
-        s = ["IRContext:"]
+        s = []
         for fn in self.functions.values():
             s.append(fn.__repr__())
             s.append("\n")
 
         if len(self.data_segment) > 0:
-            s.append("\nData segment:")
+            s.append("\n[data]")
             for inst in self.data_segment:
-                s.append(f"{inst}")
+                s.append(f"  {inst}")
 
         return "\n".join(s)
