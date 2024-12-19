@@ -92,6 +92,15 @@ def _ensure_terminated(bb):
         # TODO: raise error if still not terminated.
 
 
+def _unescape(s: str):
+    """
+    Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
+    """
+    if s.startswith('"'):
+        return json.loads(s)
+    return s
+
+
 class _DataSegment:
     def __init__(self, instructions):
         self.instructions = instructions
@@ -180,16 +189,10 @@ class VenomTransformer(Transformer):
         return token.value
 
     def LABEL_IDENT(self, label) -> str:
-        if label.startswith('"'):
-            # unescape the escaped string
-            label = json.loads(label)
-        return label
+        return _unescape(label)
 
     def LABEL(self, label) -> IRLabel:
-        label = label[1:]
-        if label.startswith('"'):
-            # unescape the escaped string
-            label = json.loads(label)
+        label = _unescape(label[1:])
         return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
