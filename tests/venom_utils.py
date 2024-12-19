@@ -43,7 +43,4 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
-
-    assert len(ctx1.data_segment) == len(ctx2.data_segment)
-    for d1, d2 in zip(ctx1.data_segment, ctx2.data_segment):
-        assert instructions_eq(d1, d2), f"data: [{d1}] != [{d2}]"
+    assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment

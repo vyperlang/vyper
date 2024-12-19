@@ -150,7 +150,7 @@ class VenomTransformer(Transformer):
         return children[0]
 
     def data_segment(self, children):
-        return children
+        return _DataSegment(children)
 
     def data_section(self, children):
         label = IRLabel(children[0], True)

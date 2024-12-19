@@ -1,3 +1,4 @@
+import textwrap
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -100,7 +101,7 @@ class IRContext:
         if len(self.data_segment) > 0:
             s.append(".rodata {")
             for data_section in self.data_segment:
-                s.append(DataSection.__repr__(data_section))
+                s.append(textwrap.indent(DataSection.__repr__(data_section), "  "))
             s.append("}")
 
         return "\n".join(s)
