@@ -17,14 +17,11 @@ class ReduceLiteralsCodesize(IRPass):
             self._process_bb(bb)
 
     def _process_bb(self, bb):
-        i = 0
-        while i < len(bb.instructions):
-            inst = bb.instructions[i]
-            i += 1
+        for inst in bb.instructions:
             if inst.opcode != "store":
                 continue
 
-            op = inst.operands[0]
+            (op,) = inst.operands
             if not isinstance(op, IRLiteral):
                 continue
 
