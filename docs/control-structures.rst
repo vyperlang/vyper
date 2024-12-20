@@ -48,7 +48,7 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
 .. note::
-    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function excludes optional arguments when their default values are used in the function call.
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function (this includes interface functions) excludes optional arguments when their default values are used in the function call.
 
     .. code-block:: vyper
 
