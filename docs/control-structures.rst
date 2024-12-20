@@ -132,6 +132,9 @@ Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable
 
 Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
+.. note::
+    The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
+
 Re-entrancy Locks
 -----------------
 
