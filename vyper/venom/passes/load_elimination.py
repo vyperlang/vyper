@@ -7,7 +7,6 @@ class LoadElimination(IRPass):
     """
     Eliminate sloads, mloads and tloads
     """
-
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
@@ -25,6 +24,8 @@ class LoadElimination(IRPass):
         return op1 == op2 or self.equivalence.equivalent(op1, op2)
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
+        # not really a lattice even though it is not really inter-basic block;
+        # we may generalize in the future
         lattice = ()
 
         for inst in bb.instructions:
