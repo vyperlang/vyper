@@ -82,7 +82,7 @@ class FunctionInlinerPass(IRPass):
                 for j, op in enumerate(inst.operands):
                     if isinstance(op, IRVariable):
                         inst.operands[j] = var_map[op]
-                    if inst.opcode in CFG_ALTERING_INSTRUCTIONS and isinstance(op, IRLabel):
+                    if isinstance(op, IRLabel):
                         inst.operands[j] = label_map[op]
 
                 if inst.opcode == "ret":
