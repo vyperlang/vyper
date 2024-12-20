@@ -68,7 +68,7 @@ def test_data_section():
             stop
     }
 
-    .rodata {
+    data readonly {
         dbsection selector_buckets:
             db @selector_bucket_0
             db @fallback
@@ -180,7 +180,7 @@ def test_multi_function_and_data():
             revert 0, 0
     }
 
-    .rodata {
+    data readonly {
         dbsection selector_buckets:
             db @selector_bucket_0
             db @fallback

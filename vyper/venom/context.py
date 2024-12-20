@@ -99,7 +99,7 @@ class IRContext:
             s.append("\n")
 
         if len(self.data_segment) > 0:
-            s.append(".rodata {")
+            s.append("data readonly {")
             for data_section in self.data_segment:
                 s.append(textwrap.indent(DataSection.__str__(data_section), "  "))
             s.append("}")

@@ -32,7 +32,7 @@ VENOM_GRAMMAR = """
     # `"{" instruction+ block* "}"`
     function: "function" LABEL_IDENT "{" block* "}"
 
-    data_segment: ".rodata" "{" data_section* "}"
+    data_segment: "data" "readonly" "{" data_section* "}"
     data_section: "dbsection" LABEL_IDENT ":" data_item+
     data_item: "db" (HEXSTR | LABEL)
 
