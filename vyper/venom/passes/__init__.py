@@ -2,8 +2,10 @@ from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .function_inliner import FunctionInlinerPass
+from .float_allocas import FloatAllocas
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
+from .memmerging import MemMergePass
 from .normalization import NormalizationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP

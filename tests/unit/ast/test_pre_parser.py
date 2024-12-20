@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from vyper import compile_code
@@ -54,6 +56,24 @@ def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
         validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
+
+
+def test_invalid_version_contains_file(mock_version):
+    mock_version(COMPILER_VERSION)
+    with pytest.raises(VersionException, match=r'contract "mock\.vy:\d+"'):
+        compile_code("# pragma version ^0.3.10", resolved_path=Path("mock.vy"))
+
+
+def test_imported_invalid_version_contains_correct_file(
+    mock_version, make_input_bundle, chdir_tmp_path
+):
+    code_a = "# pragma version ^0.3.10"
+    code_b = "import A"
+    input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
+    mock_version(COMPILER_VERSION)
+
+    with pytest.raises(VersionException, match=r'contract "A\.vy:\d+"'):
+        compile_code(code_b, input_bundle=input_bundle)
 
 
 prerelease_valid_versions = [

@@ -305,7 +305,7 @@ class Slice(BuiltinFunctionT):
 
         arg = node.args[0]
         start_expr = node.args[1]
-        length_expr = node.args[2]
+        length_expr = node.args[2].reduced()
 
         # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
         is_adhoc_slice = arg.get("attr") == "code" or (
@@ -1257,7 +1257,8 @@ class RawLog(BuiltinFunctionT):
     def infer_arg_types(self, node, expected_return_typ=None):
         self._validate_arg_types(node)
 
-        if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
+        arg = node.args[0].reduced()
+        if not isinstance(arg, vy_ast.List) or len(arg.elements) > 4:
             raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
 
         # return a concrete type for `data`
@@ -1269,7 +1270,7 @@ class RawLog(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         context.check_is_not_constant(f"use {self._id}", expr)
 
-        topics_length = len(expr.args[0].elements)
+        topics_length = len(expr.args[0].reduced().elements)
         topics = args[0].args
         topics = [unwrap_location(topic) for topic in topics]
 
@@ -2362,7 +2363,13 @@ class ABIEncode(BuiltinFunctionT):
         for kwarg in node.keywords:
             kwarg_name = kwarg.arg
             validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
-            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+
+            typ = get_exact_type_from_node(kwarg.value)
+            if kwarg_name == "method_id" and isinstance(typ, BytesT):
+                if typ.length != 4:
+                    raise InvalidLiteral("method_id must be exactly 4 bytes!", kwarg.value)
+
+            ret[kwarg_name] = typ
         return ret
 
     def fetch_call_return(self, node):

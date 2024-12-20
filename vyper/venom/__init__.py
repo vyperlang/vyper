@@ -15,8 +15,10 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FunctionInlinerPass,
+    FloatAllocas,
     MakeSSA,
     Mem2Var,
+    MemMergePass,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
@@ -44,9 +46,12 @@ def generate_assembly_experimental(
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
+    # TODO: Add support for optimization levels
     ac = IRAnalysesCache(fn, optimize)
 
     FunctionInlinerPass(ac, fn).run_pass()
+
+    FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
@@ -60,6 +65,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
@@ -76,13 +82,14 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     DFTPass(ac, fn).run_pass()
 
 
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize)
+    ctx.prune_unreachable_functions()
+
+
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
-
-    for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
-
-    ctx.prune_unreachable_functions()
-
+    run_passes_on(ctx, optimize)
     return ctx

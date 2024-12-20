@@ -108,7 +108,6 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, Optional[IROperand]]
 _alloca_table: SymbolTable = None  # type: ignore
-_palloca_table: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -116,9 +115,8 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _palloca_table
+    global _alloca_table
     _alloca_table = {}
-    _palloca_table = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -240,7 +238,7 @@ def pop_source_on_return(func):
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
-    global _break_target, _continue_target, _alloca_table, _palloca_table
+    global _break_target, _continue_target, _alloca_table
 
     # keep a map from external functions to all possible entry points
 
@@ -378,10 +376,7 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         ctx.append_data("dbname", [label])
         for c in ir.args[1:]:
-            if isinstance(c, int):
-                assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c.value, bytes):
+            if isinstance(c.value, bytes):
                 ctx.append_data("db", [c.value])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
@@ -544,12 +539,12 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _palloca_table:
+            if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id
                 )
-                _palloca_table[alloca._id] = ptr
-            return _palloca_table[alloca._id]
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
         return symbols.get(ir.value)
     elif ir.is_literal:

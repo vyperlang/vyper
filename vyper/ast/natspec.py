@@ -19,6 +19,14 @@ class NatspecOutput:
 
 
 def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
+    try:
+        return _parse_natspec(annotated_vyper_module)
+    except NatSpecSyntaxException as e:
+        e.resolved_path = annotated_vyper_module.resolved_path
+        raise e
+
+
+def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     """
     Parses NatSpec documentation from a contract.
 
