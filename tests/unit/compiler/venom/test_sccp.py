@@ -426,6 +426,58 @@ venom_progs = [
         return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
     """,
     ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = mod %par, 1
+        %2 = smod %par, 1
+        return %1, %2
+    """,
+        """
+    _global:
+        %par = param
+        %1 = 0
+        %2 = 0
+        return 0, 0
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %1 = and %par, %tmp
+        %2 = and %tmp, %par
+        return %1, %2
+    """,
+        """
+    _global:
+        %par = param
+        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %1 = %par
+        %2 = %par
+        return %1, %2
+    """,
+    ),
+    (
+        """
+    _global:
+        %par = param
+        %1 = mod %par, 8
+        %2 = mul %par, 16
+        %3 = div %par, 4
+        return %1, %2, %3
+    """,
+        """
+    _global:
+        %par = param
+        %1 = and %par, 7
+        %2 = shl 4, %par
+        %3 = shr 2, %par
+        return %1, %2, %3
+    """,
+    ),
 ]
 
 
