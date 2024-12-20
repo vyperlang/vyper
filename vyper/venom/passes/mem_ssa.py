@@ -1,7 +1,7 @@
 import contextlib
 from typing import Optional
 
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.passes.base_pass import IRPass
 
@@ -77,6 +77,7 @@ class MemSSA(IRPass):
         # Request required analyses
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -162,7 +163,7 @@ class MemSSA(IRPass):
                 break
             if inst.opcode == self.store_op:
                 for def_ in reversed(self.memory_defs[bb]):
-                    if def_.store_inst.operands[1] == use.load_inst.operands[0]:
+                    if self.alias.may_alias(def_.store_inst, use.load_inst):
                         return def_
 
         return self.live_on_entry
