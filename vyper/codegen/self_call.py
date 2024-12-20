@@ -1,6 +1,6 @@
-import dataclasses
 import copy
-from vyper.codegen.context import Context,Alloca
+import dataclasses
+
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
@@ -72,7 +72,6 @@ def ir_for_self_call(stmt_expr, context):
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
     if context.settings.experimental_codegen:
         arg_items = ["multi"]
-        #framestart = func_t._ir_info.frame_info.frame_start
         frame_info = func_t._ir_info.frame_info
 
         for var in frame_info.frame_vars.values():
@@ -82,13 +81,15 @@ def ir_for_self_call(stmt_expr, context):
             assert isinstance(var.pos, str)  # help mypy
             if not var.pos.startswith("$palloca"):
                 continue
-            newname = var.pos.replace("$palloca", "$alloca")
+            newname = var.pos.replace("$palloca", "$calloca")
             var.pos = newname
+            alloca = dataclasses.replace(alloca, _callsite=return_label)
             irnode = var.as_ir_node()
             irnode.passthrough_metadata["alloca"] = alloca
             arg_items.append(irnode)
         args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
     else:
+        # legacy
         args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument

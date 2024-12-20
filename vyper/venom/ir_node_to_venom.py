@@ -184,8 +184,13 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 def _handle_internal_func(
     fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
 ) -> IRFunction:
+    global _alloca_table
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
     bb = fn.get_basic_block()
+
+    _saved_alloca_table = _alloca_table
+    _alloca_table = {}
 
     # return buffer
     if does_return_data:
@@ -198,6 +203,7 @@ def _handle_internal_func(
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
+    _alloca_table = _saved_alloca_table
     return fn
 
 
@@ -542,6 +548,17 @@ def _convert_ir_bb(fn, ir, symbols):
             if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
+
+        elif ir.value.startswith("$calloca"):
+            alloca = ir.passthrough_metadata["alloca"]
+            if alloca._id not in _alloca_table:
+                assert alloca._callsite is not None
+                callsite = IRLabel(alloca._callsite)
+                ptr = fn.get_basic_block().append_instruction(
+                    "calloca", alloca.offset, alloca.size, alloca._id, callsite
                 )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
