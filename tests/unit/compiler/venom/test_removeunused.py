@@ -40,6 +40,7 @@ def test_removeunused_basic():
     """
     _check_pre_post(pre, post)
 
+
 def test_removeunused_chain():
     """
     Check removal of unused variable dependency chain
@@ -172,6 +173,7 @@ def test_remove_unused_mload_msize_chain():
         stop
     """
     _check_pre_post(pre, post)
+
 
 def test_remove_unused_mload_msize_chain_loop():
     """
