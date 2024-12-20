@@ -45,7 +45,6 @@ class LoadElimination(IRPass):
         self._lattice = {}
 
         for inst in bb.instructions:
-
             if inst.opcode == store_opcode:
                 # mstore [val, ptr]
                 val, ptr = inst.operands
