@@ -1,3 +1,5 @@
+import json
+
 from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
@@ -11,13 +13,14 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
-VENOM_PARSER = Lark(
-    """
+VENOM_GRAMMAR = """
     %import common.CNAME
     %import common.DIGIT
     %import common.LETTER
     %import common.WS
     %import common.INT
+    %import common.SIGNED_INT
+    %import common.ESCAPED_STRING
 
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
@@ -26,13 +29,13 @@ VENOM_PARSER = Lark(
 
     # TODO: consider making entry block implicit, e.g.
     # `"{" instruction+ block* "}"`
-    function: "function" NAME "{" block* "}"
+    function: "function" LABEL_IDENT "{" block* "}"
 
     data_section: "[data]" instruction*
 
-    block: NAME ":" statement*
+    block: LABEL_IDENT ":" "\\n" statement*
 
-    statement: instruction | assignment
+    statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
     expr: instruction | operand
     instruction: OPCODE operands_list?
@@ -41,16 +44,22 @@ VENOM_PARSER = Lark(
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: INT
+    CONST: SIGNED_INT
     OPCODE: CNAME
-    VAR_IDENT: "%" NAME
-    LABEL: "@" NAME
+    VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
+
+    # handy for identifier to be an escaped string sometimes
+    # (especially for machine-generated labels)
+    LABEL_IDENT: (NAME | ESCAPED_STRING)
+    LABEL: "@" LABEL_IDENT
+
     NAME: (DIGIT|LETTER|"_")+
 
     %ignore WS
     %ignore COMMENT
     """
-)
+
+VENOM_PARSER = Lark(VENOM_GRAMMAR)
 
 
 def _set_last_var(fn: IRFunction):
@@ -83,6 +92,15 @@ def _ensure_terminated(bb):
         # TODO: raise error if still not terminated.
 
 
+def _unescape(s: str):
+    """
+    Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
+    """
+    if s.startswith('"'):
+        return json.loads(s)
+    return s
+
+
 class _DataSegment:
     def __init__(self, instructions):
         self.instructions = instructions
@@ -100,7 +118,7 @@ class VenomTransformer(Transformer):
             fn._basic_block_dict.clear()
 
             for block_name, instructions in blocks:
-                bb = IRBasicBlock(IRLabel(block_name), fn)
+                bb = IRBasicBlock(IRLabel(block_name, True), fn)
                 fn.append_basic_block(bb)
 
                 for instruction in instructions:
@@ -152,8 +170,12 @@ class VenomTransformer(Transformer):
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
-        if opcode not in ("jmp", "jnz", "invoke", "phi"):
-            # special cases: operands with labels look better un-reversed
+        if opcode == "invoke":
+            # reverse stack arguments but not label arg
+            # invoke <target> <stack arguments>
+            operands = [operands[0]] + list(reversed(operands[1:]))
+        # special cases: operands with labels look better un-reversed
+        elif opcode not in ("jmp", "jnz", "phi"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -166,17 +188,15 @@ class VenomTransformer(Transformer):
     def OPCODE(self, token):
         return token.value
 
+    def LABEL_IDENT(self, label) -> str:
+        return _unescape(label)
+
     def LABEL(self, label) -> IRLabel:
-        return IRLabel(label[1:])
+        label = _unescape(label[1:])
+        return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
-        parts = var_ident[1:].split(":", maxsplit=1)
-        assert 1 <= len(parts) <= 2
-        varname = parts[0]
-        version = None
-        if len(parts) > 1:
-            version = int(parts[1])
-        return IRVariable(varname, version=version)
+        return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
         return IRLiteral(int(val))

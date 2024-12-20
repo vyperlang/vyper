@@ -16,8 +16,10 @@ from vyper.venom.passes import (
     DFTPass,
     FloatAllocas,
     LoadElimination,
+    LowerDloadPass,
     MakeSSA,
     Mem2Var,
+    MemMergePass,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
@@ -59,8 +61,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     LoadElimination(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
 
+    LowerDloadPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a

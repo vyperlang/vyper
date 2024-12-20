@@ -36,7 +36,6 @@ def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
 
 
 def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
-    assert ctx1.last_label == ctx2.last_label
     assert len(ctx1.functions) == len(ctx2.functions)
     for label1, fn1 in ctx1.functions.items():
         assert label1 in ctx2.functions
