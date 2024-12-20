@@ -41,6 +41,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
+        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -472,8 +473,6 @@ class VenomCompiler:
             pass
         elif opcode == "dbname":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
-            assembly.append("CODECOPY")
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label = inst.operands[1]
