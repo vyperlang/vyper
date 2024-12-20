@@ -8,6 +8,7 @@ class StoreElimination(IRPass):
     This pass forwards variables to their uses though `store` instructions,
     and removes the `store` instruction.
     """
+
     # TODO: consider renaming `store` instruction, since it is confusing
     # with LoadElimination
 
