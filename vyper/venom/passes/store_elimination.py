@@ -9,6 +9,9 @@ class StoreElimination(IRPass):
     and removes the `store` instruction.
     """
 
+    # TODO: consider renaming `store` instruction, since it is confusing
+    # with LoadElimination
+
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
