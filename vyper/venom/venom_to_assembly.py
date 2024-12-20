@@ -41,6 +41,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
+        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -185,8 +186,8 @@ class VenomCompiler:
             data_segments: dict = dict()
             for inst in ctx.data_segment:
                 if inst.opcode == "dbname":
-                    label = inst.operands[0].value
-                    data_segments[label] = [DataHeader(f"_sym_{label}")]
+                    label = inst.operands[0]
+                    data_segments[label] = [DataHeader(f"_sym_{label.value}")]
                 elif inst.opcode == "db":
                     data = inst.operands[0]
                     if isinstance(data, IRLabel):
@@ -293,7 +294,7 @@ class VenomCompiler:
         asm = []
 
         # assembly entry point into the block
-        asm.append(f"_sym_{basicblock.label}")
+        asm.append(f"_sym_{basicblock.label.value}")
         asm.append("JUMPDEST")
 
         if len(basicblock.cfg_in) == 1:
@@ -472,8 +473,6 @@ class VenomCompiler:
             pass
         elif opcode == "dbname":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
-            assembly.append("CODECOPY")
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label = inst.operands[1]
