@@ -133,6 +133,23 @@ def test_removeunused_msize_loop():
     _check_no_change(pre)
 
 
+def test_removeunused_msize_reachable():
+    pre = """
+    main:
+        # not safe to remove because there is an msize in a reachable
+        # basic block
+        %1 = mload 0
+
+        jmp @next
+    next:
+        jmp @last
+    last:
+        %2 = msize
+        return %2, %2
+    """
+    _check_no_change(pre)
+
+
 def test_removeunused_msize_branches():
     """
     Test that mload removal is blocked by msize in a downstream basic
