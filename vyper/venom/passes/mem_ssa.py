@@ -178,11 +178,11 @@ class MemSSA(IRPass):
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
                 if use.load_inst == inst:
-                    s += f"\t!use: {use.reaching_def.version_str if use.reaching_def else None}"
+                    s += f"\t; use: {use.reaching_def.version_str if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
-                    s += f"\t!def: {def_.version_str}"
+                    s += f"\t; def: {def_.version_str}"
 
         return s
 
@@ -190,7 +190,7 @@ class MemSSA(IRPass):
         s = ""
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
-            s += f"    !phi: {phi.version_str} <- "
+            s += f"    ; phi: {phi.version_str} <- "
             s += ", ".join(f"{op[0].version_str} from @{op[1].label}" for op in phi.operands)
             s += "\n"
         return s
