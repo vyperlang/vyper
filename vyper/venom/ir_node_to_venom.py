@@ -373,14 +373,15 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
-        label = IRLabel(ir.args[0].value)
-        ctx.append_data("dbname", [label])
+        label = IRLabel(ir.args[0].value, True)
+        ctx.append_data_section(label)
         for c in ir.args[1:]:
             if isinstance(c.value, bytes):
-                ctx.append_data("db", [c.value])  # type: ignore
+                ctx.append_data_item(c.value)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
-                ctx.append_data("db", [data])  # type: ignore
+                assert isinstance(data, IRLabel)  # help mypy
+                ctx.append_data_item(data)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
