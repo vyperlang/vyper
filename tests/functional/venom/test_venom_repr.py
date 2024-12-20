@@ -4,7 +4,6 @@ import pytest
 
 from tests.venom_utils import assert_ctx_eq, parse_venom
 from vyper.compiler import compile_code
-from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.context import IRContext
 
 """
@@ -18,11 +17,6 @@ def get_example_vy_filenames():
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
 def test_round_trip(vy_filename, optimize, request):
-    if optimize == OptimizationLevel.CODESIZE:
-        # codesize optimization issues things like `db b"\x12\x34"` which we
-        # don't handle.
-        request.node.add_marker(pytest.mark.xfail(strict=False, reason="unimplemented in parser"))
-
     path = f"examples/{vy_filename}"
     with open(path) as f:
         vyper_source = f.read()

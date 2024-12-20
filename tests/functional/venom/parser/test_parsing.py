@@ -1,6 +1,6 @@
 from tests.venom_utils import assert_ctx_eq
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
-from vyper.venom.context import IRContext
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
+from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
 
@@ -11,8 +11,6 @@ def test_single_bb():
         main:
             stop
     }
-
-    [data]
     """
 
     parsed_ctx = parse_venom(source)
@@ -38,8 +36,6 @@ def test_multi_bb_single_fn():
         has_callvalue:
             revert 0, 0
     }
-
-    [data]
     """
 
     parsed_ctx = parse_venom(source)
@@ -61,8 +57,6 @@ def test_multi_bb_single_fn():
     has_callvalue_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
     has_callvalue_bb.append_instruction("stop")
 
-    start_fn.last_variable = 4
-
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
@@ -74,15 +68,16 @@ def test_data_section():
             stop
     }
 
-    [data]
-    dbname @selector_buckets
-    db @selector_bucket_0
-    db @fallback
-    db @selector_bucket_2
-    db @selector_bucket_3
-    db @fallback
-    db @selector_bucket_5
-    db @selector_bucket_6
+    data readonly {
+        dbsection selector_buckets:
+            db @selector_bucket_0
+            db @fallback
+            db @selector_bucket_2
+            db @selector_bucket_3
+            db @fallback
+            db @selector_bucket_5
+            db @selector_bucket_6
+    }
     """
     )
 
@@ -91,14 +86,18 @@ def test_data_section():
     entry_fn.get_basic_block("entry").append_instruction("stop")
 
     expected_ctx.data_segment = [
-        IRInstruction("dbname", [IRLabel("selector_buckets")]),
-        IRInstruction("db", [IRLabel("selector_bucket_0")]),
-        IRInstruction("db", [IRLabel("fallback")]),
-        IRInstruction("db", [IRLabel("selector_bucket_2")]),
-        IRInstruction("db", [IRLabel("selector_bucket_3")]),
-        IRInstruction("db", [IRLabel("fallback")]),
-        IRInstruction("db", [IRLabel("selector_bucket_5")]),
-        IRInstruction("db", [IRLabel("selector_bucket_6")]),
+        DataSection(
+            IRLabel("selector_buckets"),
+            [
+                DataItem(IRLabel("selector_bucket_0")),
+                DataItem(IRLabel("fallback")),
+                DataItem(IRLabel("selector_bucket_2")),
+                DataItem(IRLabel("selector_bucket_3")),
+                DataItem(IRLabel("fallback")),
+                DataItem(IRLabel("selector_bucket_5")),
+                DataItem(IRLabel("selector_bucket_6")),
+            ],
+        )
     ]
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
@@ -126,8 +125,6 @@ def test_multi_function():
         has_value:
             revert 0, 0
     }
-
-    [data]
     """
     )
 
@@ -156,8 +153,6 @@ def test_multi_function():
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
     value_bb.append_instruction("stop")
-
-    check_fn.last_variable = 2
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -185,13 +180,14 @@ def test_multi_function_and_data():
             revert 0, 0
     }
 
-    [data]
-    dbname @selector_buckets
-    db @selector_bucket_0
-    db @fallback
-    db @selector_bucket_2
-    db @selector_bucket_3
-    db @selector_bucket_6
+    data readonly {
+        dbsection selector_buckets:
+            db @selector_bucket_0
+            db @fallback
+            db @selector_bucket_2
+            db @selector_bucket_3
+            db @selector_bucket_6
+    }
     """
     )
 
@@ -221,15 +217,17 @@ def test_multi_function_and_data():
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
     value_bb.append_instruction("stop")
 
-    check_fn.last_variable = 2
-
     expected_ctx.data_segment = [
-        IRInstruction("dbname", [IRLabel("selector_buckets")]),
-        IRInstruction("db", [IRLabel("selector_bucket_0")]),
-        IRInstruction("db", [IRLabel("fallback")]),
-        IRInstruction("db", [IRLabel("selector_bucket_2")]),
-        IRInstruction("db", [IRLabel("selector_bucket_3")]),
-        IRInstruction("db", [IRLabel("selector_bucket_6")]),
+        DataSection(
+            IRLabel("selector_buckets"),
+            [
+                DataItem(IRLabel("selector_bucket_0")),
+                DataItem(IRLabel("fallback")),
+                DataItem(IRLabel("selector_bucket_2")),
+                DataItem(IRLabel("selector_bucket_3")),
+                DataItem(IRLabel("selector_bucket_6")),
+            ],
+        )
     ]
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
