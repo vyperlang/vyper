@@ -102,7 +102,7 @@ def build_archive_b64(compiler_data: CompilerData) -> str:
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
-    return compiler_data.resolved_imports.integrity_sum
+    return compiler_data.integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
