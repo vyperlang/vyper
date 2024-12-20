@@ -1,7 +1,10 @@
+from typing import Optional
+
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.basicblock import IRLiteral
+
 
 def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     ptr1, ptr2 = k1.value, k2.value
@@ -11,6 +14,7 @@ def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
         return abs(ptr1 - ptr2) < 32
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
     return abs(ptr1 - ptr2) < 1
+
 
 class LoadElimination(IRPass):
     """

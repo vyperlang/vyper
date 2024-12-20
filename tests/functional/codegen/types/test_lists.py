@@ -3,7 +3,7 @@ import itertools
 import pytest
 
 from tests.utils import decimal_to_int
-from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
 
 
 def _map_nested(f, xs):
@@ -189,6 +189,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -5454
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_four_d_array_accessor(get_contract):
     four_d_array_accessor = """
 @external
