@@ -6,7 +6,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryLocation:
     """Represents a memory location that can be analyzed for aliasing"""
 
@@ -65,10 +65,16 @@ class MemoryAliasAnalysis(IRAnalysis):
 
     def _get_memory_location(self, inst: IRInstruction) -> Optional[MemoryLocation]:
         """Extract memory location info from an instruction"""
-        if inst.opcode in ("mstore", "mload"):
+        if inst.opcode == "mstore":
+            addr = inst.operands[1]
+            offset = addr.value if isinstance(addr, IRLiteral) else None
+            size = 32
+            return MemoryLocation(addr, offset, size)
+        elif inst.opcode == "mload":
             addr = inst.operands[0]
             offset = addr.value if isinstance(addr, IRLiteral) else None
-            return MemoryLocation(addr, offset)
+            size = 32
+            return MemoryLocation(addr, offset, size)
         elif inst.opcode == "mcopy":
             dst = inst.operands[0]
             size = inst.operands[2].value if isinstance(inst.operands[2], IRLiteral) else None
@@ -79,15 +85,11 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Determine if two memory locations may alias"""
         # If we have constant offsets, check for overlap
         if loc1.offset is not None and loc2.offset is not None:
-            # Get sizes (default to 32 for mload/mstore)
-            size1 = loc1.size or 32
-            size2 = loc2.size or 32
-
             # Check if ranges overlap
-            start1, end1 = loc1.offset, loc1.offset + size1
-            start2, end2 = loc2.offset, loc2.offset + size2
+            start1, end1 = loc1.offset, loc1.offset + loc1.size
+            start2, end2 = loc2.offset, loc2.offset + loc2.size
 
-            return not (end1 <= start2 or end2 <= start1)
+            return start1 <= end2 and start2 <= end1
 
         # If bases are the same variable, they may alias
         if isinstance(loc1.base, IRVariable) and isinstance(loc2.base, IRVariable):
