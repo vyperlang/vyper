@@ -394,6 +394,11 @@ def evm_twos_complement(x: int) -> int:
     return ((2**256 - 1) ^ x) + 1
 
 
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:

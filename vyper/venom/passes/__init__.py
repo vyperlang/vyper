@@ -2,6 +2,7 @@ from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
+from .literals_codesize import ReduceLiteralsCodesize
 from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
