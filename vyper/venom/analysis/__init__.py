@@ -4,3 +4,4 @@ from .dfg import DFGAnalysis
 from .dominators import DominatorTreeAnalysis
 from .equivalent_vars import VarEquivalenceAnalysis
 from .liveness import LivenessAnalysis
+from .reachable import ReachableAnalysis
