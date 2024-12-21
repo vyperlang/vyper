@@ -30,6 +30,7 @@ class LoadElimination(IRPass):
             self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
             self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
             self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
+            self._process_bb(bb, None, "dload", None)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -79,7 +80,7 @@ class LoadElimination(IRPass):
                             del self._lattice[existing_key]
                             self._lattice[known_ptr] = val
 
-            elif eff in inst.get_write_effects():
+            elif eff is not None and eff in inst.get_write_effects():
                 self._lattice = {}
 
             elif inst.opcode == load_opcode:
