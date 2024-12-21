@@ -86,7 +86,7 @@ class _Copy:
         self.insts.extend(other.insts)
 
     def __repr__(self) -> str:
-        return f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
+        return f"({self.src}, {self.dst}, {self.length})"
 
 
 class MemMergePass(IRPass):
@@ -114,7 +114,7 @@ class MemMergePass(IRPass):
             copy.insts.sort(key=bb.instructions.index)
 
             if copy_opcode == "mcopy":
-                assert not copy.overwrites_self_src()
+                assert not copy.overwrites_self_src(), (copy, copy.insts, bb)
 
             pin_inst = None
             inst = copy.insts[-1]
@@ -277,8 +277,13 @@ class MemMergePass(IRPass):
                 if self._write_after_write_hazard(n_copy):
                     _barrier()
                 # check if the new copy does not overwrites existing data
-                if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
-                    _barrier()
+                if not allow_dst_overlaps_src:
+                    if n_copy.overwrites_self_src():
+                        # this will lead to an assertion failure in _optimize_copy
+                        continue
+                    if self._read_after_write_hazard(n_copy):
+                        _barrier()
+
                 self._add_copy(n_copy)
 
             elif _volatile_memory(inst):
