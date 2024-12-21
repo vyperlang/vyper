@@ -22,7 +22,7 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
-        return op1 == op2 or self.equivalence.equivalent(op1, op2)
+        return self.equivalence.equivalent(op1, op2)
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
         # not really a lattice even though it is not really inter-basic block;
