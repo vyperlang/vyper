@@ -1,40 +1,76 @@
-from vyper.venom.analysis import DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRVariable
+from vyper.venom.analysis import IRAnalysis
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
 class VarEquivalenceAnalysis(IRAnalysis):
     """
-    Generate equivalence sets of variables. This is used to avoid swapping
-    variables which are the same during venom_to_assembly. Theoretically,
-    the DFTPass should order variable declarations optimally, but, it is
-    not aware of the "pickaxe" heuristic in venom_to_assembly, so they can
-    interfere.
+    Generate equivalence sets of variables. This is used in passes so that
+    they can "peer through" store chains
     """
 
     def analyze(self):
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        # map from variables to "equivalence set" of variables, denoted
+        # by "bag" (an int).
+        self._bags: dict[IRVariable, int] = {}
 
-        equivalence_set: dict[IRVariable, int] = {}
+        # dict from bags to literal values
+        self._literals: dict[int, IRLiteral] = {}
 
-        for bag, (var, inst) in enumerate(dfg._dfg_outputs.items()):
-            if inst.opcode != "store":
-                continue
+        # the root of the store chain
+        self._root_instructions: dict[int, IRInstruction] = {}
 
-            source = inst.operands[0]
+        bag = 0
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.output is None:
+                    continue
+                if inst.opcode != "store":
+                    self._handle_nonstore(inst, bag)
+                else:
+                    self._handle_store(inst, bag)
+                bag += 1
 
-            assert var not in equivalence_set  # invariant
-            if source in equivalence_set:
-                equivalence_set[var] = equivalence_set[source]
-                continue
-            else:
-                equivalence_set[var] = bag
-                equivalence_set[source] = bag
+    def _handle_nonstore(self, inst: IRInstruction, bag: int):
+        if bag in self._bags:
+            bag = self._bags[inst.output]
+        else:
+            self._bags[inst.output] = bag
+        self._root_instructions[bag] = inst
 
-        self._equivalence_set = equivalence_set
+    def _handle_store(self, inst: IRInstruction, bag: int):
+        var = inst.output
+        source = inst.operands[0]
 
-    def equivalent(self, var1, var2):
-        if var1 not in self._equivalence_set:
+        assert var is not None  # help mypy
+        assert var not in self._bags # invariant
+
+        if source in self._bags:
+            bag = self._bags[source]
+            self._bags[var] = bag
+        else:
+            self._bags[source] = bag
+            self._bags[var] = bag
+
+        if isinstance(source, IRLiteral):
+            self._literals[bag] = source
+
+    def equivalent(self, var1: IROperand, var2: IROperand):
+        if var1 == var2:
+            return True
+        if var1 not in self._bags:
             return False
-        if var2 not in self._equivalence_set:
+        if var2 not in self._bags:
             return False
-        return self._equivalence_set[var1] == self._equivalence_set[var2]
+        return self._bags[var1] == self._bags[var2]
+
+    def get_literal(self, var: IROperand) -> IRLiteral:
+        if isinstance(var, IRLiteral):
+            return var
+        if (bag := self._bags.get(var)) is None:
+            return None
+        return self._literals.get(bag)
+
+    def get_root_instruction(self, var: IROperand):
+        if (bag := self._bags.get(var)) is None:
+            return None
+        return self._root_instruction.get(var)
