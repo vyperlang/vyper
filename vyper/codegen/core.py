@@ -177,8 +177,35 @@ def make_byte_array_copier(dst, src):
         # batch copy the bytearray (including length word) using copy_bytes
         len_ = add_ofst(get_bytearray_length(src), 32)
         max_bytes = src.typ.maxlen + 32
+
+        if _prefer_copy_maxbound_heuristic(dst, src, item_size=1):
+            len_ = max_bytes
+
+        # batch copy the entire dynarray, including length word
         ret = copy_bytes(dst, src, len_, max_bytes)
         return b1.resolve(ret)
+
+
+# heuristic to choose
+def _prefer_copy_maxbound_heuristic(dst, src, item_size):
+    if dst.location != MEMORY:
+        return False
+
+    # a heuristic - it's cheaper to just copy the extra buffer bytes
+    # than calculate the number of bytes
+    # copy(dst, src, 32 + itemsize*load(src))
+    # =>
+    # copy(dst, src, bound)
+    # (32 + itemsize*(load(src))) costs 4*3+5 gas
+    length_calc_cost = 6 * (item_size != 1)  # PUSH MUL
+    src_bound = src.typ.memory_bytes_required
+    if src.location in (CALLDATA, MEMORY) and src_bound <= (5 + length_calc_cost) * 32:
+        return True
+    # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
+    # dload(src) costs additional 7*3 gas
+    elif src.location == DATA and src_bound <= (12 + length_calc_cost) * 32:
+        return True
+    return False
 
 
 def bytes_data_ptr(ptr):
@@ -275,6 +302,9 @@ def _dynarray_make_setter(dst, src, hi=None):
                 # number of elements * size of element in bytes + length word
                 n_bytes = add_ofst(_mul(count, element_size), 32)
                 max_bytes = 32 + src.typ.count * element_size
+
+                if _prefer_copy_maxbound_heuristic(dst, src, element_size):
+                    n_bytes = max_bytes
 
                 # batch copy the entire dynarray, including length word
                 ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
@@ -1038,7 +1068,18 @@ def _complex_make_setter(left, right, hi=None):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+    # performance: if there is any dynamic data, there might be
+    # unused space between the end of the dynarray and the end of the buffer.
+    # for instance DynArray[uint256, 100] with runtime length of 5.
+    # in these cases, we recurse to dynarray make_setter which has its own
+    # heuristic for when to copy all data.
+
+    # use abi_type.is_dynamic since it is identical to the query "do any children
+    # have dynamic size"
+    has_dynamic_data = right.typ.abi_type.is_dynamic()
+    simple_encoding = right.encoding == Encoding.VYPER
+
+    if left.is_pointer and right.is_pointer and simple_encoding and not has_dynamic_data:
         # both left and right are pointers, see if we want to batch copy
         # instead of unrolling the loop.
         assert left.encoding == Encoding.VYPER
