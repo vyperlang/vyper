@@ -34,31 +34,30 @@ class Mem2Var(IRPass):
 
     def _process_alloca_var(self, dfg: DFGAnalysis, var: IRVariable):
         """
-        Process alloca allocated variable. If it is only used by mstore/mload/return
-        instructions, it is promoted to a stack variable. Otherwise, it is left as is.
+        Process alloca allocated variable. If it is only used by
+        mstore/mload/return instructions, it is promoted to a stack variable.
+        Otherwise, it is left as is.
         """
         uses = dfg.get_uses(var)
-        if all([inst.opcode == "mload" for inst in uses]):
+        if not all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
             return
-        elif all([inst.opcode == "mstore" for inst in uses]):
-            return
-        elif all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
-            var_name = self._mk_varname(var.name)
-            for inst in uses:
-                if inst.opcode == "mstore":
-                    inst.opcode = "store"
-                    inst.output = IRVariable(var_name)
-                    inst.operands = [inst.operands[0]]
-                elif inst.opcode == "mload":
-                    inst.opcode = "store"
-                    inst.operands = [IRVariable(var_name)]
-                elif inst.opcode == "return":
-                    bb = inst.parent
-                    idx = len(bb.instructions) - 1
-                    assert inst == bb.instructions[idx]  # sanity
-                    bb.insert_instruction(
-                        IRInstruction("mstore", [IRVariable(var_name), inst.operands[1]]), idx
-                    )
+
+        var_name = self._mk_varname(var.name)
+        var = IRVariable(var_name)
+        for inst in uses:
+            if inst.opcode == "mstore":
+                inst.opcode = "store"
+                inst.output = var
+                inst.operands = [inst.operands[0]]
+            elif inst.opcode == "mload":
+                inst.opcode = "store"
+                inst.operands = [var]
+            elif inst.opcode == "return":
+                bb = inst.parent
+                idx = len(bb.instructions) - 1
+                assert inst == bb.instructions[idx]  # sanity
+                new_inst =IRInstruction("mstore", [var, inst.operands[1]])
+                bb.insert_instruction(new_inst , idx)
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
@@ -70,16 +69,18 @@ class Mem2Var(IRPass):
             return
 
         var_name = self._mk_varname(var.name)
+        var = IRVariable(var_name)
 
+        # some value given to us by the calling convention
         palloca_inst.opcode = "mload"
         palloca_inst.operands = [palloca_inst.operands[0]]
-        palloca_inst.output = IRVariable(var_name)
+        palloca_inst.output = var
 
         for inst in uses:
             if inst.opcode == "mstore":
                 inst.opcode = "store"
-                inst.output = IRVariable(var_name)
+                inst.output = var
                 inst.operands = [inst.operands[0]]
             elif inst.opcode == "mload":
                 inst.opcode = "store"
-                inst.operands = [IRVariable(var_name)]
+                inst.operands = [var]
