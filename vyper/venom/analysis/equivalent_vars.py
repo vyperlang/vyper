@@ -1,5 +1,7 @@
+from typing import Optional
+
 from vyper.venom.analysis import IRAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 
 
 class VarEquivalenceAnalysis(IRAnalysis):
@@ -11,7 +13,7 @@ class VarEquivalenceAnalysis(IRAnalysis):
     def analyze(self):
         # map from variables to "equivalence set" of variables, denoted
         # by "bag" (an int).
-        self._bags: dict[IRVariable, int] = {}
+        self._bags: dict[IROperand, int] = {}
 
         # dict from bags to literal values
         self._literals: dict[int, IRLiteral] = {}
@@ -31,6 +33,7 @@ class VarEquivalenceAnalysis(IRAnalysis):
                 bag += 1
 
     def _handle_nonstore(self, inst: IRInstruction, bag: int):
+        assert inst.output is not None  # help mypy
         if bag in self._bags:
             bag = self._bags[inst.output]
         else:
@@ -42,7 +45,8 @@ class VarEquivalenceAnalysis(IRAnalysis):
         source = inst.operands[0]
 
         assert var is not None  # help mypy
-        assert var not in self._bags # invariant
+        assert isinstance(source, (IRVariable, IRLiteral))
+        assert var not in self._bags  # invariant
 
         if source in self._bags:
             bag = self._bags[source]
@@ -63,7 +67,7 @@ class VarEquivalenceAnalysis(IRAnalysis):
             return False
         return self._bags[var1] == self._bags[var2]
 
-    def get_literal(self, var: IROperand) -> IRLiteral:
+    def get_literal(self, var: IROperand) -> Optional[IRLiteral]:
         if isinstance(var, IRLiteral):
             return var
         if (bag := self._bags.get(var)) is None:
@@ -71,6 +75,5 @@ class VarEquivalenceAnalysis(IRAnalysis):
         return self._literals.get(bag)
 
     def get_root_instruction(self, var: IROperand):
-        if (bag := self._bags.get(var)) is None:
-            return None
-        return self._root_instruction.get(var)
+        bag = self._bags[var]
+        return self._root_instructions[bag]
