@@ -32,7 +32,7 @@ class FunctionInlinerPass(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "calloca":
-                    ret.setdefault(inst.operands[2], []).append( inst)
+                    ret.setdefault(inst.operands[2], []).append(inst)
         return ret
 
     @property
@@ -65,6 +65,7 @@ class FunctionInlinerPass(IRPass):
         # generate a debuggable label
         def generate_label():
             return ctx.get_next_label(f"inline {target_function.name.value}")
+
         label_map = defaultdict(generate_label)
 
         # make copies of every bb and inline them into the code
@@ -98,7 +99,7 @@ class FunctionInlinerPass(IRPass):
                     inst.operands = [allocas[0].output]
                 if inst.opcode == "param":
                     inst.opcode = "store"
-                    inst.operands = [invoke_inst.operands[-i-1]]
+                    inst.operands = [invoke_inst.operands[-i - 1]]
                     last_param = inst
 
                 # remap variable output

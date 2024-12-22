@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.function import IRFunction
 
