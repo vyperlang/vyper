@@ -3,7 +3,6 @@ import dataclasses
 
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
