@@ -3,6 +3,9 @@ from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .function_inliner import FunctionInlinerPass
 from .float_allocas import FloatAllocas
+from .literals_codesize import ReduceLiteralsCodesize
+from .load_elimination import LoadElimination
+from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass

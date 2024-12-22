@@ -247,4 +247,5 @@ class IRFunction:
             bb_str = textwrap.indent(str(bb), "  ")
             ret += f"{bb_str}\n"
         ret = ret.strip() + "\n}"
-        return ret.strip()
+        ret += f"  ; close function {self.name}"
+        return ret

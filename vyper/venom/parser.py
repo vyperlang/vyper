@@ -10,12 +10,13 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
 
 VENOM_GRAMMAR = """
     %import common.CNAME
     %import common.DIGIT
+    %import common.HEXDIGIT
     %import common.LETTER
     %import common.WS
     %import common.INT
@@ -25,13 +26,15 @@ VENOM_GRAMMAR = """
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
 
-    start: function* data_section?
+    start: function* data_segment?
 
     # TODO: consider making entry block implicit, e.g.
     # `"{" instruction+ block* "}"`
     function: "function" LABEL_IDENT "{" block* "}"
 
-    data_section: "[data]" instruction*
+    data_segment: "data" "readonly" "{" data_section* "}"
+    data_section: "dbsection" LABEL_IDENT ":" data_item+
+    data_item: "db" (HEXSTR | LABEL)
 
     block: LABEL_IDENT ":" "\\n" statement*
 
@@ -53,7 +56,9 @@ VENOM_GRAMMAR = """
     LABEL_IDENT: (NAME | ESCAPED_STRING)
     LABEL: "@" LABEL_IDENT
 
+    DOUBLE_QUOTE: "\\""
     NAME: (DIGIT|LETTER|"_")+
+    HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
 
     %ignore WS
     %ignore COMMENT
@@ -101,17 +106,21 @@ def _unescape(s: str):
     return s
 
 
-class _DataSegment:
-    def __init__(self, instructions):
-        self.instructions = instructions
+class _TypedItem:
+    def __init__(self, children):
+        self.children = children
+
+
+class _DataSegment(_TypedItem):
+    pass
 
 
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
-        data_section = []
-        if isinstance(children[-1], _DataSegment):
-            data_section = children.pop().instructions
+        if len(children) > 0 and isinstance(children[-1], _DataSegment):
+            ctx.data_segment = children.pop().children
+
         funcs = children
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
@@ -130,8 +139,6 @@ class VenomTransformer(Transformer):
             _set_last_var(fn)
         _set_last_label(ctx)
 
-        ctx.data_segment = data_section
-
         return ctx
 
     def function(self, children) -> tuple[str, list[tuple[str, list[IRInstruction]]]]:
@@ -141,8 +148,24 @@ class VenomTransformer(Transformer):
     def statement(self, children):
         return children[0]
 
-    def data_section(self, children):
+    def data_segment(self, children):
         return _DataSegment(children)
+
+    def data_section(self, children):
+        label = IRLabel(children[0], True)
+        data_items = children[1:]
+        assert all(isinstance(item, DataItem) for item in data_items)
+        return DataSection(label, data_items)
+
+    def data_item(self, children):
+        item = children[0]
+        if isinstance(item, IRLabel):
+            return DataItem(item)
+        assert item.startswith('x"')
+        assert item.endswith('"')
+        item = item.removeprefix('x"').removesuffix('"')
+        item = item.replace("_", "")
+        return DataItem(bytes.fromhex(item))
 
     def block(self, children) -> tuple[str, list[IRInstruction]]:
         label, *instructions = children
