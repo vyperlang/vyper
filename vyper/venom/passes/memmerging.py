@@ -279,7 +279,8 @@ class MemMergePass(IRPass):
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src:
                     if n_copy.overwrites_self_src():
-                        # this will lead to an assertion failure in _optimize_copy
+                        # continue otherwise we will get an assertion failure
+                        # in _optimize_copy
                         continue
                     if self._read_after_write_hazard(n_copy):
                         _barrier()
