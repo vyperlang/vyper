@@ -31,7 +31,7 @@ class FunctionInlinerPass(IRPass):
         ret = {}
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode == "alloca":
+                if inst.opcode == "calloca":
                     ret.setdefault(inst.operands[2], []).append( inst)
         return ret
 
@@ -64,7 +64,7 @@ class FunctionInlinerPass(IRPass):
 
         # generate a debuggable label
         def generate_label():
-            return ctx.get_next_label(f"inline {target_function.name}")
+            return ctx.get_next_label(f"inline {target_function.name.value}")
         label_map = defaultdict(generate_label)
 
         # make copies of every bb and inline them into the code
@@ -74,6 +74,7 @@ class FunctionInlinerPass(IRPass):
             if bb is target_function.entry:
                 target_bb = new_bb
 
+            last_param = None
             for i, inst in enumerate(bb.instructions):
                 inst = inst.copy()
                 inst.parent = new_bb
@@ -82,7 +83,7 @@ class FunctionInlinerPass(IRPass):
                 for j, op in enumerate(inst.operands):
                     if isinstance(op, IRVariable):
                         inst.operands[j] = var_map[op]
-                    if isinstance(op, IRLabel):
+                    if isinstance(op, IRLabel) and inst.opcode in CFG_ALTERING_INSTRUCTIONS:
                         inst.operands[j] = label_map[op]
 
                 if inst.opcode == "ret":
@@ -92,12 +93,13 @@ class FunctionInlinerPass(IRPass):
                 if inst.opcode == "palloca":
                     alloca_id = inst.operands[2]
                     allocas = self._alloca_map[alloca_id]
-                    assert len(allocas) == 1, allocas
+                    assert len(allocas) == 1, allocas  # sanity check
                     inst.opcode = "store"
                     inst.operands = [allocas[0].output]
                 if inst.opcode == "param":
                     inst.opcode = "store"
                     inst.operands = [invoke_inst.operands[-i-1]]
+                    last_param = inst
 
                 # remap variable output
                 if inst.output is not None:
@@ -107,6 +109,11 @@ class FunctionInlinerPass(IRPass):
                         # this can happen because we are not in SSA yet.
                         pass
                     inst.output = var_map[inst.output]
+
+            # return pc - doesn't appear at call site, just a dummy for
+            # calling convention. we can remove it.
+            if last_param is not None:
+                new_bb.remove_instruction(last_param)
 
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)
