@@ -111,11 +111,6 @@ class FunctionInlinerPass(IRPass):
                         pass
                     inst.output = var_map[inst.output]
 
-            # return pc - doesn't appear at call site, just a dummy for
-            # calling convention. we can remove it.
-            if last_param is not None:
-                new_bb.remove_instruction(last_param)
-
             fn.append_basic_block(new_bb)
             self.worklist.append(new_bb)
 

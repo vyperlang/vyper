@@ -56,16 +56,14 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     FloatAllocas(ac, fn).run_pass()
 
+    # function inliner creates calling convention related garbage; remove it
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
 
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
-
-    # function inliner can insert bad variables, remove them before sccp
-
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     SCCP(ac, fn).run_pass()
 
