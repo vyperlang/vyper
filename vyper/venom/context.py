@@ -66,21 +66,28 @@ class IRContext:
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
 
-    def prune_unreachable_functions(self):
+    def walk_call_graph(self):
+        """
+        Return preorder traversal of the call graph
+        """
         entry = next(iter(self.functions.values()))
         to_visit = OrderedSet([entry])
-        seen = OrderedSet()
+        ret = OrderedSet()
         while to_visit:
             fn = to_visit.pop()
-            seen.add(fn)
+            ret.add(fn)
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
                     if inst.opcode == "invoke":
                         label = inst.operands[0]
                         next_fn = self.get_function(label)
-                        if next_fn not in seen:
+                        if next_fn not in ret:
                             to_visit.add(next_fn)
+        return ret
 
+
+    def prune_unreachable_functions(self):
+        seen = self.walk_call_graph()
         self.functions = {label: fn for label, fn in self.functions.items() if fn in seen}
 
     def chain_basic_blocks(self) -> None:

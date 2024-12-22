@@ -93,7 +93,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
-    for fn in ctx.functions.values():
+    for fn in ctx.walk_call_graph():#functions.values():
         _run_passes(fn, optimize)
     ctx.prune_unreachable_functions()
 
