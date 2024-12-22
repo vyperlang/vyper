@@ -36,6 +36,7 @@ _writes = {
     "tstore": TRANSIENT,
     "mstore": MEMORY,
     "istore": IMMUTABLES,
+    "itouch": MSIZE,
     "call": ALL ^ IMMUTABLES,
     "delegatecall": ALL ^ IMMUTABLES,
     "staticcall": MEMORY | RETURNDATA,

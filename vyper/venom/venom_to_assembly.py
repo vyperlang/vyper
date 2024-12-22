@@ -546,6 +546,12 @@ class VenomCompiler:
         elif opcode == "assert_unreachable":
             end_symbol = mksymbol("reachable")
             assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
+        elif opcode == "itouch":
+            addr = inst.operands[0]
+            assert isinstance(addr, IRLiteral)
+            assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+            assembly.append("MLOAD")
+            assembly.append("POP")
         elif opcode == "iload":
             addr = inst.operands[0]
             if isinstance(addr, IRLiteral):

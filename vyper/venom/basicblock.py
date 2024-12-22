@@ -20,6 +20,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "invoke",
         "sstore",
         "istore",
+        "itouch",
         "tstore",
         "mstore",
         "calldatacopy",
