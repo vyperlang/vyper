@@ -56,8 +56,8 @@ class Mem2Var(IRPass):
                 bb = inst.parent
                 idx = len(bb.instructions) - 1
                 assert inst == bb.instructions[idx]  # sanity
-                new_inst =IRInstruction("mstore", [var, inst.operands[1]])
-                bb.insert_instruction(new_inst , idx)
+                new_inst = IRInstruction("mstore", [var, inst.operands[1]])
+                bb.insert_instruction(new_inst, idx)
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
