@@ -108,8 +108,8 @@ class MemMergePass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
-        for copy in self._copies:
+    def _optimize_copy(self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str):
+        for copy in copies:
             copy.insts.sort(key=bb.instructions.index)
 
             if copy_opcode == "mcopy":
@@ -156,8 +156,8 @@ class MemMergePass(IRPass):
 
                 bb.mark_for_removal(inst)
 
-        self._copies.clear()
-        self._loads.clear()
+        #self._copies.clear()
+        #self._loads.clear()
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> bool:
         for copy in self._copies:
@@ -217,7 +217,19 @@ class MemMergePass(IRPass):
         self._copies = []
 
         def _barrier():
-            self._optimize_copy(bb, copy_opcode, load_opcode)
+            self._optimize_copy(bb, self._copies, copy_opcode, load_opcode)
+            self._copies.clear()
+            self._loads.clear()
+
+        def _load_barrier(interval: _Interval):
+            copies = [c for c in self._copies if c.overwrites(interval)]
+            self._optimize_copy(bb, copies, copy_opcode, load_opcode)
+            self._copies = [c for c in self._copies if not c.overwrites(interval)]
+            for c in copies:
+                for inst in c.insts:
+                    if inst.opcode == load_opcode:
+                        assert isinstance(inst.output, IRVariable)
+                        del self._loads[inst.output]
 
         # copy in necessary because there is a possibility
         # of insertion in optimizations
@@ -232,7 +244,7 @@ class MemMergePass(IRPass):
 
                 # we will read from this memory so we need to put barier
                 if not allow_dst_overlaps_src and self._overwrites(read_interval):
-                    _barrier()
+                    _load_barrier(read_interval)
 
                 assert inst.output is not None
                 self._loads[inst.output] = src_op.value

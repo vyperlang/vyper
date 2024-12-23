@@ -17,6 +17,32 @@ def _check_pre_post(pre, post):
 def _check_no_change(pre):
     _check_pre_post(pre, pre)
 
+def test_memmerging_tmp():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        %1 = mload 352
+        mstore 448, %1
+        %2 = mload 416
+        mstore 64, %2
+        %3 = mload 448  ; barrier, flushes mload 416 from list of potential copies
+        mstore 96, %3
+        stop
+    """
+
+    post = """
+    main:
+        %1 = mload 352
+        mstore 448, %1
+        mcopy 64, 416, 64
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
 
 def test_memmerging():
     """
