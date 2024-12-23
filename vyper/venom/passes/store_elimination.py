@@ -9,18 +9,15 @@ class StoreElimination(IRPass):
     and removes the `store` instruction.
     """
 
+    # TODO: consider renaming `store` instruction, since it is confusing
+    # with LoadElimination
+
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for var, inst in dfg.outputs.items():
             if inst.opcode != "store":
-                continue
-            if not isinstance(inst.operands[0], IRVariable):
-                continue
-            if inst.operands[0].name in ["%ret_ofst", "%ret_size"]:
-                continue
-            if inst.output.name in ["%ret_ofst", "%ret_size"]:
                 continue
             self._process_store(dfg, inst, var, inst.operands[0])
 

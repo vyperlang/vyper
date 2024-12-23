@@ -5,6 +5,7 @@ from vyper.utils import (
     SizeLimits,
     evm_div,
     evm_mod,
+    evm_not,
     evm_pow,
     signed_to_unsigned,
     unsigned_to_signed,
@@ -95,11 +96,6 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-def _evm_not(value: int) -> int:
-    assert 0 <= value <= SizeLimits.MAX_UINT256, "Value out of bounds"
-    return SizeLimits.MAX_UINT256 ^ value
-
-
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
     "add": _wrap_binop(operator.add),
     "sub": _wrap_binop(operator.sub),
@@ -117,7 +113,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
     "or": _wrap_binop(operator.or_),
     "and": _wrap_binop(operator.and_),
     "xor": _wrap_binop(operator.xor),
-    "not": _wrap_unop(_evm_not),
+    "not": _wrap_unop(evm_not),
     "signextend": _wrap_binop(_evm_signextend),
     "iszero": _wrap_unop(_evm_iszero),
     "shr": _wrap_binop(_evm_shr),

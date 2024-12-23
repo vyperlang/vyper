@@ -1,3 +1,5 @@
+import json
+import re
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -105,7 +107,7 @@ class IRDebugInfo:
 
     def __repr__(self) -> str:
         src = self.src if self.src else ""
-        return f"\t# line {self.line_no}: {src}".expandtabs(20)
+        return f"\t; line {self.line_no}: {src}".expandtabs(20)
 
 
 class IROperand:
@@ -189,9 +191,18 @@ class IRLabel(IROperand):
     value: str
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
-        assert isinstance(value, str), "value must be an str"
+        assert isinstance(value, str), f"not a str: {value} ({type(value)})"
+        assert len(value) > 0
         super().__init__(value)
         self.is_symbol = is_symbol
+
+    _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")
+
+    def __repr__(self):
+        if self.__class__._IS_IDENTIFIER.fullmatch(self.value):
+            return self.value
+
+        return json.dumps(self.value)  # escape it
 
 
 class IRInstruction:
@@ -206,7 +217,7 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperand]
-    output: Optional[IROperand]
+    output: Optional[IRVariable]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     parent: "IRBasicBlock"
@@ -218,7 +229,7 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
-        output: Optional[IROperand] = None,
+        output: Optional[IRVariable] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -366,20 +377,6 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
-    def str_short(self) -> str:
-        s = ""
-        if self.output:
-            s += f"{self.output} = "
-        opcode = f"{self.opcode} " if self.opcode != "store" else ""
-        s += opcode
-        operands = self.operands
-        if opcode not in ["jmp", "jnz", "invoke"]:
-            operands = list(reversed(operands))
-        s += ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
-        )
-        return s
-
     def __repr__(self) -> str:
         s = ""
         if self.output:
@@ -387,14 +384,15 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ("jmp", "jnz", "invoke"):
+        if self.opcode == "invoke":
+            operands = [operands[0]] + list(reversed(operands[1:]))
+        elif self.opcode not in ("jmp", "jnz", "phi"):
             operands = reversed(operands)  # type: ignore
-        s += ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
-        )
+
+        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
-            s += f" <{self.annotation}>"
+            s += f" ; {self.annotation}"
 
         return f"{s: <30}"
 
@@ -451,6 +449,8 @@ class IRBasicBlock:
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
         self.is_reachable = False
+
+        self._garbage_instructions: set[IRInstruction] = set()
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
@@ -526,12 +526,19 @@ class IRBasicBlock:
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
+    def mark_for_removal(self, instruction: IRInstruction) -> None:
+        self._garbage_instructions.add(instruction)
+
+    def clear_dead_instructions(self) -> None:
+        if len(self._garbage_instructions) > 0:
+            self.instructions = [
+                inst for inst in self.instructions if inst not in self._garbage_instructions
+            ]
+            self._garbage_instructions.clear()
+
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
-
-    def clear_instructions(self) -> None:
-        self.instructions = []
 
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
@@ -650,10 +657,12 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = (
-            f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        )
+        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
+        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         for instruction in self.instructions:
-            s += f"    {str(instruction).strip()}\n"
+            s += f"  {str(instruction).strip()}\n"
+        if len(self.instructions) > 30:
+            s += f"  ; {self.label}\n"
+        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
+            s += f"  ; ({self.parent.name})\n\n"
         return s
