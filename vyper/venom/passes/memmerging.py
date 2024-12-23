@@ -108,7 +108,9 @@ class MemMergePass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str):
+    def _optimize_copy(
+        self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
+    ):
         for copy in copies:
             copy.insts.sort(key=bb.instructions.index)
 
@@ -156,10 +158,11 @@ class MemMergePass(IRPass):
 
                 bb.mark_for_removal(inst)
 
-        #self._copies.clear()
-        #self._loads.clear()
+        # self._copies.clear()
+        # self._loads.clear()
 
-    def _write_after_write_hazard(self, new_copy: _Copy) -> bool:
+    def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
+        res = []
         for copy in self._copies:
             # note, these are the same:
             # - new_copy.overwrites(copy.dst_interval())
@@ -167,8 +170,9 @@ class MemMergePass(IRPass):
             if new_copy.overwrites(copy.dst_interval()) and not (
                 copy.can_merge(new_copy) or new_copy.can_merge(copy)
             ):
-                return True
-        return False
+                res.append(copy)
+
+        return res
 
     def _read_after_write_hazard(self, new_copy: _Copy) -> bool:
         new_copies = self._copies + [new_copy]
@@ -223,9 +227,12 @@ class MemMergePass(IRPass):
 
         def _load_barrier(interval: _Interval):
             copies = [c for c in self._copies if c.overwrites(interval)]
+            _barrier_for(copies)
+
+        def _barrier_for(copies: list[_Copy]):
             self._optimize_copy(bb, copies, copy_opcode, load_opcode)
-            self._copies = [c for c in self._copies if not c.overwrites(interval)]
             for c in copies:
+                self._copies.remove(c)
                 for inst in c.insts:
                     if inst.opcode == load_opcode:
                         assert isinstance(inst.output, IRVariable)
@@ -265,8 +272,9 @@ class MemMergePass(IRPass):
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
 
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
+                write_hazards = self._write_after_write_hazard(n_copy)
+                if len(write_hazards) > 0:
+                    _barrier_for(write_hazards)
                     # no continue needed, we have not invalidated the loads dict
 
                 # check if the new copy does not overwrites existing data
@@ -285,8 +293,9 @@ class MemMergePass(IRPass):
                 length, src, dst = inst.operands
                 n_copy = _Copy(dst.value, src.value, length.value, [inst])
 
-                if self._write_after_write_hazard(n_copy):
-                    _barrier()
+                write_hazards = self._write_after_write_hazard(n_copy)
+                if len(write_hazards) > 0:
+                    _barrier_for(write_hazards)
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
                     _barrier()
@@ -338,7 +347,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_copy = _Copy.memzero(dst.value, 32, [inst])
-                assert not self._write_after_write_hazard(n_copy)
+                assert len(self._write_after_write_hazard(n_copy)) == 0
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
                 length, var, dst = inst.operands
@@ -354,7 +363,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_copy = _Copy.memzero(dst.value, length.value, [inst])
-                assert not self._write_after_write_hazard(n_copy)
+                assert len(self._write_after_write_hazard(n_copy)) == 0
                 self._add_copy(n_copy)
             elif _volatile_memory(inst):
                 _barrier()
