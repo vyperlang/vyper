@@ -174,20 +174,25 @@ class MemMergePass(IRPass):
 
         return res
 
-    def _read_after_write_hazard(self, new_copy: _Copy) -> bool:
-        new_copies = self._copies + [new_copy]
+    def _read_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
+        # new_copies = self._copies + [new_copy]
+
+        res = [copy for copy in self._copies if new_copy.overwrites(copy.src_interval())] + [
+            copy for copy in self._copies if copy.overwrites(new_copy.src_interval())
+        ]
+        return res
 
         # new copy would overwrite memory that
         # needs to be read to optimize copy
-        if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
-            return True
+        # if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
+        # return True
 
         # existing copies would overwrite memory that the
         # new copy would need
-        if self._overwrites(new_copy.src_interval()):
-            return True
+        # if self._overwrites(new_copy.src_interval()):
+        # return True
 
-        return False
+        # return False
 
     def _find_insertion_point(self, new_copy: _Copy):
         return bisect_left(self._copies, new_copy.dst, key=lambda c: c.dst)
@@ -232,11 +237,13 @@ class MemMergePass(IRPass):
         def _barrier_for(copies: list[_Copy]):
             self._optimize_copy(bb, copies, copy_opcode, load_opcode)
             for c in copies:
-                self._copies.remove(c)
+                if c in self._copies:
+                    self._copies.remove(c)
                 for inst in c.insts:
                     if inst.opcode == load_opcode:
                         assert isinstance(inst.output, IRVariable)
-                        del self._loads[inst.output]
+                        if inst.output in self._loads:
+                            del self._loads[inst.output]
 
         # copy in necessary because there is a possibility
         # of insertion in optimizations
@@ -278,11 +285,15 @@ class MemMergePass(IRPass):
                     # no continue needed, we have not invalidated the loads dict
 
                 # check if the new copy does not overwrites existing data
-                if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
-                    _barrier()
-                    # this continue is necessary because we have invalidated
-                    # the _loads dict, so src_ptr is no longer valid.
-                    continue
+                if not allow_dst_overlaps_src:
+                    read_hazards = self._read_after_write_hazard(n_copy)
+                    if len(read_hazards) > 0:
+                        _barrier_for(read_hazards)
+                        # this continue is necessary because we have invalidated
+                        # the _loads dict, so src_ptr is no longer valid.
+                        continue
+                    if n_copy.overwrites_self_src():
+                        continue
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
@@ -297,8 +308,12 @@ class MemMergePass(IRPass):
                 if len(write_hazards) > 0:
                     _barrier_for(write_hazards)
                 # check if the new copy does not overwrites existing data
-                if not allow_dst_overlaps_src and self._read_after_write_hazard(n_copy):
-                    _barrier()
+                if not allow_dst_overlaps_src:
+                    read_hazards = self._read_after_write_hazard(n_copy)
+                    if len(read_hazards) > 0:
+                        _barrier_for(read_hazards)
+                    if n_copy.overwrites_self_src():
+                        continue
                 self._add_copy(n_copy)
 
             elif _volatile_memory(inst):
