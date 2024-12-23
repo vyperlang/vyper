@@ -182,18 +182,6 @@ class MemMergePass(IRPass):
         ]
         return res
 
-        # new copy would overwrite memory that
-        # needs to be read to optimize copy
-        # if any(new_copy.overwrites(copy.src_interval()) for copy in new_copies):
-        # return True
-
-        # existing copies would overwrite memory that the
-        # new copy would need
-        # if self._overwrites(new_copy.src_interval()):
-        # return True
-
-        # return False
-
     def _find_insertion_point(self, new_copy: _Copy):
         return bisect_left(self._copies, new_copy.dst, key=lambda c: c.dst)
 
