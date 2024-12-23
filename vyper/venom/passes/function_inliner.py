@@ -31,7 +31,7 @@ class FunctionInlinerPass(IRPass):
         ret = {}
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode == "calloca":
+                if inst.opcode == "alloca":
                     ret.setdefault(inst.operands[2], []).append(inst)
         return ret
 
