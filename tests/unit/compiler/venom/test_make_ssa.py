@@ -50,4 +50,3 @@ def test_phi_case():
     }
     """
     _check_pre_post(pre, post)
-
