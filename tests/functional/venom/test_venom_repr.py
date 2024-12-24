@@ -60,6 +60,7 @@ def _round_trip_helper(vyper_source, optimize):
     _helper1(vyper_source, optimize)
     _helper2(vyper_source, optimize)
 
+
 def _helper1(vyper_source, optimize):
     """
     Check that we are able to run passes on the round-tripped venom code
