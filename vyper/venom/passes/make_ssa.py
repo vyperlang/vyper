@@ -39,10 +39,6 @@ class MakeSSA(IRPass):
         has_already = {bb: 0 for bb in self.dom.dfs_walk}
         i = 0
 
-        # for bb in self.dom.dfs_walk:
-        #     if len(bb.get_phi_assignments()) > 0:
-        #         has_already[bb] = 1
-
         # Iterate over all variables
         for var, d in self.defs.items():
             i += 1
