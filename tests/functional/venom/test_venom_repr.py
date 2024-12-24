@@ -1,3 +1,4 @@
+import copy
 import glob
 import textwrap
 
@@ -19,7 +20,7 @@ def get_example_vy_filenames():
 
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-def test_round_trip_examples(vy_filename, optimize):
+def test_round_trip_examples(vy_filename, optimize, compiler_settings):
     """
     Check all examples round trip
     """
@@ -27,7 +28,7 @@ def test_round_trip_examples(vy_filename, optimize):
     with open(path) as f:
         vyper_source = f.read()
 
-    _round_trip_helper(vyper_source, optimize)
+    _round_trip_helper(vyper_source, optimize, compiler_settings)
 
 
 # pure vyper sources
@@ -44,21 +45,21 @@ vyper_sources = [
 
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)
-def test_round_trip_sources(vyper_source, optimize):
+def test_round_trip_sources(vyper_source, optimize, compiler_settings):
     """
     Test vyper_sources round trip
     """
     vyper_source = textwrap.dedent(vyper_source)
-    _round_trip_helper(vyper_source, optimize)
+    _round_trip_helper(vyper_source, optimize, compiler_settings)
 
 
-def _round_trip_helper(vyper_source, optimize):
-    # different tests that we round-trip.
-    # split into two helpers because run_passes_on and
+def _round_trip_helper(vyper_source, optimize, compiler_settings):
+    # helper function to test venom round-tripping thru the parser
+    # use two helpers because run_passes_on and
     # generate_assembly_experimental are both destructive (mutating) on
     # the IRContext
     _helper1(vyper_source, optimize)
-    _helper2(vyper_source, optimize)
+    _helper2(vyper_source, optimize, compiler_settings)
 
 
 def _helper1(vyper_source, optimize):
@@ -88,12 +89,16 @@ def _helper1(vyper_source, optimize):
     generate_bytecode(asm, compiler_metadata=None)
 
 
-def _helper2(vyper_source, optimize):
+def _helper2(vyper_source, optimize, compiler_settings):
     """
     Check that we can compile to bytecode, and without running venom passes,
     that the output bytecode is equal to going through the normal vyper pipeline
     """
-    out = compile_code(vyper_source, output_formats=["bb_runtime"])
+    settings = copy.copy(compiler_settings)
+    # bytecode equivalence only makes sense if we use venom pipeline
+    settings.experimental_codegen = True
+
+    out = compile_code(vyper_source, settings=settings, output_formats=["bb_runtime"])
     bb_runtime = out["bb_runtime"]
     venom_code = IRContext.__repr__(bb_runtime)
 
@@ -105,5 +110,5 @@ def _helper2(vyper_source, optimize):
     asm = generate_assembly_experimental(ctx)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
 
-    out = compile_code(vyper_source, output_formats=["bytecode_runtime"])
+    out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
     assert "0x" + bytecode.hex() == out["bytecode_runtime"]
