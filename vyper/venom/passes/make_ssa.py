@@ -96,7 +96,6 @@ class MakeSSA(IRPass):
                 self.var_name_counters[v_name] = i + 1
 
                 inst.output = IRVariable(v_name, version=i)
-                # note - after previous line, inst.output.name != v_name
                 outs.append(inst.output.name)
 
         for bb in basic_block.cfg_out:
