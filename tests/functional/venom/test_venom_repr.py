@@ -52,7 +52,7 @@ def test_round_trip_sources(vyper_source, optimize):
 
 
 def _round_trip_helper(vyper_source, optimize):
-    out = compile_code(vyper_source, output_formats=["bb_runtime", "bytecode_runtime"])
+    out = compile_code(vyper_source, output_formats=["bb_runtime"])
     bb_runtime = out["bb_runtime"]
     venom_code = IRContext.__repr__(bb_runtime)
 
@@ -65,10 +65,10 @@ def _round_trip_helper(vyper_source, optimize):
     # test that separately)
     run_passes_on(ctx, optimize)
 
+    # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
-    bytecode = f"0x{bytecode.hex()}"
+    _bytecode = generate_bytecode(asm, compiler_metadata=None)
 
     # TODO investigate: bytecodes should be equal (even without
     # `run_passes_on`) but not for some reason
-    # assert bytecode == out["bytecode_runtime"]
+    # assert "0x" + _bytecode.hex() == out["bytecode_runtime"]
