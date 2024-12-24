@@ -67,7 +67,7 @@ def _round_trip_helper(vyper_source, optimize):
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx)
-    _bytecode = generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm, compiler_metadata=None)
 
     # TODO investigate: bytecodes should be equal (even without
     # `run_passes_on`) but not for some reason
