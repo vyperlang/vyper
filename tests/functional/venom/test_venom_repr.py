@@ -19,7 +19,7 @@ def get_example_vy_filenames():
 
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-def test_round_trip_example(vy_filename, optimize):
+def test_round_trip_examples(vy_filename, optimize):
     """
     Check all examples round trip
     """
@@ -43,7 +43,10 @@ vyper_sources = [
 
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)
-def test_round_trip_source(vyper_source, optimize):
+def test_round_trip_sources(vyper_source, optimize):
+    """
+    Test vyper_sources round trip
+    """
     vyper_source = textwrap.dedent(vyper_source)
     _round_trip_helper(vyper_source, optimize)
 
@@ -58,6 +61,8 @@ def _round_trip_helper(vyper_source, optimize):
     assert_ctx_eq(bb_runtime, ctx)
 
     # check it's valid to run venom passes+analyses
+    # (note this breaks bytecode equality, in the future we should
+    # test that separately)
     run_passes_on(ctx, optimize)
 
     asm = generate_assembly_experimental(ctx)
