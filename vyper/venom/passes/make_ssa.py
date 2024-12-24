@@ -63,9 +63,6 @@ class MakeSSA(IRPass):
         if var not in basic_block.liveness_in_vars:
             return
         
-        if var in basic_block.get_phi_assignments():
-            return
-
         args: list[IROperand] = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
