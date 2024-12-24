@@ -1,6 +1,6 @@
 import glob
-
 import textwrap
+
 import pytest
 
 from tests.venom_utils import assert_ctx_eq, parse_venom
@@ -29,14 +29,18 @@ def test_round_trip_example(vy_filename, optimize):
 
     _round_trip_helper(vyper_source, optimize)
 
-vyper_sources = ["""
+
+vyper_sources = [
+    """
     @external
     def _loop() -> uint256:
         res: uint256 = 9
         for i: uint256 in range(res, bound=10):
             res = res + i
         return res
-        """]
+        """
+]
+
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)
 def test_round_trip_source(vyper_source, optimize):
