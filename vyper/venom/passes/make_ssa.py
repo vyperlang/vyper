@@ -35,9 +35,13 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        work = {var: 0 for var in self.dom.dfs_walk}
-        has_already = {var: 0 for var in self.dom.dfs_walk}
+        work = {bb: 0 for bb in self.dom.dfs_walk}
+        has_already = {bb: 0 for bb in self.dom.dfs_walk}
         i = 0
+
+        # for bb in self.dom.dfs_walk:
+        #     if len(bb.get_phi_assignments()) > 0:
+        #         has_already[bb] = 1
 
         # Iterate over all variables
         for var, d in self.defs.items():
@@ -57,6 +61,9 @@ class MakeSSA(IRPass):
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
         if var not in basic_block.liveness_in_vars:
+            return
+        
+        if var in basic_block.get_phi_assignments():
             return
 
         args: list[IROperand] = []
@@ -106,8 +113,9 @@ class MakeSSA(IRPass):
                 assert inst.output is not None, "Phi instruction without output"
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
+                        var = inst.operands[i + 1]
                         inst.operands[i + 1] = IRVariable(
-                            inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
+                            var.name, version=self.var_name_stacks[var.name][-1]
                         )
 
         for bb in self.dom.dominated[basic_block]:
