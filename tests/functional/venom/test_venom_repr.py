@@ -30,6 +30,7 @@ def test_round_trip_examples(vy_filename, optimize):
     _round_trip_helper(vyper_source, optimize)
 
 
+# pure vyper sources
 vyper_sources = [
     """
     @external
@@ -52,6 +53,18 @@ def test_round_trip_sources(vyper_source, optimize):
 
 
 def _round_trip_helper(vyper_source, optimize):
+    # different tests that we round-trip.
+    # split into two helpers because run_passes_on and
+    # generate_assembly_experimental are both destructive (mutating) on
+    # the IRContext
+    _helper1(vyper_source, optimize)
+    _helper2(vyper_source, optimize)
+
+def _helper1(vyper_source, optimize):
+    """
+    Check that we are able to run passes on the round-tripped venom code
+    and that it is valid (generates bytecode)
+    """
     # note: compiling any later stage than bb_runtime like `asm` or
     # `bytecode` modifies the bb_runtime data structure in place and results
     # in normalization of the venom cfg (which breaks again make_ssa)
@@ -73,6 +86,23 @@ def _round_trip_helper(vyper_source, optimize):
     asm = generate_assembly_experimental(ctx)
     generate_bytecode(asm, compiler_metadata=None)
 
-    # TODO investigate: bytecodes should be equal (even without
-    # `run_passes_on`) but not for some reason
-    # assert "0x" + _bytecode.hex() == out["bytecode_runtime"]
+
+def _helper2(vyper_source, optimize):
+    """
+    Check that we can compile to bytecode, and without running venom passes,
+    that the output bytecode is equal to going through the normal vyper pipeline
+    """
+    out = compile_code(vyper_source, output_formats=["bb_runtime"])
+    bb_runtime = out["bb_runtime"]
+    venom_code = IRContext.__repr__(bb_runtime)
+
+    ctx = parse_venom(venom_code)
+
+    assert_ctx_eq(bb_runtime, ctx)
+
+    # test we can generate assembly+bytecode
+    asm = generate_assembly_experimental(ctx)
+    bytecode = generate_bytecode(asm, compiler_metadata=None)
+
+    out = compile_code(vyper_source, output_formats=["bytecode_runtime"])
+    assert "0x" + bytecode.hex() == out["bytecode_runtime"]
