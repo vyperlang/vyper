@@ -100,6 +100,7 @@ class MemMergePass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
+            self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -117,7 +118,7 @@ class MemMergePass(IRPass):
 
             pin_inst = None
             inst = copy.insts[-1]
-            if copy.length != 32:
+            if copy.length != 32 or load_opcode == "dload":
                 inst.output = None
                 inst.opcode = copy_opcode
                 inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]

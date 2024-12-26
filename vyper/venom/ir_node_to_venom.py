@@ -4,7 +4,6 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.utils import MemoryPositions
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -67,6 +66,8 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "mload",
         "iload",
         "istore",
+        "dload",
+        "dloadbytes",
         "sload",
         "sstore",
         "tload",
@@ -366,17 +367,15 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
-        label = IRLabel(ir.args[0].value)
-        ctx.append_data("dbname", [label])
+        label = IRLabel(ir.args[0].value, True)
+        ctx.append_data_section(label)
         for c in ir.args[1:]:
-            if isinstance(c, int):
-                assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c.value, bytes):
-                ctx.append_data("db", [c.value])  # type: ignore
+            if isinstance(c.value, bytes):
+                ctx.append_data_item(c.value)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
-                ctx.append_data("db", [data])  # type: ignore
+                assert isinstance(data, IRLabel)  # help mypy
+                ctx.append_data_item(data)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
@@ -402,22 +401,6 @@ def _convert_ir_bb(fn, ir, symbols):
             bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
-
-    elif ir.value == "dload":
-        arg_0 = _convert_ir_bb(fn, ir.args[0], symbols)
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", arg_0, IRLabel("code_end"))
-
-        bb.append_instruction("dloadbytes", 32, src, MemoryPositions.FREE_VAR_SPACE)
-        return bb.append_instruction("mload", MemoryPositions.FREE_VAR_SPACE)
-
-    elif ir.value == "dloadbytes":
-        dst, src_offset, len_ = _convert_ir_bb_list(fn, ir.args, symbols)
-
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", src_offset, IRLabel("code_end"))
-        bb.append_instruction("dloadbytes", len_, src, dst)
-        return None
 
     elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
