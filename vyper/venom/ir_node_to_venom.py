@@ -195,11 +195,26 @@ def _handle_internal_func(
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
+    for arg in fn.args:
+        ret = bb.append_instruction("param")
+        arg.func_var = ret
+
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
+    for arg in fn.args:
+        ret = bb.append_instruction("alloca", arg.offset, 32)
+        bb.append_instruction("mstore", arg.func_var, ret)  # type: ignore
+        arg.addr_var = ret
+
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
+
+    for inst in bb.instructions:
+        if inst.opcode == "store":
+            param = fn.get_param_at_offset(inst.operands[0].value)
+            if param is not None:
+                inst.operands[0] = param.addr_var  # type: ignore
 
     return fn
 
