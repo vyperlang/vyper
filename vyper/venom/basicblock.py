@@ -308,6 +308,12 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
+    def make_nop(self):
+        self.opcode = "nop"
+        self.output = None
+        self.operands = []
+        self.annotation = None
+
     def flip(self):
         """
         Flip operands for commutative or comparator opcodes

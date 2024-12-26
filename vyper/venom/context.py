@@ -2,7 +2,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
-from vyper.venom.basicblock import IRBasicBlock, IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -71,12 +71,22 @@ class IRContext:
         if name in self.functions:
             return self.functions[name]
         raise Exception(f"Function {name} not found in context")
+    
+    def get_functions(self) -> Iterator[IRFunction]:
+        return iter(self.functions.values())
 
     def get_next_label(self, suffix: str = "") -> IRLabel:
         if suffix != "":
             suffix = f"_{suffix}"
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
+    
+    def get_next_variable(self) -> IRVariable:
+        self.last_variable += 1
+        return IRVariable(f"%{self.last_variable}")
+
+    def get_last_variable(self) -> str:
+        return f"%{self.last_variable}"
 
     def chain_basic_blocks(self) -> None:
         """
