@@ -160,6 +160,12 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     target_label = goto_ir.args[0].value  # goto
     return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
+
+    fn.ctx.create_function(target_label)
+
+    stack_args: list[IROperand] = []
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
@@ -169,6 +175,9 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     bb = fn.get_basic_block()
     if len(goto_ir.args) > 2:
         ret_args.append(return_buf)  # type: ignore
+
+    for stack_arg in stack_args:
+        ret_args.append(stack_arg)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 

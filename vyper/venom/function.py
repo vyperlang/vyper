@@ -42,7 +42,7 @@ class IRFunction:
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        assert bb.label.name not in self._basic_block_dict, bb.label
+        # assert bb.label.name not in self._basic_block_dict, bb.label
         self._basic_block_dict[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):
@@ -179,10 +179,12 @@ class IRFunction:
             else:
                 bb.append_instruction("stop")
 
-    def copy(self):
-        new = IRFunction(self.name)
-        new._basic_block_dict = self._basic_block_dict.copy()
-        new.last_variable = self.last_variable
+    def copy(self, prefix: str = ""):
+        new_label = IRLabel(f"{prefix}{self.name.value}")
+        new = IRFunction(new_label)
+        for bb in self.get_basic_blocks():
+            new_bb = bb.copy(prefix)
+            new.append_basic_block(new_bb)
         return new
 
     def as_graph(self, only_subgraph=False) -> str:

@@ -53,10 +53,14 @@ class CFGAnalysis(IRAnalysis):
     def invalidate(self):
         from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 
+        fn = self.function
+        for bb in fn.get_basic_blocks():
+            bb.cfg_in = OrderedSet()
+            bb.cfg_out = OrderedSet()
+            bb.out_vars = OrderedSet()
+
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-
-        self._dfs = None
-
-        # be conservative - assume cfg invalidation invalidates dfg
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self._dfs = None
+        

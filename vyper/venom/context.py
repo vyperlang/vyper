@@ -1,8 +1,8 @@
 import textwrap
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Iterator, Optional
 
-from vyper.venom.basicblock import IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.function import IRFunction
 
 
@@ -36,6 +36,7 @@ class IRContext:
     immutables_len: Optional[int]
     data_segment: list[DataSection]
     last_label: int
+    last_variable: int
 
     def __init__(self) -> None:
         self.functions = {}
@@ -43,14 +44,26 @@ class IRContext:
         self.immutables_len = None
         self.data_segment = []
         self.last_label = 0
+        self.last_variable = 0
+
+    def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
+        for fn in self.functions.values():
+            for bb in fn.get_basic_blocks():
+                yield bb
 
     def add_function(self, fn: IRFunction) -> None:
         fn.ctx = self
         self.functions[fn.name] = fn
 
+    def remove_function(self, fn: IRFunction) -> None:
+        del self.functions[fn.name]
+
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)
+        if label in self.functions:
+            return self.functions[label]
         fn = IRFunction(label, self)
+        fn.append_basic_block(IRBasicBlock(label, fn))
         self.add_function(fn)
         return fn
 
