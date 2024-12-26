@@ -975,6 +975,8 @@ def bar(a:int32) -> uint256:
 
 @pytest.mark.xfail
 def test_weird_interface_name():
+    # based on comment https://github.com/vyperlang/vyper/pull/4290#discussion_r1884137428
+    # we replace "_" for "" which results in an interface without name
     out = compile_code("", contract_path="_.vyi", output_formats=["external_interface"])[
         "external_interface"
     ]
