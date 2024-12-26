@@ -25,6 +25,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
+    FuncInlinerPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -46,11 +47,9 @@ def generate_assembly_experimental(
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
-
-    ac = IRAnalysesCache(fn)
 
     FloatAllocas(ac, fn).run_pass()
 
@@ -85,15 +84,21 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     DFTPass(ac, fn).run_pass()
 
-
-def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
-    for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
-
+def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    fn = next(ctx.get_functions())
+    FuncInlinerPass(ir_analyses[fn], fn).run_pass()
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
-    run_passes_on(ctx, optimize)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    _run_global_passes(ctx, optimize, ir_analyses)
+    
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize, ir_analyses[fn])
 
     return ctx

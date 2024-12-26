@@ -14,3 +14,4 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
+from .func_inliner import FuncInlinerPass
