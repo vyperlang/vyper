@@ -22,7 +22,6 @@ class FCGAnalysis(IRAnalysis):
 
     def analyze(self) -> None:
         ctx = self.ctx
-        fn = self.function
         for func in ctx.get_functions():
             self.calls[func] = OrderedSet()
             self.callees[func] = OrderedSet()

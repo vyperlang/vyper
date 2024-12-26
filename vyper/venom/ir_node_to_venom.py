@@ -121,6 +121,7 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
+    ctx.entry_function = fn
 
     _convert_ir_bb(fn, ir, {})
 

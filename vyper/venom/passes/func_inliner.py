@@ -1,38 +1,43 @@
+import sys
+from vyper.venom.function import IRFunction
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.context import IRContext
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import IRGlobalPass
 
 
-class FuncInlinerPass(IRPass):
+class FuncInlinerPass(IRGlobalPass):
     """
     This pass inlines functions into the call sites.
     """
 
-    ctx: IRContext
     inline_count: int
     fcg: FCGAnalysis
 
     def run_pass(self):
+        entry = self.ctx.entry_function
         self.inline_count = 0
-        self.ctx = self.function.ctx
-        self.fcg = self.analyses_cache.request_analysis(FCGAnalysis)
+        
+        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
+        self.walk = self._build_call_walk(entry)
+        
+        for function in list(self.ctx.functions.values()):
+            self.run_pass_on(function)
 
-        walk = self._build_call_walk()
-        for func in walk:
-            calls = self.fcg.get_calls(func)
-            if len(calls) == 1 and False:
-                # sys.stderr.write("**** Inlining function " + str(func.name) + "\n")
-                self._inline_function(func, calls)
-                self.ctx.remove_function(func)
-                # break
+    def run_pass_on(self, func: IRFunction):
+        calls = self.fcg.get_calls(func)
+        if len(calls) == 1:
+            sys.stderr.write("**** Inlining function " + str(func.name) + "\n")
+            self._inline_function(func, calls)
 
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(CFGAnalysis)
+            self.analyses_caches[func].invalidate_analysis(DFGAnalysis)
+            self.analyses_caches[func].invalidate_analysis(CFGAnalysis)
 
-    def _build_call_walk(self):
+            self.ctx.remove_function(func)
+        
+    def _build_call_walk(self, function: IRFunction):
         """
         DFS walk over the call graph.
         """
@@ -50,7 +55,7 @@ class FuncInlinerPass(IRPass):
 
             call_walk.append(fn)
 
-        dfs(self.function)
+        dfs(function)
 
         return call_walk
 
@@ -66,6 +71,9 @@ class FuncInlinerPass(IRPass):
         """
         for call_site in call_sites:
             self._inline_call_site(func, call_site)
+            fn = call_site.parent.parent
+            self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
+            self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
     def _inline_call_site(self, func, call_site):
         """

@@ -32,6 +32,7 @@ class DataSection:
 
 class IRContext:
     functions: dict[IRLabel, IRFunction]
+    entry_function: IRFunction
     ctor_mem_size: Optional[int]
     immutables_len: Optional[int]
     data_segment: list[DataSection]
@@ -40,6 +41,7 @@ class IRContext:
 
     def __init__(self) -> None:
         self.functions = {}
+        self.entry_function = None
         self.ctor_mem_size = None
         self.immutables_len = None
         self.data_segment = []
