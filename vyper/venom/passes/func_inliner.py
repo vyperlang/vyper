@@ -24,13 +24,13 @@ class FuncInlinerPass(IRGlobalPass):
         self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
         self.walk = self._build_call_walk(entry)
         
-        for function in list(self.ctx.functions.values()):
+        for function in self.walk:
             self.run_pass_on(function)
 
     def run_pass_on(self, func: IRFunction):
-        calls = self.fcg.get_calls(func)
+        calls = self.fcg.get_call_sites(func)
         if len(calls) == 1:
-            #sys.stderr.write("****\n**** Inlining function " + str(func.name) + "\n****\n")
+            # sys.stderr.write("****\n**** Inlining function " + str(func.name) + "\n****\n")
             self._inline_function(func, calls)
             self.ctx.remove_function(func)
 
@@ -112,9 +112,9 @@ class FuncInlinerPass(IRGlobalPass):
                 return
             visited.add(fn)
 
-            callees = self.fcg.get_callees(fn)
-            for callee in callees:
-                dfs(callee)
+            called_functions = self.fcg.get_callees(fn)
+            for func in called_functions:
+                dfs(func)
 
             call_walk.append(fn)
 

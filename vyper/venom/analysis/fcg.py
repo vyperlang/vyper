@@ -11,26 +11,26 @@ class FCGAnalysis(IRAnalysis):
     """
 
     ctx: IRContext
-    calls: dict[IRFunction, OrderedSet[IRInstruction]]
+    call_sites: dict[IRFunction, OrderedSet[IRInstruction]]
     callees: dict[IRFunction, OrderedSet[IRFunction]]
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.ctx = function.ctx
-        self.calls = dict()
+        self.call_sites = dict()
         self.callees = dict()
 
     def analyze(self) -> None:
         ctx = self.ctx
         for func in ctx.get_functions():
-            self.calls[func] = OrderedSet()
+            self.call_sites[func] = OrderedSet()
             self.callees[func] = OrderedSet()
 
         for fn in ctx.get_functions():
             self._analyze_function(fn)
 
-    def get_calls(self, fn: IRFunction) -> OrderedSet[IRInstruction]:
-        return self.calls[fn]
+    def get_call_sites(self, fn: IRFunction) -> OrderedSet[IRInstruction]:
+        return self.call_sites[fn]
 
     def get_callees(self, fn: IRFunction) -> OrderedSet[IRFunction]:
         return self.callees[fn]
@@ -43,7 +43,7 @@ class FCGAnalysis(IRAnalysis):
                     assert isinstance(label, IRLabel)  # mypy help
                     callee = self.ctx.get_function(label)
                     self.callees[fn].add(callee)
-                    self.calls[callee].add(inst)
+                    self.call_sites[callee].add(inst)
 
     def invalidate(self):
         pass
