@@ -75,6 +75,14 @@ Or for internal functions which are defined in :ref:`imported modules <modules>`
     def calculate(amount: uint256) -> uint256:
         return calculator_library._times_two(amount)
 
+Marking an internal function as ``payable`` specifies that the function can interact with ``msg.value``. A ``nonpayable`` internal function can be called from an external ``payable`` function, but it cannot access ``msg.value``.
+
+.. code-block:: vyper
+
+    @payable
+    def _foo() -> uint256:
+        return msg.value % 2
+
 .. note::
    As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
 
@@ -110,7 +118,7 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
     * ``@pure``: does not read from the contract state or any environment variables.
     * ``@view``: may read from the contract state, but does not alter it.
     * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
-    * ``@payable``: may read from and write to the contract state, and can receive Ether.
+    * ``@payable``: may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
 
 .. code-block:: vyper
 
