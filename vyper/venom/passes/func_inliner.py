@@ -1,4 +1,5 @@
 import sys
+from vyper.venom.passes import FloatAllocas
 from vyper.venom.function import IRFunction
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -29,7 +30,7 @@ class FuncInlinerPass(IRGlobalPass):
     def run_pass_on(self, func: IRFunction):
         calls = self.fcg.get_calls(func)
         if len(calls) == 1:
-            sys.stderr.write("**** Inlining function " + str(func.name) + "\n")
+            #sys.stderr.write("****\n**** Inlining function " + str(func.name) + "\n****\n")
             self._inline_function(func, calls)
             self.ctx.remove_function(func)
 
@@ -44,6 +45,7 @@ class FuncInlinerPass(IRGlobalPass):
         Inline function into call sites.
         """
         for call_site in call_sites:
+            FloatAllocas(self.analyses_caches[func], func).run_pass()
             self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
