@@ -31,33 +31,7 @@ class FuncInlinerPass(IRGlobalPass):
         if len(calls) == 1:
             sys.stderr.write("**** Inlining function " + str(func.name) + "\n")
             self._inline_function(func, calls)
-
-            self.analyses_caches[func].invalidate_analysis(DFGAnalysis)
-            self.analyses_caches[func].invalidate_analysis(CFGAnalysis)
-
             self.ctx.remove_function(func)
-        
-    def _build_call_walk(self, function: IRFunction):
-        """
-        DFS walk over the call graph.
-        """
-        visited = set()
-        call_walk = []
-
-        def dfs(fn):
-            if fn in visited:
-                return
-            visited.add(fn)
-
-            callees = self.fcg.get_callees(fn)
-            for callee in callees:
-                dfs(callee)
-
-            call_walk.append(fn)
-
-        dfs(function)
-
-        return call_walk
 
     def _filter_candidates(self, func_call_counts):
         """
@@ -122,3 +96,26 @@ class FuncInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+
+
+    def _build_call_walk(self, function: IRFunction):
+        """
+        DFS walk over the call graph.
+        """
+        visited = set()
+        call_walk = []
+
+        def dfs(fn):
+            if fn in visited:
+                return
+            visited.add(fn)
+
+            callees = self.fcg.get_callees(fn)
+            for callee in callees:
+                dfs(callee)
+
+            call_walk.append(fn)
+
+        dfs(function)
+
+        return call_walk
