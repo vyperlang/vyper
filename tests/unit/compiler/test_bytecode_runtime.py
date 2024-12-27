@@ -67,7 +67,7 @@ def test_bytecode_signature(optimize, debug):
 
     if debug and optimize == OptimizationLevel.CODESIZE:
         # debug forces dense jumptable no matter the size of selector table
-        expected_data_section_lengths = [5, 35]
+        expected_data_section_lengths = [5, 7]
     else:
         expected_data_section_lengths = []
 
