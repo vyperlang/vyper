@@ -128,5 +128,11 @@ class FunctionInlinerPass(IRPass):
         invoke_inst.operands = [target_bb.label]
         invoke_inst.output = None
 
+        alloca_map = self._build_alloca_map()
+        for alloca_id, alloca_insts in alloca_map.items():
+            for duplicate_alloca_inst in alloca_insts[1:]:
+                duplicate_alloca_inst.opcode = "store"
+                duplicate_alloca_inst.operands = [alloca_insts[0].output]
+
         self._alloca_map = self._build_alloca_map()
         return True
