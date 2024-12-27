@@ -117,7 +117,7 @@ class IROperand:
     """
 
     value: Any
-    _hash: Optional[int]
+    _hash: Optional[int] = None
 
     def __init__(self, value: Any) -> None:
         self.value = value
@@ -149,9 +149,8 @@ class IRLiteral(IROperand):
     value: int
 
     def __init__(self, value: int) -> None:
-        super().__init__(value)
         assert isinstance(value, int), "value must be an int"
-        self.value = value
+        super().__init__(value)
 
 
 class IRVariable(IROperand):
@@ -163,17 +162,17 @@ class IRVariable(IROperand):
     version: Optional[int]
 
     def __init__(self, name: str, version: int = 0) -> None:
-        super().__init__(name)
         assert isinstance(name, str)
-        assert isinstance(version, int | None)
+        # TODO: allow version to be None
+        assert isinstance(version, int)
         if not name.startswith("%"):
             name = f"%{name}"
         self._name = name
         self.version = version
+        value = name
         if version > 0:
-            self.value = f"{name}:{version}"
-        else:
-            self.value = name
+            value = f"{name}:{version}"
+        super().__init__(value)
 
     @property
     def name(self) -> str:
@@ -193,8 +192,8 @@ class IRLabel(IROperand):
     def __init__(self, value: str, is_symbol: bool = False) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
-        super().__init__(value)
         self.is_symbol = is_symbol
+        super().__init__(value)
 
     _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")
 
