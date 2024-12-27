@@ -116,6 +116,20 @@ class SimplifyCFGPass(IRPass):
 
         return count
 
+    def _reorder_basic_blocks(self):
+        fn = self.function
+        fn._basic_block_dict = self._preorder_dfs_r(fn.entry)
+
+    def _preorder_dfs_r(self, bb, seen = None):
+        seen = seen or {}
+        if bb.label.name in seen:
+            return seen
+        seen[bb.label.name] = bb
+        for next_bb in bb.cfg_out:
+            self._preorder_dfs_r(next_bb, seen)
+        return seen
+
+
     def run_pass(self):
         fn = self.function
         entry = fn.entry
@@ -131,10 +145,12 @@ class SimplifyCFGPass(IRPass):
 
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
             self._collapse_chained_blocks(entry)
-            self.analyses_cache.force_analysis(CFGAnalysis)
+            cfg = self.analyses_cache.force_analysis(CFGAnalysis)
             if fn.remove_unreachable_blocks() == 0:
                 break
         else:
             raise CompilerPanic("Too many iterations collapsing chained blocks")
+
+        self._reorder_basic_blocks()
 
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
