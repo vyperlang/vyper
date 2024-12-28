@@ -2,6 +2,7 @@ from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
+from .func_inliner import FuncInlinerPass
 from .literals_codesize import ReduceLiteralsCodesize
 from .load_elimination import LoadElimination
 from .lower_dload import LowerDloadPass
@@ -14,4 +15,3 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
-from .func_inliner import FuncInlinerPass

@@ -15,6 +15,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
+    FuncInlinerPass,
     LoadElimination,
     LowerDloadPass,
     MakeSSA,
@@ -25,7 +26,6 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
-    FuncInlinerPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -85,8 +85,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     DFTPass(ac, fn).run_pass()
 
+
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
     FuncInlinerPass(ir_analyses, ctx).run_pass()
+
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     ir_analyses = {}
@@ -98,9 +100,10 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
-    
+
     for fn in ctx.functions.values():
         _run_passes(fn, optimize, ir_analyses[fn])
+
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR

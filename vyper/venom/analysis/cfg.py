@@ -63,4 +63,3 @@ class CFGAnalysis(IRAnalysis):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self._dfs = None
-        

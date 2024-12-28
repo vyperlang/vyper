@@ -32,7 +32,7 @@ class DataSection:
 
 class IRContext:
     functions: dict[IRLabel, IRFunction]
-    entry_function: IRFunction
+    entry_function: Optional[IRFunction]
     ctor_mem_size: Optional[int]
     immutables_len: Optional[int]
     data_segment: list[DataSection]
@@ -73,7 +73,7 @@ class IRContext:
         if name in self.functions:
             return self.functions[name]
         raise Exception(f"Function {name} not found in context")
-    
+
     def get_functions(self) -> Iterator[IRFunction]:
         return iter(self.functions.values())
 
@@ -82,7 +82,7 @@ class IRContext:
             suffix = f"_{suffix}"
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
-    
+
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")

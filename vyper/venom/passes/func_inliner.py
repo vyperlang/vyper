@@ -1,12 +1,10 @@
-import sys
-from vyper.venom.passes import FloatAllocas
-from vyper.venom.function import IRFunction
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
+from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.context import IRContext
+from vyper.venom.function import IRFunction
+from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
 
@@ -21,7 +19,7 @@ class FuncInlinerPass(IRGlobalPass):
     def run_pass(self):
         entry = self.ctx.entry_function
         self.inline_count = 0
-        
+
         while True:
             self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
             self.walk = self._build_call_walk(entry)
@@ -29,7 +27,7 @@ class FuncInlinerPass(IRGlobalPass):
             candidates = list(self._get_inline_candidates())
             if len(candidates) == 0:
                 return
-            
+
             candidate = candidates[0]
             calls = self.fcg.get_call_sites(candidate)
             self._inline_function(candidate, calls)
@@ -100,7 +98,6 @@ class FuncInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
-
 
     def _build_call_walk(self, function: IRFunction):
         """

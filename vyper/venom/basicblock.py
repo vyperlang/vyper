@@ -309,10 +309,10 @@ class IRInstruction:
         return [self.output] if self.output else []
 
     def make_nop(self):
-        self.annotation = str(self) # Keep original instruction as annotation for debugging
-        self.opcode = "nop" 
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
         self.output = None
-        self.operands = []        
+        self.operands = []
 
     def flip(self):
         """
@@ -381,7 +381,7 @@ class IRInstruction:
             if inst.ast_source:
                 return inst.ast_source
         return self.parent.parent.ast_source
-    
+
     def copy(self, prefix: str = "") -> "IRInstruction":
         ops: list[IROperand] = []
         for op in self.operands:

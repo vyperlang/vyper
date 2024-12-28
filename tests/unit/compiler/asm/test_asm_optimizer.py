@@ -121,8 +121,8 @@ def foo():
     res = compile_code(code, input_bundle=input_bundle, output_formats=["asm"])
     asm = res["asm"]
 
-    if not experimental_codegen: 
-        assert "some_function()" in asm # Venom function inliner will remove this
+    if not experimental_codegen:
+        assert "some_function()" in asm  # Venom function inliner will remove this
 
     assert "unused1()" not in asm
     assert "unused2()" not in asm
