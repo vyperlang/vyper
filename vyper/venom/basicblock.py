@@ -567,6 +567,11 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
 
+    def remove_instructions_after(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        assert instruction in self.instructions, "instruction must be in basic block"
+        self.instructions = self.instructions[:self.instructions.index(instruction)-1]
+
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
