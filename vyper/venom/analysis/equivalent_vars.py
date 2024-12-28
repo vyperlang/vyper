@@ -22,7 +22,7 @@ class VarEquivalenceAnalysis(IRAnalysis):
 
             source = inst.operands[0]
 
-            assert var not in equivalence_set  # invariant
+            assert var not in equivalence_set, f"var `{var}` in equivalence_set"  # invariant
             if source in equivalence_set:
                 equivalence_set[var] = equivalence_set[source]
                 continue
