@@ -4,6 +4,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -32,7 +33,7 @@ class FuncInlinerPass(IRGlobalPass):
             candidate = candidates[0]
             calls = self.fcg.get_call_sites(candidate)
             self._inline_function(candidate, calls)
-            self.ctx.remove_function(candidate)        
+            self.ctx.remove_function(candidate)
 
     def _get_inline_candidates(self):
         for func in self.walk:
@@ -50,6 +51,7 @@ class FuncInlinerPass(IRGlobalPass):
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
+            self.analyses_caches[fn].invalidate_analysis(VarEquivalenceAnalysis)
 
     def _inline_call_site(self, func, call_site):
         """
