@@ -1,4 +1,4 @@
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -13,7 +13,6 @@ class StoreElimination(IRPass):
     # with LoadElimination
 
     def run_pass(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for var, inst in self.dfg.outputs.items():
@@ -23,7 +22,6 @@ class StoreElimination(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        
 
     def _process_store(self, inst, var: IRVariable, new_var: IRVariable):
         """
@@ -36,10 +34,12 @@ class StoreElimination(IRPass):
         uses = self.dfg.get_uses(var)
         if any([inst.opcode == "phi" for inst in uses]):
             return
-        for use_inst in uses:
+        for use_inst in uses.copy():
             for i, operand in enumerate(use_inst.operands):
                 if operand == var:
                     use_inst.operands[i] = new_var
 
+            self.dfg.add_use(new_var, use_inst)
+            self.dfg.remove_use(var, use_inst)
+
         inst.parent.remove_instruction(inst)
-        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
