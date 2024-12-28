@@ -14,25 +14,26 @@ class StoreElimination(IRPass):
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        for var, inst in dfg.outputs.items():
+        for var, inst in self.dfg.outputs.items():
             if inst.opcode != "store":
                 continue
-            self._process_store(dfg, inst, var, inst.operands[0])
+            self._process_store(inst, var, inst.operands[0])
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        
 
-    def _process_store(self, dfg, inst, var: IRVariable, new_var: IRVariable):
+    def _process_store(self, inst, var: IRVariable, new_var: IRVariable):
         """
         Process store instruction. If the variable is only used by a load instruction,
         forward the variable to the load instruction.
         """
-        if any([inst.opcode == "phi" for inst in dfg.get_uses(new_var)]):
+        if any([inst.opcode == "phi" for inst in self.dfg.get_uses(new_var)]):
             return
 
-        uses = dfg.get_uses(var)
+        uses = self.dfg.get_uses(var)
         if any([inst.opcode == "phi" for inst in uses]):
             return
         for use_inst in uses:
@@ -41,3 +42,4 @@ class StoreElimination(IRPass):
                     use_inst.operands[i] = new_var
 
         inst.parent.remove_instruction(inst)
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
