@@ -28,7 +28,7 @@ class Mem2Var(IRPass):
 
     def _mk_varname(self, varname: str):
         varname = varname.removeprefix("%")
-        varname = f"var{varname}_{self.var_name_count}"
+        varname = f"@var{varname}_{self.var_name_count}"
         self.var_name_count += 1
         return varname
 
