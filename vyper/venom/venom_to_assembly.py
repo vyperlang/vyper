@@ -375,7 +375,7 @@ class VenomCompiler:
             operands = [offset]
 
         # iload and istore are special cases because they can take a literal
-        # that is handled specialy with the _OFST macro. Look below, after the
+        # that is handled specially with the _OFST macro. Look below, after the
         # stack reordering.
         elif opcode == "iload":
             addr = inst.operands[0]
