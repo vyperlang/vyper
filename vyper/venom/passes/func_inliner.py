@@ -29,6 +29,7 @@ class FuncInlinerPass(IRGlobalPass):
                 return
 
             candidate = candidates[0]
+
             calls = self.fcg.get_call_sites(candidate)
             self._inline_function(candidate, calls)
             self.ctx.remove_function(candidate)
@@ -36,6 +37,12 @@ class FuncInlinerPass(IRGlobalPass):
     def _get_inline_candidates(self):
         for func in self.walk:
             calls = self.fcg.get_call_sites(func)
+            if func.name.name in [
+                 # "internal 14 __exchange(uint256,DynArray[uint256, 8],DynArray[uint256, 8],uint128,uint128)_runtime", 
+                                      # "internal 11 exp(int256)_runtime",
+                                       "internal 6 get_y(uint128,uint128,uint256,DynArray[uint256, 8],uint256,uint256)_runtime"
+                                       ]:
+                continue
             if len(calls) == 1:
                 yield func
 
