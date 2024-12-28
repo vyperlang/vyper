@@ -2,7 +2,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -38,9 +38,11 @@ class FuncInlinerPass(IRGlobalPass):
         for func in self.walk:
             calls = self.fcg.get_call_sites(func)
             if func.name.name in [
+                "internal 1 middle()_runtime",
+                #"internal 0 sum(uint256)_runtime",
                  # "internal 14 __exchange(uint256,DynArray[uint256, 8],DynArray[uint256, 8],uint128,uint128)_runtime", 
                                       # "internal 11 exp(int256)_runtime",
-                                       "internal 6 get_y(uint128,uint128,uint256,DynArray[uint256, 8],uint256,uint256)_runtime"
+                                       # "internal 6 get_y(uint128,uint128,uint256,DynArray[uint256, 8],uint256,uint256)_runtime"
                                        ]:
                 continue
             if len(calls) == 1:
@@ -99,9 +101,13 @@ class FuncInlinerPass(IRGlobalPass):
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
                 elif inst.opcode in ["jmp", "jnz", "djmp", "phi"]:
-                    for i, op in enumerate(inst.operands):
-                        if isinstance(op, IRLabel):
-                            inst.operands[i] = IRLabel(f"{prefix}{op.name}")
+                    for i, label in enumerate(inst.operands):
+                        if isinstance(label, IRLabel):
+                            inst.operands[i] = IRLabel(f"{prefix}{label.name}")
+                elif inst.opcode == "revert":
+                    bb.remove_instructions_after(inst)
+                    bb.append_instruction("stop")
+                    break
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
