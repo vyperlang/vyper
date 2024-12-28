@@ -21,24 +21,24 @@ class FuncInlinerPass(IRGlobalPass):
         entry = self.ctx.entry_function
         self.inline_count = 0
         
-        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
-        self.walk = self._build_call_walk(entry)
-        
-        for function in self.walk:
-            self.run_pass_on(function)
+        while True:
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
+            self.walk = self._build_call_walk(entry)
 
-    def run_pass_on(self, func: IRFunction):
-        calls = self.fcg.get_call_sites(func)
-        if len(calls) == 1:
-            # sys.stderr.write("****\n**** Inlining function " + str(func.name) + "\n****\n")
-            self._inline_function(func, calls)
-            self.ctx.remove_function(func)
+            candidates = list(self._get_inline_candidates())
+            if len(candidates) == 0:
+                return
+            
+            candidate = candidates[0]
+            calls = self.fcg.get_call_sites(candidate)
+            self._inline_function(candidate, calls)
+            self.ctx.remove_function(candidate)        
 
-    def _filter_candidates(self, func_call_counts):
-        """
-        Filter candidates for inlining. This will become more sophisticated in the future.
-        """
-        return [fn for fn, call_sites in func_call_counts.items() if len(call_sites) == 1]
+    def _get_inline_candidates(self):
+        for func in self.walk:
+            calls = self.fcg.get_call_sites(func)
+            if len(calls) == 1:
+                yield func
 
     def _inline_function(self, func, call_sites):
         """
