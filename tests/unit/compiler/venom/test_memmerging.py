@@ -43,6 +43,10 @@ def test_memmerging_tmp():
 
     _check_pre_post(pre, post)
 
+ 
+# for parametrizing tests
+LOAD_COPY = [("dload", "dloadbytes"), ("calldataload", "calldatacopy")]
+
 
 def test_memmerging():
     """
@@ -797,43 +801,45 @@ def test_memmerging_double_use():
     _check_pre_post(pre, post)
 
 
-def test_memmerging_calldataload():
-    pre = """
+@pytest.mark.parametrize("load_opcode,copy_opcode", LOAD_COPY)
+def test_memmerging_load(load_opcode, copy_opcode):
+    pre = f"""
     _global:
-        %1 = calldataload 0
+        %1 = {load_opcode} 0
         mstore 32, %1
-        %2 = calldataload 32
+        %2 = {load_opcode} 32
         mstore 64, %2
         stop
     """
 
-    post = """
+    post = f"""
     _global:
-        calldatacopy 32, 0, 64
+        {copy_opcode} 32, 0, 64
         stop
     """
     _check_pre_post(pre, post)
 
 
-def test_memmerging_calldataload_two_intervals_diff_offset():
+@pytest.mark.parametrize("load_opcode,copy_opcode", LOAD_COPY)
+def test_memmerging_two_intervals_diff_offset(load_opcode, copy_opcode):
     """
-    Test different calldatacopy sequences are separately merged
+    Test different dloadbytes/calldatacopy sequences are separately merged
     """
-    pre = """
+    pre = f"""
     _global:
-        %1 = calldataload 0
+        %1 = {load_opcode} 0
         mstore 0, %1
-        calldatacopy 32, 32, 64
-        %2 = calldataload 0
+        {copy_opcode} 32, 32, 64
+        %2 = {load_opcode} 0
         mstore 8, %2
-        calldatacopy 40, 32, 64
+        {copy_opcode} 40, 32, 64
         stop
     """
 
-    post = """
+    post = f"""
     _global:
-        calldatacopy 0, 0, 96
-        calldatacopy 8, 0, 96
+        {copy_opcode} 0, 0, 96
+        {copy_opcode} 8, 0, 96
         stop
     """
     _check_pre_post(pre, post)

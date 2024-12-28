@@ -41,6 +41,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
+        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -121,6 +122,11 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     return ret  # type: ignore
 
 
+def _as_asm_symbol(label: IRLabel) -> str:
+    # Lower an IRLabel to an assembly symbol
+    return f"_sym_{label.value}"
+
+
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
 # There, recursing into the deploy instruction was by design, and
@@ -182,19 +188,19 @@ class VenomCompiler:
                 asm.extend(_REVERT_POSTAMBLE)
 
             # Append data segment
-            data_segments: dict = dict()
-            for inst in ctx.data_segment:
-                if inst.opcode == "dbname":
-                    label = inst.operands[0]
-                    data_segments[label] = [DataHeader(f"_sym_{label.value}")]
-                elif inst.opcode == "db":
-                    data = inst.operands[0]
+            for data_section in ctx.data_segment:
+                label = data_section.label
+                asm_data_section: list[Any] = []
+                asm_data_section.append(DataHeader(_as_asm_symbol(label)))
+                for item in data_section.data_items:
+                    data = item.data
                     if isinstance(data, IRLabel):
-                        data_segments[label].append(f"_sym_{data.value}")
+                        asm_data_section.append(_as_asm_symbol(data))
                     else:
-                        data_segments[label].append(data)
+                        assert isinstance(data, bytes)
+                        asm_data_section.append(data)
 
-            asm.extend(list(data_segments.values()))
+                asm.append(asm_data_section)
 
         if no_optimize is False:
             optimize_assembly(top_asm)
@@ -259,7 +265,7 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(f"_sym_{op.value}")
+                    assembly.append(_as_asm_symbol(op))
                 stack.push(op)
                 continue
 
@@ -293,7 +299,7 @@ class VenomCompiler:
         asm = []
 
         # assembly entry point into the block
-        asm.append(f"_sym_{basicblock.label.value}")
+        asm.append(_as_asm_symbol(basicblock.label))
         asm.append("JUMPDEST")
 
         if len(basicblock.cfg_in) == 1:
@@ -408,7 +414,9 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
-            assembly.extend(["_OFST", f"_sym_{inst.operands[1].value}", inst.operands[0].value])
+            ofst, label = inst.operands
+            assert isinstance(label, IRLabel)  # help mypy
+            assembly.extend(["_OFST", _as_asm_symbol(label), ofst.value])
             assert isinstance(inst.output, IROperand), "Offset must have output"
             stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
@@ -470,26 +478,26 @@ class VenomCompiler:
             pass
         elif opcode == "store":
             pass
-        elif opcode == "dbname":
-            pass
         elif opcode in ["codecopy", "dloadbytes"]:
             assembly.append("CODECOPY")
+        elif opcode == "dbname":
+            pass
         elif opcode == "jnz":
             # jump if not zero
-            if_nonzero_label = inst.operands[1]
-            if_zero_label = inst.operands[2]
-            assembly.append(f"_sym_{if_nonzero_label.value}")
+            if_nonzero_label, if_zero_label = inst.get_label_operands()
+            assembly.append(_as_asm_symbol(if_nonzero_label))
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
             # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
-            assembly.append(f"_sym_{if_zero_label.value}")
+            assembly.append(_as_asm_symbol(if_zero_label))
             assembly.append("JUMP")
 
         elif opcode == "jmp":
-            assert isinstance(inst.operands[0], IRLabel)
-            assembly.append(f"_sym_{inst.operands[0].value}")
+            (target,) = inst.operands
+            assert isinstance(target, IRLabel)
+            assembly.append(_as_asm_symbol(target))
             assembly.append("JUMP")
         elif opcode == "djmp":
             assert isinstance(
@@ -504,7 +512,7 @@ class VenomCompiler:
             assembly.extend(
                 [
                     f"_sym_label_ret_{self.label_counter}",
-                    f"_sym_{target.value}",
+                    _as_asm_symbol(target),
                     "JUMP",
                     f"_sym_label_ret_{self.label_counter}",
                     "JUMPDEST",
