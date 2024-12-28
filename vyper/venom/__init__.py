@@ -60,7 +60,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
-    # LoadElimination(ac, fn).run_pass()
+    LoadElimination(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
@@ -87,10 +87,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
     FuncInlinerPass(ir_analyses, ctx).run_pass()
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
-    # Convert "old" IR to "new" IR
-    ctx = ir_node_to_venom(ir)
-
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
@@ -103,5 +100,11 @@ def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     
     for fn in ctx.functions.values():
         _run_passes(fn, optimize, ir_analyses[fn])
+
+def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
+    # Convert "old" IR to "new" IR
+    ctx = ir_node_to_venom(ir)
+
+    run_passes_on(ctx, optimize)
 
     return ctx
