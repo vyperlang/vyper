@@ -21,6 +21,7 @@ def foo() -> uint256:
     c = get_contract(code)
     assert c.foo() == 5
 
+
 def test_call_in_call_with_raise(get_contract):
     code = """
 @internal

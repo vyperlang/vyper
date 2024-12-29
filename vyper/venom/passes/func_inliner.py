@@ -2,7 +2,7 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -37,14 +37,6 @@ class FuncInlinerPass(IRGlobalPass):
     def _get_inline_candidates(self):
         for func in self.walk:
             calls = self.fcg.get_call_sites(func)
-            if func.name.name in [
-                "internal 1 middle()_runtime",
-                #"internal 0 sum(uint256)_runtime",
-                 # "internal 14 __exchange(uint256,DynArray[uint256, 8],DynArray[uint256, 8],uint128,uint128)_runtime", 
-                                      # "internal 11 exp(int256)_runtime",
-                                       # "internal 6 get_y(uint128,uint128,uint256,DynArray[uint256, 8],uint256,uint256)_runtime"
-                                       ]:
-                continue
             if len(calls) == 1:
                 yield func
 
