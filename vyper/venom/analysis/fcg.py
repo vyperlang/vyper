@@ -30,7 +30,7 @@ class FCGAnalysis(IRAnalysis):
             self._analyze_function(fn)
 
     def get_call_sites(self, fn: IRFunction) -> OrderedSet[IRInstruction]:
-        return self.call_sites[fn]
+        return self.call_sites.get(fn, OrderedSet())
 
     def get_callees(self, fn: IRFunction) -> OrderedSet[IRFunction]:
         return self.callees[fn]
