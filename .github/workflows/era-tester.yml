@@ -1,0 +1,118 @@
+name: Era compiler tester
+
+# run the matter labs compiler test to integrate their test cases
+# this is intended as a diagnostic / spot check to check that we
+# haven't seriously broken the compiler. but, it is not intended as
+# a requirement for merging since we may make changes to our IR
+# which break the downstream backend (at which point, downstream needs
+# to update, which we do not want to be blocked on).
+
+on: [push, pull_request]
+
+concurrency:
+  # cancel older, in-progress jobs from the same PR, same workflow.
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  era-compiler-tester:
+    runs-on: ubuntu-latest
+  
+    steps:
+    - name: Get latest commit hash
+      run: |
+        echo "ERA_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-tester/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
+        echo "ERA_VYPER_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-vyper/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Rust setup
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: nightly-2022-11-03
+
+    - name: Set up Python ${{ matrix.python-version[0] }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version[0] }}
+        cache: "pip"
+
+    - name: Get cache
+      id: get-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          **/target
+          **/target-llvm
+          **/compiler_tester
+          **/llvm
+          **/era-compiler-tester
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
+
+    - name: Initialize repository and install dependencies
+      if: steps.get-cache.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 https://github.com/matter-labs/era-compiler-tester.git
+        cd era-compiler-tester
+        sed -i 's/ssh:\/\/git@/https:\/\//g' .gitmodules
+        git submodule init
+        git submodule update
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build clang-13 lld-13 parallel pkg-config lld
+        cargo install compiler-llvm-builder
+        zkevm-llvm clone && zkevm-llvm build
+        cargo build --release
+
+    - name: Save cache
+      uses: actions/cache/save@v4
+      if: steps.get-cache.outputs.cache-hit != 'true'
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          **/target
+          **/target-llvm
+          **/compiler_tester
+          **/llvm
+          **/era-compiler-tester
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
+
+    - name: Build Vyper
+      run: |
+        set -Eeuxo pipefail
+        pip install .
+        echo "VYPER_VERSION=$(vyper --version | cut -f1 -d'+')" >> $GITHUB_ENV
+
+    - name: Install Vyper
+      run: |
+        mkdir era-compiler-tester/vyper-bin
+        cp $(which vyper) era-compiler-tester/vyper-bin/vyper-${{ env.VYPER_VERSION }}
+
+    - name: Run tester (fast)
+      # Run era tester with no LLVM optimizations
+      continue-on-error: true
+      if: ${{ github.ref != 'refs/heads/master' }}
+      run: |
+        cd era-compiler-tester
+        cargo run --release --bin compiler-tester -- --path=tests/vyper/ --mode="M0B0 ${{ env.VYPER_VERSION }}"
+
+    - name: Run tester (slow)
+      # Run era tester across the LLVM optimization matrix
+      continue-on-error: true
+      if: ${{ github.ref == 'refs/heads/master' }}
+      run: |
+        cd era-compiler-tester
+        cargo run --release --bin compiler-tester -- --path=tests/vyper/ --mode="M*B* ${{ env.VYPER_VERSION }}"
+
+    - name: Mark as success
+      run: |
+        exit 0

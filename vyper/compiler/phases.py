@@ -1,16 +1,27 @@
 import copy
 import warnings
-from typing import Optional, Tuple
+from functools import cached_property
+from pathlib import Path, PurePath
+from typing import Any, Optional
 
+import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignatures
+from vyper.ast import natspec
 from vyper.codegen import module
-from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
+from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import set_data_positions, validate_semantics
-from vyper.typing import InterfaceImports, StorageLayout
-from vyper.utils import cached_property
+from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics.analysis.data_positions import generate_layout_export
+from vyper.semantics.analysis.imports import resolve_imports
+from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
+from vyper.typing import StorageLayout
+from vyper.utils import ERC5202_PREFIX, vyper_warn
+from vyper.venom import generate_assembly_experimental, generate_ir
+
+DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
 class CompilerData:
@@ -25,9 +36,9 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
-    vyper_module_folded : vy_ast.Module
-        Folded Vyper AST
-    global_ctx : GlobalContext
+    annotated_vyper_module: vy_ast.Module
+        Annotated+analysed Vyper AST
+    global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
         IR used to generate deployment bytecode
@@ -45,113 +56,227 @@ class CompilerData:
 
     def __init__(
         self,
-        source_code: str,
-        contract_name: str = "VyperContract",
-        interface_codes: Optional[InterfaceImports] = None,
-        source_id: int = 0,
-        no_optimize: bool = False,
+        file_input: FileInput | str,
+        input_bundle: InputBundle = None,
+        settings: Settings = None,
+        integrity_sum: str = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
 
         Arguments
         ---------
-        source_code : str
-            Vyper source code.
-        contract_name : str, optional
-            The name of the contract being compiled.
-        interface_codes: Dict, optional
-            Interfaces that may be imported by the contracts during compilation.
-            * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-            * JSON interfaces are given as lists, vyper interfaces as strings
-        source_id : int, optional
-            ID number used to identify this contract in the source map.
-        no_optimize: bool, optional
-            Turn off optimizations. Defaults to False
+        file_input: FileInput | str
+            A FileInput or string representing the input to the compiler.
+            FileInput is preferred, but `str` is accepted as a convenience
+            method (and also for backwards compatibility reasons)
+        settings: Settings
+            Set optimization mode.
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
-        self.contract_name = contract_name
-        self.source_code = source_code
-        self.interface_codes = interface_codes
-        self.source_id = source_id
-        self.no_optimize = no_optimize
+
+        if isinstance(file_input, str):
+            file_input = FileInput(
+                contents=file_input,
+                source_id=-1,
+                path=DEFAULT_CONTRACT_PATH,
+                resolved_path=DEFAULT_CONTRACT_PATH,
+            )
+        self.file_input = file_input
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
+        self.original_settings = settings
+        self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
+        self.expected_integrity_sum = integrity_sum
+
+        # ast cache, hitchhike onto the input_bundle object
+        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
 
     @cached_property
-    def vyper_module(self) -> vy_ast.Module:
-        return generate_ast(self.source_code, self.source_id, self.contract_name)
+    def source_code(self):
+        return self.file_input.source_code
 
     @cached_property
-    def vyper_module_unfolded(self) -> vy_ast.Module:
-        # This phase is intended to generate an AST for tooling use, and is not
-        # used in the compilation process.
-
-        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
+    def source_id(self):
+        return self.file_input.source_id
 
     @cached_property
-    def _folded_module(self):
-        return generate_folded_ast(
-            self.vyper_module, self.interface_codes, self.storage_layout_override
+    def contract_path(self):
+        return self.file_input.path
+
+    @cached_property
+    def _generate_ast(self):
+        settings, ast = vy_ast.parse_to_ast_with_settings(
+            self.source_code,
+            self.source_id,
+            module_path=self.contract_path.as_posix(),
+            resolved_path=self.file_input.resolved_path.as_posix(),
         )
 
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        module, storage_layout = self._folded_module
-        return module
+        if self.original_settings:
+            og_settings = self.original_settings
+            settings = merge_settings(og_settings, settings)
+            assert self.original_settings == og_settings  # be paranoid
+        else:
+            # merge with empty Settings(), doesn't do much but it does
+            # remove the compiler version
+            settings = merge_settings(Settings(), settings)
 
-    @property
+        if settings.optimize is None:
+            settings.optimize = OptimizationLevel.default()
+
+        if settings.experimental_codegen is None:
+            settings.experimental_codegen = False
+
+        return settings, ast
+
+    @cached_property
+    def settings(self):
+        settings, _ = self._generate_ast
+        return settings
+
+    @cached_property
+    def vyper_module(self):
+        _, ast = self._generate_ast
+        return ast
+
+    @cached_property
+    def _resolve_imports(self):
+        # deepcopy so as to not interfere with `-f ast` output
+        vyper_module = copy.deepcopy(self.vyper_module)
+        with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
+            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+
+    @cached_property
+    def resolved_imports(self):
+        imports = self._resolve_imports[1]
+
+        expected = self.expected_integrity_sum
+
+        if expected is not None and imports.integrity_sum != expected:
+            # warn for now. strict/relaxed mode was considered but it costs
+            # interface and testing complexity to add another feature flag.
+            vyper_warn(
+                f"Mismatched integrity sum! Expected {expected}"
+                f" but got {imports.integrity_sum}."
+                " (This likely indicates a corrupted archive)"
+            )
+
+        return imports
+
+    @cached_property
+    def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
+        module = self._resolve_imports[0]
+        analyze_module(module)
+        nspec = natspec.parse_natspec(module)
+        return nspec, module
+
+    @cached_property
+    def natspec(self) -> natspec.NatspecOutput:
+        return self._annotate[0]
+
+    @cached_property
+    def annotated_vyper_module(self) -> vy_ast.Module:
+        return self._annotate[1]
+
+    @cached_property
+    def compilation_target(self):
+        """
+        Get the annotated AST, and additionally run the global checks
+        required for a compilation target.
+        """
+        module_t = self.annotated_vyper_module._metadata["type"]
+
+        validate_compilation_target(module_t)
+        return self.annotated_vyper_module
+
+    @cached_property
     def storage_layout(self) -> StorageLayout:
-        module, storage_layout = self._folded_module
-        return storage_layout
+        module_ast = self.compilation_target
+        set_data_positions(module_ast, self.storage_layout_override)
+
+        return generate_layout_export(module_ast)
 
     @property
-    def global_ctx(self) -> GlobalContext:
-        return generate_global_context(self.vyper_module_folded, self.interface_codes)
+    def global_ctx(self) -> ModuleT:
+        # ensure storage layout is computed
+        _ = self.storage_layout
+        # ensure natspec is computed
+        _ = self.natspec
+        return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.no_optimize)
+        return generate_ir_nodes(self.global_ctx, self.settings)
 
     @property
     def ir_nodes(self) -> IRnode:
-        ir, ir_runtime, sigs = self._ir_output
+        ir, ir_runtime = self._ir_output
         return ir
 
     @property
     def ir_runtime(self) -> IRnode:
-        ir, ir_runtime, sigs = self._ir_output
+        ir, ir_runtime = self._ir_output
         return ir_runtime
 
     @property
-    def function_signatures(self) -> FunctionSignatures:
-        ir, ir_runtime, sigs = self._ir_output
-        return sigs
+    def function_signatures(self) -> dict[str, ContractFunctionT]:
+        # some metadata gets calculated during codegen, so
+        # ensure codegen is run:
+        _ = self._ir_output
+
+        fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
+        return {f.name: f._metadata["func_type"] for f in fs}
+
+    @cached_property
+    def venom_functions(self):
+        deploy_ir, runtime_ir = self._ir_output
+        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
+        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        return deploy_venom, runtime_venom
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.no_optimize)
+        if self.settings.experimental_codegen:
+            deploy_code, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(
+                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
+            )
+        else:
+            return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.no_optimize)
+        if self.settings.experimental_codegen:
+            _, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
+        else:
+            return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:
-        return generate_bytecode(self.assembly, is_runtime=False)
+        metadata = None
+        if not self.no_bytecode_metadata:
+            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
+        return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, is_runtime=True)
+        return generate_bytecode(self.assembly_runtime, compiler_metadata=None)
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
-        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
-        blueprint_bytecode = blueprint_preamble + self.bytecode
+        blueprint_bytecode = ERC5202_PREFIX + self.bytecode
 
         # the length of the deployed code in bytes
         len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
@@ -160,95 +285,7 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
-    """
-    Generate a Vyper AST from source code.
-
-    Arguments
-    ---------
-    source_code : str
-        Vyper source code.
-    source_id : int
-        ID number used to identify this contract in the source map.
-    contract_name : str
-        Name of the contract.
-
-    Returns
-    -------
-    vy_ast.Module
-        Top-level Vyper AST node
-    """
-    return vy_ast.parse_to_ast(source_code, source_id, contract_name)
-
-
-def generate_unfolded_ast(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> vy_ast.Module:
-
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_constants(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
-    # note: validate_semantics does type inference on the AST
-    validate_semantics(vyper_module, interface_codes)
-
-    return vyper_module
-
-
-def generate_folded_ast(
-    vyper_module: vy_ast.Module,
-    interface_codes: Optional[InterfaceImports],
-    storage_layout_overrides: StorageLayout = None,
-) -> Tuple[vy_ast.Module, StorageLayout]:
-    """
-    Perform constant folding operations on the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-
-    Returns
-    -------
-    vy_ast.Module
-        Folded Vyper AST
-    StorageLayout
-        Layout of variables in storage
-    """
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
-    vyper_module_folded = copy.deepcopy(vyper_module)
-    vy_ast.folding.fold(vyper_module_folded)
-    validate_semantics(vyper_module_folded, interface_codes)
-    vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
-
-    return vyper_module_folded, symbol_tables
-
-
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> GlobalContext:
-    """
-    Generate a contextualized AST from the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-
-
-def generate_ir_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[IRnode, IRnode, FunctionSignatures]:
+def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -259,7 +296,7 @@ def generate_ir_nodes(
 
     Arguments
     ---------
-    global_ctx : GlobalContext
+    global_ctx: ModuleT
         Contextualized Vyper AST
 
     Returns
@@ -268,14 +305,18 @@ def generate_ir_nodes(
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    ir_nodes, ir_runtime, function_sigs = module.generate_ir_for_module(global_ctx)
-    if not no_optimize:
+    # make IR output the same between runs
+    codegen.reset_names()
+
+    with anchor_settings(settings):
+        ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
+    if settings.optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
-    return ir_nodes, ir_runtime, function_sigs
+    return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
+def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = None) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -289,12 +330,14 @@ def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_ir.compile_to_assembly(ir_nodes, no_optimize=no_optimize)
+    optimize = optimize or OptimizationLevel.default()
+    assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
             "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!"
+            "a supported EVM! It will FAIL on all other nodes!",
+            stacklevel=2,
         )
     return assembly
 
@@ -307,7 +350,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
+def generate_bytecode(assembly: list, compiler_metadata: Optional[Any]) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -321,4 +364,4 @@ def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]
+    return compile_ir.assembly_to_evm(assembly, compiler_metadata=compiler_metadata)[0]

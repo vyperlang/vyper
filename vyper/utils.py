@@ -1,14 +1,187 @@
 import binascii
 import contextlib
 import decimal
+import enum
 import functools
+import hashlib
+import os
 import sys
 import time
 import traceback
 import warnings
-from typing import List, Union
+from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import DecimalOverrideException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+
+_T = TypeVar("_T")
+
+
+class OrderedSet(Generic[_T]):
+    """
+    a minimal "ordered set" class. this is needed in some places
+    because, while dict guarantees you can recover insertion order
+    vanilla sets do not.
+    no attempt is made to fully implement the set API, will add
+    functionality as needed.
+    """
+
+    def __init__(self, iterable=None):
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
+
+    def __repr__(self):
+        keys = ", ".join(repr(k) for k in self)
+        return f"{{{keys}}}"
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __reversed__(self):
+        return reversed(self._data)
+
+    def __contains__(self, item):
+        return self._data.__contains__(item)
+
+    def __len__(self):
+        return len(self._data)
+
+    def first(self):
+        return next(iter(self))
+
+    def last(self):
+        return next(reversed(self))
+
+    def pop(self):
+        return self._data.popitem()[0]
+
+    def add(self, item: _T) -> None:
+        self._data[item] = None
+
+    # NOTE to refactor: duplicate of self.update()
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
+
+    def remove(self, item: _T) -> None:
+        del self._data[item]
+
+    def drop(self, item: _T):
+        # friendly version of remove
+        self._data.pop(item, None)
+
+    def dropmany(self, iterable):
+        for item in iterable:
+            self._data.pop(item, None)
+
+    def difference(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
+    def update(self, other):
+        # CMC 2024-03-22 for some reason, this is faster than dict.update?
+        # (maybe size dependent)
+        for item in other:
+            self._data[item] = None
+
+    def union(self, other):
+        return self | other
+
+    # set dunders
+    def __ior__(self, other):
+        self.update(other)
+        return self
+
+    def __or__(self, other):
+        ret = self.copy()
+        ret.update(other)
+        return ret
+
+    def __eq__(self, other):
+        return self._data == other._data
+
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
+    def copy(self):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret._data = self._data.copy()
+        return ret
+
+    @classmethod
+    def intersection(cls, *sets):
+        if len(sets) == 0:
+            raise ValueError("undefined: intersection of no sets")
+
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
+
+
+class StringEnum(enum.Enum):
+    # Must be first, or else won't work, specifies what .value is
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise CompilerPanic(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        return self is other
+
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return not self.__lt__(other)
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __hash__(self) -> int:
+        # let `dataclass` know that this class is not mutable
+        return super().__hash__()
 
 
 class DecimalContextOverride(decimal.Context):
@@ -19,7 +192,9 @@ class DecimalContextOverride(decimal.Context):
                 raise DecimalOverrideException("Overriding decimal precision disabled")
             elif value > 78:
                 # not sure it's incorrect, might not be end of the world
-                warnings.warn("Changing decimals precision could have unintended side effects!")
+                warnings.warn(
+                    "Changing decimals precision could have unintended side effects!", stacklevel=2
+                )
             # else: no-op, is ok
 
         super().__setattr__(name, value)
@@ -37,16 +212,27 @@ except ImportError:
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
-try:
-    # available py3.8+
-    from functools import cached_property
-except ImportError:
-    from cached_property import cached_property  # type: ignore
+
+@functools.lru_cache(maxsize=512)
+def sha256sum(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).digest().hex()
+
+
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
 
 
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
+
+
+# Converts an integer to four bytes
+def int_to_fourbytes(n: int) -> bytes:
+    assert n < 2**32
+    return n.to_bytes(4, byteorder="big")
 
 
 def signed_to_unsigned(int_, bits, strict=False):
@@ -60,7 +246,7 @@ def signed_to_unsigned(int_, bits, strict=False):
         lo, hi = int_bounds(signed=True, bits=bits)
         assert lo <= int_ <= hi
     if int_ < 0:
-        return int_ + 2 ** bits
+        return int_ + 2**bits
     return int_
 
 
@@ -75,7 +261,7 @@ def unsigned_to_signed(int_, bits, strict=False):
         lo, hi = int_bounds(signed=False, bits=bits)
         assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
-        return int_ - (2 ** bits)
+        return int_ - (2**bits)
     return int_
 
 
@@ -100,19 +286,22 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
-def abi_method_id(method_sig):
-    return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
+def method_id_int(method_sig: str) -> int:
+    method_id_bytes = method_id(method_sig)
+    return fourbytes_to_int(method_id_bytes)
 
 
-# map a string to only-alphanumeric chars
-def mkalphanum(s):
-    return "".join([c if c.isalnum() else "_" for c in s])
+def method_id(method_str: str) -> bytes:
+    return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
 def round_towards_zero(d: decimal.Decimal) -> int:
@@ -167,30 +356,34 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
-GAS_CODECOPY_WORD = 3
-GAS_CALLDATACOPY_WORD = 3
+GAS_COPY_WORD = 3  # i.e., W_copy from YP
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
-DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_DIVISOR = 10**MAX_DECIMAL_PLACES
 DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
 def int_bounds(signed, bits):
     """
     calculate the bounds on an integer type
-    ex. int_bounds(8, True) -> (-128, 127)
-        int_bounds(8, False) -> (0, 255)
+    ex. int_bounds(True, 8) -> (-128, 127)
+        int_bounds(False, 8) -> (0, 255)
     """
     if signed:
         return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
-    return 0, (2 ** bits) - 1
+    return 0, (2**bits) - 1
 
 
 # e.g. -1 -> -(2**256 - 1)
 def evm_twos_complement(x: int) -> int:
     # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
-    return ((2 ** 256 - 1) ^ x) + 1
+    return ((2**256 - 1) ^ x) + 1
+
+
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
 
 
 # EVM div semantics as a python function
@@ -215,7 +408,7 @@ def evm_mod(x, y):
 # (which can generated, for ex. in the unevaluated branch of the Shift builtin)
 def evm_pow(x, y):
     assert x >= 0 and y >= 0
-    return pow(x, y, 2 ** 256)
+    return pow(x, y, 2**256)
 
 
 # memory used for system purposes, not for variables
@@ -227,36 +420,25 @@ class MemoryPositions:
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    MAX_INT128 = 2 ** 127 - 1
-    MIN_INT128 = -(2 ** 127)
-    MAX_INT256 = 2 ** 255 - 1
-    MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
-    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
+    MAX_INT128 = 2**127 - 1
+    MIN_INT128 = -(2**127)
+    MAX_INT256 = 2**255 - 1
+    MIN_INT256 = -(2**255)
+    MAXDECIMAL = 2**167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2**167)  # mindecimal as EVM value
     # min decimal allowed as Python value
-    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    MIN_AST_DECIMAL = -decimal.Decimal(2**167) / DECIMAL_DIVISOR
     # max decimal allowed as Python value
-    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
-    MAX_UINT8 = 2 ** 8 - 1
-    MAX_UINT256 = 2 ** 256 - 1
-
-    @classmethod
-    def in_bounds(cls, type_str, value):
-        # TODO: fix this circular import
-        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
-
-        assert isinstance(type_str, str)
-        if type_str == "decimal":
-            info = parse_decimal_info(type_str)
-        else:
-            info = parse_integer_typeinfo(type_str)
-
-        (lo, hi) = int_bounds(info.is_signed, info.bits)
-        return lo <= value <= hi
+    MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
+    MAX_UINT8 = 2**8 - 1
+    MAX_UINT256 = 2**256 - 1
+    CEILING_UINT256 = 2**256
 
 
-# Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {"send"}
+def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
+    quantizer = decimal.Decimal(f"{1:0.{places}f}")
+    return d.quantize(quantizer, rounding_mode)
+
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
@@ -287,6 +469,7 @@ VALID_IR_MACROS = {
     "with",
     "label",
     "goto",
+    "djump",  # "dynamic jump", i.e. constrained, multi-destination jump
     "~extcode",
     "~selfcode",
     "~calldata",
@@ -296,6 +479,7 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -329,25 +513,80 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
     return "".join(indented_lines)
 
 
-def timeit(func):
-    @functools.wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
-        return result
+@contextlib.contextmanager
+def timeit(msg):  # pragma: nocover
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
 
-    return timeit_wrapper
+
+_CUMTIMES = None
+
+
+def _dump_cumtime():  # pragma: nocover
+    global _CUMTIMES
+    for msg, total_time in _CUMTIMES.items():
+        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
+def cumtimeit(msg):  # pragma: nocover
+    import atexit
+    from collections import defaultdict
+
+    global _CUMTIMES
+
+    if _CUMTIMES is None:
+        warnings.warn("timing code, disable me before pushing!", stacklevel=2)
+        _CUMTIMES = defaultdict(int)
+        atexit.register(_dump_cumtime)
+
+    start_time = time.perf_counter()
     yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    _CUMTIMES[msg] += total_time
+
+
+_PROF = None
+
+
+def _dump_profile():  # pragma: nocover
+    global _PROF
+
+    _PROF.disable()  # don't profile dumping stats
+    _PROF.dump_stats("stats")
+
+    from pstats import Stats
+
+    stats = Stats("stats", stream=sys.stderr)
+    stats.sort_stats("time")
+    stats.print_stats()
+
+
+@contextlib.contextmanager
+def profileit():  # pragma: nocover
+    """
+    Helper function for local dev use, is not intended to ever be run in
+    production build
+    """
+    import atexit
+    from cProfile import Profile
+
+    global _PROF
+    if _PROF is None:
+        warnings.warn("profiling code, disable me before pushing!", stacklevel=2)
+        _PROF = Profile()
+        _PROF.disable()
+        atexit.register(_dump_profile)
+
+    try:
+        _PROF.enable()
+        yield
+    finally:
+        _PROF.disable()
 
 
 def annotate_source_code(
@@ -427,4 +666,10 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-__all__ = ["cached_property"]
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path

@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from asttokens import LineNumbers
@@ -11,13 +12,27 @@ PARAM_FIELDS = ("param", "return")
 USERDOCS_FIELDS = ("notice",)
 
 
-def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
+@dataclass
+class NatspecOutput:
+    userdoc: dict
+    devdoc: dict
+
+
+def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
+    try:
+        return _parse_natspec(annotated_vyper_module)
+    except NatSpecSyntaxException as e:
+        e.resolved_path = annotated_vyper_module.resolved_path
+        raise e
+
+
+def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     """
     Parses NatSpec documentation from a contract.
 
     Arguments
     ---------
-    vyper_module_folded : Module
+    annotated_vyper_module: Module
         Module-level vyper ast node.
     interface_codes: Dict, optional
         Dict containing relevant data for any import statements related to
@@ -33,17 +48,17 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
     from vyper.semantics.types.function import FunctionVisibility
 
     userdoc, devdoc = {}, {}
-    source: str = vyper_module_folded.full_source_code
+    source: str = annotated_vyper_module.full_source_code
 
-    docstring = vyper_module_folded.get("doc_string.value")
+    docstring = annotated_vyper_module.get("doc_string.value")
     if docstring:
         devdoc.update(_parse_docstring(source, docstring, ("param", "return")))
         if "notice" in devdoc:
             userdoc["notice"] = devdoc.pop("notice")
 
-    for node in [i for i in vyper_module_folded.body if i.get("doc_string.value")]:
+    for node in [i for i in annotated_vyper_module.body if i.get("doc_string.value")]:
         docstring = node.doc_string.value
-        func_type = node._metadata["type"]
+        func_type = node._metadata["func_type"]
         if func_type.visibility != FunctionVisibility.EXTERNAL:
             continue
 
@@ -63,7 +78,7 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
             if fn_natspec:
                 devdoc.setdefault("methods", {})[method_id] = fn_natspec
 
-    return userdoc, devdoc
+    return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
 def _parse_docstring(
@@ -73,7 +88,6 @@ def _parse_docstring(
     params: Optional[Tuple] = None,
     return_length: int = 0,
 ) -> dict:
-
     natspec: dict = {}
     if params is None:
         params = tuple()
@@ -89,7 +103,7 @@ def _parse_docstring(
         tag, value = match.groups()
         err_args = (source, *line_no.offset_to_line(start + match.start(1)))
 
-        if tag not in SINGLE_FIELDS + PARAM_FIELDS:
+        if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
         if tag in invalid_fields:
             raise NatSpecSyntaxException(

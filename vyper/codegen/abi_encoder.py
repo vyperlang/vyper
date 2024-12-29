@@ -1,26 +1,33 @@
-from vyper.address_space import MEMORY
 from vyper.codegen.core import (
     STORE,
     add_ofst,
     get_dyn_array_count,
     get_element_ptr,
+    is_tuple_like,
     make_setter,
     zero_pad,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types import BaseType, ByteArrayLike, DArrayType, SArrayType, TupleLike
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import DArrayT, SArrayT, _BytestringT
+from vyper.semantics.types.shortcuts import UINT256_T
+
+
+def _is_complex_type(typ):
+    # Tuples, Structs, and SArrays follow the same code path
+    return is_tuple_like(typ) or isinstance(typ, (SArrayT))
 
 
 # turn an ir node into a list, based on its type.
 def _deconstruct_complex_type(ir_node):
     ir_t = ir_node.typ
-    assert isinstance(ir_t, (TupleLike, SArrayType))
+    assert _is_complex_type(ir_t)
 
-    if isinstance(ir_t, TupleLike):
+    if is_tuple_like(ir_t):
         ks = ir_t.tuple_keys()
     else:
-        ks = [IRnode.from_list(i, "uint256") for i in range(ir_t.count)]
+        ks = [IRnode.from_list(i, UINT256_T) for i in range(ir_t.count)]
 
     ret = []
     for k in ks:
@@ -66,7 +73,6 @@ def _encode_dyn_array_helper(dst, ir_node, context):
     # TODO handle this upstream somewhere
     if ir_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
-        buf = IRnode.from_list(buf, typ=dst.typ, location=MEMORY)
         _bufsz = dst.typ.abi_type.size_bound()
         return [
             "seq",
@@ -74,7 +80,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
             ["set", "dyn_ofst", abi_encode(dst, buf, context, _bufsz, returns_len=True)],
         ]
 
-    subtyp = ir_node.typ.subtype
+    subtyp = ir_node.typ.value_type
     child_abi_t = subtyp.abi_type
 
     ret = ["seq"]
@@ -85,7 +91,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         ret.append(STORE(dst, len_))
 
         # prepare the loop
-        t = BaseType("uint256")
+        t = UINT256_T
         i = IRnode.from_list(context.fresh_varname("ix"), typ=t)
 
         # offset of the i'th element in ir_node
@@ -152,17 +158,17 @@ def abi_encoding_matches_vyper(typ):
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
-    # TODO change dst to be an IRnode so it has type info to begin with.
-    # setting the typ of dst to ir_node.typ is a footgun.
+    # cast dst to the type of the input so that make_setter works
     dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
+
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 
     assert isinstance(bufsz, int)
-    if bufsz < size_bound:
+    if bufsz < size_bound:  # pragma: nocover
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-    if size_bound < dst.typ.memory_bytes_required:
+    if size_bound < dst.typ.memory_bytes_required:  # pragma: nocover
         raise CompilerPanic("Bad ABI size calc")
 
     annotation = f"abi_encode {ir_node.typ}"
@@ -183,19 +189,17 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     with ir_node.cache_when_complex("to_encode") as (b1, ir_node), dst.cache_when_complex(
         "dst"
     ) as (b2, dst):
-
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
-        if isinstance(ir_node.typ, BaseType):
+        if ir_node.typ._is_prim_word:
             ir_ret.append(make_setter(dst, ir_node))
-        elif isinstance(ir_node.typ, ByteArrayLike):
+        elif isinstance(ir_node.typ, _BytestringT):
             # TODO optimize out repeated ceil32 calculation
             ir_ret.append(make_setter(dst, ir_node))
             ir_ret.append(zero_pad(dst))
-        elif isinstance(ir_node.typ, DArrayType):
+        elif isinstance(ir_node.typ, DArrayT):
             ir_ret.append(_encode_dyn_array_helper(dst, ir_node, context))
-
-        elif isinstance(ir_node.typ, (TupleLike, SArrayType)):
+        elif _is_complex_type(ir_node.typ):
             static_ofst = 0
             elems = _deconstruct_complex_type(ir_node)
             for e in elems:
@@ -203,20 +207,20 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
                 ir_ret.extend(encode_ir)
                 static_ofst += e.typ.abi_type.embedded_static_size()
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"unencodable type: {ir_node.typ}")
 
         # declare IR variables.
         if returns_len:
             if not abi_t.is_dynamic():
                 ir_ret.append(abi_t.embedded_static_size())
-            elif isinstance(ir_node.typ, ByteArrayLike):
+            elif isinstance(ir_node.typ, _BytestringT):
                 # for abi purposes, return zero-padded length
                 calc_len = ["ceil32", ["add", 32, ["mload", dst]]]
                 ir_ret.append(calc_len)
             elif abi_t.is_complex_type():
                 ir_ret.append("dyn_ofst")
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic(f"unknown type {ir_node.typ}")
 
         if abi_t.is_dynamic() and abi_t.is_complex_type():

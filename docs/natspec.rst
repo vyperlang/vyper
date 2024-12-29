@@ -17,7 +17,7 @@ Vyper supports structured documentation for contracts and external functions usi
     The compiler does not parse docstrings of internal functions. You are welcome to NatSpec in comments for internal functions, however they are not processed or included in the compiler output.
 
 
-.. code-block:: python
+.. code-block:: vyper
 
     """
     @title A simulator for Bug Bunny, the most famous Rabbit
@@ -45,17 +45,18 @@ Tags
 
 All tags are optional. The following table explains the purpose of each NatSpec tag and where it may be used:
 
-============ ======================================== ==================
-Tag          Description                              Context
-============ ======================================== ==================
-``@title``   Title that describes the contract        contract
-``@licence`` License of the contract                  contract
-``@author``  Name of the author                       contract, function
-``@notice``  Explain to an end user what this does    contract, function
-``@dev``     Explain to a developer any extra details contract, function
-``@param``   Documents a single parameter             function
-``@return``  Documents one or all return variable(s)  function
-============ ======================================== ==================
+=============== ============================================ ==================
+Tag             Description                                  Context
+=============== ============================================ ==================
+``@title``      Title that describes the contract            contract
+``@license``    License of the contract                      contract
+``@author``     Name of the author                           contract, function
+``@notice``     Explain to an end user what this does        contract, function
+``@dev``        Explain to a developer any extra details     contract, function
+``@param``      Documents a single parameter                 function
+``@return``     Documents one or all return variable(s)      function
+``@custom:...`` Custom tag, semantics is application-defined contract, function
+=============== ============================================ ==================
 
 Some rules / restrictions:
 
@@ -71,16 +72,16 @@ When parsed by the compiler, documentation such as the one from the above exampl
 
 If the above contract is saved as ``carrots.vy`` then you can generate the documentation using:
 
-.. code::
+.. code:: shell
 
-   vyper -f userdoc,devdoc carrots.vy
+   $ vyper -f userdoc,devdoc carrots.vy
 
 User Documentation
 ------------------
 
 The above documentation will produce the following user documentation JSON as output:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
       "methods": {
@@ -101,7 +102,7 @@ Developer Documentation
 Apart from the user documentation file, a developer documentation JSON
 file should also be produced and should look like this:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
       "author": "Warned Bros",

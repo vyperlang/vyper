@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Financial events the contract logs
 
 event Transfer:
@@ -27,7 +29,7 @@ price: public(uint256)
 holdings: HashMap[address, uint256]
 
 # Set up the company.
-@external
+@deploy
 def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     assert _total_shares > 0
     assert initial_price > 0
@@ -51,7 +53,7 @@ def stockAvailable() -> uint256:
 def buyStock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
-    buy_order: uint256 = msg.value / self.price # rounds down
+    buy_order: uint256 = msg.value // self.price # rounds down
 
     # Check that there are enough shares to buy.
     assert self._stockAvailable() >= buy_order

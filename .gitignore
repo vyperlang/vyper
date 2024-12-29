@@ -4,10 +4,10 @@ __pycache__/
 *$py.class
 
 # egg-related
-vyper.egg-info/
 build/
-dist/
 .eggs/
+dist/
+vyper.egg-info/
 
 .pytest_cache/
 

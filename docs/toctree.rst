@@ -25,6 +25,7 @@ Vyper
     control-structures.rst
     scoping-and-declarations.rst
     built-in-functions.rst
+    using-modules.rst
     interfaces.rst
     event-logging.rst
     natspec.rst
@@ -42,6 +43,7 @@ Vyper
     :caption: Additional Resources
     :maxdepth: 2
 
+    resources
     release-notes.rst
     contributing.rst
     style-guide.rst

@@ -1,11 +1,13 @@
 import contextlib
 import enum
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
-from vyper.ast import VyperNode
-from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.codegen.types import NodeType
+from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.compiler.settings import get_global_settings
+from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.semantics.types import VyperType
 
 
 class Constancy(enum.Enum):
@@ -13,26 +15,90 @@ class Constancy(enum.Enum):
     Constant = 1
 
 
-# Contains arguments, variables, etc
+_alloca_id = 0
+
+
+def _generate_alloca_id():
+    # note: this gets reset between compiler runs by codegen.core.reset_names
+    global _alloca_id
+
+    _alloca_id += 1
+    return _alloca_id
+
+
+@dataclass(frozen=True)
+class Alloca:
+    name: str
+    offset: int
+    typ: VyperType
+    size: int
+
+    _id: int
+
+    def __post_init__(self):
+        assert self.typ.memory_bytes_required == self.size
+
+
+# Function variable
+@dataclass
+class VariableRecord:
+    name: str
+    pos: int
+    typ: VyperType
+    mutable: bool
+    encoding: Encoding = Encoding.VYPER
+    location: AddrSpace = MEMORY
+    size: Optional[int] = None  # allocated size
+    blockscopes: Optional[list] = None
+    defined_at: Any = None
+    is_internal: bool = False
+    alloca: Optional[Alloca] = None
+
+    # the following members are probably dead
+    is_immutable: bool = False
+    is_transient: bool = False
+    data_offset: Optional[int] = None
+
+    def __hash__(self):
+        return hash(id(self))
+
+    def __post_init__(self):
+        if self.blockscopes is None:
+            self.blockscopes = []
+
+    def __repr__(self):
+        ret = vars(self)
+        ret["allocated"] = self.typ.memory_bytes_required
+        return f"VariableRecord({ret})"
+
+    def as_ir_node(self):
+        ret = IRnode.from_list(
+            self.pos,
+            typ=self.typ,
+            annotation=self.name,
+            encoding=self.encoding,
+            mutable=self.mutable,
+            location=self.location,
+        )
+        if self.alloca is not None:
+            ret.passthrough_metadata["alloca"] = self.alloca
+        return ret
+
+
+# compilation context for a function
 class Context:
     def __init__(
         self,
-        global_ctx,
+        module_ctx,
         memory_allocator,
         vars_=None,
-        sigs=None,
         forvars=None,
         constancy=Constancy.Mutable,
-        sig=None,
+        func_t=None,
+        is_ctor_context=False,
     ):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars_ or {}
-
-        # Global variables, in the form (name, storage location, type)
-        self.globals = global_ctx._globals
-
-        # ABI objects, in the form {classname: ABI JSON}
-        self.sigs = sigs or {"self": {}}
 
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
@@ -40,50 +106,53 @@ class Context:
         # Is the function constant?
         self.constancy = constancy
 
-        # Whether body is currently in an assert statement
-        self.in_assertion = False
-
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
-        # List of custom structs that have been defined.
-        self.structs = global_ctx._structs
+        # store module context
+        self.module_ctx = module_ctx
 
-        # store global context
-        self.global_ctx = global_ctx
-
-        # full function signature
-        self.sig = sig
+        # full function type
+        self.func_t = func_t
         # Active scopes
         self._scopes = set()
 
-        # Memory alloctor, keeps track of currently allocated memory.
+        # Memory allocator, keeps track of currently allocated memory.
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
+
+        # save the starting memory location so we can find out (later)
+        # how much memory this function uses.
+        self.starting_memory = memory_allocator.next_mem
 
         # Incremented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
 
+        # either the constructor, or called from the constructor
+        self.is_ctor_context = is_ctor_context
+
+        self.settings = get_global_settings()
+
     def is_constant(self):
-        return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+        return self.constancy is Constancy.Constant or self.in_range_expr
 
     def check_is_not_constant(self, err, expr):
         if self.is_constant():
             raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
 
-    # convenience propreties
+    # convenience properties
     @property
     def is_payable(self):
-        return self.sig.mutability == "payable"
+        return self.func_t.is_payable
 
     @property
     def is_internal(self):
-        return self.sig.internal
+        return self.func_t.is_internal
 
     @property
     def return_type(self):
-        return self.sig.return_type
+        return self.func_t.return_type
 
     #
     # Context Managers
@@ -114,8 +183,7 @@ class Context:
             (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
         ]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
@@ -136,50 +204,77 @@ class Context:
         # Remove all variables that have specific scope_id attached
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
 
-    def _new_variable(
-        self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
-    ) -> int:
-        if is_internal:
-            # TODO CMC 2022-03-02 change this to `.allocate_memory()`
-            # and make `expand_memory()` private.
-            var_pos = self.memory_allocator.expand_memory(var_size)
+    def deallocate_variable(self, varname, var):
+        assert varname == var.name
+
+        # sanity check the type's size hasn't changed since allocation.
+        n = var.typ.memory_bytes_required
+        assert n == var.size
+
+        if self.settings.experimental_codegen:
+            # do not deallocate at this stage because this will break
+            # analysis in venom; venom will do its own alloc/dealloc/analysis.
+            pass
         else:
-            var_pos = self.memory_allocator.allocate_memory(var_size)
+            self.memory_allocator.deallocate_memory(var.pos, var.size)
 
-        assert var_pos + var_size <= self.memory_allocator.size_of_mem, "function frame overrun"
+        del self.vars[var.name]
 
-        self.vars[name] = VariableRecord(
+    def _new_variable(
+        self,
+        name: str,
+        typ: VyperType,
+        is_internal: bool,
+        is_mutable: bool = True,
+        internal_function=False,
+    ) -> IRnode:
+        size = typ.memory_bytes_required
+
+        ofst = self.memory_allocator.allocate_memory(size)
+        assert ofst + size <= self.memory_allocator.size_of_mem, "function frame overrun"
+
+        pos = ofst
+        alloca = None
+        if self.settings.experimental_codegen:
+            # convert it into an abstract pointer
+            if internal_function:
+                pos = f"$palloca_{ofst}_{size}"
+            else:
+                pos = f"$alloca_{ofst}_{size}"
+
+            alloca_id = _generate_alloca_id()
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size, _id=alloca_id)
+
+        var = VariableRecord(
             name=name,
-            pos=var_pos,
+            pos=pos,
             typ=typ,
+            size=size,
             mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
+            alloca=alloca,
         )
-        return var_pos
+        self.vars[name] = var
+        return var.as_ir_node()
 
     def new_variable(
-        self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
-    ) -> int:
-        # TODO remove dead arg: pos
+        self, name: str, typ: VyperType, is_mutable: bool = True, internal_function=False
+    ) -> IRnode:
         """
-        Allocate memory for a user-defined variable.
+        Allocate memory for a user-defined variable and return an IR node referencing it.
 
         Arguments
         ---------
         name : str
             Name of the variable
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
-        pos : VyperNode
-            AST node corresponding to the location where the variable was created,
-            used for annotating exceptions
 
         Returns
         -------
@@ -187,31 +282,25 @@ class Context:
             Memory offset for the variable
         """
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
+        return self._new_variable(
+            name, typ, is_internal=False, is_mutable=is_mutable, internal_function=internal_function
+        )
 
-    def fresh_varname(self, name: Optional[str] = None) -> str:
+    def fresh_varname(self, name: str) -> str:
         """
-        return a unique
+        return a unique variable name
         """
-        if name is None:
-            name = "var"
         t = self._internal_var_iter
         self._internal_var_iter += 1
         return f"{name}{t}"
 
-    # do we ever allocate immutable internal variables?
-    def new_internal_variable(self, typ: NodeType) -> int:
+    def new_internal_variable(self, typ: VyperType) -> IRnode:
         """
         Allocate memory for an internal variable.
 
         Arguments
         ---------
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
 
         Returns
@@ -222,53 +311,15 @@ class Context:
         # internal variable names begin with a number sign so there is no chance for collision
         name = self.fresh_varname("#internal")
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, True)
+        return self._new_variable(name, typ, is_internal=True)
 
-    def parse_type(self, ast_node):
-        return self.global_ctx.parse_type(ast_node)
-
-    def lookup_var(self, varname):
+    def lookup_var(self, varname) -> VariableRecord:
         return self.vars[varname]
-
-    def lookup_internal_function(self, method_name, args_ir, ast_source):
-        # TODO is this the right module for me?
-        """
-        Using a list of args, find the internal method to use, and
-        the kwargs which need to be filled in by the compiler
-        """
-
-        sig = self.sigs["self"].get(method_name, None)
-
-        def _check(cond, s="Unreachable"):
-            if not cond:
-                raise CompilerPanic(s)
-
-        # these should have been caught during type checking; sanity check
-        _check(sig is not None)
-        _check(sig.internal)
-        _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
-        # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
-
-        num_provided_kwargs = len(args_ir) - len(sig.base_args)
-        num_kwargs = len(sig.default_args)
-        kwargs_needed = num_kwargs - num_provided_kwargs
-
-        kw_vals = list(sig.default_values.values())[:kwargs_needed]
-
-        return sig, kw_vals
 
     # Pretty print constancy for error messages
     def pp_constancy(self):
-        if self.in_assertion:
-            return "an assertion"
-        elif self.in_range_expr:
+        if self.in_range_expr:
             return "a range expression"
         elif self.constancy == Constancy.Constant:
             return "a constant function"
-        raise CompilerPanic(f"unknown constancy in pp_constancy: {self.constancy}")
+        raise CompilerPanic(f"bad constancy: {self.constancy}")  # pragma: nocover
