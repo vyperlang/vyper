@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from vyper.exceptions import CompilerPanic
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
@@ -13,7 +14,14 @@ from vyper.venom.passes.base_pass import IRGlobalPass
 
 class FuncInlinerPass(IRGlobalPass):
     """
-    This pass inlines functions into the call sites.
+    This pass inlines functions into their call sites to reduce function call overhead.
+    
+    Limitations:
+    - Does not handle recursive functions
+    
+    Side effects:
+    - Modifies the control flow graph
+    - Invalidates DFG, CFG and VarEquivalence analyses
     """
 
     RETURN_BUFFER_ANNOTATION = "return_buffer"
@@ -69,6 +77,9 @@ class FuncInlinerPass(IRGlobalPass):
         """
         Inline function into call site.
         """
+        if func == call_site.parent.parent:
+            raise CompilerPanic("Recursive function inlining is not supported")
+
         if call_site.opcode != "invoke":
             raise CompilerPanic(f"Expected invoke instruction, got {call_site.opcode}")
 
@@ -123,7 +134,7 @@ class FuncInlinerPass(IRGlobalPass):
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
 
-    def _build_call_walk(self, function: IRFunction) -> List[IRFunction]:
+    def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
         DFS walk over the call graph.
         """
@@ -143,4 +154,4 @@ class FuncInlinerPass(IRGlobalPass):
 
         dfs(function)
 
-        return call_walk
+        return OrderedSet(call_walk)
