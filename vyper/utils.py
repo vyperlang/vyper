@@ -11,7 +11,7 @@ import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
 _T = TypeVar("_T")
 
