@@ -21,11 +21,10 @@ class FuncInlinerPass(IRGlobalPass):
         self.inline_count = 0
 
         function_count = len(self.ctx.functions)
+        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
+        self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
-            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
-            self.walk = self._build_call_walk(entry)
-
             candidate = self._select_inline_candidate()
             if candidate is None:
                 return
@@ -33,6 +32,9 @@ class FuncInlinerPass(IRGlobalPass):
             calls = self.fcg.get_call_sites(candidate)
             self._inline_function(candidate, calls)
             self.ctx.remove_function(candidate)
+            self.walk.remove(candidate)
+
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
 
     def _select_inline_candidate(self):
         for func in self.walk:
