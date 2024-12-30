@@ -57,6 +57,9 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), bb
         del self._basic_block_dict[bb.label.name]
 
+    def has_basic_block(self, label: str) -> bool:
+        return label in self._basic_block_dict
+
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
