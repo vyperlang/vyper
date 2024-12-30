@@ -1,8 +1,8 @@
 from . import primitives, subscriptable, user
 from .base import TYPE_T, VOID_TYPE, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
-from .function import MemberFunctionT
-from .module import InterfaceT
+from .function import ContractFunctionT, MemberFunctionT
+from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from .user import EventT, FlagT, StructT
