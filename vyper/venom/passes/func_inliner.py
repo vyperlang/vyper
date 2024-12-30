@@ -34,7 +34,6 @@ class FuncInlinerPass(IRGlobalPass):
     fcg: FCGAnalysis
 
     def run_pass(self):
-        return
         entry = self.ctx.entry_function
         self.inline_count = 0
 
