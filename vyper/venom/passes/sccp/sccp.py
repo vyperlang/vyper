@@ -454,11 +454,6 @@ class SCCP(IRPass):
             return operands[idx_a].value == operands[idx_b].value
         else:
             assert isinstance(self.eq, VarEquivalenceAnalysis)
-            print(
-                operands[idx_a],
-                operands[idx_b],
-                self.eq.equivalent(operands[idx_a], operands[idx_b]),
-            )
             return operands[idx_a] == operands[idx_b] or self.eq.equivalent(
                 operands[idx_a], operands[idx_b]
             )
@@ -551,6 +546,9 @@ class SCCP(IRPass):
 
             return False
 
+        if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
+            return False
+
         if inst.opcode in COMPARISON_OPS and self.op_eq(operands, 0, 1):
             # (x < x) == (x > x) == 0
             return self.store(inst, 0)
@@ -567,12 +565,9 @@ class SCCP(IRPass):
         if inst.opcode == "eq" and self.lit_eq(operands[1], 0):
             return self.update(inst, "iszero", operands[0])
 
-        if inst.opcode in {"eq"} and self.op_eq(operands, 0, 1):
+        if inst.opcode == "eq" and self.op_eq(operands, 0, 1):
             # (x == x) == 1
             return self.store(inst, 1)
-
-        if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
-            return False
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses_ignore_nops(inst.output)
