@@ -253,7 +253,13 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
+    if experimental_codegen is None:
+        experimental_codegen = input_dict["settings"].get("venom")
+    elif input_dict["settings"].get("venom") is not None:
+        raise JSONError("both experimentalCodegen and venom cannot be set")
+
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
@@ -266,8 +272,17 @@ def get_settings(input_dict: dict) -> Settings:
     else:
         assert optimize is None
 
+    debug = input_dict["settings"].get("debug", None)
+
+    # TODO: maybe change these to camelCase for consistency
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
+
     return Settings(
-        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+        evm_version=evm_version,
+        optimize=optimize,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
+        enable_decimals=enable_decimals,
     )
 
 

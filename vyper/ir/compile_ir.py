@@ -54,6 +54,11 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
+def reset_symbols():
+    global _next_symbol
+    _next_symbol = 0
+
+
 def mkdebug(pc_debugger, ast_source):
     i = Instruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
@@ -1033,6 +1038,9 @@ def _stack_peephole_opts(assembly):
         if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:
             changed = True
             del assembly[i]
+        if assembly[i] == "DUP1" and assembly[i + 1] == "SWAP1":
+            changed = True
+            del assembly[i + 1]
         i += 1
 
     return changed

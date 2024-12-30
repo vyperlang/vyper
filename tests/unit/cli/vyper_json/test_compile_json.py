@@ -9,6 +9,7 @@ from vyper.cli.vyper_json import (
     compile_json,
     exc_handler_to_dict,
     get_inputs,
+    get_settings,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
@@ -72,7 +73,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize, evm_version, experimental_codegen):
+def input_json(optimize, evm_version, experimental_codegen, debug):
     return {
         "language": "Vyper",
         "sources": {
@@ -86,6 +87,7 @@ def input_json(optimize, evm_version, experimental_codegen):
             "optimize": optimize.name.lower(),
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
+            "debug": debug,
         },
     }
 
@@ -237,7 +239,7 @@ def test_wrong_language():
 
 def test_exc_handler_raises_syntax(input_json):
     input_json["sources"]["badcode.vy"] = {"content": BAD_SYNTAX_CODE}
-    with pytest.raises(SyntaxException):
+    with pytest.raises(SyntaxException, match=r'contract "badcode\.vy:\d+"'):
         compile_json(input_json)
 
 
@@ -293,7 +295,7 @@ def test_source_ids_increment(input_json):
 def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/baz.vy"] = {"content": "from ... import foo"}
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
-    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
+    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from .baz import baz"}
     compile_from_input_dict(input_json)
 
 
@@ -318,4 +320,40 @@ def test_compile_json_with_abi_top(make_input_bundle):
 from . import stream
     """
     input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
-    vyper.compiler.compile_code(code, input_bundle=input_bundle)
+    file_input = input_bundle.load_file("code.vy")
+    vyper.compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_compile_json_with_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venom": True,
+            "search_paths": [],
+            "outputSelection": {"*": ["ast"]},
+        },
+    }
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen is True
+
+
+def test_compile_json_with_both_venom_aliases():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": ""}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "experimentalCodegen": False,
+            "venom": False,
+            "search_paths": [],
+            "outputSelection": {"*": ["ast"]},
+        },
+    }
+    with pytest.raises(JSONError) as e:
+        get_settings(code)
+    assert e.value.args[0] == "both experimentalCodegen and venom cannot be set"
