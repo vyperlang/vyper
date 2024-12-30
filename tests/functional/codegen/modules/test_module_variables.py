@@ -158,8 +158,6 @@ import lib1
 
 uses: lib1
 
-phony: uint32
-
 @internal
 def get_lib1_counter() -> uint256:
     return lib1.counter
