@@ -1523,7 +1523,6 @@ def use_lib0():
     lib0.foo()
            """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
-    #with pytest.raises(StructureException):
     compile_code(main, input_bundle=input_bundle)
 
 
