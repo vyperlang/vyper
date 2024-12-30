@@ -381,13 +381,22 @@ def test_interfaces_success(good_code):
 
 
 def test_imports_and_implements_within_interface(make_input_bundle):
-    interface_code = """
+    ibar_code = """
+@external
+def foobar():
+    ...
+"""
+    ifoo_code = """
+import bar
+
+implements: bar
+
 @external
 def foobar():
     ...
 """
 
-    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code, "bar.vyi": ibar_code})
 
     code = """
 import foo as Foo
@@ -562,3 +571,53 @@ def bar():
         compiler.compile_code(code, input_bundle=input_bundle)
 
     assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+
+
+def test_intrinsic_interfaces_different_types(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    lib2 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+@external
+def bar():
+    assert lib1.__at__(self) == lib2.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+@pytest.mark.xfail
+def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def __default__():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    extcall lib1.__at__(self).__default__()
+
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    # TODO make the exception more precise once fixed
+    with pytest.raises(Exception):  # noqa: B017
+        compiler.compile_code(main, input_bundle=input_bundle)
