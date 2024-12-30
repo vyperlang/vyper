@@ -252,7 +252,6 @@ class CompilerData:
     def assembly(self) -> list:
         if self.settings.experimental_codegen:
             deploy_code, runtime_code = self.venom_functions
-            assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 runtime_code,
                 deploy_code=deploy_code,
@@ -265,7 +264,6 @@ class CompilerData:
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
             _, runtime_code = self.venom_functions
-            assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 runtime_code, settings=VenomSettings.from_vyper_settings(self.settings)
             )
