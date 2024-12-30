@@ -8,7 +8,7 @@ Variable Declaration
 
 The first time a variable is referenced you must declare its :ref:`type <types>`:
 
-.. code-block:: python
+.. code-block:: vyper
 
     data: int128
 
@@ -25,7 +25,7 @@ Declaring Public Variables
 
 Storage variables can be marked as ``public`` during declaration:
 
-.. code-block:: python
+.. code-block:: vyper
 
     data: public(int128)
 
@@ -33,16 +33,18 @@ The compiler automatically creates getter functions for all public storage varia
 
 For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
+.. _immutable-variables:
+
 Declaring Immutable Variables
 -----------------------------
 
 Variables can be marked as ``immutable`` during declaration:
 
-.. code-block:: python
+.. code-block:: vyper
 
     DATA: immutable(uint256)
 
-    @external
+    @deploy
     def __init__(_data: uint256):
         DATA = _data
 
@@ -55,7 +57,7 @@ Tuple Assignment
 
 You cannot directly declare tuple types. However, in certain cases you can use literal tuples during assignment. For example, when a function returns multiple values:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @internal
     def foo() -> (int128, int128):
@@ -84,13 +86,13 @@ This can be performed when compiling  via ``vyper`` by including the ``--storage
 
 For example, consider upgrading the following contract:
 
-.. code-block:: python
+.. code-block:: vyper
 
     # old_contract.vy
     owner: public(address)
     balanceOf: public(HashMap[address, uint256])
 
-.. code-block:: python
+.. code-block:: vyper
 
     # new_contract.vy
     owner: public(address)
@@ -101,7 +103,7 @@ This would cause an issue when upgrading, as the ``balanceOf`` mapping would be 
 
 This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where ``new_contract_storage.json`` contains the following:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         "owner": {"type": "address", "slot": 0},
@@ -123,14 +125,12 @@ Module Scope
 
 Variables and other items declared outside of a code block (functions, constants, event and struct definitions, ...), are visible even before they were declared. This means you can use module-scoped items before they are declared.
 
-An exception to this rule is that you can only call functions that have already been declared.
-
 Accessing Module Scope from Functions
 *************************************
 
 Values that are declared in the module scope of a contract, such as storage variables and functions, are accessed via the ``self`` object:
 
-.. code-block:: python
+.. code-block:: vyper
 
     a: int128
 
@@ -148,7 +148,7 @@ Name Shadowing
 
 It is not permitted for a memory or calldata variable to shadow the name of an immutable or constant value. The following examples will not compile:
 
-.. code-block:: python
+.. code-block:: vyper
 
     a: constant(bool) = True
 
@@ -157,13 +157,14 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
         # memory variable cannot have the same name as a constant or immutable variable
         a: bool = False
         return a
-.. code-block:: python
+.. code-block:: vyper
 
     a: immutable(bool)
 
-    @external
+    @deploy
     def __init__():
         a = True
+
     @external
     def foo(a:bool) -> bool:
         # input argument cannot have the same name as a constant or immutable variable
@@ -174,7 +175,7 @@ Function Scope
 
 Variables that are declared within a function, or given as function input arguments, are visible within the body of that function. For example, the following contract is valid because each declaration of ``a`` only exists within one function's body.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: int128):
@@ -190,14 +191,14 @@ Variables that are declared within a function, or given as function input argume
 
 The following examples will not compile:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: int128):
         # `a` has already been declared as an input argument
         a: int128 = 21
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: int128):
@@ -215,7 +216,7 @@ Block Scopes
 
 Logical blocks created by ``for`` and ``if`` statements have their own scope. For example, the following contract is valid because ``x`` only exists within the block scopes for each branch of the ``if`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: bool) -> int128:
@@ -226,20 +227,20 @@ Logical blocks created by ``for`` and ``if`` statements have their own scope. Fo
 
 In a ``for`` statement, the target variable exists within the scope of the loop. For example, the following contract is valid because ``i`` is no longer available upon exiting the loop:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             pass
         i: bool = False
 
 The following contract fails to compile because ``a`` has not been declared outside of the loop.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def foo(a: bool) -> int128:
-        for i in [1, 2, 3]:
+        for i: int128 in [1, 2, 3]:
             a: int128 = i
         a += 3

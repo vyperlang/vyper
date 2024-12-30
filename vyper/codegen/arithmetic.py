@@ -286,10 +286,10 @@ def safe_div(x, y):
 
     if is_decimal_type(x.typ):
         lo, hi = typ.int_bounds
-        if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:
+        if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:  # pragma: nocover
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
-            raise UnimplementedException("safe_mul for decimal{typ.bits}x{typ.decimals}")
+            raise UnimplementedException(f"safe_mul for decimal{typ.bits}x{typ.decimals}")
         x = ["mul", x, typ.divisor]
 
     DIV = "sdiv" if typ.is_signed else "div"
@@ -340,8 +340,7 @@ def safe_mod(x, y):
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:
 def safe_pow(x, y):
     typ = x.typ
-    if not is_integer_type(x.typ):
-        # type checker should have caught this
+    if not is_integer_type(x.typ):  # pragma: nocover
         raise TypeCheckFailure("non-integer pow")
 
     GE = "sge" if typ.is_signed else "ge"

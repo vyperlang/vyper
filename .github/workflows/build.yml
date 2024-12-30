@@ -24,15 +24,19 @@ jobs:
         os: [ubuntu-20.04, macos-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
 
+      # debug
+      - name: Git shorthash
+        run: git rev-parse --short HEAD
+
       - name: Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -53,15 +57,19 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
 
+      # debug
+      - name: Git shorthash
+        run: git rev-parse --short HEAD
+
       - name: Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -83,13 +91,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v3
         with:
           path: artifacts/
 
       - name: Upload assets
         # fun - artifacts are downloaded into "artifact/".
+        # TODO: this needs to be tested when upgrading to upload-artifact v4
         working-directory: artifacts/artifact
         run: |
           set -Eeuxo pipefail

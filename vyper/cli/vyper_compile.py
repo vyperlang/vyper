@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sys
 import warnings
-from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
+import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
-from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import (
-    VYPER_TRACEBACK_LIMIT,
-    OptimizationLevel,
-    Settings,
-    _set_debug_mode,
-)
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.typing import ContractCodes, ContractPath, OutputFormats
+from vyper.cli.compile_archive import NotZipInput, compile_from_zip
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
 
@@ -28,13 +24,18 @@ bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
-source_map         - Vyper source map
+source_map         - Vyper source map of deployable bytecode
+source_map_runtime - Vyper source map of runtime bytecode
 method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
+metadata           - Contract metadata (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
-ast                - AST in JSON format
+ast                - AST (not yet annotated) in JSON format
+annotated_ast      - Annotated AST in JSON format
+cfg                - Control flow graph of deployable bytecode
+cfg_runtime        - Control flow graph of runtime bytecode
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -42,8 +43,12 @@ opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
+bb                 - Basic blocks of Venom IR for deployable bytecode
+bb_runtime         - Basic blocks of Venom IR for runtime bytecode
 asm                - Output the EVM assembly of the deployable bytecode
-hex-ir             - Output IR and assembly constants in hex instead of decimal
+integrity          - Output the integrity hash of the source code
+archive            - Output the build as an archive file
+solc_json          - Output the build in solc json format
 """
 
 combined_json_outputs = [
@@ -53,6 +58,7 @@ combined_json_outputs = [
     "abi",
     "layout",
     "source_map",
+    "source_map_runtime",
     "method_identifiers",
     "userdoc",
     "devdoc",
@@ -65,7 +71,22 @@ def _parse_cli_args():
 
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
+        compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
+        return
+
+    if output_formats == ("archive",):
+        for contract_data in compiled.values():
+            assert list(contract_data.keys()) == ["archive"]
+            out = contract_data["archive"]
+            if f.isatty() and isinstance(out, bytes):
+                raise RuntimeError(
+                    "won't write raw bytes to a tty! (if you want to base64"
+                    " encode the archive, you can try `-f archive` in"
+                    " conjunction with `--base64`)"
+                )
+            else:
+                f.write(out)
         return
 
     for contract_data in compiled.values():
@@ -89,9 +110,7 @@ def _parse_args(argv):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
@@ -106,13 +125,18 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION}). "
-        "note: cancun support is EXPERIMENTAL",
-        choices=list(EVM_VERSIONS),
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
+        choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "--base64",
+        help="Base64 encode the output (only valid in conjunction with `-f archive`",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-O",
         "--optimize",
         help="Optimization flag (defaults to 'gas')",
         choices=["gas", "codesize", "none"],
@@ -127,6 +151,7 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
@@ -138,11 +163,29 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
-        "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
+        "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
     )
+    parser.add_argument(
+        "--path",
+        "-p",
+        help="Add a path to the compiler's search path",
+        action="append",
+        dest="paths",
+    )
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
+
     parser.add_argument("-o", help="Set the output path", dest="output_path")
+    parser.add_argument(
+        "--experimental-codegen",
+        "--venom",
+        help="The compiler uses the new IR codegen. This is an experimental feature.",
+        action="store_true",
+        dest="experimental_codegen",
+    )
+    parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -163,8 +206,11 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
-    if args.debug:
-        _set_debug_mode(True)
+    if args.base64 and output_formats != ("archive",):
+        raise ValueError("Cannot use `--base64` except with `-f archive`")
+
+    if args.base64:
+        output_formats = ("archive_b64",)
 
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
@@ -179,25 +225,42 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
+    if args.experimental_codegen:
+        settings.experimental_codegen = args.experimental_codegen
+
+    if args.debug:
+        settings.debug = args.debug
+
+    if args.enable_decimals:
+        settings.enable_decimals = args.enable_decimals
+
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
+
+    include_sys_path = not args.disable_sys_path
 
     compiled = compile_files(
         args.input_files,
         output_formats,
-        args.root_folder,
+        args.paths,
+        include_sys_path,
         args.show_gas_estimates,
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
     )
 
+    mode = "w"
+    if output_formats == ("archive",):
+        mode = "wb"
+
     if args.output_path:
-        with open(args.output_path, "w") as f:
+        with open(args.output_path, mode) as f:
             _cli_helper(f, output_formats, compiled)
     else:
-        f = sys.stdout
-        _cli_helper(f, output_formats, compiled)
+        # https://stackoverflow.com/a/54073813
+        with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
+            _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
@@ -219,94 +282,41 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
-    interface_codes: Dict = {}
-    interfaces: Dict = {}
+def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Path]:
+    # given `paths` input, get the full search path, including
+    # the system search path.
+    paths = paths or []
 
-    for file_path, code in contract_sources.items():
-        interfaces[file_path] = {}
-        parent_path = root_path.joinpath(file_path).parent
+    # lowest precedence search path is always sys path
+    # note python sys path uses opposite resolution order from us
+    # (first in list is highest precedence; we give highest precedence
+    # to the last in the list)
+    search_paths = []
+    if include_sys_path:
+        search_paths = [Path(p) for p in reversed(sys.path)]
 
-        interface_codes = extract_file_interface_imports(code)
-        for interface_name, interface_path in interface_codes.items():
-            base_paths = [parent_path]
-            if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
-                base_paths.append(root_path)
-            elif interface_path.startswith("../") and len(Path(file_path).parent.parts) < Path(
-                interface_path
-            ).parts.count(".."):
-                raise FileNotFoundError(
-                    f"{file_path} - Cannot perform relative import outside of base folder"
-                )
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
 
-            valid_path = get_interface_file_path(base_paths, interface_path)
-            with valid_path.open() as fh:
-                code = fh.read()
-                if valid_path.suffix == ".json":
-                    contents = json.loads(code.encode())
+    for p in paths:
+        path = Path(p).resolve(strict=True)
+        search_paths.append(path)
 
-                    # EthPM Manifest (EIP-2678)
-                    if "contractTypes" in contents:
-                        if (
-                            interface_name not in contents["contractTypes"]
-                            or "abi" not in contents["contractTypes"][interface_name]
-                        ):
-                            raise ValueError(
-                                f"Could not find interface '{interface_name}'"
-                                f" in manifest '{valid_path}'."
-                            )
-
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents["contractTypes"][interface_name]["abi"],
-                        }
-
-                    # ABI JSON file (either `List[ABI]` or `{"abi": List[ABI]}`)
-                    elif isinstance(contents, list) or (
-                        "abi" in contents and isinstance(contents["abi"], list)
-                    ):
-                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
-
-                    else:
-                        raise ValueError(f"Corrupted file: '{valid_path}'")
-
-                else:
-                    interfaces[file_path][interface_name] = {"type": "vyper", "code": code}
-
-    return interfaces
+    return search_paths
 
 
 def compile_files(
-    input_files: Iterable[str],
+    input_files: list[str],
     output_formats: OutputFormats,
-    root_folder: str = ".",
+    paths: list[str] = None,
+    include_sys_path: bool = True,
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
-    storage_layout: Optional[Iterable[str]] = None,
+    storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
-) -> OrderedDict:
-    root_path = Path(root_folder).resolve()
-    if not root_path.exists():
-        raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
-
-    contract_sources: ContractCodes = OrderedDict()
-    for file_name in input_files:
-        file_path = Path(file_name)
-        try:
-            file_str = file_path.resolve().relative_to(root_path).as_posix()
-        except ValueError:
-            file_str = file_path.as_posix()
-        with file_path.open() as fh:
-            # trailing newline fixes python parsing bug when source ends in a comment
-            # https://bugs.python.org/issue35107
-            contract_sources[file_str] = fh.read() + "\n"
-
-    storage_layouts = OrderedDict()
-    if storage_layout:
-        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
-            storage_file_path = Path(storage_file_name)
-            with storage_file_path.open() as sfh:
-                storage_layouts[contract_name] = json.load(sfh)
+) -> dict:
+    search_paths = get_search_paths(paths, include_sys_path)
+    input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -315,23 +325,73 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
+    # formats which can only be requested as a single output format
+    for c in ("solc_json", "archive"):
+        if c in output_formats and len(output_formats) > 1:
+            raise ValueError(f"If using {c} it must be the only output format requested")
+
+    translate_map = {
+        "abi_python": "abi",
+        "json": "abi",
+        "ast": "ast_dict",
+        "annotated_ast": "annotated_ast_dict",
+        "ir_json": "ir_dict",
+    }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
-    compiler_data = vyper.compile_codes(
-        contract_sources,
-        final_formats,
-        exc_handler=exc_handler,
-        interface_codes=get_interface_codes(root_path, contract_sources),
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-        no_bytecode_metadata=no_bytecode_metadata,
-    )
-    if show_version:
-        compiler_data["version"] = vyper.__version__
+    if storage_layout_paths:
+        if len(storage_layout_paths) != len(input_files):
+            raise ValueError(
+                f"provided {len(storage_layout_paths)} storage "
+                f"layouts, but {len(input_files)} source files"
+            )
 
-    return compiler_data
+    ret: dict[Any, Any] = {}
+    if show_version:
+        ret["version"] = vyper.__version__
+
+    for file_name in input_files:
+        file_path = Path(file_name)
+
+        try:
+            # try to compile in zipfile mode if it's a zip file, falling back
+            # to regular mode if it's not.
+            # we allow this instead of requiring a different mode (like
+            # `--zip`) so that verifier pipelines do not need a different
+            # workflow for archive files and single-file contracts.
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
+            ret[file_path] = output
+            continue
+        except NotZipInput:
+            pass
+
+        # note compile_from_zip also reads the file contents, so this
+        # is slightly inefficient (and also maybe allows for some very
+        # rare, strange race conditions if the file changes in between
+        # the two reads).
+        file = input_bundle.load_file(file_path)
+        assert isinstance(file, FileInput)  # mypy hint
+
+        storage_layout_override = None
+        if storage_layout_paths:
+            storage_file_path = storage_layout_paths.pop(0)
+            with open(storage_file_path) as sfh:
+                storage_layout_override = json.load(sfh)
+
+        output = vyper.compile_from_file_input(
+            file,
+            input_bundle=input_bundle,
+            output_formats=final_formats,
+            exc_handler=exc_handler,
+            settings=settings,
+            storage_layout_override=storage_layout_override,
+            show_gas_estimates=show_gas_estimates,
+            no_bytecode_metadata=no_bytecode_metadata,
+        )
+
+        ret[file_path] = output
+
+    return ret
 
 
 if __name__ == "__main__":
