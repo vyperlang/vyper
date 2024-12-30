@@ -1,4 +1,5 @@
 from typing import Optional
+
 from vyper.compiler.settings import Settings, get_global_settings
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
@@ -30,10 +31,16 @@ class IRGlobalPass:
     analyses_caches: dict[IRFunction, IRAnalysesCache]
     settings: Settings
 
-    def __init__(self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext, settings: Optional[Settings] = None):
+    def __init__(
+        self,
+        analyses_caches: dict[IRFunction, IRAnalysesCache],
+        ctx: IRContext,
+        settings: Optional[Settings] = None,
+    ):
         self.analyses_caches = analyses_caches
         self.ctx = ctx
-        self.settings = settings or get_global_settings()
+        settings = settings or get_global_settings()
+        self.settings = settings or Settings()
 
     def run_pass(self, *args, **kwargs):
         raise NotImplementedError(f"Not implemented! {self.__class__}.run_pass()")
