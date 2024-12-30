@@ -1,11 +1,10 @@
 import pytest
 
 from vyper.exceptions import StaticAssertionException
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
-from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.sccp import SCCP
+from vyper.venom.passes import SCCP, MakeSSA
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 
@@ -168,8 +167,8 @@ def test_cont_phi_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
+    assert sccp.lattice[IRVariable("%5", version=1)] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%5")].value == 2
 
 
@@ -208,8 +207,9 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
+    # dependent on cfg traversal order
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
+    assert sccp.lattice[IRVariable("%5", version=1)].value == 97
     assert sccp.lattice[IRVariable("%5")].value == 2
 
 
