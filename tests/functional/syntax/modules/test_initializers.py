@@ -1538,6 +1538,7 @@ def foo():
 
 @pytest.mark.parametrize("module", initializable_modules)
 def test_initializes_on_modules_with_state_related_vars(module, make_input_bundle):
+    # test modules that use storage can be initialized
     main = """
 import lib
 initializes: lib
@@ -1547,6 +1548,7 @@ initializes: lib
 
 
 def test_initializes_on_modules_with_immutables(make_input_bundle):
+    # test modules with immutables can be initialized
     lib = """
 foo: immutable(int128)
 
@@ -1584,6 +1586,7 @@ FOO: constant(int128) = 128
 
 @pytest.mark.parametrize("module", stateless_modules)
 def test_forbids_initializes_on_stateless_modules(module, make_input_bundle):
+    # test we cannot initialize modules that don't use state
     main = """
 import lib
 initializes: lib
