@@ -77,6 +77,9 @@ class FlagT(_UserType):
         self._helper.get_member(key, node)
         return self
 
+    def __str__(self):
+        return f"{self.name}"
+
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self._flag_members)
         return f"flag {self.name}({arg_types})"
