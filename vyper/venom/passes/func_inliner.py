@@ -77,8 +77,11 @@ class FuncInlinerPass(IRGlobalPass):
         """
         Inline function into call site.
         """
-        if func == call_site.parent.parent:
-            raise CompilerPanic("Recursive function inlining is not supported")
+        # TODO: not allowed at all in Vyper at the moment
+        #       but we could support it if we want to with Venom.
+        #       (I think we should support tail call optimizable cases at least)
+        # if func == call_site.parent.parent:
+        #     raise CompilerPanic("Recursive function inlining is not supported")
 
         if call_site.opcode != "invoke":
             raise CompilerPanic(f"Expected invoke instruction, got {call_site.opcode}")
