@@ -984,27 +984,15 @@ class AsWeiValue(BuiltinFunctionT):
                     ],
                 ]
             elif value.typ in IntegerT.signeds():
-                sub = [
-                    "with",
-                    "ans",
-                    ["mul", value, denom_divisor],
-                    [
-                        "seq",
-                        [
-                            "assert",
-                            [
-                                "and",
-                                ["sgt", value, -1],
-                                [
-                                    "or",
-                                    ["eq", ["div", "ans", value], denom_divisor],
-                                    ["iszero", value],
-                                ],
-                            ],
-                        ],
-                        "ans",
-                    ],
-                ]
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    positive = ["sge", value, 0]
+                    safemul = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
+                    ok = ["and", positive, safemul]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(sub)
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
