@@ -24,10 +24,10 @@ class FuncInlinerPass(IRGlobalPass):
     - Invalidates DFG, CFG and VarEquivalence analyses
     """
 
-    RETURN_BUFFER_ANNOTATION = "return_buffer"
-    RETURN_PC_ANNOTATION = "return_pc"
-    RETURN_OFFSET_MARKER = "ret_ofst"
-    RETURN_SIZE_MARKER = "ret_size"
+    _RETURN_BUFFER_ANNOTATION = "return_buffer"
+    _RETURN_PC_ANNOTATION = "return_pc"
+    _RETURN_OFFSET_MARKER = "ret_ofst"
+    _RETURN_SIZE_MARKER = "ret_size"
 
     inline_count: int
     fcg: FCGAnalysis
@@ -107,10 +107,10 @@ class FuncInlinerPass(IRGlobalPass):
             call_site_func.append_basic_block(bb)
             for inst in bb.instructions:
                 if inst.opcode == "param":
-                    if inst.annotation == self.RETURN_BUFFER_ANNOTATION:
+                    if inst.annotation == self._RETURN_BUFFER_ANNOTATION:
                         inst.opcode = "store"
                         inst.operands = [call_site.operands[1]]
-                    elif inst.annotation == self.RETURN_PC_ANNOTATION:
+                    elif inst.annotation == self._RETURN_PC_ANNOTATION:
                         inst.make_nop()
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
@@ -118,8 +118,8 @@ class FuncInlinerPass(IRGlobalPass):
                 elif inst.opcode == "store":
                     assert inst.output is not None  # mypy is not smart enough
                     if (
-                        self.RETURN_OFFSET_MARKER in inst.output.name
-                        or self.RETURN_SIZE_MARKER in inst.output.name
+                        self._RETURN_OFFSET_MARKER in inst.output.name
+                        or self._RETURN_SIZE_MARKER in inst.output.name
                     ):
                         inst.make_nop()
                 elif inst.opcode == "ret":
@@ -127,7 +127,7 @@ class FuncInlinerPass(IRGlobalPass):
                     inst.operands = [call_site_return.label]
                 elif inst.opcode in ["jmp", "jnz", "djmp", "phi"]:
                     for i, label in enumerate(inst.operands):
-                        if isinstance(label, IRLabel):
+                        if isinstance(label, IRLabel) and func.has_basic_block(label.name):
                             inst.operands[i] = IRLabel(f"{prefix}{label.name}")
                 elif inst.opcode == "revert":
                     bb.remove_instructions_after(inst)
