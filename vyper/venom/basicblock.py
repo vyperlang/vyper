@@ -223,7 +223,6 @@ class IRInstruction:
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
-    code_size_cost: int
 
     def __init__(
         self,
@@ -240,7 +239,6 @@ class IRInstruction:
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
-        self.code_size_cost = 1
 
     @property
     def is_volatile(self) -> bool:
@@ -375,6 +373,12 @@ class IRInstruction:
             if self.operands[i] == label:
                 del self.operands[i : i + 2]
                 return
+
+    @property
+    def code_size_cost(self) -> int:
+        if self.opcode == "store":
+            return 1
+        return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
         if self.ast_source:

@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -64,20 +65,18 @@ class FuncInlinerPass(IRGlobalPass):
             if call_count == 1:
                 return func
 
-            # # Decide whether to inline based on the optimization level.
-            # if self.settings.optimize == OptimizationLevel.CODESIZE:
-            #     if func.code_size_cost <= 10:
-            #         return func
-            # elif self.settings.optimize == OptimizationLevel.GAS:
-            #     # Inline if the function is not too big.
-            #     if func.code_size_cost <= 25:
-            #         return func
-            # elif self.settings.optimize == OptimizationLevel.NONE:
-            #     continue
-            # else:
-            #     raise CompilerPanic(
-            #         f"Unsupported inlining optimization level: {self.settings.optimize}"
-            #     )
+            # Decide whether to inline based on the optimization level.
+            if self.settings.optimize == OptimizationLevel.CODESIZE:
+                continue
+            elif self.settings.optimize == OptimizationLevel.GAS:
+                if func.code_size_cost <= 15:
+                    return func
+            elif self.settings.optimize == OptimizationLevel.NONE:
+                continue
+            else:
+                raise CompilerPanic(
+                    f"Unsupported inlining optimization level: {self.settings.optimize}"
+                )
 
         return None
 
