@@ -6,6 +6,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     _freshname,
+    add_ofst,
     append_dyn_array,
     check_assign,
     clamp,
@@ -62,7 +63,13 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import DECIMAL_DIVISOR, is_checksum_encoded, string_to_bytes, vyper_warn
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    bytes_to_int,
+    is_checksum_encoded,
+    string_to_bytes,
+    vyper_warn,
+)
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -151,15 +158,22 @@ class Expr:
         placeholder = self.context.new_internal_variable(btype)
         ret = ["seq"]
         assert isinstance(bytez, bytes)
-        label = _freshname("bytesdata")
-        len_ = len(bytez)
         # NOTE: addl opportunities for optimization:
         # - intern repeated bytestrings
         # - instantiate into memory lazily, pass around bytestring
-        #   literals in IR.
-        ret.append(["data", label, bytez])
-        ret.append(["codecopy", placeholder + 32, ["symbol", label], len_])
-        ret.append(["mstore", placeholder, len_])
+        #   literals in IR
+        # -
+        length = len(bytez)
+        if length <= 32:
+            # just a single mstore
+            bytes_as_int = bytes_to_int(bytez)
+            ret.append(["mstore", add_ofst(placeholder, length), bytes_as_int])
+        else:
+            # codecopy
+            label = _freshname("bytesdata")
+            ret.append(["data", label, bytez])
+            ret.append(["codecopy", add_ofst(placeholder, 32), ["symbol", label], length])
+        ret.append(["mstore", placeholder, length])
         ret.append(placeholder)
         return IRnode.from_list(
             ret, typ=btype, location=MEMORY, annotation=f"Create {btype}: {repr(bytez)}"
