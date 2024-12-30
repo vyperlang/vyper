@@ -1,24 +1,19 @@
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes import RemoveUnusedVariablesPass
 
 
-def _check_pre_post(pre, post, scope="basicblock"):
-    if scope == "basicblock":
-        parse = parse_from_basic_block
-    else:
-        parse = parse_venom
-
-    ctx = parse(pre)
+def _check_pre_post(pre, post):
+    ctx = parse_from_basic_block(pre)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    assert_ctx_eq(ctx, parse(post))
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
-def _check_no_change(pre, scope="basicblock"):
-    _check_pre_post(pre, pre, scope=scope)
+def _check_no_change(pre):
+    _check_pre_post(pre, pre)
 
 
 def test_removeunused_basic():
@@ -93,14 +88,14 @@ def test_removeunused_loop():
 def test_removeunused_mload_basic():
     pre = """
     main:
-        %a = mload 32
+        %a = itouch 32
         %b = msize
         %c_unused = mload 64  # safe to remove
         return %b, %b
     """
     post = """
     main:
-        %a = mload 32
+        %a = itouch 32
         %b = msize
         return %b, %b
     """
@@ -112,72 +107,32 @@ def test_removeunused_mload_two_msizes():
     main:
         %a = mload 32
         %b = msize
-        %c = mload 64  # not safe to remove - has MSIZE effect
+        %c = mload 64
         %d = msize
         return %b, %d
     """
-    _check_no_change(pre)
+    post = """
+    main:
+        %b = msize
+        %d = msize
+        return %b, %d
+    """
+    _check_pre_post(pre, post)
 
 
 def test_removeunused_msize_loop():
     pre = """
     main:
         %1 = msize
-
-        # not safe to remove because the previous instruction is
-        # still reachable
-        %2 = mload %1
-
+        itouch %1  # volatile
         jmp @main
     """
     _check_no_change(pre)
 
 
-def test_removeunused_msize_reachable():
-    pre = """
-    main:
-        # not safe to remove because there is an msize in a reachable
-        # basic block
-        %1 = mload 0
-
-        jmp @next
-    next:
-        jmp @last
-    last:
-        %2 = msize
-        return %2, %2
+def test_remove_unused_mload_msize():
     """
-    _check_no_change(pre)
-
-
-def test_removeunused_msize_branches():
-    """
-    Test that mload removal is blocked by msize in a downstream basic
-    block
-    """
-    pre = """
-    function global {
-        main:
-            %1 = param
-            %2 = mload 10  ; looks unused, but has MSIZE effect
-            jnz %1, @branch1, @branch2
-        branch1:
-            %3 = msize  ; blocks removal of `%2 = mload 10`
-            mstore 10, %3
-            jmp @end
-        branch2:
-            jmp @end
-        end:
-            stop
-    }
-    """
-    _check_no_change(pre, scope="function")
-
-
-def test_remove_unused_mload_msize_chain():
-    """
-    Test effect chain removal - remove mload which is initially blocked by
-    an msize but is free to be removed after the msize is removed.
+    Test removal of non-volatile mload and msize instructions
     """
     pre = """
     main:
@@ -194,9 +149,8 @@ def test_remove_unused_mload_msize_chain():
 
 def test_remove_unused_mload_msize_chain_loop():
     """
-    Test effect chain removal - remove mload which is initially blocked by
-    an msize but is free to be removed after the msize is removed.
-    Loop version.
+    Test removal of non-volatile mload and msize instructions.
+    Loop version
     """
     pre = """
     main:
