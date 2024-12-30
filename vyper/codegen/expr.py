@@ -165,14 +165,19 @@ class Expr:
         # -
         length = len(bytez)
         if length <= 32:
-            # just a single mstore
-            bytes_as_int = bytes_to_int(bytez)
-            ret.append(["mstore", add_ofst(placeholder, length), bytes_as_int])
+            # in this case, a single mstore is cheaper than
+            # codecopy.
+            bytes_as_int = bytes_to_int(bytez)  # PUSH data
+            # bytes are left justified. "Hello" gets written to the
+            # first 6 bytes of the data buffer of the bytestring
+            dst = add_ofst(placeholder, length)
+            ret.append(["mstore", dst, bytes_as_int])
         else:
             # codecopy
             label = _freshname("bytesdata")
             ret.append(["data", label, bytez])
             ret.append(["codecopy", add_ofst(placeholder, 32), ["symbol", label], length])
+        # write out the length
         ret.append(["mstore", placeholder, length])
         ret.append(placeholder)
         return IRnode.from_list(
