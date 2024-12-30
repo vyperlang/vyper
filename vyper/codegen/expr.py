@@ -5,6 +5,8 @@ import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    _freshname,
+    add_ofst,
     append_dyn_array,
     check_assign,
     clamp,
@@ -154,21 +156,32 @@ class Expr:
 
     def _make_bytelike(self, btype, bytez, bytez_length):
         placeholder = self.context.new_internal_variable(btype)
-        seq = []
-        seq.append(["mstore", placeholder, bytez_length])
-        for i in range(0, len(bytez), 32):
-            seq.append(
-                [
-                    "mstore",
-                    ["add", placeholder, i + 32],
-                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
-                ]
-            )
+        ret = ["seq"]
+        assert isinstance(bytez, bytes)
+        # NOTE: addl opportunities for optimization:
+        # - intern repeated bytestrings
+        # - instantiate into memory lazily, pass around bytestring
+        #   literals in IR
+        # -
+        length = len(bytez)
+        if length <= 32:
+            # in this case, a single mstore is cheaper than
+            # codecopy.
+            bytes_as_int = bytes_to_int(bytez)  # PUSH data
+            # bytes are left justified. "Hello" gets written to the
+            # first 6 bytes of the data buffer of the bytestring
+            dst = add_ofst(placeholder, length)
+            ret.append(["mstore", dst, bytes_as_int])
+        else:
+            # codecopy
+            label = _freshname("bytesdata")
+            ret.append(["data", label, bytez])
+            ret.append(["codecopy", add_ofst(placeholder, 32), ["symbol", label], length])
+        # write out the length
+        ret.append(["mstore", placeholder, length])
+        ret.append(placeholder)
         return IRnode.from_list(
-            ["seq"] + seq + [placeholder],
-            typ=btype,
-            location=MEMORY,
-            annotation=f"Create {btype}: {bytez}",
+            ret, typ=btype, location=MEMORY, annotation=f"Create {btype}: {repr(bytez)}"
         )
 
     # True, False, None constants
