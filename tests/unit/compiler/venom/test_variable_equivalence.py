@@ -1,9 +1,9 @@
 import itertools
+
 from tests.venom_utils import parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache, VarEquivalenceAnalysis
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
-
 
 
 def _entry_fn(ctx: "IRContext"):
@@ -36,7 +36,3 @@ def test_variable_equivalence_dfg_order():
     for var1, var2 in itertools.combinations(vars_, 2):
         assert eq1.equivalent(var1, var2)
         assert eq2.equivalent(var1, var2)
-
-    # doesn't have to pass since it's internal to the class, but extra
-    # guarantee of correctness that it does
-    assert eq1._equivalence_set == eq2._equivalence_set

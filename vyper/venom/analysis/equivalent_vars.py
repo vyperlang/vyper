@@ -21,8 +21,8 @@ class VarEquivalenceAnalysis(IRAnalysis):
             self._equivalence_set[output] = self._get_equivalent(inst.operands[0])
 
     def _get_equivalent(self, var):
-        if var in self._equivalence_set:
-            return self._equivalence_set[var]
+        while var in self._equivalence_set:
+            var = self._equivalence_set[var]
         return var
 
     def equivalent(self, var1, var2):
