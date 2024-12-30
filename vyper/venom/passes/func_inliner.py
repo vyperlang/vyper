@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -61,37 +60,24 @@ class FuncInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
-            # if func.name.name not in [
-            #     #"internal 15 _transfer_out(uint128,uint256,address)_runtime",
-            #     # "internal 38 _domain_separator()_runtime",
-            #     #"internal 34 _transfer(address,address,uint256)_runtime",
-            #     #"internal 26 _withdraw_admin_fees()_runtime",
-            #     #"internal 2 _xp_mem(DynArray[uint256, 8],DynArray[uint256, 8])_runtime",
-            #     "internal 19 get_D_mem(DynArray[uint256, 8],DynArray[uint256, 8],uint256)_runtime",
-            #     "internal 5 get_D(DynArray[uint256, 8],uint256)_runtime"
-            # ]:
-            #     continue
-
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
 
-            # Decide whether to inline based on the optimization level.
-            if self.settings.optimize == OptimizationLevel.CODESIZE:
-                if func.code_size_cost <= 10:
-                    return func
-            elif self.settings.optimize == OptimizationLevel.GAS:
-                # Inline if the function is not too big.
-                if func.code_size_cost <= 25:
-                    return func
-            elif self.settings.optimize == OptimizationLevel.NONE:
-                continue
-            else:
-                raise CompilerPanic(
-                    f"Unsupported inlining optimization level: {self.settings.optimize}"
-                )
-
-            # Inline if the function is not too big.
+            # # Decide whether to inline based on the optimization level.
+            # if self.settings.optimize == OptimizationLevel.CODESIZE:
+            #     if func.code_size_cost <= 10:
+            #         return func
+            # elif self.settings.optimize == OptimizationLevel.GAS:
+            #     # Inline if the function is not too big.
+            #     if func.code_size_cost <= 25:
+            #         return func
+            # elif self.settings.optimize == OptimizationLevel.NONE:
+            #     continue
+            # else:
+            #     raise CompilerPanic(
+            #         f"Unsupported inlining optimization level: {self.settings.optimize}"
+            #     )
 
         return None
 
