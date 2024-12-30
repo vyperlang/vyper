@@ -343,7 +343,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         return o
 
-
     # "mstore" to the data section of (to-be-deployed) runtime code
     elif code.value == "istore":
         loc = code.args[0]
