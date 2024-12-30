@@ -4,6 +4,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
+import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
@@ -11,6 +12,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
+from vyper.ir.compile_ir import reset_symbols
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
@@ -112,11 +114,14 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
+        is_vyi = self.contract_path.suffix == ".vyi"
+
         settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
+            is_interface=is_vyi,
         )
 
         if self.original_settings:
@@ -304,6 +309,10 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
+    # make IR output the same between runs
+    codegen.reset_names()
+    reset_symbols()
+
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if settings.optimize != OptimizationLevel.NONE:

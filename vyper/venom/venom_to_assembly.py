@@ -10,7 +10,12 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    IRAnalysesCache,
+    LivenessAnalysis,
+    VarEquivalenceAnalysis,
+)
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -36,6 +41,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
+        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -103,9 +109,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
-
-
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
 
@@ -117,6 +120,11 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
         else:
             ret.append(op)
     return ret  # type: ignore
+
+
+def _as_asm_symbol(label: IRLabel) -> str:
+    # Lower an IRLabel to an assembly symbol
+    return f"_sym_{label.value}"
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -155,6 +163,7 @@ class VenomCompiler:
                 NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
                 self.equivalence = ac.request_analysis(VarEquivalenceAnalysis)
+                ac.request_analysis(CFGAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
 
@@ -179,19 +188,19 @@ class VenomCompiler:
                 asm.extend(_REVERT_POSTAMBLE)
 
             # Append data segment
-            data_segments: dict = dict()
-            for inst in ctx.data_segment:
-                if inst.opcode == "dbname":
-                    label = inst.operands[0].value
-                    data_segments[label] = [DataHeader(f"_sym_{label}")]
-                elif inst.opcode == "db":
-                    data = inst.operands[0]
+            for data_section in ctx.data_segment:
+                label = data_section.label
+                asm_data_section: list[Any] = []
+                asm_data_section.append(DataHeader(_as_asm_symbol(label)))
+                for item in data_section.data_items:
+                    data = item.data
                     if isinstance(data, IRLabel):
-                        data_segments[label].append(f"_sym_{data.value}")
+                        asm_data_section.append(_as_asm_symbol(data))
                     else:
-                        data_segments[label].append(data)
+                        assert isinstance(data, bytes)
+                        asm_data_section.append(data)
 
-            asm.extend(list(data_segments.values()))
+                asm.append(asm_data_section)
 
         if no_optimize is False:
             optimize_assembly(top_asm)
@@ -256,7 +265,7 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(f"_sym_{op.value}")
+                    assembly.append(_as_asm_symbol(op))
                 stack.push(op)
                 continue
 
@@ -290,7 +299,7 @@ class VenomCompiler:
         asm = []
 
         # assembly entry point into the block
-        asm.append(f"_sym_{basicblock.label}")
+        asm.append(_as_asm_symbol(basicblock.label))
         asm.append("JUMPDEST")
 
         if len(basicblock.cfg_in) == 1:
@@ -311,7 +320,7 @@ class VenomCompiler:
 
         ref.extend(asm)
 
-        for bb in basicblock.reachable:
+        for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb
@@ -405,7 +414,9 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
-            assembly.extend(["_OFST", f"_sym_{inst.operands[1].value}", inst.operands[0].value])
+            ofst, label = inst.operands
+            assert isinstance(label, IRLabel)  # help mypy
+            assembly.extend(["_OFST", _as_asm_symbol(label), ofst.value])
             assert isinstance(inst.output, IROperand), "Offset must have output"
             stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
@@ -431,7 +442,7 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        if opcode in COMMUTATIVE_INSTRUCTIONS:
+        if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
             cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
@@ -467,26 +478,26 @@ class VenomCompiler:
             pass
         elif opcode == "store":
             pass
-        elif opcode == "dbname":
-            pass
         elif opcode in ["codecopy", "dloadbytes"]:
             assembly.append("CODECOPY")
+        elif opcode == "dbname":
+            pass
         elif opcode == "jnz":
             # jump if not zero
-            if_nonzero_label = inst.operands[1]
-            if_zero_label = inst.operands[2]
-            assembly.append(f"_sym_{if_nonzero_label.value}")
+            if_nonzero_label, if_zero_label = inst.get_label_operands()
+            assembly.append(_as_asm_symbol(if_nonzero_label))
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
             # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
-            assembly.append(f"_sym_{if_zero_label.value}")
+            assembly.append(_as_asm_symbol(if_zero_label))
             assembly.append("JUMP")
 
         elif opcode == "jmp":
-            assert isinstance(inst.operands[0], IRLabel)
-            assembly.append(f"_sym_{inst.operands[0].value}")
+            (target,) = inst.operands
+            assert isinstance(target, IRLabel)
+            assembly.append(_as_asm_symbol(target))
             assembly.append("JUMP")
         elif opcode == "djmp":
             assert isinstance(
@@ -501,7 +512,7 @@ class VenomCompiler:
             assembly.extend(
                 [
                     f"_sym_label_ret_{self.label_counter}",
-                    f"_sym_{target.value}",
+                    _as_asm_symbol(target),
                     "JUMP",
                     f"_sym_label_ret_{self.label_counter}",
                     "JUMPDEST",
@@ -597,10 +608,14 @@ class VenomCompiler:
         assembly.append(_evm_dup_for(depth))
 
     def swap_op(self, assembly, stack, op):
-        return self.swap(assembly, stack, stack.get_depth(op))
+        depth = stack.get_depth(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
+        return self.swap(assembly, stack, depth)
 
     def dup_op(self, assembly, stack, op):
-        self.dup(assembly, stack, stack.get_depth(op))
+        depth = stack.get_depth(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"Cannot dup non-existent operand {op}"
+        self.dup(assembly, stack, depth)
 
 
 def _evm_swap_for(depth: int) -> str:

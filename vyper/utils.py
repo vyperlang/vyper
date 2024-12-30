@@ -391,6 +391,11 @@ def evm_twos_complement(x: int) -> int:
     return ((2**256 - 1) ^ x) + 1
 
 
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
@@ -522,20 +527,79 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
 
 
 @contextlib.contextmanager
-def timeit(msg):
+def timeit(msg):  # pragma: nocover
     start_time = time.perf_counter()
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds")
+    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
+
+
+_CUMTIMES = None
+
+
+def _dump_cumtime():  # pragma: nocover
+    global _CUMTIMES
+    for msg, total_time in _CUMTIMES.items():
+        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
+def cumtimeit(msg):  # pragma: nocover
+    import atexit
+    from collections import defaultdict
+
+    global _CUMTIMES
+
+    if _CUMTIMES is None:
+        warnings.warn("timing code, disable me before pushing!", stacklevel=2)
+        _CUMTIMES = defaultdict(int)
+        atexit.register(_dump_cumtime)
+
+    start_time = time.perf_counter()
     yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    _CUMTIMES[msg] += total_time
+
+
+_PROF = None
+
+
+def _dump_profile():  # pragma: nocover
+    global _PROF
+
+    _PROF.disable()  # don't profile dumping stats
+    _PROF.dump_stats("stats")
+
+    from pstats import Stats
+
+    stats = Stats("stats", stream=sys.stderr)
+    stats.sort_stats("time")
+    stats.print_stats()
+
+
+@contextlib.contextmanager
+def profileit():  # pragma: nocover
+    """
+    Helper function for local dev use, is not intended to ever be run in
+    production build
+    """
+    import atexit
+    from cProfile import Profile
+
+    global _PROF
+    if _PROF is None:
+        warnings.warn("profiling code, disable me before pushing!", stacklevel=2)
+        _PROF = Profile()
+        _PROF.disable()
+        atexit.register(_dump_profile)
+
+    try:
+        _PROF.enable()
+        yield
+    finally:
+        _PROF.disable()
 
 
 def annotate_source_code(
