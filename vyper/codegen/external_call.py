@@ -1,9 +1,11 @@
+import copy
 from dataclasses import dataclass
 
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     _freshname,
+    add_ofst,
     calculate_type_for_external_return,
     check_assign,
     check_external_call,
@@ -54,7 +56,7 @@ def _pack_arguments(fn_type, args, context):
     buf_t = get_type_for_exact_size(buflen)
     buf = context.new_internal_variable(buf_t)
 
-    args_ofst = buf + 28
+    args_ofst = add_ofst(buf, 28)
     args_len = args_abi_t.size_bound() + 4
 
     abi_signature = fn_type.name + dst_tuple_t.abi_type.selector_name()
@@ -69,7 +71,9 @@ def _pack_arguments(fn_type, args, context):
     pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
 
     if len(args) != 0:
-        pack_args.append(abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen))
+        encode_buf = add_ofst(buf, 32)
+        encode_buflen = buflen - 32
+        pack_args.append(abi_encode(encode_buf, args_as_tuple, context, bufsz=encode_buflen))
 
     return buf, pack_args, args_ofst, args_len
 
@@ -84,7 +88,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     abi_return_t = wrapped_return_t.abi_type
 
-    min_return_size = abi_return_t.min_size()
+    min_return_size = abi_return_t.static_size()
     max_return_size = abi_return_t.size_bound()
     assert 0 < min_return_size <= max_return_size
 
@@ -93,36 +97,51 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     encoding = Encoding.ABI
 
-    buf = IRnode.from_list(
-        buf,
-        typ=wrapped_return_t,
-        location=MEMORY,
-        encoding=encoding,
-        annotation=f"{expr.node_source_code} returndata buffer",
-    )
+    assert buf.location == MEMORY
+    buf = copy.copy(buf)
+    buf.typ = wrapped_return_t
+    buf.encoding = encoding
+    buf.annotation = f"{expr.node_source_code} returndata buffer"
 
     unpacker = ["seq"]
 
-    # revert when returndatasize is not in bounds
-    # (except when return_override is provided.)
-    if not call_kwargs.skip_contract_check:
+    assert isinstance(wrapped_return_t, TupleT)
+
+    # unpack strictly
+    if not needs_clamp(wrapped_return_t, encoding):
+        # revert when returndatasize is not in bounds
+        # NOTE: there is an optimization here: when needs_clamp is True,
+        # make_setter (implicitly) checks returndatasize during abi
+        # decoding.
+        # since make_setter is not called in this branch, we need to check
+        # returndatasize here, but we avoid a redundant check by only doing
+        # the returndatasize check inside of this branch (and not in the
+        # `needs_clamp==True` branch).
+        # in the future, this check could be moved outside of the branch, and
+        # instead rely on the optimizer to optimize out the redundant check,
+        # it would need the optimizer to do algebraic reductions (along the
+        # lines of `a>b and b>c and a>c` reduced to `a>b and b>c`).
+        # another thing we could do instead once we have the machinery is to
+        # simply always use make_setter instead of having this assertion, and
+        # rely on memory analyser to optimize out the memory movement.
         assertion = IRnode.from_list(
             ["assert", ["ge", "returndatasize", min_return_size]],
             error_msg="returndatasize too small",
         )
         unpacker.append(assertion)
 
-    assert isinstance(wrapped_return_t, TupleT)
-
-    # unpack strictly
-    if needs_clamp(wrapped_return_t, encoding):
+        return_buf = buf
+    else:
         return_buf = context.new_internal_variable(wrapped_return_t)
-        return_buf = IRnode.from_list(return_buf, typ=wrapped_return_t, location=MEMORY)
 
         # note: make_setter does ABI decoding and clamps
-        unpacker.append(make_setter(return_buf, buf))
-    else:
-        return_buf = buf
+        payload_bound = IRnode.from_list(
+            ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
+        )
+        with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
+            unpacker.append(
+                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
+            )
 
     if call_kwargs.default_return_value is not None:
         # if returndatasize == 0:
@@ -159,7 +178,7 @@ def _parse_kwargs(call_expr, context):
         default_return_value=call_kwargs.pop("default_return_value", None),
     )
 
-    if len(call_kwargs) != 0:
+    if len(call_kwargs) != 0:  # pragma: nocover
         raise TypeCheckFailure(f"Unexpected keyword arguments: {call_kwargs}")
 
     return ret
