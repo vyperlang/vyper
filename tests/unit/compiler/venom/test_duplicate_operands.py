@@ -3,6 +3,7 @@ from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes import StoreExpansionPass
+from vyper.venom.settings import VenomSettings
 
 
 def test_duplicate_operands():
@@ -29,5 +30,5 @@ def test_duplicate_operands():
     StoreExpansionPass(ac, fn).run_pass()
 
     optimize = OptimizationLevel.GAS
-    asm = generate_assembly_experimental(ctx, optimize=optimize)
+    asm = generate_assembly_experimental(ctx, VenomSettings.from_optimization_level(optimize))
     assert asm == ["PUSH1", 10, "DUP1", "DUP2", "ADD", "MUL", "POP", "STOP"]

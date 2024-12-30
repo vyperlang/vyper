@@ -1,6 +1,7 @@
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.context import IRContext
+from vyper.venom.settings import VenomSettings
 
 
 def test_cleanup_stack():
@@ -13,5 +14,7 @@ def test_cleanup_stack():
     bb.append_instruction("add", op, op2)
     bb.append_instruction("ret", ret_val)
 
-    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
+    asm = generate_assembly_experimental(
+        ctx, VenomSettings.from_optimization_level(OptimizationLevel.GAS)
+    )
     assert asm == ["PUSH1", 10, "DUP1", "ADD", "POP", "JUMP"]

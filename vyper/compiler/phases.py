@@ -21,6 +21,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.venom.settings import VenomSettings
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -253,7 +254,9 @@ class CompilerData:
             deploy_code, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
+                runtime_code,
+                deploy_code=deploy_code,
+                settings=VenomSettings.from_vyper_settings(self.settings),
             )
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
@@ -263,7 +266,9 @@ class CompilerData:
         if self.settings.experimental_codegen:
             _, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
-            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
+            return generate_assembly_experimental(
+                runtime_code, settings=VenomSettings.from_vyper_settings(self.settings)
+            )
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 

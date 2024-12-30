@@ -10,6 +10,7 @@ from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.context import IRContext
+from vyper.venom.settings import VenomSettings
 
 """
 Check that venom text format round-trips through parser
@@ -97,7 +98,7 @@ def _helper1(vyper_source, optimize):
     run_passes_on(ctx, optimize)
 
     # test we can generate assembly+bytecode
-    asm = generate_assembly_experimental(ctx)
+    asm = generate_assembly_experimental(ctx, VenomSettings.from_optimization_level(optimize))
     generate_bytecode(asm, compiler_metadata=None)
 
 
@@ -119,7 +120,7 @@ def _helper2(vyper_source, optimize, compiler_settings):
     assert_ctx_eq(bb_runtime, ctx)
 
     # test we can generate assembly+bytecode
-    asm = generate_assembly_experimental(ctx, optimize=optimize)
+    asm = generate_assembly_experimental(ctx, VenomSettings.from_vyper_settings(settings))
     bytecode = generate_bytecode(asm, compiler_metadata=None)
 
     out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
