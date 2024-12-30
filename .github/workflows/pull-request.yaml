@@ -24,6 +24,7 @@ jobs:
         with:
           types: |
             feat
+            perf
             fix
             chore
             refactor
@@ -31,6 +32,7 @@ jobs:
           # docs: documentation
           # test: test suite
           # lang: language changes
+          # stdlib: changes to the stdlib
           # ux: language changes (UX)
           # tool: integration
           # ir: (old) IR/codegen changes
@@ -42,6 +44,7 @@ jobs:
             docs
             test
             lang
+            stdlib
             ux
             tool
             ir

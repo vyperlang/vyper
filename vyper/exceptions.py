@@ -54,6 +54,7 @@ class _BaseVyperException(Exception):
         self.lineno = None
         self.col_offset = None
         self.annotations = None
+        self.resolved_path = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
@@ -97,10 +98,7 @@ class _BaseVyperException(Exception):
 
     @property
     def message(self):
-        msg = self._message
-        if self.hint:
-            msg += f"\n\n  (hint: {self.hint})"
-        return msg
+        return self._message
 
     def format_annotation(self, value):
         from vyper import ast as vy_ast
@@ -130,12 +128,17 @@ class _BaseVyperException(Exception):
             module_node = node.module_node
 
             # TODO: handle cases where module is None or vy_ast.Module
-            if module_node.get("path") not in (None, "<unknown>"):
-                node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
+            if module_node.get("resolved_path") not in (None, "<unknown>"):
+                node_msg = self._format_contract_details(
+                    node_msg, module_node.resolved_path, node.lineno
+                )
 
             fn_node = node.get_ancestor(vy_ast.FunctionDef)
             if fn_node:
                 node_msg = f'{node_msg}function "{fn_node.name}", '
+
+        elif self.resolved_path is not None:
+            node_msg = self._format_contract_details(node_msg, self.resolved_path, node.lineno)
 
         col_offset_str = "" if node.col_offset is None else str(node.col_offset)
         node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
@@ -148,7 +151,21 @@ class _BaseVyperException(Exception):
         node_msg = textwrap.indent(node_msg, "  ")
         return node_msg
 
+    def _add_hint(self, msg):
+        hint = self.hint
+        if hint is None:
+            return msg
+        return msg + f"\n  (hint: {self.hint})"
+
+    def _format_contract_details(self, msg, path, lineno):
+        from vyper.utils import safe_relpath
+
+        return f'{msg}contract "{safe_relpath(path)}:{lineno}", '
+
     def __str__(self):
+        return self._add_hint(self._str_helper())
+
+    def _str_helper(self):
         if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
