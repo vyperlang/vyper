@@ -44,7 +44,7 @@ def previewDeposit(assets: uint256) -> uint256:
     ...
 
 @external
-def deposit(assets: uint256, receiver: address=msg.sender) -> uint256:
+def deposit(assets: uint256, receiver: address) -> uint256:
     ...
 
 @view
@@ -58,7 +58,7 @@ def previewMint(shares: uint256) -> uint256:
     ...
 
 @external
-def mint(shares: uint256, receiver: address=msg.sender) -> uint256:
+def mint(shares: uint256, receiver: address) -> uint256:
     ...
 
 @view
@@ -72,7 +72,7 @@ def previewWithdraw(assets: uint256) -> uint256:
     ...
 
 @external
-def withdraw(assets: uint256, receiver: address=msg.sender, owner: address=msg.sender) -> uint256:
+def withdraw(assets: uint256, receiver: address, owner: address) -> uint256:
     ...
 
 @view
@@ -86,5 +86,5 @@ def previewRedeem(shares: uint256) -> uint256:
     ...
 
 @external
-def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sender) -> uint256:
+def redeem(shares: uint256, receiver: address, owner: address) -> uint256:
     ...
