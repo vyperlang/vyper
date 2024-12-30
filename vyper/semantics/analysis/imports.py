@@ -19,6 +19,7 @@ from vyper.exceptions import (
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
@@ -147,10 +148,11 @@ class ImportAnalyzer:
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        node._metadata["import_info"] = ImportInfo(
-            alias, qualified_module_name, compiler_input, ast
-        )
+        with tag_exceptions(node):
+            compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
+            node._metadata["import_info"] = ImportInfo(
+                alias, qualified_module_name, compiler_input, ast
+            )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
@@ -212,7 +214,7 @@ class ImportAnalyzer:
 
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, node,  hint=hint) from err
+        raise ModuleNotFound(module_str, hint=hint) from err
 
     def _load_file(self, path: PathLike, level: int) -> CompilerInput:
         ast = self.graph.current_module
