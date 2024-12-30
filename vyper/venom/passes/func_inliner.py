@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -45,6 +46,8 @@ class FuncInlinerPass(IRGlobalPass):
             if candidate is None:
                 return
 
+            print(f"Inlining function {candidate.name} with cost {candidate.code_size_cost}")
+
             calls = self.fcg.get_call_sites(candidate)
             self._inline_function(candidate, calls)
             self.ctx.remove_function(candidate)
@@ -54,11 +57,29 @@ class FuncInlinerPass(IRGlobalPass):
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
         for func in self.walk:
-            calls = self.fcg.get_call_sites(func)
-            if len(calls) == 0:
+            call_count = len(self.fcg.get_call_sites(func))
+            if call_count == 0:
                 continue
-            if len(calls) <= 1:
+
+            # Always inline if there is only one call site.
+            if call_count == 1:
                 return func
+
+            # Decide whether to inline based on the optimization level.
+            if self.settings.optimize == OptimizationLevel.CODESIZE:
+                if func.code_size_cost <= 100:
+                    return func
+            elif self.settings.optimize == OptimizationLevel.GAS:
+                # Inline if the function is not too big.
+                if func.code_size_cost <= 1000:
+                    return func
+            elif self.settings.optimize == OptimizationLevel.NONE:
+                continue
+            else:
+                raise CompilerPanic(f"Unsupported inlining optimization level: {self.settings.optimize}")
+
+            # Inline if the function is not too big.
+
         return None
 
     def _inline_function(self, func: IRFunction, call_sites: List[IRInstruction]) -> None:

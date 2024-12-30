@@ -83,6 +83,10 @@ class IRFunction:
     def num_basic_blocks(self) -> int:
         return len(self._basic_block_dict)
 
+    @property
+    def code_size_cost(self) -> int:
+        return sum(bb.code_size_cost for bb in self.get_basic_blocks())
+
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
         Get basic blocks that are terminal.
