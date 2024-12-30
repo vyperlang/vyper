@@ -119,8 +119,11 @@ def _helper2(vyper_source, optimize, compiler_settings):
 
     assert_ctx_eq(bb_runtime, ctx)
 
+    venom_settings = VenomSettings.from_vyper_settings(settings)
+    venom_settings.optimize = optimize
+
     # test we can generate assembly+bytecode
-    asm = generate_assembly_experimental(ctx, VenomSettings.from_vyper_settings(settings))
+    asm = generate_assembly_experimental(ctx, venom_settings)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
 
     out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
