@@ -17,7 +17,7 @@ Vyper supports structured documentation for contracts and external functions usi
     The compiler does not parse docstrings of internal functions. You are welcome to NatSpec in comments for internal functions, however they are not processed or included in the compiler output.
 
 
-.. code-block:: python
+.. code-block:: vyper
 
     """
     @title A simulator for Bug Bunny, the most famous Rabbit
@@ -72,16 +72,16 @@ When parsed by the compiler, documentation such as the one from the above exampl
 
 If the above contract is saved as ``carrots.vy`` then you can generate the documentation using:
 
-.. code::
+.. code:: shell
 
-   vyper -f userdoc,devdoc carrots.vy
+   $ vyper -f userdoc,devdoc carrots.vy
 
 User Documentation
 ------------------
 
 The above documentation will produce the following user documentation JSON as output:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
       "methods": {
@@ -102,7 +102,7 @@ Developer Documentation
 Apart from the user documentation file, a developer documentation JSON
 file should also be produced and should look like this:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
       "author": "Warned Bros",
