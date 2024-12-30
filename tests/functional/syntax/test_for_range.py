@@ -406,6 +406,21 @@ def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
         None,
         "self.arr.pop() + 2",
     ),
+    # Cannot call `pop()` in iterator because it modifies state
+    (
+        """
+a: DynArray[uint256, 3]
+
+@external
+def foo():
+    for i: uint256 in [1, 2, self.a.pop()]:
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.a.pop()",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
