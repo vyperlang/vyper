@@ -339,7 +339,7 @@ def bar(t: address):
         pass
     """,
         StateAccessViolation,
-        "May not call state modifying function within a range expression.",
+        "May not call state modifying function within a range expression or for loop iterator.",
         None,
         "extcall I(t).bar()",
     ),
@@ -354,7 +354,7 @@ def bar(t: address):
         pass
     """,
         StateAccessViolation,
-        "May not call state modifying function within a range expression.",
+        "May not call state modifying function within a range expression or for loop iterator.",
         None,
         "extcall I(t).bar()",
     ),
@@ -369,9 +369,42 @@ def bar(t: address):
         pass
     """,
         StateAccessViolation,
-        "May not call state modifying function for loop iterator.",
+        "May not call state modifying function within a range expression or for loop iterator.",
         None,
         "extcall I(t).bar()",
+    ),
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(self.arr.pop(), 20, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop()",
+    ),
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(5, self.arr.pop() + 2, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop() + 2",
     ),
 ]
 
