@@ -568,7 +568,7 @@ class ModuleT(VyperType):
         transient variables, or immutables, or if it includes a "initializes"
         declaration, or any nonreentrancy locks.
         """
-        if len(self.initializes_decls) > 0:
+        if len(self.initializes_decls) > 0 or len(self.uses_decls) > 0:
             return True
         if any(not v.is_constant for v in self.variable_decls):
             return True
