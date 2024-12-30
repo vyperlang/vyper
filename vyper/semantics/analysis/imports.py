@@ -19,7 +19,7 @@ from vyper.exceptions import (
     ImportCycle,
     ModuleNotFound,
     StructureException,
-    tag_exceptions
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
