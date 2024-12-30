@@ -619,24 +619,17 @@ def test_clear_typecheck(contract, get_contract, assert_compile_failed):
     assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
+_33_bytes = b"\x01" * 33
+_65_bytes = b"\x01" * 65
+
+
 @pytest.mark.parametrize(
     "a,b,expected",
     [
-        ("empty(Bytes[65])", "b'hello'", (b"hello", b"")),
-        ("b'hello'", "empty(Bytes[33])", (b"", b"hello")),
-        (
-            "empty(Bytes[65])",
-            "b'thirty three bytes long baby!!!!!'",
-            (b"thirty three bytes long baby!!!!!", b""),
-        ),
-        (
-            "b'thirty three bytes long baby!!!aathirty three bytes long baby!!!a'",
-            "b'thirty three bytes long baby!!!aa'",
-            (
-                b"thirty three bytes long baby!!!aa",
-                b"thirty three bytes long baby!!!aathirty three bytes long baby!!!a",
-            ),
-        ),
+        ("empty(Bytes[65])", b"hello", (b"hello", b"")),
+        (b"hello", "empty(Bytes[33])", (b"", b"hello")),
+        ("empty(Bytes[65])", _33_bytes, (_33_bytes, b"")),
+        (_65_bytes, _33_bytes, (_33_bytes, _65_bytes)),
     ],
 )
 def test_empty_as_func_arg(get_contract, a, b, expected):
@@ -679,11 +672,11 @@ event MyLog:
 @external
 def foo():
     log MyLog(
-        b'hellohellohellohellohellohellohellohellohello',
-        empty(int128[2][3]),
-        314159,
-        b'helphelphelphelphelphelphelphelphelphelphelp',
-        empty(uint256[3])
+        arg1=b'hellohellohellohellohellohellohellohellohello',
+        arg2=empty(int128[2][3]),
+        arg3=314159,
+        arg4=b'helphelphelphelphelphelphelphelphelphelphelp',
+        arg5=empty(uint256[3])
     )
     """
 

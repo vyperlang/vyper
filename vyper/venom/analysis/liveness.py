@@ -1,7 +1,8 @@
+from collections import deque
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRVariable
 
 
@@ -11,16 +12,21 @@ class LivenessAnalysis(IRAnalysis):
     """
 
     def analyze(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
-        while True:
-            changed = False
-            for bb in self.function.get_basic_blocks():
-                changed |= self._calculate_out_vars(bb)
-                changed |= self._calculate_liveness(bb)
 
-            if not changed:
-                break
+        worklist = deque(cfg.dfs_walk)
+
+        while len(worklist) > 0:
+            changed = False
+
+            bb = worklist.popleft()
+            changed |= self._calculate_out_vars(bb)
+            changed |= self._calculate_liveness(bb)
+            # recompute liveness for basic blocks pointing into
+            # this basic block
+            if changed:
+                worklist.extend(bb.cfg_in)
 
     def _reset_liveness(self) -> None:
         for bb in self.function.get_basic_blocks():
@@ -36,7 +42,7 @@ class LivenessAnalysis(IRAnalysis):
         orig_liveness = bb.instructions[0].liveness.copy()
         liveness = bb.out_vars.copy()
         for instruction in reversed(bb.instructions):
-            ins = instruction.get_inputs()
+            ins = instruction.get_input_variables()
             outs = instruction.get_outputs()
 
             if ins or outs:
@@ -55,9 +61,10 @@ class LivenessAnalysis(IRAnalysis):
         Returns True if out_vars changed
         """
         out_vars = bb.out_vars.copy()
+        bb.out_vars = OrderedSet()
         for out_bb in bb.cfg_out:
             target_vars = self.input_vars_from(bb, out_bb)
-            bb.out_vars = bb.out_vars.union(target_vars)
+            bb.out_vars.update(target_vars)
         return out_vars != bb.out_vars
 
     # calculate the input variables into self from source

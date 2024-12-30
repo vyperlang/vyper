@@ -14,7 +14,7 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -166,12 +166,6 @@ def make_input_bundle(tmp_path, make_file):
     return fn
 
 
-# for tests which just need an input bundle, doesn't matter what it is
-@pytest.fixture
-def dummy_input_bundle():
-    return InputBundle([])
-
-
 @pytest.fixture(scope="module")
 def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
@@ -196,7 +190,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)

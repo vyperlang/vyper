@@ -1,47 +1,45 @@
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock
+from vyper.utils import OrderedSet
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 
 class RemoveUnusedVariablesPass(IRPass):
+    """
+    This pass removes instructions that produce output that is never used.
+    """
+
+    dfg: DFGAnalysis
+    work_list: OrderedSet[IRInstruction]
+
     def run_pass(self):
-        self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        for bb in self.function.get_basic_blocks():
-            self._remove_unused_variables(bb)
+        work_list = OrderedSet()
+        self.work_list = work_list
 
+        uses = self.dfg.outputs.values()
+        work_list.addmany(uses)
+
+        while len(work_list) > 0:
+            inst = work_list.pop()
+            self._process_instruction(inst)
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
-    def _remove_unused_variables(self, bb: IRBasicBlock):
-        """
-        Remove the instructions of a basicblock that produce output that is never used.
-        """
-        i = 0
-        while i < len(bb.instructions) - 1:
-            inst = bb.instructions[i]
-            i += 1
+    def _process_instruction(self, inst):
+        if inst.output is None:
+            return
+        if inst.is_volatile or inst.is_bb_terminator:
+            return
+        uses = self.dfg.get_uses(inst.output)
+        if len(uses) > 0:
+            return
 
-            # Skip volatile instructions
-            if inst.volatile:
-                continue
+        for operand in inst.get_input_variables():
+            self.dfg.remove_use(operand, inst)
+            new_uses = self.dfg.get_uses(operand)
+            self.work_list.addmany(new_uses)
 
-            # Skip instructions without output
-            if inst.output is None:
-                continue
-
-            # Skip instructions that produce output that is used
-            next_liveness = bb.instructions[i].liveness
-            if inst.output in next_liveness:
-                continue
-
-            # Remove the rest
-            del bb.instructions[i - 1]
-
-            # backtrack to the *previous* instruction, in case we removed
-            # an instruction which had prevented the previous instruction
-            # from being removed
-            i -= 2
-
-            # don't go beyond 0 though
-            i = max(0, i)
+        inst.parent.remove_instruction(inst)

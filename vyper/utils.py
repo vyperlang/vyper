@@ -4,6 +4,7 @@ import decimal
 import enum
 import functools
 import hashlib
+import os
 import sys
 import time
 import traceback
@@ -25,9 +26,10 @@ class OrderedSet(Generic[_T]):
     """
 
     def __init__(self, iterable=None):
-        self._data = dict()
-        if iterable is not None:
-            self.update(iterable)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self)
@@ -35,6 +37,9 @@ class OrderedSet(Generic[_T]):
 
     def __iter__(self):
         return iter(self._data)
+
+    def __reversed__(self):
+        return reversed(self._data)
 
     def __contains__(self, item):
         return self._data.__contains__(item)
@@ -45,8 +50,19 @@ class OrderedSet(Generic[_T]):
     def first(self):
         return next(iter(self))
 
+    def last(self):
+        return next(reversed(self))
+
+    def pop(self):
+        return self._data.popitem()[0]
+
     def add(self, item: _T) -> None:
         self._data[item] = None
+
+    # NOTE to refactor: duplicate of self.update()
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
 
     def remove(self, item: _T) -> None:
         del self._data[item]
@@ -73,6 +89,7 @@ class OrderedSet(Generic[_T]):
     def union(self, other):
         return self | other
 
+    # set dunders
     def __ior__(self, other):
         self.update(other)
         return self
@@ -85,6 +102,15 @@ class OrderedSet(Generic[_T]):
     def __eq__(self, other):
         return self._data == other._data
 
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
     def copy(self):
         cls = self.__class__
         ret = cls.__new__(cls)
@@ -96,11 +122,11 @@ class OrderedSet(Generic[_T]):
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
 
-        ret = sets[0].copy()
-        for e in sets[0]:
-            if any(e not in s for s in sets[1:]):
-                ret.remove(e)
-        return ret
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
 
 
 class StringEnum(enum.Enum):
@@ -365,6 +391,11 @@ def evm_twos_complement(x: int) -> int:
     return ((2**256 - 1) ^ x) + 1
 
 
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
@@ -493,20 +524,79 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
 
 
 @contextlib.contextmanager
-def timeit(msg):
+def timeit(msg):  # pragma: nocover
     start_time = time.perf_counter()
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds")
+    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
+
+
+_CUMTIMES = None
+
+
+def _dump_cumtime():  # pragma: nocover
+    global _CUMTIMES
+    for msg, total_time in _CUMTIMES.items():
+        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
+def cumtimeit(msg):  # pragma: nocover
+    import atexit
+    from collections import defaultdict
+
+    global _CUMTIMES
+
+    if _CUMTIMES is None:
+        warnings.warn("timing code, disable me before pushing!", stacklevel=2)
+        _CUMTIMES = defaultdict(int)
+        atexit.register(_dump_cumtime)
+
+    start_time = time.perf_counter()
     yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    _CUMTIMES[msg] += total_time
+
+
+_PROF = None
+
+
+def _dump_profile():  # pragma: nocover
+    global _PROF
+
+    _PROF.disable()  # don't profile dumping stats
+    _PROF.dump_stats("stats")
+
+    from pstats import Stats
+
+    stats = Stats("stats", stream=sys.stderr)
+    stats.sort_stats("time")
+    stats.print_stats()
+
+
+@contextlib.contextmanager
+def profileit():  # pragma: nocover
+    """
+    Helper function for local dev use, is not intended to ever be run in
+    production build
+    """
+    import atexit
+    from cProfile import Profile
+
+    global _PROF
+    if _PROF is None:
+        warnings.warn("profiling code, disable me before pushing!", stacklevel=2)
+        _PROF = Profile()
+        _PROF.disable()
+        atexit.register(_dump_profile)
+
+    try:
+        _PROF.enable()
+        yield
+    finally:
+        _PROF.disable()
 
 
 def annotate_source_code(
@@ -584,3 +674,12 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path

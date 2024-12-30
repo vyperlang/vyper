@@ -297,7 +297,7 @@ call: atom_expr "(" [arguments] ")"
 empty: "empty" "(" type ")"
 
 // special rule to handle types as "arguments" (for `_abi_decode` builtin)
-abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
+abi_decode: ("_abi_decode" | "abi_decode") "(" arg "," type ( "," kwarg )* ")"
 
 special_builtins: empty | abi_decode
 
@@ -318,7 +318,7 @@ COMMENT: /#[^\n\r]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
-STRING: /b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
+STRING: /x?b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 DOCSTRING: /(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
 DEC_NUMBER: /0|[1-9]\d*/i

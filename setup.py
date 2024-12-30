@@ -36,7 +36,7 @@ extras_require = {
 
 extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
-with open("README.md", "r") as f:
+with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 
@@ -94,6 +94,7 @@ setup(
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
         "packaging>=23.1,<24",
+        "lark>=1.0.0,<2",
         "importlib-metadata",
         "wheel",
     ],
@@ -105,6 +106,7 @@ setup(
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
+            "venom=vyper.cli.venom_main:_parse_cli_args",
         ]
     },
     classifiers=[
@@ -113,6 +115,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],

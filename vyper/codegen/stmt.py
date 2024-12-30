@@ -13,12 +13,12 @@ from vyper.codegen.core import (
     get_element_ptr,
     get_type_for_exact_size,
     make_setter,
+    potential_overlap,
     wrap_value_for_external_return,
     writeable,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -55,12 +55,10 @@ class Stmt:
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
-        alloced = self.context.new_variable(varname, ltyp)
+        lhs = self.context.new_variable(varname, ltyp)
 
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node
-
-        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
         return make_setter(lhs, rhs)
 
@@ -70,13 +68,11 @@ class Stmt:
         dst = self._get_target(self.stmt.target)
 
         ret = ["seq"]
-        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
-        if overlap and not dst.typ._is_prim_word:
+        if potential_overlap(dst, src):
             # there is overlap between the lhs and rhs, and the type is
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.
             tmp = self.context.new_internal_variable(src.typ)
-            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
             ret.append(make_setter(tmp, src))
             src = tmp
 
@@ -97,7 +93,13 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
+        if len(self.stmt.value.keywords) > 0:
+            # keyword arguments
+            to_compile = [arg.value for arg in self.stmt.value.keywords]
+        else:
+            # positional arguments
+            to_compile = self.stmt.value.args
+        args = [Expr(arg, self.context).ir_node for arg in to_compile]
 
         topic_ir = []
         data_ir = []
@@ -200,44 +202,43 @@ class Stmt:
         # sanity check that the following `end - start` is a valid operation
         assert start.typ == end.typ == target_type
 
-        if "bound" in kwargs:
-            with end.cache_when_complex("end") as (b1, end):
-                # note: the check for rounds<=rounds_bound happens in asm
-                # generation for `repeat`.
-                clamped_start = clamp_le(start, end, target_type.is_signed)
-                rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
-            rounds_bound = kwargs.pop("bound").int_value()
-        else:
-            rounds = end.int_value() - start.int_value()
-            rounds_bound = rounds
+        with start.cache_when_complex("start") as (b1, start):
+            if "bound" in kwargs:
+                with end.cache_when_complex("end") as (b2, end):
+                    # note: the check for rounds<=rounds_bound happens in asm
+                    # generation for `repeat`.
+                    clamped_start = clamp_le(start, end, target_type.is_signed)
+                    rounds = b2.resolve(IRnode.from_list(["sub", end, clamped_start]))
+                rounds_bound = kwargs.pop("bound").int_value()
+            else:
+                rounds = end.int_value() - start.int_value()
+                rounds_bound = rounds
 
-        assert len(kwargs) == 0  # sanity check stray keywords
+            assert len(kwargs) == 0  # sanity check stray keywords
 
-        if rounds_bound < 1:  # pragma: nocover
-            raise TypeCheckFailure("unreachable: unchecked 0 bound")
+            if rounds_bound < 1:  # pragma: nocover
+                raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
-        varname = self.stmt.target.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
-        iptr = self.context.new_variable(varname, target_type)
+            varname = self.stmt.target.target.id
+            i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
+            iptr = self.context.new_variable(varname, target_type)
 
-        self.context.forvars[varname] = True
+            self.context.forvars[varname] = True
 
-        loop_body = ["seq"]
-        # store the current value of i so it is accessible to userland
-        loop_body.append(["mstore", iptr, i])
-        loop_body.append(parse_body(self.stmt.body, self.context))
+            loop_body = ["seq"]
+            # store the current value of i so it is accessible to userland
+            loop_body.append(["mstore", iptr, i])
+            loop_body.append(parse_body(self.stmt.body, self.context))
 
-        # NOTE: codegen for `repeat` inserts an assertion that
-        # (gt rounds_bound rounds). note this also covers the case where
-        # rounds < 0.
-        # if we ever want to remove that, we need to manually add the assertion
-        # where it makes sense.
-        ir_node = IRnode.from_list(
-            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
-        )
-        del self.context.forvars[varname]
+            del self.context.forvars[varname]
 
-        return ir_node
+            # NOTE: codegen for `repeat` inserts an assertion that
+            # (gt rounds_bound rounds). note this also covers the case where
+            # rounds < 0.
+            # if we ever want to remove that, we need to manually add the assertion
+            # where it makes sense.
+            loop = ["repeat", i, start, rounds, rounds_bound, loop_body]
+            return b1.resolve(IRnode.from_list(loop, error_msg="range() bounds check"))
 
     def _parse_For_list(self):
         with self.context.range_scope():
@@ -248,9 +249,7 @@ class Stmt:
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id
-        loop_var = IRnode.from_list(
-            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
-        )
+        loop_var = self.context.new_variable(varname, target_type)
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
@@ -260,11 +259,7 @@ class Stmt:
 
         # list literal, force it to memory first
         if isinstance(self.stmt.iter, vy_ast.List):
-            tmp_list = IRnode.from_list(
-                self.context.new_internal_variable(iter_list.typ),
-                typ=iter_list.typ,
-                location=MEMORY,
-            )
+            tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
