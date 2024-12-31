@@ -29,59 +29,43 @@ Venom employs two scopes: global and function level.
 ### Example code
 
 ```llvm
-IRFunction: global
+function global {
+    global:
+        %1 = calldataload 0
+        %2 = shr 224, %1
+        jmp @selector_bucket_0
 
-global:
-    %1 = calldataload 0
-    %2 = shr 224, %1
-    jmp label %selector_bucket_0
+    selector_bucket_0:
+        %3 = xor %2, 1579456981
+        %4 = iszero %3
+        jnz @1, @2, %4
 
-selector_bucket_0:
-    %3 = xor %2, 1579456981
-    %4 = iszero %3
-    jnz label %1, label %2, %4
+    1:
+        jmp @fallback
 
-1:  IN=[selector_bucket_0] OUT=[9]
-    jmp label %fallback
+    2:
+        %5 = callvalue
+        %6 = calldatasize
+        %7 = lt %6, 164
+        %8 = or %5, %7
+        %9 = iszero %8
+        assert %9
+        stop
 
-2:
-    %5 = callvalue
-    %6 = calldatasize
-    %7 = lt %6, 164
-    %8 = or %5, %7
-    %9 = iszero %8
-    assert %9
-    stop
+    fallback:
+        revert 0, 0
+}
 
-fallback:
-    revert 0, 0
+[data]
 ```
 
 ### Grammar
 
-Below is a (not-so-complete) grammar to describe the text format of Venom IR:
+To see a definition of grammar see the [venom parser](./parser.py)
 
-```llvm
-program              ::= function_declaration*
+### Compiling Venom
 
-function_declaration ::= "IRFunction:" identifier input_list? output_list? "=>" block
-
-input_list           ::= "IN=" "[" (identifier ("," identifier)*)? "]"
-output_list          ::= "OUT=" "[" (identifier ("," identifier)*)? "]"
-
-block                ::= label ":" input_list? output_list? "=>{" operation* "}"
-
-operation            ::= "%" identifier "=" opcode operand ("," operand)*
-                     |  opcode operand ("," operand)*
-
-opcode               ::= "calldataload" | "shr" | "shl" | "and" |  "add" | "codecopy" | "mload" | "jmp" | "xor" | "iszero" |  "jnz" | "label" | "lt" | "or" | "assert" | "callvalue" | "calldatasize" | "alloca" | "calldatacopy" |  "invoke" | "gt" | ...
-
-operand              ::= "%" identifier | label | integer | "label" "%" identifier
-label                ::= "%" identifier
-
-identifier           ::= [a-zA-Z_][a-zA-Z0-9_]*
-integer              ::= [0-9]+
-```
+Vyper ships with a venom compiler which compiles venom code to bytecode directly. It can be run by running `venom`, which is installed as a standalone binary when `vyper` is installed via `pip`.
 
 ## Implementation
 
@@ -209,15 +193,16 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
-    out = alloca size, offset
+    out = alloca size, offset, id
     ```
   - Allocates memory of a given `size` at a given `offset` in memory.
+  - The `id` argument is there to help debugging translation into venom
   - The output is the offset value itself.
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   
 - `palloca`
   - ```
-    out = palloca size, offset
+    out = palloca size, offset, id
     ```
   - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `iload`

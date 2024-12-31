@@ -874,7 +874,7 @@ class MemberFunctionT(VyperType):
         return self.name
 
     def __repr__(self):
-        return f"{self.underlying_type._id} member function '{self.name}'"
+        return f"{self.underlying_type} member function '{self.name}'"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         validate_call_args(node, len(self.arg_types))
