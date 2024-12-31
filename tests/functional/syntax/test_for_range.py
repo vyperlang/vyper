@@ -345,18 +345,22 @@ def bar(t: address):
     ),
     (
         """
-interface I:
-    def bar() -> uint256: payable
+a: DynArray[uint256, 3]
+
+@internal
+def foo() -> uint256:
+    return self.a.pop()
+
 
 @external
-def bar(t: address):
-    for i: uint256 in range(1, extcall I(t).bar(), bound=10):
+def bar():
+    for i: uint256 in range(2, self.foo(), bound=5):
         pass
     """,
         StateAccessViolation,
         "May not call state modifying function within a range expression or for loop iterator.",
         None,
-        "extcall I(t).bar()",
+        "self.foo()",
     ),
     (
         """

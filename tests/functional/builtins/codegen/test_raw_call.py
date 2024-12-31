@@ -614,6 +614,19 @@ def foo(_addr: address):
     (
         """
 @external
+def foo(a: address):
+    for i: uint256 in range(
+        0,
+        extract32(raw_call(a, b"", max_outsize=32), 0, output_type=uint256),
+        bound = 12
+    ):
+        pass
+    """,
+        StateAccessViolation,
+    ),
+    (
+        """
+@external
 def foo(_addr: address):
     raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
     """,
