@@ -140,8 +140,6 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
-
-
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     vyper_source: str,
@@ -174,7 +172,6 @@ def annotate_python_ast(
     return parsed_ast
 
 
-
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _pre_parser: PreParser
@@ -194,7 +191,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._parent = None
         self._pre_parser = pre_parser
 
-
         self.counter: int = 0
 
     @cached_property
@@ -212,6 +208,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     def start(self, ast_node):
         self._fix_missing_locations(ast_node)
+        self._module = ast_node  # TODO: remove me
         self.visit(ast_node)
 
     def _fix_missing_locations(self, node):
@@ -231,27 +228,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             module_end_col_offset = 0
 
         def _fix(node, lineno, col_offset, end_lineno, end_col_offset):
-            if not hasattr(node, 'lineno'):
-                node.lineno = lineno
-            else:
-                lineno = node.lineno
-            if getattr(node, 'end_lineno', None) is None:
-                node.end_lineno = end_lineno
-            else:
-                end_lineno = node.end_lineno
-            if not hasattr(node, 'col_offset'):
-                node.col_offset = col_offset
-            else:
-                col_offset = node.col_offset
-            if getattr(node, 'end_col_offset', None) is None:
-                node.end_col_offset = end_col_offset
-            else:
-                end_col_offset = node.end_col_offset
+            node.lineno = getattr(node, "lineno", lineno)
+            node.end_lineno = getattr(node, "end_lineno", end_lineno)
+            node.col_offset = getattr(node, "col_offset", col_offset)
+            node.end_col_offset = getattr(node, "end_col_offset", end_col_offset)
             for child in python_ast.iter_child_nodes(node):
-                _fix(child, lineno, col_offset, end_lineno, end_col_offset)
+                _fix(child, node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
         _fix(node, module_lineno, module_col_offset, module_end_lineno, module_end_col_offset)
-     
 
     def generic_visit(self, node):
         """
