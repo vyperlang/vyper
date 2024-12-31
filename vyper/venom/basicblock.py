@@ -52,6 +52,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "sstore",
         "istore",
         "tstore",
+        "itouch",
         "dloadbytes",
         "calldatacopy",
         "mcopy",

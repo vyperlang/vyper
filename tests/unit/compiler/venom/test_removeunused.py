@@ -88,14 +88,14 @@ def test_removeunused_loop():
 def test_removeunused_mload_basic():
     pre = """
     main:
-        %a = itouch 32
+        itouch 32
         %b = msize
         %c_unused = mload 64  # safe to remove
         return %b, %b
     """
     post = """
     main:
-        %a = itouch 32
+        itouch 32
         %b = msize
         return %b, %b
     """
