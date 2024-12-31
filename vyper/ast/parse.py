@@ -1,5 +1,5 @@
 import ast as python_ast
-import copy
+import pickle
 import tokenize
 from decimal import Decimal
 from functools import cached_property
@@ -88,6 +88,11 @@ def _parse_to_ast_with_settings(
             offset -= 1
         raise SyntaxException(str(e.msg), vyper_source, e.lineno, offset) from None
 
+    # some python AST node instances are singletons and are reused between
+    # parse() invocations. copy the python AST so that we are using fresh
+    # objects.
+    py_ast = _deepcopy_ast(py_ast)
+
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
     if add_fn_node:
@@ -169,23 +174,15 @@ def annotate_python_ast(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
 
-    import copy, pickle
-    with cumtimeit("rewrite"):
-        TrivialVisitor().visit(parsed_ast)
-        #parsed_ast = pickle.loads(pickle.dumps(parsed_ast))
-
-    visitor._fix_missing_locations(parsed_ast)
     visitor.start(parsed_ast)
 
     return parsed_ast
 
 LINE_INFO_FIELDS = ("lineno", "col_offset", "end_lineno", "end_col_offset")
 
-class TrivialVisitor(python_ast.NodeTransformer):
-    def generic_visit(self, node):
-        if any(not hasattr(node, field) for field in LINE_INFO_FIELDS):
-            node = copy.copy(node)
-        return super().generic_visit(node)
+def _deepcopy_ast(ast_node: python_ast.AST):
+    # pickle roundtrip is faster than copy.deepcopy() here.
+    return pickle.loads(pickle.dumps(ast_node))
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
@@ -221,7 +218,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return ret
 
     def start(self, ast_node):
-        #self._fix_missing_locations(ast_node)
+        self._fix_missing_locations(ast_node)
         self._module = ast_node  # TODO: for debugging, remove me
         self.visit(ast_node)
 
@@ -242,17 +239,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             module_end_col_offset = 0
 
         def _fix(node, lineno, col_offset, end_lineno, end_col_offset):
-            if "Add" in str(type(node)):
-                #_ = node.lineno
-                print("ENTER0", node, lineno, getattr(node, "lineno", None), id(node))
-                pass
             node.lineno = getattr(node, "lineno", lineno)
             node.end_lineno = getattr(node, "end_lineno", end_lineno)
             node.col_offset = getattr(node, "col_offset", col_offset)
             node.end_col_offset = getattr(node, "end_col_offset", end_col_offset)
-            if "Add" in str(type(node)):
-                print("ENTER1", node, lineno, node.lineno, id(node))
-                pass
             for child in python_ast.iter_child_nodes(node):
                 _fix(child, node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
@@ -262,7 +252,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         Annotate a node with information that simplifies Vyper node generation.
         """
-        #print("ENTER2", node, node.lineno, id(node))
         # Decorate every node with the original source code to allow pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
