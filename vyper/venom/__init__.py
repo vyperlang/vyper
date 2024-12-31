@@ -15,8 +15,12 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
+    LoadElimination,
+    LowerDloadPass,
     MakeSSA,
     Mem2Var,
+    MemMergePass,
+    ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
@@ -52,11 +56,17 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
+
+    LoadElimination(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
+
+    LowerDloadPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a
@@ -69,13 +79,21 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
+
+    if optimize == OptimizationLevel.CODESIZE:
+        ReduceLiteralsCodesize(ac, fn).run_pass()
+
     DFTPass(ac, fn).run_pass()
+
+
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize)
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
-    for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
+    run_passes_on(ctx, optimize)
 
     return ctx

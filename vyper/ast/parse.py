@@ -22,6 +22,24 @@ def parse_to_ast_with_settings(
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
     add_fn_node: Optional[str] = None,
+    is_interface: bool = False,
+) -> tuple[Settings, vy_ast.Module]:
+    try:
+        return _parse_to_ast_with_settings(
+            vyper_source, source_id, module_path, resolved_path, add_fn_node, is_interface
+        )
+    except SyntaxException as e:
+        e.resolved_path = resolved_path
+        raise e
+
+
+def _parse_to_ast_with_settings(
+    vyper_source: str,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
+    add_fn_node: Optional[str] = None,
+    is_interface: bool = False,
 ) -> tuple[Settings, vy_ast.Module]:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
@@ -45,6 +63,9 @@ def parse_to_ast_with_settings(
     resolved_path: str, optional
         The resolved path of the source code
         Corresponds to FileInput.resolved_path
+    is_interface: bool
+        Indicates whether the source code should
+        be parsed as an interface file.
 
     Returns
     -------
@@ -59,7 +80,12 @@ def parse_to_ast_with_settings(
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
+        offset = e.offset
+        if offset is not None:
+            # SyntaxError offset is 1-based, not 0-based (see:
+            # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
+            offset -= 1
+        raise SyntaxException(str(e.msg), vyper_source, e.lineno, offset) from None
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
@@ -84,6 +110,7 @@ def parse_to_ast_with_settings(
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
+    module.is_interface = is_interface
 
     return pre_parser.settings, module
 

@@ -399,6 +399,7 @@ def foo():
         "name": None,
         "source_id": 1,
         "ast_type": "Module",
+        "is_interface": False,
         "type": {
             "name": "main.vy",
             "type_decl_node": {"node_id": 0, "source_id": 1},
@@ -413,6 +414,7 @@ def foo():
         "path": "lib1.vy",
         "node_id": 0,
         "source_id": 0,
+        "is_interface": False,
         "doc_string": None,
         "body": [
             {
