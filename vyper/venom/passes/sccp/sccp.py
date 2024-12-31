@@ -143,7 +143,7 @@ class SCCP(IRPass):
             self._visit_expr(work_item.inst)
 
     def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
-        assert isinstance(op, IRVariable), "Can't get lattice for non-variable"
+        assert isinstance(op, IRVariable), f"Can't get lattice for non-variable ({op})"
         lat = self.lattice[op]
         assert lat is not None, f"Got undefined var {op}"
         return lat
@@ -227,35 +227,37 @@ class SCCP(IRPass):
         instruction to the SSA work list if the knowledge about the variable
         changed.
         """
+
+        def finalize(ret):
+            # Update the lattice if the value changed
+            old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+            if old_val != ret:
+                self.lattice[inst.output] = ret
+                self._add_ssa_work_items(inst)
+            return ret
+
         opcode = inst.opcode
-
-        ops = []
+        ops: list[IROperand] = []
         for op in inst.operands:
-            if isinstance(op, IRVariable):
-                ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
+            # Evaluate the operand according to the lattice
+            if isinstance(op, IRLabel):
+                return finalize(LatticeEnum.BOTTOM)
+            elif isinstance(op, IRVariable):
+                eval_result = self.lattice[op]
             else:
-                ops.append(op)
+                eval_result = op
 
-        ret = None
-        if LatticeEnum.BOTTOM in ops:
-            ret = LatticeEnum.BOTTOM
-        else:
-            if opcode in ARITHMETIC_OPS:
-                fn = ARITHMETIC_OPS[opcode]
-                ret = IRLiteral(fn(ops))  # type: ignore
-            elif len(ops) > 0:
-                ret = ops[0]  # type: ignore
-            else:
-                raise CompilerPanic("Bad constant evaluation")
+            # If any operand is BOTTOM, the whole operation is BOTTOM
+            # and we can stop the evaluation early
+            if eval_result is LatticeEnum.BOTTOM:
+                return finalize(LatticeEnum.BOTTOM)
 
-        old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
-        if old_val != ret:
-            self.lattice[inst.output] = ret  # type: ignore
-            self._add_ssa_work_items(inst)
+            assert isinstance(eval_result, IROperand), (inst.parent.label, op, inst)
+            ops.append(eval_result)
 
-        return ret  # type: ignore
+        # If we haven't found BOTTOM yet, evaluate the operation
+        fn = ARITHMETIC_OPS[opcode]
+        return finalize(IRLiteral(fn(ops)))
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
