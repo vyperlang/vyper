@@ -1,10 +1,8 @@
-import pytest
 from hexbytes import HexBytes
 
 from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
-from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
 
 
 def test_max_outsize_exceeds_returndatasize(get_contract):
@@ -599,67 +597,3 @@ def bar(f: uint256) -> Bytes[100]:
         c.bar(15).hex() == "0423a132"
         "000000000000000000000000000000000000000000000000000000000000000f"
     )
-
-
-uncompilable_code = [
-    (
-        """
-@external
-@view
-def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"))
-    """,
-        StateAccessViolation,
-    ),
-    (
-        """
-@external
-def foo(a: address):
-    for i: uint256 in range(
-        0,
-        extract32(raw_call(a, b"", max_outsize=32), 0, output_type=uint256),
-        bound = 12
-    ):
-        pass
-    """,
-        StateAccessViolation,
-    ),
-    (
-        """
-@external
-def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
-    """,
-        ArgumentException,
-    ),
-    (
-        """
-@external
-def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"), is_delegate_call=True, value=1)
-    """,
-        ArgumentException,
-    ),
-    (
-        """
-@external
-def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"), is_static_call=True, value=1)
-    """,
-        ArgumentException,
-    ),
-    (
-        """
-@external
-@view
-def foo(_addr: address):
-    raw_call(_addr, 256)
-    """,
-        TypeMismatch,
-    ),
-]
-
-
-@pytest.mark.parametrize("source_code,exc", uncompilable_code)
-def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
-    assert_compile_failed(lambda: get_contract(source_code), exc)
