@@ -18,6 +18,32 @@ def _check_no_change(pre):
     _check_pre_post(pre, pre)
 
 
+def test_memmerging_tmp():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        %1 = mload 352
+        mstore 448, %1
+        %2 = mload 416
+        mstore 64, %2
+        %3 = mload 448  ; barrier, flushes mload 416 from list of potential copies
+        mstore 96, %3
+        stop
+    """
+
+    post = """
+    main:
+        %1 = mload 352
+        mstore 448, %1
+        mcopy 64, 416, 64
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
 # for parametrizing tests
 LOAD_COPY = [("dload", "dloadbytes"), ("calldataload", "calldatacopy")]
 
@@ -627,11 +653,20 @@ def test_memmerging_write_after_write():
         %3 = mload 32
         %4 = mload 132
         mstore 1000, %1
-        mstore 1000, %2  ; BARRIER
+        mstore 1000, %2  ; partial BARRIER
         mstore 1032, %4
         mstore 1032, %3  ; BARRIER
     """
-    _check_no_change(pre)
+
+    post = """
+    _global:
+        %1 = mload 0
+        %3 = mload 32
+        mstore 1000, %1
+        mcopy 1000, 100, 64
+        mstore 1032, %3  ; BARRIER
+    """
+    _check_pre_post(pre, post)
 
 
 def test_memmerging_write_after_write_mstore_and_mcopy():
@@ -645,9 +680,9 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
     pre = """
     _global:
         %1 = mload 0
-        %2 = mload 132
+        %2 = mload 32
         mstore 1000, %1
-        mcopy 1000, 100, 16  ; write barrier
+        mcopy 1000, 100, 64  ; write barrier
         mstore 1032, %2
         mcopy 1016, 116, 64
         stop
