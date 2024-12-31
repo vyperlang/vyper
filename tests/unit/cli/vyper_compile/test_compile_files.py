@@ -10,6 +10,7 @@ import pytest
 from vyper.cli.compile_archive import compiler_data_from_zip
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_from_input_dict, compile_json
+from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
@@ -411,6 +412,105 @@ def test_archive_b64_output(input_files):
     assert out[contract_file] == out2[archive_path]
 
 
+def test_archive_compile_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    options = ["abi_python", "json", "ast", "annotated_ast", "ir_json"]
+
+    for option in options:
+        out = compile_files([contract_file], ["archive_b64", option], paths=search_paths)
+
+        archive_b64 = out[contract_file].pop("archive_b64")
+
+        archive_path = Path("foo.zip.b64")
+        with archive_path.open("w") as f:
+            f.write(archive_b64)
+
+        # compare compiling the two input bundles
+        out2 = compile_files([archive_path], [option])
+
+        if option in ["ast", "annotated_ast"]:
+            # would have to normalize paths and imports, so just verify it compiles
+            continue
+
+        assert out[contract_file] == out2[archive_path]
+
+
+format_options = [
+    "bytecode",
+    "bytecode_runtime",
+    "blueprint_bytecode",
+    "abi",
+    "abi_python",
+    "source_map",
+    "source_map_runtime",
+    "method_identifiers",
+    "userdoc",
+    "devdoc",
+    "metadata",
+    "combined_json",
+    "layout",
+    "ast",
+    "annotated_ast",
+    "interface",
+    "external_interface",
+    "opcodes",
+    "opcodes_runtime",
+    "ir",
+    "ir_json",
+    "ir_runtime",
+    "asm",
+    "integrity",
+    "archive",
+    "solc_json",
+]
+
+
+def test_compile_vyz_with_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    for option in format_options:
+        out_archive = compile_files([contract_file], ["archive"], paths=search_paths)
+
+        archive = out_archive[contract_file].pop("archive")
+
+        archive_path = Path("foo.zip.out.vyz")
+        with archive_path.open("wb") as f:
+            f.write(archive)
+
+        # compare compiling the two input bundles
+        out = compile_files([contract_file], [option], paths=search_paths)
+        out2 = compile_files([archive_path], [option])
+
+        if option in ["ast", "annotated_ast", "metadata"]:
+            # would have to normalize paths and imports, so just verify it compiles
+            continue
+
+        if option in ["ir_runtime", "ir", "archive"]:
+            # ir+ir_runtime is different due to being different compiler runs
+            # archive is different due to different metadata (timestamps)
+            continue
+
+        assert out[contract_file] == out2[archive_path]
+
+
+def test_archive_compile_simultaneous_options(input_files):
+    tmpdir, _, _, contract_file = input_files
+    search_paths = [".", tmpdir]
+
+    for option in format_options:
+        with pytest.raises(ValueError) as e:
+            _ = compile_files([contract_file], ["archive", option], paths=search_paths)
+
+        err_opt = "archive"
+        if option in ("combined_json", "solc_json"):
+            err_opt = option
+
+        assert f"If using {err_opt} it must be the only output format requested" in str(e.value)
+
+
 def test_solc_json_output(input_files):
     tmpdir, _, _, storage_layout_path, contract_file, integrity = input_files
     search_paths = [".", tmpdir]
@@ -491,3 +591,31 @@ import lib
 
         used_dir = search_paths[-1].stem  # either dir1 or dir2
         assert output_bundle.used_search_paths == [".", "0/" + used_dir]
+
+
+def test_compile_interface_file(make_file):
+    interface = """
+@view
+@external
+def foo() -> String[1]:
+    ...
+
+@view
+@external
+def bar() -> String[1]:
+    ...
+
+@external
+def baz() -> uint8:
+    ...
+
+    """
+    file = make_file("interface.vyi", interface)
+    compile_files([file], INTERFACE_OUTPUT_FORMATS)
+
+    # check unallowed output formats
+    for f in OUTPUT_FORMATS:
+        if f in INTERFACE_OUTPUT_FORMATS:
+            continue
+        with pytest.raises(ValueError):
+            compile_files([file], [f])

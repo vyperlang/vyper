@@ -399,6 +399,7 @@ def foo():
         "node_id": 0,
         "path": "main.vy",
         "source_id": 1,
+        "is_interface": False,
         "type": {
             "name": "main.vy",
             "type_decl_node": {"node_id": 0, "source_id": 1},
@@ -1175,6 +1176,7 @@ def foo():
         "node_id": 0,
         "path": "lib1.vy",
         "source_id": 0,
+        "is_interface": False,
         "type": {
             "name": "lib1.vy",
             "type_decl_node": {"node_id": 0, "source_id": 0},

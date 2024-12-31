@@ -89,7 +89,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize, evm_version, experimental_codegen):
+def input_json(optimize, evm_version, experimental_codegen, debug):
     return {
         "language": "Vyper",
         "sources": {
@@ -103,6 +103,7 @@ def input_json(optimize, evm_version, experimental_codegen):
             "optimize": optimize.name.lower(),
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
+            "debug": debug,
         },
         "storage_layout_overrides": {
             "contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES,
