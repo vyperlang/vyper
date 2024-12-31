@@ -283,7 +283,7 @@ def test2(l: Bytes[{m}] = x"{val}") -> bool:
 
 
 def test_hex_literal_parser_edge_case():
-    # see GH issue 4405
+    # see GH issue 4405 example 2
     code = """
 interface FooBar:
     def test(a: Bytes[2], b: String[4]): payable

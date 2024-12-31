@@ -81,7 +81,17 @@ def test() -> Bytes[1]:
         """
 @external
 def test() -> Bytes[2]:
-    a: Bytes[2] = x"abc"
+    a: Bytes[2] = x"abc"  # non-hex nibbles
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def test() -> Bytes[10]:
+    # GH issue 4405 example 1
+    a: Bytes[10] = x x x x x x"61"  # messed up hex prefix
     return a
     """,
         SyntaxException,

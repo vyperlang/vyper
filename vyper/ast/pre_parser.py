@@ -114,12 +114,12 @@ class HexStringParser:
 
     def consume(self, token, result):
         # prepare to check if the next token is a STRING
-        if token.type == NAME and token.string == "x":
-            self._tokens.append(token)
-            self._state = ParserState.RUNNING
-            return True
-
         if self._state == ParserState.NOT_RUNNING:
+            if token.type == NAME and token.string == "x":
+                self._tokens.append(token)
+                self._state = ParserState.RUNNING
+                return True
+
             return False
 
         assert self._state == ParserState.RUNNING, "unreachable"
