@@ -43,7 +43,7 @@ def test_memmerging_tmp():
 
     _check_pre_post(pre, post)
 
- 
+
 # for parametrizing tests
 LOAD_COPY = [("dload", "dloadbytes"), ("calldataload", "calldatacopy")]
 
