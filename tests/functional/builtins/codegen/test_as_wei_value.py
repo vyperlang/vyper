@@ -3,7 +3,9 @@ from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.semantics.types import DecimalT
+from vyper.compiler import compile_code
 from vyper.utils import quantize, round_towards_zero
+from vyper.exceptions import InvalidLiteral, OverflowException
 
 wei_denoms = {
     "femtoether": 3,
@@ -130,3 +132,57 @@ def bar() -> uint8:
     """
     c = get_contract(code)
     assert c.foo() == to_wei(7, "ether")
+
+fail_list = [
+    (
+        """
+# Test for negative argument
+@external
+def foo():
+    x: uint256 = as_wei_value(-3, "szabo")
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
+# Test for 256 bits overflows
+@external
+def foo():
+    x: uint256 = as_wei_value(max_value(uint248), "ether")
+    """,
+        OverflowException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exception", fail_list)
+def test_bad_as_wei_code(get_contract, assert_compile_failed, bad_code, exception):
+    with pytest.raises(exception):
+        compile_code(bad_code)
+
+valid_list = [
+    """
+@external
+def foo():
+    a:int24 = 31
+    b:uint136 = 31
+    x: uint256 = as_wei_value(a, "szabo") + as_wei_value(b, "ether")
+    """
+]
+
+
+@pytest.mark.parametrize("good_code", valid_list)
+def test_as_wei_success(good_code):
+    assert compile_code(good_code) is not None
+
+
+def test_as_wei_revert(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> uint256:
+    a: uint248 = max_value(uint248)
+    return as_wei_value(a, "grand")
+    """
+    contract = get_contract(code)
+    with tx_failed():
+        contract.foo()

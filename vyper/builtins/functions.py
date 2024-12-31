@@ -969,7 +969,7 @@ class AsWeiValue(BuiltinFunctionT):
 
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
-            if value.typ in (UINT256_T, UINT8_T):
+            if value.typ in IntegerT.unsigneds():
                 sub = [
                     "with",
                     "ans",
@@ -983,10 +983,16 @@ class AsWeiValue(BuiltinFunctionT):
                         "ans",
                     ],
                 ]
-            elif value.typ == INT128_T:
-                # signed types do not require bounds checks because the
-                # largest possible converted value will not overflow 2**256
-                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            elif value.typ in IntegerT.signeds():
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    positive = ["sge", value, 0]
+                    safemul = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
+                    ok = ["and", positive, safemul]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(sub)
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
