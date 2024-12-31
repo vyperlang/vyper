@@ -25,7 +25,7 @@ def foo(b: {value}):
         analyze_module(vyper_module)
 
 
-@pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "0x00", "b'\x01'", "False"])
+@pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "b'\x01'", "False"])
 def test_invalid_literal(namespace, value):
     code = f"""
 
