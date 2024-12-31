@@ -140,6 +140,8 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
+
+
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     vyper_source: str,
@@ -167,9 +169,10 @@ def annotate_python_ast(
     visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    visitor.visit(parsed_ast)
+    visitor.start(parsed_ast)
 
     return parsed_ast
+
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -191,6 +194,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._parent = None
         self._pre_parser = pre_parser
 
+
         self.counter: int = 0
 
     @cached_property
@@ -206,6 +210,49 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ofst += len(line)
         return ret
 
+    def start(self, ast_node):
+        self._fix_missing_locations(ast_node)
+        self.visit(ast_node)
+
+    def _fix_missing_locations(self, node):
+        """
+        vendored in from cpython Lib/ast.py, but adapted to adjust
+        *all* ast nodes, not just the one that python defines to have
+        lineno and col_offset info (in _attributes)
+        https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
+        """
+        module_lineno = 1
+        module_col_offset = 0
+        module_end_lineno = len(self.source_lines)
+
+        if len(self.source_lines) > 0:
+            module_end_col_offset = len(self.source_lines[-1])
+        else:
+            module_end_col_offset = 0
+
+        def _fix(node, lineno, col_offset, end_lineno, end_col_offset):
+            if not hasattr(node, 'lineno'):
+                node.lineno = lineno
+            else:
+                lineno = node.lineno
+            if getattr(node, 'end_lineno', None) is None:
+                node.end_lineno = end_lineno
+            else:
+                end_lineno = node.end_lineno
+            if not hasattr(node, 'col_offset'):
+                node.col_offset = col_offset
+            else:
+                col_offset = node.col_offset
+            if getattr(node, 'end_col_offset', None) is None:
+                node.end_col_offset = end_col_offset
+            else:
+                end_col_offset = node.end_col_offset
+            for child in python_ast.iter_child_nodes(node):
+                _fix(child, lineno, col_offset, end_lineno, end_col_offset)
+
+        _fix(node, module_lineno, module_col_offset, module_end_lineno, module_end_col_offset)
+     
+
     def generic_visit(self, node):
         """
         Annotate a node with information that simplifies Vyper node generation.
@@ -215,37 +262,24 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.node_id = self.counter
         node.ast_type = node.__class__.__name__
         self.counter += 1
-
-        if isinstance(node, python_ast.Module):
-            node.lineno = 1
-            node.col_offset = 0
-            node.end_lineno = len(self.source_lines)
-
-            if len(self.source_lines) > 0:
-                node.end_col_offset = len(self.source_lines[-1])
-            else:
-                node.end_col_offset = 0
+        self._parent = node
 
         adjustments = self._pre_parser.adjustments
 
-        for s in ("lineno", "end_lineno", "col_offset", "end_col_offset"):
-            # ensure fields exist
-            setattr(node, s, getattr(node, s, None))
+        for attr in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
+            assert getattr(node, attr, None) is not None, node
 
-        if node.col_offset is not None:
-            adj = adjustments.get((node.lineno, node.col_offset), 0)
-            node.col_offset += adj
+        adj = adjustments.get((node.lineno, node.col_offset), 0)
+        node.col_offset += adj
 
-        if node.end_col_offset is not None:
-            adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
-            node.end_col_offset += adj
+        adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
+        node.end_col_offset += adj
 
-        if node.lineno in self.line_offsets and node.end_lineno in self.line_offsets:
-            start_pos = self.line_offsets[node.lineno] + node.col_offset
-            end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset
+        start_pos = self.line_offsets[node.lineno] + node.col_offset
+        end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset
 
-            node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
-            node.node_source_code = self._source_code[start_pos:end_pos]
+        node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
+        node.node_source_code = self._source_code[start_pos:end_pos]
 
         return super().generic_visit(node)
 
