@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import tokenize
 from decimal import Decimal
 from functools import cached_property
@@ -8,7 +9,7 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-from vyper.utils import sha256sum, vyper_warn
+from vyper.utils import sha256sum, vyper_warn, cumtimeit
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -167,10 +168,24 @@ def annotate_python_ast(
     visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
+
+    import copy, pickle
+    with cumtimeit("rewrite"):
+        TrivialVisitor().visit(parsed_ast)
+        #parsed_ast = pickle.loads(pickle.dumps(parsed_ast))
+
+    visitor._fix_missing_locations(parsed_ast)
     visitor.start(parsed_ast)
 
     return parsed_ast
 
+LINE_INFO_FIELDS = ("lineno", "col_offset", "end_lineno", "end_col_offset")
+
+class TrivialVisitor(python_ast.NodeTransformer):
+    def generic_visit(self, node):
+        if any(not hasattr(node, field) for field in LINE_INFO_FIELDS):
+            node = copy.copy(node)
+        return super().generic_visit(node)
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
@@ -188,7 +203,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._module_path = module_path
         self._resolved_path = resolved_path
         self._source_code = source_code
-        self._parent = None
         self._pre_parser = pre_parser
 
         self.counter: int = 0
@@ -207,15 +221,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return ret
 
     def start(self, ast_node):
-        self._fix_missing_locations(ast_node)
-        self._module = ast_node  # TODO: remove me
+        #self._fix_missing_locations(ast_node)
+        self._module = ast_node  # TODO: for debugging, remove me
         self.visit(ast_node)
 
-    def _fix_missing_locations(self, node):
+    def _fix_missing_locations(self, ast_node):
         """
-        vendored in from cpython Lib/ast.py, but adapted to adjust
-        *all* ast nodes, not just the one that python defines to have
-        lineno and col_offset info (in _attributes)
+        adapted from cpython Lib/ast.py. adds line/col info to ast,
+        but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
+        one that python defines to have line/col info.
         https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
         """
         module_lineno = 1
@@ -228,25 +242,32 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             module_end_col_offset = 0
 
         def _fix(node, lineno, col_offset, end_lineno, end_col_offset):
+            if "Add" in str(type(node)):
+                #_ = node.lineno
+                print("ENTER0", node, lineno, getattr(node, "lineno", None), id(node))
+                pass
             node.lineno = getattr(node, "lineno", lineno)
             node.end_lineno = getattr(node, "end_lineno", end_lineno)
             node.col_offset = getattr(node, "col_offset", col_offset)
             node.end_col_offset = getattr(node, "end_col_offset", end_col_offset)
+            if "Add" in str(type(node)):
+                print("ENTER1", node, lineno, node.lineno, id(node))
+                pass
             for child in python_ast.iter_child_nodes(node):
                 _fix(child, node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
-        _fix(node, module_lineno, module_col_offset, module_end_lineno, module_end_col_offset)
+        _fix(ast_node, module_lineno, module_col_offset, module_end_lineno, module_end_col_offset)
 
     def generic_visit(self, node):
         """
         Annotate a node with information that simplifies Vyper node generation.
         """
+        #print("ENTER2", node, node.lineno, id(node))
         # Decorate every node with the original source code to allow pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
-        node.ast_type = node.__class__.__name__
         self.counter += 1
-        self._parent = node
+        node.ast_type = node.__class__.__name__
 
         adjustments = self._pre_parser.adjustments
 
