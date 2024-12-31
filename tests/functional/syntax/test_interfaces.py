@@ -621,3 +621,15 @@ def bar():
     # TODO make the exception more precise once fixed
     with pytest.raises(Exception):  # noqa: B017
         compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_interface_name_in_output_is_short(make_input_bundle):
+    code = """
+from ethereum.ercs import IERC20
+@external
+def test(input: IERC20):
+    pass
+        """
+    out = compiler.compile_code(code, output_formats=["interface"])
+
+    assert "def test(input: IERC20):" in out["interface"]
