@@ -1013,7 +1013,8 @@ struct Baz:
 
 
 def test_interface_with_doubly_imported_structure(make_input_bundle):
-    # test the output contains each of the structures just once, even if there are multiple paths to it
+    # test the output contains each of the structures just once,
+    # even if there are multiple paths to it
     a = """
 import b
 import c

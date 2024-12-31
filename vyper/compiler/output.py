@@ -14,7 +14,7 @@ from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
-from vyper.semantics.types.module import InterfaceT, ModuleT, StructT
+from vyper.semantics.types.module import InterfaceT, ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath, vyper_warn
 from vyper.warnings import ContractSizeLimitWarning
