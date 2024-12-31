@@ -117,6 +117,24 @@ def test_bytes_fail(bad_code):
             compiler.compile_code(bad_code)
 
 
+@pytest.mark.xfail
+def test_hexbytes_offset():
+    good_code = """
+    event X:
+    a: Bytes[2]
+
+@deploy
+def __init__():
+    # GH issue 4405, example 1
+    #
+    # log changes offset of HexString, and the hex_string_locations tracked
+    # location is incorrect when visiting ast
+    log X(a = x"6161")
+    """
+    # move this to valid list once it passes.
+    assert compiler.compile_code(good_code) is not None
+
+
 valid_list = [
     """
 @external
