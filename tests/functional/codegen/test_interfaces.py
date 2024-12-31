@@ -984,6 +984,7 @@ def test_weird_interface_name():
 
 
 def test_interface_with_imported_structures(make_input_bundle):
+    # test the output contains imported structures and identifies them correctly
     a = """
 import b
 
@@ -1012,6 +1013,7 @@ struct Baz:
 
 
 def test_interface_with_doubly_imported_structure(make_input_bundle):
+    # test the output contains each of the structures just once, even if there are multiple paths to it
     a = """
 import b
 import c
@@ -1064,7 +1066,6 @@ struct Bar:
     out = compile_code(
         a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
     )["interface"]
-    print(out)
     assert "# Structs" in out
     assert "Foo:" in out
     assert "b Bar:" in out
@@ -1091,7 +1092,6 @@ struct Baz:
     out = compile_code(
         a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
     )["interface"]
-    print(out)
     assert "# Structs" in out
     assert "Foo:" in out
     assert "b Bar:" in out
