@@ -121,6 +121,9 @@ def _parse_to_ast_with_settings(
     return pre_parser.settings, module
 
 
+LINE_INFO_FIELDS = ("lineno", "col_offset", "end_lineno", "end_col_offset")
+
+
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
     """
     Converts a Vyper AST node, or list of nodes, into a dictionary suitable for
@@ -178,7 +181,6 @@ def annotate_python_ast(
 
     return parsed_ast
 
-LINE_INFO_FIELDS = ("lineno", "col_offset", "end_lineno", "end_col_offset")
 
 def _deepcopy_ast(ast_node: python_ast.AST):
     # pickle roundtrip is faster than copy.deepcopy() here.
@@ -217,36 +219,39 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ofst += len(line)
         return ret
 
-    def start(self, ast_node):
-        self._fix_missing_locations(ast_node)
-        self._module = ast_node  # TODO: for debugging, remove me
-        self.visit(ast_node)
+    def start(self, node: python_ast.Module):
+        self._fix_missing_locations(node)
+        self.visit(node)
 
-    def _fix_missing_locations(self, ast_node):
+    def _fix_missing_locations(self, ast_node: python_ast.Module):
         """
         adapted from cpython Lib/ast.py. adds line/col info to ast,
         but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
         one that python defines to have line/col info.
         https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
         """
-        module_lineno = 1
-        module_col_offset = 0
-        module_end_lineno = len(self.source_lines)
+        assert isinstance(ast_node, python_ast.Module)
+        ast_node.lineno = 1
+        ast_node.col_offset = 0
+        ast_node.end_lineno = len(self.source_lines)
 
         if len(self.source_lines) > 0:
-            module_end_col_offset = len(self.source_lines[-1])
+            ast_node.end_col_offset = len(self.source_lines[-1])
         else:
-            module_end_col_offset = 0
+            ast_node.end_col_offset = 0
 
-        def _fix(node, lineno, col_offset, end_lineno, end_col_offset):
-            node.lineno = getattr(node, "lineno", lineno)
-            node.end_lineno = getattr(node, "end_lineno", end_lineno)
-            node.col_offset = getattr(node, "col_offset", col_offset)
-            node.end_col_offset = getattr(node, "end_col_offset", end_col_offset)
+        def _fix(node, parent=None):
+            for field in LINE_INFO_FIELDS:
+                if parent is not None:
+                    val = getattr(node, field, getattr(parent, field))
+                    setattr(node, field, val)
+                else:
+                    assert hasattr(node, field), node
+
             for child in python_ast.iter_child_nodes(node):
-                _fix(child, node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+                _fix(child, node)
 
-        _fix(ast_node, module_lineno, module_col_offset, module_end_lineno, module_end_col_offset)
+        _fix(ast_node)
 
     def generic_visit(self, node):
         """
@@ -260,7 +265,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         adjustments = self._pre_parser.adjustments
 
-        for attr in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
+        for attr in LINE_INFO_FIELDS:
             assert getattr(node, attr, None) is not None, node
 
         adj = adjustments.get((node.lineno, node.col_offset), 0)
