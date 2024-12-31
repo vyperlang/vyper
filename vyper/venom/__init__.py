@@ -26,6 +26,7 @@ from vyper.venom.passes import (
     StoreElimination,
     StoreExpansionPass,
 )
+from vyper.venom.settings import VenomSettings
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -33,8 +34,8 @@ DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 def generate_assembly_experimental(
     runtime_code: IRContext,
+    settings: Optional[VenomSettings] = None,
     deploy_code: Optional[IRContext] = None,
-    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
 ) -> list[str]:
     # note: VenomCompiler is sensitive to the order of these!
     if deploy_code is not None:
@@ -42,8 +43,11 @@ def generate_assembly_experimental(
     else:
         functions = [runtime_code]
 
-    compiler = VenomCompiler(functions)
-    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
+    if settings is None:
+        settings = VenomSettings.from_optimization_level(OptimizationLevel.default())
+
+    compiler = VenomCompiler(functions, settings)
+    return compiler.generate_evm()
 
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:

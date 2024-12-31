@@ -1,5 +1,6 @@
 from typing import Any
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
@@ -26,6 +27,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext
 from vyper.venom.passes import NormalizationPass
+from vyper.venom.settings import VenomSettings
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -141,14 +143,16 @@ class VenomCompiler:
     visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness_analysis: LivenessAnalysis
+    settings: VenomSettings
 
-    def __init__(self, ctxs: list[IRContext]):
+    def __init__(self, ctxs: list[IRContext], settings: VenomSettings):
         self.ctxs = ctxs
         self.label_counter = 0
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
+        self.settings = settings
 
-    def generate_evm(self, no_optimize: bool = False) -> list[str]:
+    def generate_evm(self) -> list[str]:
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
@@ -202,7 +206,7 @@ class VenomCompiler:
 
                 asm.append(asm_data_section)
 
-        if no_optimize is False:
+        if self.settings.optimize != OptimizationLevel.NONE:
             optimize_assembly(top_asm)
 
         return top_asm

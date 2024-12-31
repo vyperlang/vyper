@@ -8,6 +8,7 @@ from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.parser import parse_venom
+from vyper.venom.settings import VenomSettings
 
 """
 Standalone entry point into venom compiler. Parses venom input and emits
@@ -56,7 +57,9 @@ def _parse_args(argv: list[str]):
 
     ctx = parse_venom(venom_source)
     run_passes_on(ctx, OptimizationLevel.default())
-    asm = generate_assembly_experimental(ctx)
+    asm = generate_assembly_experimental(
+        ctx, VenomSettings.from_optimization_level(OptimizationLevel.default())
+    )
     bytecode = generate_bytecode(asm, compiler_metadata=None)
     print(f"0x{bytecode.hex()}")
 
