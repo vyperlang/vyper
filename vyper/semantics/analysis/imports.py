@@ -58,8 +58,7 @@ class _ImportGraph:
 
     def pop_path(self, expected: vy_ast.Module) -> None:
         popped = self._path.pop()
-        if expected is not popped:  # FIXME - use expected != popped
-            raise CompilerPanic("unreachable")
+        assert expected is popped, "unreachable"
         self._imports.pop()
 
     @contextlib.contextmanager
@@ -77,7 +76,7 @@ class ImportAnalyzer:
         self.graph = graph
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: set[int] = set()
+        self.seen: set[vy_ast.Module] = set()
 
         self.integrity_sum = None
 
@@ -102,7 +101,7 @@ class ImportAnalyzer:
         return sha256sum("".join(acc))
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
-        if id(module_ast) in self.seen:
+        if module_ast in self.seen:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
@@ -110,7 +109,7 @@ class ImportAnalyzer:
                     self._handle_Import(node)
                 elif isinstance(node, vy_ast.ImportFrom):
                     self._handle_ImportFrom(node)
-        self.seen.add(id(module_ast))
+        self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
         # import x.y[name] as y[alias]
