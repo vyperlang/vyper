@@ -376,6 +376,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         try:
             fake_node = python_ast.parse(annotation_str).body[0]
+            # do we need to fix location info here?
+            fake_node = _deepcopy_ast(fake_node)
         except SyntaxError as e:
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
