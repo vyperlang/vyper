@@ -5,7 +5,13 @@ from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, MakeSSA
+from vyper.venom.passes import (
+    SCCP,
+    AlgebraicOptimizationPass,
+    MakeSSA,
+    RemoveUnusedVariablesPass,
+    StoreElimination,
+)
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 
@@ -283,6 +289,7 @@ def test_sccp_offsets_opt():
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     # RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     offset_count = 0
@@ -307,8 +314,6 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = store 0
-        %2 = store 0
         return 0, 0
     """,
     ),
@@ -325,11 +330,8 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = %par
-        %2 = %par
-        %3 = %par
         %4 = sub 0, %par
-        return %1, %2, %3, %4
+        return %par, %par, %par, %4
     """,
     ),
     (
@@ -343,7 +345,6 @@ venom_progs = [
         """
     _global:
         %par = param
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
         %1 = not %par
         return %1
     """,
@@ -360,10 +361,7 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = %par
-        %2 = %1
-        %3 = %2
-        return %1, %2, %3
+        return %par, %par, %par
     """,
     ),
     (
@@ -387,18 +385,10 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1_1 = 0
-        %1_2 = 0
         %2_1 = div 0, %par
-        %2_2 = 0
         %3_1 = sdiv 0, %par
-        %3_2 = 0
         %4_1 = mod 0, %par
-        %4_2 = 0
         %5_1 = smod 0, %par
-        %5_2 = 0
-        %6_1 = 0
-        %6_2 = 0
         return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
     """,
     ),
@@ -417,13 +407,9 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1_1 = %par
-        %1_2 = %par
         %2_1 = div 1, %par
-        %2_2 = %par
         %3_1 = sdiv 1, %par
-        %3_2 = %par
-        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2
+        return %par, %par, %2_1, %par, %3_1, %par
     """,
     ),
     (
@@ -437,8 +423,6 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = 0
-        %2 = 0
         return 0, 0
     """,
     ),
@@ -454,10 +438,7 @@ venom_progs = [
         """
     _global:
         %par = param
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        %1 = %par
-        %2 = %par
-        return %1, %2
+        return %par, %par
     """,
     ),
     (
@@ -491,11 +472,8 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = 1
-        %2 = 1
         %3 = iszero %par
-        %4 = %par
-        return 1, 1, %3, %4
+        return 1, 1, %3, %par
     """,
     ),
     (
@@ -512,11 +490,6 @@ venom_progs = [
         """
     _global:
         %par = param
-        %tmp = %par
-        %1 = 0
-        %2 = 0
-        %3 = 0
-        %4 = 0
         return 0, 0, 0, 0
     """,
     ),
@@ -536,14 +509,9 @@ venom_progs = [
         """
     _global:
         %par = param
-        %1 = %par
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        %2 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
         %3 = iszero %par
         %4 = iszero %par
-        %tmp_par = %par
-        %5 = 1
-        return %1, 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+        return %par, 115792089237316195423570985008687907853269984665640564039457584007913129639935,
                %3, %4, 1
     """,
     ),
@@ -566,7 +534,6 @@ venom_progs = [
         %1 = iszero %5
         %2 = eq %par, 1
         assert %1
-        %3 = 1
         %4 = or %par, 123
         nop
         return %2, %4
@@ -588,13 +555,6 @@ venom_progs = [
         """
     _global:
         %par = param
-        %tmp1 = -57896044618658097711785492504343953926634992332820282019728792003956564819968
-        %1 = 0
-        %tmp2 = 57896044618658097711785492504343953926634992332820282019728792003956564819967
-        %2 = 0
-        %3 = 0
-        %tmp3 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        %4 = 0
         return 0, 0, 0, 0
     """,
     ),
@@ -607,9 +567,15 @@ def test_sccp_binopt(correct_transformation):
 
     ctx = parse_from_basic_block(pre)
 
+    print(ctx)
+
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
+        StoreElimination(ac, fn).run_pass()
         SCCP(ac, fn).run_pass()
+        AlgebraicOptimizationPass(ac, fn).run_pass()
+        StoreElimination(ac, fn).run_pass()
+        RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     print(ctx)
 

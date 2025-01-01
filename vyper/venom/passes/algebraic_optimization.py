@@ -1,7 +1,29 @@
+from vyper.exceptions import CompilerPanic, StaticAssertionException
+from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.sccp.eval import signed_to_unsigned, unsigned_to_signed
+
+COMPARISON_OPS = {"gt", "sgt", "lt", "slt"}
+
+
+def _flip_comparison_op(opname):
+    assert opname in COMPARISON_OPS
+    if "g" in opname:
+        return opname.replace("g", "l")
+    if "l" in opname:
+        return opname.replace("l", "g")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
+
+
+def _wrap256(x, unsigned: bool):
+    x %= 2**256
+    # wrap in a signed way.
+    if not unsigned:
+        x = unsigned_to_signed(x, 256, strict=True)
+    return x
 
 
 class AlgebraicOptimizationPass(IRPass):
@@ -63,10 +85,324 @@ class AlgebraicOptimizationPass(IRPass):
         chain.reverse()
         return chain
 
+    def update(
+        self, inst: IRInstruction, opcode: str, *args: IROperand | int, force: bool = False
+    ) -> bool:
+        assert opcode != "phi"
+        if not force and inst.opcode == opcode:
+            return False
+
+        for op in inst.operands:
+            if isinstance(op, IRVariable):
+                uses = self.dfg.get_uses(op)
+                if inst in uses:
+                    uses.remove(inst)
+        inst.opcode = opcode
+        inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+
+        for op in inst.operands:
+            if isinstance(op, IRVariable):
+                self.dfg.add_use(op, inst)
+
+        return True
+
+    def store(self, inst: IRInstruction, *args: IROperand | int) -> bool:
+        return self.update(inst, "store", *args)
+
+    def add(self, inst: IRInstruction, opcode: str, *args: IROperand | int) -> IRVariable:
+        assert opcode != "phi"
+        index = inst.parent.instructions.index(inst)
+        var = inst.parent.parent.get_next_variable()
+        operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+        new_inst = IRInstruction(opcode, operands, output=var)
+        inst.parent.insert_instruction(new_inst, index)
+        for op in new_inst.operands:
+            if isinstance(op, IRVariable):
+                self.dfg.add_use(op, new_inst)
+        self.dfg.add_use(var, inst)
+        self.dfg.set_producing_instruction(var, new_inst)
+        return var
+
+    def is_lit(self, operand: IROperand) -> bool:
+        return isinstance(operand, IRLiteral)
+
+    def lit_eq(self, operand: IROperand, val: int) -> bool:
+        return self.is_lit(operand) and operand.value == val
+
+    def op_eq(self, operands, idx_a: int, idx_b: int) -> bool:
+        if self.is_lit(operands[idx_a]) and self.is_lit(operands[idx_b]):
+            return operands[idx_a].value == operands[idx_b].value
+        else:
+            return operands[idx_a] == operands[idx_b]
+
+    def _algebraic_opt(self):
+        self.last = False
+        while self._algebraic_opt_pass():
+            pass
+        self.last = True
+        self._algebraic_opt_pass()
+
+    def _algebraic_opt_pass(self) -> bool:
+        change = False
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if self._handle_inst_peephole(inst):
+                    change |= True
+
+        return change
+
+    def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
+        if inst.opcode == "assert":
+            return self.handle_assert_inst(inst)
+        if inst.output is None:
+            return False
+        if inst.is_volatile:
+            return False
+        if inst.opcode == "store":
+            return False
+        if inst.is_pseudo:
+            return False
+
+        operands = inst.operands
+
+        if (
+            inst.opcode == "add"
+            and self.is_lit(operands[0])
+            and isinstance(inst.operands[1], IRLabel)
+        ):
+            inst.opcode = "offset"
+            return True
+
+        if inst.is_commutative and self.is_lit(operands[1]):
+            operands = [operands[1], operands[0]]
+
+        if inst.opcode == "iszero":
+            if self.is_lit(operands[0]):
+                lit = operands[0].value
+                val = int(lit == 0)
+                return self.store(inst, val)
+            # iszero does not is checked as main instruction
+            return False
+
+        if inst.opcode in {"shl", "shr", "sar"}:
+            if self.lit_eq(operands[1], 0):
+                return self.store(inst, operands[0])
+            # no more cases for these instructions
+            return False
+
+        if inst.opcode in {"add", "sub", "xor"}:
+            if self.lit_eq(operands[0], 0):
+                return self.store(inst, operands[1])
+            if inst.opcode == "sub" and self.lit_eq(operands[1], -1):
+                return self.update(inst, "not", operands[0])
+            if inst.opcode != "add" and self.op_eq(operands, 0, 1):
+                # (x - x) == (x ^ x) == 0
+                return self.store(inst, 0)
+            if inst.opcode == "xor" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+                return self.update(inst, "not", operands[1])
+            return False
+
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
+            if self.lit_eq(operands[0], 0):
+                return self.store(inst, 0)
+            if inst.opcode in {"mul", "div", "sdiv"} and self.lit_eq(operands[0], 1):
+                return self.store(inst, operands[1])
+
+            if inst.opcode in {"mod", "smod"} and self.lit_eq(operands[0], 1):
+                return self.store(inst, 0)
+
+            if inst.opcode == "and" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+                return self.store(inst, operands[1])
+
+            if self.is_lit(operands[0]) and is_power_of_two(operands[0].value):
+                val = operands[0].value
+                if inst.opcode == "mod":
+                    return self.update(inst, "and", val - 1, operands[1])
+                if inst.opcode == "div":
+                    return self.update(inst, "shr", operands[1], int_log2(val))
+                if inst.opcode == "mul":
+                    return self.update(inst, "shl", operands[1], int_log2(val))
+            return False
+
+        if inst.opcode == "exp":
+            if self.lit_eq(operands[0], 0):
+                return self.store(inst, 1)
+
+            if self.lit_eq(operands[1], 1):
+                return self.store(inst, 1)
+
+            if self.lit_eq(operands[1], 0):
+                return self.update(inst, "iszero", operands[0])
+
+            if self.lit_eq(operands[0], 1):
+                return self.store(inst, operands[1])
+
+            return False
+
+        if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
+            return False
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], 0):
+            return self.store(inst, operands[1])
+
+        if inst.opcode == "or" and self.lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            return self.store(inst, signed_to_unsigned(-1, 256))
+
+        if inst.opcode == "eq" and self.lit_eq(operands[0], 0):
+            return self.update(inst, "iszero", operands[1])
+
+        if inst.opcode == "eq" and self.lit_eq(operands[1], 0):
+            return self.update(inst, "iszero", operands[0])
+
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses_ignore_nops(inst.output)
+        is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
+
+        if is_truthy:
+            if inst.opcode == "eq":
+                # (eq x y) has the same truthyness as (iszero (xor x y))
+                # it also has the same truthyness as (iszero (sub x y)),
+                # but xor is slightly easier to optimize because of being
+                # commutative.
+                # note that (xor (-1) x) has its own rule
+                tmp = self.add(inst, "xor", operands[0], operands[1])
+
+                return self.update(inst, "iszero", tmp)
+            if inst.opcode == "or" and self.is_lit(operands[0]) and operands[0].value != 0:
+                return self.store(inst, 1)
+
+        if inst.opcode in COMPARISON_OPS:
+            prefer_strict = not is_truthy
+            opcode = inst.opcode
+            if self.is_lit(operands[1]):
+                opcode = _flip_comparison_op(inst.opcode)
+                operands = [operands[1], operands[0]]
+
+            is_gt = "g" in opcode
+
+            unsigned = "s" not in opcode
+
+            lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+            # for comparison operators, we have three special boundary cases:
+            # almost always, never and almost never.
+            # almost_always is always true for the non-strict ("ge" and co)
+            # comparators. for strict comparators ("gt" and co), almost_always
+            # is true except for one case. never is never true for the strict
+            # comparators. never is almost always false for the non-strict
+            # comparators, except for one case. and almost_never is almost
+            # never true (except one case) for the strict comparators.
+            if is_gt:
+                almost_always, never = lo, hi
+                almost_never = hi - 1
+            else:
+                almost_always, never = hi, lo
+                almost_never = lo + 1
+
+            if self.is_lit(operands[0]) and operands[0].value == almost_never:
+                # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+                return self.update(inst, "eq", operands[1], never)
+
+            # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+            if (
+                not prefer_strict
+                and self.is_lit(operands[0])
+                and operands[0].value == almost_always
+            ):
+                # e.g. gt x 0, slt x MAX_INT256
+                tmp = self.add(inst, "eq", *operands)
+                return self.update(inst, "iszero", tmp)
+
+            # special cases that are not covered by others:
+
+            if opcode == "gt" and self.is_lit(operands[0]) and operands[0].value == 0:
+                # improve codesize (not gas), and maybe trigger
+                # downstream optimizations
+                tmp = self.add(inst, "iszero", operands[1])
+                return self.update(inst, "iszero", tmp)
+
+            # only done in last iteration because on average if not already optimize
+            # this rule creates bigger codesize because it could interfere with other
+            # optimizations
+            if (
+                self.last
+                and len(uses) == 1
+                and uses.first().opcode == "iszero"
+                and self.is_lit(operands[0])
+            ):
+                after = uses.first()
+                n_uses = self.dfg.get_uses(after.output)
+                if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+                    return False
+
+                n_op = operands[0].value
+                if "gt" in opcode:
+                    n_op += 1
+                else:
+                    n_op -= 1
+
+                assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+                n_opcode = opcode.replace("g", "l") if "g" in opcode else opcode.replace("l", "g")
+                self.update(inst, n_opcode, n_op, operands[1], force=True)
+                uses.first().opcode = "store"
+                return True
+
+        return False
+
+    def handle_assert_inst(self, inst: IRInstruction) -> bool:
+        operands = inst.operands
+        if not isinstance(operands[0], IRVariable):
+            return False
+        src = self.dfg.get_producing_instruction(operands[0])
+        assert isinstance(src, IRInstruction)
+        if src.opcode == "store":
+            operand = src.operands[0]
+            if isinstance(operand, IRLiteral):
+                if operand.value == 0:
+                    raise StaticAssertionException(
+                        f"assertion found to fail at compile time ({inst.error_msg}).",
+                        inst.get_ast_source(),
+                    )
+                else:
+                    return self.update(inst, "nop")
+        if src.opcode not in COMPARISON_OPS:
+            return False
+
+        assert isinstance(src.output, IRVariable)
+        uses = self.dfg.get_uses(src.output)
+        if len(uses) != 1:
+            return False
+
+        if not isinstance(src.operands[0], IRLiteral):
+            return False
+
+        n_op = src.operands[0].value
+        if "gt" in src.opcode:
+            n_op += 1
+        else:
+            n_op -= 1
+        unsigned = "s" not in src.opcode
+
+        assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+        n_opcode = (
+            src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
+        )
+
+        src.opcode = n_opcode
+        src.operands = [IRLiteral(n_op), src.operands[1]]
+
+        var = self.add(inst, "iszero", src.output)
+        self.dfg.add_use(var, inst)
+
+        self.update(inst, "assert", var, force=True)
+
+        return True
+
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self._optimize_iszero_chains()
+        self._algebraic_opt()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)

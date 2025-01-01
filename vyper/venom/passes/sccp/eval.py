@@ -7,10 +7,11 @@ from vyper.utils import (
     evm_mod,
     evm_not,
     evm_pow,
+    int_bounds,
     signed_to_unsigned,
     unsigned_to_signed,
 )
-from vyper.venom.basicblock import IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 
 def _unsigned_to_signed(value: int) -> int:
@@ -24,32 +25,55 @@ def _signed_to_unsigned(value: int) -> int:
 
 
 def _wrap_signed_binop(operation):
-    def wrapper(ops: list[IROperand]) -> int:
+    def wrapper(ops: list[IROperand]) -> IRLiteral:
         assert len(ops) == 2
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
-        return _signed_to_unsigned(operation(first, second))
+        return IRLiteral(_signed_to_unsigned(operation(first, second)))
+
+    return wrapper
+
+
+def _wrap_abstract_value(
+    abs_operation: Callable[[list[IROperand]], IRLiteral | None], lit_operation
+):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        abs_res = abs_operation(ops)
+        if abs_res is not None:
+            return abs_res
+        if all(isinstance(op, IRLiteral) for op in ops):
+            return lit_operation(ops)
+        return None
+
+    return wrapper
+
+
+def _wrap_lit(oper):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        if all(isinstance(op, IRLiteral) for op in ops):
+            return oper(ops)
+        return None
 
     return wrapper
 
 
 def _wrap_binop(operation):
-    def wrapper(ops: list[IROperand]) -> int:
+    def wrapper(ops: list[IROperand]) -> IRLiteral:
         assert len(ops) == 2
         first = _signed_to_unsigned(ops[1].value)
         second = _signed_to_unsigned(ops[0].value)
         ret = operation(first, second)
-        return ret & SizeLimits.MAX_UINT256
+        return IRLiteral(ret & SizeLimits.MAX_UINT256)
 
     return wrapper
 
 
 def _wrap_unop(operation):
-    def wrapper(ops: list[IROperand]) -> int:
+    def wrapper(ops: list[IROperand]) -> IRLiteral:
         assert len(ops) == 1
         value = _signed_to_unsigned(ops[0].value)
         ret = operation(value)
-        return ret & SizeLimits.MAX_UINT256
+        return IRLiteral(ret & SizeLimits.MAX_UINT256)
 
     return wrapper
 
@@ -96,28 +120,80 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], int]] = {
-    "add": _wrap_binop(operator.add),
-    "sub": _wrap_binop(operator.sub),
-    "mul": _wrap_binop(operator.mul),
-    "div": _wrap_binop(evm_div),
-    "sdiv": _wrap_signed_binop(evm_div),
-    "mod": _wrap_binop(evm_mod),
-    "smod": _wrap_signed_binop(evm_mod),
-    "exp": _wrap_binop(evm_pow),
-    "eq": _wrap_binop(operator.eq),
-    "lt": _wrap_binop(operator.lt),
-    "gt": _wrap_binop(operator.gt),
-    "slt": _wrap_signed_binop(operator.lt),
-    "sgt": _wrap_signed_binop(operator.gt),
-    "or": _wrap_binop(operator.or_),
-    "and": _wrap_binop(operator.and_),
-    "xor": _wrap_binop(operator.xor),
-    "not": _wrap_unop(evm_not),
-    "signextend": _wrap_binop(_evm_signextend),
-    "iszero": _wrap_unop(_evm_iszero),
-    "shr": _wrap_binop(_evm_shr),
-    "shl": _wrap_binop(_evm_shl),
-    "sar": _wrap_signed_binop(_evm_sar),
-    "store": lambda ops: ops[0].value,
+def _var_eq(ops: list[IROperand]) -> IRLiteral | None:
+    assert len(ops) == 2
+    if (
+        isinstance(ops[0], IRVariable)
+        and isinstance(ops[1], IRVariable)
+        and ops[0].name == ops[1].name
+    ):
+        return IRLiteral(1)
+    return None
+
+
+def _var_ne(ops: list[IROperand]) -> IRLiteral | None:
+    assert len(ops) == 2
+    if (
+        isinstance(ops[0], IRVariable)
+        and isinstance(ops[1], IRVariable)
+        and ops[0].name == ops[1].name
+    ):
+        return IRLiteral(0)
+    return None
+
+
+def _wrap_comparison(signed: bool, gt: bool, oper: Callable[[list[IROperand]], IRLiteral]):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        assert len(ops) == 2
+        tmp = _var_ne(ops)
+        if tmp is not None:
+            return tmp
+
+        if all(isinstance(op, IRLiteral) for op in ops):
+            return _wrap_lit(oper)(ops)
+
+        lo, hi = int_bounds(bits=256, signed=signed)
+        if isinstance(ops[0], IRLiteral):
+            if gt:
+                never = hi
+            else:
+                never = lo
+            if ops[0].value == never:
+                return IRLiteral(0)
+        if isinstance(ops[1], IRLiteral):
+            if not gt:
+                never = hi
+            else:
+                never = lo
+            if ops[1].value == never:
+                return IRLiteral(0)
+        return None
+
+    return wrapper
+
+
+ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
+    "add": _wrap_lit(_wrap_binop(operator.add)),
+    "sub": _wrap_lit(_wrap_binop(operator.sub)),
+    "mul": _wrap_lit(_wrap_binop(operator.mul)),
+    "div": _wrap_lit(_wrap_binop(evm_div)),
+    "sdiv": _wrap_lit(_wrap_signed_binop(evm_div)),
+    "mod": _wrap_lit(_wrap_binop(evm_mod)),
+    "smod": _wrap_lit(_wrap_signed_binop(evm_mod)),
+    "exp": _wrap_lit(_wrap_binop(evm_pow)),
+    "eq": _wrap_abstract_value(_var_eq, _wrap_binop(operator.eq)),
+    "lt": _wrap_comparison(signed=False, gt=False, oper=_wrap_binop(operator.lt)),
+    "gt": _wrap_comparison(signed=False, gt=True, oper=_wrap_binop(operator.gt)),
+    "slt": _wrap_comparison(signed=True, gt=False, oper=_wrap_signed_binop(operator.lt)),
+    "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
+    "or": _wrap_lit(_wrap_binop(operator.or_)),
+    "and": _wrap_lit(_wrap_binop(operator.and_)),
+    "xor": _wrap_lit(_wrap_binop(operator.xor)),
+    "not": _wrap_lit(_wrap_unop(evm_not)),
+    "signextend": _wrap_lit(_wrap_binop(_evm_signextend)),
+    "iszero": _wrap_lit(_wrap_unop(_evm_iszero)),
+    "shr": _wrap_lit(_wrap_binop(_evm_shr)),
+    "shl": _wrap_lit(_wrap_binop(_evm_shl)),
+    "sar": _wrap_lit(_wrap_signed_binop(_evm_sar)),
+    "store": _wrap_lit(lambda ops: ops[0].value),
 }
