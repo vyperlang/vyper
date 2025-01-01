@@ -244,7 +244,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         def _fix(node, parent=None):
             for field in LINE_INFO_FIELDS:
                 if parent is not None:
-                    val = getattr(node, field, getattr(parent, field))
+                    val = getattr(node, field, None)
+                    if val is None:
+                        val = getattr(parent, field)
                     setattr(node, field, val)
                 else:
                     assert hasattr(node, field), node
@@ -267,7 +269,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         adjustments = self._pre_parser.adjustments
 
         for attr in LINE_INFO_FIELDS:
-            assert getattr(node, attr, None) is not None, node
+            assert getattr(node, attr, None) is not None, (attr, node)
 
         adj = adjustments.get((node.lineno, node.col_offset), 0)
         node.col_offset += adj
