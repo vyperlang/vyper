@@ -58,7 +58,7 @@ class _ImportGraph:
 
     def pop_path(self, expected: vy_ast.Module) -> None:
         popped = self._path.pop()
-        if expected != popped:
+        if expected is not popped:  # FIXME - use expected != popped
             raise CompilerPanic("unreachable")
         self._imports.pop()
 

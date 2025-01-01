@@ -339,17 +339,9 @@ class VyperNode:
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
 
-    def __eq__(self, other):
-        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
-        # nodes, especially if they come from other modules
-        if not isinstance(other, type(self)):
-            return False
-        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
-            return False
-        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
-            if getattr(self, field_name, None) != getattr(other, field_name, None):
-                return False
-        return True
+    def __ne__(self, other):
+        # temporary to suss out all instances of != in tests
+        raise Exception()
 
     def __repr__(self):
         cls = type(self)
