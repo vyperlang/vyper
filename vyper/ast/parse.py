@@ -9,7 +9,7 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-from vyper.utils import sha256sum, vyper_warn, cumtimeit
+from vyper.utils import sha256sum, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -150,7 +150,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 
 def annotate_python_ast(
-    parsed_ast: python_ast.AST,
+    parsed_ast: python_ast.Module,
     vyper_source: str,
     pre_parser: PreParser,
     source_id: int = 0,
@@ -176,7 +176,6 @@ def annotate_python_ast(
     visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-
     visitor.start(parsed_ast)
 
     return parsed_ast
@@ -185,6 +184,7 @@ def annotate_python_ast(
 def _deepcopy_ast(ast_node: python_ast.AST):
     # pickle roundtrip is faster than copy.deepcopy() here.
     return pickle.loads(pickle.dumps(ast_node))
+
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
