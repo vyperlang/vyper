@@ -432,6 +432,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             assert len(dict_.keys) == len(dict_.values)
             for key, value in zip(dict_.keys, dict_.values):
                 replacement_kw_node = python_ast.keyword(key.id, value)
+                # set locations
+                for attr in LINE_INFO_FIELDS:
+                    setattr(replacement_kw_node, attr, getattr(key, attr))
                 kw_list.append(replacement_kw_node)
 
             node.args = []
