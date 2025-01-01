@@ -339,10 +339,6 @@ class VyperNode:
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
 
-    def __ne__(self, other):
-        # temporary to suss out all instances of != in tests
-        raise Exception()
-
     def __repr__(self):
         cls = type(self)
         class_repr = f"{cls.__module__}.{cls.__qualname__}"
