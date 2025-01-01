@@ -173,11 +173,11 @@ class NumericT(_PrimT):
             if isinstance(left, vy_ast.Int):
                 if left.value >= 2**value_bits:
                     raise OverflowException(
-                        "Base is too large, calculation will always overflow", left
+                        f"Base is too large for {self}, calculation will always overflow", left
                     )
                 elif left.value < -(2**value_bits):
                     raise OverflowException(
-                        "Base is too small, calculation will always underflow", left
+                        f"Base is too small for {self}, calculation will always underflow", left
                     )
             elif isinstance(right, vy_ast.Int):
                 if right.value < 0:
