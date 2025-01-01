@@ -213,7 +213,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     @cached_property
     def line_offsets(self):
         ofst = 0
-        ret = {}
+        # ensure line_offsets has at least 1 entry for 0-line source
+        ret = {1: ofst}
         for lineno, line in enumerate(self.source_lines):
             ret[lineno + 1] = ofst
             ofst += len(line)
@@ -233,7 +234,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         assert isinstance(ast_node, python_ast.Module)
         ast_node.lineno = 1
         ast_node.col_offset = 0
-        ast_node.end_lineno = len(self.source_lines)
+        ast_node.end_lineno = max(1, len(self.source_lines))
 
         if len(self.source_lines) > 0:
             ast_node.end_col_offset = len(self.source_lines[-1])
