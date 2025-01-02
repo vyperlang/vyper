@@ -68,6 +68,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     LowerDloadPass(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a

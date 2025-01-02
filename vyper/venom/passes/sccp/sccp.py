@@ -266,6 +266,7 @@ class SCCP(IRPass):
         fn = ARITHMETIC_OPS[opcode]
         res = fn(ops)
         if res is not None:
+            assert isinstance(res, IRLiteral)
             return finalize(res)
         else:
             return finalize(LatticeEnum.BOTTOM)
