@@ -88,7 +88,8 @@ def test_ecrecover() -> bool:
     assert c.test_ecrecover() is True
 
 
-def test_ecrecover_oog_handling(get_contract, tx_failed):
+def test_ecrecover_oog_handling(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
     code = """
 @external
 @view
@@ -103,9 +104,9 @@ def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
     v, r, s = sig.v, sig.r, sig.s
 
     assert c.do_ecrecover(h, v, r, s) == local_account.address
+    gas_used = env.last_result.gas_used
 
     with tx_failed():
         # provide enough spare gas for the top-level call to not oog but
         # not enough for ecrecover to succeed
-        spare_change = 500
-        c.do_ecrecover(h, v, r, s, gas=(21000 + spare_change + 3000))
+        c.do_ecrecover(h, v, r, s, gas=gas_used - 1)

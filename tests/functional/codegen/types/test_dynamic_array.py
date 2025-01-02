@@ -3,6 +3,7 @@ from typing import Any, Callable
 
 import pytest
 
+from tests.evm_backends.base_env import EvmError
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import (
@@ -1901,3 +1902,40 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_dynarray_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+
+@external
+def foo(a: DynArray[uint256, 4000]) -> uint256:
+    b: DynArray[uint256, 4000] = a
+    return b[0]
+    """
+    c = get_contract(code)
+    dynarray = [2] * 4000
+    assert c.foo(dynarray) == 2
+    gas_used = env.last_result.gas_used
+    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        c.foo(dynarray, gas=gas_used - 1)
+
+
+def test_dynarray_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
+    z: DynArray[String[1000000], 2] = [x, y]
+    # Some code
+    return z
+    """
+
+    c = get_contract(code)
+    calldata0 = "a" * 10
+    calldata1 = "b" * 1000000
+    assert c.foo(calldata0, calldata1) == [calldata0, calldata1]
+    gas_used = env.last_result.gas_used
+    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        c.foo(calldata0, calldata1, gas=gas_used - 1)

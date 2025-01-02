@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from tests.evm_backends.base_env import EvmError
 from tests.utils import decimal_to_int
 from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
@@ -848,3 +849,43 @@ def foo() -> {return_type}:
     return MY_CONSTANT[0][0]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+def test_array_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@internal
+def bar(x: uint256[3000]) -> uint256[3000]:
+    a: uint256[3000] = x
+    return a
+
+@external
+def foo(x: uint256[3000]) -> uint256:
+    s: uint256[3000] = self.bar(x)
+    return s[0]
+    """
+
+    c = get_contract(code)
+    array = [2] * 3000
+    assert c.foo(array) == array[0]
+    gas_used = env.last_result.gas_used
+    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        c.foo(array, gas=gas_used - 1)
+
+
+def test_array_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+def foo(x: uint256[2500]) -> uint256:
+    s: uint256[2500] = x
+    t: uint256[2500] = s
+    return t[0]
+    """
+
+    c = get_contract(code)
+    array = [2] * 2500
+    assert c.foo(array) == array[0]
+    gas_used = env.last_result.gas_used
+    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        c.foo(array, gas=gas_used - 1)

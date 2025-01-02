@@ -1,5 +1,7 @@
 import pytest
 
+from tests.evm_backends.base_env import EvmError
+
 
 def test_string_return(get_contract):
     code = """
@@ -359,3 +361,39 @@ def compare_var_storage_not_equal_false() -> bool:
     assert c.compare_var_storage_equal_false() is False
     assert c.compare_var_storage_not_equal_true() is True
     assert c.compare_var_storage_not_equal_false() is False
+
+
+def test_string_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000]) -> String[1000000]:
+    return x
+    """
+    c = get_contract(code)
+    calldata = "a" * 1000000
+    assert c.foo(calldata) == calldata
+    gas_used = env.last_result.gas_used - 1
+    # note: EvmError catches both reverts and exceptional halts (oog).
+    # this is dependent on the target evm version.
+    with tx_failed(EvmError):
+        c.foo(calldata, gas=gas_used - 1)
+
+
+def test_string_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000]) -> uint256:
+    return len(x)
+    """
+    c = get_contract(code)
+    calldata = "a" * 1000000
+    assert c.foo(calldata) == len(calldata)
+    gas_used = env.last_result.gas_used - 1
+    # note: EvmError catches both reverts and exceptional halts (oog).
+    # this is dependent on the target evm version.
+    with tx_failed(EvmError):
+        c.foo(calldata, gas=gas_used - 1)
