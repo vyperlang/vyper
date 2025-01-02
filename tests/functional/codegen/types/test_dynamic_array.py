@@ -1867,6 +1867,10 @@ def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
         with tx_failed():
             c.should_revert()
     except StaticAssertionException:
+        # this test should create
+        # assert error so if it is
+        # detected in compile time
+        # we can continue
         pass
 
 
