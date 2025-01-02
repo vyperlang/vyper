@@ -86,3 +86,26 @@ def test_ecrecover() -> bool:
     """
     c = get_contract(code)
     assert c.test_ecrecover() is True
+
+
+def test_ecrecover_oog_handling(get_contract, tx_failed):
+    code = """
+@external
+@view
+def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+    return ecrecover(hash, v, r, s)
+    """
+    c = get_contract(code)
+
+    h = b"\x35" * 32
+    local_account = Account.from_key(b"\x46" * 32)
+    sig = local_account.signHash(h)
+    v, r, s = sig.v, sig.r, sig.s
+
+    assert c.do_ecrecover(h, v, r, s) == local_account.address
+
+    with tx_failed():
+        # provide enough spare gas for the top-level call to not oog but
+        # not enough for ecrecover to succeed
+        spare_change = 500
+        c.do_ecrecover(h, v, r, s, gas=(21000 + spare_change + 3000))
