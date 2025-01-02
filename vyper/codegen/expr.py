@@ -61,13 +61,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    bytes_to_int,
-    is_checksum_encoded,
-    string_to_bytes,
-    vyper_warn,
-)
+from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -135,24 +129,21 @@ class Expr:
 
     # String literals
     def parse_Str(self):
-        bytez, bytez_length = string_to_bytes(self.expr.value)
-        typ = StringT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        bytez = self.expr.value.encode("utf-8")
+        return self._make_bytelike(StringT, bytez)
 
     # Byte literals
     def parse_Bytes(self):
-        return self._parse_bytes()
+        return self._make_bytelike(BytesT, self.expr.value)
 
     def parse_HexBytes(self):
-        return self._parse_bytes()
+        # HexBytes already has value as bytes
+        assert isinstance(self.expr.value, bytes)
+        return self._make_bytelike(BytesT, self.expr.value)
 
-    def _parse_bytes(self):
-        bytez = self.expr.value
-        bytez_length = len(self.expr.value)
-        typ = BytesT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
-
-    def _make_bytelike(self, btype, bytez, bytez_length):
+    def _make_bytelike(self, typeclass, bytez):
+        bytez_length = len(bytez)
+        btype = typeclass(bytez_length)
         placeholder = self.context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
