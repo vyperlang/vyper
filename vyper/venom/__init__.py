@@ -61,8 +61,16 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
-    LoadElimination(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    # quick temporary fix
+    # before I find if there
+    # is some equivalent order
+    for _ in range(2):
+        LoadElimination(ac, fn).run_pass()
+        SimplifyCFGPass(ac, fn).run_pass()
+        SCCP(ac, fn).run_pass()
+        StoreElimination(ac, fn).run_pass()
+        AlgebraicOptimizationPass(ac, fn).run_pass()
+
     MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
 
