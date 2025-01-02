@@ -251,11 +251,6 @@ class SCCP(IRPass):
             else:
                 eval_result = op
 
-            # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
-            if False and eval_result is LatticeEnum.BOTTOM:
-                return finalize(LatticeEnum.BOTTOM)
-
             if eval_result is LatticeEnum.BOTTOM:
                 eval_result = op
 
@@ -332,33 +327,6 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
-
-    def _fix_phi_nodes(self):
-        # fix basic blocks whose cfg in was changed
-        # maybe this should really be done in _visit_phi
-        for bb in self.fn.get_basic_blocks():
-            cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
-
-            needs_sort = False
-            for inst in bb.instructions:
-                if inst.opcode != "phi":
-                    break
-                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
-
-            # move phi instructions to the top of the block
-            if needs_sort:
-                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
-
-    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
-        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
-
-        if len(operands) != 1:
-            return False
-
-        assert inst.output is not None
-        inst.opcode = "store"
-        inst.operands = operands
-        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
