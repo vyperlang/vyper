@@ -18,12 +18,15 @@ class RemoveUnusedVariablesPass(IRPass):
         work_list = OrderedSet()
         self.work_list = work_list
 
-        uses = self.dfg.outputs.values()
-        work_list.addmany(uses)
+        instructions = self.dfg.outputs.values()
+        work_list.addmany(instructions)
 
         while len(work_list) > 0:
             inst = work_list.pop()
             self._process_instruction(inst)
+
+        for bb in self.function.get_basic_blocks():
+            bb.clear_dead_instructions()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -33,6 +36,9 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
+
+        bb = inst.parent
+
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
             return
@@ -42,4 +48,4 @@ class RemoveUnusedVariablesPass(IRPass):
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
 
-        inst.parent.remove_instruction(inst)
+        bb.mark_for_removal(inst)
