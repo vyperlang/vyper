@@ -189,14 +189,25 @@ def _wrap_multiplicative(oper: Callable[[list[IROperand]], IRLiteral], commutati
     return wrapper
 
 
+def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        assert len(ops) == 2
+        if isinstance(ops[0], IRLiteral) and ops[0].value == 1:
+            return IRLiteral(0)
+
+        return _wrap_multiplicative(oper, commutative=False)(ops)
+
+    return wrapper
+
+
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "add": _wrap_lit(_wrap_binop(operator.add)),
     "sub": _wrap_lit(_wrap_binop(operator.sub)),
     "mul": _wrap_multiplicative(_wrap_binop(operator.mul), commutative=True),
     "div": _wrap_multiplicative(_wrap_binop(evm_div)),
     "sdiv": _wrap_multiplicative(_wrap_signed_binop(evm_div)),
-    "mod": _wrap_multiplicative(_wrap_binop(evm_mod)),
-    "smod": _wrap_multiplicative(_wrap_signed_binop(evm_mod)),
+    "mod": _wrap_mod(_wrap_binop(evm_mod)),
+    "smod": _wrap_mod(_wrap_signed_binop(evm_mod)),
     "exp": _wrap_lit(_wrap_binop(evm_pow)),
     "eq": _wrap_abstract_value(_var_eq, _wrap_binop(operator.eq)),
     "lt": _wrap_comparison(signed=False, gt=False, oper=_wrap_binop(operator.lt)),
