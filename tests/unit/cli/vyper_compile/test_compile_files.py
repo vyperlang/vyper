@@ -413,7 +413,7 @@ def test_archive_b64_output(input_files):
 
 
 def test_archive_compile_options(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
 
     options = ["abi_python", "json", "ast", "annotated_ast", "ir_json"]
@@ -468,7 +468,7 @@ format_options = [
 
 
 def test_compile_vyz_with_options(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
 
     for option in format_options:
@@ -497,7 +497,7 @@ def test_compile_vyz_with_options(input_files):
 
 
 def test_archive_compile_simultaneous_options(input_files):
-    tmpdir, _, _, contract_file = input_files
+    tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
 
     for option in format_options:
