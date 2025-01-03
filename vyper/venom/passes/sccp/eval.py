@@ -199,6 +199,15 @@ def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
 
     return wrapper
 
+def _exp(ops) -> IRLiteral | None:
+    if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
+        return IRLiteral(1)
+
+    if isinstance(ops[1], IRLiteral) and ops[1].value == 1:
+        return IRLiteral(1)
+
+    return _wrap_lit(_wrap_binop(evm_pow))(ops)
+
 
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "add": _wrap_lit(_wrap_binop(operator.add)),
@@ -208,7 +217,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "sdiv": _wrap_multiplicative(_wrap_signed_binop(evm_div)),
     "mod": _wrap_mod(_wrap_binop(evm_mod)),
     "smod": _wrap_mod(_wrap_signed_binop(evm_mod)),
-    "exp": _wrap_lit(_wrap_binop(evm_pow)),
+    "exp": _exp,
     "eq": _wrap_abstract_value(_var_eq, _wrap_binop(operator.eq)),
     "lt": _wrap_comparison(signed=False, gt=False, oper=_wrap_binop(operator.lt)),
     "gt": _wrap_comparison(signed=False, gt=True, oper=_wrap_binop(operator.gt)),
