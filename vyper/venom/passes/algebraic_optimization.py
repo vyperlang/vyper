@@ -203,8 +203,6 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
-            if self._lit_eq(operands[0], 0):
-                return self._store(inst, 0)
             if inst.opcode in {"mul", "div", "sdiv"} and self._lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 

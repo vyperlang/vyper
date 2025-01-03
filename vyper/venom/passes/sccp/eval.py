@@ -172,14 +172,31 @@ def _wrap_comparison(signed: bool, gt: bool, oper: Callable[[list[IROperand]], I
     return wrapper
 
 
+def _wrap_multiplicative(oper: Callable[[list[IROperand]], IRLiteral], commutative: bool = False):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        assert len(ops) == 2
+        if all(isinstance(op, IRLiteral) for op in ops):
+            return oper(ops)
+
+        if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
+            return IRLiteral(0)
+
+        if commutative and isinstance(ops[1], IRLiteral) and ops[1].value == 0:
+            return IRLiteral(0)
+
+        return None
+
+    return wrapper
+
+
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "add": _wrap_lit(_wrap_binop(operator.add)),
     "sub": _wrap_lit(_wrap_binop(operator.sub)),
-    "mul": _wrap_lit(_wrap_binop(operator.mul)),
-    "div": _wrap_lit(_wrap_binop(evm_div)),
-    "sdiv": _wrap_lit(_wrap_signed_binop(evm_div)),
-    "mod": _wrap_lit(_wrap_binop(evm_mod)),
-    "smod": _wrap_lit(_wrap_signed_binop(evm_mod)),
+    "mul": _wrap_multiplicative(_wrap_binop(operator.mul), commutative=True),
+    "div": _wrap_multiplicative(_wrap_binop(evm_div)),
+    "sdiv": _wrap_multiplicative(_wrap_signed_binop(evm_div)),
+    "mod": _wrap_multiplicative(_wrap_binop(evm_mod)),
+    "smod": _wrap_multiplicative(_wrap_signed_binop(evm_mod)),
     "exp": _wrap_lit(_wrap_binop(evm_pow)),
     "eq": _wrap_abstract_value(_var_eq, _wrap_binop(operator.eq)),
     "lt": _wrap_comparison(signed=False, gt=False, oper=_wrap_binop(operator.lt)),
@@ -187,7 +204,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "slt": _wrap_comparison(signed=True, gt=False, oper=_wrap_signed_binop(operator.lt)),
     "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
     "or": _wrap_lit(_wrap_binop(operator.or_)),
-    "and": _wrap_lit(_wrap_binop(operator.and_)),
+    "and": _wrap_multiplicative(_wrap_binop(operator.and_), commutative=True),
     "xor": _wrap_lit(_wrap_binop(operator.xor)),
     "not": _wrap_lit(_wrap_unop(evm_not)),
     "signextend": _wrap_lit(_wrap_binop(_evm_signextend)),
