@@ -5,7 +5,12 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, CompilerPanic, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    CompilerPanic,
+    StaticAssertionException,
+    TypeMismatch,
+)
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -533,9 +538,15 @@ def do_slice():
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
 def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    c = get_contract(bad_code)
-    with tx_failed():
-        c.do_slice()
+    try:
+        c = get_contract(bad_code)
+        with tx_failed():
+            c.do_slice()
+    except StaticAssertionException:
+        # it should be ok if we
+        # catch the assert in compile time
+        # since it supposed to be revert
+        pass
 
 
 # tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`

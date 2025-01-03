@@ -5,7 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -54,6 +54,7 @@ class SCCP(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    sccp_calculated: set[IRBasicBlock]
 
     cfg_dirty: bool
 
@@ -65,15 +66,17 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+
+        self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
-
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
             self.fn.remove_unreachable_blocks()
-
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -193,6 +196,7 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
+                self.cfg_dirty = True
                 if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
                     target = self.fn.get_basic_block(inst.operands[1].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -247,21 +251,27 @@ class SCCP(IRPass):
             else:
                 eval_result = op
 
-            # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
-                return finalize(LatticeEnum.BOTTOM)
+                eval_result = op
 
-            assert isinstance(eval_result, IROperand), (inst.parent.label, op, inst)
+            assert isinstance(eval_result, IROperand), f"{(inst.parent.label, op, inst)}"
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
         fn = ARITHMETIC_OPS[opcode]
-        return finalize(IRLiteral(fn(ops)))
+        res = fn(ops)
+        if res is not None:
+            assert isinstance(res, IRLiteral)
+            return finalize(res)
+        else:
+            return finalize(LatticeEnum.BOTTOM)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
+
+    def _get_uses(self, var: IRVariable) -> OrderedSet:
+        return self.dfg.get_uses(var)
 
     def _propagate_constants(self):
         """
@@ -269,6 +279,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
+        self.recalc_reachable = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
@@ -287,9 +298,12 @@ class SCCP(IRPass):
                     target = inst.operands[2]
                 else:
                     target = inst.operands[1]
+                if isinstance(inst.operands[0], IRVariable):
+                    self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
 
+                self.recalc_reachable = True
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
@@ -298,13 +312,12 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
-                else:
+                    inst.operands = []
+                elif len(inst.parent.cfg_in) == 1 or inst.parent == inst.parent.parent.entry:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
-
-                inst.operands = []
 
         elif inst.opcode == "phi":
             return
