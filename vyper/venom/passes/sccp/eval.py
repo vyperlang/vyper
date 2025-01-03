@@ -199,6 +199,7 @@ def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
 
     return wrapper
 
+
 def _exp(ops) -> IRLiteral | None:
     if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
         return IRLiteral(1)
