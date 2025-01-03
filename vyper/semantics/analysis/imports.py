@@ -19,6 +19,7 @@ from vyper.exceptions import (
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
@@ -106,10 +107,11 @@ class ImportAnalyzer:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
-                if isinstance(node, vy_ast.Import):
-                    self._handle_Import(node)
-                elif isinstance(node, vy_ast.ImportFrom):
-                    self._handle_ImportFrom(node)
+                with tag_exceptions(node):
+                    if isinstance(node, vy_ast.Import):
+                        self._handle_Import(node)
+                    elif isinstance(node, vy_ast.ImportFrom):
+                        self._handle_ImportFrom(node)
         self.seen.add(id(module_ast))
 
     def _handle_Import(self, node: vy_ast.Import):
