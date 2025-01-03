@@ -210,9 +210,20 @@ def _exp(ops) -> IRLiteral | None:
     return _wrap_lit(_wrap_binop(evm_pow))(ops)
 
 
+def _wrap_self_inverse_op(oper: Callable[[list[IROperand]], IRLiteral]):
+    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
+        assert len(ops) == 2
+        res_eq = _var_eq(ops)
+        if res_eq is not None:
+            return IRLiteral(0)
+        return _wrap_lit(oper)(ops)
+
+    return wrapper
+
+
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "add": _wrap_lit(_wrap_binop(operator.add)),
-    "sub": _wrap_lit(_wrap_binop(operator.sub)),
+    "sub": _wrap_self_inverse_op(_wrap_binop(operator.sub)),
     "mul": _wrap_multiplicative(_wrap_binop(operator.mul), commutative=True),
     "div": _wrap_multiplicative(_wrap_binop(evm_div)),
     "sdiv": _wrap_multiplicative(_wrap_signed_binop(evm_div)),
@@ -226,7 +237,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
     "or": _wrap_lit(_wrap_binop(operator.or_)),
     "and": _wrap_multiplicative(_wrap_binop(operator.and_), commutative=True),
-    "xor": _wrap_lit(_wrap_binop(operator.xor)),
+    "xor": _wrap_self_inverse_op(_wrap_binop(operator.xor)),
     "not": _wrap_lit(_wrap_unop(evm_not)),
     "signextend": _wrap_lit(_wrap_binop(_evm_signextend)),
     "iszero": _wrap_lit(_wrap_unop(_evm_iszero)),
