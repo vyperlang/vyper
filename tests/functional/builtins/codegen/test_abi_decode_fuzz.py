@@ -64,6 +64,7 @@ def create_id_generator():
 
 get_next_id = create_id_generator()
 
+
 # TODO move this to a shared module
 @st.composite
 # max type nesting
