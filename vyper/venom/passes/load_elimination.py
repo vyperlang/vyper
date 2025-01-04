@@ -1,4 +1,4 @@
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
 
@@ -11,7 +11,7 @@ class LoadElimination(IRPass):
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
-        self.equivalence = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
@@ -22,7 +22,7 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
-        return op1 == op2 or self.equivalence.equivalent(op1, op2)
+        return op1 == op2 or self.dfg.are_equivalent(op1, op2)
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
         # not really a lattice even though it is not really inter-basic block;

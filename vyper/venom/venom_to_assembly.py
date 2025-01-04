@@ -14,7 +14,7 @@ from vyper.venom.analysis import (
     CFGAnalysis,
     IRAnalysesCache,
     LivenessAnalysis,
-    VarEquivalenceAnalysis,
+    DFGAnalysis,
 )
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -162,7 +162,7 @@ class VenomCompiler:
 
                 NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
-                self.equivalence = ac.request_analysis(VarEquivalenceAnalysis)
+                self.dfg = ac.request_analysis(DFGAnalysis)
                 ac.request_analysis(CFGAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
@@ -231,7 +231,7 @@ class VenomCompiler:
                 continue
 
             to_swap = stack.peek(final_stack_depth)
-            if self.equivalence.equivalent(op, to_swap):
+            if self.dfg.are_equivalent(op, to_swap):
                 # perform a "virtual" swap
                 stack.poke(final_stack_depth, op)
                 stack.poke(depth, to_swap)
@@ -579,7 +579,7 @@ class VenomCompiler:
 
                 next_scheduled = next_liveness.last()
                 cost = 0
-                if not self.equivalence.equivalent(inst.output, next_scheduled):
+                if not self.dfg.are_equivalent(inst.output, next_scheduled):
                     cost = self.swap_op(assembly, stack, next_scheduled)
 
                 if DEBUG_SHOW_COST and cost != 0:

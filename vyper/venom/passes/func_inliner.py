@@ -5,7 +5,6 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel
 from vyper.venom.function import IRFunction
@@ -90,7 +89,6 @@ class FuncInlinerPass(IRGlobalPass):
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
-            self.analyses_caches[fn].invalidate_analysis(VarEquivalenceAnalysis)
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
