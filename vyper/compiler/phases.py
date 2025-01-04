@@ -1,4 +1,5 @@
 import copy
+import json
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
@@ -19,7 +20,7 @@ from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, vyper_warn
+from vyper.utils import ERC5202_PREFIX, sha256sum, vyper_warn
 from vyper.venom import generate_assembly_experimental, generate_ir
 from vyper.venom.settings import VenomSettings
 
@@ -152,29 +153,41 @@ class CompilerData:
         _, ast = self._generate_ast
         return ast
 
+    def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
+        if self.storage_layout_override is not None:
+            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            return sha256sum(layout_sum + imports_integrity_sum)
+        return imports_integrity_sum
+
     @cached_property
     def _resolve_imports(self):
         # deepcopy so as to not interfere with `-f ast` output
         vyper_module = copy.deepcopy(self.vyper_module)
         with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+            imports = resolve_imports(vyper_module, self.input_bundle)
 
-    @cached_property
-    def resolved_imports(self):
-        imports = self._resolve_imports[1]
+        # check integrity sum
+        integrity_sum = self._compute_integrity_sum(imports._integrity_sum)
 
         expected = self.expected_integrity_sum
-
-        if expected is not None and imports.integrity_sum != expected:
+        if expected is not None and integrity_sum != expected:
             # warn for now. strict/relaxed mode was considered but it costs
             # interface and testing complexity to add another feature flag.
             vyper_warn(
                 f"Mismatched integrity sum! Expected {expected}"
-                f" but got {imports.integrity_sum}."
+                f" but got {integrity_sum}."
                 " (This likely indicates a corrupted archive)"
             )
 
-        return imports
+        return vyper_module, imports, integrity_sum
+
+    @cached_property
+    def integrity_sum(self):
+        return self._resolve_imports[2]
+
+    @cached_property
+    def resolved_imports(self):
+        return self._resolve_imports[1]
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
@@ -274,7 +287,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         metadata = None
         if not self.no_bytecode_metadata:
-            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
+            metadata = bytes.fromhex(self.integrity_sum)
         return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
