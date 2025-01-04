@@ -2,10 +2,11 @@
 Tests that the tokenizer / parser are passing correct source location
 info to the AST
 """
-from vyper.compiler import compile_code
 import pytest
-from vyper.exceptions import VyperException, SyntaxException,UndeclaredDefinition
+
 from vyper.ast.parse import parse_to_ast
+from vyper.compiler import compile_code
+from vyper.exceptions import UndeclaredDefinition
 
 
 def test_log_token_aligned():
@@ -21,7 +22,7 @@ def f():
     with pytest.raises(UndeclaredDefinition) as e:
         compile_code(code)
 
-    assert str(e.value).strip() == """
+    expected = """
  'd' has not been declared.
 
   function "f", line 7:12 
@@ -29,7 +30,9 @@ def f():
   ---> 7     log A(b=d)
   -------------------^
        8
-    """.strip()
+    """
+    assert expected.strip() == str(e.value).strip()
+
 
 def test_log_token_aligned2():
     # GH issue 3059
@@ -45,6 +48,7 @@ def foo(c: Contract):
     log MyEvent(a=c.address)
     """
     compile_code(code)
+
 
 def test_log_token_aligned3():
     # https://github.com/vyperlang/vyper/pull/3808#pullrequestreview-1900570163
@@ -63,6 +67,7 @@ def foo(u: uint256):
     """
     # not semantically valid code, check we can at least parse it
     assert parse_to_ast(code) is not None
+
 
 def test_log_token_aligned4():
     # GH issue 4139
@@ -84,6 +89,6 @@ def transfer():
 
 def test_long_string_non_coding_token():
     # GH issue 2258
-    code = '\r[[]]\ndef _(e:[],l:[]):\n    """"""""""""""""""""""""""""""""""""""""""""""""""""""\n    f.n()'
+    code = '\r[[]]\ndef _(e:[],l:[]):\n    """"""""""""""""""""""""""""""""""""""""""""""""""""""\n    f.n()'  # noqa: E501
     # not valid code, but should at least parse
     assert parse_to_ast(code) is not None
