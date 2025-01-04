@@ -30,7 +30,7 @@ def f():
   ---> 7     log A(b=d)
   -------------------^
        8
-    """
+    """  # noqa: W291
     assert expected.strip() == str(e.value).strip()
 
 
