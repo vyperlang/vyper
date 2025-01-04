@@ -31,7 +31,7 @@ pytestmark = pytest.mark.fuzzing
 
 type_ctors = []
 for t in _get_primitive_types().values():
-    if t == HashMapT or t == DecimalT():
+    if t == DecimalT():
         continue
     if isinstance(t, VyperType):
         t = t.__class__
@@ -39,13 +39,30 @@ for t in _get_primitive_types().values():
         continue
     type_ctors.append(t)
 
+# TODO: add flags, decimals and interfaces
 complex_static_ctors = [SArrayT, TupleT, StructT]
-complex_dynamic_ctors = [DArrayT]
+complex_dynamic_ctors = [DArrayT, HashMapT]
 leaf_ctors = [t for t in type_ctors if t not in _get_sequence_types().values()]
 static_leaf_ctors = [t for t in leaf_ctors if t._is_prim_word]
 dynamic_leaf_ctors = [BytesT, StringT]
 
+hashmap_value_skip = complex_static_ctors + complex_dynamic_ctors
+
 MAX_MUTATIONS = 33
+
+
+def create_id_generator():
+    counter = 0
+
+    def get_next_id():
+        nonlocal counter
+        counter += 1
+        return counter
+
+    return get_next_id
+
+
+get_next_id = create_id_generator()
 
 
 @st.composite
@@ -85,13 +102,20 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
         return finalize(t(bound))
 
     if t == SArrayT:
-        subtype = _go(skip=[TupleT, BytesT, StringT])
+        subtype = _go(skip=skip + [TupleT, BytesT, StringT])
         bound = draw(st.integers(min_value=1, max_value=6))
         return finalize(t(subtype, bound))
+
     if t == DArrayT:
-        subtype = _go(skip=[TupleT])
+        subtype = _go(skip=skip + [TupleT])
         bound = draw(st.integers(min_value=1, max_value=16))
         return finalize(t(subtype, bound))
+
+    if t == HashMapT:
+        key_type = _go(skip=hashmap_value_skip)
+        assert key_type._as_hashmap_key, f"{key_type} is not a valid hashmap key"
+        value_type = _go()
+        return finalize(t(key_type, value_type))
 
     if t == TupleT:
         # zero-length tuples are not allowed in vyper
@@ -101,8 +125,8 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
 
     if t == StructT:
         n = draw(st.integers(min_value=1, max_value=6))
-        subtypes = {f"x{i}": _go() for i in range(n)}
-        _id = len(source_fragments)  # poor man's unique id
+        subtypes = {f"x{i}": _go(skip=skip + [HashMapT]) for i in range(n)}
+        _id = get_next_id()
         name = f"MyStruct{_id}"
         typ = StructT(name, subtypes)
         source_fragments.append(typ.def_source_str())
@@ -120,7 +144,7 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
         m = draw(st.integers(min_value=1, max_value=32))
         return finalize(t(m))
 
-    raise RuntimeError("unreachable")
+    raise RuntimeError(str(t))
 
 
 @st.composite
@@ -355,7 +379,8 @@ PARALLELISM = 1  # increase on fuzzer box
 # NOTE: this is a heavy test. 100 types * 100 payloads per type can take
 # 3-4minutes on a regular CPU core.
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
-@hp.given(typ=vyper_type())
+# TODO should we control the nesting?
+@hp.given(typ=vyper_type(skip=[HashMapT]))
 @hp.settings(max_examples=100, **_settings)
 def test_abi_decode_fuzz(_n, typ, get_contract, tx_failed, payload_copier, env):
     source_fragments, typ = typ
@@ -449,7 +474,7 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
 
 
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
-@hp.given(typ=vyper_type())
+@hp.given(typ=vyper_type(skip=[HashMapT]))
 @hp.settings(max_examples=100, **_settings)
 def test_abi_decode_no_wrap_fuzz(_n, typ, get_contract, tx_failed, env):
     source_fragments, typ = typ
