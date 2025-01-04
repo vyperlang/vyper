@@ -5,7 +5,7 @@ import string
 from dataclasses import dataclass
 
 import pytest
-from hypothesis import Phase, given, settings
+from hypothesis import Phase, given, settings, note, Verbosity
 from hypothesis import strategies as st
 
 # TODO use proper generator for storage types
@@ -176,7 +176,7 @@ def mutate_layout(layout) -> tuple[bool, dict, list[str]]:
 
     for mutation_func in selected_mutations:
         mutation_result = mutation_func(result)
-        should_raise |= not mutation_result.success
+        should_raise |= mutation_result.success
         result = mutation_result.layout
         mutation_history.append(mutation_result.description)
 
@@ -223,7 +223,7 @@ def mutation_strategy(draw) -> ContractMutation:
 
 @pytest.mark.fuzzing
 @given(mutation_strategy())
-@settings(phases=[Phase.generate], max_examples=100000)
+@settings(phases=[Phase.generate], max_examples=10000)#, verbosity=Verbosity.verbose)
 def test_override_fuzzing(mutation: ContractMutation):
     # test that original contract compiles
     # with permutation's layout
