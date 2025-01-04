@@ -54,11 +54,11 @@ def validate_storage_layout(layout_dict):
         if section not in layout_dict:
             continue
 
-        variables = [(name, info) for name, info in layout_dict[section].items()]
-        variables.sort(key=lambda x: x[1]["slot"])
+        variables = [info for _, info in layout_dict[section].items()]
+        variables.sort(key=lambda x: x["slot"])
 
-        counter = variables[0][1]["slot"]
-        for _, info in variables:
+        counter = variables[0]["slot"]
+        for info in variables:
             if info["slot"] != counter:
                 raise ValueError("Invalid layout")
             counter += info["n_slots"]
