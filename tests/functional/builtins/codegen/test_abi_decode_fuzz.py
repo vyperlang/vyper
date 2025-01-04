@@ -102,12 +102,12 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
         return finalize(t(bound))
 
     if t == SArrayT:
-        subtype = _go(skip=skip + [TupleT, BytesT, StringT])
+        subtype = _go(skip=[TupleT, BytesT, StringT, HashMapT])
         bound = draw(st.integers(min_value=1, max_value=6))
         return finalize(t(subtype, bound))
 
     if t == DArrayT:
-        subtype = _go(skip=skip + [TupleT])
+        subtype = _go(skip=[TupleT, HashMapT])
         bound = draw(st.integers(min_value=1, max_value=16))
         return finalize(t(subtype, bound))
 
@@ -120,12 +120,12 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
     if t == TupleT:
         # zero-length tuples are not allowed in vyper
         n = draw(st.integers(min_value=1, max_value=6))
-        subtypes = [_go() for _ in range(n)]
+        subtypes = [_go(skip=[HashMapT]) for _ in range(n)]
         return finalize(TupleT(subtypes))
 
     if t == StructT:
         n = draw(st.integers(min_value=1, max_value=6))
-        subtypes = {f"x{i}": _go(skip=skip + [HashMapT]) for i in range(n)}
+        subtypes = {f"x{i}": _go(skip=[HashMapT]) for i in range(n)}
         _id = get_next_id()
         name = f"MyStruct{_id}"
         typ = StructT(name, subtypes)
@@ -144,7 +144,7 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
         m = draw(st.integers(min_value=1, max_value=32))
         return finalize(t(m))
 
-    raise RuntimeError(str(t))
+    raise RuntimeError("unreachable")
 
 
 @st.composite
