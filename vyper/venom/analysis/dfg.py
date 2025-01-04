@@ -38,6 +38,22 @@ class DFGAnalysis(IRAnalysis):
         uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
 
+    def are_equivalent(self, var1: IRVariable, var2: IRVariable) -> bool:        
+        if var1 == var2:
+            return True
+
+        var1 = self._traverse_store_chain(var1)
+        var2 = self._traverse_store_chain(var2)
+
+        return var1 == var2
+
+    def _traverse_store_chain(self, var: IRVariable) -> IRVariable:
+        while True:
+            inst = self.get_producing_instruction(var)
+            if inst is None or inst.opcode != "store":
+                return var
+            var = inst.operands[0]
+
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
         return self._dfg_outputs
