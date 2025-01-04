@@ -38,7 +38,7 @@ class DFGAnalysis(IRAnalysis):
         uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
 
-    def are_equivalent(self, var1: IRVariable, var2: IRVariable) -> bool:        
+    def are_equivalent(self, var1: IRVariable, var2: IRVariable) -> bool:
         if var1 == var2:
             return True
 
@@ -52,7 +52,7 @@ class DFGAnalysis(IRAnalysis):
             inst = self.get_producing_instruction(var)
             if inst is None or inst.opcode != "store":
                 return var
-            var = inst.operands[0]
+            var = inst.operands[0]  # type: ignore
 
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:

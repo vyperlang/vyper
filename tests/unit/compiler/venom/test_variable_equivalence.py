@@ -1,7 +1,7 @@
 import itertools
 
 from tests.venom_utils import parse_from_basic_block
-from vyper.venom.analysis import IRAnalysesCache, DFGAnalysis
+from vyper.venom.analysis import DFGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 
