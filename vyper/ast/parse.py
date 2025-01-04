@@ -245,7 +245,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             for field in LINE_INFO_FIELDS:
                 if parent is not None:
                     val = getattr(node, field, None)
-                    if val is None:
+                    # special case for USub - heisenbug when coverage is
+                    # enabled in the test suite.
+                    if val is None or isinstance(node, python_ast.USub):
                         val = getattr(parent, field)
                     setattr(node, field, val)
                 else:
