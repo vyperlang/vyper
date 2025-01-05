@@ -20,6 +20,9 @@ import contracts.ibar as IBar
 
 import contracts.library as library
 
+a: uint256
+b: uint256
+
 @external
 def foo(a: address) -> bool:
     return extcall IBar(a).bar(1)
@@ -29,15 +32,28 @@ def baz() -> uint256:
     return self.balance + library.foo()
 """
 
+FOO_STORAGE_LAYOUT_OVERRIDES = {
+    "a": {"type": "uint256", "n_slots": 1, "slot": 5},
+    "b": {"type": "uint256", "n_slots": 1, "slot": 0},
+}
+
 BAR_CODE = """
 import contracts.ibar as IBar
 
 implements: IBar
 
+c: uint256
+d: uint256
+
 @external
 def bar(a: uint256) -> bool:
     return True
 """
+
+BAR_STORAGE_LAYOUT_OVERRIDES = {
+    "c": {"type": "uint256", "n_slots": 1, "slot": 13},
+    "d": {"type": "uint256", "n_slots": 1, "slot": 7},
+}
 
 BAR_VYI = """
 @external
@@ -89,6 +105,10 @@ def input_json(optimize, evm_version, experimental_codegen, debug):
             "experimentalCodegen": experimental_codegen,
             "debug": debug,
         },
+        "storage_layout_overrides": {
+            "contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES,
+            "contracts/bar.vy": BAR_STORAGE_LAYOUT_OVERRIDES,
+        },
     }
 
 
@@ -128,7 +148,10 @@ def test_compile_json(input_json, input_bundle):
     del output_formats["cfg"]
     del output_formats["cfg_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=output_formats, input_bundle=input_bundle
+        foo_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=FOO_STORAGE_LAYOUT_OVERRIDES,
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
@@ -138,7 +161,10 @@ def test_compile_json(input_json, input_bundle):
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=output_formats, input_bundle=input_bundle
+        bar_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=BAR_STORAGE_LAYOUT_OVERRIDES,
     )
 
     compile_code_results = {
@@ -171,6 +197,7 @@ def test_compile_json(input_json, input_bundle):
             "interface": data["interface"],
             "ir": data["ir_dict"],
             "userdoc": data["userdoc"],
+            "layout": data["layout"],
             "metadata": data["metadata"],
             "evm": {
                 "bytecode": {
@@ -218,7 +245,16 @@ def test_different_outputs(input_bundle, input_json):
 
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
-    assert sorted(bar.keys()) == ["abi", "devdoc", "evm", "interface", "ir", "metadata", "userdoc"]
+    assert sorted(bar.keys()) == [
+        "abi",
+        "devdoc",
+        "evm",
+        "interface",
+        "ir",
+        "layout",
+        "metadata",
+        "userdoc",
+    ]
 
     assert sorted(foo.keys()) == ["evm"]
 
@@ -268,6 +304,14 @@ def test_exc_handler_to_dict_compiler(input_json):
     error = result["errors"][0]
     assert error["component"] == "compiler"
     assert error["type"] == "TypeMismatch"
+
+
+def test_unknown_storage_layout_overrides(input_json):
+    unknown_contract_path = "contracts/baz.vy"
+    input_json["storage_layout_overrides"] = {unknown_contract_path: FOO_STORAGE_LAYOUT_OVERRIDES}
+    with pytest.raises(JSONError) as e:
+        compile_json(input_json)
+    assert e.value.args[0] == f"unknown target for storage layout override: {unknown_contract_path}"
 
 
 def test_source_ids_increment(input_json):
