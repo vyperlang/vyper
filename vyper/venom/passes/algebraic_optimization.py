@@ -176,14 +176,6 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.is_commutative and self._is_lit(operands[1]):
             operands = [operands[1], operands[0]]
 
-        if False and inst.opcode == "iszero":
-            if self._is_lit(operands[0]):
-                lit = operands[0].value
-                val = int(lit == 0)
-                return self._store(inst, val)
-            # iszero does not is checked as main instruction
-            return False
-
         if inst.opcode in {"shl", "shr", "sar"}:
             if self._lit_eq(operands[1], 0):
                 return self._store(inst, operands[0])
