@@ -178,6 +178,10 @@ def annotate_python_ast(
     )
     visitor.visit(parsed_ast)
 
+    # sanity check that we have used all the hex strings found by the
+    # pre-parser
+    assert len(pre_parser.hex_string_locations) == 0
+
     return parsed_ast
 
 
@@ -431,6 +435,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                         node.col_offset,
                     )
                 node.ast_type = "HexBytes"
+                self._pre_parser.hex_string_locations.remove(key)
             else:
                 node.ast_type = "Str"
         elif isinstance(node.value, bytes):
