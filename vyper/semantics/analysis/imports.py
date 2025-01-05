@@ -19,6 +19,7 @@ from vyper.exceptions import (
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
@@ -79,14 +80,14 @@ class ImportAnalyzer:
 
         self.seen: set[int] = set()
 
-        self.integrity_sum = None
+        self._integrity_sum = None
 
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
-        self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
+        self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -106,10 +107,11 @@ class ImportAnalyzer:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
-                if isinstance(node, vy_ast.Import):
-                    self._handle_Import(node)
-                elif isinstance(node, vy_ast.ImportFrom):
-                    self._handle_ImportFrom(node)
+                with tag_exceptions(node):
+                    if isinstance(node, vy_ast.Import):
+                        self._handle_Import(node)
+                    elif isinstance(node, vy_ast.ImportFrom):
+                        self._handle_ImportFrom(node)
         self.seen.add(id(module_ast))
 
     def _handle_Import(self, node: vy_ast.Import):
