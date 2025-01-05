@@ -19,6 +19,7 @@ from vyper.exceptions import (
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
@@ -79,11 +80,14 @@ class ImportAnalyzer:
 
         self.seen: set[int] = set()
 
-        self.integrity_sum = None
+        self._integrity_sum = None
+
+        # should be all system paths + topmost module path
+        self.absolute_search_paths = input_bundle.search_paths.copy()
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
-        self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
+        self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -103,10 +107,11 @@ class ImportAnalyzer:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
-                if isinstance(node, vy_ast.Import):
-                    self._handle_Import(node)
-                elif isinstance(node, vy_ast.ImportFrom):
-                    self._handle_ImportFrom(node)
+                with tag_exceptions(node):
+                    if isinstance(node, vy_ast.Import):
+                        self._handle_Import(node)
+                    elif isinstance(node, vy_ast.ImportFrom):
+                        self._handle_ImportFrom(node)
         self.seen.add(id(module_ast))
 
     def _handle_Import(self, node: vy_ast.Import):
@@ -151,15 +156,7 @@ class ImportAnalyzer:
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        # the directory this (currently being analyzed) module is in
-        ast = self.graph.current_module
-        self_search_path = Path(ast.resolved_path).parent
-
-        with self.input_bundle.poke_search_path(self_search_path):
-            return self._load_import_helper(node, level, module_str, alias)
-
-    def _load_import_helper(
+    def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
         if _is_builtin(module_str):
@@ -177,7 +174,7 @@ class ImportAnalyzer:
 
         try:
             path_vy = path.with_suffix(".vy")
-            file = self.input_bundle.load_file(path_vy)
+            file = self._load_file(path_vy, level)
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
@@ -191,7 +188,7 @@ class ImportAnalyzer:
             err = e
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
             self.resolve_imports(module_ast)
@@ -205,7 +202,7 @@ class ImportAnalyzer:
             pass
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".json"))
+            file = self._load_file(path.with_suffix(".json"), level)
             assert isinstance(file, ABIInput)  # mypy hint
             return file, file.abi
         except FileNotFoundError:
@@ -218,6 +215,18 @@ class ImportAnalyzer:
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, hint=hint) from err
+
+    def _load_file(self, path: PathLike, level: int) -> CompilerInput:
+        ast = self.graph.current_module
+
+        search_paths: list[PathLike]  # help mypy
+        if level != 0:  # relative import
+            search_paths = [Path(ast.resolved_path).parent]
+        else:
+            search_paths = self.absolute_search_paths
+
+        with self.input_bundle.temporary_search_paths(search_paths):
+            return self.input_bundle.load_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
