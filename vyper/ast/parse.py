@@ -108,6 +108,10 @@ def _parse_to_ast_with_settings(
     # postcondition: consumed all the for loop annotations
     assert len(pre_parser.for_loop_annotations) == 0
 
+    # postcondition: we have used all the hex strings found by the
+    # pre-parser
+    assert len(pre_parser.hex_string_locations) == 0
+
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
@@ -177,10 +181,6 @@ def annotate_python_ast(
         resolved_path=resolved_path,
     )
     visitor.visit(parsed_ast)
-
-    # sanity check that we have used all the hex strings found by the
-    # pre-parser
-    assert len(pre_parser.hex_string_locations) == 0
 
     return parsed_ast
 
