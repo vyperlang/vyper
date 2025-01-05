@@ -119,17 +119,18 @@ from ethereum.ercs import IERC20Detailed
 
 def foo():
     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
-    """.strip()
+    """  # noqa
     with pytest.raises(SyntaxException) as e:
         compile_code(bad_code)
 
     expected_error = """
-Possible typo: `staticall`
+invalid syntax. Perhaps you forgot a comma? (<unknown>, line 5)
 
-  line 4:54 
-       3 def foo():
-  ---> 4     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
-  -------------------------------------------------------------^
+  contract "<unknown>:5", line 5:55 
+       4 def foo():
+  ---> 5     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
+  --------------------------------------------------------------^
+       6
 
   (hint: did you mean `staticcall`?)
     """  # noqa

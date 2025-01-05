@@ -89,7 +89,6 @@ def _parse_to_ast_with_settings(
         new_e = SyntaxException(str(e), vyper_source, e.lineno, e.offset)
 
         likely_errors = ("staticall", "staticcal")
-        hint = None
         tmp = str(new_e)
         for s in likely_errors:
             if s in tmp:
