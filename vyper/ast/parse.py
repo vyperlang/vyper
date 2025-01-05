@@ -86,7 +86,7 @@ def _parse_to_ast_with_settings(
             # SyntaxError offset is 1-based, not 0-based (see:
             # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
             offset -= 1
-        new_e = SyntaxException(str(e), vyper_source, e.lineno, e.offset)
+        new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
 
         likely_errors = ("staticall", "staticcal")
         tmp = str(new_e)

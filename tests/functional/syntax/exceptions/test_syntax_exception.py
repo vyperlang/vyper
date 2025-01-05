@@ -129,7 +129,7 @@ invalid syntax. Perhaps you forgot a comma? (<unknown>, line 5)
   contract "<unknown>:5", line 5:55 
        4 def foo():
   ---> 5     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
-  --------------------------------------------------------------^
+  -------------------------------------------------------------^
        6
 
   (hint: did you mean `staticcall`?)
