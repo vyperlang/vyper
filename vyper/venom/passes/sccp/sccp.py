@@ -69,7 +69,6 @@ class SCCP(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
-        self.recalc_reachable = True
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
         if self.cfg_dirty:
@@ -279,7 +278,6 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        self.recalc_reachable = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
@@ -303,7 +301,6 @@ class SCCP(IRPass):
                 inst.opcode = "jmp"
                 inst.operands = [target]
 
-                self.recalc_reachable = True
                 self.cfg_dirty = True
 
         elif inst.opcode in ("assert", "assert_unreachable"):
