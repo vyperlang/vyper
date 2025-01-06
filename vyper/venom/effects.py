@@ -83,6 +83,14 @@ _reads = {
 reads = _reads.copy()
 writes = _writes.copy()
 
+for k, v in writes.items():
+    if IMMUTABLES in v:
+        writes[k] |= MEMORY
+
+for k, v in reads.items():
+    if IMMUTABLES in v:
+        reads[k] |= MEMORY
+
 for k, v in reads.items():
     if MEMORY in v:
         if k not in writes:
