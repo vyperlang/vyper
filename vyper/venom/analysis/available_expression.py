@@ -1,5 +1,6 @@
 # REVIEW: rename this to cse_analysis or common_subexpression_analysis
 
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -185,6 +186,12 @@ class CSEAnalysis(IRAnalysis):
             available_expr = OrderedSet.intersection(
                 *(self.bb_outs.get(in_bb, OrderedSet()) for in_bb in bb.cfg_in)
             )
+
+        if (
+            bb.instructions[0] in self.inst_to_available
+            and self.inst_to_available[bb.instructions[0]] == available_expr
+        ):
+            return False
 
         # bb_lat = self.lattice.data[bb]
         change = False
