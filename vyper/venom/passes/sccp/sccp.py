@@ -54,7 +54,6 @@ class SCCP(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    sccp_calculated: set[IRBasicBlock]
 
     cfg_dirty: bool
 

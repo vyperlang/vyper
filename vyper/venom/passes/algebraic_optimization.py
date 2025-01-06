@@ -183,36 +183,46 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         if inst.opcode in {"add", "sub", "xor"}:
-            # x + 0 == x - 0 == x ^ 0 == x
+            # x + 0 == x - 0 == x ^ 0 -> x
             if self._lit_eq(operands[0], 0):
                 return self._store(inst, operands[1])
+            # -1 - x -> ~x
+            # from two's compliment
             if inst.opcode == "sub" and self._lit_eq(operands[1], -1):
                 return self._update(inst, "not", operands[0])
+            # x ^ -1 -> ~x
             if inst.opcode == "xor" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self._update(inst, "not", operands[1])
             return False
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
+            # x * 1 == x / 1 -> x
             if inst.opcode in {"mul", "div", "sdiv"} and self._lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 
+            # x & 0xFF..FF -> x
             if inst.opcode == "and" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self._store(inst, operands[1])
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
                 val = operands[0].value
+                # x % (2^n) -> x & (2^n - 1)
                 if inst.opcode == "mod":
                     return self._update(inst, "and", val - 1, operands[1])
+                # x / (2^n) -> x >> n
                 if inst.opcode == "div":
                     return self._update(inst, "shr", operands[1], int_log2(val))
+                # x * (2^n) -> x << n
                 if inst.opcode == "mul":
                     return self._update(inst, "shl", operands[1], int_log2(val))
             return False
 
         if inst.opcode == "exp":
+            # 0 ^ x -> iszero x
             if self._lit_eq(operands[1], 0):
                 return self._update(inst, "iszero", operands[0])
 
+            # x ^ 1 -> x
             if self._lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 
@@ -221,17 +231,17 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
             return False
 
+        # x | 0 -> x
         if inst.opcode == "or" and self._lit_eq(operands[0], 0):
             return self._store(inst, operands[1])
 
+        # x | 0xFF..FF ->  0xFF..FF
         if inst.opcode == "or" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
             return self._store(inst, signed_to_unsigned(-1, 256))
 
+        # x == 0 -> iszero x
         if inst.opcode == "eq" and self._lit_eq(operands[0], 0):
             return self._update(inst, "iszero", operands[1])
-
-        if inst.opcode == "eq" and self._lit_eq(operands[1], 0):
-            return self._update(inst, "iszero", operands[0])
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses(inst.output)
@@ -247,12 +257,18 @@ class AlgebraicOptimizationPass(IRPass):
                 tmp = self._add(inst, "xor", operands[0], operands[1])
 
                 return self._update(inst, "iszero", tmp)
+
+            # x | n -> 1 (if n is non zero)
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
                 return self._store(inst, 1)
 
         if inst.opcode in COMPARISON_OPS:
             prefer_strict = not is_truthy
             opcode = inst.opcode
+
+            # can flip from x > y into x < y
+            # if it could put the literal
+            # into the first operand (for easier logic)
             if self._is_lit(operands[1]):
                 opcode = _flip_comparison_op(inst.opcode)
                 operands = [operands[1], operands[0]]
