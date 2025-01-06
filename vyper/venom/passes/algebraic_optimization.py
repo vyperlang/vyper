@@ -183,6 +183,7 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         if inst.opcode in {"add", "sub", "xor"}:
+            # x + 0 == x - 0 == x ^ 0 == x
             if self._lit_eq(operands[0], 0):
                 return self._store(inst, operands[1])
             if inst.opcode == "sub" and self._lit_eq(operands[1], -1):
