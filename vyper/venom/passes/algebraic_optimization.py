@@ -1,4 +1,4 @@
-from vyper.exceptions import CompilerPanic, StaticAssertionException
+from vyper.exceptions import CompilerPanic
 from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
