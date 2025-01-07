@@ -350,16 +350,6 @@ class AlgebraicOptimizationPass(IRPass):
             return False
         src = self.dfg.get_producing_instruction(operands[0])
         assert isinstance(src, IRInstruction)
-        if src.opcode == "store":
-            operand = src.operands[0]
-            if isinstance(operand, IRLiteral):
-                if operand.value == 0:
-                    raise StaticAssertionException(
-                        f"assertion found to fail at compile time ({inst.error_msg}).",
-                        inst.get_ast_source(),
-                    )
-                else:
-                    return self._update(inst, "nop")
         if src.opcode not in COMPARISON_OPS:
             return False
 
