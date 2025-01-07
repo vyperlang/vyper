@@ -33,6 +33,7 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
+    "solc_json": "solc_json",
 }
 
 
