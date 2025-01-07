@@ -574,6 +574,7 @@ def test_sccp_binopt(correct_transformation):
         StoreElimination(ac, fn).run_pass()
         SCCP(ac, fn).run_pass()
         AlgebraicOptimizationPass(ac, fn).run_pass()
+        SCCP(ac, fn).run_pass()
         StoreElimination(ac, fn).run_pass()
         RemoveUnusedVariablesPass(ac, fn).run_pass()
 
