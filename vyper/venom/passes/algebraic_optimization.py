@@ -336,7 +336,7 @@ class AlgebraicOptimizationPass(IRPass):
                     n_op -= 1
 
                 assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
-                n_opcode = opcode.replace("g", "l") if "g" in opcode else opcode.replace("l", "g")
+                n_opcode = _flip_comparison_op(inst.opcode)
                 self._update(inst, n_opcode, n_op, operands[1], force=True)
                 uses.first().opcode = "store"
                 return True
@@ -368,9 +368,7 @@ class AlgebraicOptimizationPass(IRPass):
         unsigned = "s" not in src.opcode
 
         assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
-        n_opcode = (
-            src.opcode.replace("g", "l") if "g" in src.opcode else src.opcode.replace("l", "g")
-        )
+        n_opcode = _flip_comparison_op(src.opcode)
 
         src.opcode = n_opcode
         src.operands = [IRLiteral(n_op), src.operands[1]]
