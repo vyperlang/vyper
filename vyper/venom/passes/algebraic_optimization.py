@@ -2,10 +2,16 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable, COMPARATOR_INSTRUCTIONS
+from vyper.venom.basicblock import (
+    COMPARATOR_INSTRUCTIONS,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.sccp.eval import lit_eq, signed_to_unsigned, unsigned_to_signed
-
 
 
 def _flip_comparison_op(opname):
@@ -291,23 +297,19 @@ class AlgebraicOptimizationPass(IRPass):
                 almost_always, never = hi, lo
                 almost_never = lo + 1
 
-            if self._is_lit(operands[0]) and operands[0].value == almost_never:
+            if lit_eq(operands[0], almost_never):
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
                 return self._update(inst, "eq", operands[1], never)
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-            if (
-                not prefer_strict
-                and self._is_lit(operands[0])
-                and operands[0].value == almost_always
-            ):
+            if not prefer_strict and lit_eq(operands[0], almost_always):
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = self._add(inst, "eq", *operands)
                 return self._update(inst, "iszero", tmp)
 
             # special cases that are not covered by others:
 
-            if opcode == "gt" and self._is_lit(operands[0]) and operands[0].value == 0:
+            if opcode == "gt" and lit_eq(operands[0], 0):
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
                 tmp = self._add(inst, "iszero", operands[1])
