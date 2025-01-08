@@ -4,7 +4,7 @@ from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import signed_to_unsigned, unsigned_to_signed
+from vyper.venom.passes.sccp.eval import lit_eq, signed_to_unsigned, unsigned_to_signed
 
 COMPARISON_OPS = {"gt", "sgt", "lt", "slt"}
 
@@ -126,9 +126,6 @@ class AlgebraicOptimizationPass(IRPass):
     def _is_lit(self, operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
-    def _lit_eq(self, operand: IROperand, val: int) -> bool:
-        return self._is_lit(operand) and operand.value == val
-
     def _op_eq(self, operands, idx_a: int, idx_b: int) -> bool:
         if self._is_lit(operands[idx_a]) and self._is_lit(operands[idx_b]):
             return operands[idx_a].value == operands[idx_b].value
@@ -176,31 +173,31 @@ class AlgebraicOptimizationPass(IRPass):
             operands = [operands[1], operands[0]]
 
         if inst.opcode in {"shl", "shr", "sar"}:
-            if self._lit_eq(operands[1], 0):
+            if lit_eq(operands[1], 0):
                 return self._store(inst, operands[0])
             # no more cases for these instructions
             return False
 
         if inst.opcode in {"add", "sub", "xor"}:
             # x + 0 == x - 0 == x ^ 0 -> x
-            if self._lit_eq(operands[0], 0):
+            if lit_eq(operands[0], 0):
                 return self._store(inst, operands[1])
             # -1 - x -> ~x
             # from two's compliment
-            if inst.opcode == "sub" and self._lit_eq(operands[1], -1):
+            if inst.opcode == "sub" and lit_eq(operands[1], -1):
                 return self._update(inst, "not", operands[0])
             # x ^ -1 -> ~x
-            if inst.opcode == "xor" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            if inst.opcode == "xor" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self._update(inst, "not", operands[1])
             return False
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
             # x * 1 == x / 1 -> x
-            if inst.opcode in {"mul", "div", "sdiv"} and self._lit_eq(operands[0], 1):
+            if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 
             # x & 0xFF..FF -> x
-            if inst.opcode == "and" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 return self._store(inst, operands[1])
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
@@ -218,11 +215,11 @@ class AlgebraicOptimizationPass(IRPass):
 
         if inst.opcode == "exp":
             # 0 ** x -> iszero x
-            if self._lit_eq(operands[1], 0):
+            if lit_eq(operands[1], 0):
                 return self._update(inst, "iszero", operands[0])
 
             # x ** 1 -> x
-            if self._lit_eq(operands[0], 1):
+            if lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 
             return False
@@ -231,11 +228,11 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         # x | 0 -> x
-        if inst.opcode == "or" and self._lit_eq(operands[0], 0):
+        if inst.opcode == "or" and lit_eq(operands[0], 0):
             return self._store(inst, operands[1])
 
         # x == 0 -> iszero x
-        if inst.opcode == "eq" and self._lit_eq(operands[0], 0):
+        if inst.opcode == "eq" and lit_eq(operands[0], 0):
             return self._update(inst, "iszero", operands[1])
 
         assert isinstance(inst.output, IRVariable), "must be variable"
