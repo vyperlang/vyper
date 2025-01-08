@@ -88,20 +88,28 @@ class AlgebraicOptimizationPass(IRPass):
         self, inst: IRInstruction, opcode: str, *args: IROperand | int, force: bool = False
     ) -> bool:
         assert opcode != "phi"
+        # REVIEW: do we actually need to fast path here?
+        #   is the force= kwarg necessary?
         if not force and inst.opcode == opcode:
             return False
 
-        for op in inst.operands:
-            if isinstance(op, IRVariable):
-                uses = self.dfg.get_uses(op)
-                if inst in uses:
-                    uses.remove(inst)
-        inst.opcode = opcode
-        inst.operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+        old_operands = inst.operands
+        # REVIEW: weird API -- should just take `*args: IROperand`
+        new_operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
 
-        for op in inst.operands:
+        for op in old_operands:
+            if not isinstance(op, IRVariable):
+                continue
+            uses = self.dfg.get_uses(op)
+            if inst in uses:
+                uses.remove(inst)
+
+        for op in new_operands:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
+
+        inst.opcode = opcode
+        inst.operands = new_operands
 
         return True
 
@@ -366,6 +374,7 @@ class AlgebraicOptimizationPass(IRPass):
         src.operands = [IRLiteral(n_op), src.operands[1]]
 
         var = self._add(inst, "iszero", src.output)
+        # REVIEW: seems redundant with the code in `_add`
         self.dfg.add_use(var, inst)
 
         self._update(inst, "assert", var, force=True)
