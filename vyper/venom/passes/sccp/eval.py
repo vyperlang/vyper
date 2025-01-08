@@ -121,53 +121,32 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-def _var_eq(ops: list[IROperand]) -> IRLiteral | None:
-    assert len(ops) == 2
-    if (
-        isinstance(ops[0], IRVariable)
-        and isinstance(ops[1], IRVariable)
-        and ops[0].name == ops[1].name
-    ):
-        return IRLiteral(1)
-    return None
-
-
-def _var_ne(ops: list[IROperand]) -> IRLiteral | None:
-    assert len(ops) == 2
-    if (
-        isinstance(ops[0], IRVariable)
-        and isinstance(ops[1], IRVariable)
-        and ops[0].name == ops[1].name
-    ):
-        return IRLiteral(0)
-    return None
-
-
 def _wrap_comparison(signed: bool, gt: bool, oper: Callable[[list[IROperand]], IRLiteral]):
     def wrapper(ops: list[IROperand]) -> IRLiteral | None:
         assert len(ops) == 2
-        tmp = _var_ne(ops)
-        if tmp is not None:
-            return tmp
-
         if all(isinstance(op, IRLiteral) for op in ops):
             return _wrap_lit(oper)(ops)
 
+        # x < x always evaluates to False
+        if ops[0] == ops[1]:
+            return IRLiteral(0)
+
         lo, hi = int_bounds(bits=256, signed=signed)
-        if isinstance(ops[0], IRLiteral):
-            if gt:
-                never = hi
-            else:
-                never = lo
-            if ops[0].value == never:
+
+        # note: remember order of operands!
+        # text of (gt, [x, y]) is: `y > x`
+        a, b = ops[1], ops[0]
+        if gt:
+            # x > hi => False
+            # lo > x => False
+            if lit_eq(a, lo) or lit_eq(b, hi):
                 return IRLiteral(0)
-        if isinstance(ops[1], IRLiteral):
-            if not gt:
-                never = hi
-            else:
-                never = lo
-            if ops[1].value == never:
+        else:
+            # hi < x => False
+            # x < lo => False
+            if lit_eq(a, hi) or lit_eq(b, lo):
                 return IRLiteral(0)
+
         return None
 
     return wrapper
@@ -224,12 +203,23 @@ def _exp(ops) -> IRLiteral | None:
 
     return _wrap_lit(_wrap_binop(evm_pow))(ops)
 
+def _eq_op(ops: list[IROperand]) -> IRLiteral | None:
+    assert len(ops) == 2
+    if all(isinstance(op, IRLiteral) for op in ops):
+        return _wrap_binop(operator.eq)(ops)
+
+    # x == x => 1
+    if ops[0] == ops[1]:
+        return IRLiteral(1)
+
+    return None
+
 
 def _wrap_self_inverse_op(oper: Callable[[list[IROperand]], IRLiteral]):
     def wrapper(ops: list[IROperand]) -> IRLiteral | None:
         assert len(ops) == 2
-        res_eq = _var_eq(ops)
-        if res_eq is not None:
+        # x - x == x ^ x == 0
+        if ops[0] == ops[1]:
             return IRLiteral(0)
         return _wrap_lit(oper)(ops)
 
@@ -246,6 +236,7 @@ def _or_op(ops: list[IROperand]) -> IRLiteral | None:
         return IRLiteral(SizeLimits.MAX_UINT256)
 
     return None
+
 
 
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
