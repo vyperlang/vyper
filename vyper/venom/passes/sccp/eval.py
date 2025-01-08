@@ -1,5 +1,5 @@
 import operator
-from typing import Callable
+from typing import Callable, Optional
 
 from vyper.utils import (
     SizeLimits,
@@ -11,7 +11,7 @@ from vyper.utils import (
     signed_to_unsigned,
     unsigned_to_signed,
 )
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLiteral, IROperand
 
 
 def lit_eq(op: IROperand, val: int) -> bool:
@@ -34,26 +34,6 @@ def _wrap_signed_binop(operation):
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
         return IRLiteral(_signed_to_unsigned(operation(first, second)))
-
-    return wrapper
-
-
-def _wrap_abstract_value(
-    abs_operation: Callable[[list[IROperand]], IRLiteral | None], lit_operation
-):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        if all(isinstance(op, IRLiteral) for op in ops):
-            return lit_operation(ops)
-        return abs_operation(ops)
-
-    return wrapper
-
-
-def _wrap_lit(oper):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        if all(isinstance(op, IRLiteral) for op in ops):
-            return oper(ops)
-        return None
 
     return wrapper
 
@@ -121,150 +101,98 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-def _wrap_comparison(signed: bool, gt: bool, oper: Callable[[list[IROperand]], IRLiteral]):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        assert len(ops) == 2
-        if all(isinstance(op, IRLiteral) for op in ops):
-            return _wrap_lit(oper)(ops)
-
-        # x < x always evaluates to False
-        if ops[0] == ops[1]:
-            return IRLiteral(0)
-
-        lo, hi = int_bounds(bits=256, signed=signed)
-
-        # note: remember order of operands!
-        # text of (gt, [x, y]) is: `y > x`
-        a, b = ops[1], ops[0]
-        if gt:
-            # x > hi => False
-            # lo > x => False
-            if lit_eq(a, lo) or lit_eq(b, hi):
-                return IRLiteral(0)
-        else:
-            # hi < x => False
-            # x < lo => False
-            if lit_eq(a, hi) or lit_eq(b, lo):
-                return IRLiteral(0)
-
-        return None
-
-    return wrapper
-
-
-def _wrap_multiplicative(oper: Callable[[list[IROperand]], IRLiteral]):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        assert len(ops) == 2
-        if all(isinstance(op, IRLiteral) for op in ops):
-            return oper(ops)
-
-        if any(lit_eq(op, 0) for op in ops):
-            return IRLiteral(0)
-
-        return None
-
-    return wrapper
-
-
-def _wrap_div(oper: Callable[[list[IROperand]], IRLiteral]):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        assert len(ops) == 2
-        if all(isinstance(op, IRLiteral) for op in ops):
-            return oper(ops)
-
-        # x // 0 => 0
-        if lit_eq(ops[0], 0):
-            return IRLiteral(0)
-
-        return None
-
-    return wrapper
-
-
-def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        assert len(ops) == 2
-        # x % 1 => 0
-        if lit_eq(ops[0], 1):
-            return IRLiteral(0)
-
-        return _wrap_div(oper)(ops)
-
-    return wrapper
-
-
-def _exp(ops) -> IRLiteral | None:
-    if lit_eq(ops[0], 0):
-        return IRLiteral(1)
-
-    if lit_eq(ops[1], 1):
-        return IRLiteral(1)
-
-    return _wrap_lit(_wrap_binop(evm_pow))(ops)
-
-def _eq_op(ops: list[IROperand]) -> IRLiteral | None:
-    assert len(ops) == 2
-    if all(isinstance(op, IRLiteral) for op in ops):
-        return _wrap_binop(operator.eq)(ops)
-
-    # x == x => 1
+def _comparison_eval(opcode: str, ops: list[IROperand]):
+    # x < x always evaluates to False
     if ops[0] == ops[1]:
-        return IRLiteral(1)
+        return IRLiteral(0)
 
-    return None
+    signed = "s" in opcode
+    lo, hi = int_bounds(bits=256, signed=signed)
 
-
-def _wrap_self_inverse_op(oper: Callable[[list[IROperand]], IRLiteral]):
-    def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        assert len(ops) == 2
-        # x - x == x ^ x == 0
-        if ops[0] == ops[1]:
+    # note: remember order of operands!
+    # text of (gt, [x, y]) is: `y > x`
+    a, b = ops[1], ops[0]
+    if "gt" in opcode:
+        # x > hi => False
+        # lo > x => False
+        if lit_eq(a, lo) or lit_eq(b, hi):
             return IRLiteral(0)
-        return _wrap_lit(oper)(ops)
-
-    return wrapper
-
-
-def _or_op(ops: list[IROperand]) -> IRLiteral | None:
-    assert len(ops) == 2
-    if all(isinstance(op, IRLiteral) for op in ops):
-        return _wrap_binop(operator.or_)(ops)
-
-    # x | 0xff..ff == 0xff..ff
-    if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in ops):
-        return IRLiteral(SizeLimits.MAX_UINT256)
+    else:
+        # hi < x => False
+        # x < lo => False
+        if lit_eq(a, hi) or lit_eq(b, lo):
+            return IRLiteral(0)
 
     return None
 
 
-
-ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
-    "add": _wrap_lit(_wrap_binop(operator.add)),
-    "sub": _wrap_self_inverse_op(_wrap_binop(operator.sub)),
-    "mul": _wrap_multiplicative(_wrap_binop(operator.mul)),
-    "div": _wrap_div(_wrap_binop(evm_div)),
-    "sdiv": _wrap_div(_wrap_signed_binop(evm_div)),
-    "mod": _wrap_mod(_wrap_binop(evm_mod)),
-    "smod": _wrap_mod(_wrap_signed_binop(evm_mod)),
-    "exp": _exp,
-    "eq": _wrap_abstract_value(_var_eq, _wrap_binop(operator.eq)),
-    "lt": _wrap_comparison(signed=False, gt=False, oper=_wrap_binop(operator.lt)),
-    "gt": _wrap_comparison(signed=False, gt=True, oper=_wrap_binop(operator.gt)),
-    "slt": _wrap_comparison(signed=True, gt=False, oper=_wrap_signed_binop(operator.lt)),
-    "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
-    "or": _or_op,
-    "and": _wrap_multiplicative(_wrap_binop(operator.and_)),
-    "xor": _wrap_self_inverse_op(_wrap_binop(operator.xor)),
-    "not": _wrap_lit(_wrap_unop(evm_not)),
-    "signextend": _wrap_lit(_wrap_binop(_evm_signextend)),
-    "iszero": _wrap_lit(_wrap_unop(_evm_iszero)),
-    "shr": _wrap_lit(_wrap_binop(_evm_shr)),
-    "shl": _wrap_lit(_wrap_binop(_evm_shl)),
-    "sar": _wrap_lit(_wrap_signed_binop(_evm_sar)),
-    "store": _wrap_lit(lambda ops: ops[0].value),
+ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], IRLiteral]] = {
+    "add": _wrap_binop(operator.add),
+    "sub": _wrap_binop(operator.sub),
+    "mul": _wrap_binop(operator.mul),
+    "div": _wrap_binop(evm_div),
+    "sdiv": _wrap_signed_binop(evm_div),
+    "mod": _wrap_binop(evm_mod),
+    "smod": _wrap_signed_binop(evm_mod),
+    "exp": _wrap_binop(evm_pow),
+    "eq": _wrap_binop(operator.eq),
+    "lt": _wrap_binop(operator.lt),
+    "gt": _wrap_binop(operator.gt),
+    "slt": _wrap_signed_binop(operator.lt),
+    "sgt": _wrap_signed_binop(operator.gt),
+    "or": _wrap_binop(operator.or_),
+    "and": _wrap_binop(operator.and_),
+    "xor": _wrap_binop(operator.xor),
+    "not": _wrap_unop(evm_not),
+    "signextend": _wrap_binop(_evm_signextend),
+    "iszero": _wrap_unop(_evm_iszero),
+    "shr": _wrap_binop(_evm_shr),
+    "shl": _wrap_binop(_evm_shl),
+    "sar": _wrap_signed_binop(_evm_sar),
+    "store": _wrap_unop(lambda ops: ops[0].value),
 }
 
 
 def eval_arith(opcode: str, ops: list[IROperand]) -> IRLiteral | None:
-    fn = ARITHMETIC_OPS[opcode]
-    return fn(ops)
+    if all(isinstance(op, IRLiteral) for op in ops):
+        fn = ARITHMETIC_OPS[opcode]
+        return fn(ops)  # type: ignore
+
+    # try algebraic transformations
+    return _algebraic_eval(opcode, ops)
+
+
+def _algebraic_eval(opcode: str, ops: list[IROperand]) -> Optional[IRLiteral]:
+    if opcode in ("mul", "smul"):
+        if any(lit_eq(op, 0) for op in ops):
+            return IRLiteral(0)
+
+    if opcode in ("div", "sdiv", "mod", "smod") and lit_eq(ops[1], 0):
+        return IRLiteral(0)
+
+    if opcode in ("mod", "smod") and lit_eq(ops[1], 1):
+        return IRLiteral(0)
+
+    # x - x == x ^ x == 0
+    if opcode in ("xor", "sub") and ops[0] == ops[1]:
+        return IRLiteral(0)
+
+    # variable equality: x == x => 1
+    if opcode == "eq" and ops[0] == ops[1]:
+        return IRLiteral(1)
+
+    # x | 0xff..ff == 0xff..ff
+    if opcode == "or" and any(lit_eq(op, SizeLimits.MAX_UINT256) for op in ops):
+        return IRLiteral(SizeLimits.MAX_UINT256)
+
+    if opcode == "exp":
+        if lit_eq(ops[0], 0):
+            return IRLiteral(1)
+
+        if lit_eq(ops[1], 1):
+            return IRLiteral(1)
+
+    if opcode in ("lt", "gt", "slt", "sgt"):
+        return _comparison_eval(opcode, ops)
+
+    return None
