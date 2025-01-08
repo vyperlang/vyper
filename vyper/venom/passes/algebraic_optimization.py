@@ -329,15 +329,15 @@ class AlgebraicOptimizationPass(IRPass):
                 if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
                     return False
 
-                n_op = operands[0].value
+                val = operands[0].value
                 if "gt" in opcode:
-                    n_op += 1
+                    val += 1
                 else:
-                    n_op -= 1
+                    val -= 1
 
-                assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+                assert _wrap256(val, unsigned) == val, "bad optimizer step"
                 n_opcode = _flip_comparison_op(inst.opcode)
-                self._update(inst, n_opcode, n_op, operands[1], force=True)
+                self._update(inst, n_opcode, val, operands[1], force=True)
                 uses.first().opcode = "store"
                 return True
 
@@ -360,18 +360,18 @@ class AlgebraicOptimizationPass(IRPass):
         if not isinstance(src.operands[0], IRLiteral):
             return False
 
-        n_op = src.operands[0].value
+        val = src.operands[0].value
         if "gt" in src.opcode:
-            n_op += 1
+            val += 1
         else:
-            n_op -= 1
+            val -= 1
         unsigned = "s" not in src.opcode
 
-        assert _wrap256(n_op, unsigned) == n_op, "bad optimizer step"
+        assert _wrap256(val, unsigned) == val, "bad optimizer step"
         n_opcode = _flip_comparison_op(src.opcode)
 
         src.opcode = n_opcode
-        src.operands = [IRLiteral(n_op), src.operands[1]]
+        src.operands = [IRLiteral(val), src.operands[1]]
 
         var = self._add(inst, "iszero", src.output)
         # REVIEW: seems redundant with the code in `_add`
