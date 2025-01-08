@@ -171,6 +171,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         operands = inst.operands
 
+        # REVIEW: maybe move this into its own step (e.g. "rewrite_offsets")
         if (
             inst.opcode == "add"
             and self._is_lit(operands[0])
