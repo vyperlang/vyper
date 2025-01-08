@@ -235,6 +235,20 @@ def _wrap_self_inverse_op(oper: Callable[[list[IROperand]], IRLiteral]):
     return wrapper
 
 
+def _or(ops: list[IROperand]) -> IRLiteral | None:
+    assert len(ops) == 2
+    if all(isinstance(op, IRLiteral) for op in ops):
+        return _wrap_binop(operator.or_)(ops)
+
+    if isinstance(ops[0], IRLiteral) and ops[0].value == signed_to_unsigned(-1, 256):
+        return IRLiteral(signed_to_unsigned(-1, 256))
+
+    if isinstance(ops[1], IRLiteral) and ops[1].value == signed_to_unsigned(-1, 256):
+        return IRLiteral(signed_to_unsigned(-1, 256))
+
+    return None
+
+
 ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "add": _wrap_lit(_wrap_binop(operator.add)),
     "sub": _wrap_self_inverse_op(_wrap_binop(operator.sub)),
@@ -249,7 +263,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "gt": _wrap_comparison(signed=False, gt=True, oper=_wrap_binop(operator.gt)),
     "slt": _wrap_comparison(signed=True, gt=False, oper=_wrap_signed_binop(operator.lt)),
     "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
-    "or": _wrap_lit(_wrap_binop(operator.or_)),
+    "or": _or,
     "and": _wrap_multiplicative(_wrap_binop(operator.and_)),
     "xor": _wrap_self_inverse_op(_wrap_binop(operator.xor)),
     "not": _wrap_lit(_wrap_unop(evm_not)),
