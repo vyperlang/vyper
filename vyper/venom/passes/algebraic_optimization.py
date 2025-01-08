@@ -234,10 +234,6 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode == "or" and self._lit_eq(operands[0], 0):
             return self._store(inst, operands[1])
 
-        # x | 0xFF..FF ->  0xFF..FF
-        if inst.opcode == "or" and self._lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-            return self._store(inst, signed_to_unsigned(-1, 256))
-
         # x == 0 -> iszero x
         if inst.opcode == "eq" and self._lit_eq(operands[0], 0):
             return self._update(inst, "iszero", operands[1])
