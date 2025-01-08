@@ -137,8 +137,7 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _algebraic_opt(self):
         self.last = False
-        while self._algebraic_opt_pass():
-            pass
+        self._algebraic_opt_pass()
         self.last = True
         self._algebraic_opt_pass()
 
