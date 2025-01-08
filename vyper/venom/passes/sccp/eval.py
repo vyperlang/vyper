@@ -188,6 +188,7 @@ def _wrap_multiplicative(oper: Callable[[list[IROperand]], IRLiteral]):
 
     return wrapper
 
+
 def _wrap_div(oper: Callable[[list[IROperand]], IRLiteral]):
     def wrapper(ops: list[IROperand]) -> IRLiteral | None:
         assert len(ops) == 2
