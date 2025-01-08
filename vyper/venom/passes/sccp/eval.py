@@ -219,10 +219,10 @@ def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
 
 
 def _exp(ops) -> IRLiteral | None:
-    if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
+    if lit_eq(ops[0], 0):
         return IRLiteral(1)
 
-    if isinstance(ops[1], IRLiteral) and ops[1].value == 1:
+    if lit_eq(ops[1], 1):
         return IRLiteral(1)
 
     return _wrap_lit(_wrap_binop(evm_pow))(ops)
