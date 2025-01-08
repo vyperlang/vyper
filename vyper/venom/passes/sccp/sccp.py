@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, eval_arith
 
 
 class LatticeEnum(Enum):
@@ -194,7 +194,6 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
-                self.cfg_dirty = True
                 if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
                     target = self.fn.get_basic_block(inst.operands[1].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -256,13 +255,10 @@ class SCCP(IRPass):
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
-        fn = ARITHMETIC_OPS[opcode]
-        res = fn(ops)
+        res = eval_arith(opcode, ops)
         if res is not None:
-            assert isinstance(res, IRLiteral)
             return finalize(res)
-        else:
-            return finalize(LatticeEnum.BOTTOM)
+        return finalize(LatticeEnum.BOTTOM)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
@@ -295,8 +291,6 @@ class SCCP(IRPass):
                     target = inst.operands[2]
                 else:
                     target = inst.operands[1]
-                if isinstance(inst.operands[0], IRVariable):
-                    self._get_uses(inst.operands[0]).remove(inst)
                 inst.opcode = "jmp"
                 inst.operands = [target]
 

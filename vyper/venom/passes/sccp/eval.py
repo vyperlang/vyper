@@ -260,3 +260,8 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "sar": _wrap_lit(_wrap_signed_binop(_evm_sar)),
     "store": _wrap_lit(lambda ops: ops[0].value),
 }
+
+
+def eval_arith(opcode: str, ops: list[IROperand]) -> IRLiteral | None:
+    fn = ARITHMETIC_OPS[opcode]
+    return fn(ops)
