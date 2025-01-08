@@ -217,11 +217,11 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         if inst.opcode == "exp":
-            # 0 ^ x -> iszero x
+            # 0 ** x -> iszero x
             if self._lit_eq(operands[1], 0):
                 return self._update(inst, "iszero", operands[0])
 
-            # x ^ 1 -> x
+            # x ** 1 -> x
             if self._lit_eq(operands[0], 1):
                 return self._store(inst, operands[1])
 
