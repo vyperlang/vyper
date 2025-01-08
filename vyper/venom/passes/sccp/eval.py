@@ -158,10 +158,7 @@ def _wrap_multiplicative(oper: Callable[[list[IROperand]], IRLiteral]):
         if all(isinstance(op, IRLiteral) for op in ops):
             return oper(ops)
 
-        if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
-            return IRLiteral(0)
-
-        if isinstance(ops[1], IRLiteral) and ops[1].value == 0:
+        if any(lit_eq(op, 0) for op in ops):
             return IRLiteral(0)
 
         return None
@@ -175,7 +172,8 @@ def _wrap_div(oper: Callable[[list[IROperand]], IRLiteral]):
         if all(isinstance(op, IRLiteral) for op in ops):
             return oper(ops)
 
-        if isinstance(ops[0], IRLiteral) and ops[0].value == 0:
+        # x // 0 => 0
+        if lit_eq(ops[0], 0):
             return IRLiteral(0)
 
         return None
@@ -186,7 +184,8 @@ def _wrap_div(oper: Callable[[list[IROperand]], IRLiteral]):
 def _wrap_mod(oper: Callable[[list[IROperand]], IRLiteral]):
     def wrapper(ops: list[IROperand]) -> IRLiteral | None:
         assert len(ops) == 2
-        if isinstance(ops[0], IRLiteral) and ops[0].value == 1:
+        # x % 1 => 0
+        if lit_eq(ops[0], 1):
             return IRLiteral(0)
 
         return _wrap_div(oper)(ops)
