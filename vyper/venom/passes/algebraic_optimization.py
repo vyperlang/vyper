@@ -125,12 +125,6 @@ class AlgebraicOptimizationPass(IRPass):
     def _is_lit(self, operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
-    def _op_eq(self, operands, idx_a: int, idx_b: int) -> bool:
-        if self._is_lit(operands[idx_a]) and self._is_lit(operands[idx_b]):
-            return operands[idx_a].value == operands[idx_b].value
-        else:
-            return operands[idx_a] == operands[idx_b]
-
     def _algebraic_opt(self):
         self.last = False
         # REVIEW: this probably only needs to be run one time.
