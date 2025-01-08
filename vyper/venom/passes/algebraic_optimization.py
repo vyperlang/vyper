@@ -2,15 +2,14 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable, COMPARATOR_INSTRUCTIONS
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.sccp.eval import lit_eq, signed_to_unsigned, unsigned_to_signed
 
-COMPARISON_OPS = {"gt", "sgt", "lt", "slt"}
 
 
 def _flip_comparison_op(opname):
-    assert opname in COMPARISON_OPS
+    assert opname in COMPARATOR_INSTRUCTIONS
     if "g" in opname:
         return opname.replace("g", "l")
     if "l" in opname:
@@ -134,6 +133,7 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _algebraic_opt(self):
         self.last = False
+        # REVIEW: this probably only needs to be run one time.
         self._algebraic_opt_pass()
         self.last = True
         self._algebraic_opt_pass()
@@ -142,6 +142,8 @@ class AlgebraicOptimizationPass(IRPass):
         change = False
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                # REVIEW: change |= self._handle_inst_peephole(inst)
+                # although we don't do anything with the changed result anymore.
                 if self._handle_inst_peephole(inst):
                     change |= True
 
@@ -169,6 +171,7 @@ class AlgebraicOptimizationPass(IRPass):
             inst.opcode = "offset"
             return True
 
+        # make logic easier for commutative instructions.
         if inst.is_commutative and self._is_lit(operands[1]):
             operands = [operands[1], operands[0]]
 
@@ -224,7 +227,7 @@ class AlgebraicOptimizationPass(IRPass):
 
             return False
 
-        if inst.opcode not in COMPARISON_OPS and inst.opcode not in {"eq", "or"}:
+        if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode not in {"eq", "or"}:
             return False
 
         # x | 0 -> x
@@ -254,7 +257,7 @@ class AlgebraicOptimizationPass(IRPass):
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
                 return self._store(inst, 1)
 
-        if inst.opcode in COMPARISON_OPS:
+        if inst.opcode in COMPARATOR_INSTRUCTIONS:
             prefer_strict = not is_truthy
             opcode = inst.opcode
 
@@ -311,6 +314,8 @@ class AlgebraicOptimizationPass(IRPass):
             # only done in last iteration because on average if not already optimize
             # this rule creates bigger codesize because it could interfere with other
             # optimizations
+
+            # REVIEW: this code can probably be fused with the code in handle_assert_inst
             if (
                 self.last
                 and len(uses) == 1
@@ -342,7 +347,7 @@ class AlgebraicOptimizationPass(IRPass):
             return False
         src = self.dfg.get_producing_instruction(operands[0])
         assert isinstance(src, IRInstruction)
-        if src.opcode not in COMPARISON_OPS:
+        if src.opcode not in COMPARATOR_INSTRUCTIONS:
             return False
 
         assert isinstance(src.output, IRVariable)
