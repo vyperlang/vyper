@@ -42,12 +42,9 @@ def _wrap_abstract_value(
     abs_operation: Callable[[list[IROperand]], IRLiteral | None], lit_operation
 ):
     def wrapper(ops: list[IROperand]) -> IRLiteral | None:
-        abs_res = abs_operation(ops)
-        if abs_res is not None:
-            return abs_res
         if all(isinstance(op, IRLiteral) for op in ops):
             return lit_operation(ops)
-        return None
+        return abs_operation(ops)
 
     return wrapper
 
