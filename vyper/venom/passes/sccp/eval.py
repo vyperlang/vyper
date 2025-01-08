@@ -14,6 +14,10 @@ from vyper.utils import (
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 
+def lit_eq(op: IROperand, val: int) -> bool:
+    return isinstance(op, IRLiteral) and op.value == val
+
+
 def _unsigned_to_signed(value: int) -> int:
     assert isinstance(value, int)
     return unsigned_to_signed(value, 256)
@@ -235,16 +239,14 @@ def _wrap_self_inverse_op(oper: Callable[[list[IROperand]], IRLiteral]):
     return wrapper
 
 
-def _or(ops: list[IROperand]) -> IRLiteral | None:
+def _or_op(ops: list[IROperand]) -> IRLiteral | None:
     assert len(ops) == 2
     if all(isinstance(op, IRLiteral) for op in ops):
         return _wrap_binop(operator.or_)(ops)
 
-    if isinstance(ops[0], IRLiteral) and ops[0].value == signed_to_unsigned(-1, 256):
-        return IRLiteral(signed_to_unsigned(-1, 256))
-
-    if isinstance(ops[1], IRLiteral) and ops[1].value == signed_to_unsigned(-1, 256):
-        return IRLiteral(signed_to_unsigned(-1, 256))
+    # x | 0xff..ff == 0xff..ff
+    if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in ops):
+        return IRLiteral(SizeLimits.MAX_UINT256)
 
     return None
 
@@ -263,7 +265,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IROperand]], IRLiteral | None]] = {
     "gt": _wrap_comparison(signed=False, gt=True, oper=_wrap_binop(operator.gt)),
     "slt": _wrap_comparison(signed=True, gt=False, oper=_wrap_signed_binop(operator.lt)),
     "sgt": _wrap_comparison(signed=True, gt=True, oper=_wrap_signed_binop(operator.gt)),
-    "or": _or,
+    "or": _or_op,
     "and": _wrap_multiplicative(_wrap_binop(operator.and_)),
     "xor": _wrap_self_inverse_op(_wrap_binop(operator.xor)),
     "not": _wrap_lit(_wrap_unop(evm_not)),
