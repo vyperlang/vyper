@@ -12,19 +12,19 @@ def foo() -> String[10]:
     """
 @external
 def foo():
-    x: String[11] = "¡très bien!"
+    x: String[11] = "très bien!"
     """,
     """
 @external
 def foo() -> bool:
-    x: String[15] = "¡très bien!"
+    x: String[15] = "très bien!"
     y: String[15] = "test"
     return x != y
     """,
     """
 @external
 def foo() -> bool:
-    x: String[15] = "¡très bien!"
+    x: String[15] = "très bien!"
     y: String[12] = "test"
     return x != y
     """,
@@ -54,5 +54,6 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code,exc", invalid_list)
-def test_string_fail(assert_compile_failed, get_contract, bad_code, exc):
-    assert_compile_failed(lambda: get_contract(bad_code), exc)
+def test_string_fail(get_contract, bad_code, exc):
+    with pytest.raises(exc):
+        compiler.compile_code(bad_code)
