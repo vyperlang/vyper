@@ -146,16 +146,10 @@ class AlgebraicOptimizationPass(IRPass):
         self.last = True
         self._algebraic_opt_pass()
 
-    def _algebraic_opt_pass(self) -> bool:
-        change = False
+    def _algebraic_opt_pass(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                # REVIEW: change |= self._handle_inst_peephole(inst)
-                # although we don't do anything with the changed result anymore.
-                if self._handle_inst_peephole(inst):
-                    change |= True
-
-        return change
+                self._handle_inst_peephole(inst)
 
     def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
         if inst.opcode == "assert":
@@ -377,8 +371,6 @@ class AlgebraicOptimizationPass(IRPass):
         src.operands = [IRLiteral(val), src.operands[1]]
 
         var = self._add(inst, "iszero", src.output)
-        # REVIEW: seems redundant with the code in `_add`
-        self.dfg.add_use(var, inst)
 
         self._update(inst, "assert", var, force=True)
 
