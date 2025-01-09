@@ -34,6 +34,8 @@ combined_json      - All of the above format options combined as single JSON out
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
 annotated_ast      - Annotated AST in JSON format
+cfg                - Control flow graph of deployable bytecode
+cfg_runtime        - Control flow graph of runtime bytecode
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -41,6 +43,8 @@ opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
+bb                 - Basic blocks of Venom IR for deployable bytecode
+bb_runtime         - Basic blocks of Venom IR for runtime bytecode
 asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
@@ -176,7 +180,8 @@ def _parse_args(argv):
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        help="The compiler use the new IR codegen. This is an experimental feature.",
+        "--venom",
+        help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
     )
@@ -354,7 +359,7 @@ def compile_files(
             # we allow this instead of requiring a different mode (like
             # `--zip`) so that verifier pipelines do not need a different
             # workflow for archive files and single-file contracts.
-            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
             ret[file_path] = output
             continue
         except NotZipInput:

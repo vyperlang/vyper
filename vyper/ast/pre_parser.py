@@ -2,7 +2,7 @@ import enum
 import io
 import re
 from collections import defaultdict
-from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
+from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
@@ -12,7 +12,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 # evm-version pragma
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import StructureException, SyntaxException, VersionException
-from vyper.typing import ModificationOffsets, ParserPosition
+from vyper.typing import ParserPosition
 
 
 def validate_version_pragma(version_str: str, full_source_code: str, start: ParserPosition) -> None:
@@ -48,7 +48,7 @@ def validate_version_pragma(version_str: str, full_source_code: str, start: Pars
         )
 
 
-class ForParserState(enum.Enum):
+class ParserState(enum.Enum):
     NOT_RUNNING = enum.auto()
     START_SOON = enum.auto()
     RUNNING = enum.auto()
@@ -63,7 +63,7 @@ class ForParser:
         self.annotations = {}
         self._current_annotation = None
 
-        self._state = ForParserState.NOT_RUNNING
+        self._state = ParserState.NOT_RUNNING
         self._current_for_loop = None
 
     def consume(self, token):
@@ -71,15 +71,15 @@ class ForParser:
         if token.type == NAME and token.string == "for":
             # note: self._state should be NOT_RUNNING here, but we don't sanity
             # check here as that should be an error the parser will handle.
-            self._state = ForParserState.START_SOON
+            self._state = ParserState.START_SOON
             self._current_for_loop = token.start
 
-        if self._state == ForParserState.NOT_RUNNING:
+        if self._state == ParserState.NOT_RUNNING:
             return False
 
         # state machine: start slurping tokens
         if token.type == OP and token.string == ":":
-            self._state = ForParserState.RUNNING
+            self._state = ParserState.RUNNING
 
             # sanity check -- this should never really happen, but if it does,
             # try to raise an exception which pinpoints the source.
@@ -93,16 +93,55 @@ class ForParser:
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
-            self._state = ForParserState.NOT_RUNNING
+            self._state = ParserState.NOT_RUNNING
             self.annotations[self._current_for_loop] = self._current_annotation or []
             self._current_annotation = None
             return False
 
-        if self._state != ForParserState.RUNNING:
+        if self._state != ParserState.RUNNING:
             return False
 
         # slurp the token
         self._current_annotation.append(token)
+        return True
+
+
+class HexStringParser:
+    def __init__(self):
+        self.locations = []
+        self._tokens = []
+        self._state = ParserState.NOT_RUNNING
+
+    def consume(self, token, result):
+        # prepare to check if the next token is a STRING
+        if self._state == ParserState.NOT_RUNNING:
+            if token.type == NAME and token.string == "x":
+                self._tokens.append(token)
+                self._state = ParserState.RUNNING
+                return True
+
+            return False
+
+        assert self._state == ParserState.RUNNING, "unreachable"
+
+        self._state = ParserState.NOT_RUNNING
+
+        if token.type != STRING:
+            # flush the tokens we have accumulated and move on
+            result.extend(self._tokens)
+            self._tokens = []
+            return False
+
+        # mark hex string in locations for later processing
+        self.locations.append(token.start)
+
+        # discard the `x` token and apply sanity checks -
+        # we should only be discarding one token.
+        assert len(self._tokens) == 1
+        assert (x_tok := self._tokens[0]).type == NAME and x_tok.string == "x"
+        self._tokens = []  # discard tokens
+
+        result.append(token)
         return True
 
 
@@ -122,45 +161,52 @@ CUSTOM_STATEMENT_TYPES = {"log": "Log"}
 CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 
 
-def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
-    """
-    Re-formats a vyper source string into a python source string and performs
-    some validation.  More specifically,
+class PreParser:
+    # Compilation settings based on the directives in the source code
+    settings: Settings
+    # A mapping of class names to their original class types.
+    modification_offsets: dict[tuple[int, int], str]
+    # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
+    for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
+    # A list of line/column offsets of hex string literals
+    hex_string_locations: list[tuple[int, int]]
+    # Reformatted python source string.
+    reformatted_code: str
 
-    * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
-    * Validates "@version" pragma against current compiler version
-    * Prevents direct use of python "class" keyword
-    * Prevents use of python semi-colon statement separator
-    * Extracts type annotation of for loop iterators into a separate dictionary
+    def parse(self, code: str):
+        """
+        Re-formats a vyper source string into a python source string and performs
+        some validation.  More specifically,
 
-    Also returns a mapping of detected interface and struct names to their
-    respective vyper class types ("interface" or "struct"), and a mapping of line numbers
-    of for loops to the type annotation of their iterators.
+        * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
+        * Validates "@version" pragma against current compiler version
+        * Prevents direct use of python "class" keyword
+        * Prevents use of python semi-colon statement separator
+        * Extracts type annotation of for loop iterators into a separate dictionary
 
-    Parameters
-    ----------
-    code : str
-        The vyper source code to be re-formatted.
+        Stores a mapping of detected interface and struct names to their
+        respective vyper class types ("interface" or "struct"), and a mapping of line numbers
+        of for loops to the type annotation of their iterators.
 
-    Returns
-    -------
-    Settings
-        Compilation settings based on the directives in the source code
-    ModificationOffsets
-        A mapping of class names to their original class types.
-    dict[tuple[int, int], list[TokenInfo]]
-        A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
-    str
-        Reformatted python source string.
-    """
-    result = []
-    modification_offsets: ModificationOffsets = {}
-    settings = Settings()
-    for_parser = ForParser(code)
+        Parameters
+        ----------
+        code : str
+            The vyper source code to be re-formatted.
+        """
+        try:
+            self._parse(code)
+        except TokenError as e:
+            raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
+    def _parse(self, code: str):
+        result: list[TokenInfo] = []
+        modification_offsets: dict[tuple[int, int], str] = {}
+        settings = Settings()
+        for_parser = ForParser(code)
+        hex_string_parser = HexStringParser()
 
-    try:
+        _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
+
         code_bytes = code.encode("utf-8")
         token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
@@ -207,10 +253,10 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException(f"Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen"):
+                    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
                         if settings.experimental_codegen is not None:
                             raise StructureException(
-                                "pragma experimental-codegen specified twice!", start
+                                "pragma experimental-codegen/venom specified twice!", start
                             )
                         settings.experimental_codegen = True
                     elif pragma.startswith("enable-decimals"):
@@ -243,7 +289,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                     # a bit cursed technique to get untokenize to put
                     # the new tokens in the right place so that modification_offsets
                     # will work correctly.
-                    # (recommend comparing the result of pre_parse with the
+                    # (recommend comparing the result of parse with the
                     # source code side by side to visualize the whitespace)
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
@@ -264,14 +310,15 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
 
-            if not for_parser.consume(token):
+            if not for_parser.consume(token) and not hex_string_parser.consume(token, result):
                 result.extend(toks)
 
-    except TokenError as e:
-        raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+        for_loop_annotations = {}
+        for k, v in for_parser.annotations.items():
+            for_loop_annotations[k] = v.copy()
 
-    for_loop_annotations = {}
-    for k, v in for_parser.annotations.items():
-        for_loop_annotations[k] = v.copy()
-
-    return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")
+        self.settings = settings
+        self.modification_offsets = modification_offsets
+        self.for_loop_annotations = for_loop_annotations
+        self.hex_string_locations = hex_string_parser.locations
+        self.reformatted_code = untokenize(result).decode("utf-8")

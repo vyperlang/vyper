@@ -3,11 +3,11 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
+    InstantiationException,
     InvalidAttribute,
     TypeMismatch,
     UndeclaredDefinition,
     UnknownAttribute,
-    VariableDeclarationException,
 )
 
 fail_list = [
@@ -73,7 +73,7 @@ struct S:
 def foo() -> int128:
     s: S = S(a=1)
     """,
-        VariableDeclarationException,
+        InstantiationException,
     ),
     (
         """

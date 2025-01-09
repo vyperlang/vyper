@@ -1,7 +1,8 @@
+from functools import cached_property
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.function import IRFunction
 
@@ -15,8 +16,6 @@ class DominatorTreeAnalysis(IRAnalysis):
 
     fn: IRFunction
     entry_block: IRBasicBlock
-    dfs_order: dict[IRBasicBlock, int]
-    dfs_walk: list[IRBasicBlock]
     dominators: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -28,16 +27,13 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         self.fn = self.function
         self.entry_block = self.fn.entry
-        self.dfs_order = {}
-        self.dfs_walk = []
         self.dominators = {}
         self.immediate_dominators = {}
         self.dominated = {}
         self.dominator_frontiers = {}
 
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        self._compute_dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
@@ -132,21 +128,13 @@ class DominatorTreeAnalysis(IRAnalysis):
                 bb2 = self.immediate_dominators[bb2]
         return bb1
 
-    def _compute_dfs(self, entry: IRBasicBlock, visited):
-        """
-        Depth-first search to compute the DFS order of the basic blocks. This
-        is used to compute the dominator tree. The sequence of basic blocks in
-        the DFS order is stored in `self.dfs_walk`. The DFS order of each basic
-        block is stored in `self.dfs_order`.
-        """
-        visited.add(entry)
+    @cached_property
+    def dfs_walk(self) -> list[IRBasicBlock]:
+        return list(self.cfg.dfs_walk)
 
-        for bb in entry.cfg_out:
-            if bb not in visited:
-                self._compute_dfs(bb, visited)
-
-        self.dfs_walk.append(entry)
-        self.dfs_order[entry] = len(self.dfs_walk)
+    @cached_property
+    def dfs_order(self) -> dict[IRBasicBlock, int]:
+        return {bb: idx for idx, bb in enumerate(self.dfs_walk)}
 
     def as_graph(self) -> str:
         """
