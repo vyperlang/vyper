@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import SyntaxException
 
 fail_list = [
@@ -107,5 +108,30 @@ s: S = S(x=int128, 1)
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_syntax_exception(assert_compile_failed, get_contract, bad_code):
-    assert_compile_failed(lambda: get_contract(bad_code), SyntaxException)
+def test_syntax_exception(bad_code):
+    with pytest.raises(SyntaxException):
+        compile_code(bad_code)
+
+
+def test_bad_staticcall_keyword():
+    bad_code = """
+from ethereum.ercs import IERC20Detailed
+
+def foo():
+    staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
+    """  # noqa
+    with pytest.raises(SyntaxException) as e:
+        compile_code(bad_code)
+
+    expected_error = """
+invalid syntax. Perhaps you forgot a comma? (<unknown>, line 5)
+
+  contract "<unknown>:5", line 5:54 
+       4 def foo():
+  ---> 5     staticcall ERC20(msg.sender).transfer(msg.sender, staticall IERC20Detailed(msg.sender).decimals())
+  -------------------------------------------------------------^
+       6
+
+  (hint: did you mean `staticcall`?)
+    """  # noqa
+    assert str(e.value) == expected_error.strip()

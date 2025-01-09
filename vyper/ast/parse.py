@@ -86,7 +86,16 @@ def _parse_to_ast_with_settings(
             # SyntaxError offset is 1-based, not 0-based (see:
             # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
             offset -= 1
-        raise SyntaxException(str(e.msg), vyper_source, e.lineno, offset) from None
+        new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
+
+        likely_errors = ("staticall", "staticcal")
+        tmp = str(new_e)
+        for s in likely_errors:
+            if s in tmp:
+                new_e._hint = "did you mean `staticcall`?"
+                break
+
+        raise new_e from None
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
@@ -107,6 +116,10 @@ def _parse_to_ast_with_settings(
 
     # postcondition: consumed all the for loop annotations
     assert len(pre_parser.for_loop_annotations) == 0
+
+    # postcondition: we have used all the hex strings found by the
+    # pre-parser
+    assert len(pre_parser.hex_string_locations) == 0
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
@@ -431,6 +444,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                         node.col_offset,
                     )
                 node.ast_type = "HexBytes"
+                self._pre_parser.hex_string_locations.remove(key)
             else:
                 node.ast_type = "Str"
         elif isinstance(node.value, bytes):

@@ -109,37 +109,40 @@ class ForParser:
 class HexStringParser:
     def __init__(self):
         self.locations = []
-        self._current_x = None
+        self._tokens = []
         self._state = ParserState.NOT_RUNNING
 
     def consume(self, token, result):
         # prepare to check if the next token is a STRING
-        if token.type == NAME and token.string == "x":
-            self._state = ParserState.RUNNING
-            self._current_x = token
-            return True
-
         if self._state == ParserState.NOT_RUNNING:
-            return False
-
-        if self._state == ParserState.RUNNING:
-            current_x = self._current_x
-            self._current_x = None
-            self._state = ParserState.NOT_RUNNING
-
-            toks = [current_x]
-
-            # drop the leading x token if the next token is a STRING to avoid a python
-            # parser error
-            if token.type == STRING:
-                self.locations.append(current_x.start)
-                toks = [TokenInfo(STRING, token.string, current_x.start, token.end, token.line)]
-                result.extend(toks)
+            if token.type == NAME and token.string == "x":
+                self._tokens.append(token)
+                self._state = ParserState.RUNNING
                 return True
 
-            result.extend(toks)
+            return False
 
-        return False
+        assert self._state == ParserState.RUNNING, "unreachable"
+
+        self._state = ParserState.NOT_RUNNING
+
+        if token.type != STRING:
+            # flush the tokens we have accumulated and move on
+            result.extend(self._tokens)
+            self._tokens = []
+            return False
+
+        # mark hex string in locations for later processing
+        self.locations.append(token.start)
+
+        # discard the `x` token and apply sanity checks -
+        # we should only be discarding one token.
+        assert len(self._tokens) == 1
+        assert (x_tok := self._tokens[0]).type == NAME and x_tok.string == "x"
+        self._tokens = []  # discard tokens
+
+        result.append(token)
+        return True
 
 
 # compound statements that are replaced with `class`
