@@ -134,7 +134,13 @@ class HexStringParser:
 
         # mark hex string in locations for later processing
         self.locations.append(token.start)
+
+        # discard the `x` token and apply sanity checks -
+        # we should only be discarding one token.
+        assert len(self._tokens) == 1
+        assert (x_tok := self._tokens[0]).type == NAME and x_tok.string == "x"
         self._tokens = []  # discard tokens
+
         result.append(token)
         return True
 
