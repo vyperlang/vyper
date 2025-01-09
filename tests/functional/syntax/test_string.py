@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import InvalidLiteral, StructureException
 
 valid_list = [
     """
@@ -46,10 +46,32 @@ invalid_list = [
         """
 @external
 def foo():
+    # invalid type annotation - should be String[N]
     a: String = "abc"
     """,
         StructureException,
-    )
+    ),
+    (
+        """
+@external
+@view
+def compile_hash() -> bytes32:
+    # GH issue #3088 - ord("è") == 232
+    return keccak256("è")
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
+@external
+def foo() -> bool:
+    # ord("¡") == 161
+    x: String[15] = "¡très bien!"
+    y: String[12] = "test"
+    return x != y
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 
