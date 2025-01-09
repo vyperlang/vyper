@@ -411,26 +411,31 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
-def test_builtins_not_found():
+def test_builtins_not_found(make_input_bundle):
     code = """
 from vyper.interfaces import foobar
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
-
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == "vyper.interfaces.foobar"
     assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+    assert "code.vy:" in str(e.value)
 
 
 @pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
-def test_builtins_not_found2(erc):
+def test_builtins_not_found2(erc, make_input_bundle):
     code = f"""
 from ethereum.ercs import {erc}
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+    assert "code.vy:" in str(e.value)
 
 
 def test_interface_body_check(make_input_bundle):
