@@ -29,7 +29,7 @@ def _signed_to_unsigned(value: int) -> int:
 
 
 def _wrap_signed_binop(operation):
-    def wrapper(ops: list[IROperand]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
         assert len(ops) == 2
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
@@ -39,7 +39,7 @@ def _wrap_signed_binop(operation):
 
 
 def _wrap_binop(operation):
-    def wrapper(ops: list[IROperand]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
         assert len(ops) == 2
         first = _signed_to_unsigned(ops[1].value)
         second = _signed_to_unsigned(ops[0].value)
@@ -50,7 +50,7 @@ def _wrap_binop(operation):
 
 
 def _wrap_unop(operation):
-    def wrapper(ops: list[IROperand]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
         assert len(ops) == 1
         value = _signed_to_unsigned(ops[0].value)
         ret = operation(value)
