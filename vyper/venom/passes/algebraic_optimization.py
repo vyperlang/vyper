@@ -339,7 +339,7 @@ class AlgebraicOptimizationPass(IRPass):
                     val -= 1
 
                 assert _wrap256(val, unsigned) == val, "bad optimizer step"
-                n_opcode = _flip_comparison_op(inst.opcode)
+                n_opcode = _flip_comparison_op(opcode)
                 self._update(inst, n_opcode, val, operands[1], force=True)
                 uses.first().opcode = "store"
                 return True
