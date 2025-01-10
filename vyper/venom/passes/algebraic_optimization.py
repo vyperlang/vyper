@@ -155,15 +155,16 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.opcode == "assert":
-            return self.handle_assert_inst(inst)
+            self.handle_assert_inst(inst)
+            return
         if inst.output is None:
-            return False
+            return
         if inst.is_volatile:
-            return False
+            return
         if inst.opcode == "store":
-            return False
+            return
         if inst.is_pseudo:
-            return False
+            return
 
         operands = inst.operands
 
@@ -173,66 +174,79 @@ class AlgebraicOptimizationPass(IRPass):
 
         if inst.opcode in {"shl", "shr", "sar"}:
             if lit_eq(operands[1], 0):
-                return self._store(inst, operands[0])
+                self._store(inst, operands[0])
+                return
             # no more cases for these instructions
-            return False
+            return
 
         if inst.opcode in {"add", "sub", "xor"}:
             # x + 0 == x - 0 == x ^ 0 -> x
             if lit_eq(operands[0], 0):
-                return self._store(inst, operands[1])
+                self._store(inst, operands[1])
+                return
             # -1 - x -> ~x
             # from two's compliment
             if inst.opcode == "sub" and lit_eq(operands[1], -1):
-                return self._update(inst, "not", operands[0])
+                self._update(inst, "not", operands[0])
+                return
             # x ^ -1 -> ~x
             if inst.opcode == "xor" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-                return self._update(inst, "not", operands[1])
-            return False
+                self._update(inst, "not", operands[1])
+                return
+            return
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
             # x * 1 == x / 1 -> x
             if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(operands[0], 1):
-                return self._store(inst, operands[1])
+                self._store(inst, operands[1])
+                return
 
             # x & 0xFF..FF -> x
             if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-                return self._store(inst, operands[1])
+                self._store(inst, operands[1])
+                return
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
                 val = operands[0].value
                 # x % (2^n) -> x & (2^n - 1)
                 if inst.opcode == "mod":
-                    return self._update(inst, "and", val - 1, operands[1])
+                    self._update(inst, "and", val - 1, operands[1])
+                    return
                 # x / (2^n) -> x >> n
                 if inst.opcode == "div":
-                    return self._update(inst, "shr", operands[1], int_log2(val))
+                    self._update(inst, "shr", operands[1], int_log2(val))
+                    return
                 # x * (2^n) -> x << n
                 if inst.opcode == "mul":
-                    return self._update(inst, "shl", operands[1], int_log2(val))
-            return False
+                    self._update(inst, "shl", operands[1], int_log2(val))
+                    return
+            return
 
         if inst.opcode == "exp":
             # 0 ** x -> iszero x
             if lit_eq(operands[1], 0):
-                return self._update(inst, "iszero", operands[0])
+                self._update(inst, "iszero", operands[0])
+                return
 
             # x ** 1 -> x
             if lit_eq(operands[0], 1):
-                return self._store(inst, operands[1])
+                self._store(inst, operands[1])
+                return
 
-            return False
+            return
 
         if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode not in {"eq", "or"}:
-            return False
+            return
 
         # x | 0 -> x
         if inst.opcode == "or" and lit_eq(operands[0], 0):
-            return self._store(inst, operands[1])
+            self._store(inst, operands[1])
+            return
 
         # x == 0 -> iszero x
         if inst.opcode == "eq" and lit_eq(operands[0], 0):
-            return self._update(inst, "iszero", operands[1])
+            self._update(inst, "iszero", operands[1])
+            return
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses(inst.output)
@@ -247,11 +261,13 @@ class AlgebraicOptimizationPass(IRPass):
                 # note that (xor (-1) x) has its own rule
                 tmp = self._add(inst, "xor", operands[0], operands[1])
 
-                return self._update(inst, "iszero", tmp)
+                self._update(inst, "iszero", tmp)
+                return
 
             # x | n -> 1 (if n is non zero)
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
-                return self._store(inst, 1)
+                self._store(inst, 1)
+                return
 
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
             prefer_strict = not is_truthy
@@ -287,13 +303,15 @@ class AlgebraicOptimizationPass(IRPass):
 
             if lit_eq(operands[0], almost_never):
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
-                return self._update(inst, "eq", operands[1], never)
+                self._update(inst, "eq", operands[1], never)
+                return
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and lit_eq(operands[0], almost_always):
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = self._add(inst, "eq", *operands)
-                return self._update(inst, "iszero", tmp)
+                self._update(inst, "iszero", tmp)
+                return
 
             # special cases that are not covered by others:
 
@@ -301,7 +319,8 @@ class AlgebraicOptimizationPass(IRPass):
                 # improve codesize (not gas), and maybe trigger
                 # downstream optimizations
                 tmp = self._add(inst, "iszero", operands[1])
-                return self._update(inst, "iszero", tmp)
+                self._update(inst, "iszero", tmp)
+                return
 
             # only done in last iteration because on average if not already optimize
             # this rule creates bigger codesize because it could interfere with other
@@ -317,7 +336,7 @@ class AlgebraicOptimizationPass(IRPass):
                 after = uses.first()
                 n_uses = self.dfg.get_uses(after.output)
                 if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
-                    return False
+                    return
 
                 val = operands[0].value
                 if "gt" in opcode:
@@ -329,6 +348,7 @@ class AlgebraicOptimizationPass(IRPass):
                 n_opcode = _flip_comparison_op(opcode)
                 self._update(inst, n_opcode, val, operands[1])
                 uses.first().opcode = "store"
+                return
 
     def handle_assert_inst(self, inst: IRInstruction) -> bool:
         operands = inst.operands
