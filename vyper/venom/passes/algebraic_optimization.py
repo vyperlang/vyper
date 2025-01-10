@@ -90,14 +90,18 @@ class AlgebraicOptimizationPass(IRPass):
         chain.reverse()
         return chain
 
-    def _update(
-        self, inst: IRInstruction, opcode: str, *args: IROperand | int, force: bool = False
-    ) -> bool:
+    def _handle_offset(self):
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if (
+                    inst.opcode == "add"
+                    and self._is_lit(inst.operands[0])
+                    and isinstance(inst.operands[1], IRLabel)
+                ):
+                    inst.opcode = "offset"
+
+    def _update(self, inst: IRInstruction, opcode: str, *args: IROperand | int):
         assert opcode != "phi"
-        # REVIEW: do we actually need to fast path here?
-        #   is the force= kwarg necessary?
-        if not force and inst.opcode == opcode:
-            return False
 
         old_operands = inst.operands
         # REVIEW: weird API -- should just take `*args: IROperand`
@@ -117,10 +121,8 @@ class AlgebraicOptimizationPass(IRPass):
         inst.opcode = opcode
         inst.operands = new_operands
 
-        return True
-
-    def _store(self, inst: IRInstruction, *args: IROperand | int) -> bool:
-        return self._update(inst, "store", *args)
+    def _store(self, inst: IRInstruction, *args: IROperand | int):
+        self._update(inst, "store", *args)
 
     def _add(self, inst: IRInstruction, opcode: str, *args: IROperand | int) -> IRVariable:
         assert opcode != "phi"
@@ -151,7 +153,7 @@ class AlgebraicOptimizationPass(IRPass):
             for inst in bb.instructions:
                 self._handle_inst_peephole(inst)
 
-    def _handle_inst_peephole(self, inst: IRInstruction) -> bool:
+    def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.opcode == "assert":
             return self.handle_assert_inst(inst)
         if inst.output is None:
@@ -164,15 +166,6 @@ class AlgebraicOptimizationPass(IRPass):
             return False
 
         operands = inst.operands
-
-        # REVIEW: maybe move this into its own step (e.g. "rewrite_offsets")
-        if (
-            inst.opcode == "add"
-            and self._is_lit(operands[0])
-            and isinstance(inst.operands[1], IRLabel)
-        ):
-            inst.opcode = "offset"
-            return True
 
         # make logic easier for commutative instructions.
         if inst.is_commutative and self._is_lit(operands[1]):
@@ -334,11 +327,8 @@ class AlgebraicOptimizationPass(IRPass):
 
                 assert _wrap256(val, unsigned) == val, "bad optimizer step"
                 n_opcode = _flip_comparison_op(opcode)
-                self._update(inst, n_opcode, val, operands[1], force=True)
+                self._update(inst, n_opcode, val, operands[1])
                 uses.first().opcode = "store"
-                return True
-
-        return False
 
     def handle_assert_inst(self, inst: IRInstruction) -> bool:
         operands = inst.operands
@@ -372,7 +362,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         var = self._add(inst, "iszero", src.output)
 
-        self._update(inst, "assert", var, force=True)
+        self._update(inst, inst.opcode, var)
 
         return True
 
@@ -380,6 +370,7 @@ class AlgebraicOptimizationPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self._optimize_iszero_chains()
+        self._handle_offset()
         self._algebraic_opt()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
