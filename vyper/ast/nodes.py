@@ -331,10 +331,6 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
-    def __hash__(self):
-        values = [getattr(self, i, None) for i in VyperNode._public_slots]
-        return hash(tuple(values))
-
     def __deepcopy__(self, memo):
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
