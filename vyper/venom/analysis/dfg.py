@@ -20,22 +20,6 @@ class DFGAnalysis(IRAnalysis):
     def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         return self._dfg_inputs.get(op, OrderedSet())
 
-    # return uses of a given variable while following chains
-    def get_uses_ignore_nops(self, op: IRVariable) -> OrderedSet[IRInstruction]:
-        tmp = self._dfg_inputs.get(op, OrderedSet())
-        res = tmp.copy()
-        for item in tmp:
-            if item.opcode == "store":
-                res.remove(item)
-                res.addmany(self.get_uses_ignore_nops(item.output))
-            elif item.opcode == "add" and item.operands[0].value == 0:
-                res.remove(item)
-                res.addmany(self.get_uses_ignore_nops(item.output))
-            elif item.opcode == "add" and item.operands[1].value == 0:
-                res.remove(item)
-                res.addmany(self.get_uses_ignore_nops(item.output))
-        return res
-
     def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
         """
         Get uses of a given variable in a specific basic block.
