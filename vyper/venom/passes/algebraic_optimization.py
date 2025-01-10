@@ -155,7 +155,7 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.opcode == "assert":
-            self.handle_assert_inst(inst)
+            self._handle_assert_inst(inst)
             return
         if inst.output is None:
             return
@@ -350,7 +350,7 @@ class AlgebraicOptimizationPass(IRPass):
                 uses.first().opcode = "store"
                 return
 
-    def handle_assert_inst(self, inst: IRInstruction) -> bool:
+    def _handle_assert_inst(self, inst: IRInstruction) -> bool:
         operands = inst.operands
         if not isinstance(operands[0], IRVariable):
             return False
