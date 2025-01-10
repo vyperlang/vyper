@@ -13,7 +13,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, evm_mod
+from vyper.utils import evm_div, evm_mod, signed_to_unsigned
 
 types = sorted(IntegerT.signeds())
 
@@ -253,8 +253,9 @@ ARITHMETIC_OPS = {
 
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("is_hex_int", [True, False])
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, tx_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, op, typ, is_hex_int):
     # both variables
     code_1 = f"""
 @external
@@ -329,9 +330,17 @@ def foo() -> {typ}:
 
         ok = in_bounds and not div_by_zero
 
-        code_2 = code_2_template.format(typ=typ, op=op, y=y)
-        code_3 = code_3_template.format(typ=typ, op=op, x=x)
-        code_4 = code_4_template.format(typ=typ, op=op, x=x, y=y)
+        formatted_x = x
+        formatted_y = y
+
+        if is_hex_int:
+            n_nibbles = typ.bits // 4
+            formatted_x = "0x" + hex(signed_to_unsigned(x, typ.bits))[2:].rjust(n_nibbles, "0")
+            formatted_y = "0x" + hex(signed_to_unsigned(y, typ.bits))[2:].rjust(n_nibbles, "0")
+
+        code_2 = code_2_template.format(typ=typ, op=op, y=formatted_y)
+        code_3 = code_3_template.format(typ=typ, op=op, x=formatted_x)
+        code_4 = code_4_template.format(typ=typ, op=op, x=formatted_x, y=formatted_y)
 
         if ok:
             assert c.foo(x, y) == expected

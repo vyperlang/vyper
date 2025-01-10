@@ -85,7 +85,7 @@ bar: int128[3]
 def foo():
     self.bar = [1, 2, 0x1234567890123456789012345678901234567890]
     """,
-        InvalidLiteral,
+        TypeMismatch,
     ),
     (
         """
@@ -308,6 +308,12 @@ def foo():
     x: DynArray[uint256, 3] = [1, 2, 3]
     for i: DynArray[uint256, 3] in [[], []]:
         x = i
+    """,
+    """
+bar: uint160[3]
+@external
+def foo():
+    self.bar = [1, 2, 0x1234567890123456789012345678901234567890]
     """,
 ]
 

@@ -210,7 +210,8 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_uint_literal(get_contract, typ):
+@pytest.mark.parametrize("is_hex_int", [True, False])
+def test_uint_literal(get_contract, typ, is_hex_int):
     lo, hi = typ.ast_bounds
 
     good_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 1, hi]
@@ -223,10 +224,16 @@ def test() -> {typ}:
     """
 
     for val in good_cases:
-        c = get_contract(code_template.format(typ=typ, val=val))
+        input_val = val
+        if is_hex_int:
+            n_nibbles = typ.bits // 4
+            input_val = "0x" + hex(val)[2:].rjust(n_nibbles, "0")
+        c = get_contract(code_template.format(typ=typ, val=input_val))
         assert c.test() == val
 
     for val in bad_cases:
+        if is_hex_int:
+            return
         exc = (
             TypeMismatch
             if SizeLimits.MIN_INT256 <= val <= SizeLimits.MAX_UINT256

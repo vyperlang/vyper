@@ -16,6 +16,7 @@ from vyper.codegen.core import (
     is_array_like,
     is_bytes_m_type,
     is_flag_type,
+    is_integer_type,
     is_numeric_type,
     is_tuple_like,
     make_setter,
@@ -66,6 +67,7 @@ from vyper.utils import (
     bytes_to_int,
     is_checksum_encoded,
     string_to_bytes,
+    unsigned_to_signed,
     vyper_warn,
 )
 
@@ -131,6 +133,12 @@ class Expr:
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
+            return IRnode.from_list(val, typ=t)
+
+        elif is_integer_type(t):
+            val = self.expr.uint_value
+            if t.is_signed:
+                val = unsigned_to_signed(val, t.bits, strict=True)
             return IRnode.from_list(val, typ=t)
 
     # String literals
