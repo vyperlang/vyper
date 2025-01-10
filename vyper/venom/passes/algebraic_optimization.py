@@ -344,28 +344,29 @@ class AlgebraicOptimizationPass(IRPass):
                 else:
                     val -= 1
 
-                assert _wrap256(val, unsigned) == val, "bad optimizer step"
+                if _wrap256(val, unsigned) != val:
+                    return
                 n_opcode = _flip_comparison_op(opcode)
                 self._update(inst, n_opcode, val, operands[1])
                 uses.first().opcode = "store"
                 return
 
-    def _handle_assert_inst(self, inst: IRInstruction) -> bool:
+    def _handle_assert_inst(self, inst: IRInstruction):
         operands = inst.operands
         if not isinstance(operands[0], IRVariable):
-            return False
+            return
         src = self.dfg.get_producing_instruction(operands[0])
         assert isinstance(src, IRInstruction)
         if src.opcode not in COMPARATOR_INSTRUCTIONS:
-            return False
+            return
 
         assert isinstance(src.output, IRVariable)
         uses = self.dfg.get_uses(src.output)
         if len(uses) != 1:
-            return False
+            return
 
         if not isinstance(src.operands[0], IRLiteral):
-            return False
+            return
 
         val = src.operands[0].value
         if "gt" in src.opcode:
@@ -384,7 +385,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         self._update(inst, inst.opcode, var)
 
-        return True
+        return
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
