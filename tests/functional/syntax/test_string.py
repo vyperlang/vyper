@@ -11,21 +11,9 @@ def foo() -> String[10]:
     """,
     """
 @external
-def foo():
-    x: String[11] = "très bien!"
-    """,
-    """
-@external
 def foo() -> bool:
-    x: String[15] = "très bien!"
+    x: String[15] = "tres bien!"
     y: String[15] = "test"
-    return x != y
-    """,
-    """
-@external
-def foo() -> bool:
-    x: String[15] = "très bien!"
-    y: String[12] = "test"
     return x != y
     """,
     """
