@@ -97,6 +97,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          pattern: vyper-*
           merge-multiple: true
 
       - name: Upload assets
@@ -104,6 +105,7 @@ jobs:
         # TODO: this needs to be tested when upgrading to upload-artifact v4
         working-directory: artifacts
         run: |
+
           set -Eeuxo pipefail
           for BIN_NAME in $(ls)
           do
