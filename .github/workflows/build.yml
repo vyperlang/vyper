@@ -97,6 +97,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          merge-multiple: true
 
       - name: Upload assets
         # fun - artifacts are downloaded into "artifact/".
