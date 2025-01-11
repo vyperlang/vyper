@@ -1,5 +1,6 @@
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 import pytest
+
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import (
     SCCP,
@@ -7,7 +8,6 @@ from vyper.venom.passes import (
     RemoveUnusedVariablesPass,
     StoreElimination,
 )
-
 
 """
 Test abstract binop+unop optimizations in sccp and algebraic optimizations pass
@@ -127,7 +127,6 @@ def test_mul_by_zero(opcode):
     """
 
     _sccp_algebraic_runner(pre, post)
-
 
 
 def test_sccp_algebraic_opt_multi_neutral_elem():
@@ -315,7 +314,7 @@ def test_sccp_algebraic_opt_boolean_or_eq():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_comparison_bounderies():
+def test_compare_never():
     # unsigned x > 0xFF..FF == x < 0 -> 0
     # signed: x > MAX_SIGNED (0x3F..FF) == x < MIN_SIGNED (0xF0..00) -> 0
     min_int256 = -(2**255)
@@ -337,6 +336,29 @@ def test_sccp_algebraic_opt_comparison_bounderies():
     _global:
         %par = param
         return 0, 0, 0, 0
+    """
+
+    _sccp_algebraic_runner(pre, post)
+
+
+def test_comparison_zero():
+    # x > 0 => iszero(iszero x)
+    # 0 < x => iszero(iszero x)
+    pre = """
+    _global:
+        %par = param
+        %1 = lt 0, %par
+        %2 = gt %par, 0
+        return %1, %2
+    """
+    post = """
+    _global:
+        %par = param
+        %3 = iszero %par
+        %1 = iszero %3
+        %4 = iszero %par
+        %2 = iszero %4
+        return %1, %2
     """
 
     _sccp_algebraic_runner(pre, post)

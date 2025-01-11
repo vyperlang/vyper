@@ -18,9 +18,10 @@ def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
     assert bb1.label.value == bb2.label.value
-    assert len(bb1.instructions) == len(bb2.instructions)
     for i1, i2 in zip(bb1.instructions, bb2.instructions):
-        assert instructions_eq(i1, i2), f"[{i1}] != [{i2}]"
+        assert instructions_eq(i1, i2), (bb1, f"[{i1}] != [{i2}]")
+    # assert after so we check all the instructions
+    assert len(bb1.instructions) == len(bb2.instructions)
 
 
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
