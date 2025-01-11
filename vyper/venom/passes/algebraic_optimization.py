@@ -100,12 +100,11 @@ class AlgebraicOptimizationPass(IRPass):
                 ):
                     inst.opcode = "offset"
 
-    def _update(self, inst: IRInstruction, opcode: str, *args: IROperand | int):
+    def _update(self, inst: IRInstruction, opcode: str, *args: IROperand):
         assert opcode != "phi"
 
         old_operands = inst.operands
-        # REVIEW: weird API -- should just take `*args: IROperand`
-        new_operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+        new_operands = list(args)
 
         for op in old_operands:
             if not isinstance(op, IRVariable):
@@ -121,14 +120,14 @@ class AlgebraicOptimizationPass(IRPass):
         inst.opcode = opcode
         inst.operands = new_operands
 
-    def _store(self, inst: IRInstruction, *args: IROperand | int):
+    def _store(self, inst: IRInstruction, *args: IROperand):
         self._update(inst, "store", *args)
 
-    def _add(self, inst: IRInstruction, opcode: str, *args: IROperand | int) -> IRVariable:
+    def _add(self, inst: IRInstruction, opcode: str, *args: IROperand) -> IRVariable:
         assert opcode != "phi"
         index = inst.parent.instructions.index(inst)
         var = inst.parent.parent.get_next_variable()
-        operands = [arg if isinstance(arg, IROperand) else IRLiteral(arg) for arg in args]
+        operands = list(args)
         new_inst = IRInstruction(opcode, operands, output=var)
         inst.parent.insert_instruction(new_inst, index)
         for op in new_inst.operands:
@@ -210,15 +209,15 @@ class AlgebraicOptimizationPass(IRPass):
                 val = operands[0].value
                 # x % (2^n) -> x & (2^n - 1)
                 if inst.opcode == "mod":
-                    self._update(inst, "and", val - 1, operands[1])
+                    self._update(inst, "and", IRLiteral(val - 1), operands[1])
                     return
                 # x / (2^n) -> x >> n
                 if inst.opcode == "div":
-                    self._update(inst, "shr", operands[1], int_log2(val))
+                    self._update(inst, "shr", operands[1], IRLiteral(int_log2(val)))
                     return
                 # x * (2^n) -> x << n
                 if inst.opcode == "mul":
-                    self._update(inst, "shl", operands[1], int_log2(val))
+                    self._update(inst, "shl", operands[1], IRLiteral(int_log2(val)))
                     return
             return
 
@@ -266,7 +265,7 @@ class AlgebraicOptimizationPass(IRPass):
 
             # x | n -> 1 (if n is non zero)
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
-                self._store(inst, 1)
+                self._store(inst, IRLiteral(1))
                 return
 
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
@@ -303,7 +302,7 @@ class AlgebraicOptimizationPass(IRPass):
 
             if lit_eq(operands[0], almost_never):
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
-                self._update(inst, "eq", operands[1], never)
+                self._update(inst, "eq", operands[1], IRLiteral(never))
                 return
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
@@ -347,7 +346,7 @@ class AlgebraicOptimizationPass(IRPass):
                 if _wrap256(val, unsigned) != val:
                     return
                 n_opcode = _flip_comparison_op(opcode)
-                self._update(inst, n_opcode, val, operands[1])
+                self._update(inst, n_opcode, IRLiteral(val), operands[1])
                 uses.first().opcode = "store"
                 return
 
