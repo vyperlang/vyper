@@ -163,12 +163,9 @@ def eval_arith(opcode: str, ops: list[IROperand]) -> IRLiteral | None:
 
 
 def _algebraic_eval(opcode: str, ops: list[IROperand]) -> Optional[IRLiteral]:
-    if opcode in ("mul", "smul", "and"):
+    if opcode in ("mul", "and", "div", "sdiv", "mod", "smod"):
         if any(lit_eq(op, 0) for op in ops):
             return IRLiteral(0)
-
-    if opcode in ("div", "sdiv", "mod", "smod") and lit_eq(ops[0], 0):
-        return IRLiteral(0)
 
     if opcode in ("mod", "smod") and lit_eq(ops[0], 1):
         return IRLiteral(0)

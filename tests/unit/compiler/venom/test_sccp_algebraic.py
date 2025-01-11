@@ -1,4 +1,5 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+import pytest
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import (
     SCCP,
@@ -109,37 +110,24 @@ def test_sccp_algebraic_opt_shift():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_div_mul_and():
-    # x * 0 == 0 * x == x / 0 == x % 0 == x & 0 == 0 & x -> 0
-    # checks for non comutative ops
-    pre = """
+@pytest.mark.parametrize("opcode", ("mul", "and", "div", "sdiv", "mod", "smod"))
+def test_mul_by_zero(opcode):
+    # x * 0 == 0 * x == x % 0 == 0 % x == x // 0 == 0 // x == x & 0 == 0 & x -> 0
+    pre = f"""
     _global:
         %par = param
-        %1_1 = mul 0, %par
-        %1_2 = mul %par, 0
-        %2_1 = div 0, %par
-        %2_2 = div %par, 0
-        %3_1 = sdiv 0, %par
-        %3_2 = sdiv %par, 0
-        %4_1 = mod 0, %par
-        %4_2 = mod %par, 0
-        %5_1 = smod 0, %par
-        %5_2 = smod %par, 0
-        %6_1 = and 0, %par
-        %6_2 = and %par, 0
-        return %1_1, %1_2, %2_1, %2_2, %3_1, %3_2, %4_1, %4_2, %5_1, %5_2, %6_1, %6_2
+        %1 = {opcode} 0, %par
+        %2 = {opcode} %par, 0
+        return %1, %2
     """
     post = """
     _global:
         %par = param
-        %2_1 = div 0, %par
-        %3_1 = sdiv 0, %par
-        %4_1 = mod 0, %par
-        %5_1 = smod 0, %par
-        return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
+        return 0, 0
     """
 
     _sccp_algebraic_runner(pre, post)
+
 
 
 def test_sccp_algebraic_opt_multi_neutral_elem():
