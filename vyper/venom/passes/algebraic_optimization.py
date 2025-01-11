@@ -31,15 +31,78 @@ def _wrap256(x, unsigned: bool):
     return x
 
 
+class DFGUpdater:
+    """
+    A helper class which updates the basic block and dfg in place
+    """
+
+    def __init__(self, dfg: DFGAnalysis):
+        self.dfg = dfg
+
+    def _update(self, inst: IRInstruction, opcode: str, args: list[IROperand]):
+        assert opcode != "phi"
+
+        old_operands = inst.operands
+        new_operands = list(args)
+
+        for op in old_operands:
+            if not isinstance(op, IRVariable):
+                continue
+            uses = self.dfg.get_uses(op)
+            if inst in uses:
+                uses.remove(inst)
+
+        for op in new_operands:
+            if isinstance(op, IRVariable):
+                self.dfg.add_use(op, inst)
+
+        inst.opcode = opcode
+        inst.operands = new_operands
+
+    def _store(self, inst: IRInstruction, op: IROperand):
+        self._update(inst, "store", [op])
+
+    def _add(self, inst: IRInstruction, opcode: str, args: list[IROperand]) -> IRVariable:
+        """
+        Insert another instruction before the given instruction
+        """
+        assert opcode != "phi"
+        index = inst.parent.instructions.index(inst)
+        var = inst.parent.parent.get_next_variable()
+        operands = list(args)
+        new_inst = IRInstruction(opcode, operands, output=var)
+        inst.parent.insert_instruction(new_inst, index)
+        for op in new_inst.operands:
+            if isinstance(op, IRVariable):
+                self.dfg.add_use(op, new_inst)
+        self.dfg.add_use(var, inst)
+        self.dfg.set_producing_instruction(var, new_inst)
+        return var
+
+
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
 
     It currently optimizes:
-        * iszero chains
+      - iszero chains
+      - binops
+      - offset adds
     """
 
     dfg: DFGAnalysis
+    updater: DFGUpdater
+
+    def run_pass(self):
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.updater = DFGUpdater(self.dfg)
+
+        self._optimize_iszero_chains()
+        self._handle_offset()
+        self._algebraic_opt()
+
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _optimize_iszero_chains(self) -> None:
         fn = self.function
@@ -100,48 +163,10 @@ class AlgebraicOptimizationPass(IRPass):
                 ):
                     inst.opcode = "offset"
 
-    def _update(self, inst: IRInstruction, opcode: str, *args: IROperand):
-        assert opcode != "phi"
-
-        old_operands = inst.operands
-        new_operands = list(args)
-
-        for op in old_operands:
-            if not isinstance(op, IRVariable):
-                continue
-            uses = self.dfg.get_uses(op)
-            if inst in uses:
-                uses.remove(inst)
-
-        for op in new_operands:
-            if isinstance(op, IRVariable):
-                self.dfg.add_use(op, inst)
-
-        inst.opcode = opcode
-        inst.operands = new_operands
-
-    def _store(self, inst: IRInstruction, *args: IROperand):
-        self._update(inst, "store", *args)
-
-    def _add(self, inst: IRInstruction, opcode: str, *args: IROperand) -> IRVariable:
-        assert opcode != "phi"
-        index = inst.parent.instructions.index(inst)
-        var = inst.parent.parent.get_next_variable()
-        operands = list(args)
-        new_inst = IRInstruction(opcode, operands, output=var)
-        inst.parent.insert_instruction(new_inst, index)
-        for op in new_inst.operands:
-            if isinstance(op, IRVariable):
-                self.dfg.add_use(op, new_inst)
-        self.dfg.add_use(var, inst)
-        self.dfg.set_producing_instruction(var, new_inst)
-        return var
-
     def _is_lit(self, operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
     def _algebraic_opt(self):
-        self.last = False
         self._algebraic_opt_pass()
         self._algebraic_opt_ge_le()
 
@@ -177,7 +202,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         if inst.opcode in {"shl", "shr", "sar"}:
             if lit_eq(operands[1], 0):
-                self._store(inst, operands[0])
+                self.updater._store(inst, operands[0])
                 return
             # no more cases for these instructions
             return
@@ -185,55 +210,55 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode in {"add", "sub", "xor"}:
             # x + 0 == x - 0 == x ^ 0 -> x
             if lit_eq(operands[0], 0):
-                self._store(inst, operands[1])
+                self.updater._store(inst, operands[1])
                 return
             # -1 - x -> ~x
             # from two's compliment
             if inst.opcode == "sub" and lit_eq(operands[1], -1):
-                self._update(inst, "not", operands[0])
+                self.updater._update(inst, "not", [operands[0]])
                 return
             # x ^ -1 -> ~x
             if inst.opcode == "xor" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-                self._update(inst, "not", operands[1])
+                self.updater._update(inst, "not", [operands[1]])
                 return
             return
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
             # x * 1 == x / 1 -> x
             if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(operands[0], 1):
-                self._store(inst, operands[1])
+                self.updater._store(inst, operands[1])
                 return
 
             # x & 0xFF..FF -> x
             if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
-                self._store(inst, operands[1])
+                self.updater._store(inst, operands[1])
                 return
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
                 val = operands[0].value
                 # x % (2^n) -> x & (2^n - 1)
                 if inst.opcode == "mod":
-                    self._update(inst, "and", IRLiteral(val - 1), operands[1])
+                    self.updater._update(inst, "and", [IRLiteral(val - 1), operands[1]])
                     return
                 # x / (2^n) -> x >> n
                 if inst.opcode == "div":
-                    self._update(inst, "shr", operands[1], IRLiteral(int_log2(val)))
+                    self.updater._update(inst, "shr", [operands[1], IRLiteral(int_log2(val))])
                     return
                 # x * (2^n) -> x << n
                 if inst.opcode == "mul":
-                    self._update(inst, "shl", operands[1], IRLiteral(int_log2(val)))
+                    self.updater._update(inst, "shl", [operands[1], IRLiteral(int_log2(val))])
                     return
             return
 
         if inst.opcode == "exp":
             # 0 ** x -> iszero x
             if lit_eq(operands[1], 0):
-                self._update(inst, "iszero", operands[0])
+                self.updater._update(inst, "iszero", [operands[0]])
                 return
 
             # x ** 1 -> x
             if lit_eq(operands[0], 1):
-                self._store(inst, operands[1])
+                self.updater._store(inst, operands[1])
                 return
 
             return
@@ -243,12 +268,12 @@ class AlgebraicOptimizationPass(IRPass):
 
         # x | 0 -> x
         if inst.opcode == "or" and lit_eq(operands[0], 0):
-            self._store(inst, operands[1])
+            self.updater._store(inst, operands[1])
             return
 
         # x == 0 -> iszero x
         if inst.opcode == "eq" and lit_eq(operands[0], 0):
-            self._update(inst, "iszero", operands[1])
+            self.updater._update(inst, "iszero", [operands[1]])
             return
 
         assert isinstance(inst.output, IRVariable), "must be variable"
@@ -262,14 +287,14 @@ class AlgebraicOptimizationPass(IRPass):
                 # but xor is slightly easier to optimize because of being
                 # commutative.
                 # note that (xor (-1) x) has its own rule
-                tmp = self._add(inst, "xor", operands[0], operands[1])
+                tmp = self.updater._add(inst, "xor", [operands[0], operands[1]])
 
-                self._update(inst, "iszero", tmp)
+                self.updater._update(inst, "iszero", [tmp])
                 return
 
             # x | n -> 1 (if n is non zero)
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
-                self._store(inst, IRLiteral(1))
+                self.updater._store(inst, IRLiteral(1))
                 return
 
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
@@ -306,28 +331,26 @@ class AlgebraicOptimizationPass(IRPass):
 
             if lit_eq(operands[0], almost_never):
                 # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
-                self._update(inst, "eq", operands[1], IRLiteral(never))
+                self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
                 return
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and lit_eq(operands[0], almost_always):
                 # e.g. gt x 0, slt x MAX_INT256
-                tmp = self._add(inst, "eq", *operands)
-                self._update(inst, "iszero", tmp)
+                tmp = self.updater._add(inst, "eq", operands)
+                self.updater._update(inst, "iszero", [tmp])
                 return
 
             # special cases that are not covered by others:
-
             if opcode == "gt" and lit_eq(operands[0], 0):
-                # improve codesize (not gas), and maybe trigger
+                # improve codesize (not gas) and maybe trigger
                 # downstream optimizations
-                tmp = self._add(inst, "iszero", operands[1])
-                self._update(inst, "iszero", tmp)
+                tmp = self.updater._add(inst, "iszero", [operands[1]])
+                self.updater._update(inst, "iszero", [tmp])
                 return
 
-    # only done in last iteration because on average if not already optimize
-    # this rule creates bigger codesize because it could interfere with other
-    # optimizations
+    # do this rule after the other algebraic optimizations because
+    # it could interfere with other optimizations
     def _handle_inst_ge_le(self, inst: IRInstruction):
         assert inst.opcode in COMPARATOR_INSTRUCTIONS
         assert isinstance(inst.output, IRVariable), "must be variable"
@@ -356,11 +379,16 @@ class AlgebraicOptimizationPass(IRPass):
         else:
             val -= 1
 
+        # this can happen for cases like `lt x 0` which get reduced in SCCP.
+        # don't handle them here, just return
         if _wrap256(val, unsigned) != val:
             return
+
         n_opcode = _flip_comparison_op(opcode)
-        self._update(inst, n_opcode, IRLiteral(val), operands[1])
-        uses.first().opcode = "store"
+        self.updater._update(inst, n_opcode, [IRLiteral(val), operands[1]])
+
+        assert len(after.operands) == 1
+        self.updater._update(after, "store", after.operands)
 
     def _handle_assert_inst(self, inst: IRInstruction):
         operands = inst.operands
@@ -392,18 +420,8 @@ class AlgebraicOptimizationPass(IRPass):
         src.opcode = n_opcode
         src.operands = [IRLiteral(val), src.operands[1]]
 
-        var = self._add(inst, "iszero", src.output)
+        var = self.updater._add(inst, "iszero", [src.output])
 
-        self._update(inst, inst.opcode, var)
+        self.updater._update(inst, inst.opcode, [var])
 
         return
-
-    def run_pass(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-
-        self._optimize_iszero_chains()
-        self._handle_offset()
-        self._algebraic_opt()
-
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
