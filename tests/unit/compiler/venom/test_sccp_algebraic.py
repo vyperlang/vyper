@@ -58,13 +58,15 @@ def test_sccp_algebraic_opt_zero_sub_xor():
         %2 = xor %par, 0
         %3 = add 0, %par
         %4 = sub 0, %par
-        return %1, %2, %3, %4
+        %5 = sub -1, %par
+        return %1, %2, %3, %4, %5
     """
     post = """
     _global:
         %par = param
         %4 = sub 0, %par
-        return %par, %par, %par, %4
+        %5 = not %par
+        return %par, %par, %par, %4, %5
     """
 
     _sccp_algebraic_runner(pre, post)
