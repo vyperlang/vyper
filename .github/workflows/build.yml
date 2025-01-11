@@ -100,8 +100,6 @@ jobs:
           merge-multiple: true
 
       - name: Upload assets
-        # fun - artifacts are downloaded into "artifact/".
-        # TODO: this needs to be tested when upgrading to upload-artifact v4
         working-directory: artifacts
         run: |
           set -Eeuxo pipefail
