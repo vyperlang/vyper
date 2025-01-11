@@ -302,7 +302,14 @@ def test_sccp_offsets_opt():
     assert offset_count == 3
 
 
+# venom programs that
+# should be optimized accordigly
+# the comments before the test
+# represents which optimizations
+# does this program expects
 venom_progs = [
+    # x - x -> 0
+    # x ^ x -> 0
     (
         """
     _global:
@@ -317,6 +324,8 @@ venom_progs = [
         return 0, 0
     """,
     ),
+    # x + 0 == x - 0 == x ^ 0 -> x
+    # this cannot be done for 0 - x
     (
         """
     _global:
@@ -334,6 +343,7 @@ venom_progs = [
         return %par, %par, %par, %4
     """,
     ),
+    # x ^ 0xFF..FF -> not x
     (
         """
     _global:
@@ -349,6 +359,8 @@ venom_progs = [
         return %1
     """,
     ),
+    # x << 0 == x >> 0 == x (sar) 0 -> x
+    # sar is right arithmetic shift
     (
         """
     _global:
@@ -364,6 +376,8 @@ venom_progs = [
         return %par, %par, %par
     """,
     ),
+    # x * 0 == 0 * x == x / 0 == x % 0 == x & 0 == 0 & x -> 0
+    # checks for non comutative ops
     (
         """
     _global:
@@ -392,6 +406,8 @@ venom_progs = [
         return 0, 0, %2_1, 0, %3_1, 0, %4_1, 0, %5_1, 0, 0, 0
     """,
     ),
+    # x * 1 == 1 * x == x / 1 -> x
+    # checks for non comutative ops
     (
         """
     _global:
@@ -412,6 +428,7 @@ venom_progs = [
         return %par, %par, %2_1, %par, %3_1, %par
     """,
     ),
+    # x % 1 -> 0
     (
         """
     _global:
@@ -426,6 +443,7 @@ venom_progs = [
         return 0, 0
     """,
     ),
+    # x & 0xFF..FF == 0xFF..FF & x -> x
     (
         """
     _global:
@@ -441,6 +459,8 @@ venom_progs = [
         return %par, %par
     """,
     ),
+    # x * 2**n -> x << n
+    # x / 2**n -> x >> n
     (
         """
     _global:
@@ -459,6 +479,8 @@ venom_progs = [
         return %1, %2, %3
     """,
     ),
+    # x ** 0 == 1 ** x -> 1
+    # x ** 1 -> x
     (
         """
     _global:
@@ -476,6 +498,7 @@ venom_progs = [
         return 1, 1, %3, %par
     """,
     ),
+    # x < x == x > x -> 0
     (
         """
     _global:
@@ -493,6 +516,10 @@ venom_progs = [
         return 0, 0, 0, 0
     """,
     ),
+    # x | 0 -> x
+    # x | 0xFF..FF -> 0xFF..FF
+    # x = 0 == 0 = x -> iszero x
+    # x = x -> 1
     (
         """
     _global:
@@ -515,6 +542,8 @@ venom_progs = [
                %3, %4, 1
     """,
     ),
+    # x == 1 -> iszero (x xor 1) if it is only used as boolean
+    # x | (non zero) -> 1 if it is only used as boolean
     (
         """
     _global:
@@ -539,6 +568,8 @@ venom_progs = [
         return %2, %4
     """,
     ),
+    # unsigned x > 0xFF..FF == x < 0 -> 0
+    # signed: x > MAX_SIGNED (0x3F..FF) == x < MIN_SIGNED (0xF0..00) -> 0
     (
         """
     _global:
