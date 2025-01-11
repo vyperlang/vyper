@@ -8,10 +8,13 @@ from vyper.venom.passes import (
 )
 
 
+"""
+Test abstract binop+unop optimizations in sccp and algebraic optimizations pass
+"""
+
+
 def _sccp_algebraic_runner(pre, post):
     ctx = parse_from_basic_block(pre)
-
-    print(ctx)
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
@@ -21,8 +24,6 @@ def _sccp_algebraic_runner(pre, post):
         SCCP(ac, fn).run_pass()
         StoreElimination(ac, fn).run_pass()
         RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    print(ctx)
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
@@ -70,10 +71,11 @@ def test_sccp_algebraic_opt_zero_sub_xor():
 
 def test_sccp_algebraic_opt_xor_max():
     # x ^ 0xFF..FF -> not x
-    pre = """
+    max_uint256 = (2**256) - 1
+    pre = f"""
     _global:
         %par = param
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %tmp = {max_uint256}
         %1 = xor %tmp, %par
         return %1
     """
@@ -185,10 +187,11 @@ def test_sccp_algebraic_opt_mod_zero():
 
 def test_sccp_algebraic_opt_and_max():
     # x & 0xFF..FF == 0xFF..FF & x -> x
-    pre = """
+    max_uint256 = 2**256 - 1
+    pre = f"""
     _global:
         %par = param
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        %tmp = {max_uint256}
         %1 = and %par, %tmp
         %2 = and %tmp, %par
         return %1, %2
@@ -247,7 +250,7 @@ def test_sccp_algebraic_opt_exp():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_comperation():
+def test_sccp_algebraic_opt_compare_self():
     # x < x == x > x -> 0
     pre = """
     _global:
@@ -271,27 +274,25 @@ def test_sccp_algebraic_opt_comperation():
 def test_sccp_algebraic_opt_or_eq():
     # x | 0 -> x
     # x | 0xFF..FF -> 0xFF..FF
-    # x = 0 == 0 = x -> iszero x
-    # x = x -> 1
-    pre = """
+    # (x == 0) == (0 == x) -> iszero x
+    # x == x -> 1
+    max_uint256 = 2**256 - 1
+    pre = f"""
     _global:
         %par = param
         %1 = or %par, 0
-        %tmp = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        %2 = or %par, %tmp
+        %2 = or %par, {max_uint256}
         %3 = eq %par, 0
         %4 = eq 0, %par
-        %tmp_par = %par
-        %5 = eq %tmp_par, %par
+        %5 = eq %par, %par
         return %1, %2, %3, %4, %5
     """
-    post = """
+    post = f"""
     _global:
         %par = param
         %3 = iszero %par
         %4 = iszero %par
-        return %par, 115792089237316195423570985008687907853269984665640564039457584007913129639935,
-               %3, %4, 1
+        return %par, {max_uint256}, %3, %4, 1
     """
 
     _sccp_algebraic_runner(pre, post)
@@ -329,16 +330,19 @@ def test_sccp_algebraic_opt_boolean_or_eq():
 def test_sccp_algebraic_opt_comparison_bounderies():
     # unsigned x > 0xFF..FF == x < 0 -> 0
     # signed: x > MAX_SIGNED (0x3F..FF) == x < MIN_SIGNED (0xF0..00) -> 0
-    pre = """
+    min_int256 = -(2**255)
+    max_int256 = 2**255 - 1
+    min_uint256 = 0
+    max_uint256 = 2**256 - 1
+    pre = f"""
     _global:
         %par = param
-        %tmp1 = -57896044618658097711785492504343953926634992332820282019728792003956564819968
-        %1 = slt %par, %tmp1
-        %tmp2 = 57896044618658097711785492504343953926634992332820282019728792003956564819967
-        %2 = sgt %par, %tmp2
-        %3 = lt %par, 0
-        %tmp3 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        %4 = gt %par, %tmp3
+
+        %1 = slt %par, {min_int256}
+        %2 = sgt %par, {max_int256}
+        %3 = lt %par, {min_uint256}
+        %4 = gt %par, {max_uint256}
+
         return %1, %2, %3, %4
     """
     post = """
