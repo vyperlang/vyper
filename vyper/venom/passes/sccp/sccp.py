@@ -264,9 +264,6 @@ class SCCP(IRPass):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
             self.work_list.append(SSAWorkListItem(target_inst))
 
-    def _get_uses(self, var: IRVariable) -> OrderedSet:
-        return self.dfg.get_uses(var)
-
     def _propagate_constants(self):
         """
         This method iterates over the IR and replaces constant values
