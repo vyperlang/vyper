@@ -51,6 +51,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
+          name: vyper-${{ matrix.runs-on }}
           path: dist/vyper.*
 
   windows-build:
@@ -83,6 +84,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
+          name: vyper-${{ runner.os }}
           path: dist/vyper.*
 
   publish-release-assets:
