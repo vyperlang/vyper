@@ -142,15 +142,19 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _algebraic_opt(self):
         self.last = False
-        # REVIEW: this probably only needs to be run one time.
         self._algebraic_opt_pass()
-        self.last = True
-        self._algebraic_opt_pass()
+        self._algebraic_opt_ge_le()
 
     def _algebraic_opt_pass(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._handle_inst_peephole(inst)
+
+    def _algebraic_opt_ge_le(self):
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode in COMPARATOR_INSTRUCTIONS:
+                    self._handle_inst_ge_le(inst)
 
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.opcode == "assert":
@@ -321,34 +325,42 @@ class AlgebraicOptimizationPass(IRPass):
                 self._update(inst, "iszero", tmp)
                 return
 
-            # only done in last iteration because on average if not already optimize
-            # this rule creates bigger codesize because it could interfere with other
-            # optimizations
+    # only done in last iteration because on average if not already optimize
+    # this rule creates bigger codesize because it could interfere with other
+    # optimizations
+    def _handle_inst_ge_le(self, inst: IRInstruction):
+        assert inst.opcode in COMPARATOR_INSTRUCTIONS
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses(inst.output)
 
-            # REVIEW: this code can probably be fused with the code in handle_assert_inst
-            if (
-                self.last
-                and len(uses) == 1
-                and uses.first().opcode == "iszero"
-                and self._is_lit(operands[0])
-            ):
-                after = uses.first()
-                n_uses = self.dfg.get_uses(after.output)
-                if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
-                    return
+        operands = inst.operands
+        opcode = inst.opcode
+        unsigned = "s" not in opcode
 
-                val = operands[0].value
-                if "gt" in opcode:
-                    val += 1
-                else:
-                    val -= 1
+        if self._is_lit(operands[1]):
+            opcode = _flip_comparison_op(inst.opcode)
+            operands = [operands[1], operands[0]]
 
-                if _wrap256(val, unsigned) != val:
-                    return
-                n_opcode = _flip_comparison_op(opcode)
-                self._update(inst, n_opcode, IRLiteral(val), operands[1])
-                uses.first().opcode = "store"
-                return
+        if not (len(uses) == 1 and uses.first().opcode == "iszero" and self._is_lit(operands[0])):
+            return
+
+        after = uses.first()
+
+        n_uses = self.dfg.get_uses(after.output)
+        if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+            return
+
+        val = operands[0].value
+        if "gt" in opcode:
+            val += 1
+        else:
+            val -= 1
+
+        if _wrap256(val, unsigned) != val:
+            return
+        n_opcode = _flip_comparison_op(opcode)
+        self._update(inst, n_opcode, IRLiteral(val), operands[1])
+        uses.first().opcode = "store"
 
     def _handle_assert_inst(self, inst: IRInstruction):
         operands = inst.operands
