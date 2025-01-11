@@ -69,7 +69,7 @@ about the block at the time of calling. Similar to ``block``, another important 
 available to us within the contract is ``msg``, which provides information on the method
 caller as we will soon see.
 
-With initial setup out of the way, lets look at how our users can make bids.
+With initial setup out of the way, let's look at how our users can make bids.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: vyper
@@ -135,7 +135,7 @@ Blind Auction
 
 
 Before we dive into our other examples, let's briefly explore another type of
-auction that you can build with Vyper. Similar to its counterpart_ written in
+auction that you can build with Vyper. Similar to its counterpart written in
 Solidity, this blind auction allows for an auction where there is no time pressure towards the end of the bidding period.
 
 .. _counterpart: https://solidity.readthedocs.io/en/v0.5.0/solidity-by-example.html#id2
@@ -177,7 +177,7 @@ the buyer's receipt of the item, the buyer will mark the item as received in the
 contract, thereby returning the buyer's deposit (not payment), releasing the
 remaining funds to the seller, and completing the transaction.
 
-There are certainly others ways of designing a secure escrow system with less
+There are certainly other ways of designing a secure escrow system with less
 overhead for both the buyer and seller, but for the purpose of this example,
 we want to explore one way how an escrow system can be implemented trustlessly.
 
@@ -206,7 +206,7 @@ variables to be *readable* by an external caller, but not *writeable*.
 
 With a ``@payable`` decorator on the constructor, the contract creator will be
 required to make an initial deposit equal to twice the item's ``value`` to
-initialize the contract, which will be later returned. This is in addition to
+initialize the contract, which will later be returned. This is in addition to
 the gas fees needed to deploy the contract on the blockchain, which is not
 returned. We ``assert`` that the deposit is divisible by 2 to ensure that the
 seller deposited a valid amount. The constructor stores the item's value
@@ -288,7 +288,7 @@ previous examples. Let's dive right in.
   :lines: 3-13
 
 Like other examples, we begin by initiating our variables - except this time,
-we're not calling them with the ``public`` function. Variables initiated this
+we're not calling them with the ``public`` function. Variables initialized this
 way are, by default, private.
 
 .. note::
@@ -407,7 +407,7 @@ Let’s move onto the constructor.
   :lines: 53-62
 
 In the constructor, we hard-coded the contract to accept an
-array argument of exactly two proposal names of type ``bytes32`` for the contracts
+array argument of exactly two proposal names of type ``bytes32`` for the contract's
 initialization. Because upon initialization, the ``__init__()`` method is called
 by the contract creator, we have access to the contract creator’s address with
 ``msg.sender`` and store it in the contract variable ``self.chairperson``. We
@@ -444,7 +444,7 @@ total number of voters by incrementing ``voterCount``.
 In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
 not the same. Voters shouldn’t be able to delegate votes to themselves. We,
-then, loop through all the voters to determine whether the person delegate to
+then, loop through all the voters to determine whether the person delegate
 had further delegated their vote to someone else in order to follow the
 chain of delegation. We then mark the ``msg.sender`` as having voted if they
 delegated their vote. We increment the proposal’s ``voterCount`` directly if
@@ -458,9 +458,9 @@ if the delegate has not yet voted.
 
 Now, let’s take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
-mapping as an argument, check that the method caller had not already voted,
+mapping as an argument, checks that the method caller had not already voted,
 sets the voter’s ``vote`` property to the proposal key, and increments the
-proposals ``voteCount`` by the voter’s ``weight``.
+proposal's ``voteCount`` by the voter’s ``weight``.
 
 With all the basic functionality complete, what’s left is simply returning
 the winning proposal. To do this, we have two methods: ``winningProposal()``,
@@ -489,7 +489,7 @@ respectively by looping through all the proposals.
   :lines: 175-178
 
 And finally, the ``winnerName()`` method returns the name of the proposal by
-key’ing into the ``proposals`` mapping with the return result of the
+keying into the ``proposals`` mapping with the return result of the
 ``winningProposal()`` method.
 
 And there you have it - a voting contract. Currently, many transactions
@@ -563,7 +563,7 @@ company's address and check it's holdings.  Because ``_stockAvailable()`` is an
 internal method, we also include the ``stockAvailable()`` method to allow
 external access.
 
-Now, lets take a look at a method that lets a person buy stock from the
+Now, let's take a look at a method that lets a person buy stock from the
 company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
@@ -628,7 +628,7 @@ The company is also allowed to pay out an amount in ether to an address by
 calling the ``payBill()`` method. This method should only be callable by the
 company and thus first checks whether the method caller's address matches that
 of the company. Another important condition to check is that the company has
-enough funds to pay the amount. If both conditions satisfy, the contract
+enough funds to pay the amount. If both conditions are satisfied, the contract
 sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
@@ -637,7 +637,7 @@ sends its ether to an address.
   :lines: 126-130
 
 We can also check how much the company has raised by multiplying the number of
-shares the company has sold and the price of each share. Internally, we get
+shares that the company has sold and the price of each share. Internally, we get
 this value by calling the ``_debt()`` method. Externally it is accessed via ``debt()``.
 
 .. literalinclude:: ../examples/stock/company.vy
