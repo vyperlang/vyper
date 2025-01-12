@@ -31,9 +31,10 @@ def _wrap256(x, unsigned: bool):
     return x
 
 
-class DFGUpdater:
+class InstructionUpdater:
     """
-    A helper class which updates the basic block and dfg in place
+    A helper class for updating instructions which also updates the
+    basic block and dfg in place
     """
 
     def __init__(self, dfg: DFGAnalysis):
@@ -62,7 +63,7 @@ class DFGUpdater:
     def _store(self, inst: IRInstruction, op: IROperand):
         self._update(inst, "store", [op])
 
-    def _add(self, inst: IRInstruction, opcode: str, args: list[IROperand]) -> IRVariable:
+    def _add_before(self, inst: IRInstruction, opcode: str, args: list[IROperand]) -> IRVariable:
         """
         Insert another instruction before the given instruction
         """
@@ -91,11 +92,11 @@ class AlgebraicOptimizationPass(IRPass):
     """
 
     dfg: DFGAnalysis
-    updater: DFGUpdater
+    updater: InstructionUpdater
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        self.updater = DFGUpdater(self.dfg)
+        self.updater = InstructionUpdater(self.dfg)
 
         self._optimize_iszero_chains()
         self._handle_offset()
@@ -287,7 +288,7 @@ class AlgebraicOptimizationPass(IRPass):
                 # but xor is slightly easier to optimize because of being
                 # commutative.
                 # note that (xor (-1) x) has its own rule
-                tmp = self.updater._add(inst, "xor", [operands[0], operands[1]])
+                tmp = self.updater._add_before(inst, "xor", [operands[0], operands[1]])
 
                 self.updater._update(inst, "iszero", [tmp])
                 return
@@ -337,7 +338,7 @@ class AlgebraicOptimizationPass(IRPass):
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
             if not prefer_strict and lit_eq(operands[0], almost_always):
                 # e.g. gt x 0, slt x MAX_INT256
-                tmp = self.updater._add(inst, "eq", operands)
+                tmp = self.updater._add_before(inst, "eq", operands)
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
@@ -345,7 +346,7 @@ class AlgebraicOptimizationPass(IRPass):
             if opcode == "gt" and lit_eq(operands[0], 0):
                 # improve codesize (not gas) and maybe trigger
                 # downstream optimizations
-                tmp = self.updater._add(inst, "iszero", [operands[1]])
+                tmp = self.updater._add_before(inst, "iszero", [operands[1]])
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
@@ -420,7 +421,7 @@ class AlgebraicOptimizationPass(IRPass):
         src.opcode = n_opcode
         src.operands = [IRLiteral(val), src.operands[1]]
 
-        var = self.updater._add(inst, "iszero", [src.output])
+        var = self.updater._add_before(inst, "iszero", [src.output])
 
         self.updater._update(inst, inst.opcode, [var])
 
