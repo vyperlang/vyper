@@ -225,11 +225,11 @@ class PreParser:
             end = token.end
             line = token.line
 
-            for tok in toks:
-                lineno, col = tok.start
-                adj = _col_adjustments[lineno]
-                newstart = lineno, col - adj
-                adjustments[lineno, col - adj] = adj
+            # handle adjustments
+            lineno, col = token.start
+            adj = _col_adjustments[lineno]
+            newstart = lineno, col - adj
+            adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -287,36 +287,25 @@ class PreParser:
                 )
 
             if typ == NAME:
+                # see if it's a keyword we need to replace
+                new_keyword = None
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     new_keyword = "class"
-                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-
-                    adjustment = len(string) - len(new_keyword)
-                    # adjustments for following tokens
-                    lineno, col = start
-                    _col_adjustments[lineno] += adjustment
-
-                    keyword_translations[newstart] = VYPER_CLASS_TYPES[string]
-
+                    vyper_type = VYPER_CLASS_TYPES[string]
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
-                    adjustment = len(string) - len(new_keyword)
-                    # adjustments for following tokens
-                    lineno, col = start
-                    _col_adjustments[lineno] += adjustment
-                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    keyword_translations[newstart] = CUSTOM_STATEMENT_TYPES[string]
-
+                    vyper_type = CUSTOM_STATEMENT_TYPES[string]
                 elif string in CUSTOM_EXPRESSION_TYPES:
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
+                if new_keyword is not None:
+                    keyword_translations[newstart] = vyper_type
+
                     adjustment = len(string) - len(new_keyword)
                     # adjustments for following tokens
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
-
-                    keyword_translations[newstart] = vyper_type
 
                     # a bit cursed technique to get untokenize to put
                     # the new tokens in the right place so that
