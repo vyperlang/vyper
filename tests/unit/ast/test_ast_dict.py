@@ -46,39 +46,39 @@ a: int128
     dict_out = compiler.compile_code(code, output_formats=["annotated_ast_dict"], source_id=0)
     assert dict_out["annotated_ast_dict"]["ast"]["body"][0] == {
         "annotation": {
-            "node_id": 3,
-            "end_lineno": 2,
-            "lineno": 2,
-            "end_col_offset": 9,
-            "src": "4:6:0",
             "ast_type": "Name",
             "col_offset": 3,
+            "end_col_offset": 9,
+            "end_lineno": 2,
             "id": "int128",
+            "lineno": 2,
+            "node_id": 4,
+            "src": "4:6:0",
         },
-        "node_id": 1,
-        "end_lineno": 2,
+        "ast_type": "VariableDecl",
+        "col_offset": 0,
         "end_col_offset": 9,
+        "end_lineno": 2,
+        "is_constant": False,
+        "is_immutable": False,
+        "is_public": False,
         "is_transient": False,
         "lineno": 2,
+        "node_id": 1,
         "src": "1:9:0",
-        "is_public": False,
-        "value": None,
-        "ast_type": "VariableDecl",
-        "is_constant": False,
-        "col_offset": 0,
         "target": {
-            "node_id": 2,
-            "end_lineno": 2,
-            "lineno": 2,
-            "end_col_offset": 1,
-            "src": "1:1:0",
             "ast_type": "Name",
             "col_offset": 0,
+            "end_col_offset": 1,
+            "end_lineno": 2,
             "id": "a",
-            "type": {"is_signed": True, "bits": 128, "name": "int128", "typeclass": "integer"},
+            "lineno": 2,
+            "node_id": 2,
+            "src": "1:1:0",
+            "type": {"bits": 128, "is_signed": True, "name": "int128", "typeclass": "integer"},
         },
-        "is_immutable": False,
-        "type": {"is_signed": True, "bits": 128, "name": "int128", "typeclass": "integer"},
+        "type": {"bits": 128, "is_signed": True, "name": "int128", "typeclass": "integer"},
+        "value": None,
     }
 
 
@@ -96,23 +96,23 @@ def foo() -> uint256:
     """
     dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
-        "end_lineno": 5,
-        "node_id": 7,
         "col_offset": 0,
-        "end_col_offset": 15,
-        "src": "48:15:0",
         "annotation": {
-            "id": "Foo",
-            "end_lineno": 5,
-            "node_id": 9,
             "col_offset": 12,
             "end_col_offset": 15,
+            "node_id": 12,
             "src": "60:3:0",
-            "lineno": 5,
             "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "Foo",
         },
-        "lineno": 5,
+        "end_col_offset": 15,
+        "node_id": 9,
+        "src": "48:15:0",
         "ast_type": "ImplementsDecl",
+        "end_lineno": 5,
+        "lineno": 5,
     }
 
 
@@ -240,165 +240,165 @@ def foo():
 
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
-        "node_id": 0,
-        "path": "main.vy",
+        "ast_type": "Module",
         "body": [
             {
                 "alias": None,
-                "node_id": 1,
-                "name": "lib1",
                 "ast_type": "Import",
                 "import_info": {
                     "alias": "lib1",
+                    "file_sha256sum": lib1_file.sha256sum,
+                    "path": "lib1.vy",
                     "qualified_module_name": "lib1",
                     "source_id": 0,
-                    "path": "lib1.vy",
-                    "file_sha256sum": lib1_sha256sum,
                 },
+                "name": "lib1",
+                "node_id": 1,
             },
             {
-                "node_id": 3,
-                "annotation": {"node_id": 5, "id": "lib1", "ast_type": "Name"},
+                "annotation": {"ast_type": "Name", "id": "lib1", "node_id": 6},
                 "ast_type": "InitializesDecl",
+                "node_id": 3,
             },
             {
-                "node_id": 6,
-                "returns": None,
-                "pos": None,
+                "args": {
+                    "args": [],
+                    "ast_type": "arguments",
+                    "default": None,
+                    "defaults": [],
+                    "node_id": 9,
+                },
+                "ast_type": "FunctionDef",
                 "body": [
                     {
-                        "node_id": 8,
+                        "ast_type": "Expr",
+                        "node_id": 10,
                         "value": {
-                            "node_id": 9,
-                            "keywords": [],
                             "args": [],
+                            "ast_type": "Call",
                             "func": {
-                                "attr": "foo",
-                                "node_id": 10,
-                                "value": {
-                                    "node_id": 11,
-                                    "id": "lib1",
-                                    "ast_type": "Name",
-                                    "type": {
-                                        "name": "lib1.vy",
-                                        "type_decl_node": {"node_id": 0, "source_id": 0},
-                                        "typeclass": "module",
-                                    },
-                                },
                                 "ast_type": "Attribute",
+                                "attr": "foo",
+                                "node_id": 12,
                                 "type": {
                                     "name": "foo",
-                                    "type_decl_node": {"node_id": 74, "source_id": 0},
+                                    "type_decl_node": {"node_id": 119, "source_id": 0},
                                     "typeclass": "contract_function",
                                 },
-                            },
-                            "ast_type": "Call",
-                            "type": {"name": "(void)"},
-                        },
-                        "ast_type": "Expr",
-                    },
-                    {
-                        "node_id": 13,
-                        "value": {
-                            "node_id": 14,
-                            "keywords": [],
-                            "args": [],
-                            "func": {
-                                "attr": "Bar",
-                                "node_id": 15,
                                 "value": {
-                                    "node_id": 16,
-                                    "id": "lib1",
                                     "ast_type": "Name",
+                                    "id": "lib1",
+                                    "node_id": 13,
                                     "type": {
                                         "name": "lib1.vy",
                                         "type_decl_node": {"node_id": 0, "source_id": 0},
                                         "typeclass": "module",
                                     },
                                 },
+                            },
+                            "keywords": [],
+                            "node_id": 11,
+                            "type": {"name": "(void)"},
+                        },
+                    },
+                    {
+                        "ast_type": "Log",
+                        "node_id": 17,
+                        "type": {
+                            "name": "Bar",
+                            "type_decl_node": {"node_id": 7, "source_id": 0},
+                            "typeclass": "event",
+                        },
+                        "value": {
+                            "args": [],
+                            "ast_type": "Call",
+                            "func": {
                                 "ast_type": "Attribute",
+                                "attr": "Bar",
+                                "node_id": 19,
                                 "type": {
                                     "type_t": {
                                         "name": "Bar",
-                                        "type_decl_node": {"node_id": 5, "source_id": 0},
+                                        "type_decl_node": {"node_id": 7, "source_id": 0},
                                         "typeclass": "event",
                                     }
                                 },
+                                "value": {
+                                    "ast_type": "Name",
+                                    "id": "lib1",
+                                    "node_id": 20,
+                                    "type": {
+                                        "name": "lib1.vy",
+                                        "type_decl_node": {"node_id": 0, "source_id": 0},
+                                        "typeclass": "module",
+                                    },
+                                },
                             },
-                            "ast_type": "Call",
+                            "keywords": [],
+                            "node_id": 18,
                             "type": {"name": "(void)"},
-                        },
-                        "ast_type": "Log",
-                        "type": {
-                            "name": "Bar",
-                            "type_decl_node": {"node_id": 5, "source_id": 0},
-                            "typeclass": "event",
                         },
                     },
                     {
-                        "node_id": 17,
                         "annotation": {
-                            "attr": "Foo",
-                            "node_id": 19,
-                            "value": {"node_id": 20, "id": "lib1", "ast_type": "Name"},
                             "ast_type": "Attribute",
+                            "attr": "Foo",
+                            "node_id": 26,
+                            "value": {"ast_type": "Name", "id": "lib1", "node_id": 27},
+                        },
+                        "ast_type": "AnnAssign",
+                        "node_id": 23,
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "s",
+                            "node_id": 24,
+                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
                         "value": {
-                            "node_id": 21,
-                            "keywords": [],
                             "args": [
                                 {
+                                    "ast_type": "Attribute",
                                     "attr": "Foo",
-                                    "node_id": 23,
+                                    "node_id": 33,
+                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
                                     "value": {
-                                        "node_id": 24,
-                                        "id": "lib1",
                                         "ast_type": "Name",
+                                        "id": "lib1",
+                                        "node_id": 34,
                                         "type": {
                                             "name": "lib1.vy",
                                             "type_decl_node": {"node_id": 0, "source_id": 0},
                                             "typeclass": "module",
                                         },
                                     },
-                                    "ast_type": "Attribute",
-                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 22,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 31,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
-                            "type": {"name": "Foo", "typeclass": "struct"},
-                        },
-                        "ast_type": "AnnAssign",
-                        "target": {
-                            "node_id": 18,
-                            "id": "s",
-                            "ast_type": "Name",
+                            "keywords": [],
+                            "node_id": 30,
                             "type": {"name": "Foo", "typeclass": "struct"},
                         },
                     },
                 ],
-                "decorator_list": [{"node_id": 25, "id": "internal", "ast_type": "Name"}],
-                "args": {
-                    "node_id": 7,
-                    "args": [],
-                    "defaults": [],
-                    "ast_type": "arguments",
-                    "default": None,
-                },
-                "name": "foo",
+                "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 37}],
                 "doc_string": None,
-                "ast_type": "FunctionDef",
+                "name": "foo",
+                "node_id": 8,
+                "pos": None,
+                "returns": None,
             },
         ],
         "doc_string": None,
         "name": None,
+        "node_id": 0,
+        "path": "main.vy",
         "source_id": 1,
-        "ast_type": "Module",
         "is_interface": False,
         "type": {
             "name": "main.vy",
@@ -411,744 +411,736 @@ def foo():
     # TODO: write the test in a way which makes the links between nodes
     # clearer
     assert lib1_ast == {
-        "path": "lib1.vy",
-        "node_id": 0,
-        "source_id": 0,
-        "is_interface": False,
-        "doc_string": None,
+        "ast_type": "Module",
         "body": [
             {
-                "node_id": 1,
-                "doc_string": None,
+                "ast_type": "StructDef",
                 "body": [
                     {
-                        "node_id": 2,
-                        "target": {"node_id": 3, "id": "x", "ast_type": "Name"},
+                        "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 5},
                         "ast_type": "AnnAssign",
+                        "node_id": 2,
+                        "target": {"ast_type": "Name", "id": "x", "node_id": 3},
                         "value": None,
-                        "annotation": {"node_id": 4, "id": "uint256", "ast_type": "Name"},
                     }
                 ],
-                "ast_type": "StructDef",
+                "doc_string": None,
                 "name": "Foo",
+                "node_id": 1,
             },
             {
-                "node_id": 5,
-                "doc_string": None,
-                "body": [{"node_id": 6, "ast_type": "Pass"}],
                 "ast_type": "EventDef",
+                "body": [{"ast_type": "Pass", "node_id": 8}],
+                "doc_string": None,
                 "name": "Bar",
+                "node_id": 7,
             },
             {
-                "node_id": 7,
-                "doc_string": None,
+                "ast_type": "StructDef",
                 "body": [
                     {
-                        "node_id": 8,
-                        "target": {"node_id": 9, "id": "x", "ast_type": "Name"},
+                        "annotation": {"ast_type": "Name", "id": "decimal", "node_id": 13},
                         "ast_type": "AnnAssign",
+                        "node_id": 10,
+                        "target": {"ast_type": "Name", "id": "x", "node_id": 11},
                         "value": None,
-                        "annotation": {"node_id": 10, "id": "decimal", "ast_type": "Name"},
                     },
                     {
-                        "node_id": 11,
-                        "target": {"node_id": 12, "id": "y", "ast_type": "Name"},
-                        "ast_type": "AnnAssign",
-                        "value": None,
                         "annotation": {
-                            "node_id": 13,
-                            "slice": {"node_id": 15, "ast_type": "Int", "value": 20},
                             "ast_type": "Subscript",
-                            "value": {"node_id": 14, "id": "Bytes", "ast_type": "Name"},
-                        },
-                    },
-                    {
-                        "node_id": 16,
-                        "target": {"node_id": 17, "id": "z", "ast_type": "Name"},
-                        "ast_type": "AnnAssign",
-                        "value": None,
-                        "annotation": {
                             "node_id": 18,
-                            "slice": {"node_id": 20, "ast_type": "Int", "value": 32},
-                            "ast_type": "Subscript",
-                            "value": {"node_id": 19, "id": "String", "ast_type": "Name"},
+                            "slice": {"ast_type": "Int", "node_id": 21, "value": 20},
+                            "value": {"ast_type": "Name", "id": "Bytes", "node_id": 19},
                         },
+                        "ast_type": "AnnAssign",
+                        "node_id": 15,
+                        "target": {"ast_type": "Name", "id": "y", "node_id": 16},
+                        "value": None,
                     },
                     {
-                        "node_id": 21,
-                        "target": {"node_id": 22, "id": "w", "ast_type": "Name"},
+                        "annotation": {
+                            "ast_type": "Subscript",
+                            "node_id": 26,
+                            "slice": {"ast_type": "Int", "node_id": 29, "value": 32},
+                            "value": {"ast_type": "Name", "id": "String", "node_id": 27},
+                        },
                         "ast_type": "AnnAssign",
+                        "node_id": 23,
+                        "target": {"ast_type": "Name", "id": "z", "node_id": 24},
                         "value": None,
-                        "annotation": {"node_id": 23, "id": "uint256", "ast_type": "Name"},
                     },
                     {
-                        "node_id": 24,
-                        "target": {"node_id": 25, "id": "u", "ast_type": "Name"},
+                        "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 34},
                         "ast_type": "AnnAssign",
+                        "node_id": 31,
+                        "target": {"ast_type": "Name", "id": "w", "node_id": 32},
                         "value": None,
-                        "annotation": {"node_id": 26, "id": "address", "ast_type": "Name"},
+                    },
+                    {
+                        "annotation": {"ast_type": "Name", "id": "address", "node_id": 39},
+                        "ast_type": "AnnAssign",
+                        "node_id": 36,
+                        "target": {"ast_type": "Name", "id": "u", "node_id": 37},
+                        "value": None,
                     },
                 ],
-                "ast_type": "StructDef",
+                "doc_string": None,
                 "name": "Baz",
+                "node_id": 9,
             },
             {
-                "node_id": 27,
-                "doc_string": None,
+                "ast_type": "InterfaceDef",
                 "body": [
                     {
-                        "node_id": 28,
-                        "decorator_list": [],
                         "args": {
-                            "node_id": 29,
                             "args": [],
+                            "ast_type": "arguments",
                             "default": None,
                             "defaults": [],
-                            "ast_type": "arguments",
+                            "node_id": 43,
                         },
-                        "doc_string": None,
-                        "returns": {
-                            "node_id": 32,
-                            "elements": [
-                                {
-                                    "node_id": 33,
-                                    "slice": {"node_id": 35, "ast_type": "Int", "value": 1},
-                                    "ast_type": "Subscript",
-                                    "value": {"node_id": 34, "id": "Foo", "ast_type": "Name"},
-                                },
-                                {"node_id": 36, "id": "uint256", "ast_type": "Name"},
-                            ],
-                            "ast_type": "Tuple",
-                        },
-                        "pos": None,
+                        "ast_type": "FunctionDef",
                         "body": [
                             {
-                                "node_id": 30,
                                 "ast_type": "Expr",
-                                "value": {"node_id": 31, "id": "nonpayable", "ast_type": "Name"},
+                                "node_id": 44,
+                                "value": {"ast_type": "Name", "id": "nonpayable", "node_id": 45},
                             }
                         ],
-                        "ast_type": "FunctionDef",
+                        "decorator_list": [],
+                        "doc_string": None,
                         "name": "return_tuple",
+                        "node_id": 42,
+                        "pos": None,
+                        "returns": {
+                            "ast_type": "Tuple",
+                            "elements": [
+                                {
+                                    "ast_type": "Subscript",
+                                    "node_id": 48,
+                                    "slice": {"ast_type": "Int", "node_id": 51, "value": 1},
+                                    "value": {"ast_type": "Name", "id": "Foo", "node_id": 49},
+                                },
+                                {"ast_type": "Name", "id": "uint256", "node_id": 53},
+                            ],
+                            "node_id": 47,
+                        },
                     }
                 ],
-                "ast_type": "InterfaceDef",
+                "doc_string": None,
                 "name": "Qux",
+                "node_id": 41,
             },
             {
-                "node_id": 37,
+                "annotation": {"ast_type": "Name", "id": "Foo", "node_id": 59},
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 56,
                 "target": {
-                    "node_id": 38,
-                    "id": "foo_var",
                     "ast_type": "Name",
+                    "id": "foo_var",
+                    "node_id": 57,
                     "type": {"name": "Foo", "typeclass": "struct"},
                 },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {"node_id": 39, "id": "Foo", "ast_type": "Name"},
                 "type": {"name": "Foo", "typeclass": "struct"},
+                "value": None,
             },
             {
-                "node_id": 40,
+                "annotation": {
+                    "ast_type": "Subscript",
+                    "node_id": 64,
+                    "slice": {"ast_type": "Int", "node_id": 67, "value": 1},
+                    "value": {"ast_type": "Name", "id": "Foo", "node_id": 65},
+                },
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 61,
                 "target": {
-                    "node_id": 41,
-                    "id": "sarray_var",
                     "ast_type": "Name",
+                    "id": "sarray_var",
+                    "node_id": 62,
                     "type": {
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "length": 1,
                         "name": "$SArray",
                         "typeclass": "static_array",
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {
-                    "node_id": 42,
-                    "slice": {"node_id": 44, "ast_type": "Int", "value": 1},
-                    "ast_type": "Subscript",
-                    "value": {"node_id": 43, "id": "Foo", "ast_type": "Name"},
-                },
                 "type": {
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "length": 1,
                     "name": "$SArray",
                     "typeclass": "static_array",
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
+                "value": None,
             },
             {
-                "node_id": 45,
+                "annotation": {
+                    "ast_type": "Subscript",
+                    "node_id": 72,
+                    "slice": {
+                        "ast_type": "Tuple",
+                        "elements": [
+                            {"ast_type": "Name", "id": "Foo", "node_id": 76},
+                            {"ast_type": "Int", "node_id": 78, "value": 5},
+                        ],
+                        "node_id": 75,
+                    },
+                    "value": {"ast_type": "Name", "id": "DynArray", "node_id": 73},
+                },
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 69,
                 "target": {
-                    "node_id": 46,
-                    "id": "darray_var",
                     "ast_type": "Name",
+                    "id": "darray_var",
+                    "node_id": 70,
                     "type": {
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "length": 5,
                         "name": "DynArray",
                         "typeclass": "dynamic_array",
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
-                },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {
-                    "node_id": 47,
-                    "slice": {
-                        "node_id": 49,
-                        "elements": [
-                            {"node_id": 50, "id": "Foo", "ast_type": "Name"},
-                            {"node_id": 51, "ast_type": "Int", "value": 5},
-                        ],
-                        "ast_type": "Tuple",
-                    },
-                    "ast_type": "Subscript",
-                    "value": {"node_id": 48, "id": "DynArray", "ast_type": "Name"},
                 },
                 "type": {
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "length": 5,
                     "name": "DynArray",
                     "typeclass": "dynamic_array",
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
+                "value": None,
             },
             {
-                "node_id": 52,
+                "annotation": {"ast_type": "Name", "id": "Qux", "node_id": 84},
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 81,
                 "target": {
-                    "node_id": 53,
-                    "id": "interface_var",
                     "ast_type": "Name",
+                    "id": "interface_var",
+                    "node_id": 82,
                     "type": {
                         "name": "Qux",
-                        "type_decl_node": {"node_id": 27, "source_id": 0},
+                        "type_decl_node": {"node_id": 41, "source_id": 0},
                         "typeclass": "interface",
                     },
                 },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {"node_id": 54, "id": "Qux", "ast_type": "Name"},
                 "type": {
                     "name": "Qux",
-                    "type_decl_node": {"node_id": 27, "source_id": 0},
+                    "type_decl_node": {"node_id": 41, "source_id": 0},
                     "typeclass": "interface",
                 },
+                "value": None,
             },
             {
-                "node_id": 55,
+                "annotation": {
+                    "ast_type": "Subscript",
+                    "node_id": 89,
+                    "slice": {
+                        "ast_type": "Tuple",
+                        "elements": [
+                            {"ast_type": "Name", "id": "address", "node_id": 93},
+                            {"ast_type": "Name", "id": "Foo", "node_id": 95},
+                        ],
+                        "node_id": 92,
+                    },
+                    "value": {"ast_type": "Name", "id": "HashMap", "node_id": 90},
+                },
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 86,
                 "target": {
-                    "node_id": 56,
-                    "id": "hashmap_var",
                     "ast_type": "Name",
+                    "id": "hashmap_var",
+                    "node_id": 87,
                     "type": {
                         "key_type": {"name": "address"},
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "name": "HashMap",
                         "typeclass": "hashmap",
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
-                },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {
-                    "node_id": 57,
-                    "slice": {
-                        "node_id": 59,
-                        "elements": [
-                            {"node_id": 60, "id": "address", "ast_type": "Name"},
-                            {"node_id": 61, "id": "Foo", "ast_type": "Name"},
-                        ],
-                        "ast_type": "Tuple",
-                    },
-                    "ast_type": "Subscript",
-                    "value": {"node_id": 58, "id": "HashMap", "ast_type": "Name"},
                 },
                 "type": {
                     "key_type": {"name": "address"},
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "name": "HashMap",
                     "typeclass": "hashmap",
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
+                "value": None,
             },
             {
-                "node_id": 62,
+                "annotation": {
+                    "ast_type": "Subscript",
+                    "node_id": 102,
+                    "slice": {"ast_type": "Int", "node_id": 105, "value": 2},
+                    "value": {"ast_type": "Name", "id": "uint256", "node_id": 103},
+                },
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 99,
                 "target": {
-                    "node_id": 63,
-                    "id": "sarray_var2",
                     "ast_type": "Name",
+                    "id": "sarray_var2",
+                    "node_id": 100,
                     "type": {
-                        "value_type": {
-                            "is_signed": False,
-                            "bits": 256,
-                            "name": "uint256",
-                            "typeclass": "integer",
-                        },
                         "length": 2,
                         "name": "$SArray",
                         "typeclass": "static_array",
-                    },
-                },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {
-                    "node_id": 64,
-                    "slice": {"node_id": 66, "ast_type": "Int", "value": 2},
-                    "ast_type": "Subscript",
-                    "value": {"node_id": 65, "id": "uint256", "ast_type": "Name"},
-                },
-                "type": {
-                    "value_type": {
-                        "is_signed": False,
-                        "bits": 256,
-                        "name": "uint256",
-                        "typeclass": "integer",
-                    },
-                    "length": 2,
-                    "name": "$SArray",
-                    "typeclass": "static_array",
-                },
-            },
-            {
-                "node_id": 67,
-                "target": {
-                    "node_id": 68,
-                    "id": "darray_var2",
-                    "ast_type": "Name",
-                    "type": {
                         "value_type": {
-                            "is_signed": False,
                             "bits": 256,
+                            "is_signed": False,
                             "name": "uint256",
                             "typeclass": "integer",
                         },
-                        "length": 5,
-                        "name": "DynArray",
-                        "typeclass": "dynamic_array",
                     },
-                },
-                "is_constant": False,
-                "is_transient": False,
-                "is_immutable": False,
-                "ast_type": "VariableDecl",
-                "value": None,
-                "is_public": False,
-                "annotation": {
-                    "node_id": 69,
-                    "slice": {
-                        "node_id": 71,
-                        "elements": [
-                            {"node_id": 72, "id": "uint256", "ast_type": "Name"},
-                            {"node_id": 73, "ast_type": "Int", "value": 5},
-                        ],
-                        "ast_type": "Tuple",
-                    },
-                    "ast_type": "Subscript",
-                    "value": {"node_id": 70, "id": "DynArray", "ast_type": "Name"},
                 },
                 "type": {
+                    "length": 2,
+                    "name": "$SArray",
+                    "typeclass": "static_array",
                     "value_type": {
-                        "is_signed": False,
                         "bits": 256,
+                        "is_signed": False,
                         "name": "uint256",
                         "typeclass": "integer",
                     },
+                },
+                "value": None,
+            },
+            {
+                "annotation": {
+                    "ast_type": "Subscript",
+                    "node_id": 110,
+                    "slice": {
+                        "ast_type": "Tuple",
+                        "elements": [
+                            {"ast_type": "Name", "id": "uint256", "node_id": 114},
+                            {"ast_type": "Int", "node_id": 116, "value": 5},
+                        ],
+                        "node_id": 113,
+                    },
+                    "value": {"ast_type": "Name", "id": "DynArray", "node_id": 111},
+                },
+                "ast_type": "VariableDecl",
+                "is_constant": False,
+                "is_immutable": False,
+                "is_public": False,
+                "is_transient": False,
+                "node_id": 107,
+                "target": {
+                    "ast_type": "Name",
+                    "id": "darray_var2",
+                    "node_id": 108,
+                    "type": {
+                        "length": 5,
+                        "name": "DynArray",
+                        "typeclass": "dynamic_array",
+                        "value_type": {
+                            "bits": 256,
+                            "is_signed": False,
+                            "name": "uint256",
+                            "typeclass": "integer",
+                        },
+                    },
+                },
+                "type": {
                     "length": 5,
                     "name": "DynArray",
                     "typeclass": "dynamic_array",
+                    "value_type": {
+                        "bits": 256,
+                        "is_signed": False,
+                        "name": "uint256",
+                        "typeclass": "integer",
+                    },
                 },
+                "value": None,
             },
             {
-                "node_id": 74,
-                "decorator_list": [{"node_id": 120, "id": "internal", "ast_type": "Name"}],
                 "args": {
-                    "node_id": 75,
                     "args": [],
+                    "ast_type": "arguments",
                     "default": None,
                     "defaults": [],
-                    "ast_type": "arguments",
+                    "node_id": 120,
                 },
-                "doc_string": None,
-                "returns": None,
-                "pos": None,
+                "ast_type": "FunctionDef",
                 "body": [
                     {
-                        "node_id": 76,
+                        "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 124},
+                        "ast_type": "AnnAssign",
+                        "node_id": 121,
                         "target": {
-                            "node_id": 77,
-                            "id": "t",
                             "ast_type": "Name",
+                            "id": "t",
+                            "node_id": 122,
                             "type": {
-                                "is_signed": False,
                                 "bits": 256,
+                                "is_signed": False,
                                 "name": "uint256",
                                 "typeclass": "integer",
                             },
                         },
-                        "ast_type": "AnnAssign",
                         "value": {
-                            "node_id": 79,
                             "args": [
                                 {
-                                    "node_id": 81,
-                                    "id": "uint256",
                                     "ast_type": "Name",
+                                    "id": "uint256",
+                                    "node_id": 129,
                                     "type": {
                                         "type_t": {
-                                            "is_signed": False,
                                             "bits": 256,
+                                            "is_signed": False,
                                             "name": "uint256",
                                             "typeclass": "integer",
                                         }
                                     },
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 80,
-                                "id": "max_value",
                                 "ast_type": "Name",
+                                "id": "max_value",
+                                "node_id": 127,
                                 "type": {"name": "max_value", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 126,
                             "type": {
-                                "is_signed": False,
                                 "bits": 256,
+                                "is_signed": False,
                                 "name": "uint256",
                                 "typeclass": "integer",
                             },
                         },
-                        "annotation": {"node_id": 78, "id": "uint256", "ast_type": "Name"},
                     },
                     {
-                        "node_id": 82,
+                        "annotation": {"ast_type": "Name", "id": "int24", "node_id": 134},
+                        "ast_type": "AnnAssign",
+                        "node_id": 131,
                         "target": {
-                            "node_id": 83,
-                            "id": "u",
                             "ast_type": "Name",
+                            "id": "u",
+                            "node_id": 132,
                             "type": {
-                                "is_signed": True,
                                 "bits": 24,
+                                "is_signed": True,
                                 "name": "int24",
                                 "typeclass": "integer",
                             },
                         },
-                        "ast_type": "AnnAssign",
                         "value": {
-                            "node_id": 85,
                             "args": [
                                 {
-                                    "node_id": 87,
-                                    "id": "int24",
                                     "ast_type": "Name",
+                                    "id": "int24",
+                                    "node_id": 139,
                                     "type": {
                                         "type_t": {
-                                            "is_signed": True,
                                             "bits": 24,
+                                            "is_signed": True,
                                             "name": "int24",
                                             "typeclass": "integer",
                                         }
                                     },
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 86,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 137,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 136,
                             "type": {
-                                "is_signed": True,
                                 "bits": 24,
+                                "is_signed": True,
                                 "name": "int24",
                                 "typeclass": "integer",
                             },
                         },
-                        "annotation": {"node_id": 84, "id": "int24", "ast_type": "Name"},
                     },
                     {
-                        "node_id": 88,
+                        "ast_type": "Assign",
+                        "node_id": 141,
                         "target": {
-                            "node_id": 89,
-                            "attr": "foo_var",
                             "ast_type": "Attribute",
+                            "attr": "foo_var",
+                            "node_id": 142,
+                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
-                                "node_id": 90,
-                                "id": "self",
                                 "ast_type": "Name",
+                                "id": "self",
+                                "node_id": 143,
                                 "type": {"name": "self"},
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
-                        "ast_type": "Assign",
                         "value": {
-                            "node_id": 91,
                             "args": [
                                 {
-                                    "node_id": 93,
-                                    "id": "Foo",
                                     "ast_type": "Name",
+                                    "id": "Foo",
+                                    "node_id": 149,
                                     "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 92,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 147,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 146,
                             "type": {"name": "Foo", "typeclass": "struct"},
                         },
                     },
                     {
-                        "node_id": 94,
+                        "ast_type": "Assign",
+                        "node_id": 151,
                         "target": {
-                            "node_id": 95,
+                            "ast_type": "Subscript",
+                            "node_id": 152,
                             "slice": {
-                                "node_id": 98,
                                 "ast_type": "Int",
-                                "value": 0,
+                                "node_id": 157,
                                 "type": {
-                                    "is_signed": True,
                                     "bits": 8,
+                                    "is_signed": True,
                                     "name": "int8",
                                     "typeclass": "integer",
                                 },
+                                "value": 0,
                             },
-                            "ast_type": "Subscript",
+                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
-                                "node_id": 96,
-                                "attr": "sarray_var",
                                 "ast_type": "Attribute",
-                                "value": {
-                                    "node_id": 97,
-                                    "id": "self",
-                                    "ast_type": "Name",
-                                    "type": {"name": "self"},
-                                },
+                                "attr": "sarray_var",
+                                "node_id": 153,
                                 "type": {
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
                                     "length": 1,
                                     "name": "$SArray",
                                     "typeclass": "static_array",
+                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                },
+                                "value": {
+                                    "ast_type": "Name",
+                                    "id": "self",
+                                    "node_id": 154,
+                                    "type": {"name": "self"},
                                 },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
-                        "ast_type": "Assign",
                         "value": {
-                            "node_id": 99,
                             "args": [
                                 {
-                                    "node_id": 101,
-                                    "id": "Foo",
                                     "ast_type": "Name",
+                                    "id": "Foo",
+                                    "node_id": 162,
                                     "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 100,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 160,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 159,
                             "type": {"name": "Foo", "typeclass": "struct"},
                         },
                     },
                     {
-                        "node_id": 102,
+                        "ast_type": "Assign",
+                        "node_id": 164,
                         "target": {
-                            "node_id": 103,
+                            "ast_type": "Subscript",
+                            "node_id": 165,
                             "slice": {
-                                "node_id": 106,
                                 "ast_type": "Int",
-                                "value": 1,
+                                "node_id": 170,
                                 "type": {
-                                    "is_signed": True,
                                     "bits": 8,
+                                    "is_signed": True,
                                     "name": "int8",
                                     "typeclass": "integer",
                                 },
+                                "value": 1,
                             },
-                            "ast_type": "Subscript",
+                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
-                                "node_id": 104,
-                                "attr": "darray_var",
                                 "ast_type": "Attribute",
-                                "value": {
-                                    "node_id": 105,
-                                    "id": "self",
-                                    "ast_type": "Name",
-                                    "type": {"name": "self"},
-                                },
+                                "attr": "darray_var",
+                                "node_id": 166,
                                 "type": {
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
                                     "length": 5,
                                     "name": "DynArray",
                                     "typeclass": "dynamic_array",
+                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                },
+                                "value": {
+                                    "ast_type": "Name",
+                                    "id": "self",
+                                    "node_id": 167,
+                                    "type": {"name": "self"},
                                 },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
-                        "ast_type": "Assign",
                         "value": {
-                            "node_id": 107,
                             "args": [
                                 {
-                                    "node_id": 109,
-                                    "id": "Foo",
                                     "ast_type": "Name",
+                                    "id": "Foo",
+                                    "node_id": 175,
                                     "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 108,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 173,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 172,
                             "type": {"name": "Foo", "typeclass": "struct"},
                         },
                     },
                     {
-                        "node_id": 110,
+                        "ast_type": "Assign",
+                        "node_id": 177,
                         "target": {
-                            "node_id": 111,
+                            "ast_type": "Tuple",
                             "elements": [
                                 {
-                                    "node_id": 112,
-                                    "attr": "sarray_var",
                                     "ast_type": "Attribute",
-                                    "value": {
-                                        "node_id": 113,
-                                        "id": "self",
-                                        "ast_type": "Name",
-                                        "type": {"name": "self"},
-                                    },
+                                    "attr": "sarray_var",
+                                    "node_id": 179,
                                     "type": {
-                                        "value_type": {"name": "Foo", "typeclass": "struct"},
                                         "length": 1,
                                         "name": "$SArray",
                                         "typeclass": "static_array",
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    },
+                                    "value": {
+                                        "ast_type": "Name",
+                                        "id": "self",
+                                        "node_id": 180,
+                                        "type": {"name": "self"},
                                     },
                                 },
                                 {
-                                    "node_id": 114,
-                                    "id": "t",
                                     "ast_type": "Name",
+                                    "id": "t",
+                                    "node_id": 183,
                                     "type": {
-                                        "is_signed": False,
                                         "bits": 256,
+                                        "is_signed": False,
                                         "name": "uint256",
                                         "typeclass": "integer",
                                     },
                                 },
                             ],
-                            "ast_type": "Tuple",
+                            "node_id": 178,
                             "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                         },
-                        "ast_type": "Assign",
                         "value": {
-                            "node_id": 115,
                             "ast_type": "ExtCall",
+                            "node_id": 186,
+                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                             "value": {
-                                "node_id": 116,
                                 "args": [],
+                                "ast_type": "Call",
                                 "func": {
-                                    "node_id": 117,
-                                    "attr": "return_tuple",
                                     "ast_type": "Attribute",
-                                    "value": {
-                                        "node_id": 118,
-                                        "attr": "interface_var",
-                                        "ast_type": "Attribute",
-                                        "value": {
-                                            "node_id": 119,
-                                            "id": "self",
-                                            "ast_type": "Name",
-                                            "type": {"name": "self"},
-                                        },
-                                        "type": {
-                                            "name": "Qux",
-                                            "type_decl_node": {"node_id": 27, "source_id": 0},
-                                            "typeclass": "interface",
-                                        },
-                                    },
+                                    "attr": "return_tuple",
+                                    "node_id": 188,
                                     "type": {
                                         "name": "return_tuple",
-                                        "type_decl_node": {"node_id": 28, "source_id": 0},
+                                        "type_decl_node": {"node_id": 42, "source_id": 0},
                                         "typeclass": "contract_function",
                                     },
+                                    "value": {
+                                        "ast_type": "Attribute",
+                                        "attr": "interface_var",
+                                        "node_id": 189,
+                                        "type": {
+                                            "name": "Qux",
+                                            "type_decl_node": {"node_id": 41, "source_id": 0},
+                                            "typeclass": "interface",
+                                        },
+                                        "value": {
+                                            "ast_type": "Name",
+                                            "id": "self",
+                                            "node_id": 190,
+                                            "type": {"name": "self"},
+                                        },
+                                    },
                                 },
-                                "ast_type": "Call",
                                 "keywords": [],
+                                "node_id": 187,
                                 "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                             },
-                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                         },
                     },
                 ],
-                "ast_type": "FunctionDef",
+                "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 194}],
+                "doc_string": None,
                 "name": "foo",
+                "node_id": 119,
+                "pos": None,
+                "returns": None,
             },
             {
-                "node_id": 121,
-                "decorator_list": [{"node_id": 129, "id": "external", "ast_type": "Name"}],
                 "args": {
-                    "node_id": 122,
                     "args": [],
+                    "ast_type": "arguments",
                     "default": None,
                     "defaults": [],
-                    "ast_type": "arguments",
+                    "node_id": 197,
                 },
-                "doc_string": None,
-                "returns": None,
-                "pos": None,
+                "ast_type": "FunctionDef",
                 "body": [
                     {
-                        "node_id": 123,
+                        "annotation": {"ast_type": "Name", "id": "bytes24", "node_id": 201},
+                        "ast_type": "AnnAssign",
+                        "node_id": 198,
                         "target": {
-                            "node_id": 124,
-                            "id": "s",
                             "ast_type": "Name",
+                            "id": "s",
+                            "node_id": 199,
                             "type": {"m": 24, "name": "bytes24", "typeclass": "bytes_m"},
                         },
-                        "ast_type": "AnnAssign",
                         "value": {
-                            "node_id": 126,
                             "args": [
                                 {
-                                    "node_id": 128,
-                                    "id": "bytes24",
                                     "ast_type": "Name",
+                                    "id": "bytes24",
+                                    "node_id": 206,
                                     "type": {
                                         "type_t": {
                                             "m": 24,
@@ -1158,25 +1150,33 @@ def foo():
                                     },
                                 }
                             ],
+                            "ast_type": "Call",
                             "func": {
-                                "node_id": 127,
-                                "id": "empty",
                                 "ast_type": "Name",
+                                "id": "empty",
+                                "node_id": 204,
                                 "type": {"name": "empty", "typeclass": "builtin_function"},
                             },
-                            "ast_type": "Call",
                             "keywords": [],
+                            "node_id": 203,
                             "type": {"m": 24, "name": "bytes24", "typeclass": "bytes_m"},
                         },
-                        "annotation": {"node_id": 125, "id": "bytes24", "ast_type": "Name"},
                     }
                 ],
-                "ast_type": "FunctionDef",
+                "decorator_list": [{"ast_type": "Name", "id": "external", "node_id": 208}],
+                "doc_string": None,
                 "name": "bar",
+                "node_id": 196,
+                "pos": None,
+                "returns": None,
             },
         ],
-        "ast_type": "Module",
+        "doc_string": None,
         "name": None,
+        "node_id": 0,
+        "path": "lib1.vy",
+        "source_id": 0,
+        "is_interface": False,
         "type": {
             "name": "lib1.vy",
             "type_decl_node": {"node_id": 0, "source_id": 0},
@@ -1259,185 +1259,185 @@ def qux2():
     assert foo["name"] == "foo"
     assert foo["body"] == [
         {
+            "annotation": {"ast_type": "Name", "id": "uint256"},
+            "ast_type": "AnnAssign",
+            "target": {
+                "ast_type": "Name",
+                "id": "x",
+                "variable_reads": [
+                    {"name": "x", "decl_node": {"node_id": 15, "source_id": 0}, "access_path": []}
+                ],
+            },
             "value": {
-                "attr": "counter",
-                "value": {"id": "lib1", "ast_type": "Name"},
                 "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
             },
-            "ast_type": "AnnAssign",
-            "target": {
-                "id": "x",
-                "ast_type": "Name",
-                "variable_reads": [
-                    {"name": "x", "decl_node": {"node_id": 11, "source_id": 0}, "access_path": []}
-                ],
-            },
-            "annotation": {"id": "uint256", "ast_type": "Name"},
         },
         {
-            "value": {"value": 1, "ast_type": "Int"},
             "ast_type": "AugAssign",
             "op": {"ast_type": "Add"},
             "target": {
-                "attr": "counter",
-                "value": {"id": "lib1", "ast_type": "Name"},
                 "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
             },
+            "value": {"ast_type": "Int", "value": 1},
         },
     ]
 
     assert bar["name"] == "bar"
     assert bar["body"] == [
         {
-            "value": {
-                "value": {"ast_type": "Name", "id": "lib1"},
-                "attr": "counter",
-                "ast_type": "Attribute",
-                "variable_reads": [
-                    {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
-                        "access_path": [],
-                    }
-                ],
-            },
+            "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
             "target": {
                 "ast_type": "Name",
                 "id": "x",
                 "variable_reads": [
-                    {"name": "x", "decl_node": {"node_id": 24, "source_id": 0}, "access_path": []}
+                    {"name": "x", "decl_node": {"node_id": 35, "source_id": 0}, "access_path": []}
                 ],
             },
-            "annotation": {"ast_type": "Name", "id": "uint256"},
-        },
-        {
             "value": {
-                "value": {"ast_type": "Name", "id": "self"},
-                "attr": "counter",
                 "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 6, "source_id": 0},
                         "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
             },
+        },
+        {
+            "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
             "target": {
                 "ast_type": "Name",
                 "id": "y",
                 "variable_reads": [
-                    {"name": "y", "decl_node": {"node_id": 29, "source_id": 0}, "access_path": []}
+                    {"name": "y", "decl_node": {"node_id": 44, "source_id": 0}, "access_path": []}
                 ],
             },
-            "annotation": {"ast_type": "Name", "id": "uint256"},
-        },
-        {
-            "op": {"ast_type": "Add"},
-            "value": {"value": 1, "ast_type": "Int"},
-            "ast_type": "AugAssign",
-            "target": {
-                "value": {"ast_type": "Name", "id": "lib1"},
-                "attr": "counter",
+            "value": {
                 "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "self"},
                 "variable_reads": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "name": "counter",
+                    }
+                ],
+            },
+        },
+        {
+            "ast_type": "AugAssign",
+            "op": {"ast_type": "Add"},
+            "target": {
+                "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "lib1"},
+                "variable_reads": [
+                    {
+                        "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 19, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "name": "counter",
                     }
                 ],
             },
+            "value": {"ast_type": "Int", "value": 1},
         },
     ]
 
     assert baz["name"] == "baz"
     assert baz["body"] == [
         {
+            "ast_type": "Expr",
             "value": {
+                "args": [],
+                "ast_type": "Call",
                 "func": {
-                    "attr": "bar",
-                    "value": {"id": "self", "ast_type": "Name"},
                     "ast_type": "Attribute",
+                    "attr": "bar",
+                    "value": {"ast_type": "Name", "id": "self"},
                     "variable_reads": [
                         {
-                            "name": "counter",
-                            "decl_node": {"node_id": 19, "source_id": 1},
                             "access_path": [],
+                            "decl_node": {"node_id": 29, "source_id": 1},
+                            "name": "counter",
                         },
                         {
-                            "name": "counter",
-                            "decl_node": {"node_id": 6, "source_id": 0},
                             "access_path": [],
+                            "decl_node": {"node_id": 8, "source_id": 0},
+                            "name": "counter",
                         },
                     ],
                     "variable_writes": [
                         {
-                            "name": "counter",
-                            "decl_node": {"node_id": 19, "source_id": 1},
                             "access_path": [],
+                            "decl_node": {"node_id": 29, "source_id": 1},
+                            "name": "counter",
                         }
                     ],
                 },
-                "args": [],
                 "keywords": [],
-                "ast_type": "Call",
             },
-            "ast_type": "Expr",
         },
         {
-            "op": {"ast_type": "Add"},
-            "value": {"value": 1, "ast_type": "Int"},
             "ast_type": "AugAssign",
+            "op": {"ast_type": "Add"},
             "target": {
-                "attr": "counter",
-                "value": {"id": "self", "ast_type": "Name"},
                 "ast_type": "Attribute",
+                "attr": "counter",
+                "value": {"ast_type": "Name", "id": "self"},
                 "variable_reads": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 6, "source_id": 0},
                         "access_path": [],
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "name": "counter",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "counter",
-                        "decl_node": {"node_id": 6, "source_id": 0},
                         "access_path": [],
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "name": "counter",
                     }
                 ],
             },
+            "value": {"ast_type": "Int", "value": 1},
         },
     ]
 
@@ -1445,32 +1445,60 @@ def qux2():
     assert qux["body"] == [
         {
             "ast_type": "Assign",
-            "value": {"ast_type": "List", "elements": []},
             "target": {
                 "ast_type": "Attribute",
                 "attr": "bars",
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": [],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
             },
+            "value": {"ast_type": "List", "elements": []},
         },
         {
             "ast_type": "Assign",
+            "target": {
+                "ast_type": "Subscript",
+                "slice": {"ast_type": "Int", "value": 0},
+                "value": {
+                    "ast_type": "Attribute",
+                    "attr": "bars",
+                    "value": {"ast_type": "Name", "id": "lib1"},
+                    "variable_reads": [
+                        {
+                            "access_path": [],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
+                        }
+                    ],
+                },
+                "variable_reads": [
+                    {
+                        "access_path": ["$subscript_access"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
+                    }
+                ],
+                "variable_writes": [
+                    {
+                        "access_path": ["$subscript_access"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
+                    }
+                ],
+            },
             "value": {
-                "func": {"ast_type": "Name", "id": "empty"},
-                "ast_type": "Call",
                 "args": [
                     {
                         "ast_type": "Attribute",
@@ -1478,48 +1506,59 @@ def qux2():
                         "value": {"ast_type": "Name", "id": "lib1"},
                     }
                 ],
+                "ast_type": "Call",
+                "func": {"ast_type": "Name", "id": "empty"},
                 "keywords": [],
             },
+        },
+        {
+            "ast_type": "Assign",
             "target": {
-                "slice": {"ast_type": "Int", "value": 0},
-                "ast_type": "Subscript",
+                "ast_type": "Attribute",
+                "attr": "items",
                 "value": {
-                    "ast_type": "Attribute",
-                    "attr": "bars",
-                    "value": {"ast_type": "Name", "id": "lib1"},
+                    "ast_type": "Subscript",
+                    "slice": {"ast_type": "Int", "value": 1},
+                    "value": {
+                        "ast_type": "Attribute",
+                        "attr": "bars",
+                        "value": {"ast_type": "Name", "id": "lib1"},
+                        "variable_reads": [
+                            {
+                                "access_path": [],
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "name": "bars",
+                            }
+                        ],
+                    },
                     "variable_reads": [
                         {
+                            "access_path": ["$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
                             "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
-                            "access_path": [],
                         }
                     ],
                 },
                 "variable_reads": [
                     {
+                        "access_path": ["$subscript_access", "items"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
-                        "access_path": ["$subscript_access"],
                     }
                 ],
                 "variable_writes": [
                     {
+                        "access_path": ["$subscript_access", "items"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
-                        "access_path": ["$subscript_access"],
                     }
                 ],
             },
-        },
-        {
-            "ast_type": "Assign",
             "value": {
-                "func": {"ast_type": "Name", "id": "empty"},
-                "ast_type": "Call",
                 "args": [
                     {
-                        "slice": {"ast_type": "Int", "value": 2},
                         "ast_type": "Subscript",
+                        "slice": {"ast_type": "Int", "value": 2},
                         "value": {
                             "ast_type": "Attribute",
                             "attr": "Foo",
@@ -1527,259 +1566,220 @@ def qux2():
                         },
                     }
                 ],
+                "ast_type": "Call",
+                "func": {"ast_type": "Name", "id": "empty"},
                 "keywords": [],
-            },
-            "target": {
-                "ast_type": "Attribute",
-                "attr": "items",
-                "value": {
-                    "slice": {"ast_type": "Int", "value": 1},
-                    "ast_type": "Subscript",
-                    "value": {
-                        "ast_type": "Attribute",
-                        "attr": "bars",
-                        "value": {"ast_type": "Name", "id": "lib1"},
-                        "variable_reads": [
-                            {
-                                "name": "bars",
-                                "decl_node": {"node_id": 22, "source_id": 1},
-                                "access_path": [],
-                            }
-                        ],
-                    },
-                    "variable_reads": [
-                        {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
-                            "access_path": ["$subscript_access"],
-                        }
-                    ],
-                },
-                "variable_reads": [
-                    {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
-                        "access_path": ["$subscript_access", "items"],
-                    }
-                ],
-                "variable_writes": [
-                    {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
-                        "access_path": ["$subscript_access", "items"],
-                    }
-                ],
             },
         },
         {
             "ast_type": "Assign",
-            "value": {"ast_type": "Int", "value": 1},
             "target": {
                 "ast_type": "Attribute",
                 "attr": "a",
                 "value": {
-                    "slice": {"ast_type": "Int", "value": 0},
                     "ast_type": "Subscript",
+                    "slice": {"ast_type": "Int", "value": 0},
                     "value": {
                         "ast_type": "Attribute",
                         "attr": "items",
                         "value": {
-                            "slice": {"ast_type": "Int", "value": 1},
                             "ast_type": "Subscript",
+                            "slice": {"ast_type": "Int", "value": 1},
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "bars",
                                 "value": {"ast_type": "Name", "id": "lib1"},
                                 "variable_reads": [
                                     {
-                                        "name": "bars",
-                                        "decl_node": {"node_id": 22, "source_id": 1},
                                         "access_path": [],
+                                        "decl_node": {"node_id": 34, "source_id": 1},
+                                        "name": "bars",
                                     }
                                 ],
                             },
                             "variable_reads": [
                                 {
-                                    "name": "bars",
-                                    "decl_node": {"node_id": 22, "source_id": 1},
                                     "access_path": ["$subscript_access"],
+                                    "decl_node": {"node_id": 34, "source_id": 1},
+                                    "name": "bars",
                                 }
                             ],
                         },
                         "variable_reads": [
                             {
-                                "name": "bars",
-                                "decl_node": {"node_id": 22, "source_id": 1},
                                 "access_path": ["$subscript_access", "items"],
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "name": "bars",
                             }
                         ],
                     },
                     "variable_reads": [
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
             },
+            "value": {"ast_type": "Int", "value": 1},
         },
         {
             "ast_type": "Assign",
-            "value": {"ast_type": "Decimal", "value": "10.0"},
             "target": {
                 "ast_type": "Attribute",
                 "attr": "c",
                 "value": {
-                    "slice": {"ast_type": "Int", "value": 1},
                     "ast_type": "Subscript",
+                    "slice": {"ast_type": "Int", "value": 1},
                     "value": {
                         "ast_type": "Attribute",
                         "attr": "items",
                         "value": {
-                            "slice": {"ast_type": "Int", "value": 0},
                             "ast_type": "Subscript",
+                            "slice": {"ast_type": "Int", "value": 0},
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "bars",
                                 "value": {"ast_type": "Name", "id": "lib1"},
                                 "variable_reads": [
                                     {
-                                        "name": "bars",
-                                        "decl_node": {"node_id": 22, "source_id": 1},
                                         "access_path": [],
+                                        "decl_node": {"node_id": 34, "source_id": 1},
+                                        "name": "bars",
                                     }
                                 ],
                             },
                             "variable_reads": [
                                 {
-                                    "name": "bars",
-                                    "decl_node": {"node_id": 22, "source_id": 1},
                                     "access_path": ["$subscript_access"],
+                                    "decl_node": {"node_id": 34, "source_id": 1},
+                                    "name": "bars",
                                 }
                             ],
                         },
                         "variable_reads": [
                             {
-                                "name": "bars",
-                                "decl_node": {"node_id": 22, "source_id": 1},
                                 "access_path": ["$subscript_access", "items"],
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "name": "bars",
                             }
                         ],
                     },
                     "variable_reads": [
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
                 "variable_writes": [
                     {
-                        "name": "bars",
-                        "decl_node": {"node_id": 22, "source_id": 1},
                         "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "name": "bars",
                     }
                 ],
             },
+            "value": {"ast_type": "Decimal", "value": "10.0"},
         },
     ]
 
     assert qux2["name"] == "qux2"
     assert qux2["body"] == [
         {
+            "ast_type": "Expr",
             "value": {
                 "args": [],
+                "ast_type": "Call",
                 "func": {
-                    "value": {"ast_type": "Name", "id": "self"},
-                    "attr": "qux",
                     "ast_type": "Attribute",
+                    "attr": "qux",
+                    "value": {"ast_type": "Name", "id": "self"},
                     "variable_reads": [
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": [],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                     ],
                     "variable_writes": [
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": [],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                         {
-                            "name": "bars",
-                            "decl_node": {"node_id": 22, "source_id": 1},
                             "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "name": "bars",
                         },
                     ],
                 },
-                "ast_type": "Call",
                 "keywords": [],
             },
-            "ast_type": "Expr",
         }
     ]
 
