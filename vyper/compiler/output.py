@@ -102,15 +102,14 @@ def build_archive_b64(compiler_data: CompilerData) -> str:
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
-    return compiler_data.resolved_imports.integrity_sum
+    return compiler_data.integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
-    # capitalize words separated by '_'
-    # ex: test_interface.vy -> TestInterface
-    name = "".join([x.capitalize() for x in stem.split("_")])
+
+    name = stem.title().replace("_", "")
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():
@@ -134,6 +133,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             out += f"struct {struct.name}:\n"
             for member_name, member_type in struct.members.items():
                 out += f"    {member_name}: {member_type}\n"
+            out += "\n\n"
+
+    if len(interface.flags) > 0:
+        out += "# Flags\n\n"
+        for flag in interface.flags.values():
+            out += f"flag {flag.name}:\n"
+            for flag_value in flag._flag_members:
+                out += f"    {flag_value}\n"
             out += "\n\n"
 
     if len(interface.events) > 0:
@@ -282,7 +289,8 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+    if not compiler_data.annotated_vyper_module.is_interface:
+        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
     if module_t.init_function:

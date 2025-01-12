@@ -28,8 +28,9 @@ def foo():
     )
 
     file_input = input_bundle.load_file("top.vy")
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "lib0.vy:" in str(e.value)
 
 
 def test_implicitly_relative_import_crashes_2(make_input_bundle):
@@ -44,8 +45,9 @@ def foo():
     )
 
     file_input = input_bundle.load_file("top.vy")
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "lib0.vy:" in str(e.value)
 
 
 def test_relative_import_searches_only_current_path(make_input_bundle):
@@ -70,8 +72,9 @@ def foo():
     input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
     file_input = input_bundle.load_file("top.vy")
 
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "b.vy:" in str(e.value)
 
 
 def test_absolute_import_within_relative_import(make_input_bundle):

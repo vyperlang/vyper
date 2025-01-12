@@ -1,6 +1,7 @@
 import copy
 import json
 
+from tests.ast_utils import deepequals
 from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
@@ -138,7 +139,7 @@ def test() -> int128:
     new_dict = json.loads(out_json)
     new_ast = dict_to_ast(new_dict)
 
-    assert new_ast == original_ast
+    assert deepequals(new_ast, original_ast)
 
 
 # strip source annotations like lineno, we don't care for inspecting
@@ -399,6 +400,7 @@ def foo():
         "node_id": 0,
         "path": "main.vy",
         "source_id": 1,
+        "is_interface": False,
         "type": {
             "name": "main.vy",
             "type_decl_node": {"node_id": 0, "source_id": 1},
@@ -1175,6 +1177,7 @@ def foo():
         "node_id": 0,
         "path": "lib1.vy",
         "source_id": 0,
+        "is_interface": False,
         "type": {
             "name": "lib1.vy",
             "type_decl_node": {"node_id": 0, "source_id": 0},
