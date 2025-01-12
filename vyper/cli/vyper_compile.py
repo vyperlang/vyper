@@ -15,6 +15,7 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
+from vyper.warnings import VyperWarning
 
 T = TypeVar("T")
 
@@ -187,6 +188,10 @@ def _parse_args(argv):
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
+    parser.add_argument(
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
+    )
+
     args = parser.parse_args(argv)
 
     if args.traceback_limit is not None:
@@ -200,6 +205,16 @@ def _parse_args(argv):
         # setting of zero so error printouts only include information about where
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
+
+    if args.warnings_control == "error":
+        warnings_filter = "error"
+    elif args.warnings_control == "none":
+        warnings_filter = "ignore"
+    else:
+        assert args.warnings_control is None  # sanity
+        warnings_filter = "default"
+
+    warnings.simplefilter(warnings_filter, category=VyperWarning)
 
     if args.hex_ir:
         ir_node.AS_HEX_DEFAULT = True

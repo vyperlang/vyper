@@ -19,7 +19,7 @@ def a() -> bool:
     q: Bytes[24577] = {huge_bytestring}
     return True
 """
-    with pytest.warns(vyper.warnings.ContractSizeLimitWarning):
+    with pytest.warns(vyper.warnings.ContractSizeLimit):
         vyper.compile_code(code, output_formats=["bytecode_runtime"])
 
 

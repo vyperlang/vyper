@@ -9,7 +9,8 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-from vyper.utils import sha256sum, vyper_warn
+from vyper.utils import sha256sum
+from vyper.warnings import Deprecation, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -434,15 +435,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Call(self, node):
+        self.generic_visit(node)
+
         # Convert structs declared as `Dict` node for vyper < 0.4.0 to kwargs
         if len(node.args) == 1 and isinstance(node.args[0], python_ast.Dict):
             msg = "Instantiating a struct using a dictionary is deprecated "
             msg += "as of v0.4.0 and will be disallowed in a future release. "
             msg += "Use kwargs instead e.g. Foo(a=1, b=2)"
 
-            # add full_source_code so that str(VyperException(msg, node)) works
-            node.full_source_code = self._source_code
-            vyper_warn(msg, node)
+            vyper_warn(Deprecation(msg, node))
 
             dict_ = node.args[0]
             kw_list = []
@@ -457,8 +458,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
             node.args = []
             node.keywords = kw_list
-
-        self.generic_visit(node)
 
         return node
 

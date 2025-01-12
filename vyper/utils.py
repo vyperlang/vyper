@@ -11,7 +11,7 @@ import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
 
@@ -282,14 +282,6 @@ def trace(n=5, out=sys.stderr):
     for x in list(traceback.format_stack())[-n:]:
         print(x.strip(), file=out)
     print("END TRACE", file=out)
-
-
-# print a warning
-def vyper_warn(msg, node=None):
-    if node is not None:
-        # use VyperException for its formatting abilities
-        msg = str(VyperException(msg, node))
-    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
