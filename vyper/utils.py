@@ -11,7 +11,7 @@ import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
 _T = TypeVar("_T")
 
@@ -308,17 +308,6 @@ def round_towards_zero(d: decimal.Decimal) -> int:
     # (but either way keep this util function bc it's easier at a glance
     # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
-
-
-# Converts string to bytes
-def string_to_bytes(str):
-    bytez = b""
-    for c in str:
-        if ord(c) >= 256:
-            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
-        bytez += bytes([ord(c)])
-    bytez_length = len(bytez)
-    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer
