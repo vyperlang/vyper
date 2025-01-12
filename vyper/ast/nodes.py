@@ -873,7 +873,10 @@ class Str(Constant):
 
     def validate(self):
         for c in self.value:
-            if ord(c) >= 256:
+            # in utf-8, bytes in the 128 and up range deviate from latin1 and
+            # can be control bytes, allowing multi-byte characters.
+            # reject them here.
+            if ord(c) >= 128:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
 
 
