@@ -168,7 +168,8 @@ class PreParser:
     # A mapping of offsets to new class names
     keyword_translations: dict[tuple[int, int], str]
 
-    # Magic adjustments
+    # Map from offsets in the original vyper source code to offsets
+    # in the new ("reformatted", i.e. python-compatible) source code
     adjustments: dict[tuple[int, int], int]
 
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
