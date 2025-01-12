@@ -302,7 +302,7 @@ class EventT(_UserType):
             f"{argname}={val.node_source_code}"
             for argname, val in zip(self.arguments.keys(), node.args)
         )
-        recommendation = f"{node.func.node_source_code}({rec0})"
+        recommendation = f"log {node.func.node_source_code}({rec0})"
         msg = "Instantiating events with positional arguments is"
         msg += " deprecated as of v0.4.1 and will be disallowed"
         msg += " in a future release. Use kwargs instead e.g.:"
