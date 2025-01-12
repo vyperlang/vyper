@@ -518,7 +518,7 @@ def timeit(msg):  # pragma: nocover
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
+    print(f"{msg}: Took {total_time:.6f} seconds", file=sys.stderr)
 
 
 _CUMTIMES = None
@@ -527,7 +527,7 @@ _CUMTIMES = None
 def _dump_cumtime():  # pragma: nocover
     global _CUMTIMES
     for msg, total_time in _CUMTIMES.items():
-        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
+        print(f"{msg}: Cumulative time {total_time:.3f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
