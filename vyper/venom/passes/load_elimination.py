@@ -24,8 +24,6 @@ class LoadElimination(IRPass):
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
-        self.equivalence = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)
-
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
             self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
@@ -37,12 +35,12 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(VarEquivalenceAnalysis)
 
     def equivalent(self, op1, op2):
-        return op1 == op2 or self.equivalence.equivalent(op1, op2)
+        return op1 == op2
 
     def get_literal(self, op):
         if isinstance(op, IRLiteral):
             return op
-        return self.equivalence.get_literal(op)
+        return None
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
         # not really a lattice even though it is not really inter-basic block;
