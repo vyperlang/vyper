@@ -287,8 +287,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         adjustments = self._pre_parser.adjustments
 
-        for attr in LINE_INFO_FIELDS:
-            assert getattr(node, attr, None) is not None, (attr, node)
+        # Load and Store behave differently inside of fix_missing_locations;
+        # we don't use them in the vyper AST so just skip adjusting the line
+        # info.
+        if isinstance(node, (python_ast.Load, python_ast.Store)):
+            return super().generic_visit(node)
 
         adj = adjustments.get((node.lineno, node.col_offset), 0)
         node.col_offset += adj
@@ -348,12 +351,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         node.ast_type = self._pre_parser.keyword_translations[(node.lineno, node.col_offset)]
         return node
-
-    def visit_Load(self, node):
-        return None
-
-    def visit_Store(self, node):
-        return None
 
     def visit_For(self, node):
         """
