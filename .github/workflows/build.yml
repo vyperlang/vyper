@@ -18,7 +18,7 @@ defaults:
 
 jobs:
   unix-build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ runner.os }}
     strategy:
       matrix:
         os: [ubuntu-20.04, macos-latest]
