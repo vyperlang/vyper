@@ -346,7 +346,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        node.ast_type = self._pre_parser.modification_offsets[(node.lineno, node.col_offset)]
+        node.ast_type = self._pre_parser.keyword_translations[(node.lineno, node.col_offset)]
         return node
 
     def visit_Load(self, node):
@@ -426,14 +426,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
             key = (node.lineno, node.col_offset)
-            node.ast_type = self._pre_parser.modification_offsets[key]
+            node.ast_type = self._pre_parser.keyword_translations[key]
 
         return node
 
     def visit_Await(self, node):
-        start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
+        start_pos = node.lineno, node.col_offset
         self.generic_visit(node)
-        node.ast_type = self._pre_parser.modification_offsets[start_pos]
+        node.ast_type = self._pre_parser.keyword_translations[start_pos]
         return node
 
     def visit_Call(self, node):

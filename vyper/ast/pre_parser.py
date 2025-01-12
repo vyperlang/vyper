@@ -164,8 +164,9 @@ CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 class PreParser:
     # Compilation settings based on the directives in the source code
     settings: Settings
-    # A mapping of class names to their original class types.
-    modification_offsets: dict[tuple[int, int], str]
+
+    # A mapping of offsets to new class names
+    keyword_translations: dict[tuple[int, int], str]
 
     # Magic adjustments
     adjustments: dict[tuple[int, int], int]
@@ -205,7 +206,7 @@ class PreParser:
     def _parse(self, code: str):
         adjustments: dict = {}
         result: list[TokenInfo] = []
-        modification_offsets: dict[tuple[int, int], str] = {}
+        keyword_translations: dict[tuple[int, int], str] = {}
         settings = Settings()
         for_parser = ForParser(code)
         hex_string_parser = HexStringParser()
@@ -295,7 +296,7 @@ class PreParser:
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
 
-                    modification_offsets[newstart] = VYPER_CLASS_TYPES[string]
+                    keyword_translations[newstart] = VYPER_CLASS_TYPES[string]
 
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
@@ -304,14 +305,9 @@ class PreParser:
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    modification_offsets[newstart] = CUSTOM_STATEMENT_TYPES[string]
+                    keyword_translations[newstart] = CUSTOM_STATEMENT_TYPES[string]
 
                 elif string in CUSTOM_EXPRESSION_TYPES:
-                    # a bit cursed technique to get untokenize to put
-                    # the new tokens in the right place so that modification_offsets
-                    # will work correctly.
-                    # (recommend comparing the result of parse with the
-                    # source code side by side to visualize the whitespace)
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
@@ -320,9 +316,13 @@ class PreParser:
                     lineno, col = start
                     _col_adjustments[lineno] += adjustment
 
-                    # fixup for when `extcall/staticcall` follows `log`
-                    modification_offsets[newstart] = vyper_type
+                    keyword_translations[newstart] = vyper_type
 
+                    # a bit cursed technique to get untokenize to put
+                    # the new tokens in the right place so that
+                    # `keyword_translations` will work correctly.
+                    # (recommend comparing the result of parse with the
+                    # source code side by side to visualize the whitespace)
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
 
             if (typ, string) == (OP, ";"):
@@ -337,7 +337,7 @@ class PreParser:
 
         self.adjustments = adjustments
         self.settings = settings
-        self.modification_offsets = modification_offsets
+        self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
         self.reformatted_code = untokenize(result).decode("utf-8")
