@@ -350,6 +350,26 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
+    def _condition_inverse(
+        self, inst: IRInstruction, opcode: str, operands: list[IROperand]
+    ) -> IRLiteral | None:
+        val = operands[0].value
+        if "gt" in opcode:
+            val += 1
+        else:
+            val -= 1
+
+        unsigned = "s" not in opcode
+        # this can happen for cases like `lt x 0` which get reduced in SCCP.
+        # don't handle them here, just return
+        if _wrap256(val, unsigned) != val:
+            return None
+
+        n_opcode = _flip_comparison_op(opcode)
+        self.updater._update(inst, n_opcode, [IRLiteral(val), operands[1]])
+
+        return IRLiteral(val)
+
     # do this rule after the other algebraic optimizations because
     # it could interfere with other optimizations
     def _handle_inst_ge_le(self, inst: IRInstruction):
@@ -359,7 +379,6 @@ class AlgebraicOptimizationPass(IRPass):
 
         operands = inst.operands
         opcode = inst.opcode
-        unsigned = "s" not in opcode
 
         if self._is_lit(operands[1]):
             opcode = _flip_comparison_op(inst.opcode)
@@ -374,19 +393,12 @@ class AlgebraicOptimizationPass(IRPass):
         if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
             return
 
-        val = operands[0].value
-        if "gt" in opcode:
-            val += 1
-        else:
-            val -= 1
-
-        # this can happen for cases like `lt x 0` which get reduced in SCCP.
-        # don't handle them here, just return
-        if _wrap256(val, unsigned) != val:
+        val = self._condition_inverse(inst, opcode, operands)
+        if val is None:
             return
+        new_opcode = _flip_comparison_op(opcode)
 
-        n_opcode = _flip_comparison_op(opcode)
-        self.updater._update(inst, n_opcode, [IRLiteral(val), operands[1]])
+        self.updater._update(inst, new_opcode, [val, operands[1]])
 
         assert len(after.operands) == 1
         self.updater._update(after, "store", after.operands)
@@ -405,21 +417,23 @@ class AlgebraicOptimizationPass(IRPass):
         if len(uses) != 1:
             return
 
+        operands = src.operands
+        opcode = src.opcode
+
+        if self._is_lit(operands[1]):
+            opcode = _flip_comparison_op(src.opcode)
+            operands = [operands[1], operands[0]]
+
         if not isinstance(src.operands[0], IRLiteral):
             return
 
-        val = src.operands[0].value
-        if "gt" in src.opcode:
-            val += 1
-        else:
-            val -= 1
-        unsigned = "s" not in src.opcode
+        val = self._condition_inverse(src, opcode, src.operands)
+        if val is None:
+            return
+        new_opcode = _flip_comparison_op(opcode)
 
-        assert _wrap256(val, unsigned) == val, "bad optimizer step"
-        n_opcode = _flip_comparison_op(src.opcode)
-
-        src.opcode = n_opcode
-        src.operands = [IRLiteral(val), src.operands[1]]
+        src.opcode = new_opcode
+        src.operands = [val, operands[1]]
 
         var = self.updater._add_before(inst, "iszero", [src.output])
 
