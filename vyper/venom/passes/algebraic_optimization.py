@@ -126,7 +126,7 @@ class AlgebraicOptimizationPass(IRPass):
                     continue
 
                 assert isinstance(inst.output, IRVariable)
-                for use_inst in self.dfg.get_uses(inst.output):
+                for use_inst in self.dfg.get_uses(inst.output).copy():
                     opcode = use_inst.opcode
 
                     if opcode == "iszero":
@@ -145,7 +145,7 @@ class AlgebraicOptimizationPass(IRPass):
                         continue
 
                     out_var = iszero_chain[keep_count].operands[0]
-                    use_inst.replace_operands({inst.output: out_var})
+                    self.updater._update_operands(use_inst, {inst.output: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain: list[IRInstruction] = []
