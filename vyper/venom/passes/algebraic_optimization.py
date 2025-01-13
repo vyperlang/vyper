@@ -350,6 +350,10 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
+
+    # must carry both instuction and opcode and operands
+    # because opcode and operands could be fliped but
+    # we still need inst for update
     def _condition_inverse(
         self, inst: IRInstruction, opcode: str, operands: list[IROperand]
     ) -> IRLiteral | None:
