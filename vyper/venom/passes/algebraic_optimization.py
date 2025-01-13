@@ -51,6 +51,7 @@ class InstructionUpdater:
 
     def _update(self, inst: IRInstruction, opcode: str, args: list[IROperand]):
         assert opcode != "phi"
+        assert all(isinstance(op, IROperand) for op in args)
 
         old_operands = inst.operands
         new_operands = list(args)
@@ -184,8 +185,6 @@ class AlgebraicOptimizationPass(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._handle_inst_peephole(inst)
-                if inst.opcode in COMPARATOR_INSTRUCTIONS:
-                    self._handle_inst_ge_le(inst)
 
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.output is None:
@@ -200,8 +199,9 @@ class AlgebraicOptimizationPass(IRPass):
         operands = inst.operands
 
         # make logic easier for commutative instructions.
-        if inst.is_commutative and self._is_lit(operands[1]):
-            operands = [operands[1], operands[0]]
+        if inst.flippable and self._is_lit(operands[1]) and not self._is_lit(operands[0]):
+            inst.flip()
+            operands = inst.operands
 
         if inst.opcode in {"shl", "shr", "sar"}:
             if lit_eq(operands[1], 0):
@@ -279,6 +279,8 @@ class AlgebraicOptimizationPass(IRPass):
         uses = self.dfg.get_uses(inst.output)
 
         is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
+        prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
+
         # TODO: move this rule to sccp (since it can affect control flow).
         # x | n -> 1 (if n is non zero)
         if (
@@ -288,9 +290,6 @@ class AlgebraicOptimizationPass(IRPass):
             and operands[0].value != 0
         ):
             self.updater._store(inst, IRLiteral(1))
-            return
-
-        if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode != "eq":
             return
 
         # x == 0 -> iszero x
@@ -304,14 +303,8 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [var])
                 return
 
-        prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
-
-        if prefer_iszero:
-            if inst.opcode == "eq":
+            if prefer_iszero:
                 # (eq x y) has the same truthyness as (iszero (xor x y))
-                # it also has the same truthyness as (iszero (sub x y)),
-                # but xor is slightly easier to optimize because of being
-                # commutative.
                 # note that (xor (-1) x) has its own rule
                 tmp = self.updater._add_before(inst, "xor", [operands[0], operands[1]])
 
@@ -319,92 +312,64 @@ class AlgebraicOptimizationPass(IRPass):
                 return
 
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
-            opcode = inst.opcode
+            self._optimize_comparator_instruction(inst, prefer_iszero)
 
-            # can flip from x > y into x < y
-            # if it could put the literal
-            # into the first operand (for easier logic)
-            if self._is_lit(operands[1]):
-                opcode = _flip_comparison_op(inst.opcode)
-                operands = [operands[1], operands[0]]
+    def _optimize_comparator_instruction(self, inst, prefer_iszero):
+        opcode, operands = inst.opcode, inst.operands
+        assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
+        assert isinstance(inst.output, IRVariable)  # help mypy
 
-            is_gt = "g" in opcode
-
-            unsigned = "s" not in opcode
-
-            lo, hi = int_bounds(bits=256, signed=not unsigned)
-
-            # for comparison operators, we have three special boundary cases:
-            # almost always, never and almost never.
-            # almost_always is always true for the non-strict ("ge" and co)
-            # comparators. for strict comparators ("gt" and co), almost_always
-            # is true except for one case. never is never true for the strict
-            # comparators. never is almost always false for the non-strict
-            # comparators, except for one case. and almost_never is almost
-            # never true (except one case) for the strict comparators.
-            if is_gt:
-                almost_always, never = lo, hi
-                almost_never = hi - 1
-            else:
-                almost_always, never = hi, lo
-                almost_never = lo + 1
-
-            if lit_eq(operands[0], almost_never):
-                # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
-                self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
-                return
-
-            # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-            if prefer_iszero and lit_eq(operands[0], almost_always):
-                # e.g. gt x 0, slt x MAX_INT256
-                tmp = self.updater._add_before(inst, "eq", operands)
-                self.updater._update(inst, "iszero", [tmp])
-                return
-
-            # special cases that are not covered by others:
-            if opcode == "gt" and lit_eq(operands[0], 0):
-                # improve codesize (not gas) and maybe trigger
-                # downstream optimizations
-                tmp = self.updater._add_before(inst, "iszero", [operands[1]])
-                self.updater._update(inst, "iszero", [tmp])
-                return
-
-    # rewrite comparisons by adding an `iszero`, e.g.
-    # `x > N` -> `x >= (N + 1)`
-    def _rewrite_comparison(self, opcode: str, operands: list[IROperand]) -> Optional[IRLiteral]:
-        val = operands[0].value
+        is_gt = "g" in opcode
         unsigned = "s" not in opcode
-        if "gt" in opcode:
-            val += 1
+
+        lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+        if not isinstance(operands[0], IRLiteral):
+            return
+
+        # for comparison operators, we have three special boundary cases:
+        # almost always, never and almost never.
+        # almost_always is always true for the non-strict ("ge" and co)
+        # comparators. for strict comparators ("gt" and co), almost_always
+        # is true except for one case. never is never true for the strict
+        # comparators. never is almost always false for the non-strict
+        # comparators, except for one case. and almost_never is almost
+        # never true (except one case) for the strict comparators.
+        if is_gt:
+            almost_always, never = lo, hi
+            almost_never = hi - 1
         else:
-            val -= 1
+            almost_always, never = hi, lo
+            almost_never = lo + 1
 
-        if not unsigned:
-            val = signed_to_unsigned(val, 256)
+        if lit_eq(operands[0], almost_never):
+            # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+            self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
+            return
 
-        # this can happen for cases like `lt x 0` which get reduced in SCCP.
-        # don't handle them here, just return
-        if _wrap256(val, unsigned) != val:
-            return None
+        # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+        if prefer_iszero and lit_eq(operands[0], almost_always):
+            # e.g. gt x 0, slt x MAX_INT256
+            tmp = self.updater._add_before(inst, "eq", operands)
+            self.updater._update(inst, "iszero", [tmp])
+            return
 
-        return IRLiteral(val)
+        # since push0 was introduced in shanghai, it's potentially
+        # better to actually reverse this optimization -- i.e.
+        # replace iszero(iszero(x)) with (gt x 0)
+        if opcode == "gt" and lit_eq(operands[0], 0):
+            tmp = self.updater._add_before(inst, "iszero", [operands[1]])
+            self.updater._update(inst, "iszero", [tmp])
+            return
 
-    # do this rule after the other algebraic optimizations because
-    # it could interfere with other optimizations
-    def _handle_inst_ge_le(self, inst: IRInstruction):
-        assert inst.opcode in COMPARATOR_INSTRUCTIONS
-        assert isinstance(inst.output, IRVariable), "must be variable"
+        self._rewrite_ge_le(inst)
+
+    # rewrite comparisons by removing an `iszero`, e.g.
+    # `x > N` -> `x >= (N + 1)`
+    def _rewrite_ge_le(self, inst: IRInstruction):
+        assert inst.output is not None
         uses = self.dfg.get_uses(inst.output)
 
-        operands = inst.operands
-        opcode = inst.opcode
-
-        if self._is_lit(operands[1]):
-            opcode = _flip_comparison_op(inst.opcode)
-            operands = [operands[1], operands[0]]
-
-        if not self._is_lit(operands[0]):
-            return
         if len(uses) != 1:
             return
 
@@ -412,17 +377,32 @@ class AlgebraicOptimizationPass(IRPass):
         if not after.opcode == "iszero":
             return
 
+        # peer down the iszero chain to see if it makes sense
+        # to remove the iszero. (can we simplify this?)
         n_uses = self.dfg.get_uses(after.output)
         # "assert" inserts an iszero in assembly
         if len(n_uses) != 1 or n_uses.first().opcode == "assert":
             return
 
-        val = self._rewrite_comparison(opcode, operands)
-        if val is None:
-            return
+        opcode, operands = inst.opcode, inst.operands
+
+        val = operands[0].value
+        unsigned = "s" not in opcode
+        if "gt" in opcode:
+            val += 1
+        else:
+            val -= 1
         new_opcode = _flip_comparison_op(opcode)
 
-        self.updater._update(inst, new_opcode, [val, operands[1]])
+        if not unsigned:
+            val = signed_to_unsigned(val, 256)
+
+        # this can happen for cases like `lt x 0` which get reduced in SCCP.
+        # don't handle them here, just return
+        if _wrap256(val, unsigned) != val:
+            return
+
+        self.updater._update(inst, new_opcode, [IRLiteral(val), operands[1]])
 
         assert len(after.operands) == 1
         self.updater._update(after, "store", after.operands)
