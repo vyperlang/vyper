@@ -40,6 +40,11 @@ class InstructionUpdater:
     def __init__(self, dfg: DFGAnalysis):
         self.dfg = dfg
 
+    def _update_operands(self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand]):
+        old_operands = inst.operands
+        new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
+        self._update(inst, inst.opcode, new_operands)
+
     def _update(self, inst: IRInstruction, opcode: str, args: list[IROperand]):
         assert opcode != "phi"
 
