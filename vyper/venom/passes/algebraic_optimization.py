@@ -104,10 +104,10 @@ class AlgebraicOptimizationPass(IRPass):
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         self.updater = InstructionUpdater(self.dfg)
-
-        self._optimize_iszero_chains()
-
         self._handle_offset()
+
+        self._algebraic_opt()
+        self._optimize_iszero_chains()
         self._algebraic_opt()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -191,9 +191,6 @@ class AlgebraicOptimizationPass(IRPass):
                     self._handle_inst_ge_le(inst)
 
     def _handle_inst_peephole(self, inst: IRInstruction):
-        if inst.opcode == "assert":
-            self._handle_assert_inst(inst)
-            return
         if inst.output is None:
             return
         if inst.is_volatile:
@@ -413,6 +410,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         n_uses = self.dfg.get_uses(after.output)
+        # "assert" inserts an iszero in assembly
         if len(n_uses) != 1 or n_uses.first().opcode == "assert":
             return
 
@@ -425,41 +423,3 @@ class AlgebraicOptimizationPass(IRPass):
 
         assert len(after.operands) == 1
         self.updater._update(after, "store", after.operands)
-
-    def _handle_assert_inst(self, inst: IRInstruction):
-        operands = inst.operands
-        if not isinstance(operands[0], IRVariable):
-            return
-        src = self.dfg.get_producing_instruction(operands[0])
-        assert isinstance(src, IRInstruction)
-        if src.opcode not in COMPARATOR_INSTRUCTIONS:
-            return
-
-        assert isinstance(src.output, IRVariable)
-        uses = self.dfg.get_uses(src.output)
-        if len(uses) != 1:
-            return
-
-        operands = src.operands
-        opcode = src.opcode
-
-        if self._is_lit(operands[1]):
-            opcode = _flip_comparison_op(src.opcode)
-            operands = [operands[1], operands[0]]
-
-        if not isinstance(src.operands[0], IRLiteral):
-            return
-
-        val = self._rewrite_comparison(opcode, src.operands)
-        if val is None:
-            return
-        new_opcode = _flip_comparison_op(opcode)
-
-        src.opcode = new_opcode
-        src.operands = [val, operands[1]]
-
-        var = self.updater._add_before(inst, "iszero", [src.output])
-
-        self.updater._update(inst, inst.opcode, [var])
-
-        return
