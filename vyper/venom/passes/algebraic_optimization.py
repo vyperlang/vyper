@@ -177,16 +177,11 @@ class AlgebraicOptimizationPass(IRPass):
 
     def _algebraic_opt(self):
         self._algebraic_opt_pass()
-        self._algebraic_opt_ge_le()
 
     def _algebraic_opt_pass(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._handle_inst_peephole(inst)
-
-    def _algebraic_opt_ge_le(self):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
                 if inst.opcode in COMPARATOR_INSTRUCTIONS:
                     self._handle_inst_ge_le(inst)
 
