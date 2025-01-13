@@ -310,6 +310,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
+            # TODO: move this rule to sccp (since it can affect control flow).
             # x | n -> 1 (if n is non zero)
             if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
                 self.updater._store(inst, IRLiteral(1))
