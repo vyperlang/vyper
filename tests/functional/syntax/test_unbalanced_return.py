@@ -195,10 +195,7 @@ def test() -> int128:
     if 1 == 1 :
         return 1
     else:
-        assert (
-            msg.sender.codesize + msg.sender.codesize + msg.sender.codesize >
-            msg.sender.codesize * 3
-        )
+        assert msg.sender != self
         return 0
     """,
     """
