@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -282,7 +284,6 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode not in {"eq", "or"}:
             return
 
-
         # x == 0 -> iszero x
         if inst.opcode == "eq":
             if lit_eq(operands[0], 0):
@@ -368,12 +369,11 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
-    # must carry both instuction and opcode and operands
-    # because opcode and operands could be fliped but
-    # we still need inst for update
-    def _condition_inverse(
+    # rewrite comparisons by adding an `iszero`, e.g.
+    # `x > N` -> `x >= (N + 1)`
+    def _rewrite_comparison(
         self, inst: IRInstruction, opcode: str, operands: list[IROperand]
-    ) -> IRLiteral | None:
+    ) -> Optional[IRLiteral]:
         val = operands[0].value
         if "gt" in opcode:
             val += 1
@@ -418,7 +418,7 @@ class AlgebraicOptimizationPass(IRPass):
         if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
             return
 
-        val = self._condition_inverse(inst, opcode, operands)
+        val = self._rewrite_comparison(inst, opcode, operands)
         if val is None:
             return
         new_opcode = _flip_comparison_op(opcode)
@@ -452,7 +452,7 @@ class AlgebraicOptimizationPass(IRPass):
         if not isinstance(src.operands[0], IRLiteral):
             return
 
-        val = self._condition_inverse(src, opcode, src.operands)
+        val = self._rewrite_comparison(src, opcode, src.operands)
         if val is None:
             return
         new_opcode = _flip_comparison_op(opcode)
