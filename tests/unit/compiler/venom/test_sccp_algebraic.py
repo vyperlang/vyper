@@ -274,14 +274,17 @@ def test_sccp_algebraic_opt_or_eq():
         %3 = eq %par, 0
         %4 = eq 0, %par
         %5 = eq %par, %par
-        return %1, %2, %3, %4, %5
+        %6 = eq %par, {max_uint256}
+        return %1, %2, %3, %4, %5, %6
     """
     post = f"""
     _global:
         %par = param
         %3 = iszero %par
         %4 = iszero %par
-        return %par, {max_uint256}, %3, %4, 1
+        %8 = not %par
+        %6 = iszero %8
+        return %par, {max_uint256}, %3, %4, 1, %6
     """
 
     _sccp_algebraic_runner(pre, post)

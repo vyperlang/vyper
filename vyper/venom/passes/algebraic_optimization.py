@@ -273,9 +273,15 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         # x == 0 -> iszero x
-        if inst.opcode == "eq" and lit_eq(operands[0], 0):
-            self.updater._update(inst, "iszero", [operands[1]])
-            return
+        if inst.opcode == "eq":
+            if lit_eq(operands[0], 0):
+                self.updater._update(inst, "iszero", [operands[1]])
+                return
+
+            if lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+                var = self.updater._add_before(inst, "not", [operands[1]])
+                self.updater._update(inst, "iszero", [var])
+                return
 
         assert isinstance(inst.output, IRVariable), "must be variable"
         uses = self.dfg.get_uses(inst.output)
