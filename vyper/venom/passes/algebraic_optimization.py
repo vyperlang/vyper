@@ -376,8 +376,6 @@ class AlgebraicOptimizationPass(IRPass):
     ) -> Optional[IRLiteral]:
         val = operands[0].value
         unsigned = "s" not in opcode
-        if not unsigned:
-            val = unsigned_to_signed(val, 256)
         if "gt" in opcode:
             val += 1
         else:
