@@ -399,10 +399,14 @@ class AlgebraicOptimizationPass(IRPass):
             opcode = _flip_comparison_op(inst.opcode)
             operands = [operands[1], operands[0]]
 
-        if not (len(uses) == 1 and uses.first().opcode == "iszero" and self._is_lit(operands[0])):
+        if not self._is_lit(operands[0]):
+            return
+        if len(uses) != 1:
             return
 
         after = uses.first()
+        if not after.opcode == "iszero":
+            return
 
         n_uses = self.dfg.get_uses(after.output)
         if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
