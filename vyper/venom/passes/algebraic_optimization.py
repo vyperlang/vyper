@@ -375,12 +375,17 @@ class AlgebraicOptimizationPass(IRPass):
         self, inst: IRInstruction, opcode: str, operands: list[IROperand]
     ) -> Optional[IRLiteral]:
         val = operands[0].value
+        unsigned = "s" not in opcode
+        if not unsigned:
+            val = unsigned_to_signed(val, 256)
         if "gt" in opcode:
             val += 1
         else:
             val -= 1
 
-        unsigned = "s" not in opcode
+        if not unsigned:
+            val = signed_to_unsigned(val, 256)
+
         # this can happen for cases like `lt x 0` which get reduced in SCCP.
         # don't handle them here, just return
         if _wrap256(val, unsigned) != val:
@@ -415,7 +420,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         n_uses = self.dfg.get_uses(after.output)
-        if len(n_uses) != 1 or n_uses.first().opcode in ["iszero", "assert"]:
+        if len(n_uses) != 1 or n_uses.first().opcode == "assert":
             return
 
         val = self._rewrite_comparison(inst, opcode, operands)
