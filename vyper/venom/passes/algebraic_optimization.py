@@ -15,6 +15,8 @@ from vyper.venom.basicblock import (
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.sccp.eval import lit_eq, signed_to_unsigned, unsigned_to_signed
 
+TRUTHY_INSTRUCTIONS = ("iszero", "jnz", "assert", "assert_unreachable")
+
 
 def _flip_comparison_op(opname):
     assert opname in COMPARATOR_INSTRUCTIONS
@@ -273,7 +275,22 @@ class AlgebraicOptimizationPass(IRPass):
 
             return
 
-        if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode not in {"eq", "or"}:
+        assert isinstance(inst.output, IRVariable), "must be variable"
+        uses = self.dfg.get_uses(inst.output)
+
+        is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
+        # TODO: move this rule to sccp (since it can affect control flow).
+        # x | n -> 1 (if n is non zero)
+        if (
+            inst.opcode == "or"
+            and is_truthy
+            and self._is_lit(operands[0])
+            and operands[0].value != 0
+        ):
+            self.updater._store(inst, IRLiteral(1))
+            return
+
+        if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode != "eq":
             return
 
         # x == 0 -> iszero x
@@ -287,11 +304,9 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [var])
                 return
 
-        assert isinstance(inst.output, IRVariable), "must be variable"
-        uses = self.dfg.get_uses(inst.output)
-        is_truthy = all(i.opcode in ("assert", "iszero", "jnz") for i in uses)
+        prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
 
-        if is_truthy:
+        if prefer_iszero:
             if inst.opcode == "eq":
                 # (eq x y) has the same truthyness as (iszero (xor x y))
                 # it also has the same truthyness as (iszero (sub x y)),
@@ -303,14 +318,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
-            # TODO: move this rule to sccp (since it can affect control flow).
-            # x | n -> 1 (if n is non zero)
-            if inst.opcode == "or" and self._is_lit(operands[0]) and operands[0].value != 0:
-                self.updater._store(inst, IRLiteral(1))
-                return
-
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
-            prefer_strict = not is_truthy
             opcode = inst.opcode
 
             # can flip from x > y into x < y
@@ -347,7 +355,7 @@ class AlgebraicOptimizationPass(IRPass):
                 return
 
             # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-            if not prefer_strict and lit_eq(operands[0], almost_always):
+            if prefer_iszero and lit_eq(operands[0], almost_always):
                 # e.g. gt x 0, slt x MAX_INT256
                 tmp = self.updater._add_before(inst, "eq", operands)
                 self.updater._update(inst, "iszero", [tmp])
