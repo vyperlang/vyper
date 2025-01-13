@@ -99,6 +99,7 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstructionUpdater(self.dfg)
 
         self._optimize_iszero_chains()
+
         self._handle_offset()
         self._algebraic_opt()
 
@@ -224,14 +225,23 @@ class AlgebraicOptimizationPass(IRPass):
                 return
             return
 
-        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod", "and"}:
+        # TODO rules like:
+        # not x | not y => not (x & y)
+        # x | not y => not (not x & y)
+
+        # x | 0 -> x
+        if inst.opcode == "or" and lit_eq(operands[0], 0):
+            self.updater._store(inst, operands[1])
+            return
+
+        # x & 0xFF..FF -> x
+        if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            self.updater._store(inst, operands[1])
+            return
+
+        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod"}:
             # x * 1 == x / 1 -> x
             if inst.opcode in {"mul", "div", "sdiv"} and lit_eq(operands[0], 1):
-                self.updater._store(inst, operands[1])
-                return
-
-            # x & 0xFF..FF -> x
-            if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
                 self.updater._store(inst, operands[1])
                 return
 
@@ -267,10 +277,6 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode not in COMPARATOR_INSTRUCTIONS and inst.opcode not in {"eq", "or"}:
             return
 
-        # x | 0 -> x
-        if inst.opcode == "or" and lit_eq(operands[0], 0):
-            self.updater._store(inst, operands[1])
-            return
 
         # x == 0 -> iszero x
         if inst.opcode == "eq":
