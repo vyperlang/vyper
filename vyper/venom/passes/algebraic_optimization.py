@@ -371,9 +371,7 @@ class AlgebraicOptimizationPass(IRPass):
 
     # rewrite comparisons by adding an `iszero`, e.g.
     # `x > N` -> `x >= (N + 1)`
-    def _rewrite_comparison(
-        self, inst: IRInstruction, opcode: str, operands: list[IROperand]
-    ) -> Optional[IRLiteral]:
+    def _rewrite_comparison(self, opcode: str, operands: list[IROperand]) -> Optional[IRLiteral]:
         val = operands[0].value
         unsigned = "s" not in opcode
         if "gt" in opcode:
@@ -388,9 +386,6 @@ class AlgebraicOptimizationPass(IRPass):
         # don't handle them here, just return
         if _wrap256(val, unsigned) != val:
             return None
-
-        n_opcode = _flip_comparison_op(opcode)
-        self.updater._update(inst, n_opcode, [IRLiteral(val), operands[1]])
 
         return IRLiteral(val)
 
@@ -421,7 +416,7 @@ class AlgebraicOptimizationPass(IRPass):
         if len(n_uses) != 1 or n_uses.first().opcode == "assert":
             return
 
-        val = self._rewrite_comparison(inst, opcode, operands)
+        val = self._rewrite_comparison(opcode, operands)
         if val is None:
             return
         new_opcode = _flip_comparison_op(opcode)
@@ -455,7 +450,7 @@ class AlgebraicOptimizationPass(IRPass):
         if not isinstance(src.operands[0], IRLiteral):
             return
 
-        val = self._rewrite_comparison(src, opcode, src.operands)
+        val = self._rewrite_comparison(opcode, src.operands)
         if val is None:
             return
         new_opcode = _flip_comparison_op(opcode)
