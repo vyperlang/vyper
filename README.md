@@ -10,6 +10,7 @@
 
 [![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
 [![Language grade: Python](https://github.com/vyperlang/vyper/workflows/CodeQL/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/codeql.yml)
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Vyper%20Guru-006BFF)](https://gurubase.io/g/vyper)
 
 # Getting Started
 See [Installing Vyper](http://docs.vyperlang.org/en/latest/installing-vyper.html) to install vyper.
