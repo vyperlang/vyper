@@ -2,6 +2,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.function import IRFunction
 
@@ -64,6 +65,30 @@ class IRContext:
             suffix = f"_{suffix}"
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
+
+    def walk_call_graph(self):
+        """
+        Return preorder traversal of the call graph
+        """
+        entry = next(iter(self.functions.values()))
+        to_visit = OrderedSet([entry])
+        ret = OrderedSet()
+        while to_visit:
+            fn = to_visit.pop()
+            ret.add(fn)
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode == "invoke":
+                        label = inst.operands[0]
+                        next_fn = self.get_function(label)
+                        if next_fn not in ret:
+                            to_visit.add(next_fn)
+        return ret
+
+
+    def prune_unreachable_functions(self):
+        seen = self.walk_call_graph()
+        self.functions = {label: fn for label, fn in self.functions.items() if fn in seen}
 
     def chain_basic_blocks(self) -> None:
         """

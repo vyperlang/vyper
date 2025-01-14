@@ -15,6 +15,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
+    FunctionInlinerPass,
     LoadElimination,
     LowerDloadPass,
     MakeSSA,
@@ -49,16 +50,21 @@ def generate_assembly_experimental(
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
+    ac = IRAnalysesCache(fn, optimize)
 
-    ac = IRAnalysesCache(fn)
+    FunctionInlinerPass(ac, fn).run_pass()
 
     FloatAllocas(ac, fn).run_pass()
 
+    # function inliner creates calling convention related garbage; remove it
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+
     SCCP(ac, fn).run_pass()
 
     LoadElimination(ac, fn).run_pass()
@@ -87,13 +93,13 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
-    for fn in ctx.functions.values():
+    for fn in ctx.walk_call_graph():#functions.values():
         _run_passes(fn, optimize)
+    ctx.prune_unreachable_functions()
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
     run_passes_on(ctx, optimize)
-
     return ctx

@@ -2,11 +2,10 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
 
-from vyper.codegen.context import Constancy, Context
+from vyper.codegen.context import Constancy, Context, VariableRecord
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.evm.opcodes import version_check
-from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions
@@ -16,7 +15,7 @@ from vyper.utils import MemoryPositions
 class FrameInfo:
     frame_start: int
     frame_size: int
-    frame_vars: dict[str, tuple[int, VyperType]]
+    frame_vars: dict[str, VariableRecord]
 
     @property
     def mem_used(self):
