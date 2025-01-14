@@ -1,6 +1,7 @@
 from eth_account import Account
 from eth_account._utils.signing import to_bytes32
 
+from tests.evm_backends.base_env import EvmError
 from tests.utils import ZERO_ADDRESS
 
 
@@ -106,7 +107,7 @@ def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
     assert c.do_ecrecover(h, v, r, s) == local_account.address
     gas_used = env.last_result.gas_used
 
-    with tx_failed():
+    with tx_failed(EvmError):
         # provide enough spare gas for the top-level call to not oog but
         # not enough for ecrecover to succeed
         c.do_ecrecover(h, v, r, s, gas=gas_used - 1)

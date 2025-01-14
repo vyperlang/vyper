@@ -4,6 +4,7 @@ import pytest
 
 from tests.evm_backends.base_env import EvmError
 from tests.utils import decimal_to_int
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
@@ -851,7 +852,7 @@ def foo() -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_array_copy_oog(env, get_contract, tx_failed):
+def test_array_copy_oog(env, get_contract, tx_failed, optimize, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
 @internal
@@ -864,6 +865,9 @@ def foo(x: uint256[3000]) -> uint256:
     s: uint256[3000] = self.bar(x)
     return s[0]
     """
+    if optimize == OptimizationLevel.NONE:
+        # fails in get_contract due to code too large
+        request.node.add_marker(pytest.mark.xfail(strict=True))
 
     c = get_contract(code)
     array = [2] * 3000
@@ -873,7 +877,7 @@ def foo(x: uint256[3000]) -> uint256:
         c.foo(array, gas=gas_used - 1)
 
 
-def test_array_copy_oog2(env, get_contract, tx_failed):
+def test_array_copy_oog2(env, get_contract, tx_failed, optimize, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
 @external
@@ -882,6 +886,9 @@ def foo(x: uint256[2500]) -> uint256:
     t: uint256[2500] = s
     return t[0]
     """
+    if optimize == OptimizationLevel.NONE:
+        # fails in get_contract due to code too large
+        request.node.add_marker(pytest.mark.xfail(strict=True))
 
     c = get_contract(code)
     array = [2] * 2500
