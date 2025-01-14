@@ -367,3 +367,37 @@ def test_comparison_zero():
     """
 
     _sccp_algebraic_runner(pre, post)
+
+
+def test_comparison_almost_never():
+    # x > 0 => iszero(iszero x)
+    # 0 < x => iszero(iszero x)
+
+    max_uint256 = 2**256 - 1
+    max_int256 = 2**255 - 1
+    min_int256 = 2**255
+    pre = f"""
+    _global:
+        %par = param
+        %1 = lt %par, 1
+        %2 = gt 1, %par
+        %3 = gt %par, {max_uint256 - 1}
+        %4 = sgt %par, {max_int256 - 1}
+        %5 = slt %par, {min_int256 + 1}
+        return %1, %2, %3, %4, %5
+    """
+    post = f"""
+    _global:
+        %par = param
+        ; first into eq 0 %par then into iszere
+        %1 = iszero %par
+        %2 = iszero %par
+        ; this also goes through eq
+        %6 = not %par
+        %3 = iszero %6
+        %4 = eq {max_int256}, %par
+        %5 = eq {min_int256}, %par
+        return %1, %2, %3, %4, %5
+    """
+
+    _sccp_algebraic_runner(pre, post)

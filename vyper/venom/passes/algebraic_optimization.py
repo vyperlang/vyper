@@ -348,6 +348,11 @@ class AlgebraicOptimizationPass(IRPass):
             almost_always, never = hi, lo
             almost_never = lo + 1
 
+        if not unsigned:
+            almost_never = signed_to_unsigned(almost_never, 256, strict=True)
+            almost_always = signed_to_unsigned(almost_always, 256, strict=True)
+            never = signed_to_unsigned(never, 256, strict=True)
+
         if lit_eq(operands[0], almost_never):
             # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
             self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
