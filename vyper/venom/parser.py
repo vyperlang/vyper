@@ -64,7 +64,7 @@ VENOM_GRAMMAR = """
     %ignore COMMENT
     """
 
-VENOM_PARSER = Lark(VENOM_GRAMMAR)
+VENOM_PARSER = Lark(VENOM_GRAMMAR, start = 'start', parser = 'lalr')
 
 
 def _set_last_var(fn: IRFunction):
