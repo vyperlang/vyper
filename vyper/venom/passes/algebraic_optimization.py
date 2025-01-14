@@ -1,5 +1,5 @@
 from vyper.exceptions import CompilerPanic
-from vyper.utils import int_bounds, int_log2, is_power_of_two
+from vyper.utils import int_bounds, int_log2, is_power_of_two, wrap256
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import (
@@ -11,7 +11,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import lit_eq, signed_to_unsigned, unsigned_to_signed
+from vyper.venom.passes.sccp.eval import lit_eq
 
 TRUTHY_INSTRUCTIONS = ("iszero", "jnz", "assert", "assert_unreachable")
 
@@ -23,14 +23,6 @@ def _flip_comparison_op(opname):
     if "l" in opname:
         return opname.replace("l", "g")
     raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
-
-
-def _wrap256(x, unsigned: bool):
-    x %= 2**256
-    # wrap in a signed way.
-    if not unsigned:
-        x = unsigned_to_signed(x, 256, strict=True)
-    return x
 
 
 class InstructionUpdater:
@@ -227,7 +219,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "not", [operands[0]])
                 return
             # x ^ -1 -> ~x
-            if inst.opcode == "xor" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            if inst.opcode == "xor" and lit_eq(operands[0], -1):
                 self.updater._update(inst, "not", [operands[1]])
                 return
             return
@@ -242,7 +234,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         # x & 0xFF..FF -> x
-        if inst.opcode == "and" and lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+        if inst.opcode == "and" and lit_eq(operands[0], -1):
             self.updater._store(inst, operands[1])
             return
 
@@ -304,7 +296,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [operands[1]])
                 return
 
-            if lit_eq(operands[0], signed_to_unsigned(-1, 256)):
+            if lit_eq(operands[0], -1):
                 var = self.updater._add_before(inst, "not", [operands[1]])
                 self.updater._update(inst, "iszero", [var])
                 return
@@ -326,9 +318,9 @@ class AlgebraicOptimizationPass(IRPass):
         assert isinstance(inst.output, IRVariable)  # help mypy
 
         is_gt = "g" in opcode
-        unsigned = "s" not in opcode
+        signed = "s" in opcode
 
-        lo, hi = int_bounds(bits=256, signed=not unsigned)
+        lo, hi = int_bounds(bits=256, signed=signed)
 
         if not isinstance(operands[0], IRLiteral):
             return
@@ -348,13 +340,13 @@ class AlgebraicOptimizationPass(IRPass):
             almost_always, never = hi, lo
             almost_never = lo + 1
 
-        if lit_eq(operands[0], almost_never, unsigned):
+        if lit_eq(operands[0], almost_never):
             # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
             self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
             return
 
         # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-        if prefer_iszero and lit_eq(operands[0], almost_always, unsigned):
+        if prefer_iszero and lit_eq(operands[0], almost_always):
             # e.g. gt x 0, slt x MAX_INT256
             tmp = self.updater._add_before(inst, "eq", operands)
             self.updater._update(inst, "iszero", [tmp])
@@ -363,19 +355,15 @@ class AlgebraicOptimizationPass(IRPass):
         # since push0 was introduced in shanghai, it's potentially
         # better to actually reverse this optimization -- i.e.
         # replace iszero(iszero(x)) with (gt x 0)
-        if opcode == "gt" and lit_eq(operands[0], 0, unsigned):
+        if opcode == "gt" and lit_eq(operands[0], 0):
             tmp = self.updater._add_before(inst, "iszero", [operands[1]])
             self.updater._update(inst, "iszero", [tmp])
             return
 
-        self._rewrite_ge_le(inst)
-
-    # rewrite comparisons by removing an `iszero`, e.g.
-    # `x > N` -> `x >= (N + 1)`
-    def _rewrite_ge_le(self, inst: IRInstruction):
+        # rewrite comparisons by removing an `iszero`, e.g.
+        # `x > N` -> `x >= (N + 1)`
         assert inst.output is not None
         uses = self.dfg.get_uses(inst.output)
-
         if len(uses) != 1:
             return
 
@@ -390,21 +378,19 @@ class AlgebraicOptimizationPass(IRPass):
         if len(n_uses) != 1 or n_uses.first().opcode == "assert":
             return
 
-        opcode, operands = inst.opcode, inst.operands
+        val = wrap256(operands[0].value, signed=signed)
+        if val == never:
+            # interferes with sccp optimization (lt x 0 -> 0)
+            return
 
-        val = operands[0].value
-        unsigned = "s" not in opcode
-        if "gt" in opcode:
+        if is_gt:
             val += 1
         else:
             val -= 1
-        new_opcode = _flip_comparison_op(opcode)
+        # sanity
+        assert wrap256(val, signed=signed) == val
 
-        # this can happen for cases like `lt x 0` which get reduced in SCCP.
-        # don't handle them here, just return
-        # unsigned is true since we already converted it if needed
-        if _wrap256(val, unsigned) != val:
-            return
+        new_opcode = _flip_comparison_op(opcode)
 
         self.updater._update(inst, new_opcode, [IRLiteral(val), operands[1]])
 

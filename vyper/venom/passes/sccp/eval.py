@@ -10,14 +10,13 @@ from vyper.utils import (
     int_bounds,
     signed_to_unsigned,
     unsigned_to_signed,
+    wrap256,
 )
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 
-def lit_eq(op: IROperand, val: int, unsigned: bool = True) -> bool:
-    if not unsigned:
-        return isinstance(op, IRLiteral) and _unsigned_to_signed(op.value) == val
-    return isinstance(op, IRLiteral) and op.value == val
+def lit_eq(op: IROperand, val: int) -> bool:
+    return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
 def _unsigned_to_signed(value: int) -> int:

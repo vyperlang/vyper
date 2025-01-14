@@ -393,7 +393,7 @@ def test_comparison_almost_never():
     post = f"""
     _global:
         %par = param
-        ; first into eq 0 %par then into iszere
+        ; lt %par, 1 => eq 0, %par => iszero %par
         %1 = iszero %par
         %2 = iszero %par
         ; this also goes through eq

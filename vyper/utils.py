@@ -234,6 +234,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -243,7 +250,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -258,7 +265,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_

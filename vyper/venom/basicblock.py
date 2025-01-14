@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, wrap256
 
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
