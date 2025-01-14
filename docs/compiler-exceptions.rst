@@ -44,7 +44,7 @@ of the error within the code:
 
 .. py:exception:: ImmutableViolation
 
-    Raises when attempting to perform a change a variable, constant or definition that cannot be changed. For example, trying to update a constant, or trying to assign to a function definition.
+    Raises when attempting to perform a change to a variable, constant or definition that cannot be changed. For example, trying to update a constant, or trying to assign to a function definition.
 
 .. py:exception:: InterfaceViolation
 
