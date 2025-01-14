@@ -455,3 +455,34 @@ def test_comparison_almost_always():
     """
 
     _sccp_algebraic_runner(pre, post)
+
+
+@pytest.mark.parametrize("val", (100, 2, 3))
+def test_comparison_ge_le(val):
+    # iszero(x < 100) => 99 <= x
+    # iszero(x > 100) => 101 >= x
+
+    pre = f"""
+    _global:
+        %par = param
+        %1 = lt %par, {val}
+        %3 = gt %par, {val}
+        %4 = iszero %3
+        %2 = iszero %1
+        %5 = slt %par, {val}
+        %7 = sgt %par, {val}
+        %6 = iszero %5
+        %8 = iszero %7
+        return %2, %4, %6, %8
+    """
+    post = f"""
+    _global:
+        %par = param
+        %1 = lt {val - 1}, %par
+        %3 = gt {val + 1}, %par
+        %5 = slt {val - 1}, %par
+        %7 = sgt {val + 1}, %par
+        return %1, %3, %5, %7
+    """
+
+    _sccp_algebraic_runner(pre, post)
