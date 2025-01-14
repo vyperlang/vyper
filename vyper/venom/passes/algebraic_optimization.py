@@ -185,6 +185,15 @@ class AlgebraicOptimizationPass(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._handle_inst_peephole(inst)
+                self._flip_inst(inst)
+
+
+    def _flip_inst(self, inst: IRInstruction):
+        ops = inst.operands
+        # improve code. this seems like it should be properly handled by
+        # better heuristics in DFT.
+        if (inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1])):
+            inst.flip()
 
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.output is None:
