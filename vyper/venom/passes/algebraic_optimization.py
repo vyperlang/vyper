@@ -348,18 +348,13 @@ class AlgebraicOptimizationPass(IRPass):
             almost_always, never = hi, lo
             almost_never = lo + 1
 
-        if not unsigned:
-            almost_never = signed_to_unsigned(almost_never, 256, strict=True)
-            almost_always = signed_to_unsigned(almost_always, 256, strict=True)
-            never = signed_to_unsigned(never, 256, strict=True)
-
-        if lit_eq(operands[0], almost_never):
+        if lit_eq(operands[0], almost_never, unsigned):
             # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
             self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
             return
 
         # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-        if prefer_iszero and lit_eq(operands[0], almost_always):
+        if prefer_iszero and lit_eq(operands[0], almost_always, unsigned):
             # e.g. gt x 0, slt x MAX_INT256
             tmp = self.updater._add_before(inst, "eq", operands)
             self.updater._update(inst, "iszero", [tmp])
@@ -368,7 +363,7 @@ class AlgebraicOptimizationPass(IRPass):
         # since push0 was introduced in shanghai, it's potentially
         # better to actually reverse this optimization -- i.e.
         # replace iszero(iszero(x)) with (gt x 0)
-        if opcode == "gt" and lit_eq(operands[0], 0):
+        if opcode == "gt" and lit_eq(operands[0], 0, unsigned):
             tmp = self.updater._add_before(inst, "iszero", [operands[1]])
             self.updater._update(inst, "iszero", [tmp])
             return
@@ -405,13 +400,10 @@ class AlgebraicOptimizationPass(IRPass):
             val -= 1
         new_opcode = _flip_comparison_op(opcode)
 
-        if not unsigned:
-            val = signed_to_unsigned(val, 256)
-
         # this can happen for cases like `lt x 0` which get reduced in SCCP.
         # don't handle them here, just return
         # unsigned is true since we already converted it if needed
-        if _wrap256(val, unsigned=True) != val:
+        if _wrap256(val, unsigned) != val:
             return
 
         self.updater._update(inst, new_opcode, [IRLiteral(val), operands[1]])

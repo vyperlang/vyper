@@ -14,7 +14,9 @@ from vyper.utils import (
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 
-def lit_eq(op: IROperand, val: int) -> bool:
+def lit_eq(op: IROperand, val: int, unsigned: bool = True) -> bool:
+    if not unsigned:
+        return isinstance(op, IRLiteral) and _unsigned_to_signed(op.value) == val
     return isinstance(op, IRLiteral) and op.value == val
 
 
