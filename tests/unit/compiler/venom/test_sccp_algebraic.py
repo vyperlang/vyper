@@ -208,7 +208,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts():
     post = """
     _global:
         %par = param
-        %1 = and %par, 7
+        %1 = and 7, %par
         %2 = shl 4, %par
         %3 = shr 2, %par
         return %1, %2, %3
@@ -307,11 +307,11 @@ def test_sccp_algebraic_opt_boolean_or_eq():
     post = """
     _global:
         %par = param
-        %5 = xor %par, 1
+        %5 = xor 1, %par
         %1 = iszero %5
-        %2 = eq %par, 1
+        %2 = eq 1, %par
         assert %1
-        %4 = or %par, 123
+        %4 = or 123, %par
         nop
         return %2, %4
     """

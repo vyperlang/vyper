@@ -1,5 +1,3 @@
-from typing import Optional
-
 from vyper.exceptions import CompilerPanic
 from vyper.utils import int_bounds, int_log2, is_power_of_two
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -187,12 +185,11 @@ class AlgebraicOptimizationPass(IRPass):
                 self._handle_inst_peephole(inst)
                 self._flip_inst(inst)
 
-
     def _flip_inst(self, inst: IRInstruction):
         ops = inst.operands
         # improve code. this seems like it should be properly handled by
         # better heuristics in DFT.
-        if (inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1])):
+        if inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1]):
             inst.flip()
 
     def _handle_inst_peephole(self, inst: IRInstruction):
