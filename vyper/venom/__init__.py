@@ -6,12 +6,14 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
+    AllocaElimination,
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
@@ -23,6 +25,7 @@ from vyper.venom.passes import (
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
+    Stack2Mem,
     StoreElimination,
     StoreExpansionPass,
 )
@@ -55,6 +58,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+    AllocaElimination(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
@@ -84,6 +88,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
+    Stack2Mem(ac, fn).run_pass()
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
