@@ -8,6 +8,7 @@ from vyper.venom.passes import (
     RemoveUnusedVariablesPass,
     StoreElimination,
 )
+from vyper.venom.passes.sccp.eval import signed_to_unsigned
 
 """
 Test abstract binop+unop optimizations in sccp and algebraic optimizations pass
@@ -457,10 +458,17 @@ def test_comparison_almost_always():
     _sccp_algebraic_runner(pre, post)
 
 
-@pytest.mark.parametrize("val", (100, 2, 3))
+@pytest.mark.parametrize("val", (100, 2, 3, -100))
 def test_comparison_ge_le(val):
     # iszero(x < 100) => 99 <= x
     # iszero(x > 100) => 101 >= x
+
+    up = val + 1
+    down = val - 1
+
+    val = signed_to_unsigned(val, 256)
+    up = signed_to_unsigned(up, 256)
+    down = signed_to_unsigned(down, 256)
 
     pre = f"""
     _global:
@@ -478,10 +486,10 @@ def test_comparison_ge_le(val):
     post = f"""
     _global:
         %par = param
-        %1 = lt {val - 1}, %par
-        %3 = gt {val + 1}, %par
-        %5 = slt {val - 1}, %par
-        %7 = sgt {val + 1}, %par
+        %1 = lt {down}, %par
+        %3 = gt {up}, %par
+        %5 = slt {down}, %par
+        %7 = sgt {up}, %par
         return %1, %3, %5, %7
     """
 

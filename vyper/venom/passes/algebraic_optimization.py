@@ -410,7 +410,8 @@ class AlgebraicOptimizationPass(IRPass):
 
         # this can happen for cases like `lt x 0` which get reduced in SCCP.
         # don't handle them here, just return
-        if _wrap256(val, unsigned) != val:
+        # unsigned is true since we already converted it if needed
+        if _wrap256(val, unsigned=True) != val:
             return
 
         self.updater._update(inst, new_opcode, [IRLiteral(val), operands[1]])
