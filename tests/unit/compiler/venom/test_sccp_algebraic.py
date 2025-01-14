@@ -370,8 +370,12 @@ def test_comparison_zero():
 
 
 def test_comparison_almost_never():
-    # x > 0 => iszero(iszero x)
-    # 0 < x => iszero(iszero x)
+    # unsigned:
+    #   x < 1 => eq x 0 => iszero x
+    #   MAX_UINT - 1 < x => eq x MAX_UINT => iszero(not x)
+    # signed
+    #   x < MIN_INT + 1 => eq x MIN_INT
+    #   MAX_INT - 1 < x => eq x MAX_INT
 
     max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
@@ -398,6 +402,56 @@ def test_comparison_almost_never():
         %4 = eq {max_int256}, %par
         %5 = eq {min_int256}, %par
         return %1, %2, %3, %4, %5
+    """
+
+    _sccp_algebraic_runner(pre, post)
+
+
+def test_comparison_almost_always():
+    # unsigned
+    #   x > 0 => iszero(iszero x)
+    #   0 < x => iszero(iszero x)
+    #   x < MAX_UINT => iszero(eq x MAX_UINT) => iszero(iszero(not x))
+    # signed
+    #   x < MAX_INT => iszero(eq MAX_INT) => iszero(iszero(xor x))
+
+    max_uint256 = 2**256 - 1
+    max_int256 = 2**255 - 1
+    min_int256 = 2**255
+
+    pre = f"""
+    _global:
+        %par = param
+        %1 = lt 0, %par
+        %2 = gt %par, 0
+        %3 = lt %par, {max_uint256}
+        assert %3
+        %4 = slt %par, {max_int256}
+        assert %4
+        %4 = sgt %par, {min_int256}
+        assert %4
+        return %1, %2
+    """
+    post = f"""
+    _global:
+        %par = param
+        %5 = iszero %par
+        %1 = iszero %5
+        %6 = iszero %par
+        %2 = iszero %6
+        %10 = not %par
+        %7 = iszero %10
+        %3 = iszero %7
+        assert %3
+        %11 = xor %par, {max_int256}
+        %8 = iszero %11
+        %4 = iszero %8
+        assert %4
+        %12 = xor %par, {min_int256}
+        %9 = iszero %12
+        %4 = iszero %9
+        assert %4
+        return %1, %2
     """
 
     _sccp_algebraic_runner(pre, post)
