@@ -554,15 +554,28 @@ def test_comparison_ge_le(val):
     abs_up = abs_val + 1
     abs_down = abs_val - 1
 
-    pre = f"""
+    pre1 = f"""
     _global:
         %par = param
         %1 = lt %par, {abs_val}
         %3 = gt %par, {abs_val}
-        %4 = iszero %3
         %2 = iszero %1
+        %4 = iszero %3
         %5 = slt %par, {val}
         %7 = sgt %par, {val}
+        %6 = iszero %5
+        %8 = iszero %7
+        return %2, %4, %6, %8
+    """
+    pre2 = f"""
+    _global:
+        %par = param
+        %1 = gt {abs_val}, %par
+        %3 = lt {abs_val}, %par
+        %2 = iszero %1
+        %4 = iszero %3
+        %5 = sgt {val}, %par
+        %7 = slt {val}, %par
         %6 = iszero %5
         %8 = iszero %7
         return %2, %4, %6, %8
@@ -577,4 +590,5 @@ def test_comparison_ge_le(val):
         return %1, %3, %5, %7
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre1, post)
+    _sccp_algebraic_runner(pre2, post)

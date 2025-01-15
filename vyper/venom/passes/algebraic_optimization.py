@@ -345,10 +345,7 @@ class AlgebraicOptimizationPass(IRPass):
             self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
             return
 
-        # ANCHOR - reviewed thru here
-
         # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-        # TODO: is this actually a good optimization?
         if prefer_iszero and lit_eq(operands[0], almost_always):
             # e.g. gt x 0, slt x MAX_INT256
             tmp = self.updater._add_before(inst, "eq", operands)
