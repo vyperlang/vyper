@@ -487,48 +487,59 @@ def test_comparison_almost_always():
     #   0 < x => iszero(iszero x)
     #   x < MAX_UINT => iszero(eq x MAX_UINT) => iszero(iszero(not x))
     # signed
-    #   x < MAX_INT => iszero(eq MAX_INT) => iszero(iszero(xor x))
+    #   x < MAX_INT => iszero(eq MAX_INT) => iszero(iszero(xor MAX_INT x))
 
     max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
 
-    pre = f"""
+    pre1 = f"""
+    _global:
+        %par = param
+        %1 = gt %par, 0
+        %2 = lt %par, {max_uint256}
+        assert %2
+        %3 = slt %par, {max_int256}
+        assert %3
+        %4 = sgt %par, {min_int256}
+        assert %4
+        return %1
+    """
+    # commuted versions
+    pre2 = f"""
     _global:
         %par = param
         %1 = lt 0, %par
-        %2 = gt %par, 0
-        %3 = lt %par, {max_uint256}
+        %2 = gt {max_uint256}, %par
+        assert %2
+        %3 = sgt {max_int256}, %par
         assert %3
-        %4 = slt %par, {max_int256}
+        %4 = slt {min_int256}, %par
         assert %4
-        %4 = sgt %par, {min_int256}
-        assert %4
-        return %1, %2
+        return %1
     """
     post = f"""
     _global:
         %par = param
         %5 = iszero %par
         %1 = iszero %5
-        %6 = iszero %par
+        %9 = not %par  ; (eq -1 x) => (iszero (not x))
+        %6 = iszero %9
         %2 = iszero %6
-        %10 = not %par
+        assert %2
+        %10 = xor %par, {max_int256}
         %7 = iszero %10
         %3 = iszero %7
         assert %3
-        %11 = xor %par, {max_int256}
+        %11 = xor %par, {min_int256}
         %8 = iszero %11
         %4 = iszero %8
         assert %4
-        %12 = xor %par, {min_int256}
-        %9 = iszero %12
-        %4 = iszero %9
-        assert %4
-        return %1, %2
+        return %1
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre1, post)
+    _sccp_algebraic_runner(pre2, post)
 
 
 @pytest.mark.parametrize("val", (100, 2, 3, -100))
