@@ -73,8 +73,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     MemMergePass(ac, fn).run_pass()
 
     LowerDloadPass(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a
     #       problem for us, but we need to be aware of it, and should be
@@ -83,6 +81,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
