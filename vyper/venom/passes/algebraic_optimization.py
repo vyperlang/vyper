@@ -180,7 +180,7 @@ class AlgebraicOptimizationPass(IRPass):
     def _flip_inst(self, inst: IRInstruction):
         ops = inst.operands
         # improve code. this seems like it should be properly handled by
-        # better heuristics in DFT.
+        # better heuristics in DFT pass.
         if inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1]):
             inst.flip()
 

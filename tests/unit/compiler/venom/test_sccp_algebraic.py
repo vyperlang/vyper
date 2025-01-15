@@ -48,45 +48,52 @@ def test_sccp_algebraic_opt_sub_xor():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_zero_sub_xor():
+def test_sccp_algebraic_opt_zero_sub_add_xor():
     # x + 0 == x - 0 == x ^ 0 -> x
-    # this cannot be done for 0 - x
+    # (this cannot be done for 0 - x)
     pre = """
     _global:
         %par = param
         %1 = sub %par, 0
         %2 = xor %par, 0
-        %3 = add 0, %par
+        %3 = add %par, 0
         %4 = sub 0, %par
-        %5 = sub -1, %par
-        return %1, %2, %3, %4, %5
+        %5 = add 0, %par
+        %6 = xor 0, %par
+        return %1, %2, %3, %4, %5, %6
     """
     post = """
     _global:
         %par = param
         %4 = sub 0, %par
-        %5 = not %par
-        return %par, %par, %par, %4, %5
+        return %par, %par, %par, %4, %par, %par
     """
 
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_xor_max():
+def test_sccp_algebraic_opt_sub_xor_max():
     # x ^ 0xFF..FF -> not x
+    # -1 - x -> ~x
     max_uint256 = (2**256) - 1
     pre = f"""
     _global:
         %par = param
-        %tmp = {max_uint256}
-        %1 = xor %tmp, %par
-        return %1
+        %tmp = -1
+        %1 = xor -1, %par
+        %2 = xor %par, -1
+
+        %3 = sub -1, %par
+
+        return %1, %2, %3
     """
     post = """
     _global:
         %par = param
         %1 = not %par
-        return %1
+        %2 = not %par
+        %3 = not %par
+        return %1, %2, %3
     """
 
     _sccp_algebraic_runner(pre, post)
