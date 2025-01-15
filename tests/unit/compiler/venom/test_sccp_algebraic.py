@@ -75,8 +75,7 @@ def test_sccp_algebraic_opt_zero_sub_add_xor():
 def test_sccp_algebraic_opt_sub_xor_max():
     # x ^ 0xFF..FF -> not x
     # -1 - x -> ~x
-    max_uint256 = (2**256) - 1
-    pre = f"""
+    pre = """
     _global:
         %par = param
         %tmp = -1
@@ -303,8 +302,7 @@ def test_sccp_algebraic_opt_eq():
     # (x == 0) == (0 == x) -> iszero x
     # x == x -> 1
     # x == 0xFFFF..FF -> iszero(not x)
-    max_uint256 = (2**256) - 1
-    pre = f"""
+    pre = """
     global:
         %par = param
         %1 = eq %par, 0
@@ -359,7 +357,7 @@ def test_sccp_algebraic_opt_boolean_or():
 
 def test_sccp_algebraic_opt_boolean_eq():
     # x == y -> iszero (x ^ y) if it is only used as boolean
-    pre = f"""
+    pre = """
     _global:
         %par = param
         %par2 = param
@@ -369,7 +367,7 @@ def test_sccp_algebraic_opt_boolean_eq():
         return %2
 
     """
-    post = f"""
+    post = """
     _global:
         %par = param
         %par2 = param
