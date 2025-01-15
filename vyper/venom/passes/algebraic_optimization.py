@@ -184,6 +184,7 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1]):
             inst.flip()
 
+    # "peephole", weakening algebraic optimizations
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.output is None:
             return
@@ -193,6 +194,14 @@ class AlgebraicOptimizationPass(IRPass):
             return
         if inst.is_pseudo:
             return
+
+        # TODO nice to have rules:
+        # -1 * x => 0 - x
+        # x // -1 => 0 - x (?)
+        # x + (-1) => x - 1  # save codesize, maybe for all negative numbers)
+        # 1 // x => x == 1(?)
+        # 1 % x => x > 1(?)
+        # !!x => x > 0  # saves 1 gas as of shanghai
 
         operands = inst.operands
 
