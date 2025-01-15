@@ -260,33 +260,49 @@ def test_sccp_algebraic_opt_compare_self():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_or_eq():
+def test_sccp_algebraic_opt_or():
     # x | 0 -> x
     # x | 0xFF..FF -> 0xFF..FF
-    # (x == 0) == (0 == x) -> iszero x
-    # x == x -> 1
     max_uint256 = 2**256 - 1
     pre = f"""
     _global:
         %par = param
         %1 = or %par, 0
         %2 = or %par, {max_uint256}
-        %3 = eq %par, 0
-        %4 = eq 0, %par
-        %5 = eq %par, %par
-        %6 = eq %par, {max_uint256}
-        return %1, %2, %3, %4, %5, %6
+        return %1, %2
     """
     post = f"""
     _global:
         %par = param
-        %3 = iszero %par
-        %4 = iszero %par
-        %8 = not %par
-        %6 = iszero %8
-        return %par, {max_uint256}, %3, %4, 1, %6
+        return %par, {max_uint256}
     """
 
+    _sccp_algebraic_runner(pre, post)
+
+
+def test_sccp_algebraic_opt_eq():
+    # (x == 0) == (0 == x) -> iszero x
+    # x == x -> 1
+    # x == 0xFFFF..FF -> iszero(not x)
+    max_uint256 = (2**256) - 1
+    pre = f"""
+    global:
+        %par = param
+        %1 = eq %par, 0
+        %2 = eq 0, %par
+        %3 = eq %par, %par
+        %4 = eq %par, {max_uint256}
+        return %1, %2, %3, %4
+    """
+    post = """
+    global:
+        %par = param
+        %1 = iszero %par
+        %2 = iszero %par
+        %6 = not %par
+        %4 = iszero %6
+        return %1, %2, 1, %4
+    """
     _sccp_algebraic_runner(pre, post)
 
 
