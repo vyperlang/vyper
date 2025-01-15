@@ -99,8 +99,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
