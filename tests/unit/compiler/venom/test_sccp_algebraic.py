@@ -309,9 +309,11 @@ def test_sccp_algebraic_opt_eq():
         %par = param
         %1 = eq %par, 0
         %2 = eq 0, %par
-        %3 = eq %par, %par
-        %4 = eq %par, -1
-        %5 = eq -1, %par
+
+        %3 = eq %par, -1
+        %4 = eq -1, %par
+
+        %5 = eq %par, %par
         return %1, %2, %3, %4, %5
     """
     post = """
@@ -319,11 +321,11 @@ def test_sccp_algebraic_opt_eq():
         %par = param
         %1 = iszero %par
         %2 = iszero %par
+        %6 = not %par
+        %3 = iszero %6
         %7 = not %par
         %4 = iszero %7
-        %8 = not %par
-        %5 = iszero %8
-        return %1, %2, 1, %4, %5
+        return %1, %2, %3, %4, 1
     """
     _sccp_algebraic_runner(pre, post)
 
