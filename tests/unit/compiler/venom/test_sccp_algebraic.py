@@ -325,30 +325,54 @@ def test_sccp_algebraic_opt_eq():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_boolean_or_eq():
-    # x == 1 -> iszero (x xor 1) if it is only used as boolean
+def test_sccp_algebraic_opt_boolean_or():
     # x | (non zero) -> 1 if it is only used as boolean
-    pre = """
+    some_nonzero = 123
+    pre = f"""
     _global:
         %par = param
-        %1 = eq %par, 1
-        %2 = eq %par, 1
+        %1 = or %par, {some_nonzero}
+        %2 = or %par, {some_nonzero}
         assert %1
-        %3 = or %par, 123
-        %4 = or %par, 123
+        %3 = or {some_nonzero}, %par
+        %4 = or {some_nonzero}, %par
         assert %3
         return %2, %4
     """
-    post = """
+    post = f"""
     _global:
         %par = param
-        %5 = xor 1, %par
-        %1 = iszero %5
-        %2 = eq 1, %par
-        assert %1
-        %4 = or 123, %par
+        %2 = or {some_nonzero}, %par
+        nop
+        %4 = or {some_nonzero}, %par
         nop
         return %2, %4
+    """
+
+    _sccp_algebraic_runner(pre, post)
+
+
+def test_sccp_algebraic_opt_boolean_eq():
+    # x == y -> iszero (x ^ y) if it is only used as boolean
+    pre = f"""
+    _global:
+        %par = param
+        %par2 = param
+        %1 = eq %par, %par2
+        %2 = eq %par, %par2
+        assert %1
+        return %2
+
+    """
+    post = f"""
+    _global:
+        %par = param
+        %par2 = param
+        %3 = xor %par, %par2
+        %1 = iszero %3
+        %2 = eq %par, %par2
+        assert %1
+        return %2
     """
 
     _sccp_algebraic_runner(pre, post)
