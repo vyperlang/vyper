@@ -1918,6 +1918,7 @@ def foo(a: DynArray[uint256, 4000]) -> uint256:
     assert c.foo(dynarray) == 2
     gas_used = env.last_result.gas_used
     with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        # should fail pre-cancun due to identity precompile returning 0
         c.foo(dynarray, gas=gas_used - 1)
 
 
@@ -1938,4 +1939,5 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
     assert c.foo(calldata0, calldata1) == [calldata0, calldata1]
     gas_used = env.last_result.gas_used
     with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        # should fail pre-cancun due to identity precompile returning 0
         c.foo(calldata0, calldata1, gas=gas_used - 1)

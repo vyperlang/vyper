@@ -874,6 +874,8 @@ def foo(x: uint256[3000]) -> uint256:
     assert c.foo(array) == array[0]
     gas_used = env.last_result.gas_used
     with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
         c.foo(array, gas=gas_used - 1)
 
 
@@ -895,4 +897,6 @@ def foo(x: uint256[2500]) -> uint256:
     assert c.foo(array) == array[0]
     gas_used = env.last_result.gas_used
     with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
         c.foo(array, gas=gas_used - 1)
