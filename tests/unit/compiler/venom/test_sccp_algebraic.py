@@ -276,12 +276,14 @@ def test_sccp_algebraic_opt_or():
         %par = param
         %1 = or %par, 0
         %2 = or %par, {max_uint256}
-        return %1, %2
+        %3 = or 0, %par
+        %4 = or {max_uint256}, %par
+        return %1, %2, %3, %4
     """
     post = f"""
     _global:
         %par = param
-        return %par, {max_uint256}
+        return %par, {max_uint256}, %par, {max_uint256}
     """
 
     _sccp_algebraic_runner(pre, post)
