@@ -212,6 +212,8 @@ def _parse_args(argv):
         assert args.warnings_control is None  # sanity
         warnings_filter = "default"
 
+    # NOTE: in the future we can do more fine-grained control by setting
+    # category to specific warning types
     warnings.simplefilter(warnings_filter, category=VyperWarning)
 
     if args.hex_ir:
