@@ -1,4 +1,6 @@
 import itertools
+from vyper.evm.opcodes import version_check
+import contextlib
 from typing import Any, Callable
 
 import pytest
@@ -1916,10 +1918,17 @@ def foo(a: DynArray[uint256, 4000]) -> uint256:
     c = get_contract(code)
     dynarray = [2] * 4000
     assert c.foo(dynarray) == 2
+
     gas_used = env.last_result.gas_used
-    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
-        # should fail pre-cancun due to identity precompile returning 0
-        c.foo(dynarray, gas=gas_used - 1)
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(dynarray, gas=gas_used)
 
 
 def test_dynarray_copy_oog2(env, get_contract, tx_failed):
@@ -1937,7 +1946,14 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
     calldata0 = "a" * 10
     calldata1 = "b" * 1000000
     assert c.foo(calldata0, calldata1) == [calldata0, calldata1]
+
     gas_used = env.last_result.gas_used
-    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
-        # should fail pre-cancun due to identity precompile returning 0
-        c.foo(calldata0, calldata1, gas=gas_used - 1)
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata0, calldata1, gas=gas_used)

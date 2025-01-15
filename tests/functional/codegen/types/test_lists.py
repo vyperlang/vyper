@@ -1,4 +1,6 @@
 import itertools
+import contextlib
+from vyper.evm.opcodes import version_check
 
 import pytest
 
@@ -872,11 +874,17 @@ def foo(x: uint256[3000]) -> uint256:
     c = get_contract(code)
     array = [2] * 3000
     assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
     gas_used = env.last_result.gas_used
-    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+    if version_check(begin= "cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
-        c.foo(array, gas=gas_used - 1)
+        c.foo(array, gas=gas_used)
 
 
 def test_array_copy_oog2(env, get_contract, tx_failed, optimize, experimental_codegen, request):
@@ -895,8 +903,14 @@ def foo(x: uint256[2500]) -> uint256:
     c = get_contract(code)
     array = [2] * 2500
     assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
     gas_used = env.last_result.gas_used
-    with tx_failed(EvmError):  # catch reverts *and* exceptional halt from oog
+    if version_check(begin= "cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
-        c.foo(array, gas=gas_used - 1)
+        c.foo(array, gas=gas_used)

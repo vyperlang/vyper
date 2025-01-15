@@ -105,9 +105,9 @@ def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
     v, r, s = sig.v, sig.r, sig.s
 
     assert c.do_ecrecover(h, v, r, s) == local_account.address
-    gas_used = env.last_result.gas_used
 
-    with tx_failed(EvmError):
+    gas_used = env.last_result.gas_used
+    with tx_failed():
         # provide enough spare gas for the top-level call to not oog but
         # not enough for ecrecover to succeed
-        c.do_ecrecover(h, v, r, s, gas=gas_used - 1)
+        c.do_ecrecover(h, v, r, s, gas=gas_used)

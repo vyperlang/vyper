@@ -374,11 +374,17 @@ def foo(x: String[1000000]) -> String[1000000]:
     c = get_contract(code)
     calldata = "a" * 1000000
     assert c.foo(calldata) == calldata
-    gas_used = env.last_result.gas_used - 1
-    # note: EvmError catches both reverts and exceptional halts (oog).
-    # this is dependent on the target evm version.
-    with tx_failed(EvmError):
-        c.foo(calldata, gas=gas_used - 1)
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata, gas=gas_used)
 
 
 def test_string_copy_oog2(env, get_contract, tx_failed):
@@ -392,8 +398,14 @@ def foo(x: String[1000000]) -> uint256:
     c = get_contract(code)
     calldata = "a" * 1000000
     assert c.foo(calldata) == len(calldata)
-    gas_used = env.last_result.gas_used - 1
-    # note: EvmError catches both reverts and exceptional halts (oog).
-    # this is dependent on the target evm version.
-    with tx_failed(EvmError):
-        c.foo(calldata, gas=gas_used - 1)
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata, gas=gas_used)
