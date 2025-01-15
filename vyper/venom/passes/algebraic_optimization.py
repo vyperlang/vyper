@@ -386,6 +386,8 @@ class AlgebraicOptimizationPass(IRPass):
         if is_gt:
             val += 1
         else:
+            # TODO: if resulting val is -1 (0xFF..FF), disable this
+            # when optimization level == codesize
             val -= 1
         # sanity
         assert wrap256(val, signed=signed) == val
