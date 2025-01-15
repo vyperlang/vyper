@@ -201,24 +201,34 @@ def test_sccp_algebraic_opt_and_max():
     _sccp_algebraic_runner(pre, post)
 
 
-def test_sccp_algebraic_opt_mul_div_to_shifts():
+# test powers of 2 from n==2 to n==255.
+# (skip 1 since there are specialized rules for n==1)
+@pytest.mark.parametrize("n", range(2, 256))
+def test_sccp_algebraic_opt_mul_div_to_shifts(n):
     # x * 2**n -> x << n
     # x / 2**n -> x >> n
-    pre = """
+    y = 2**n
+    pre = f"""
     _global:
         %par = param
-        %1 = mod %par, 8
-        %2 = mul %par, 16
-        %3 = div %par, 4
-        return %1, %2, %3
+        %1 = mul %par, {y}
+        %2 = mod %par, {y}
+        %3 = div %par, {y}
+        %4 = mul {y}, %par
+        %5 = mod {y}, %par ; note: this is blocked!
+        %6 = div {y}, %par ; blocked!
+        return %1, %2, %3, %4, %5, %6
     """
-    post = """
+    post = f"""
     _global:
         %par = param
-        %1 = and 7, %par
-        %2 = shl 4, %par
-        %3 = shr 2, %par
-        return %1, %2, %3
+        %1 = shl {n}, %par
+        %2 = and {y - 1}, %par
+        %3 = shr {n}, %par
+        %4 = shl {n}, %par
+        %5 = mod {y}, %par
+        %6 = div {y}, %par
+        return %1, %2, %3, %4, %5, %6
     """
 
     _sccp_algebraic_runner(pre, post)
