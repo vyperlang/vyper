@@ -444,31 +444,41 @@ def test_comparison_almost_never():
     max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
-    pre = f"""
+    pre1 = f"""
     _global:
         %par = param
         %1 = lt %par, 1
-        %2 = gt 1, %par
-        %3 = gt %par, {max_uint256 - 1}
-        %4 = sgt %par, {max_int256 - 1}
-        %5 = slt %par, {min_int256 + 1}
-        return %1, %2, %3, %4, %5
+        %2 = gt %par, {max_uint256 - 1}
+        %3 = sgt %par, {max_int256 - 1}
+        %4 = slt %par, {min_int256 + 1}
+
+        return %1, %2, %3, %4
+    """
+    # commuted versions - produce same output
+    pre2 = f"""
+    _global:
+        %par = param
+        %1 = gt 1, %par
+        %2 = lt {max_uint256 - 1}, %par
+        %3 = slt {max_int256 - 1}, %par
+        %4 = sgt {min_int256 + 1}, %par
+        return %1, %2, %3, %4
     """
     post = f"""
     _global:
         %par = param
         ; lt %par, 1 => eq 0, %par => iszero %par
         %1 = iszero %par
-        %2 = iszero %par
-        ; this also goes through eq
-        %6 = not %par
-        %3 = iszero %6
-        %4 = eq {max_int256}, %par
-        %5 = eq {min_int256}, %par
-        return %1, %2, %3, %4, %5
+        ; x > MAX_UINT256 - 1 => eq MAX_UINT x => iszero(not x)
+        %5 = not %par
+        %2 = iszero %5
+        %3 = eq {max_int256}, %par
+        %4 = eq {min_int256}, %par
+        return %1, %2, %3, %4
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre1, post)
+    _sccp_algebraic_runner(pre2, post)
 
 
 def test_comparison_almost_always():

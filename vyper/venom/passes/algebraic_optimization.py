@@ -309,6 +309,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater._update(inst, "iszero", [tmp])
                 return
 
+        # ANCHOR - reviewed thru here
         if inst.opcode in COMPARATOR_INSTRUCTIONS:
             self._optimize_comparator_instruction(inst, prefer_iszero)
 
