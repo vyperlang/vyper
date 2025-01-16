@@ -542,8 +542,8 @@ def test_comparison_almost_always():
 
 @pytest.mark.parametrize("val", (100, 2, 3, -100))
 def test_comparison_ge_le(val):
-    # iszero(x < 100) => 99 <= x
-    # iszero(x > 100) => 101 >= x
+    # iszero(x < 100) => 99 < x
+    # iszero(x > 100) => 101 > x
 
     up = val + 1
     down = val - 1
