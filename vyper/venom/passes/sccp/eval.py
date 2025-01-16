@@ -1,5 +1,5 @@
 import operator
-from typing import Callable, Optional
+from typing import Callable
 
 from vyper.utils import (
     SizeLimits,
@@ -7,16 +7,10 @@ from vyper.utils import (
     evm_mod,
     evm_not,
     evm_pow,
-    int_bounds,
     signed_to_unsigned,
     unsigned_to_signed,
-    wrap256,
 )
 from vyper.venom.basicblock import IRLiteral, IROperand
-
-
-def lit_eq(op: IROperand, val: int) -> bool:
-    return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
 def _unsigned_to_signed(value: int) -> int:
@@ -102,31 +96,6 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-def _comparison_eval(opcode: str, ops: list[IROperand]):
-    # x < x always evaluates to False
-    if ops[0] == ops[1]:
-        return IRLiteral(0)
-
-    signed = "s" in opcode
-    lo, hi = int_bounds(bits=256, signed=signed)
-
-    # note: remember order of operands!
-    # text of (gt, [x, y]) is: `y > x`
-    a, b = ops[1], ops[0]
-    if "gt" in opcode:
-        # x > hi => False
-        # lo > x => False
-        if lit_eq(a, lo) or lit_eq(b, hi):
-            return IRLiteral(0)
-    else:
-        # hi < x => False
-        # x < lo => False
-        if lit_eq(a, hi) or lit_eq(b, lo):
-            return IRLiteral(0)
-
-    return None
-
-
 ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], IRLiteral]] = {
     "add": _wrap_binop(operator.add),
     "sub": _wrap_binop(operator.sub),
@@ -158,39 +127,4 @@ def eval_arith(opcode: str, ops: list[IROperand]) -> IRLiteral | None:
     if all(isinstance(op, IRLiteral) for op in ops):
         fn = ARITHMETIC_OPS[opcode]
         return fn(ops)  # type: ignore
-
-    # try algebraic transformations
-    return _algebraic_eval(opcode, ops)
-
-
-def _algebraic_eval(opcode: str, ops: list[IROperand]) -> Optional[IRLiteral]:
-    if opcode in ("mul", "and", "div", "sdiv", "mod", "smod"):
-        if any(lit_eq(op, 0) for op in ops):
-            return IRLiteral(0)
-
-    if opcode in ("mod", "smod") and lit_eq(ops[0], 1):
-        return IRLiteral(0)
-
-    # x - x == x ^ x == 0
-    if opcode in ("xor", "sub") and ops[0] == ops[1]:
-        return IRLiteral(0)
-
-    # variable equality: x == x => 1
-    if opcode == "eq" and ops[0] == ops[1]:
-        return IRLiteral(1)
-
-    # x | 0xff..ff == 0xff..ff
-    if opcode == "or" and any(lit_eq(op, SizeLimits.MAX_UINT256) for op in ops):
-        return IRLiteral(SizeLimits.MAX_UINT256)
-
-    if opcode == "exp":
-        if lit_eq(ops[0], 0):
-            return IRLiteral(1)
-
-        if lit_eq(ops[1], 1):
-            return IRLiteral(1)
-
-    if opcode in ("lt", "gt", "slt", "sgt"):
-        return _comparison_eval(opcode, ops)
-
     return None

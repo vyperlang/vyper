@@ -2,12 +2,7 @@ import pytest
 
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import (
-    SCCP,
-    AlgebraicOptimizationPass,
-    RemoveUnusedVariablesPass,
-    StoreElimination,
-)
+from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 
 """
 Test abstract binop+unop optimizations in sccp and algebraic optimizations pass
@@ -20,11 +15,8 @@ def _sccp_algebraic_runner(pre, post):
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         StoreElimination(ac, fn).run_pass()
-        SCCP(ac, fn).run_pass()
         AlgebraicOptimizationPass(ac, fn).run_pass()
-        SCCP(ac, fn).run_pass()
         StoreElimination(ac, fn).run_pass()
-        RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
@@ -346,9 +338,9 @@ def test_sccp_algebraic_opt_boolean_or():
     _global:
         %par = param
         %2 = or {some_nonzero}, %par
-        nop
+        assert 1
         %4 = or {some_nonzero}, %par
-        nop
+        assert 1
         return %2, %4
     """
 

@@ -256,9 +256,9 @@ class SCCP(IRPass):
 
         # If we haven't found BOTTOM yet, evaluate the operation
         res = eval_arith(opcode, ops)
-        if res is not None:
-            return finalize(res)
-        return finalize(LatticeEnum.BOTTOM)
+        if res is None:
+            return finalize(LatticeEnum.BOTTOM)
+        return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
