@@ -167,7 +167,7 @@ def test_offsets():
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
-    # RemoveUnusedVariablesPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     offset_count = 0
     for bb in fn.get_basic_blocks():
