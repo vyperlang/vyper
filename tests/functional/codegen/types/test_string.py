@@ -395,7 +395,8 @@ def test_string_copy_oog2(env, get_contract, tx_failed):
 @external
 @view
 def foo(x: String[1000000]) -> uint256:
-    return len(x)
+    y: String[1000000] = x
+    return len(y)
     """
     c = get_contract(code)
     calldata = "a" * 1000000
