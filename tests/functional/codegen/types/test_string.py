@@ -1,6 +1,8 @@
+import contextlib
+
 import pytest
 
-from tests.evm_backends.base_env import EvmError
+from vyper.evm.opcodes import version_check
 
 
 def test_string_return(get_contract):

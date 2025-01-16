@@ -1,12 +1,11 @@
-import itertools
 import contextlib
-from vyper.evm.opcodes import version_check
+import itertools
 
 import pytest
 
-from tests.evm_backends.base_env import EvmError
 from tests.utils import decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
@@ -877,7 +876,7 @@ def foo(x: uint256[3000]) -> uint256:
 
     # get the minimum gas for the contract complete execution
     gas_used = env.last_result.gas_used
-    if version_check(begin= "cancun"):
+    if version_check(begin="cancun"):
         ctx = contextlib.nullcontext
     else:
         ctx = tx_failed
@@ -906,7 +905,7 @@ def foo(x: uint256[2500]) -> uint256:
 
     # get the minimum gas for the contract complete execution
     gas_used = env.last_result.gas_used
-    if version_check(begin= "cancun"):
+    if version_check(begin="cancun"):
         ctx = contextlib.nullcontext
     else:
         ctx = tx_failed

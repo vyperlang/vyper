@@ -1,13 +1,12 @@
-import itertools
-from vyper.evm.opcodes import version_check
 import contextlib
+import itertools
 from typing import Any, Callable
 
 import pytest
 
-from tests.evm_backends.base_env import EvmError
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,

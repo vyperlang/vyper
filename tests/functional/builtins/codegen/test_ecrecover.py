@@ -1,7 +1,6 @@
 from eth_account import Account
 from eth_account._utils.signing import to_bytes32
 
-from tests.evm_backends.base_env import EvmError
 from tests.utils import ZERO_ADDRESS
 
 
