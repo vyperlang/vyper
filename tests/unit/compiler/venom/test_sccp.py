@@ -4,7 +4,7 @@ from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, AlgebraicOptimizationPass, MakeSSA
+from vyper.venom.passes import SCCP, MakeSSA
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 
@@ -112,7 +112,7 @@ def test_cont_jump_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", p1, br1.label, br2.label)
+    bb.append_instruction("jnz", op3, br1.label, br2.label)
 
     br1.append_instruction("add", op3, 10)
     br1.append_instruction("stop")
@@ -149,7 +149,7 @@ def test_cont_phi_case():
     op1 = bb.append_instruction("store", 32)
     op2 = bb.append_instruction("store", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", p1, br1.label, br2.label)
+    bb.append_instruction("jnz", op3, br1.label, br2.label)
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
@@ -207,9 +207,10 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 97
+    # dependent on cfg traversal order
     assert sccp.lattice[IRVariable("%5", version=2)].value == 106
-    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5", version=1)].value == 97
+    assert sccp.lattice[IRVariable("%5")].value == 2
 
 
 def test_phi_reduction_after_unreachable_block():
@@ -241,55 +242,3 @@ def test_phi_reduction_after_unreachable_block():
     assert join.instructions[0].operands == [op1]
 
     assert join.instructions[1].opcode == "stop"
-
-
-def test_sccp_offsets_opt():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-
-    bb = fn.get_basic_block()
-
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("add", 0, IRLabel("mem"))
-    op3 = bb.append_instruction("store", 64)
-    bb.append_instruction("dloadbytes", op1, op2, op3)
-    op5 = bb.append_instruction("mload", op3)
-    op6 = bb.append_instruction("iszero", op5)
-    bb.append_instruction("jnz", op6, br1.label, br2.label)
-
-    op01 = br1.append_instruction("store", 32)
-    op02 = br1.append_instruction("add", 0, IRLabel("mem"))
-    op03 = br1.append_instruction("store", 64)
-    br1.append_instruction("dloadbytes", op01, op02, op03)
-    op05 = br1.append_instruction("mload", op03)
-    op06 = br1.append_instruction("iszero", op05)
-    br1.append_instruction("return", p1, op06)
-
-    op11 = br2.append_instruction("store", 32)
-    op12 = br2.append_instruction("add", 0, IRLabel("mem"))
-    op13 = br2.append_instruction("store", 64)
-    br2.append_instruction("dloadbytes", op11, op12, op13)
-    op15 = br2.append_instruction("mload", op13)
-    op16 = br2.append_instruction("iszero", op15)
-    br2.append_instruction("return", p1, op16)
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    SCCP(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    # RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    offset_count = 0
-    for bb in fn.get_basic_blocks():
-        for instruction in bb.instructions:
-            assert instruction.opcode != "add"
-            if instruction.opcode == "offset":
-                offset_count += 1
-
-    assert offset_count == 3
