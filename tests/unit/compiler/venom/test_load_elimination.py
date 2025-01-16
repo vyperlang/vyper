@@ -1,16 +1,31 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.load_elimination import LoadElimination
+from vyper.venom.passes.store_elimination import StoreElimination
 
 
 def _check_pre_post(pre, post):
     ctx = parse_from_basic_block(pre)
 
+    post_ctx = parse_from_basic_block(post)
+    for fn in post_ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        # this store elim is used for
+        # proper equivalence of the post
+        # and pre results
+        StoreElimination(ac, fn).run_pass()
+
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
+        # store elim is needed for variable equivalence
+        StoreElimination(ac, fn).run_pass()
         LoadElimination(ac, fn).run_pass()
+        # this store elim is used for
+        # proper equivalence of the post
+        # and pre results
+        StoreElimination(ac, fn).run_pass()
 
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    assert_ctx_eq(ctx, post_ctx)
 
 
 def _check_no_change(pre):
