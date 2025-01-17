@@ -65,7 +65,6 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         self._calculate_sccp(self.fn.entry)
@@ -238,7 +237,7 @@ class SCCP(IRPass):
             return ret
 
         opcode = inst.opcode
-        ops: list[IROperand] = []
+        ops: list[IRLiteral] = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
             if isinstance(op, IRLabel):
@@ -248,16 +247,19 @@ class SCCP(IRPass):
             else:
                 eval_result = op
 
+            # The value from the lattice should have evaluated to BOTTOM
+            # or a literal by now.
+            # If any operand is BOTTOM, the whole operation is BOTTOM
+            # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
-                eval_result = op
+                return finalize(LatticeEnum.BOTTOM)
 
-            assert isinstance(eval_result, IROperand), f"{(inst.parent.label, op, inst)}"
+            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
-        res = eval_arith(opcode, ops)
-        if res is None:
-            return finalize(LatticeEnum.BOTTOM)
+        assert all(isinstance(op, IRLiteral) for op in ops)
+        res = IRLiteral(eval_arith(opcode, ops))
         return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):

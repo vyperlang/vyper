@@ -10,7 +10,7 @@ from vyper.utils import (
     signed_to_unsigned,
     unsigned_to_signed,
 )
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral
 
 
 def _unsigned_to_signed(value: int) -> int:
@@ -24,32 +24,34 @@ def _signed_to_unsigned(value: int) -> int:
 
 
 def _wrap_signed_binop(operation):
-    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 2
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
-        return IRLiteral(_signed_to_unsigned(operation(first, second)))
+        return _signed_to_unsigned(operation(first, second))
 
     return wrapper
 
 
 def _wrap_binop(operation):
-    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 2
         first = _signed_to_unsigned(ops[1].value)
         second = _signed_to_unsigned(ops[0].value)
         ret = operation(first, second)
-        return IRLiteral(ret & SizeLimits.MAX_UINT256)
+        # TODO: use wrap256 here
+        return ret & SizeLimits.MAX_UINT256
 
     return wrapper
 
 
 def _wrap_unop(operation):
-    def wrapper(ops: list[IRLiteral]) -> IRLiteral:
+    def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 1
         value = _signed_to_unsigned(ops[0].value)
         ret = operation(value)
-        return IRLiteral(ret & SizeLimits.MAX_UINT256)
+        # TODO: use wrap256 here
+        return ret & SizeLimits.MAX_UINT256
 
     return wrapper
 
@@ -87,6 +89,7 @@ def _evm_shl(shift_len: int, value: int) -> int:
     if shift_len >= 256:
         return 0
     assert shift_len >= 0
+    # TODO: refactor to use wrap256
     return (value << shift_len) & SizeLimits.MAX_UINT256
 
 
@@ -96,7 +99,7 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], IRLiteral]] = {
+ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "add": _wrap_binop(operator.add),
     "sub": _wrap_binop(operator.sub),
     "mul": _wrap_binop(operator.mul),
@@ -123,8 +126,6 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], IRLiteral]] = {
 }
 
 
-def eval_arith(opcode: str, ops: list[IROperand]) -> IRLiteral | None:
-    if all(isinstance(op, IRLiteral) for op in ops):
-        fn = ARITHMETIC_OPS[opcode]
-        return fn(ops)  # type: ignore
-    return None
+def eval_arith(opcode: str, ops: list[IRLiteral]) -> int:
+    fn = ARITHMETIC_OPS[opcode]
+    return fn(ops)
