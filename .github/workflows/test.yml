@@ -158,7 +158,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: coverage-${{ strategy.job-index }}
-        path: .coverage.xml.${{ strategy.job-index }}
+        path: coverage.xml.${{ strategy.job-index }}
 
   core-tests-success:
     if: always()
@@ -218,7 +218,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: coverage-${{ strategy.job-index }}
-        path: .coverage.xml.${{ strategy.job-index }}
+        path: coverage.xml.${{ strategy.job-index }}
 
   slow-tests-success:
     if: always()
