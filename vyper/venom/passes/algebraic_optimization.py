@@ -33,12 +33,12 @@ class InstructionUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self._update(inst, inst.opcode, new_operands)
 
-    def _update(self, inst: IRInstruction, opcode: str, args: list[IROperand]):
+    def _update(self, inst: IRInstruction, opcode: str, new_operands: list[IROperand]):
         assert opcode != "phi"
-        assert all(isinstance(op, IROperand) for op in args)
+        # sanity
+        assert all(isinstance(op, IROperand) for op in new_operands)
 
         old_operands = inst.operands
-        new_operands = list(args)
 
         for op in old_operands:
             if not isinstance(op, IRVariable):
