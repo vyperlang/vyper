@@ -155,7 +155,7 @@ jobs:
         tests/
 
     - name: Upload coverage artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-${{ strategy.job-index }}
         path: coverage.xml.${{ strategy.job-index }}
@@ -215,7 +215,7 @@ jobs:
           tests/
       
     - name: Upload coverage artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-${{ strategy.job-index }}
         path: coverage.xml.${{ strategy.job-index }}
