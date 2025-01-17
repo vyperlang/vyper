@@ -224,6 +224,7 @@ jobs:
 
   code-coverage:
     runs-on: ubuntu-latest
+    needs: [core-tests-success, slow-tests-success]
 
     steps:
     - uses: actions/checkout@v4
