@@ -150,9 +150,8 @@ jobs:
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-branch
-        --cov-report xml:coverage.xml
+        --cov-report xml:coverage.xml.${{ strategy.job-index }}
         --cov=vyper
-        --cov-append
         tests/
 
     - name: Upload coverage artifact
@@ -213,7 +212,6 @@ jobs:
           --cov-branch \
           --cov-report xml:coverage.xml.${{ strategy.job-index }} \
           --cov=vyper \
-          --cov-append \
           tests/
       
     - name: Upload coverage artifact
