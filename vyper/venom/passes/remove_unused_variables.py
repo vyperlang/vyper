@@ -1,4 +1,4 @@
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, uniq
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
@@ -37,7 +37,7 @@ class RemoveUnusedVariablesPass(IRPass):
         if len(uses) > 0:
             return
 
-        for operand in set(inst.get_input_variables()):
+        for operand in uniq(inst.get_input_variables()):
             self.dfg.remove_use(operand, inst)
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)

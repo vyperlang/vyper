@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
 from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
@@ -127,6 +127,20 @@ class OrderedSet(Generic[_T]):
             tmp &= s._data.keys()
 
         return cls(tmp)
+
+
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
 
 
 class StringEnum(enum.Enum):
