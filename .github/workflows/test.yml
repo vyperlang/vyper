@@ -152,13 +152,8 @@ jobs:
         --cov-branch
         --cov-report xml:coverage.xml
         --cov=vyper
+        --cov-append
         tests/
-
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
 
   core-tests-success:
     if: always()
@@ -212,13 +207,8 @@ jobs:
           --cov-branch \
           --cov-report xml:coverage.xml \
           --cov=vyper \
+          --cov-append
           tests/
-
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
 
   slow-tests-success:
     if: always()
@@ -231,3 +221,13 @@ jobs:
       - name: Check slow tests all succeeded
         if: ${{ needs.fuzzing.result != 'success' }}
         run: exit 1
+
+  code-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
