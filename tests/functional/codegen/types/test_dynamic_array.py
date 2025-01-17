@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 import pytest
 
-from tests.utils import decimal_to_int
+from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -1914,6 +1914,8 @@ def foo(a: DynArray[uint256, 4000]) -> uint256:
     b: DynArray[uint256, 4000] = a
     return b[0]
     """
+    check_precompile_asserts(code)
+
     c = get_contract(code)
     dynarray = [2] * 4000
     assert c.foo(dynarray) == 2
@@ -1940,6 +1942,7 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
     # Some code
     return z
     """
+    check_precompile_asserts(code)
 
     c = get_contract(code)
     calldata0 = "a" * 10

@@ -3,7 +3,7 @@ import itertools
 
 import pytest
 
-from tests.utils import decimal_to_int
+from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
@@ -866,6 +866,8 @@ def foo(x: uint256[3000]) -> uint256:
     s: uint256[3000] = self.bar(x)
     return s[0]
     """
+    check_precompile_asserts(code)
+
     if optimize == OptimizationLevel.NONE and not experimental_codegen:
         # fails in get_contract due to code too large
         request.node.add_marker(pytest.mark.xfail(strict=True))
@@ -895,6 +897,8 @@ def foo(x: uint256[2500]) -> uint256:
     t: uint256[2500] = s
     return t[0]
     """
+    check_precompile_asserts(code)
+
     if optimize == OptimizationLevel.NONE and not experimental_codegen:
         # fails in get_contract due to code too large
         request.node.add_marker(pytest.mark.xfail(strict=True))

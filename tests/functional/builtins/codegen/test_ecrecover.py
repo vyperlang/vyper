@@ -3,7 +3,7 @@ import contextlib
 from eth_account import Account
 from eth_account._utils.signing import to_bytes32
 
-from tests.utils import ZERO_ADDRESS
+from tests.utils import ZERO_ADDRESS, check_precompile_asserts
 from vyper.compiler.settings import OptimizationLevel
 
 
@@ -99,6 +99,8 @@ def test_ecrecover_oog_handling(env, get_contract, tx_failed, optimize, experime
 def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
     return ecrecover(hash, v, r, s)
     """
+    check_precompile_asserts(code)
+
     c = get_contract(code)
 
     h = b"\x35" * 32

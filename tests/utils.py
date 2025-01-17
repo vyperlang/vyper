@@ -3,6 +3,7 @@ import decimal
 import os
 
 from vyper import ast as vy_ast
+from vyper.compiler.phases import CompilerData
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
 
@@ -28,3 +29,18 @@ def parse_and_fold(source_code):
 def decimal_to_int(*args):
     s = decimal.Decimal(*args)
     return round_towards_zero(s / DECIMAL_EPSILON)
+
+
+def check_precompile_asserts(source_code):
+    # check deploy IR (which contains runtime IR)
+    ir_node = CompilerData(source_code).ir_nodes
+
+    def _check(ir_node, parent=None):
+        if ir_node.value == "staticcall":
+            precompile_addr = ir_node.args[1]
+            if isinstance(precompile_addr.value, int) and precompile_addr.value < 10:
+                assert parent is not None and parent.value == "assert"
+        for arg in ir_node.args:
+            _check(arg, ir_node)
+
+    _check(ir_node)

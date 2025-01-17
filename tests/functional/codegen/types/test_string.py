@@ -2,6 +2,7 @@ import contextlib
 
 import pytest
 
+from tests.utils import check_precompile_asserts
 from vyper.evm.opcodes import version_check
 
 
@@ -373,6 +374,8 @@ def test_string_copy_oog(env, get_contract, tx_failed):
 def foo(x: String[1000000]) -> String[1000000]:
     return x
     """
+    check_precompile_asserts(code)
+
     c = get_contract(code)
     calldata = "a" * 1000000
     assert c.foo(calldata) == calldata
@@ -398,6 +401,8 @@ def foo(x: String[1000000]) -> uint256:
     y: String[1000000] = x
     return len(y)
     """
+    check_precompile_asserts(code)
+
     c = get_contract(code)
     calldata = "a" * 1000000
     assert c.foo(calldata) == len(calldata)
