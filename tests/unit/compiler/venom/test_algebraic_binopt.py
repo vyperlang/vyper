@@ -5,7 +5,7 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 
 """
-Test abstract binop+unop optimizations in sccp and algebraic optimizations pass
+Test abstract binop+unop optimizations in algebraic optimizations pass
 """
 
 

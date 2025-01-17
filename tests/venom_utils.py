@@ -20,7 +20,9 @@ def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
     assert bb1.label.value == bb2.label.value
     for i1, i2 in zip(bb1.instructions, bb2.instructions):
         assert instructions_eq(i1, i2), (bb1, f"[{i1}] != [{i2}]")
-    # assert after so we check all the instructions
+
+    # assert after individual instruction checks, makes it easier to debug
+    # if there is a difference.
     assert len(bb1.instructions) == len(bb2.instructions)
 
 
