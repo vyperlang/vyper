@@ -56,6 +56,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+    # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
