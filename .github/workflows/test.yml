@@ -153,7 +153,7 @@ jobs:
         --cov-report xml:coverage.xml
         --cov=vyper
         --cov-append
-        tests
+        tests/
 
   core-tests-success:
     if: always()
@@ -207,8 +207,8 @@ jobs:
           --cov-branch \
           --cov-report xml:coverage.xml \
           --cov=vyper \
-          --cov-append
-          tests
+          --cov-append \
+          tests/
 
   slow-tests-success:
     if: always()
