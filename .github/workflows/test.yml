@@ -252,6 +252,7 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         path: coverage-files
+        merge-multiple: true
 
     - name: Combine coverage
       run: |
