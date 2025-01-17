@@ -91,7 +91,7 @@ def test_ecrecover() -> bool:
     assert c.test_ecrecover() is True
 
 
-def test_ecrecover_oog_handling(env, get_contract, tx_failed, optimize):
+def test_ecrecover_oog_handling(env, get_contract, tx_failed, optimize, experimental_codegen):
     # GHSA-vgf2-gvx8-xwc3
     code = """
 @external
@@ -110,7 +110,7 @@ def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
 
     gas_used = env.last_result.gas_used
 
-    if optimize == OptimizationLevel.NONE:
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
         # if optimizations are off, enough gas is used by the contract
         # that the gas provided to ecrecover (63/64ths rule) is enough
         # for it to succeed
