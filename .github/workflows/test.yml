@@ -141,8 +141,6 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      env:
-        COVERAGE_PARALLEL: True
       run: >
         pytest
         -m "not fuzzing"
@@ -206,8 +204,6 @@ jobs:
       run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
     - name: Run tests
-      env:
-        COVERAGE_PARALLEL: True
       run: |
         pytest \
           -m "fuzzing" \
