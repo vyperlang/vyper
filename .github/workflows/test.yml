@@ -258,7 +258,7 @@ jobs:
 
     - name: Debug directory
       run: |
-        ls coverage-files/
+        ls -la coverage-files/
 
     - name: Combine coverage
       run: |
