@@ -256,7 +256,7 @@ jobs:
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files/coverage.*
+        coverage combine coverage-files/
         coverage xml
 
     - name: Upload Coverage
