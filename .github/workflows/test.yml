@@ -210,7 +210,7 @@ jobs:
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
           --cov-branch \
-          --cov-report xml:coverage-${{ github.job }}-${{ strategy.job-index }}.xml
+          --cov-report xml:coverage-${{ github.job }}-${{ strategy.job-index }}.xml \
           --cov=vyper \
           tests/
       
