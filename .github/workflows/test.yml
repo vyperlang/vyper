@@ -254,6 +254,10 @@ jobs:
         path: coverage-files
         merge-multiple: true
 
+    - name: Debug directory
+      run: |
+        ls coverage-files/
+
     - name: Combine coverage
       run: |
         coverage combine coverage-files/
