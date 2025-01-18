@@ -150,7 +150,7 @@ jobs:
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-branch
-        --cov-report xml:coverage-${{ github.job }}-${{ strategy.job-index }}.xml
+        --cov-report=
         --cov=vyper
         tests/
 
@@ -210,7 +210,7 @@ jobs:
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
           --cov-branch \
-          --cov-report xml:coverage-${{ github.job }}-${{ strategy.job-index }}.xml \
+          --cov-report= \
           --cov=vyper \
           tests/
       
