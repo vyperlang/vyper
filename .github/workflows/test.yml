@@ -157,8 +157,8 @@ jobs:
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ strategy.job-index }}
-        path: coverage.xml.${{ strategy.job-index }}
+        name: coverage-${{ github.job }}-${{ strategy.job-index }}
+        path: coverage.xml.${{ github.job }}-${{ strategy.job-index }}
 
   core-tests-success:
     if: always()
@@ -217,8 +217,8 @@ jobs:
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ strategy.job-index }}
-        path: coverage.xml.${{ strategy.job-index }}
+        name: coverage-${{ github.job }}-${{ strategy.job-index }}
+        path: coverage.xml.${{ github.job }}-${{ strategy.job-index }}
 
   slow-tests-success:
     if: always()
