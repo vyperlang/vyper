@@ -1,4 +1,5 @@
 import warnings
+from typing import Optional
 
 from vyper.exceptions import _BaseVyperException
 
@@ -12,6 +13,24 @@ def vyper_warn(warning: VyperWarning | str, node=None):
     if isinstance(warning, str):
         warning = VyperWarning(warning, node)
     warnings.warn(warning, stacklevel=2)
+
+def set_warnings_filter(warnings_control: Optional[str]):
+    if warnings_control == "error":
+        warnings_filter = "error"
+    elif warnings_control == "none":
+        warnings_filter = "ignore"
+    else:
+        assert warnings_control is None  # sanity
+        warnings_filter = "default"
+
+    if warnings_control is not None:
+        # warnings.simplefilter only adds to the warnings filters,
+        # so we should clear warnings filter between calls to simplefilter()
+        warnings.resetwarnings()
+
+    # NOTE: in the future we can do more fine-grained control by setting
+    # category to specific warning types
+    warnings.simplefilter(warnings_filter, category=VyperWarning)
 
 
 class ContractSizeLimit(VyperWarning):

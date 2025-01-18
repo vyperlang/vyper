@@ -15,7 +15,7 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
-from vyper.warnings import VyperWarning
+from vyper.warnings import set_warnings_filter
 
 T = TypeVar("T")
 
@@ -204,18 +204,6 @@ def _parse_args(argv):
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
 
-    if args.warnings_control == "error":
-        warnings_filter = "error"
-    elif args.warnings_control == "none":
-        warnings_filter = "ignore"
-    else:
-        assert args.warnings_control is None  # sanity
-        warnings_filter = "default"
-
-    # NOTE: in the future we can do more fine-grained control by setting
-    # category to specific warning types
-    warnings.simplefilter(warnings_filter, category=VyperWarning)
-
     if args.hex_ir:
         ir_node.AS_HEX_DEFAULT = True
 
@@ -263,6 +251,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -329,7 +318,10 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
+    set_warnings_filter(warnings_control)
+
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
 
