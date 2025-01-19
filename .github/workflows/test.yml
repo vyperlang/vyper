@@ -142,7 +142,7 @@ jobs:
 
     - name: Run tests
       run: >
-        coverage run -m pytest
+        pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
         --evm-version ${{ matrix.evm-version || 'cancun' }}
