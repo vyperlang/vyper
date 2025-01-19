@@ -253,16 +253,17 @@ jobs:
     - name: Download coverage artifacts
       uses: actions/download-artifact@v4
       with:
-        path: coverage-files-*
+        pattern: coverage-files-*
+        path: coverage-files
 
     - name: Debug directory
       run: |
         ls -la .
-        ls -la coverage-files*/
+        ls -la coverage-files/
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files**/.coverage
+        coverage combine coverage-files/**/.coverage
         coverage xml
 
     - name: Upload Coverage
