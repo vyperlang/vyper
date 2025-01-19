@@ -142,17 +142,13 @@ jobs:
 
     - name: Run tests
       run: >
-        pytest
+        coverage run -m pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
         --evm-version ${{ matrix.evm-version || 'cancun' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
-        --cov-config=setup.cfg
-        --cov-branch
-        --cov-report=
-        --cov=vyper
         tests/
 
     - name: Upload coverage artifact
@@ -206,15 +202,11 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest \
+        coverage run -m pytest \
           -m "fuzzing" \
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
-          --cov-config=setup.cfg \
-          --cov-branch \
-          --cov-report= \
-          --cov=vyper \
           tests/
       
     - name: Upload coverage artifact
