@@ -3,6 +3,7 @@ import itertools
 
 import pytest
 
+from tests.evm_backends.base_env import EvmError
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
@@ -869,8 +870,10 @@ def foo(x: uint256[3000]) -> uint256:
     check_precompile_asserts(code)
 
     if optimize == OptimizationLevel.NONE and not experimental_codegen:
-        # fails in get_contract due to code too large
-        request.node.add_marker(pytest.mark.xfail(strict=True))
+        # fails in bytecode generation due to jumpdests too large
+        with pytest.raises(AssertionError):
+            get_contract(code)
+        return
 
     c = get_contract(code)
     array = [2] * 3000
@@ -900,8 +903,10 @@ def foo(x: uint256[2500]) -> uint256:
     check_precompile_asserts(code)
 
     if optimize == OptimizationLevel.NONE and not experimental_codegen:
-        # fails in get_contract due to code too large
-        request.node.add_marker(pytest.mark.xfail(strict=True))
+        # fails in creating contract due to code too large
+        with tx_failed(EvmError):
+            get_contract(code)
+        return
 
     c = get_contract(code)
     array = [2] * 2500
