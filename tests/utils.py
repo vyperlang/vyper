@@ -35,8 +35,9 @@ def check_precompile_asserts(source_code):
     # common sanity check for some tests, that calls to precompiles
     # are correctly wrapped in an assert.
 
-    # check the deploy IR (which contains runtime IR)
-    ir_node = CompilerData(source_code).ir_nodes
+    compiler_data = CompilerData(source_code)
+    deploy_ir = compiler_data.ir_nodes
+    runtime_ir = compiler_data.ir_runtime
 
     def _check(ir_node, parent=None):
         if ir_node.value == "staticcall":
@@ -46,4 +47,6 @@ def check_precompile_asserts(source_code):
         for arg in ir_node.args:
             _check(arg, ir_node)
 
-    _check(ir_node)
+    _check(deploy_ir)
+    # technically runtime_ir is contained in deploy_ir, but check it anyways.
+    _check(runtime_ir)
