@@ -257,11 +257,12 @@ jobs:
 
     - name: Debug directory
       run: |
-        ls -la coverage-files/
+        ls -la .
+        ls -la coverage-files*/
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files/**/.coverage
+        coverage combine coverage-files**/.coverage
         coverage xml
 
     - name: Upload Coverage
