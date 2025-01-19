@@ -256,6 +256,17 @@ jobs:
         pattern: coverage-files-*
         path: coverage-files
 
+    - name: Create coveragerc
+      run: |
+        echo > .coveragerc <<EOF
+[paths]
+source =
+    /home/runner/work/vyper/vyper
+    /Users/runner/work/vyper/vyper
+    D:\a\vyper\vyper
+        EOF
+
+
     - name: Debug directory
       run: |
         ls -la .
@@ -263,7 +274,7 @@ jobs:
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files/**/.coverage
+        coverage combine --debug=pathmap coverage-files/**/.coverage
         coverage xml
 
     - name: Upload Coverage
