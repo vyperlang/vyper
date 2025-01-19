@@ -204,13 +204,15 @@ jobs:
 
     - name: Run tests
       run: |
-        coverage run -m pytest \
+        pytest \
           -m "fuzzing" \
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
+          --cov-branch \
+          --cov=vyper \
           tests/
-      
+
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
