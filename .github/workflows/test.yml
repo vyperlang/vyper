@@ -158,7 +158,7 @@ jobs:
       with:
         name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
         include-hidden-files: true
-        path: .coverage*
+        path: .coverage
         if-no-files-found: error
 
   core-tests-success:
@@ -219,7 +219,7 @@ jobs:
       with:
         name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
         include-hidden-files: true
-        path: .coverage*
+        path: .coverage
         if-no-files-found: error
 
   slow-tests-success:
