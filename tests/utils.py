@@ -32,7 +32,10 @@ def decimal_to_int(*args):
 
 
 def check_precompile_asserts(source_code):
-    # check deploy IR (which contains runtime IR)
+    # common sanity check for some tests, that calls to precompiles
+    # are correctly wrapped in an assert.
+
+    # check the deploy IR (which contains runtime IR)
     ir_node = CompilerData(source_code).ir_nodes
 
     def _check(ir_node, parent=None):
