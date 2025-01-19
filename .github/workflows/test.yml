@@ -149,14 +149,16 @@ jobs:
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        --cov-branch
+        --cov-report xml:coverage.xml
+        --cov=vyper
         tests/
 
-    - name: Upload coverage artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v5
       with:
-        name: coverage-${{ github.job }}-${{ strategy.job-index }}
-        include-hidden-files: true
-        path: .coverage*
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
 
   core-tests-success:
     if: always()
