@@ -150,15 +150,16 @@ jobs:
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-branch
-        --cov-report xml:coverage.xml
         --cov=vyper
         tests/
 
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v5
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+        name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
+        include-hidden-files: true
+        path: .coverage*
+        if-no-files-found: error
 
   core-tests-success:
     if: always()
@@ -216,9 +217,10 @@ jobs:
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ github.job }}-${{ strategy.job-index }}
+        name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
         include-hidden-files: true
         path: .coverage*
+        if-no-files-found: error
 
   slow-tests-success:
     if: always()
@@ -251,8 +253,7 @@ jobs:
     - name: Download coverage artifacts
       uses: actions/download-artifact@v4
       with:
-        path: coverage-files
-        merge-multiple: true
+        path: coverage-files-*
 
     - name: Debug directory
       run: |
@@ -260,7 +261,7 @@ jobs:
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files/
+        coverage combine coverage-files/**/.coverage
         coverage xml
 
     - name: Upload Coverage
