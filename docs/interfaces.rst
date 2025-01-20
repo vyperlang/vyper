@@ -85,10 +85,6 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
     extcall IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
     extcall IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
-.. warning::
-
-   When ``skip_contract_check=True`` is used and the called function returns data (ex.: ``x: uint256 = SomeContract.foo(skip_contract_check=True)``, no guarantees are provided by the compiler as to the validity of the returned value. In other words, it is undefined behavior what happens if the called contract did not exist. In particular, the returned value might point to garbage memory. It is therefore recommended to only use ``skip_contract_check=True`` to call contracts which have been manually ensured to exist at the time of the call.
-
 Built-in Interfaces
 ===================
 
@@ -123,6 +119,10 @@ This imports the defined interface from the vyper file at ``an_interface.vyi`` (
 .. note::
 
   Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the "implementing" contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
+
+.. note::
+
+  An interface function with default parameters (e.g. ``deposit(assets: uint256, receiver: address = msg.sender)``) implies that the contract being interfaced with supports these default arguments via the ABI-encoded function signatures (e.g. ``keccak256("deposit(uint256,address)")[:4]`` and ``keccak256("deposit(uint256)")[:4]``). It is the responsibility of the callee to implement the behavior associated with these defaults.
 
 Standalone Interfaces
 =====================

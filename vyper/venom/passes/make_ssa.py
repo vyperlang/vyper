@@ -1,7 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
-from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -37,8 +35,8 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        work = {var: 0 for var in self.dom.dfs_walk}
-        has_already = {var: 0 for var in self.dom.dfs_walk}
+        work = {bb: 0 for bb in self.dom.dfs_walk}
+        has_already = {bb: 0 for bb in self.dom.dfs_walk}
         i = 0
 
         # Iterate over all variables
@@ -98,7 +96,6 @@ class MakeSSA(IRPass):
                 self.var_name_counters[v_name] = i + 1
 
                 inst.output = IRVariable(v_name, version=i)
-                # note - after previous line, inst.output.name != v_name
                 outs.append(inst.output.name)
 
         for bb in basic_block.cfg_out:
@@ -108,8 +105,9 @@ class MakeSSA(IRPass):
                 assert inst.output is not None, "Phi instruction without output"
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
+                        var = inst.operands[i + 1]
                         inst.operands[i + 1] = IRVariable(
-                            inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
+                            var.name, version=self.var_name_stacks[var.name][-1]
                         )
 
         for bb in self.dom.dominated[basic_block]:

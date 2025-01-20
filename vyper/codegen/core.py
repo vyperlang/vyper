@@ -1,3 +1,4 @@
+import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
@@ -325,7 +326,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
@@ -855,6 +856,9 @@ def reset_names():
     global _label
     _label = 0
 
+    # could be refactored
+    ctx._alloca_id = 0
+
 
 # returns True if t is ABI encoded and is a type that needs any kind of
 # validation
@@ -1117,7 +1121,7 @@ def ensure_in_memory(ir_var, context):
         return ir_var
 
     typ = ir_var.typ
-    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
+    buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
