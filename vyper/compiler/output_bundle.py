@@ -1,7 +1,6 @@
 import importlib
 import io
 import json
-import os
 import zipfile
 from dataclasses import dataclass
 from functools import cached_property
@@ -12,8 +11,9 @@ from vyper.compiler.input_bundle import CompilerInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.analysis.module import _is_builtin
-from vyper.utils import get_long_version
+from vyper.semantics.analysis.imports import _is_builtin
+from vyper.typing import StorageLayout
+from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -62,7 +62,7 @@ class OutputBundle:
 
         sources = {}
         for c in inputs:
-            path = os.path.relpath(c.resolved_path)
+            path = safe_relpath(c.resolved_path)
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to search path semantics.
@@ -73,7 +73,7 @@ class OutputBundle:
     @cached_property
     def compilation_target_path(self):
         p = PurePath(self.compiler_data.file_input.resolved_path)
-        p = os.path.relpath(p)
+        p = safe_relpath(p)
         return _anonymize(p)
 
     @cached_property
@@ -121,7 +121,7 @@ class OutputBundle:
         sps = [sp for sp, count in tmp.items() if count > 0]
         assert len(sps) > 0
 
-        return [_anonymize(os.path.relpath(sp)) for sp in sps]
+        return [_anonymize(safe_relpath(sp)) for sp in sps]
 
 
 class OutputBundleWriter:
@@ -134,6 +134,11 @@ class OutputBundleWriter:
 
     def write_sources(self, sources: dict[str, CompilerInput]):
         raise NotImplementedError(f"write_sources: {self.__class__}")
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: StorageLayout
+    ):
+        raise NotImplementedError(f"write_storage_layout_overrides: {self.__class__}")
 
     def write_search_paths(self, search_paths: list[str]):
         raise NotImplementedError(f"write_search_paths: {self.__class__}")
@@ -159,8 +164,12 @@ class OutputBundleWriter:
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
-        self.write_integrity(self.bundle.compilation_target.integrity_sum)
+        self.write_integrity(self.compiler_data.integrity_sum)
         self.write_sources(self.bundle.compiler_inputs)
+        if self.compiler_data.storage_layout_override is not None:
+            self.write_storage_layout_overrides(
+                self.bundle.compilation_target_path, self.compiler_data.storage_layout_override
+            )
 
 
 class SolcJSONWriter(OutputBundleWriter):
@@ -175,6 +184,13 @@ class SolcJSONWriter(OutputBundleWriter):
             out[path] = {"content": c.contents, "sha256sum": c.sha256sum}
 
         self._output["sources"].update(out)
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: StorageLayout
+    ):
+        self._output["storage_layout_overrides"] = {
+            compilation_target_path: storage_layout_override
+        }
 
     def write_search_paths(self, search_paths: list[str]):
         self._output["settings"]["search_paths"] = search_paths
@@ -237,6 +253,11 @@ class VyperArchiveWriter(OutputBundleWriter):
     def write_sources(self, sources: dict[str, CompilerInput]):
         for path, c in sources.items():
             self.archive.writestr(_anonymize(path), c.contents)
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: StorageLayout
+    ):
+        self.archive.writestr("MANIFEST/storage_layout.json", json.dumps(storage_layout_override))
 
     def write_search_paths(self, search_paths: list[str]):
         self.archive.writestr("MANIFEST/searchpaths", "\n".join(search_paths))

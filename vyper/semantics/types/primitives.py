@@ -173,11 +173,11 @@ class NumericT(_PrimT):
             if isinstance(left, vy_ast.Int):
                 if left.value >= 2**value_bits:
                     raise OverflowException(
-                        "Base is too large, calculation will always overflow", left
+                        f"Base is too large for {self}, calculation will always overflow", left
                     )
                 elif left.value < -(2**value_bits):
                     raise OverflowException(
-                        "Base is too small, calculation will always underflow", left
+                        f"Base is too small for {self}, calculation will always underflow", left
                     )
             elif isinstance(right, vy_ast.Int):
                 if right.value < 0:
@@ -211,9 +211,16 @@ def _add_div_hint(node, e):
     else:
         return e
 
+    def _get_source(node):
+        source = node.node_source_code
+        if isinstance(node, vy_ast.BinOp):
+            # parenthesize, to preserve precedence
+            return f"({source})"
+        return source
+
     if isinstance(node, vy_ast.BinOp):
-        e._hint = f"did you mean `{node.left.node_source_code} "
-        e._hint += f"{suggested} {node.right.node_source_code}`?"
+        e._hint = f"did you mean `{_get_source(node.left)} "
+        e._hint += f"{suggested} {_get_source(node.right)}`?"
     elif isinstance(node, vy_ast.AugAssign):
         e._hint = f"did you mean `{node.target.node_source_code} "
         e._hint += f"{suggested}= {node.value.node_source_code}`?"

@@ -19,7 +19,6 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -56,12 +55,10 @@ class Stmt:
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
-        alloced = self.context.new_variable(varname, ltyp)
+        lhs = self.context.new_variable(varname, ltyp)
 
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node
-
-        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
         return make_setter(lhs, rhs)
 
@@ -76,7 +73,6 @@ class Stmt:
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.
             tmp = self.context.new_internal_variable(src.typ)
-            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
             ret.append(make_setter(tmp, src))
             src = tmp
 
@@ -97,7 +93,13 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
+        if len(self.stmt.value.keywords) > 0:
+            # keyword arguments
+            to_compile = [arg.value for arg in self.stmt.value.keywords]
+        else:
+            # positional arguments
+            to_compile = self.stmt.value.args
+        args = [Expr(arg, self.context).ir_node for arg in to_compile]
 
         topic_ir = []
         data_ir = []
@@ -247,9 +249,7 @@ class Stmt:
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id
-        loop_var = IRnode.from_list(
-            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
-        )
+        loop_var = self.context.new_variable(varname, target_type)
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
@@ -259,11 +259,7 @@ class Stmt:
 
         # list literal, force it to memory first
         if isinstance(self.stmt.iter, vy_ast.List):
-            tmp_list = IRnode.from_list(
-                self.context.new_internal_variable(iter_list.typ),
-                typ=iter_list.typ,
-                location=MEMORY,
-            )
+            tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
