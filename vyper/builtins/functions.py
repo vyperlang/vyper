@@ -2293,12 +2293,11 @@ class Print(BuiltinFunctionT):
 
         else:
             method_id = method_id_int("log(string,bytes)")
-            schema = args_abi_t.selector_name().encode("utf-8")
-            if len(schema) > 32:
-                raise CompilerPanic(f"print signature too long: {schema}")
 
+            schema = args_abi_t.selector_name().encode("utf-8")
             schema_t = StringT(len(schema))
             schema_buf = context.new_internal_variable(schema_t)
+
             ret = ["seq"]
             ret.append(["mstore", schema_buf, len(schema)])
 
