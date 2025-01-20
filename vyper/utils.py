@@ -9,9 +9,9 @@ import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
 _T = TypeVar("_T")
 
@@ -129,6 +129,20 @@ class OrderedSet(Generic[_T]):
         return cls(tmp)
 
 
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
+
+
 class StringEnum(enum.Enum):
     # Must be first, or else won't work, specifies what .value is
     @staticmethod
@@ -234,6 +248,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -243,7 +264,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -258,7 +279,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_
@@ -308,17 +329,6 @@ def round_towards_zero(d: decimal.Decimal) -> int:
     # (but either way keep this util function bc it's easier at a glance
     # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
-
-
-# Converts string to bytes
-def string_to_bytes(str):
-    bytez = b""
-    for c in str:
-        if ord(c) >= 256:
-            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
-        bytez += bytes([ord(c)])
-    bytez_length = len(bytez)
-    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer
@@ -529,7 +539,7 @@ def timeit(msg):  # pragma: nocover
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
+    print(f"{msg}: Took {total_time:.6f} seconds", file=sys.stderr)
 
 
 _CUMTIMES = None
@@ -538,7 +548,7 @@ _CUMTIMES = None
 def _dump_cumtime():  # pragma: nocover
     global _CUMTIMES
     for msg, total_time in _CUMTIMES.items():
-        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
+        print(f"{msg}: Cumulative time {total_time:.3f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager

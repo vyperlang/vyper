@@ -356,7 +356,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
