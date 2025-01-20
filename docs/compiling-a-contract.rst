@@ -31,7 +31,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 .. code:: shell
 
-    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,blueprint_bytecode,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+    $ vyper -f abi,abi_python,bb,bb_runtime,bytecode,bytecode_runtime,blueprint_bytecode,cfg,cfg_runtime,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
 
 .. note::
     The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
@@ -106,7 +106,7 @@ Online Compilers
 Try VyperLang!
 -----------------
 
-`Try VyperLang! <https://try.vyperlang.org>`_ is a JupterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
+`Try VyperLang! <https://try.vyperlang.org>`_ is a JupyterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
 
 Remix IDE
 ---------
@@ -134,6 +134,11 @@ In codesize optimized mode, the compiler will try hard to minimize codesize by
 * out-lining code, and
 * using more loops for data copies.
 
+Enabling Experimental Code Generation
+===========================
+
+When compiling, you can use the CLI flag ``--experimental-codegen`` or its alias ``--venom`` to activate the new `Venom IR <https://github.com/vyperlang/vyper/blob/master/vyper/venom/README.md>`_.
+Venom IR is inspired by LLVM IR and enables new advanced analysis and optimizations.
 
 .. _evm-version:
 
@@ -198,7 +203,7 @@ The following is a list of supported EVM versions, and changes in the compiler i
 Integrity Hash
 ==============
 
-To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports).
+To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports) and storage layout overrides (if provided).
 
 .. _vyper-archives:
 
@@ -214,8 +219,9 @@ A Vyper archive is a compileable bundle of input sources and settings. Technical
     ├── compilation_targets
     ├── compiler_version
     ├── integrity
+    ├── settings.json
     ├── searchpaths
-    └── settings.json
+    └── storage_layout.json [OPTIONAL]
 
 * ``cli_settings.txt`` is a text representation of the settings that were used on the compilation run that generated this archive.
 * ``compilation_targets`` is a newline separated list of compilation targets. Currently only one compilation is supported
@@ -223,6 +229,7 @@ A Vyper archive is a compileable bundle of input sources and settings. Technical
 * ``integrity`` is the :ref:`integrity hash <integrity-hash>` of the input contract
 * ``searchpaths`` is a newline-separated list of the search paths used on this compilation run
 * ``settings.json`` is a json representation of the settings used on this compilation run. It is 1:1 with ``cli_settings.txt``, but both are provided as they are convenient for different workflows (typically, manually vs automated).
+* ``storage_layout.json`` is a json representation of the storage layout overrides to be used on this compilation run. It is optional.
 
 A Vyper archive file can be produced by requesting the ``-f archive`` output format. The compiler can also produce the archive in base64 encoded form using the ``--base64`` flag. The Vyper compiler can accept both ``.vyz`` and base64-encoded Vyper archives directly as input.
 
@@ -276,6 +283,14 @@ The following example describes the expected input format of ``vyper-json``. (Co
             }
         },
         // Optional
+        // Storage layout overrides for the contracts that are compiled
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {
+                "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+                "b": {"type": "uint256", "slot": 0, "n_slots": 1},
+            }
+        },
+        // Optional
         "settings": {
             "evmVersion": "cancun",  // EVM version to compile for. Can be london, paris, shanghai or cancun (default).
             // optional, optimization mode
@@ -308,10 +323,10 @@ The following example describes the expected input format of ``vyper-json``. (Co
             //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object
             //    evm.bytecode.opcodes - Opcodes list
+            //    evm.bytecode.sourceMap - Source mapping (useful for debugging)
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
-            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
@@ -359,6 +374,13 @@ The following example describes the output format of ``vyper-json``. Comments ar
             "formattedMessage": "line 5:11 Unsupported type conversion: int128 to bool"
             }
         ],
+        // Optional: not present if there are no storage layout overrides
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {
+                "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+                "b": {"type": "uint256", "slot": 0, "n_slots": 1},
+            }
+        },
         // This contains the file-level outputs. Can be limited/filtered by the outputSelection settings.
         "sources": {
             "source_file.vy": {
@@ -388,15 +410,37 @@ The following example describes the output format of ``vyper-json``. Comments ar
                             // The bytecode as a hex string.
                             "object": "00fe",
                             // Opcodes list (string)
-                            "opcodes": ""
+                            "opcodes": "",
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         "deployedBytecode": {
                             // The deployed bytecode as a hex string.
                             "object": "00fe",
                             // Deployed opcodes list (string)
                             "opcodes": "",
-                            // The deployed source mapping as a string.
-                            "sourceMap": ""
+                            // The deployed source mapping.
+                            "sourceMap": {
+                                "breakpoints": [],
+                                "error_map": {},
+                                "pc_ast_map": {},
+                                "pc_ast_map_item_keys": [],
+                                "pc_breakpoints": [],
+                                "pc_jump_map": {},
+                                "pc_pos_map": {},
+                                // The deployed source mapping as a string.
+                                "pc_pos_map_compressed": ""
+                            }
                         },
                         // The list of function hashes
                         "methodIdentifiers": {

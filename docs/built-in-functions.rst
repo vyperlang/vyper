@@ -1023,7 +1023,7 @@ Utilities
         >>> ExampleContract.foo()
 	0xa9059cbb
 
-.. py:function:: abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+.. py:function:: abi_encode(*args, ensure_tuple: bool = True, method_id: Bytes[4] = None) -> Bytes[<depends on input>]
 
     Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
@@ -1090,3 +1090,6 @@ Utilities
 .. note::
 
     Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.
+
+.. warning::
+    In Vyper, as of v0.4.0, the order of argument evaluation of builtins is not defined. That means that the compiler may choose to reorder evaluation of arguments. For example, ``extract32(x(), y())`` may yield unexpected results if ``x()`` and ``y()`` both touch the same data. For this reason, it is best to avoid calling functions with side-effects inside of builtins. For more information, see `GHSA-g2xh-c426-v8mf <https://github.com/vyperlang/vyper/security/advisories/GHSA-g2xh-c426-v8mf>`_ and `issue #4019 <https://github.com/vyperlang/vyper/issues/4019>`_.

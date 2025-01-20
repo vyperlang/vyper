@@ -1,3 +1,4 @@
+import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
@@ -325,7 +326,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
@@ -855,6 +856,9 @@ def reset_names():
     global _label
     _label = 0
 
+    # could be refactored
+    ctx._alloca_id = 0
+
 
 # returns True if t is ABI encoded and is a type that needs any kind of
 # validation
@@ -919,6 +923,26 @@ def potential_overlap(left, right):
         return True
 
     if left.contains_risky_call and len(right.referenced_variables) > 0:
+        return True
+
+    return False
+
+
+# similar to `potential_overlap()`, but compares left's _reads_ vs
+# right's _writes_.
+# TODO: `potential_overlap()` can probably be replaced by this function,
+# but all the cases need to be checked.
+def read_write_overlap(left, right):
+    if not isinstance(left, IRnode) or not isinstance(right, IRnode):
+        return False
+
+    if left.typ._is_prim_word and right.typ._is_prim_word:
+        return False
+
+    if len(left.referenced_variables & right.variable_writes) > 0:
+        return True
+
+    if len(left.referenced_variables) > 0 and right.contains_risky_call:
         return True
 
     return False
@@ -1097,7 +1121,7 @@ def ensure_in_memory(ir_var, context):
         return ir_var
 
     typ = ir_var.typ
-    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
+    buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
@@ -1169,8 +1193,12 @@ def clamp_bytestring(ir_node, hi=None):
         if hi is not None:
             assert t.maxlen < 2**64  # sanity check
 
-            # note: this add does not risk arithmetic overflow because
+            # NOTE: this add does not risk arithmetic overflow because
             # length is bounded by maxlen.
+            # however(!) _abi_payload_size can OOG, since it loads the word
+            # at `ir_node` to find the length of the bytearray, which could
+            # be out-of-bounds.
+            # if we didn't get OOG, we could overflow in `add`.
             item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
             len_check = ["seq", ["assert", ["le", item_end, hi]], len_check]
@@ -1189,8 +1217,12 @@ def clamp_dyn_array(ir_node, hi=None):
     if hi is not None:
         assert t.count < 2**64  # sanity check
 
-        # note: this add does not risk arithmetic overflow because
+        # NOTE: this add does not risk arithmetic overflow because
         # length is bounded by count * elemsize.
+        # however(!) _abi_payload_size can OOG, since it loads the word
+        # at `ir_node` to find the length of the bytearray, which could
+        # be out-of-bounds.
+        # if we didn't get OOG, we could overflow in `add`.
         item_end = add_ofst(ir_node, _abi_payload_size(ir_node))
 
         # if the subtype is dynamic, the length check is performed in
