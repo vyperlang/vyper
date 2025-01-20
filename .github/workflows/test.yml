@@ -290,7 +290,7 @@ jobs:
   upload-coverage:
     # upload coverage to the codecov app
     runs-on: ubuntu-latest
-    needs: [consolidate-coverage]
+    needs: [coverage-report]
 
     steps:
     - uses: actions/checkout@v4
