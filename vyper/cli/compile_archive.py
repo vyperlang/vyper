@@ -8,8 +8,9 @@ import json
 import zipfile
 from pathlib import PurePath
 
-from vyper.compiler import compile_from_file_input
+from vyper.compiler import outputs_from_compiler_data
 from vyper.compiler.input_bundle import FileInput, ZipInputBundle
+from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, merge_settings
 from vyper.exceptions import BadArchive
 
@@ -19,6 +20,11 @@ class NotZipInput(Exception):
 
 
 def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
+    compiler_data = compiler_data_from_zip(file_name, settings, no_bytecode_metadata)
+    return outputs_from_compiler_data(compiler_data, output_formats)
+
+
+def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
     with open(file_name, "rb") as f:
         bcontents = f.read()
 
@@ -38,6 +44,11 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
 
     fcontents = archive.read("MANIFEST/compilation_targets").decode("utf-8")
     compilation_targets = fcontents.splitlines()
+
+    storage_layout_path = "MANIFEST/storage_layout.json"
+    storage_layout = None
+    if storage_layout_path in archive.namelist():
+        storage_layout = json.loads(archive.read(storage_layout_path).decode("utf-8"))
 
     if len(compilation_targets) != 1:
         raise BadArchive("Multiple compilation targets not supported!")
@@ -59,11 +70,10 @@ def compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata):
         settings, archive_settings, lhs_source="command line", rhs_source="archive settings"
     )
 
-    # TODO: validate integrity sum (probably in CompilerData)
-    return compile_from_file_input(
+    return CompilerData(
         file,
         input_bundle=input_bundle,
-        output_formats=output_formats,
+        storage_layout=storage_layout,
         integrity_sum=integrity,
         settings=settings,
         no_bytecode_metadata=no_bytecode_metadata,

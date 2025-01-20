@@ -41,7 +41,7 @@ def _validate_op(node, types_list, validation_fn_name):
         try:
             _validate_fn(node)
             ret.append(type_)
-        except InvalidOperation as e:
+        except (InvalidOperation, OverflowException) as e:
             err_list.append(e)
 
     if ret:
@@ -199,7 +199,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
 
-            if isinstance(s, (VyperType, TYPE_T)):
+            if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
 

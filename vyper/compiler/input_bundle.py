@@ -52,6 +52,8 @@ class ABIInput(CompilerInput):
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
         return ABIInput(**asdict(file_input), abi=s)
     except (ValueError, TypeError):
         return file_input
@@ -135,9 +137,6 @@ class InputBundle:
 
         return res
 
-    def add_search_path(self, path: PathLike) -> None:
-        self.search_paths.append(path)
-
     # temporarily add something to the search path (within the
     # scope of the context manager) with highest precedence.
     # if `path` is None, do nothing
@@ -153,16 +152,15 @@ class InputBundle:
             finally:
                 self.search_paths.pop()
 
-    # temporarily modify the top of the search path (within the
-    # scope of the context manager) with highest precedence to something else
+    # temporarily set search paths to a given list
     @contextlib.contextmanager
-    def poke_search_path(self, path: PathLike) -> Iterator[None]:
-        tmp = self.search_paths[-1]
-        self.search_paths[-1] = path
+    def temporary_search_paths(self, new_paths: list[PathLike]) -> Iterator[None]:
+        original_paths = self.search_paths
+        self.search_paths = new_paths
         try:
             yield
         finally:
-            self.search_paths[-1] = tmp
+            self.search_paths = original_paths
 
 
 # regular input. takes a search path(s), and `load_file()` will search all

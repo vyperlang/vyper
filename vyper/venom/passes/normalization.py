@@ -45,9 +45,10 @@ class NormalizationPass(IRPass):
                     inst.operands[i] = split_bb.label
 
         # Update the labels in the data segment
-        for inst in fn.ctx.data_segment:
-            if inst.opcode == "db" and inst.operands[0] == bb.label:
-                inst.operands[0] = split_bb.label
+        for data_section in fn.ctx.data_segment:
+            for item in data_section.data_items:
+                if item.data == bb.label:
+                    item.data = split_bb.label
 
         return split_bb
 

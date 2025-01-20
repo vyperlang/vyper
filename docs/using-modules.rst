@@ -62,6 +62,21 @@ The ``_times_two()`` helper function in the above module can be immediately used
 
 The other functions cannot be used yet, because they touch the ``ownable`` module's state. There are two ways to declare a module so that its state can be used.
 
+Using a module as an interface
+==============================
+
+A module can be used as an interface with the ``__at__`` syntax.
+
+.. code-block:: vyper
+
+    import ownable
+
+    an_ownable: ownable.__interface__
+
+    def call_ownable(addr: address):
+        self.an_ownable = ownable.__at__(addr)
+        self.an_ownable.transfer_ownership(...)
+
 Initializing a module
 =====================
 

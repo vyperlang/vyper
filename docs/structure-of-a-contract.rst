@@ -54,6 +54,16 @@ EVM Version
 
 The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
 
+Experimental Code Generation
+-----------------
+The new experimental code generation feature can be activated using the following directive:
+
+.. code-block:: vyper
+
+   #pragma experimental-codegen
+
+Alternatively, you can use the alias ``"venom"`` instead of ``"experimental-codegen"``  to enable this feature.
+
 Imports
 =======
 

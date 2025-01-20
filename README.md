@@ -3,6 +3,7 @@
 [![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://docs.vyperlang.org/en/latest/?badge=latest "ReadTheDocs")
 [![Discord](https://img.shields.io/discord/969926564286459934.svg?label=%23vyper)](https://discord.gg/6tw7PTM7C2)
+[![Telegram](https://img.shields.io/badge/Vyperholics🐍-Telegram-blue)](https://t.me/vyperlang)
 
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://img.shields.io/docker/cloud/build/vyperlang/vyper)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
@@ -49,7 +50,7 @@ be a bit behind the latest version found in the master branch of this repository
 
 ```bash
 make dev-init
-python setup.py test
+./quicktest.sh -m "not fuzzing"
 ```
 
 ## Developing (working on the compiler)

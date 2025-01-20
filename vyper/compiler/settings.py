@@ -77,7 +77,7 @@ class Settings:
         if self.optimize is not None:
             ret.append(" --optimize " + str(self.optimize))
         if self.experimental_codegen is True:
-            ret.append(" --experimental-codegen")
+            ret.append(" --venom")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
         if self.debug is True:
@@ -120,12 +120,12 @@ def merge_settings(
         return lhs if rhs is None else rhs
 
     ret = Settings()
-    ret.evm_version = _merge_one(one.evm_version, two.evm_version, "evm version")
-    ret.optimize = _merge_one(one.optimize, two.optimize, "optimize")
-    ret.experimental_codegen = _merge_one(
-        one.experimental_codegen, two.experimental_codegen, "experimental codegen"
-    )
-    ret.enable_decimals = _merge_one(one.enable_decimals, two.enable_decimals, "enable-decimals")
+    for field in dataclasses.fields(ret):
+        if field.name == "compiler_version":
+            continue
+        pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
+        val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
+        setattr(ret, field.name, val)
 
     return ret
 
