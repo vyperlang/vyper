@@ -211,7 +211,9 @@ class _AvailableExpression:
             tmp_res = res
             res = _AvailableExpression()
             for bucket in buckets:
-                res.buckets[bucket] = tmp_res.buckets[bucket].intersection(item.buckets[bucket])  # type: ignore
+                res.buckets[bucket] = tmp_res.buckets[bucket].intersection(
+                    item.buckets[bucket]
+                )  # type: ignore
         return res
 
 
@@ -269,7 +271,6 @@ class CSEAnalysis(IRAnalysis):
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         available_expr: _AvailableExpression = _AvailableExpression()
-        # available_expr = _AvailableExpression.intersection(*(self.bb_outs.get(in_bb, _AvailableExpression()) for in_bb in bb.cfg_in))
 
         # bb_lat = self.lattice.data[bb]
         change = False
@@ -332,7 +333,7 @@ class CSEAnalysis(IRAnalysis):
             inst, _AvailableExpression()
         )
 
-        assert available_exprs is not None # help mypy
+        assert available_exprs is not None  # help mypy
         if inst in self.inst_to_expr and available_exprs.exist(self.inst_to_expr[inst]):
             return self.inst_to_expr[inst]
         assert available_exprs is not None
