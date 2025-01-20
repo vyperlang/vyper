@@ -144,7 +144,7 @@ jobs:
       run: >
         coverage run 
         --rcfile=setup.cfg
-        pytest
+        -m pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
         --evm-version ${{ matrix.evm-version || 'cancun' }}
@@ -207,7 +207,7 @@ jobs:
       run: |
         coverage run \
           --rcfile=setup.cfg \
-          pytest \
+          -m pytest \
           -m "fuzzing" \
           --splits 120 \
           --group ${{ matrix.group }} \
