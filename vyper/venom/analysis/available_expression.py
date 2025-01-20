@@ -243,20 +243,6 @@ class CSEAnalysis(IRAnalysis):
     def analyze(self):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
-            # while not self._handle_bb(bb):
-            # pass
-
-        return
-        worklist: OrderedSet = OrderedSet()
-        worklist.add(self.function.entry)
-
-        while len(worklist) > 0:
-            bb: IRBasicBlock = worklist.pop()
-            changed = self._handle_bb(bb)
-
-            if changed:
-                for out in bb.cfg_out:
-                    worklist.add(out)
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
