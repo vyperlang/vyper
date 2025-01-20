@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Optional
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -14,9 +14,8 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
+from vyper.utils import uniq
 from vyper.warnings import set_warnings_filter
-
-T = TypeVar("T")
 
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
@@ -264,20 +263,6 @@ def _parse_args(argv):
         # https://stackoverflow.com/a/54073813
         with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
             _cli_helper(f, output_formats, compiled)
-
-
-def uniq(seq: Iterable[T]) -> Iterator[T]:
-    """
-    Yield unique items in ``seq`` in order.
-    """
-    seen: Set[T] = set()
-
-    for x in seq:
-        if x in seen:
-            continue
-
-        seen.add(x)
-        yield x
 
 
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
