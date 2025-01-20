@@ -234,9 +234,10 @@ jobs:
         if: ${{ needs.fuzzing.result != 'success' }}
         run: exit 1
 
-  code-coverage:
+  consolidate-coverage:
     runs-on: ubuntu-latest
     needs: [tests, fuzzing]
+    description: Consolidate code coverage using `coverage combine` and upload to the codecov app
 
     steps:
     - uses: actions/checkout@v4
