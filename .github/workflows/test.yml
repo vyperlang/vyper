@@ -260,8 +260,14 @@ jobs:
     - name: Combine coverage
       run: |
         coverage combine coverage-files/**/.coverage
+
+    - name: Coverage report
+      run: |
         # coverage report and fail if coverage is too low
         coverage report --fail-under=90
+
+    - name: Generate coverage.xml
+      run: |
         coverage xml
 
     - name: Upload coverage sqlite artifact
