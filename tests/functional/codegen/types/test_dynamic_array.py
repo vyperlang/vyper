@@ -14,6 +14,7 @@ from vyper.exceptions import (
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
+    StaticAssertionException,
     TypeMismatch,
 )
 
@@ -1863,9 +1864,16 @@ def should_revert() -> DynArray[String[65], 2]:
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
 def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
     # check that length is not clobbered before dynarray data copy happens
-    c = get_contract(code)
-    with tx_failed():
-        c.should_revert()
+    try:
+        c = get_contract(code)
+        with tx_failed():
+            c.should_revert()
+    except StaticAssertionException:
+        # this test should create
+        # assert error so if it is
+        # detected in compile time
+        # we can continue
+        pass
 
 
 def test_dynarray_make_setter_overlap(get_contract):
