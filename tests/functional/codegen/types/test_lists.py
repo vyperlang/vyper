@@ -1,8 +1,12 @@
+import contextlib
 import itertools
 
 import pytest
 
-from tests.utils import decimal_to_int
+from tests.evm_backends.base_env import EvmError
+from tests.utils import check_precompile_asserts, decimal_to_int
+from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
 
 
@@ -849,3 +853,73 @@ def foo() -> {return_type}:
     return MY_CONSTANT[0][0]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+def test_array_copy_oog(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@internal
+def bar(x: uint256[3000]) -> uint256[3000]:
+    a: uint256[3000] = x
+    return a
+
+@external
+def foo(x: uint256[3000]) -> uint256:
+    s: uint256[3000] = self.bar(x)
+    return s[0]
+    """
+    check_precompile_asserts(code)
+
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+        # fails in bytecode generation due to jumpdests too large
+        with pytest.raises(AssertionError):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    array = [2] * 3000
+    assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(array, gas=gas_used)
+
+
+def test_array_copy_oog2(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+def foo(x: uint256[2500]) -> uint256:
+    s: uint256[2500] = x
+    t: uint256[2500] = s
+    return t[0]
+    """
+    check_precompile_asserts(code)
+
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+        # fails in creating contract due to code too large
+        with tx_failed(EvmError):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    array = [2] * 2500
+    assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(array, gas=gas_used)
