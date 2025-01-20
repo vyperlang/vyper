@@ -262,8 +262,8 @@ jobs:
         coverage combine coverage-files/**/.coverage
 
     - name: Coverage report
+      # coverage report and fail if coverage is too low
       run: |
-        # coverage report and fail if coverage is too low
         coverage report --fail-under=90
 
     - name: Generate coverage.xml
@@ -293,7 +293,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
     - uses: actions/download-artifact@v4
       with:
         name: coverage-xml
