@@ -14,6 +14,7 @@ def vyper_warn(warning: VyperWarning | str, node=None):
         warning = VyperWarning(warning, node)
     warnings.warn(warning, stacklevel=2)
 
+
 def set_warnings_filter(warnings_control: Optional[str]):
     if warnings_control == "error":
         warnings_filter = "error"
@@ -30,7 +31,7 @@ def set_warnings_filter(warnings_control: Optional[str]):
 
     # NOTE: in the future we can do more fine-grained control by setting
     # category to specific warning types
-    warnings.simplefilter(warnings_filter, category=VyperWarning)
+    warnings.simplefilter(warnings_filter, category=VyperWarning)  # type: ignore[arg-type]
 
 
 class ContractSizeLimit(VyperWarning):

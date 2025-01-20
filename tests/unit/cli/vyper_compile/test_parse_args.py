@@ -1,10 +1,10 @@
 import os
-from vyper.warnings import VyperWarning
 import warnings
 
 import pytest
 
 from vyper.cli.vyper_compile import _parse_args
+from vyper.warnings import VyperWarning
 
 
 @pytest.fixture
@@ -29,6 +29,7 @@ def foo() -> bool:
 
     _parse_args([str(bar_path)])  # absolute path, subfolder of cwd
     _parse_args([str(bar_path.relative_to(chdir_path.parent))])  # relative path
+
 
 def test_warnings(make_file):
     """

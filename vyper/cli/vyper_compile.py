@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
