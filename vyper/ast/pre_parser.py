@@ -164,8 +164,14 @@ CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall", "staticcall": "StaticCall"}
 class PreParser:
     # Compilation settings based on the directives in the source code
     settings: Settings
-    # A mapping of class names to their original class types.
-    modification_offsets: dict[tuple[int, int], str]
+
+    # A mapping of offsets to new class names
+    keyword_translations: dict[tuple[int, int], str]
+
+    # Map from offsets in the original vyper source code to offsets
+    # in the new ("reformatted", i.e. python-compatible) source code
+    adjustments: dict[tuple[int, int], int]
+
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
     # A list of line/column offsets of hex string literals
@@ -199,8 +205,9 @@ class PreParser:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
     def _parse(self, code: str):
+        adjustments: dict = {}
         result: list[TokenInfo] = []
-        modification_offsets: dict[tuple[int, int], str] = {}
+        keyword_translations: dict[tuple[int, int], str] = {}
         settings = Settings()
         for_parser = ForParser(code)
         hex_string_parser = HexStringParser()
@@ -218,6 +225,12 @@ class PreParser:
             start = token.start
             end = token.end
             line = token.line
+
+            # handle adjustments
+            lineno, col = token.start
+            adj = _col_adjustments[lineno]
+            newstart = lineno, col - adj
+            adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -275,37 +288,32 @@ class PreParser:
                 )
 
             if typ == NAME:
+                # see if it's a keyword we need to replace
+                new_keyword = None
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
-                    toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                    new_keyword = "class"
+                    vyper_type = VYPER_CLASS_TYPES[string]
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
-                    adjustment = len(new_keyword) - len(string)
-                    # adjustments for following staticcall/extcall modification_offsets
-                    _col_adjustments[start[0]] += adjustment
-                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
-                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                    vyper_type = CUSTOM_STATEMENT_TYPES[string]
                 elif string in CUSTOM_EXPRESSION_TYPES:
-                    # a bit cursed technique to get untokenize to put
-                    # the new tokens in the right place so that modification_offsets
-                    # will work correctly.
-                    # (recommend comparing the result of parse with the
-                    # source code side by side to visualize the whitespace)
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
-                    lineno, col_offset = start
+                if new_keyword is not None:
+                    keyword_translations[newstart] = vyper_type
 
-                    # fixup for when `extcall/staticcall` follows `log`
-                    adjustment = _col_adjustments[lineno]
-                    new_start = (lineno, col_offset + adjustment)
-                    modification_offsets[new_start] = vyper_type
+                    adjustment = len(string) - len(new_keyword)
+                    # adjustments for following tokens
+                    lineno, col = start
+                    _col_adjustments[lineno] += adjustment
 
-                    # tells untokenize to add whitespace, preserving locations
-                    diff = len(new_keyword) - len(string)
-                    new_end = end[0], end[1] + diff
-
-                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
+                    # a bit cursed technique to get untokenize to put
+                    # the new tokens in the right place so that
+                    # `keyword_translations` will work correctly.
+                    # (recommend comparing the result of parse with the
+                    # source code side by side to visualize the whitespace)
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
@@ -317,8 +325,9 @@ class PreParser:
         for k, v in for_parser.annotations.items():
             for_loop_annotations[k] = v.copy()
 
+        self.adjustments = adjustments
         self.settings = settings
-        self.modification_offsets = modification_offsets
+        self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
         self.reformatted_code = untokenize(result).decode("utf-8")

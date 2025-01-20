@@ -50,7 +50,7 @@ be a bit behind the latest version found in the master branch of this repository
 
 ```bash
 make dev-init
-python setup.py test
+./quicktest.sh -m "not fuzzing"
 ```
 
 ## Developing (working on the compiler)

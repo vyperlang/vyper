@@ -9,7 +9,7 @@ from vyper.ir.compile_ir import (
     mksymbol,
     optimize_assembly,
 )
-from vyper.utils import MemoryPositions, OrderedSet
+from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import (
     CFGAnalysis,
     IRAnalysesCache,
@@ -274,7 +274,7 @@ class VenomCompiler:
                     raise Exception(f"Value too low: {op.value}")
                 elif op.value >= 2**256:
                     raise Exception(f"Value too high: {op.value}")
-                assembly.extend(PUSH(op.value % 2**256))
+                assembly.extend(PUSH(wrap256(op.value)))
                 stack.push(op)
                 continue
 
