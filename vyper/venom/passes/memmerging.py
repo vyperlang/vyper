@@ -85,7 +85,7 @@ class _Copy:
         self.length = new_length
         self.insts.extend(other.insts)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: nocover
         return f"({self.src}, {self.dst}, {self.length})"
 
 
