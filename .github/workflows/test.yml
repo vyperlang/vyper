@@ -264,7 +264,7 @@ jobs:
         coverage report --fail-under=90
         coverage xml
 
-    - name: Upload coverage artifact
+    - name: Upload coverage sqlite artifact
       # upload coverage sqlite db for debugging
       uses: actions/upload-artifact@v4
       with:
@@ -273,7 +273,7 @@ jobs:
         path: .coverage
         if-no-files-found: error
 
-    - name: Upload coverage artifact
+    - name: Upload coverage.xml
       uses: actions/upload-artifact@v4
       with:
         name: coverage-xml
@@ -283,7 +283,7 @@ jobs:
   upload-coverage:
     # upload coverage to the codecov app
     runs-on: ubuntu-latest
-    needs: [tests, fuzzing]
+    needs: [consolidate-coverage]
 
     steps:
     - uses: actions/checkout@v4
@@ -296,4 +296,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: coverage-xml/coverage.xml
+        file: coverage.xml
