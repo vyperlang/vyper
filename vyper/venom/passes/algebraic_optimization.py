@@ -369,22 +369,6 @@ class AlgebraicOptimizationPass(IRPass):
 
         lo, hi = int_bounds(bits=256, signed=signed)
 
-        # note: remember order of operands!
-        # text of (gt, [x, y]) is: `y > x`
-        a, b = operands[1], operands[0]
-        if is_gt:
-            # x > hi => False
-            # lo > x => False
-            if lit_eq(a, lo) or lit_eq(b, hi):
-                self.updater._store(inst, IRLiteral(0))
-                return
-        else:
-            # hi < x => False
-            # x < lo => False
-            if lit_eq(a, hi) or lit_eq(b, lo):
-                self.updater._store(inst, IRLiteral(0))
-                return
-
         if not isinstance(operands[0], IRLiteral):
             return
 
@@ -402,6 +386,10 @@ class AlgebraicOptimizationPass(IRPass):
         else:
             almost_always, never = hi, lo
             almost_never = lo + 1
+
+        if lit_eq(operands[0], never):
+            self.updater._store(inst, IRLiteral(0))
+            return
 
         if lit_eq(operands[0], almost_never):
             # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
@@ -442,9 +430,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         val = wrap256(operands[0].value, signed=signed)
-        if val == never:
-            # interferes with sccp optimization (lt x 0 -> 0)
-            return
+        assert val != never, "unreachable"  # sanity
 
         if is_gt:
             val += 1
@@ -452,7 +438,8 @@ class AlgebraicOptimizationPass(IRPass):
             # TODO: if resulting val is -1 (0xFF..FF), disable this
             # when optimization level == codesize
             val -= 1
-        # sanity
+
+        # sanity -- implied by precondition that `val != never`
         assert wrap256(val, signed=signed) == val
 
         new_opcode = flip_comparison_opcode(opcode)
