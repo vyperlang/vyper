@@ -1,4 +1,4 @@
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, cumtimeit
 from vyper.venom.analysis.available_expression import CSEAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -52,14 +52,15 @@ class CSE(IRPass):
             replace_dict = self._find_replaceble()
             if len(replace_dict) == 0:
                 return
+
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             # should be ok to be reevaluted
-            # self.available_expression_analysis.analyze(min_depth, max_depth)
-            self.expression_analysis = self.analyses_cache.force_analysis(
-                CSEAnalysis
-            )  # type: ignore
+            self.expression_analysis.analyze()
+            # self.expression_analysis = self.analyses_cache.force_analysis(
+            # CSEAnalysis
+            # )  # type: ignore
 
     # return instruction and to which instruction it could
     # replaced by
@@ -76,10 +77,9 @@ class CSE(IRPass):
                 ):
                     continue
                 inst_expr = self.expression_analysis.get_expression(inst)
-                avail = self.expression_analysis.get_available(inst)
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
-                if inst_expr in avail and (
+                if inst_expr.inst != inst and (
                     inst_expr.get_depth > 1 or inst.parent == inst_expr.inst.parent
                 ):
                     res[inst] = inst_expr.inst
@@ -93,25 +93,9 @@ class CSE(IRPass):
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
-        visited: OrderedSet[IRBasicBlock] = OrderedSet()
         if orig_inst.output is not None:
-            assert isinstance(orig_inst.output, IRVariable), f"not var {orig_inst}"
+            orig_inst.opcode = "store"
             assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
-            self._replace_inst_r(orig_inst.parent, orig_inst.output, to_inst.output, visited)
-        orig_inst.parent.remove_instruction(orig_inst)
-
-    def _replace_inst_r(
-        self, bb: IRBasicBlock, orig: IRVariable, to: IRVariable, visited: OrderedSet[IRBasicBlock]
-    ):
-        if bb in visited:
-            return
-        visited.add(bb)
-
-        for inst in bb.instructions:
-            for i in range(len(inst.operands)):
-                op = inst.operands[i]
-                if op == orig:
-                    inst.operands[i] = to
-
-        for out in bb.cfg_out:
-            self._replace_inst_r(out, orig, to, visited)
+            orig_inst.operands = [to_inst.output]
+        else:
+            orig_inst.parent.remove_instruction(orig_inst)
