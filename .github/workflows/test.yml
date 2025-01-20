@@ -150,7 +150,6 @@ jobs:
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-config=setup.cfg
-        --cov=vyper
         tests/
 
     - name: Upload coverage artifact
@@ -211,7 +210,6 @@ jobs:
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
           --cov-config=setup.cfg \
-          --cov=vyper \
           tests/
 
     - name: Upload coverage artifact
