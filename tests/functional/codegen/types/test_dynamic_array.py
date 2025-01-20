@@ -1,10 +1,12 @@
+import contextlib
 import itertools
 from typing import Any, Callable
 
 import pytest
 
-from tests.utils import decimal_to_int
+from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
@@ -1909,3 +1911,59 @@ def foo():
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_dynarray_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+
+@external
+def foo(a: DynArray[uint256, 4000]) -> uint256:
+    b: DynArray[uint256, 4000] = a
+    return b[0]
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    dynarray = [2] * 4000
+    assert c.foo(dynarray) == 2
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(dynarray, gas=gas_used)
+
+
+def test_dynarray_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
+    z: DynArray[String[1000000], 2] = [x, y]
+    # Some code
+    return z
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    calldata0 = "a" * 10
+    calldata1 = "b" * 1000000
+    assert c.foo(calldata0, calldata1) == [calldata0, calldata1]
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata0, calldata1, gas=gas_used)
