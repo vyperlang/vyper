@@ -51,9 +51,7 @@ def hevm_check(code):
     print(compiler.generate_evm(no_optimize=True))
     print(bytecode2)
 
-    subprocess.check_output(
-        ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
-    )
+    subprocess.check_output(["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2])
 
 
 def test_sccp_algebraic_opt_sub_xor():

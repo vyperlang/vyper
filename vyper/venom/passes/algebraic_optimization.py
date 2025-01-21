@@ -397,7 +397,7 @@ class AlgebraicOptimizationPass(IRPass):
             # correct optimization:
             self.updater._update(inst, "eq", [operands[1], IRLiteral(never)])
             # canary:
-            #self.updater._update(inst, "eq", [operands[1], IRLiteral(lo)])
+            # self.updater._update(inst, "eq", [operands[1], IRLiteral(lo)])
             return
 
         # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
