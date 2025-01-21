@@ -1,6 +1,10 @@
+import subprocess
+
 import pytest
 
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from vyper.ir.compile_ir import assembly_to_evm
+from vyper.venom import StoreExpansionPass, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 
@@ -19,6 +23,29 @@ def _sccp_algebraic_runner(pre, post):
         StoreElimination(ac, fn).run_pass()
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+def hevm_check(pre, post):
+    # perform hevm equivalence check
+    ctx1 = parse_from_basic_block(pre)
+    ctx2 = parse_from_basic_block(post)
+    for fn in ctx1.functions.values():
+        ac = IRAnalysesCache(fn)
+        StoreExpansionPass(ac, fn).run_pass()
+    for fn in ctx2.functions.values():
+        ac = IRAnalysesCache(fn)
+        StoreExpansionPass(ac, fn).run_pass()
+
+    compiler = VenomCompiler([ctx1])
+    bytecode1 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0]
+    print(compiler.generate_evm(no_optimize=True))
+    compiler = VenomCompiler([ctx2])
+    bytecode2 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0]
+    print(compiler.generate_evm(no_optimize=True))
+
+    subprocess.check_output(
+        ["hevm", "equivalence", "--code-a", bytecode1.hex(), "--code-b", bytecode2.hex()]
+    )
 
 
 def test_sccp_algebraic_opt_sub_xor():
@@ -469,6 +496,45 @@ def test_comparison_almost_never():
 
     _sccp_algebraic_runner(pre1, post)
     _sccp_algebraic_runner(pre2, post)
+
+
+def test_hevm_almost_never():
+    max_uint256 = 2**256 - 1
+    max_int256 = 2**255 - 1
+    min_int256 = -(2**255)
+    pre = f"""
+    _global:
+        %par = calldataload 0
+        %1 = lt %par, 1
+        %2 = gt %par, {max_uint256 - 1}
+        %3 = sgt %par, {max_int256 - 1}
+        %4 = slt %par, {min_int256 + 1}
+
+        mstore 0, %1
+        mstore 32, %2
+        mstore 64, %3
+        mstore 96, %4
+        return 0, 128
+    """
+    post = f"""
+    _global:
+        %par = calldataload 0
+        ; lt %par, 1 => eq 0, %par => iszero %par
+        %1 = iszero %par
+        ; x > MAX_UINT256 - 1 => eq MAX_UINT x => iszero(not x)
+        %5 = not %par
+        %2 = iszero %5
+        %3 = eq {max_int256}, %par
+        %4 = eq {min_int256}, %par
+
+        mstore 0, %1
+        mstore 32, %2
+        mstore 64, %3
+        mstore 96, %4
+        return 0, 128
+    """
+
+    hevm_check(pre, post)
 
 
 def test_comparison_almost_always():
