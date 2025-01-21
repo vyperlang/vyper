@@ -116,6 +116,7 @@ jobs:
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
           - python-version: ["3.12", "312"]
+          - python-version: ["3.13", "313"]
 
           # os-specific rules
           - os: windows
@@ -148,16 +149,17 @@ jobs:
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
-        --cov-branch
-        --cov-report xml:coverage.xml
+        --cov-config=setup.cfg
         --cov=vyper
         tests/
 
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+        name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
+        include-hidden-files: true
+        path: .coverage
+        if-no-files-found: error
 
   core-tests-success:
     if: always()
@@ -208,16 +210,17 @@ jobs:
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
-          --cov-branch \
-          --cov-report xml:coverage.xml \
+          --cov-config=setup.cfg \
           --cov=vyper \
           tests/
 
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+        name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
+        include-hidden-files: true
+        path: .coverage
+        if-no-files-found: error
 
   slow-tests-success:
     if: always()
@@ -230,3 +233,69 @@ jobs:
       - name: Check slow tests all succeeded
         if: ${{ needs.fuzzing.result != 'success' }}
         run: exit 1
+
+  coverage-report:
+    # Consolidate code coverage using `coverage combine` and
+    # call coverage report with fail-under=90
+    runs-on: ubuntu-latest
+    needs: [tests, fuzzing]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: "pip"
+  
+    - name: Install coverage
+      run: pip install coverage
+
+    - name: Download coverage artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-files-*
+        path: coverage-files
+
+    - name: Combine coverage
+      run: |
+        coverage combine coverage-files/**/.coverage
+
+    - name: Coverage report
+      # coverage report and fail if coverage is too low
+      run: |
+        coverage report --fail-under=90
+
+    - name: Generate coverage.xml
+      run: |
+        coverage xml
+
+    - name: Upload coverage artifacts
+      # upload coverage sqlite db for debugging
+      # upload coverage.xml artifact for downstream codecov upload action
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-artifacts
+        include-hidden-files: true
+        path: |
+          .coverage
+          coverage.xml
+        if-no-files-found: error
+
+  upload-coverage:
+    # upload coverage to the codecov app
+    runs-on: ubuntu-latest
+    needs: [coverage-report]
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: coverage-artifacts
+
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.xml

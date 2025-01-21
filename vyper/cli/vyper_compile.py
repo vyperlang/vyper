@@ -5,7 +5,7 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Optional
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -15,8 +15,7 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
-
-T = TypeVar("T")
+from vyper.utils import uniq
 
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
@@ -263,20 +262,6 @@ def _parse_args(argv):
             _cli_helper(f, output_formats, compiled)
 
 
-def uniq(seq: Iterable[T]) -> Iterator[T]:
-    """
-    Yield unique items in ``seq`` in order.
-    """
-    seen: Set[T] = set()
-
-    for x in seq:
-        if x in seen:
-            continue
-
-        seen.add(x)
-        yield x
-
-
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     print(f"Error compiling: {contract_path}")
     raise exception
@@ -359,7 +344,7 @@ def compile_files(
             # we allow this instead of requiring a different mode (like
             # `--zip`) so that verifier pipelines do not need a different
             # workflow for archive files and single-file contracts.
-            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
             ret[file_path] = output
             continue
         except NotZipInput:
