@@ -5,6 +5,7 @@ import pytest
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom import StoreExpansionPass, VenomCompiler
+from vyper.venom.basicblock import IRLiteral, IRInstruction
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 
@@ -24,34 +25,67 @@ def _sccp_algebraic_runner(pre, post):
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
+    hevm_check(pre, post)
 
-def hevm_check(code):
+
+def _prep_hevm(venom_source_code):
+    ctx = parse_from_basic_block(venom_source_code)
+
+    num_calldataloads = 0
+    num_return_values = 0
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                # transform `param` instructions into "symbolic" values for
+                # hevm via calldataload
+                if inst.opcode == "param":
+                    # hevm limit: 256 bytes of symbolic calldata
+                    assert num_calldataloads < 8
+
+                    inst.opcode = "calldataload"
+                    inst.operands = [IRLiteral(num_calldataloads * 32)]
+                    num_calldataloads += 1
+
+            term = bb.instructions[-1]
+            # test convention, terminate by `return`ing the variables
+            # you want to check
+            assert term.opcode == "return"
+            num_return_values = 0
+            for op in term.operands:
+                ptr = IRLiteral(num_return_values * 32)
+                new_inst = IRInstruction("mstore", [op, ptr])
+                bb.insert_instruction(new_inst, index=-1)
+                num_return_values += 1
+
+            # return 0, 32 * num_variables
+            term.operands = [IRLiteral(num_return_values * 32), IRLiteral(0)]
+
+        ac = IRAnalysesCache(fn)
+        # requirement for venom_to_assembly
+        StoreExpansionPass(ac, fn).run_pass()
+
+    compiler = VenomCompiler([ctx])
+    return assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
+
+def hevm_check(pre, post):
     # perform hevm equivalence check
-    ctx1 = parse_from_basic_block(code)
-    ctx2 = parse_from_basic_block(code)
+    print("HEVM COMPARE."
+    print("BEFORE:", pre)
+    print("OPTIMIZED:", post)
+    bytecode1 = _prep_hevm(pre)
+    bytecode2 = _prep_hevm(post)
 
-    for fn in ctx1.functions.values():
-        ac = IRAnalysesCache(fn)
-        StoreExpansionPass(ac, fn).run_pass()
-
-    for fn in ctx2.functions.values():
-        ac = IRAnalysesCache(fn)
-        StoreElimination(ac, fn).run_pass()
-        AlgebraicOptimizationPass(ac, fn).run_pass()
-        StoreElimination(ac, fn).run_pass()
-
-        StoreExpansionPass(ac, fn).run_pass()
-
-    compiler = VenomCompiler([ctx1])
-    bytecode1 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
-    print(compiler.generate_evm(no_optimize=True))
+    # debug:
+    print("RUN HEVM:")
     print(bytecode1)
-    compiler = VenomCompiler([ctx2])
-    bytecode2 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
-    print(compiler.generate_evm(no_optimize=True))
     print(bytecode2)
 
-    subprocess.check_output(["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2])
+    subp_args = ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
+    # quiet:
+    # subprocess.check_output(["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2])
+
+    # verbose:
+    subprocess.check_call(subp_args)
 
 
 def test_sccp_algebraic_opt_sub_xor():
@@ -505,6 +539,7 @@ def test_comparison_almost_never():
 
 
 def test_hevm_almost_never():
+    # check hevm harness, but this can be moved into the sccp_algebraic_runner.
     max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
