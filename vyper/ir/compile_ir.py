@@ -338,6 +338,16 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         return o
 
+    elif code.value == "itouch":
+        loc = code.args[0]
+
+        o = []
+        o.extend(_data_ofst_of("_mem_deploy_end", loc, height))
+        o.append("MLOAD")
+        o.append("POP")
+
+        return o
+
     # "mstore" to the data section of (to-be-deployed) runtime code
     elif code.value == "istore":
         loc = code.args[0]
