@@ -174,7 +174,7 @@ class VyperType:
         if location == DataLocation.CODE:
             return self.memory_bytes_required
 
-        raise CompilerPanic(f"unreachable: invalid location {location}")  # pragma: nocover
+        raise CompilerPanic(f"unreachable: invalid location {location}")
 
     @property
     def memory_bytes_required(self) -> int:

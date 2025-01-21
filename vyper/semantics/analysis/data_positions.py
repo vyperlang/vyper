@@ -99,7 +99,7 @@ class Allocators:
         if location == DataLocation.CODE:
             return self.immutables_allocator
 
-        raise CompilerPanic("unreachable")  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
     def allocate_global_nonreentrancy_slot(self):
         location = get_reentrancy_key_location()
@@ -371,7 +371,7 @@ def _generate_layout_export_r(vyper_module):
             item = {"type": str(type_), "length": size, "offset": offset}
         elif location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             item = {"type": str(type_), "n_slots": size, "slot": offset}
-        else:  # pragma: nocover
+        else:
             raise CompilerPanic("unreachable")
         ret[layout_key][node.target.id] = item
 

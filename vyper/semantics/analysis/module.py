@@ -746,7 +746,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             path = import_info.compiler_input.path
             return InterfaceT.from_json_abi(str(path), abi)
 
-        raise CompilerPanic("unreachable")  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
     def visit_InterfaceDef(self, node):
         interface_t = InterfaceT.from_InterfaceDef(node)

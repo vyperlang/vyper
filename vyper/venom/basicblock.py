@@ -99,7 +99,7 @@ def flip_comparison_opcode(opcode):
     elif opcode in ("lt", "slt"):
         return opcode.replace("l", "g")
 
-    raise CompilerPanic(f"unreachable {opcode}")  # pragma: nocover
+    raise CompilerPanic(f"unreachable {opcode}")
 
 
 class IRDebugInfo:

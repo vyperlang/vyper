@@ -25,7 +25,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     jump_to_exit = ["exit_to", func_t._ir_info.exit_sequence_label]
 
     if context.return_type is None:
-        if stmt.value is not None:  # pragma: nocover
+        if stmt.value is not None:
             raise TypeCheckFailure("bad return")
 
     else:

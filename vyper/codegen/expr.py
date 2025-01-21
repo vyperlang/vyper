@@ -204,7 +204,7 @@ class Expr:
             ret._referenced_variables = {varinfo}
             return ret
 
-        raise CompilerPanic("unreachable")  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -435,7 +435,7 @@ class Expr:
                 ret = arithmetic.safe_mod(x, y)
             elif isinstance(op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
-            else:  # pragma: nocover
+            else:
                 raise CompilerPanic("Unreachable")
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
@@ -457,7 +457,7 @@ class Expr:
             found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
             found, not_found = 0, 1
-        else:  # pragma: no cover
+        else:
             raise TypeCheckFailure("unreachable")
 
         i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ=UINT256_T)
@@ -545,8 +545,8 @@ class Expr:
             op = "eq"
         elif isinstance(self.expr.op, vy_ast.NotEq):
             op = "ne"
-        else:  # pragma: nocover
-            return
+        else:
+            raise TypeCheckFailure("unknown ast type")
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, _BytestringT) and isinstance(right.typ, _BytestringT):
@@ -599,7 +599,7 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Or):
             return Expr._logical_or(values)
 
-        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: nocover
+        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")
 
     @staticmethod
     def _logical_and(values):
@@ -725,7 +725,7 @@ class Expr:
                 ret.append(append_dyn_array(darray, arg))
                 return IRnode.from_list(ret)
 
-            raise CompilerPanic("unreachable!")  # pragma: nocover
+            raise CompilerPanic("unreachable!")
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor

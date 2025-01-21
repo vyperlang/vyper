@@ -165,10 +165,10 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     size_bound = abi_t.size_bound()
 
     assert isinstance(bufsz, int)
-    if bufsz < size_bound:  # pragma: nocover
+    if bufsz < size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-    if size_bound < dst.typ.memory_bytes_required:  # pragma: nocover
+    if size_bound < dst.typ.memory_bytes_required:
         raise CompilerPanic("Bad ABI size calc")
 
     annotation = f"abi_encode {ir_node.typ}"
@@ -207,7 +207,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
                 ir_ret.extend(encode_ir)
                 static_ofst += e.typ.abi_type.embedded_static_size()
 
-        else:  # pragma: nocover
+        else:
             raise CompilerPanic(f"unencodable type: {ir_node.typ}")
 
         # declare IR variables.
@@ -220,7 +220,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
                 ir_ret.append(calc_len)
             elif abi_t.is_complex_type():
                 ir_ret.append("dyn_ofst")
-            else:  # pragma: nocover
+            else:
                 raise CompilerPanic(f"unknown type {ir_node.typ}")
 
         if abi_t.is_dynamic() and abi_t.is_complex_type():

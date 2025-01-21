@@ -340,7 +340,7 @@ def safe_mod(x, y):
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:
 def safe_pow(x, y):
     typ = x.typ
-    if not is_integer_type(x.typ):  # pragma: nocover
+    if not is_integer_type(x.typ):
         raise TypeCheckFailure("non-integer pow")
 
     GE = "sge" if typ.is_signed else "ge"

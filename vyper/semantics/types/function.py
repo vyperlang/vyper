@@ -516,7 +516,7 @@ class ContractFunctionT(VyperType):
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
         """
-        if not self.is_external:  # pragma: nocover
+        if not self.is_external:
             raise CompilerPanic("unreachable!")
 
         assert self.visibility == other.visibility
