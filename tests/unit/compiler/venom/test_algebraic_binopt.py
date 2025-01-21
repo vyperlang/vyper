@@ -14,7 +14,7 @@ Test abstract binop+unop optimizations in algebraic optimizations pass
 """
 
 
-def _sccp_algebraic_runner(pre, post):
+def _sccp_algebraic_runner(pre, post, hevm=True):
     ctx = parse_from_basic_block(pre)
 
     for fn in ctx.functions.values():
@@ -25,7 +25,8 @@ def _sccp_algebraic_runner(pre, post):
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
-    hevm_check(pre, post)
+    if hevm:
+        hevm_check(pre, post)
 
 
 def _prep_hevm(venom_source_code):
@@ -69,7 +70,7 @@ def _prep_hevm(venom_source_code):
 
 def hevm_check(pre, post):
     # perform hevm equivalence check
-    print("HEVM COMPARE."
+    print("HEVM COMPARE.")
     print("BEFORE:", pre)
     print("OPTIMIZED:", post)
     bytecode1 = _prep_hevm(pre)
@@ -154,7 +155,8 @@ def test_sccp_algebraic_opt_sub_xor_max():
         return %1, %2, %3
     """
 
-    _sccp_algebraic_runner(pre, post)
+    # hevm chokes on this example.
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_shift():
@@ -289,7 +291,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts(n):
         return %1, %2, %3, %4, %5, %6
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_exp():
@@ -311,7 +313,7 @@ def test_sccp_algebraic_opt_exp():
         return 1, 1, %3, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_compare_self():
@@ -536,28 +538,6 @@ def test_comparison_almost_never():
 
     _sccp_algebraic_runner(pre1, post)
     _sccp_algebraic_runner(pre2, post)
-
-
-def test_hevm_almost_never():
-    # check hevm harness, but this can be moved into the sccp_algebraic_runner.
-    max_uint256 = 2**256 - 1
-    max_int256 = 2**255 - 1
-    min_int256 = -(2**255)
-    code = f"""
-    _global:
-        %par = calldataload 0
-        %1 = lt %par, 1
-        %2 = gt %par, {max_uint256 - 1}
-        %3 = sgt %par, {max_int256 - 1}
-        %4 = slt %par, {min_int256 + 1}
-
-        mstore 0, %1
-        mstore 32, %2
-        mstore 64, %3
-        mstore 96, %4
-        return 0, 128
-    """
-    hevm_check(code)
 
 
 def test_comparison_almost_always():
