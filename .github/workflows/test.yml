@@ -271,8 +271,9 @@ jobs:
       run: |
         coverage xml
 
-    - name: Upload coverage sqlite artifact and report
+    - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging
+      # upload coverage.xml artifact for downstream codecov upload action
       uses: actions/upload-artifact@v4
       with:
         name: coverage-artifacts
