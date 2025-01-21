@@ -37,14 +37,16 @@ def hevm_check(pre, post):
         StoreExpansionPass(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx1])
-    bytecode1 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0]
+    bytecode1 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
     print(compiler.generate_evm(no_optimize=True))
+    print(bytecode1)
     compiler = VenomCompiler([ctx2])
-    bytecode2 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0]
+    bytecode2 = assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
     print(compiler.generate_evm(no_optimize=True))
+    print(bytecode2)
 
     subprocess.check_output(
-        ["hevm", "equivalence", "--code-a", bytecode1.hex(), "--code-b", bytecode2.hex()]
+        ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
     )
 
 
