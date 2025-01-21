@@ -366,6 +366,7 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
         elif opcode in ("alloca", "palloca"):
+            assert len(inst.operands) == 2, f"alloca/palloca must have 2 operands, got {inst.operands}"
             offset, _size = inst.operands
             operands = [offset]
 
