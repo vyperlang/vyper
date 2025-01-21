@@ -322,4 +322,4 @@ class Context:
             return "a range expression"
         elif self.constancy == Constancy.Constant:
             return "a constant function"
-        raise CompilerPanic(f"bad constancy: {self.constancy}")  # pragma: nocover
+        raise CompilerPanic(f"bad constancy: {self.constancy}")

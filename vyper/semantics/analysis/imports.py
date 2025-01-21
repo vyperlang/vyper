@@ -284,7 +284,7 @@ _builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
-    if not _is_builtin(module_str):  # pragma: nocover
+    if not _is_builtin(module_str):
         raise CompilerPanic("unreachable!")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]

@@ -86,7 +86,7 @@ def _bytes_to_num(arg, out_typ, signed):
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
         num_zero_bits = 8 * (32 - arg.typ.m)
-    else:  # pragma: nocover
+    else:
         raise CompilerPanic("unreachable")
 
     if signed:
@@ -359,7 +359,7 @@ def to_decimal(expr, arg, out_typ):
         # TODO: consider adding is_signed and bits to bool so we can use _int_to_fixed
         arg = ["mul", arg, 10**out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
-    else:  # pragma: nocover
+    else:
         raise CompilerPanic("unreachable")
 
 

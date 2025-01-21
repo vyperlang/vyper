@@ -84,7 +84,7 @@ def scope_multi(ir_nodes, names):
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        if should_inline and ir_node._optimized.is_complex_ir:  # pragma: nocover
+        if should_inline and ir_node._optimized.is_complex_ir:
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -325,7 +325,7 @@ class IRnode:
             # var_list names a variable number stack variables
             elif self.value == "var_list":
                 for arg in self.args:
-                    if not isinstance(arg.value, str) or len(arg.args) > 0:  # pragma: nocover
+                    if not isinstance(arg.value, str) or len(arg.args) > 0:
                         raise CodegenPanic(f"var_list only takes strings: {self.args}")
                 self.valency = 0
                 self._gas = 0
@@ -346,7 +346,7 @@ class IRnode:
             else:
                 self.valency = 1
                 self._gas = 3
-        else:  # pragma: nocover
+        else:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
 
@@ -410,7 +410,7 @@ class IRnode:
         for arg in children:
             s = arg.unique_symbols
             non_uniques = ret.intersection(s)
-            if len(non_uniques) != 0:  # pragma: nocover
+            if len(non_uniques) != 0:
                 raise CompilerPanic(f"non-unique symbols {non_uniques}")
             ret |= s
         return ret
@@ -596,7 +596,7 @@ class IRnode:
         passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
-        if isinstance(typ, str):  # pragma: nocover
+        if isinstance(typ, str):
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):

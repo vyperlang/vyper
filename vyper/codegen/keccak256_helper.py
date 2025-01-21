@@ -9,7 +9,7 @@ from vyper.utils import SHA3_BASE, SHA3_PER_WORD, MemoryPositions
 
 
 def _check_byteslike(typ):
-    if not isinstance(typ, _BytestringT) and typ != BYTES32_T:  # pragma: nocover
+    if not isinstance(typ, _BytestringT) and typ != BYTES32_T:
         # NOTE this may be checked at a higher level, but just be safe
         raise CompilerPanic("keccak256 only accepts bytes-like objects")
 

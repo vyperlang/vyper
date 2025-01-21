@@ -130,7 +130,7 @@ class ImportInfo(AnalysisResult):
 
     @property
     def typ(self):
-        if self._typ is None:  # pragma: nocover
+        if self._typ is None:
             raise CompilerPanic("unreachable!")
         return self._typ
 

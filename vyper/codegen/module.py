@@ -508,7 +508,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         deploy_code.extend(ctor_internal_func_irs)
 
     else:
-        if immutables_len != 0:  # pragma: nocover
+        if immutables_len != 0:
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 

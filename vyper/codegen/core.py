@@ -120,7 +120,7 @@ def data_location_to_address_space(s: DataLocation, is_ctor_ctx: bool) -> AddrSp
             return IMMUTABLES
         return DATA
 
-    raise CompilerPanic("unreachable!")  # pragma: nocover
+    raise CompilerPanic("unreachable!")
 
 
 def address_space_to_data_location(s: AddrSpace) -> DataLocation:
@@ -135,7 +135,7 @@ def address_space_to_data_location(s: AddrSpace) -> DataLocation:
     if s == CALLDATA:
         return DataLocation.CALLDATA
 
-    raise CompilerPanic("unreachable!")  # pragma: nocover
+    raise CompilerPanic("unreachable!")
 
 
 def writeable(context, ir_node):
@@ -182,14 +182,14 @@ def make_byte_array_copier(dst, src):
 
 
 def bytes_data_ptr(ptr):
-    if ptr.location is None:  # pragma: nocover
+    if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, _BytestringT)
     return add_ofst(ptr, ptr.location.word_scale)
 
 
 def dynarray_data_ptr(ptr):
-    if ptr.location is None:  # pragma: nocover
+    if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, DArrayT)
     return add_ofst(ptr, ptr.location.word_scale)
@@ -511,7 +511,7 @@ def _get_element_ptr_tuplelike(parent, key, hi=None):
     ofst = 0  # offset from parent start
 
     if parent.encoding == Encoding.ABI:
-        if parent.location in (STORAGE, TRANSIENT):  # pragma: nocover
+        if parent.location in (STORAGE, TRANSIENT):
             raise CompilerPanic("storage variables should not be abi encoded")
 
         member_t = typ.member_types[attrs[index]]
@@ -545,7 +545,7 @@ def has_length_word(typ):
 def _get_element_ptr_array(parent, key, array_bounds_check):
     assert is_array_like(parent.typ)
 
-    if not is_integer_type(key.typ):  # pragma: nocover
+    if not is_integer_type(key.typ):
         raise TypeCheckFailure(f"{key.typ} used as array index")
 
     subtype = parent.typ.value_type
@@ -581,7 +581,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
-        if parent.location in (STORAGE, TRANSIENT):  # pragma: nocover
+        if parent.location in (STORAGE, TRANSIENT):
             raise CompilerPanic("storage variables should not be abi encoded")
 
         member_abi_t = subtype.abi_type
@@ -608,7 +608,7 @@ def _get_element_ptr_mapping(parent, key):
     subtype = parent.typ.value_type
     key = unwrap_location(key)
 
-    if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
+    if parent.location not in (STORAGE, TRANSIENT):
         raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
@@ -630,17 +630,17 @@ def get_element_ptr(parent, key, array_bounds_check=True):
         elif is_array_like(typ):
             ret = _get_element_ptr_array(parent, key, array_bounds_check)
 
-        else:  # pragma: nocover
+        else:
             raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
 
         return b.resolve(ret)
 
 
 def LOAD(ptr: IRnode) -> IRnode:
-    if ptr.location is None:  # pragma: nocover
+    if ptr.location is None:
         raise CompilerPanic("cannot dereference non-pointer type")
     op = ptr.location.load_op
-    if op is None:  # pragma: nocover
+    if op is None:
         raise CompilerPanic(f"unreachable {ptr.location}")
     return IRnode.from_list([op, ptr])
 
@@ -659,10 +659,10 @@ def ensure_eval_once(name, irnode):
 
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
-    if ptr.location is None:  # pragma: nocover
+    if ptr.location is None:
         raise CompilerPanic("cannot dereference non-pointer type")
     op = ptr.location.store_op
-    if op is None:  # pragma: nocover
+    if op is None:
         raise CompilerPanic(f"unreachable {ptr.location}")
 
     store = [op, ptr, val]
@@ -865,7 +865,7 @@ def reset_names():
 def needs_clamp(t, encoding):
     if encoding == Encoding.VYPER:
         return False
-    if encoding != Encoding.ABI:  # pragma: nocover
+    if encoding != Encoding.ABI:
         raise CompilerPanic("unreachable")
     if isinstance(t, (_BytestringT, DArrayT)):
         return True
@@ -878,7 +878,7 @@ def needs_clamp(t, encoding):
     if t._is_prim_word:
         return t not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic("unreachable")  # pragma: nocover
+    raise CompilerPanic("unreachable")
 
 
 # when abi encoded data is user provided and lives in memory,
@@ -905,7 +905,7 @@ def _abi_payload_size(ir_node):
     if isinstance(ir_node.typ, _BytestringT):
         return ["add", OFFSET, get_bytearray_length(ir_node)]
 
-    raise CompilerPanic("unreachable")  # pragma: nocover
+    raise CompilerPanic("unreachable")
 
 
 def potential_overlap(left, right):
@@ -1182,7 +1182,7 @@ def sar(bits, x):
 
 def clamp_bytestring(ir_node, hi=None):
     t = ir_node.typ
-    if not isinstance(t, _BytestringT):  # pragma: nocover
+    if not isinstance(t, _BytestringT):
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
 
     # check if byte array length is within type max
@@ -1237,7 +1237,7 @@ def clamp_dyn_array(ir_node, hi=None):
 # clampers for basetype
 def clamp_basetype(ir_node):
     t = ir_node.typ
-    if not t._is_prim_word:  # pragma: nocover
+    if not t._is_prim_word:
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
     # copy of the input
@@ -1264,7 +1264,7 @@ def clamp_basetype(ir_node):
         ret = int_clamp(ir_node, 160)
     elif t in (BoolT(),):
         ret = int_clamp(ir_node, 1)
-    else:  # pragma: no cover
+    else:
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
     return IRnode.from_list(ret, typ=ir_node.typ, error_msg=f"validate {t}")
@@ -1276,7 +1276,7 @@ def int_clamp(ir_node, bits, signed=False):
     in bounds. (Consumers should use clamp_basetype instead which uses
     type-based dispatch and is a little safer.)
     """
-    if bits >= 256:  # pragma: nocover
+    if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({ir_node})")
 
     u = "u" if not signed else ""
@@ -1301,7 +1301,7 @@ def int_clamp(ir_node, bits, signed=False):
 
 
 def bytes_clamp(ir_node: IRnode, n_bytes: int) -> IRnode:
-    if not (0 < n_bytes <= 32):  # pragma: nocover
+    if not (0 < n_bytes <= 32):
         raise CompilerPanic(f"bad type: bytes{n_bytes}")
     msg = f"bytes{n_bytes} bounds check"
     with ir_node.cache_when_complex("val") as (b, val):

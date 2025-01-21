@@ -1262,7 +1262,7 @@ class Call(ExprNode):
             return "extcall"
         if self.is_staticcall:
             return "staticcall"
-        raise CompilerPanic("unreachable!")  # pragma: nocover
+        raise CompilerPanic("unreachable!")
 
     @property
     def is_terminus(self):
