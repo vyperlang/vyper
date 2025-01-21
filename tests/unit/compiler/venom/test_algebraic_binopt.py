@@ -25,15 +25,21 @@ def _sccp_algebraic_runner(pre, post):
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
-def hevm_check(pre, post):
+def hevm_check(code):
     # perform hevm equivalence check
-    ctx1 = parse_from_basic_block(pre)
-    ctx2 = parse_from_basic_block(post)
+    ctx1 = parse_from_basic_block(code)
+    ctx2 = parse_from_basic_block(code)
+
     for fn in ctx1.functions.values():
         ac = IRAnalysesCache(fn)
         StoreExpansionPass(ac, fn).run_pass()
+
     for fn in ctx2.functions.values():
         ac = IRAnalysesCache(fn)
+        StoreElimination(ac, fn).run_pass()
+        AlgebraicOptimizationPass(ac, fn).run_pass()
+        StoreElimination(ac, fn).run_pass()
+
         StoreExpansionPass(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx1])
@@ -504,7 +510,7 @@ def test_hevm_almost_never():
     max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
-    pre = f"""
+    code = f"""
     _global:
         %par = calldataload 0
         %1 = lt %par, 1
@@ -518,25 +524,7 @@ def test_hevm_almost_never():
         mstore 96, %4
         return 0, 128
     """
-    post = f"""
-    _global:
-        %par = calldataload 0
-        ; lt %par, 1 => eq 0, %par => iszero %par
-        %1 = iszero %par
-        ; x > MAX_UINT256 - 1 => eq MAX_UINT x => iszero(not x)
-        %5 = not %par
-        %2 = iszero %5
-        %3 = eq {max_int256}, %par
-        %4 = eq {min_int256}, %par
-
-        mstore 0, %1
-        mstore 32, %2
-        mstore 64, %3
-        mstore 96, %4
-        return 0, 128
-    """
-
-    hevm_check(pre, post)
+    hevm_check(code)
 
 
 def test_comparison_almost_always():
