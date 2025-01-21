@@ -333,6 +333,3 @@ class CSEAnalysis(IRAnalysis):
 
         self.inst_to_expr[inst] = expr
         return expr
-
-    def get_available(self, inst: IRInstruction) -> OrderedSet[_Expression]:
-        return self.inst_to_available.get(inst, _AvailableExpression()).to_set()
