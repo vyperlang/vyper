@@ -61,7 +61,8 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded, vyper_warn
+from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded
+from vyper.warnings import VyperWarning, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -274,13 +275,13 @@ class Expr:
                 if not version_check(begin="paris"):
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
                     warning += "environment! Suggest using block.prevrandao instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)

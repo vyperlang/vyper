@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +15,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
+from vyper.warnings import set_warnings_filter
 
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
@@ -97,8 +97,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
@@ -186,6 +184,10 @@ def _parse_args(argv):
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
+    parser.add_argument(
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
+    )
+
     args = parser.parse_args(argv)
 
     if args.traceback_limit is not None:
@@ -247,6 +249,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -299,7 +302,10 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
+    set_warnings_filter(warnings_control)
+
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
 
