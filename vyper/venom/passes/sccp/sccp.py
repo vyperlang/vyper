@@ -5,7 +5,7 @@ from typing import Union
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, eval_arith
 
 
 class LatticeEnum(Enum):
@@ -50,7 +50,6 @@ class SCCP(IRPass):
     """
 
     fn: IRFunction
-    dom: DominatorTreeAnalysis
     dfg: DFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
@@ -66,16 +65,15 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
-
         if self.cfg_dirty:
             self.analyses_cache.force_analysis(CFGAnalysis)
-            self._fix_phi_nodes()
-
+            self.fn.remove_unreachable_blocks()
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _calculate_sccp(self, entry: IRBasicBlock):
         """
@@ -145,7 +143,7 @@ class SCCP(IRPass):
             self._visit_expr(work_item.inst)
 
     def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
-        assert isinstance(op, IRVariable), "Can't get lattice for non-variable"
+        assert isinstance(op, IRVariable), f"Can't get lattice for non-variable ({op})"
         lat = self.lattice[op]
         assert lat is not None, f"Got undefined var {op}"
         return lat
@@ -229,35 +227,40 @@ class SCCP(IRPass):
         instruction to the SSA work list if the knowledge about the variable
         changed.
         """
+
+        def finalize(ret):
+            # Update the lattice if the value changed
+            old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+            if old_val != ret:
+                self.lattice[inst.output] = ret
+                self._add_ssa_work_items(inst)
+            return ret
+
         opcode = inst.opcode
-
-        ops = []
+        ops: list[IRLiteral] = []
         for op in inst.operands:
-            if isinstance(op, IRVariable):
-                ops.append(self.lattice[op])
-            elif isinstance(op, IRLabel):
-                return LatticeEnum.BOTTOM
+            # Evaluate the operand according to the lattice
+            if isinstance(op, IRLabel):
+                return finalize(LatticeEnum.BOTTOM)
+            elif isinstance(op, IRVariable):
+                eval_result = self.lattice[op]
             else:
-                ops.append(op)
+                eval_result = op
 
-        ret = None
-        if LatticeEnum.BOTTOM in ops:
-            ret = LatticeEnum.BOTTOM
-        else:
-            if opcode in ARITHMETIC_OPS:
-                fn = ARITHMETIC_OPS[opcode]
-                ret = IRLiteral(fn(ops))  # type: ignore
-            elif len(ops) > 0:
-                ret = ops[0]  # type: ignore
-            else:
-                raise CompilerPanic("Bad constant evaluation")
+            # The value from the lattice should have evaluated to BOTTOM
+            # or a literal by now.
+            # If any operand is BOTTOM, the whole operation is BOTTOM
+            # and we can stop the evaluation early
+            if eval_result is LatticeEnum.BOTTOM:
+                return finalize(LatticeEnum.BOTTOM)
 
-        old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
-        if old_val != ret:
-            self.lattice[inst.output] = ret  # type: ignore
-            self._add_ssa_work_items(inst)
+            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
+            ops.append(eval_result)
 
-        return ret  # type: ignore
+        # If we haven't found BOTTOM yet, evaluate the operation
+        assert all(isinstance(op, IRLiteral) for op in ops)
+        res = IRLiteral(eval_arith(opcode, ops))
+        return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
@@ -269,7 +272,7 @@ class SCCP(IRPass):
         with their actual values. It also replaces conditional jumps
         with unconditional jumps if the condition is a constant value.
         """
-        for bb in self.dom.dfs_walk:
+        for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
@@ -298,13 +301,12 @@ class SCCP(IRPass):
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
                     inst.opcode = "nop"
+                    inst.operands = []
                 else:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
-
-                inst.operands = []
 
         elif inst.opcode == "phi":
             return
@@ -314,33 +316,6 @@ class SCCP(IRPass):
                 lat = self.lattice[op]
                 if isinstance(lat, IRLiteral):
                     inst.operands[i] = lat
-
-    def _fix_phi_nodes(self):
-        # fix basic blocks whose cfg in was changed
-        # maybe this should really be done in _visit_phi
-        for bb in self.fn.get_basic_blocks():
-            cfg_in_labels = OrderedSet(in_bb.label for in_bb in bb.cfg_in)
-
-            needs_sort = False
-            for inst in bb.instructions:
-                if inst.opcode != "phi":
-                    break
-                needs_sort |= self._fix_phi_inst(inst, cfg_in_labels)
-
-            # move phi instructions to the top of the block
-            if needs_sort:
-                bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
-
-    def _fix_phi_inst(self, inst: IRInstruction, cfg_in_labels: OrderedSet):
-        operands = [op for label, op in inst.phi_operands if label in cfg_in_labels]
-
-        if len(operands) != 1:
-            return False
-
-        assert inst.output is not None
-        inst.opcode = "store"
-        inst.operands = operands
-        return True
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
