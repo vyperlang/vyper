@@ -271,20 +271,15 @@ jobs:
       run: |
         coverage xml
 
-    - name: Upload coverage sqlite artifact
+    - name: Upload coverage sqlite artifact and report
       # upload coverage sqlite db for debugging
       uses: actions/upload-artifact@v4
       with:
         name: coverage-sqlite
         include-hidden-files: true
-        path: .coverage
-        if-no-files-found: error
-
-    - name: Upload coverage.xml
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-xml
-        path: coverage.xml
+        path: |
+          .coverage
+          coverage.xml
         if-no-files-found: error
 
   upload-coverage:
