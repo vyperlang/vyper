@@ -214,6 +214,21 @@ def data() -> int128:
         assert c.data() == sum(xs)
 
 
+def test_constant_list_iter(get_contract):
+    code = """
+X: constant(uint24[4]) = [1, 2, 3, 4]
+
+@external
+def foo() -> uint24:
+    x: uint24 = 0
+    for s: uint24 in X:
+        x += s
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == sum([1, 2, 3, 4])
+
+
 def test_basic_for_list_storage_address(get_contract):
     code = """
 addresses: address[3]
