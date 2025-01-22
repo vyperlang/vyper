@@ -271,6 +271,10 @@ jobs:
       run: |
         coverage xml
 
+    - name: Generate coverage HTML
+      run: |
+        coverage html
+
     - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging
       # upload coverage.xml artifact for downstream codecov upload action
@@ -281,6 +285,7 @@ jobs:
         path: |
           .coverage
           coverage.xml
+          htmlcov
         if-no-files-found: error
 
   upload-coverage:
