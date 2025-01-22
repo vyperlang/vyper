@@ -65,8 +65,11 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        uses = dfg.get_uses(var)
-        if not all(inst.opcode in ["mstore", "mload"] for inst in uses):
+        uses = [inst.opcode in ["mstore", "mload"] for inst in dfg.get_uses(var)]
+        if not all(uses):
+            return
+
+        if len(uses) == 0:
             return
 
         ofst, _size, alloca_id = palloca_inst.operands
