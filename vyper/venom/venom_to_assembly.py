@@ -307,14 +307,13 @@ class VenomCompiler:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
         param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
-        body_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
+        body_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         params_to_pop = []
         for i, inst in enumerate(param_insts):
             stack.push(inst.output)
             if len(self.dfg.get_uses(inst.output)) == 0:
                 params_to_pop.append(inst.output)
-            # asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         for param in params_to_pop:
             depth = stack.get_depth(param)

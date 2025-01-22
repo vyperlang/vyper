@@ -31,20 +31,20 @@ def foo(x: uint256) -> uint256:
     c = get_contract(code)
     assert c.foo(1) == 30
 
-# def test_simple_call_multiple_args(get_contract):
-#     code = """
-# @internal
-# def bar(_name: uint256, _name2: uint256) -> (uint256, uint256):
-#     return _name + 1, _name + 2
+def test_simple_call_multiple_args(get_contract):
+    code = """
+@internal
+def bar(_name: uint256, _name2: uint256) -> (uint256, uint256):
+    return _name + 1, _name + 2
 
-# @external
-# def foo(x: uint256) -> (uint256, uint256):
-#     ret: (uint256, uint256) = self.bar(20, 10)
-#     return ret
-#     """
+@external
+def foo(x: uint256) -> (uint256, uint256):
+    ret: (uint256, uint256) = self.bar(20, 10)
+    return ret
+    """
 
-#     c = get_contract(code)
-#     assert c.foo(1) == (21, 22)
+    c = get_contract(code)
+    assert c.foo(1) == (21, 22)
 
 def test_call_in_call(get_contract):
     code = """
