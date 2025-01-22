@@ -60,10 +60,10 @@ jobs:
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
 
-  # "Regular"/core tests.
+  # Symbolic tests
   symbolic-tests:
     runs-on: "ubuntu-latest"
-    name: symbolic tests
+    name: Symbolic tests
 
     steps:
     - uses: actions/checkout@v4
@@ -200,7 +200,7 @@ jobs:
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
-    needs: [tests]
+    needs: [tests, symbolic-tests]
     steps:
       - name: Check tests tests all succeeded
         if: ${{ needs.tests.result != 'success' }}
