@@ -251,6 +251,7 @@ def test_sccp_algebraic_opt_exp():
         return 1, 1, %3, %par
     """
 
+    # can set hevm=True after https://github.com/ethereum/hevm/pull/638 is merged
     _sccp_algebraic_runner(pre, post, hevm=False)
 
 
