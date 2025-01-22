@@ -85,7 +85,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    # StoreExpansionPass(ac, fn).run_pass()
+    StoreExpansionPass(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
         ReduceLiteralsCodesize(ac, fn).run_pass()

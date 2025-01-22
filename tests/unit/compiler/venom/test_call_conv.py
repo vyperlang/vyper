@@ -16,23 +16,49 @@ def foo(x: uint256) -> uint256:
     c = get_contract(code)
     assert c.foo(1) == 13
 
-# def test_call_in_call(get_contract):
+def test_simple_call_multiple_args_in_call(get_contract):
+    code = """
+@internal
+def bar(_name: uint256, _name2: uint256) -> uint256:
+    return _name + 10
+
+@external
+def foo(x: uint256) -> uint256:
+    ret: uint256 = self.bar(20, 10)
+    return ret
+    """
+
+    c = get_contract(code)
+    assert c.foo(1) == 30
+
+# def test_simple_call_multiple_args(get_contract):
 #     code = """
 # @internal
-# def _foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256, uint256, uint256, uint256):
-#     return 1, a, b, c, 5
-
-# @internal
-# def _foo2() -> uint256:
-#     a: uint256[10] = [6,7,8,9,10,11,12,13,15,16]
-#     return 4
+# def bar(_name: uint256, _name2: uint256) -> (uint256, uint256):
+#     return _name + 1, _name + 2
 
 # @external
-# def foo() -> (uint256, uint256, uint256, uint256, uint256):
-#     return self._foo(2, 3, self._foo2())
+# def foo(x: uint256) -> (uint256, uint256):
+#     ret: (uint256, uint256) = self.bar(20, 10)
+#     return ret
 #     """
 
 #     c = get_contract(code)
+#     assert c.foo(1) == (21, 22)
 
-#     assert c.foo() == (1, 2, 3, 4, 5)
+def test_call_in_call(get_contract):
+    code = """
+@internal
+def _foo(a: uint256) -> uint256:
+    return a
+
+@external
+def foo() -> uint256:
+    a: uint256 = 1
+    return self._foo(a)
+"""
+
+    c = get_contract(code)
+
+    assert c.foo() == 1
 

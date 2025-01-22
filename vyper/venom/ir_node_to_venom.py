@@ -174,12 +174,15 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if setup_ir != goto_ir:
         bb = fn.get_basic_block()
         for arg in args_ir:
-            if arg.is_pointer or arg.typ != UINT256_T:
+            if arg.typ != UINT256_T:
                 _convert_ir_bb(fn, setup_ir, symbols)
                 continue
-            #a = _convert_ir_bb(fn, LOAD(arg), symbols)
+            
+            if arg.is_pointer:
+                a = _convert_ir_bb(fn, LOAD(arg), symbols)
             else:
                 a = _convert_ir_bb(fn, arg, symbols)
+
             sarg = fn.get_next_variable()
             assert a is not None, f"a is None: {a}"
             bb.append_instruction("store", a, ret=sarg)
@@ -216,16 +219,16 @@ def _handle_internal_func(
         venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
         fn.args.append(venom_arg)
 
+    # return buffer
+    if does_return_data:
+        symbols["return_buffer"] = bb.append_instruction("param")
+        bb.instructions[-1].annotation = "return_buffer"
+
     for arg in fn.args:
         ret = bb.append_instruction("param")
         bb.instructions[-1].annotation = arg.name
         symbols[arg.name] = ret
         arg.func_var = ret
-
-    # return buffer
-    if does_return_data:
-        symbols["return_buffer"] = bb.append_instruction("param")
-        bb.instructions[-1].annotation = "return_buffer"
 
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
@@ -470,7 +473,7 @@ def _convert_ir_bb(fn, ir, symbols):
         arg = ir.args[0]
         ptr = _convert_ir_bb(fn, arg, symbols)
 
-        if arg.value.startswith("$palloca"):
+        if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
             symbol = symbols.get(arg.annotation, None)
             if symbol is not None:
                 return fn.get_basic_block().append_instruction("store", symbol)

@@ -70,9 +70,6 @@ class Mem2Var(IRPass):
         if not all_nonempty(inst.opcode in ["mstore", "mload"] for inst in uses):
             return
 
-        if len(uses) == 0:
-            return
-
         ofst, _size, alloca_id = palloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
