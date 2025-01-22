@@ -79,6 +79,9 @@ jobs:
 
     - name: Install hevm
       run: |
+        # hevm dependency
+        sudo apt-get install z3
+
         wget -O hevm https://github.com/ethereum/hevm/releases/download/release/0.54.2/hevm-x86_64-linux
         chmod +x hevm
         mkdir -p "$HOME/.local/bin/"
