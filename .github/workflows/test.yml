@@ -61,6 +61,40 @@ jobs:
         run: sphinx-build -E -b html docs dist/docs -n -q --color
 
   # "Regular"/core tests.
+  symbolic-tests:
+    runs-on: "ubuntu-latest"
+    name: symbolic tests
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: "pip"
+
+    - name: Install dependencies
+      run: pip install .[test]
+
+    - name: Install hevm
+      run: |
+        wget -O hevm https://github.com/ethereum/hevm/releases/download/release/0.54.2/hevm-x86_64-linux
+        chmod +x hevm
+        mkdir -p "$HOME/.local/bin/"
+        mv hevm "$HOME/.local/bin/"
+        echo "$HOME/.local/bin/" >> $GITHUB_PATH
+
+    - name: Run tests
+      run: >
+        pytest
+        -m "hevm"
+        --hevm
+        --cov-config=setup.cfg
+        --cov=vyper
+        tests/
+ 
+  # "Regular"/core tests.
   tests:
     runs-on: ${{ matrix.os || 'ubuntu' }}-latest
     # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
