@@ -1,3 +1,4 @@
+from vyper.utils import all_nonempty
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
@@ -39,7 +40,7 @@ class Mem2Var(IRPass):
         Otherwise, it is left as is.
         """
         uses = dfg.get_uses(var)
-        if not all([inst.opcode in ["mstore", "mload", "return"] for inst in uses]):
+        if not all_nonempty(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
         alloca_id = alloca_inst.operands[2]
@@ -65,8 +66,8 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        uses = [inst.opcode in ["mstore", "mload"] for inst in dfg.get_uses(var)]
-        if not all(uses):
+        uses = dfg.get_uses(var)
+        if not all_nonempty(inst.opcode in ["mstore", "mload"] for inst in uses):
             return
 
         if len(uses) == 0:
