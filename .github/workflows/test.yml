@@ -63,7 +63,7 @@ jobs:
   # Symbolic tests
   symbolic-tests:
     runs-on: "ubuntu-latest"
-    name: Symbolic tests
+    name: symbolic-tests
 
     steps:
     - uses: actions/checkout@v4
