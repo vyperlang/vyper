@@ -85,6 +85,8 @@ jobs:
         mv hevm "$HOME/.local/bin/"
         echo "$HOME/.local/bin/" >> $GITHUB_PATH
 
+        hevm version
+
     - name: Run tests
       run: >
         pytest
