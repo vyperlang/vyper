@@ -14,7 +14,6 @@ from vyper.venom.analysis import (
     CFGAnalysis,
     IRAnalysesCache,
     LivenessAnalysis,
-    VarEquivalenceAnalysis,
 )
 from vyper.venom.basicblock import (
     IRBasicBlock,
