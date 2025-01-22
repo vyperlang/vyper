@@ -216,12 +216,12 @@ def data() -> int128:
 
 def test_constant_list_iter(get_contract):
     code = """
-X: constant(uint24[4]) = [1, 2, 3, 4]
+MY_LIST: constant(uint24[4]) = [1, 2, 3, 4]
 
 @external
 def foo() -> uint24:
     x: uint24 = 0
-    for s: uint24 in X:
+    for s: uint24 in MY_LIST:
         x += s
     return x
     """
