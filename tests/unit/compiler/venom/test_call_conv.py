@@ -62,3 +62,17 @@ def foo() -> uint256:
 
     assert c.foo() == 1
 
+
+def test_2d_array_input_1(get_contract):
+    code = """
+@internal
+def test_input(arr: DynArray[DynArray[int128, 2], 1]) -> DynArray[DynArray[int128, 2], 1]:
+    return arr
+
+@external
+def test_values(arr: DynArray[DynArray[int128, 2], 1]) -> DynArray[DynArray[int128, 2], 1]:
+    return self.test_input(arr)
+    """
+
+    c = get_contract(code)
+    assert c.test_values([[1, 2]]) == ([[1, 2]])

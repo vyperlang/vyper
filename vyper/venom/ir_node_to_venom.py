@@ -65,7 +65,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        # "mload",
+        "mload",
         "iload",
         "istore",
         "dload",
@@ -167,28 +167,28 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     args_ir = ir.passthrough_metadata["args_ir"]
     assert func_t is not None, "func_t not found in passthrough metadata"
 
-    fn.ctx.create_function(target_label)
+    # fn.ctx.create_function(target_label)
 
     stack_args: list[IROperand] = []
 
     if setup_ir != goto_ir:
-        bb = fn.get_basic_block()
-        for arg in args_ir:
-            if arg.typ != UINT256_T:
-                _convert_ir_bb(fn, setup_ir, symbols)
-                continue
+        # bb = fn.get_basic_block()
+        # for arg in args_ir:
+        #     if arg.typ != UINT256_T:
+        #         _convert_ir_bb(fn, setup_ir, symbols)
+        #         continue
             
-            if arg.is_pointer:
-                a = _convert_ir_bb(fn, LOAD(arg), symbols)
-            else:
-                a = _convert_ir_bb(fn, arg, symbols)
+        #     if arg.is_pointer:
+        #         a = _convert_ir_bb(fn, LOAD(arg), symbols)
+        #     else:
+        #         a = _convert_ir_bb(fn, arg, symbols)
 
-            sarg = fn.get_next_variable()
-            assert a is not None, f"a is None: {a}"
-            bb.append_instruction("store", a, ret=sarg)
-            stack_args.append(sarg)
+        #     sarg = fn.get_next_variable()
+        #     assert a is not None, f"a is None: {a}"
+        #     bb.append_instruction("store", a, ret=sarg)
+        #     stack_args.append(sarg)
 
-        #_convert_ir_bb(fn, setup_ir, symbols)
+        _convert_ir_bb(fn, setup_ir, symbols)
 
     return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
 
@@ -196,8 +196,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(goto_ir.args) > 2:
         ret_args.append(return_buf)  # type: ignore
 
-    for stack_arg in stack_args:
-        ret_args.append(stack_arg)
+    # for stack_arg in stack_args:
+    #     ret_args.append(stack_arg)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -212,23 +212,23 @@ def _handle_internal_func(
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
     bb = fn.get_basic_block()
 
-    arg_params = []
-
-    for arg in func_t.arguments:
-        var = context.lookup_var(arg.name)
-        venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
-        fn.args.append(venom_arg)
+    # for arg in func_t.arguments:
+    #     var = context.lookup_var(arg.name)
+    #     if var.typ != UINT256_T:
+    #         continue
+    #     venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
+    #     fn.args.append(venom_arg)
 
     # return buffer
     if does_return_data:
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
-    for arg in fn.args:
-        ret = bb.append_instruction("param")
-        bb.instructions[-1].annotation = arg.name
-        symbols[arg.name] = ret
-        arg.func_var = ret
+    # for arg in fn.args:
+    #     ret = bb.append_instruction("param")
+    #     bb.instructions[-1].annotation = arg.name
+    #     symbols[arg.name] = ret
+    #     arg.func_var = ret
 
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
@@ -458,7 +458,7 @@ def _convert_ir_bb(fn, ir, symbols):
         else:
             bb.append_instruction("jmp", label)
 
-    elif ir.value == "mstore":    
+    elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
@@ -469,16 +469,16 @@ def _convert_ir_bb(fn, ir, symbols):
         #         return fn.get_basic_block().append_instruction("store", symbol)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-    elif ir.value == "mload":
-        arg = ir.args[0]
-        ptr = _convert_ir_bb(fn, arg, symbols)
+    # elif ir.value == "mload":
+    #     arg = ir.args[0]
+    #     ptr = _convert_ir_bb(fn, arg, symbols)
 
-        if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
-            symbol = symbols.get(arg.annotation, None)
-            if symbol is not None:
-                return fn.get_basic_block().append_instruction("store", symbol)
+    #     if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
+    #         symbol = symbols.get(arg.annotation, None)
+    #         if symbol is not None:
+    #             return fn.get_basic_block().append_instruction("store", symbol)
         
-        return fn.get_basic_block().append_instruction("mload", ptr)
+    #     return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
