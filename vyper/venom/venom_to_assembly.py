@@ -318,9 +318,9 @@ class VenomCompiler:
 
         for param in params_to_pop:
             depth = stack.get_depth(param)
-            if depth != 0:
+            if depth != StackModel.NOT_IN_STACK:
                 self.swap(asm, stack, depth)
-            self.pop(asm, stack)
+                self.pop(asm, stack)
 
         for i, inst in enumerate(body_insts):
             next_liveness = (
