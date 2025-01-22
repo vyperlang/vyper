@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
@@ -90,6 +91,15 @@ COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
+
+
+def flip_comparison_opcode(opcode):
+    if opcode in ("gt", "sgt"):
+        return opcode.replace("g", "l")
+    elif opcode in ("lt", "slt"):
+        return opcode.replace("l", "g")
+
+    raise CompilerPanic(f"unreachable {opcode}")  # pragma: nocover
 
 
 class IRDebugInfo:
@@ -325,10 +335,8 @@ class IRInstruction:
         if self.is_commutative:
             return
 
-        if self.opcode in ("gt", "sgt"):
-            self.opcode = self.opcode.replace("g", "l")
-        else:
-            self.opcode = self.opcode.replace("l", "g")
+        assert self.opcode in COMPARATOR_INSTRUCTIONS  # sanity
+        self.opcode = flip_comparison_opcode(self.opcode)
 
     def replace_operands(self, replacements: dict) -> None:
         """

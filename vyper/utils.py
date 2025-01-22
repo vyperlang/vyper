@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
 from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
@@ -129,6 +129,20 @@ class OrderedSet(Generic[_T]):
         return cls(tmp)
 
 
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
+
+
 class StringEnum(enum.Enum):
     # Must be first, or else won't work, specifies what .value is
     @staticmethod
@@ -234,6 +248,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -243,7 +264,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -258,7 +279,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_

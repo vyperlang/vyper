@@ -55,27 +55,35 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+    # run algebraic opts before mem2var to reduce some pointer arithmetic
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     # MakeSSA(ac, fn).run_pass()
     # SCCP(ac, fn).run_pass()
 
-    # # LoadElimination(ac, fn).run_pass()
-    # StoreElimination(ac, fn).run_pass()
-    # MemMergePass(ac, fn).run_pass()
-    # SimplifyCFGPass(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    LoadElimination(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
 
-    # LowerDloadPass(ac, fn).run_pass()
-    # AlgebraicOptimizationPass(ac, fn).run_pass()
-    # # NOTE: MakeSSA is after algebraic optimization it currently produces
-    # #       smaller code by adding some redundant phi nodes. This is not a
-    # #       problem for us, but we need to be aware of it, and should be
-    # #       removed when the dft pass is fixed to produce the smallest code
-    # #       without making the code generation more expensive by running
-    # #       MakeSSA again.
-    # MakeSSA(ac, fn).run_pass()
-    # BranchOptimizationPass(ac, fn).run_pass()
-    # RemoveUnusedVariablesPass(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    LowerDloadPass(ac, fn).run_pass()
+    # NOTE: MakeSSA is after algebraic optimization it currently produces
+    #       smaller code by adding some redundant phi nodes. This is not a
+    #       problem for us, but we need to be aware of it, and should be
+    #       removed when the dft pass is fixed to produce the smallest code
+    #       without making the code generation more expensive by running
+    #       MakeSSA again.
+    MakeSSA(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
+
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     # StoreExpansionPass(ac, fn).run_pass()
 
