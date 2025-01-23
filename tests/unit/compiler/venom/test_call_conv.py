@@ -1,4 +1,3 @@
-
 def test_simple_call(get_contract):
     code = """
 @internal
@@ -16,6 +15,7 @@ def foo(x: uint256) -> uint256:
     c = get_contract(code)
     assert c.foo(1) == 13
 
+
 def test_simple_call_multiple_args_in_call(get_contract):
     code = """
 @internal
@@ -31,6 +31,7 @@ def foo(x: uint256) -> uint256:
     c = get_contract(code)
     assert c.foo(1) == 30
 
+
 def test_simple_call_multiple_args(get_contract):
     code = """
 @internal
@@ -45,6 +46,7 @@ def foo(x: uint256) -> (uint256, uint256):
 
     c = get_contract(code)
     assert c.foo(1) == (21, 22)
+
 
 def test_call_in_call(get_contract):
     code = """

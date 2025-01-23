@@ -177,7 +177,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         #     if arg.typ != UINT256_T:
         #         _convert_ir_bb(fn, setup_ir, symbols)
         #         continue
-            
+
         #     if arg.is_pointer:
         #         a = _convert_ir_bb(fn, LOAD(arg), symbols)
         #     else:
@@ -477,7 +477,7 @@ def _convert_ir_bb(fn, ir, symbols):
     #         symbol = symbols.get(arg.annotation, None)
     #         if symbol is not None:
     #             return fn.get_basic_block().append_instruction("store", symbol)
-        
+
     #     return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
