@@ -436,7 +436,7 @@ class IRInstruction:
         if self.annotation:
             s += f" ; {self.annotation}"
 
-        return f"{s: <30} ; {self.liveness}"
+        return f"{s: <30}"
 
 
 def _ir_operand_from_value(val: Any) -> IROperand:
@@ -709,8 +709,8 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
-        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
+        s = f"{self.label}:"
+        # s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         for instruction in self.instructions:
             s += f"  {str(instruction).strip()}\n"
         if len(self.instructions) > 30:
