@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -41,12 +41,13 @@ class DFGAnalysis(IRAnalysis):
         uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
 
-    def are_equivalent(self, var1: IRVariable, var2: IRVariable) -> bool:
+    def are_equivalent(self, var1: IROperand, var2: IROperand) -> bool:
         if var1 == var2:
             return True
 
-        var1 = self._traverse_store_chain(var1)
-        var2 = self._traverse_store_chain(var2)
+        if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
+            var1 = self._traverse_store_chain(var1)
+            var2 = self._traverse_store_chain(var2)
 
         return var1 == var2
 
