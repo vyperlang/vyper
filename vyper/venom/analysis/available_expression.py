@@ -76,7 +76,7 @@ class _Expression:
         for op in self.operands:
             res += repr(op) + " "
         res += "]"
-        res += f" {self.inst.output}"
+        res += f" {self.inst.output} {self.inst.parent.label}"
         return res
 
     @cached_property
@@ -316,21 +316,12 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        #available_expr: _AvailableExpression = _AvailableExpression()
-        #print(bb.label)
-        #if bb.label.name == "3_condition":
-            #self.tmp_bb = bb
-            #breakpoint()
-        
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
-            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_out)
+            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
         )
-    
-        # bb_lat = self.lattice.data[bb]
+
         change = False
         for inst in bb.instructions:
-            # print(inst)
-            # print(available_expr.to_set())
             # if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
             if inst.opcode in BB_TERMINATORS:
                 continue
@@ -346,20 +337,8 @@ class CSEAnalysis(IRAnalysis):
 
             if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
                 available_expr.add(inst_expr)
-        
 
-
-    
-    
-        #if bb.label.name == "3_condition":
-            #breakpoint()
-        assert available_expr.all_unique()
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
-            if bb in self.bb_outs:
-                print(bb.label)
-                #print("before:", self.bb_outs[bb])
-                #print("available:", available_expr)
-                self.bb_outs[bb].diff(available_expr)
             self.bb_outs[bb] = available_expr.copy()
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)

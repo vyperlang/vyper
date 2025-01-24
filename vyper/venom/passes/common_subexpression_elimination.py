@@ -1,6 +1,7 @@
 from vyper.venom.analysis.available_expression import CSEAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -55,11 +56,12 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+            self.analyses_cache.invalidate_analysis(VarEquivalenceAnalysis)
             # should be ok to be reevaluted
             #self.expression_analysis.analyze()
             self.expression_analysis = self.analyses_cache.force_analysis(
-             CSEAnalysis
-             )  # type: ignore
+                CSEAnalysis
+            )  # type: ignore
 
     # return instruction and to which instruction it could
     # replaced by
