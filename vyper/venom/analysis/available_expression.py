@@ -22,6 +22,11 @@ from vyper.venom.effects import writes as effect_write
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
+# instructions that queries info about current
+# environment this is done because we know that
+# all these instruction should have always
+# the same value in function
+IMMUTABLE_ENV_QUERIES = frozenset(["returndatasize", "calldatasize", "gaslimit", "address", "codesize"])
 
 @dataclass
 class _Expression:
@@ -48,10 +53,15 @@ class _Expression:
     def __eq__(self, other) -> bool:
         if not isinstance(other, _Expression):
             return False
+        
+        if self.opcode in IMMUTABLE_ENV_QUERIES:
+            return self.opcode == other.opcode
 
         return self.inst == other.inst
 
     def __hash__(self) -> int:
+        if self.opcode in IMMUTABLE_ENV_QUERIES:
+            return hash(self.opcode)
         return hash(self.inst)
 
     # Full equality for expressions based on opcode and operands
@@ -66,6 +76,7 @@ class _Expression:
         for op in self.operands:
             res += repr(op) + " "
         res += "]"
+        res += f" {self.inst.output}"
         return res
 
     @cached_property
@@ -148,9 +159,44 @@ class _AvailableExpression:
     def __init__(self):
         self.buckets = dict()
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, _AvailableExpression):
+            return False
+
+        if self.buckets.keys() != other.buckets.keys():
+            return False
+
+        for key in self.buckets.keys():
+            if self.buckets[key] != other.buckets[key]:
+                return False
+
+        return True
+    
+    def __repr__(self) -> str:
+        res = "available expr\n"
+        for key, val in self.buckets.items():
+            res += f"\t{key}: {val}\n"
+        return res
+
+    def diff(self, other: "_AvailableExpression"):
+        if self.buckets.keys() != other.buckets.keys():
+            print("-", set(set(self.buckets.keys()).difference(set(other.buckets.keys()))))
+            print("+", set(set(other.buckets.keys()).difference(set(self.buckets.keys()))))
+            return
+        for key in self.buckets.keys():
+            if self.buckets[key] != other.buckets[key]:
+                a = self.buckets[key]
+                b = other.buckets[key]
+                print("-", a.difference(b))
+                print("+", b.difference(a))
+
+
     def add(self, expr: _Expression):
         if expr.opcode not in self.buckets:
             self.buckets[expr.opcode] = OrderedSet()
+        
+        if len(self.buckets[expr.opcode]) > 0:
+            assert not any((e.same(expr) and e != expr) for e in self.buckets[expr.opcode]), (self.buckets[expr.opcode], expr)
 
         self.buckets[expr.opcode].add(expr)
 
@@ -205,16 +251,24 @@ class _AvailableExpression:
         if len(others) == 0:
             return _AvailableExpression()
         tmp = list(others)
-        res = tmp[0]
+        res = tmp[0].copy()
         for item in tmp[1:]:
             buckets = res.buckets.keys() & item.buckets.keys()
             tmp_res = res
             res = _AvailableExpression()
             for bucket in buckets:
                 res.buckets[bucket] = tmp_res.buckets[bucket].intersection(
-                    item.buckets[bucket]
+                    item.buckets[bucket].copy()
                 )  # type: ignore
         return res
+
+    def all_unique(self) -> bool:
+        for bucket in self.buckets.values():
+            for item in bucket:
+                if any((e.same(item) and e != item) for e in bucket):
+                    return False
+        return True
+
 
 
 class CSEAnalysis(IRAnalysis):
@@ -241,8 +295,14 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
-        for bb in self.function.get_basic_blocks():
-            self._handle_bb(bb)
+        self.tmp_bb = None
+        while True:
+            change = False
+            for bb in self.function.get_basic_blocks():
+                change |= self._handle_bb(bb)
+            
+            if not change:
+                break
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -256,8 +316,16 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_expr: _AvailableExpression = _AvailableExpression()
-
+        #available_expr: _AvailableExpression = _AvailableExpression()
+        #print(bb.label)
+        #if bb.label.name == "3_condition":
+            #self.tmp_bb = bb
+            #breakpoint()
+        
+        available_expr: _AvailableExpression = _AvailableExpression.intersection(
+            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_out)
+        )
+    
         # bb_lat = self.lattice.data[bb]
         change = False
         for inst in bb.instructions:
@@ -278,12 +346,27 @@ class CSEAnalysis(IRAnalysis):
 
             if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
                 available_expr.add(inst_expr)
+        
 
-        # if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
-        # self.bb_outs[bb] = available_expr.copy()
-        # change is only necessery when the output of the
-        # basic block is changed (otherwise it wont affect rest)
-        # change |= True
+
+    
+    
+        #if bb.label.name == "3_condition":
+            #breakpoint()
+        assert available_expr.all_unique()
+        if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
+            if bb in self.bb_outs:
+                print(bb.label)
+                #print("before:", self.bb_outs[bb])
+                #print("available:", available_expr)
+                self.bb_outs[bb].diff(available_expr)
+            self.bb_outs[bb] = available_expr.copy()
+            # change is only necessery when the output of the
+            # basic block is changed (otherwise it wont affect rest)
+            change |= True
+
+        #if self.tmp_bb is not None:
+            #print(self.bb_outs[self.tmp_bb])
 
         return change
 
