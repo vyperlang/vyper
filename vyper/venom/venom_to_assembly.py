@@ -1,5 +1,6 @@
 from typing import Any
 
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
@@ -301,36 +302,37 @@ class VenomCompiler:
         if len(basicblock.cfg_in) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
+        if ENABLE_NEW_CALL_CONV:
+            param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
+            body_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
-        for i, inst in enumerate(all_insts):
-            next_liveness = (
-                all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
-            )
+            params_to_pop = []
+            for i, inst in enumerate(param_insts):
+                stack.push(inst.output)
+                if len(self.dfg.get_uses(inst.output)) == 0:
+                    params_to_pop.append(inst.output)
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            for param in params_to_pop:
+                depth = stack.get_depth(param)
+                if depth != StackModel.NOT_IN_STACK:
+                    self.swap(asm, stack, depth)
+                    self.pop(asm, stack)
 
-        # param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
-        # body_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+            for i, inst in enumerate(body_insts):
+                next_liveness = (
+                    body_insts[i + 1].liveness if i + 1 < len(body_insts) else basicblock.out_vars
+                )
 
-        # params_to_pop = []
-        # for i, inst in enumerate(param_insts):
-        #     stack.push(inst.output)
-        #     if len(self.dfg.get_uses(inst.output)) == 0:
-        #         params_to_pop.append(inst.output)
+                asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+        else:
+            all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
-        # for param in params_to_pop:
-        #     depth = stack.get_depth(param)
-        #     if depth != StackModel.NOT_IN_STACK:
-        #         self.swap(asm, stack, depth)
-        #         self.pop(asm, stack)
+            for i, inst in enumerate(all_insts):
+                next_liveness = (
+                    all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
+                )
 
-        # for i, inst in enumerate(body_insts):
-        #     next_liveness = (
-        #         body_insts[i + 1].liveness if i + 1 < len(body_insts) else basicblock.out_vars
-        #     )
-
-        #     asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+                asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
