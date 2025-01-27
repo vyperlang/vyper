@@ -478,7 +478,7 @@ def _convert_ir_bb(fn, ir, symbols):
             if isinstance(ptr, IRVariable):
                 param = fn.get_param_by_name(ptr)
                 if param is not None:
-                    return fn.get_basic_block().append_instruction("store", param.func_var)
+                    return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
             
             if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
                 symbol = symbols.get(arg.annotation, None)
