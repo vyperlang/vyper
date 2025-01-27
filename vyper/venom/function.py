@@ -172,6 +172,12 @@ class IRFunction:
             if param.offset == offset:
                 return param
         return None
+    
+    def get_param_by_name(self, var: IRVariable) -> Optional[IRParameter]:
+        for param in self.args:
+            if f"%{param.name}" == var.name:
+                return param
+        return None
 
     @property
     def ast_source(self) -> Optional[IRnode]:
