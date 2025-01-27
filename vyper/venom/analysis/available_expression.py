@@ -179,27 +179,9 @@ class _AvailableExpression:
             res += f"\t{key}: {val}\n"
         return res
 
-    def diff(self, other: "_AvailableExpression"):
-        if self.buckets.keys() != other.buckets.keys():
-            print("-", set(set(self.buckets.keys()).difference(set(other.buckets.keys()))))
-            print("+", set(set(other.buckets.keys()).difference(set(self.buckets.keys()))))
-            return
-        for key in self.buckets.keys():
-            if self.buckets[key] != other.buckets[key]:
-                a = self.buckets[key]
-                b = other.buckets[key]
-                print("-", a.difference(b))
-                print("+", b.difference(a))
-
     def add(self, expr: _Expression):
         if expr.opcode not in self.buckets:
             self.buckets[expr.opcode] = OrderedSet()
-
-        if len(self.buckets[expr.opcode]) > 0:
-            assert not any((e.same(expr) and e != expr) for e in self.buckets[expr.opcode]), (
-                self.buckets[expr.opcode],
-                expr,
-            )
 
         self.buckets[expr.opcode].add(expr)
 
@@ -214,17 +196,6 @@ class _AvailableExpression:
 
         for opcode in to_remove:
             del self.buckets[opcode]
-
-    def to_set(self) -> OrderedSet[_Expression]:
-        if len(self.buckets.keys()) == 0:
-            return OrderedSet()
-        vals = list(self.buckets.values())
-        result = vals[0]
-
-        for val in vals[1:]:
-            result.addmany(val)
-
-        return result
 
     def get_same(self, expr: _Expression) -> _Expression | None:
         if expr.opcode not in self.buckets:
@@ -264,13 +235,6 @@ class _AvailableExpression:
                     tmp_res.buckets[bucket], item.buckets[bucket].copy()
                 )  # type: ignore
         return res
-
-    def all_unique(self) -> bool:
-        for bucket in self.buckets.values():
-            for item in bucket:
-                if any((e.same(item) and e != item) for e in bucket):
-                    return False
-        return True
 
 
 class CSEAnalysis(IRAnalysis):
