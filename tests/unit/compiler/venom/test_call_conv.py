@@ -78,3 +78,18 @@ def test_values(arr: DynArray[DynArray[int128, 2], 1]) -> DynArray[DynArray[int1
 
     c = get_contract(code)
     assert c.test_values([[1, 2]]) == ([[1, 2]])
+
+def test_call_with_unused_params(get_contract):
+    code = """
+@internal
+def _foo3(a: uint256, b: uint256) -> uint256:
+    return 42
+
+@external
+def foo() -> uint256:
+    return self._foo3(9, 11)
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == 42
