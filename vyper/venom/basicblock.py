@@ -709,7 +709,7 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = f"{self.label}:"
+        s = f"{self.label}:\n"
         # s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         for instruction in self.instructions:
             s += f"  {str(instruction).strip()}\n"

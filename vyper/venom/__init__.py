@@ -31,7 +31,6 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
-
 def generate_assembly_experimental(
     runtime_code: IRContext,
     deploy_code: Optional[IRContext] = None,

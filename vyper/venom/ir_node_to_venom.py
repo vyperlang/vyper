@@ -17,6 +17,8 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
+ENABLE_NEW_CALL_CONV = True
+
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
 
@@ -171,24 +173,28 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     stack_args: list[IROperand] = []
 
-    if setup_ir != goto_ir:
-        # bb = fn.get_basic_block()
-        # for arg in args_ir:
-        #     if arg.typ != UINT256_T:
-        #         _convert_ir_bb(fn, setup_ir, symbols)
-        #         continue
+    if ENABLE_NEW_CALL_CONV:
+        if setup_ir != goto_ir:
+            bb = fn.get_basic_block()
+            for arg in args_ir:
+                if arg.typ != UINT256_T:
+                    _convert_ir_bb(fn, setup_ir, symbols)
+                    continue
 
-        #     if arg.is_pointer:
-        #         a = _convert_ir_bb(fn, LOAD(arg), symbols)
-        #     else:
-        #         a = _convert_ir_bb(fn, arg, symbols)
+                if arg.is_pointer:
+                    a = _convert_ir_bb(fn, LOAD(arg), symbols)
+                else:
+                    a = _convert_ir_bb(fn, arg, symbols)
 
-        #     sarg = fn.get_next_variable()
-        #     assert a is not None, f"a is None: {a}"
-        #     bb.append_instruction("store", a, ret=sarg)
-        #     stack_args.append(sarg)
+                sarg = fn.get_next_variable()
+                assert a is not None, f"a is None: {a}"
+                bb.append_instruction("store", a, ret=sarg)
+                stack_args.append(sarg)
+    else:
+        if setup_ir != goto_ir:
+            _convert_ir_bb(fn, setup_ir, symbols)
 
-        _convert_ir_bb(fn, setup_ir, symbols)
+    
 
     return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
 
@@ -196,8 +202,9 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(goto_ir.args) > 2:
         ret_args.append(return_buf)  # type: ignore
 
-    # for stack_arg in stack_args:
-    #     ret_args.append(stack_arg)
+    if ENABLE_NEW_CALL_CONV:
+        for stack_arg in stack_args:
+            ret_args.append(stack_arg)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -212,41 +219,45 @@ def _handle_internal_func(
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
     bb = fn.get_basic_block()
 
-    # for arg in func_t.arguments:
-    #     var = context.lookup_var(arg.name)
-    #     if var.typ != UINT256_T:
-    #         continue
-    #     venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
-    #     fn.args.append(venom_arg)
+    if ENABLE_NEW_CALL_CONV:
+        for arg in func_t.arguments:
+            var = context.lookup_var(arg.name)
+            if var.typ != UINT256_T:
+                continue
+            venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
+            fn.args.append(venom_arg)
 
     # return buffer
     if does_return_data:
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
-    # for arg in fn.args:
-    #     ret = bb.append_instruction("param")
-    #     bb.instructions[-1].annotation = arg.name
-    #     symbols[arg.name] = ret
-    #     arg.func_var = ret
+    if ENABLE_NEW_CALL_CONV:
+        for arg in fn.args:
+            ret = bb.append_instruction("param")
+            bb.instructions[-1].annotation = arg.name
+            symbols[arg.name] = ret
+            arg.func_var = ret
 
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
-    # for arg in fn.args:
-    #     var = IRVariable(arg.name)
-    #     bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
-    #     bb.append_instruction("mstore", arg.func_var, var)  # type: ignore
-    #     arg.addr_var = var
+    if ENABLE_NEW_CALL_CONV:
+        for arg in fn.args:
+            var = IRVariable(arg.name)
+            bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
+            bb.append_instruction("mstore", arg.func_var, var)  # type: ignore
+            arg.addr_var = var
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
-    # for inst in bb.instructions:
-    #     if inst.opcode == "store":
-    #         param = fn.get_param_at_offset(inst.operands[0].value)
-    #         if param is not None:
-    #             inst.operands[0] = param.addr_var  # type: ignore
+    # if ENABLE_NEW_CALL_CONV:
+    #     for inst in bb.instructions:
+    #         if inst.opcode == "store":
+    #             param = fn.get_param_at_offset(inst.operands[0].value)
+    #             if param is not None:
+    #                 inst.operands[0] = param.addr_var  # type: ignore
 
     return fn
 
