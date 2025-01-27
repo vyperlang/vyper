@@ -271,20 +271,16 @@ jobs:
       run: |
         coverage xml
 
-    - name: Upload coverage sqlite artifact
+    - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging
+      # upload coverage.xml artifact for downstream codecov upload action
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-sqlite
+        name: coverage-artifacts
         include-hidden-files: true
-        path: .coverage
-        if-no-files-found: error
-
-    - name: Upload coverage.xml
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-xml
-        path: coverage.xml
+        path: |
+          .coverage
+          coverage.xml
         if-no-files-found: error
 
   upload-coverage:
@@ -296,10 +292,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
       with:
-        name: coverage-xml
+        name: coverage-artifacts
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: coverage.xml
+        files: coverage.xml
