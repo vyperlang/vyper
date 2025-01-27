@@ -26,7 +26,8 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegateca
 # environment this is done because we know that
 # all these instruction should have always
 # the same value in function
-IMMUTABLE_ENV_QUERIES = frozenset(["returndatasize", "calldatasize", "gaslimit", "address", "codesize"])
+IMMUTABLE_ENV_QUERIES = frozenset(["calldatasize", "gaslimit", "address", "codesize"])
+
 
 @dataclass
 class _Expression:
@@ -53,7 +54,7 @@ class _Expression:
     def __eq__(self, other) -> bool:
         if not isinstance(other, _Expression):
             return False
-        
+
         if self.opcode in IMMUTABLE_ENV_QUERIES:
             return self.opcode == other.opcode
 
@@ -171,7 +172,7 @@ class _AvailableExpression:
                 return False
 
         return True
-    
+
     def __repr__(self) -> str:
         res = "available expr\n"
         for key, val in self.buckets.items():
@@ -190,13 +191,15 @@ class _AvailableExpression:
                 print("-", a.difference(b))
                 print("+", b.difference(a))
 
-
     def add(self, expr: _Expression):
         if expr.opcode not in self.buckets:
             self.buckets[expr.opcode] = OrderedSet()
-        
+
         if len(self.buckets[expr.opcode]) > 0:
-            assert not any((e.same(expr) and e != expr) for e in self.buckets[expr.opcode]), (self.buckets[expr.opcode], expr)
+            assert not any((e.same(expr) and e != expr) for e in self.buckets[expr.opcode]), (
+                self.buckets[expr.opcode],
+                expr,
+            )
 
         self.buckets[expr.opcode].add(expr)
 
@@ -257,8 +260,8 @@ class _AvailableExpression:
             tmp_res = res
             res = _AvailableExpression()
             for bucket in buckets:
-                res.buckets[bucket] = tmp_res.buckets[bucket].intersection(
-                    item.buckets[bucket].copy()
+                res.buckets[bucket] = OrderedSet.intersection(
+                    tmp_res.buckets[bucket], item.buckets[bucket].copy()
                 )  # type: ignore
         return res
 
@@ -268,7 +271,6 @@ class _AvailableExpression:
                 if any((e.same(item) and e != item) for e in bucket):
                     return False
         return True
-
 
 
 class CSEAnalysis(IRAnalysis):
@@ -300,7 +302,7 @@ class CSEAnalysis(IRAnalysis):
             change = False
             for bb in self.function.get_basic_blocks():
                 change |= self._handle_bb(bb)
-            
+
             if not change:
                 break
 
@@ -325,8 +327,6 @@ class CSEAnalysis(IRAnalysis):
             # if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
             if inst.opcode in BB_TERMINATORS:
                 continue
-            if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
-                continue
 
             # REVIEW: why replace inst_to_available if they are not equal?
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
@@ -334,6 +334,9 @@ class CSEAnalysis(IRAnalysis):
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes
             available_expr.remove_effect(write_effects)
+
+            if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
+                continue
 
             if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
                 available_expr.add(inst_expr)
@@ -343,9 +346,6 @@ class CSEAnalysis(IRAnalysis):
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
-
-        #if self.tmp_bb is not None:
-            #print(self.bb_outs[self.tmp_bb])
 
         return change
 
