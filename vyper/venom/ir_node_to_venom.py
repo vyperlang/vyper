@@ -475,6 +475,11 @@ def _convert_ir_bb(fn, ir, symbols):
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
         if ENABLE_NEW_CALL_CONV:
+            if isinstance(ptr, IRVariable):
+                param = fn.get_param_by_name(ptr)
+                if param is not None:
+                    return fn.get_basic_block().append_instruction("store", param.func_var)
+            
             if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
                 symbol = symbols.get(arg.annotation, None)
                 if symbol is not None:
