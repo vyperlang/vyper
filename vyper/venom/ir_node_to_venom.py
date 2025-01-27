@@ -67,7 +67,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "mload",
+        # "mload",
         "iload",
         "istore",
         "dload",
@@ -474,22 +474,24 @@ def _convert_ir_bb(fn, ir, symbols):
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
-        # if ptr.value.startswith("$palloca"):
-        #     symbol = symbols.get(arg.annotation, None)
-        #     if symbol is not None:
-        #         return fn.get_basic_block().append_instruction("store", symbol)
+        if ENABLE_NEW_CALL_CONV:
+            if ptr.value.startswith("$palloca"):
+                symbol = symbols.get(arg.annotation, None)
+                if symbol is not None:
+                    return fn.get_basic_block().append_instruction("store", symbol)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-    # elif ir.value == "mload":
-    #     arg = ir.args[0]
-    #     ptr = _convert_ir_bb(fn, arg, symbols)
+    elif ir.value == "mload":  
+        arg = ir.args[0]
+        ptr = _convert_ir_bb(fn, arg, symbols)
 
-    #     if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
-    #         symbol = symbols.get(arg.annotation, None)
-    #         if symbol is not None:
-    #             return fn.get_basic_block().append_instruction("store", symbol)
+        if ENABLE_NEW_CALL_CONV:
+            if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
+                symbol = symbols.get(arg.annotation, None)
+                if symbol is not None:
+                    return fn.get_basic_block().append_instruction("store", symbol)
 
-    #     return fn.get_basic_block().append_instruction("mload", ptr)
+        return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
@@ -599,8 +601,8 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            # if fn.get_param_at_offset(alloca.offset) is not None:
-            #     return fn.get_param_at_offset(alloca.offset).addr_var
+            if ENABLE_NEW_CALL_CONV and fn.get_param_at_offset(alloca.offset) is not None:
+                return fn.get_param_at_offset(alloca.offset).addr_var
             if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id
