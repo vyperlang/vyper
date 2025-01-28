@@ -99,4 +99,5 @@ class CSE(IRPass):
             assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
             orig_inst.operands = [to_inst.output]
         else:
-            orig_inst.parent.remove_instruction(orig_inst)
+            orig_inst.opcode = "nop"
+            orig_inst.operands = []
