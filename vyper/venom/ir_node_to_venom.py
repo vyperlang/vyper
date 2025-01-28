@@ -1,4 +1,3 @@
-from ast import FunctionType
 import functools
 import re
 from typing import Optional
@@ -212,17 +211,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     return return_buf
 
 
-def _use_new_call_conv(context: IRContext, func_t: FunctionType) -> bool:
-    if not ENABLE_NEW_CALL_CONV:
-        return False
-    
-    for arg in func_t.arguments:
-        var = context.lookup_var(arg.name)
-        if var.typ == UINT256_T:
-            return True
-    
-    return True
-
 def _handle_internal_func(
     fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
 ) -> IRFunction:
@@ -231,9 +219,7 @@ def _handle_internal_func(
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
     bb = fn.get_basic_block()
 
-    new_call_conv = _use_new_call_conv(context, func_t)
-
-    if new_call_conv:
+    if ENABLE_NEW_CALL_CONV:
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
             if var.typ != UINT256_T:
@@ -246,7 +232,7 @@ def _handle_internal_func(
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
-    if new_call_conv:
+    if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
             ret = bb.append_instruction("param")
             bb.instructions[-1].annotation = arg.name
