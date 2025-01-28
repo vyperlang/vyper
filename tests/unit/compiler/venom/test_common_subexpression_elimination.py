@@ -1,215 +1,284 @@
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel
-from vyper.venom.context import IRContext
 from vyper.venom.passes.common_subexpression_elimination import CSE
-from vyper.venom.passes.store_expansion import StoreExpansionPass
+
+
+def _check_pre_post(pre: str, post: str):
+    ctx = parse_from_basic_block(pre)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        CSE(ac, fn).run_pass()
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+def _check_pre_post_fn(pre: str, post: str):
+    ctx = parse_venom(pre)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        CSE(ac, fn).run_pass()
+    assert_ctx_eq(ctx, parse_venom(post))
+
+
+def _check_no_change(pre: str):
+    _check_pre_post(pre, pre)
+
+
+def _check_no_change_fn(pre: str):
+    _check_pre_post_fn(pre, pre)
 
 
 def test_common_subexpression_elimination():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
-    sum_1 = bb.append_instruction("add", op, 10)
-    bb.append_instruction("mul", sum_1, 10)
-    sum_2 = bb.append_instruction("add", op, 10)
-    bb.append_instruction("mul", sum_2, 10)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %1 = param
+        %sum1 = add %1, 10
+        %mul1 = mul %sum1, 10
+        %sum2 = add %1, 10
+        %mul2 = mul %sum2, 10
+        return %mul1, %mul2
+    """
 
-    ac = IRAnalysesCache(fn)
+    post = """
+    main:
+        %1 = param
+        %sum1 = add %1, 10
+        %mul1 = mul %sum1, 10
+        %sum2 = %sum1
+        %mul2 = %mul1
+        return %mul1, %mul2
+    """
 
-    CSE(ac, fn).run_pass()
-
-    assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
+    _check_pre_post(pre, post)
 
 
 def test_common_subexpression_elimination_commutative():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
-    sum_1 = bb.append_instruction("add", 10, op)
-    bb.append_instruction("mul", sum_1, 10)
-    sum_2 = bb.append_instruction("add", op, 10)
-    bb.append_instruction("mul", sum_2, 10)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %1 = param
+        %sum1 = add %1, 10
+        %mul1 = mul %sum1, 10
+        %sum2 = add 10, %1
+        %mul2 = mul 10, %sum2
+        return %mul1, %mul2
+    """
 
-    ac = IRAnalysesCache(fn)
+    post = """
+    main:
+        %1 = param
+        %sum1 = add %1, 10
+        %mul1 = mul %sum1, 10
+        %sum2 = %sum1
+        %mul2 = %mul1
+        return %mul1, %mul2
+    """
 
-    CSE(ac, fn).run_pass()
+    _check_pre_post(pre, post)
 
-    assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    assert sum(1 for inst in bb.instructions if inst.opcode == "mul") == 1, "wrong number of muls"
+
+def test_common_subexpression_elimination_no_commutative():
+    pre = """
+    main:
+        %1 = param
+        %sum1 = sub %1, 10
+        %sum2 = sub 10, %1
+        return %sum1, %sum2
+    """
+
+    _check_no_change(pre)
 
 
 def test_common_subexpression_elimination_effects_1():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    mload_1 = bb.append_instruction("mload", 0)
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_2 = bb.append_instruction("mload", 0)
-    bb.append_instruction("add", mload_1, 10)
-    bb.append_instruction("add", mload_2, 10)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %par = param
+        %mload1 = mload 0
+        mstore 0, %par
+        %mload2 = mload 0
+        %1 = add %mload1, 10
+        %2 = add %mload2, 10
+        return %1, %2
+    """
 
-    ac = IRAnalysesCache(fn)
-
-    CSE(ac, fn).run_pass()
-
-    assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
+    _check_no_change(pre)
 
 
 def test_common_subexpression_elimination_effects_2():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    mload_1 = bb.append_instruction("mload", 0)
-    bb.append_instruction("add", mload_1, 10)
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_2 = bb.append_instruction("mload", 0)
-    bb.append_instruction("add", mload_1, 10)
-    bb.append_instruction("add", mload_2, 10)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %par = param
+        %mload1 = mload 0
+        %1 = add %mload1, 10
+        mstore 0, %par
+        %mload2 = mload 0
+        %2 = add %mload1, 10
+        %3 = add %mload2, 10
+        return %1, %2
+    """
 
-    ac = IRAnalysesCache(fn)
-    CSE(ac, fn).run_pass()
+    post = """
+    main:
+        %par = param
+        %mload1 = mload 0
+        %1 = add %mload1, 10
+        mstore 0, %par
+        %mload2 = mload 0
+        %2 = %1
+        %3 = add %mload2, 10
+        return %1, %2
+    """
 
-    assert sum(1 for inst in bb.instructions if inst.opcode == "add") == 2, "wrong number of adds"
+    _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_logs():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    num2 = bb.append_instruction("store", 10)
-    num1 = bb.append_instruction("store", 20)
-    num3 = bb.append_instruction("store", 20)
-    bb.append_instruction("log", num1)
-    bb.append_instruction("log", num2)
-    bb.append_instruction("log", num1)
-    bb.append_instruction("log", num3)
-    bb.append_instruction("stop")
+def test_common_subexpression_elimination_logs_no_indepontent():
+    pre = """
+    main:
+        %1 = 10
+        log %1
+        log %1
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-
-    CSE(ac, fn).run_pass()
-
-    assert sum(1 for inst in bb.instructions if inst.opcode == "log") == 4, "wrong number of log"
+    _check_no_change(pre)
 
 
 def test_common_subexpression_elimination_effects_3():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    addr1 = bb.append_instruction("store", 10)
-    addr2 = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", 0, addr1)
-    bb.append_instruction("mstore", 2, addr2)
-    bb.append_instruction("mstore", 0, addr1)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %addr = 10
+        mstore %addr, 0
+        mstore %addr, 2
+        mstore %addr, 0
+        stop
+    """
 
-    ac = IRAnalysesCache(fn)
-
-    CSE(ac, fn).run_pass()
-
-    assert (
-        sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 3
-    ), "wrong number of mstores"
+    _check_no_change(pre)
 
 
 def test_common_subexpression_elimination_effect_mstore():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_1 = bb.append_instruction("mload", 0)
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_2 = bb.append_instruction("mload", 0)
-    bb.append_instruction("add", mload_1, mload_2)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %1 = 10
+        mstore 0, %1
+        %mload1 = mload 0
+        %2 = 10
+        mstore 0, %1
+        %mload2 = mload 0
+        %res = add %mload1, %mload2
+        return %res
+    """
 
-    ac = IRAnalysesCache(fn)
+    post = """
+    main:
+        %1 = 10
+        mstore 0, %1
+        %mload1 = mload 0
+        %2 = 10
+        nop
+        %mload2 = %mload1
+        %res = add %mload1, %mload2
+        return %res
+    """
 
-    CSE(ac, fn).run_pass()
-
-    assert (
-        sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 1
-    ), "wrong number of mstores"
-    assert (
-        sum(1 for inst in bb.instructions if inst.opcode == "mload") == 1
-    ), "wrong number of mloads"
+    _check_pre_post(pre, post)
 
 
 def test_common_subexpression_elimination_effect_mstore_with_msize():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_1 = bb.append_instruction("mload", 0)
-    op = bb.append_instruction("store", 10)
-    bb.append_instruction("mstore", op, 0)
-    mload_2 = bb.append_instruction("mload", 0)
-    msize_read = bb.append_instruction("msize")
-    bb.append_instruction("add", mload_1, msize_read)
-    bb.append_instruction("add", mload_2, msize_read)
-    bb.append_instruction("stop")
+    pre = """
+    main:
+        %1 = 10
+        mstore 0, %1
+        %mload1 = mload 0
+        %2 = 10
+        mstore 0, %1
+        %mload2 = mload 0
+        %msize = msize
+        %res1 = add %mload1, %msize
+        %res2 = add %mload2, %msize
+        return %res1, %res2
+    """
 
-    ac = IRAnalysesCache(fn)
-
-    StoreExpansionPass(ac, fn).run_pass()
-    CSE(ac, fn).run_pass()
-
-    assert (
-        sum(1 for inst in bb.instructions if inst.opcode == "mstore") == 2
-    ), "wrong number of mstores"
-    assert (
-        sum(1 for inst in bb.instructions if inst.opcode == "mload") == 2
-    ), "wrong number of mloads"
+    _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_different_branches():
-    ctx = IRContext()
-    fn = ctx.create_function("test")
-    bb = fn.get_basic_block()
-    addr = bb.append_instruction("store", 10)
-    rand_cond = bb.append_instruction("mload", addr)
+def test_common_subexpression_elimination_different_branches_cannot_optimize():
+    pre = """
+    function main {
+    main:
+        ; random condition
+        %par = param
+        jnz @br1, @br2, %par
+    br1:
+        %a1 = add 10, 20
+        %m1 = mul 1, %a1
+        jmp @join
+    br2:
+        %a2 = add 10, 20
+        %m2 = mul 2, %a2
+        jmp @join
+    join:
+        %a3 = add 10, 20
+        %m3 = mul 3, %a3
+        return %m1, %m2, %m3
+    }
+    """
 
-    br1 = IRBasicBlock(IRLabel("br1"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("br2"), fn)
-    fn.append_basic_block(br2)
-    join_bb = IRBasicBlock(IRLabel("join_bb"), fn)
-    fn.append_basic_block(join_bb)
+    _check_no_change_fn(pre)
 
-    bb.append_instruction("jnz", rand_cond, br1.label, br2.label)
 
-    def do_same(bb: IRBasicBlock, rand: int):
-        a = bb.append_instruction("store", 10)
-        b = bb.append_instruction("store", 20)
-        c = bb.append_instruction("add", a, b)
-        bb.append_instruction("mul", c, rand)
+def test_common_subexpression_elimination_different_branches_can_optimize():
+    pre = """
+    function main {
+    main:
+        ; random condition
+        %par = param
+        %d0 = mload 0
+        %a0 = add 10, %d0
+        %m0 = mul 0, %a0
+        jnz @br1, @br2, %par
+    br1:
+        %d1 = mload 0
+        %a1 = add 10, %d1
+        %m1 = mul 1, %a1
+        jmp @join
+    br2:
+        %d2 = mload 0
+        %a2 = add 10, %d2
+        %m2 = mul 2, %a2
+        jmp @join
+    join:
+        %d3 = mload 0
+        %a3 = add 10, %d3
+        %m3 = mul 3, %a3
+        return %m0, %m1, %m2, %m3
+    }
+    """
 
-    do_same(br1, 1)
-    br1.append_instruction("jmp", join_bb.label)
-    do_same(br2, 2)
-    br2.append_instruction("jmp", join_bb.label)
-    do_same(join_bb, 3)
-    join_bb.append_instruction("stop")
+    post = """
+    function main {
+    main:
+        ; random condition
+        %par = param
+        %d0 = mload 0
+        %a0 = add 10, %d0
+        %m0 = mul 0, %a0
+        jnz @br1, @br2, %par
+    br1:
+        %d1 = mload 0
+        %a1 = %a0
+        %m1 = mul 1, %a1
+        jmp @join
+    br2:
+        %d2 = mload 0
+        %a2 = %a0
+        %m2 = mul 2, %a2
+        jmp @join
+    join:
+        %d3 = mload 0
+        %a3 = %a0
+        %m3 = mul 3, %a3
+        return %m0, %m1, %m2, %m3
+    }
+    """
 
-    ac = IRAnalysesCache(fn)
-
-    StoreExpansionPass(ac, fn).run_pass()
-    CSE(ac, fn).run_pass()
-
-    assert sum(1 for inst in br1.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    assert sum(1 for inst in br2.instructions if inst.opcode == "add") == 1, "wrong number of adds"
-    assert (
-        sum(1 for inst in join_bb.instructions if inst.opcode == "add") == 1
-    ), "wrong number of adds"
+    _check_pre_post_fn(pre, post)

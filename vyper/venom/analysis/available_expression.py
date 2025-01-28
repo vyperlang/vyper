@@ -292,7 +292,6 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in BB_TERMINATORS:
                 continue
 
-            # REVIEW: why replace inst_to_available if they are not equal?
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
                 self.inst_to_available[inst] = available_expr.copy()
             inst_expr = self.get_expression(inst, available_expr)
@@ -324,7 +323,7 @@ class CSEAnalysis(IRAnalysis):
             # effect bounderies
             # the phi condition is here because it is only way to
             # create call loop
-            if inst.is_volatile or inst.opcode == "phi":
+            if inst.opcode == "phi":
                 return op
             if inst.opcode == "store":
                 return self._get_operand(inst.operands[0], available_exprs)
@@ -352,7 +351,6 @@ class CSEAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
-        # REVIEW: performance issue - loop over available_exprs.
         same_expr = available_exprs.get_same(expr)
         if same_expr is not None:
             return same_expr
