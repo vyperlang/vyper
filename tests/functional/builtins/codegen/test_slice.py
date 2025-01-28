@@ -11,6 +11,7 @@ from vyper.exceptions import (
     StaticAssertionException,
     TypeMismatch,
 )
+
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
 

@@ -142,3 +142,55 @@ def test_store_load_barrier():
         %4 = mload %ptr
     """
     _check_no_change(pre)
+
+
+def test_store_load_overlap_barrier():
+    """
+    Check for barrier between store/load done
+    by overlap of the mstore and mload
+    """
+
+    pre = """
+    main:
+        %ptr_mload = 10
+        %ptr_mstore = 20
+        %tmp01 = mload %ptr_mload
+
+        # barrier created with overlap
+        mstore %ptr_mstore, 11
+        %tmp02 = mload %ptr_mload
+        return %tmp01, %tmp02
+    """
+
+    _check_no_change(pre)
+
+
+def test_store_load_overlap_no_other_store_barrier():
+    """
+    Check for barrier between store/load done
+    by overlap of the mstore and mload
+    """
+
+    pre = """
+    main:
+        %ptr_mload = 10
+        %tmp01 = mload %ptr_mload
+
+        # this should not create barrier
+        sstore %ptr_mload, 11
+        %tmp02 = mload %ptr_mload
+        return %tmp01, %tmp02
+    """
+
+    post = """
+    main:
+        %ptr_mload = 10
+        %tmp01 = mload %ptr_mload
+
+        # this should not create barrier
+        sstore %ptr_mload, 11
+        %tmp02 = %tmp01
+        return %tmp01, %tmp02
+    """
+
+    _check_pre_post(pre, post)

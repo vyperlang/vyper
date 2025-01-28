@@ -17,7 +17,6 @@ from vyper.exceptions import (
     StateAccessViolation,
     StaticAssertionException,
     TypeMismatch,
-    StaticAssertionException
 )
 
 
