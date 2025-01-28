@@ -177,7 +177,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if setup_ir != goto_ir:
             bb = fn.get_basic_block()
             for arg in args_ir:
-                if arg.typ != UINT256_T:
+                if not arg.typ._is_prim_word:
                     _convert_ir_bb(fn, setup_ir, symbols)
                     continue
 
@@ -222,7 +222,7 @@ def _handle_internal_func(
     if ENABLE_NEW_CALL_CONV:
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
-            if var.typ != UINT256_T:
+            if not var.typ._is_prim_word:
                 continue
             venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
             fn.args.append(venom_arg)
