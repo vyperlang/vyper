@@ -175,7 +175,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     if ENABLE_NEW_CALL_CONV:
         if setup_ir != goto_ir:
-            bb = fn.get_basic_block()
             for arg in args_ir:
                 if not arg.typ._is_prim_word:
                     _convert_ir_bb(fn, setup_ir, symbols)
@@ -186,6 +185,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
                 else:
                     a = _convert_ir_bb(fn, arg, symbols)
 
+                bb = fn.get_basic_block()
                 sarg = fn.get_next_variable()
                 assert a is not None, f"a is None: {a}"
                 bb.append_instruction("store", a, ret=sarg)
@@ -217,7 +217,6 @@ def _handle_internal_func(
     func_t = ir.passthrough_metadata["func_t"]
     context = ir.passthrough_metadata["context"]
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
-    bb = fn.get_basic_block()
 
     if ENABLE_NEW_CALL_CONV:
         for arg in func_t.arguments:
@@ -226,6 +225,8 @@ def _handle_internal_func(
                 continue
             venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
             fn.args.append(venom_arg)
+
+    bb = fn.get_basic_block()
 
     # return buffer
     if does_return_data:
