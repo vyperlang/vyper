@@ -165,6 +165,27 @@ def test_store_load_overlap_barrier():
     _check_no_change(pre)
 
 
+def test_store_store_overlap_barrier():
+    """
+    Check for barrier between store/load done
+    by overlap of the mstore and mload
+    """
+
+    pre = """
+    main:
+        %ptr_mstore01 = 10
+        %ptr_mstore02 = 20
+        mstore %ptr_mstore01, 10
+
+        # barrier created with overlap
+        mstore %ptr_mstore02, 11
+
+        mstore %ptr_mstore01, 10
+    """
+
+    _check_no_change(pre)
+
+
 def test_store_load_overlap_no_other_store_barrier():
     """
     Check for barrier between store/load done
