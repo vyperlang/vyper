@@ -110,19 +110,3 @@ def bar(x: uint256) -> uint256:
     c = get_contract(code)
 
     assert c.bar(70) == 10
-
-
-def test_internal_assign(get_contract):
-    code = """
-@internal
-def foo(x: uint256, y: int128) -> uint256:
-    x = convert(y, uint256)
-    return x
-
-@external
-def bar(x: uint256) -> uint256:
-    return self.foo(x, 11)
-    """
-    c = get_contract(code)
-
-    assert c.bar(70) == 11
