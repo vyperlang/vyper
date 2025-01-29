@@ -129,6 +129,11 @@ class FuncInlinerPass(IRGlobalPass):
                         inst.operands = [call_site.operands[1]]
                     elif inst.annotation == self._RETURN_PC_ANNOTATION:
                         inst.make_nop()
+                    else:
+                        arg = func.get_param_by_name(inst.annotation)
+                        inst.opcode = "store"
+                        inst.operands = [call_site.operands[arg.index + 2]]
+                        inst.annotation = None
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]

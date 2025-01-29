@@ -9,6 +9,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 @dataclass
 class IRParameter:
     name: str
+    index: int
     offset: int
     size: int
     call_site_var: Optional[IRVariable]
@@ -173,7 +174,9 @@ class IRFunction:
                 return param
         return None
 
-    def get_param_by_name(self, var: IRVariable) -> Optional[IRParameter]:
+    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
+        if isinstance(var, str):
+            var = IRVariable(var)
         for param in self.args:
             if f"%{param.name}" == var.name:
                 return param

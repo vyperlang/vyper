@@ -216,12 +216,14 @@ def _handle_internal_func(
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     if ENABLE_NEW_CALL_CONV:
+        index = 0
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
             if not var.typ._is_prim_word:
                 continue
-            venom_arg = IRParameter(var.name, var.alloca.offset, var.alloca.size, None, None, None)
+            venom_arg = IRParameter(var.name, index, var.alloca.offset, var.alloca.size, None, None, None)
             fn.args.append(venom_arg)
+            index += 1
 
     bb = fn.get_basic_block()
 
