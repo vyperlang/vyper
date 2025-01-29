@@ -16,6 +16,14 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+..
+    v0.4.1 ("Prairie Kingsnake")
+    ****************************
+
+    Date released: TBD
+    =========================
+
+
 v0.4.0 ("Nagini")
 *****************
 
