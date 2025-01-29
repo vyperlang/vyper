@@ -227,58 +227,95 @@ def test_common_subexpression_elimination_different_branches_cannot_optimize():
 
 
 def test_common_subexpression_elimination_different_branches_can_optimize():
-    pre = """
-    function main {
+    def same(i):
+        return f"""
+        %d{i} = mload 0
+        %a{i} = add 10, %d{i}
+        %m{i} = mul {i}, %a{i}
+        """
+
+    def same_opt(i):
+        return f"""
+        %d{i} = mload 0
+        %a{i} = %a0
+        %m{i} = mul {i}, %a{i}
+        """
+
+    pre = f"""
+    function main {{
     main:
         ; random condition
         %par = param
-        %d0 = mload 0
-        %a0 = add 10, %d0
-        %m0 = mul 0, %a0
+        {same(0)}
         jnz @br1, @br2, %par
     br1:
-        %d1 = mload 0
-        %a1 = add 10, %d1
-        %m1 = mul 1, %a1
+        {same(1)}
         jmp @join
     br2:
-        %d2 = mload 0
-        %a2 = add 10, %d2
-        %m2 = mul 2, %a2
+        {same(2)}
         jmp @join
     join:
-        %d3 = mload 0
-        %a3 = add 10, %d3
-        %m3 = mul 3, %a3
+        {same(3)}
         return %m0, %m1, %m2, %m3
-    }
+    }}
     """
 
-    post = """
-    function main {
+    post = f"""
+    function main {{
     main:
         ; random condition
         %par = param
-        %d0 = mload 0
-        %a0 = add 10, %d0
-        %m0 = mul 0, %a0
+        {same(0)}
         jnz @br1, @br2, %par
     br1:
-        %d1 = mload 0
-        %a1 = %a0
-        %m1 = mul 1, %a1
+        {same_opt(1)}
         jmp @join
     br2:
-        %d2 = mload 0
-        %a2 = %a0
-        %m2 = mul 2, %a2
+        {same_opt(2)}
         jmp @join
     join:
-        %d3 = mload 0
-        %a3 = %a0
-        %m3 = mul 3, %a3
+        {same_opt(3)}
         return %m0, %m1, %m2, %m3
-    }
+    }}
     """
 
     _check_pre_post_fn(pre, post)
+
+
+def test_commom_subexpression_elimination_non_indempotent():
+    """
+    Test to check if the instruction that cannot be substituted
+    are not substituted with pass and any instruction that would
+    use non indempotent instruction also cannot be substituted
+    """
+
+    def call(callname: str, i: int, var_name: str):
+        return f"""
+        %g{2*i} = gas
+        %{callname}0 = {callname} %g0, 0, 0, 0, 0, 0
+        %{var_name}0 = add 1, %{callname}0
+        %g{2*i + 1} = gas
+        %{callname}1 = {callname} %g0, 0, 0, 0, 0, 0
+        %{var_name}1 = add 1, %{callname}1
+        """
+
+    pre = f"""
+    main:
+        ; invoke
+        %invoke0 = invoke @f
+        %i0 = add 1, %invoke0
+        %invoke1 = invoke @f
+        %i1 = add 1, %invoke1
+
+        ; staticcall
+        {call("staticcall", 0, "s")}
+
+        ; delegatecall
+        {call("delegatecall", 1, "d")}
+
+        ; call
+        {call("call", 2, "c")}
+        return %i0, %i1, %s0, %s1, %d0, %d1, %c0, %c1
+    """
+
+    _check_no_change(pre)
