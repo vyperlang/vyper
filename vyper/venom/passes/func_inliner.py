@@ -132,7 +132,7 @@ class FuncInlinerPass(IRGlobalPass):
                     else:
                         arg = func.get_param_by_name(inst.annotation)
                         inst.opcode = "store"
-                        inst.operands = [call_site.operands[arg.index + 2]]
+                        inst.operands = [call_site.operands[arg.index + 1]]
                         inst.annotation = None
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
