@@ -485,14 +485,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         # NOTE: standalone staticcalls are banned!
-        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall)):
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall, vy_ast.AuthCall)):
             raise StructureException(
                 "Expressions without assignment are disallowed",
                 node,
                 hint="did you mean to assign the result to a variable?",
             )
 
-        if isinstance(node.value, vy_ast.ExtCall):
+        if isinstance(node.value, (vy_ast.ExtCall, vy_ast.AuthCall)):
             call_node = node.value.value
         else:
             call_node = node.value
@@ -744,6 +744,9 @@ class ExprVisitor(VyperNodeVisitorBase):
             raise StateAccessViolation(msg)
 
     def visit_ExtCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_AuthCall(self, node, typ):
         return self.visit(node.value, typ)
 
     def visit_StaticCall(self, node, typ):
