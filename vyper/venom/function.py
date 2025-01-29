@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import textwrap
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
@@ -172,7 +172,7 @@ class IRFunction:
             if param.offset == offset:
                 return param
         return None
-    
+
     def get_param_by_name(self, var: IRVariable) -> Optional[IRParameter]:
         for param in self.args:
             if f"%{param.name}" == var.name:

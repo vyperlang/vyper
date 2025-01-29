@@ -5,7 +5,6 @@ from typing import Optional
 from vyper.codegen.core import LOAD
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -193,8 +192,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     else:
         if setup_ir != goto_ir:
             _convert_ir_bb(fn, setup_ir, symbols)
-
-    
 
     return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
 
@@ -480,14 +477,14 @@ def _convert_ir_bb(fn, ir, symbols):
                 param = fn.get_param_by_name(ptr)
                 if param is not None:
                     return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
-            
+
             if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
-                symbol = symbols.get(arg.annotation, None)
+                symbol = symbols.get(ptr.annotation, None)
                 if symbol is not None:
                     return fn.get_basic_block().append_instruction("store", symbol)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-    elif ir.value == "mload":  
+    elif ir.value == "mload":
         arg = ir.args[0]
         ptr = _convert_ir_bb(fn, arg, symbols)
 

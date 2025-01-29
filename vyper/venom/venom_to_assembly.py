@@ -1,6 +1,5 @@
 from typing import Any
 
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
@@ -11,7 +10,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
-from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache, LivenessAnalysis, DFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -21,6 +20,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -307,7 +307,8 @@ class VenomCompiler:
             body_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
             params_to_pop = []
-            for i, inst in enumerate(param_insts):
+            for inst in param_insts:
+                assert isinstance(inst.output, IRVariable)
                 stack.push(inst.output)
                 if len(self.dfg.get_uses(inst.output)) == 0:
                     params_to_pop.append(inst.output)
