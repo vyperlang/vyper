@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.common_subexpression_elimination import CSE
@@ -202,25 +204,29 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
 
 
 def test_common_subexpression_elimination_different_branches_cannot_optimize():
-    pre = """
-    function main {
+    def same(i):
+        return f"""
+        %d{i} = mload 0
+        %a{i} = add 10, %d{i}
+        %m{i} = mul {i}, %a{i}
+        """
+
+    pre = f"""
+    function main {{
     main:
         ; random condition
         %par = param
         jnz @br1, @br2, %par
     br1:
-        %a1 = add 10, 20
-        %m1 = mul 1, %a1
+        {same(1)}
         jmp @join
     br2:
-        %a2 = add 10, 20
-        %m2 = mul 2, %a2
+        {same(2)}
         jmp @join
     join:
-        %a3 = add 10, 20
-        %m3 = mul 3, %a3
+        {same(3)}
         return %m1, %m2, %m3
-    }
+    }}
     """
 
     _check_no_change_fn(pre)
@@ -348,6 +354,63 @@ def test_common_subexpression_elimination_loop():
         %add1 = %add0
         %mul1 = %mul0
         jmp @loop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_common_subexpression_elimination_loop_cannot_substitute():
+    pre = """
+    main:
+        %par = param
+        %data0 = mload 0
+        %add0 = add 1, %par
+        %mul0 = mul %add0, %data0
+        jmp @loop
+    loop:
+        %data1 = mload 0
+        %add1 = add 1, %par
+        %mul1 = mul %add1, %data1
+        mstore 10, 0
+        jmp @loop
+    """
+
+    post = """
+    main:
+        %par = param
+        %data0 = mload 0
+        %add0 = add 1, %par
+        %mul0 = mul %add0, %data0
+        jmp @loop
+    loop:
+        %data1 = mload 0
+        %add1 = %add0
+        %mul1 = mul %add1, %data1
+        mstore 10, 0
+        jmp @loop
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.parametrize("opcode", ("calldatasize", "gaslimit", "address", "codesize"))
+def test_common_subexpression_elimination_immutable_queries(opcode):
+    pre = f"""
+    main:
+        %1 = {opcode}
+        %res1 = add %1, 1
+        %2 = {opcode}
+        %res2 = add %1, 1
+        return %res1, %res2
+    """
+
+    post = f"""
+    main:
+        %1 = {opcode}
+        %res1 = add %1, 1
+        %2 = {opcode}
+        %res2 = %res1
+        return %res1, %res2
     """
 
     _check_pre_post(pre, post)
