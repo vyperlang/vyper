@@ -47,6 +47,22 @@ def test(a: uint256) -> uint256:
         c.test(0)
 
 
+def test_inliner_with_unused_param(get_contract):
+    code = """
+data: public(uint256)
+
+@internal
+def _foo(start: uint256, length: uint256):
+    self.data = start
+
+@external
+def foo(x: uint256, y: uint256):
+    self._foo(x, y)
+"""
+
+    c = get_contract(code)
+    c.foo(1, 2)
+
 # TODO: not allowed at all in Vyper at the moment
 # def test_call_recursive(get_contract):
 #     code = """
