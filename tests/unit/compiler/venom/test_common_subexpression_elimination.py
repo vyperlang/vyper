@@ -186,6 +186,9 @@ def test_common_subexpression_elimination_effect_mstore():
 
 
 def test_common_subexpression_elimination_effect_mstore_with_msize():
+    """
+    Test that checks that msize is handled correctly
+    """
     pre = """
     main:
         %1 = 10
@@ -204,6 +207,12 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
 
 
 def test_common_subexpression_elimination_different_branches_cannot_optimize():
+    """
+    Test of inter basicblock analysis which would require
+    more code movement to achive and would be incorrect
+    if done the current way
+    """
+
     def same(i):
         return f"""
         %d{i} = mload 0
@@ -224,6 +233,9 @@ def test_common_subexpression_elimination_different_branches_cannot_optimize():
         {same(2)}
         jmp @join
     join:
+        ; here you  cannot guarantee which
+        ; branch this expression came from
+        ; so you cannot substitute
         {same(3)}
         return %m1, %m2, %m3
     }}
@@ -233,6 +245,10 @@ def test_common_subexpression_elimination_different_branches_cannot_optimize():
 
 
 def test_common_subexpression_elimination_different_branches_can_optimize():
+    """
+    Test of inter basicblock analysis
+    """
+
     def same(i):
         return f"""
         %d{i} = mload 0
@@ -328,6 +344,11 @@ def test_commom_subexpression_elimination_non_indempotent():
 
 
 def test_common_subexpression_elimination_loop():
+    """
+    Test of inter basic block common subexpression
+    elimination with loops
+    """
+
     pre = """
     main:
         %par = param
@@ -360,6 +381,12 @@ def test_common_subexpression_elimination_loop():
 
 
 def test_common_subexpression_elimination_loop_cannot_substitute():
+    """
+    Test of inter basic block common subexpression
+    elimination with loops, which contains barrier
+    that prevents part of substitution
+    """
+
     pre = """
     main:
         %par = param
@@ -371,6 +398,8 @@ def test_common_subexpression_elimination_loop_cannot_substitute():
         %data1 = mload 0
         %add1 = add 1, %par
         %mul1 = mul %add1, %data1
+
+        ; barrier
         mstore 10, 0
         jmp @loop
     """
@@ -395,6 +424,12 @@ def test_common_subexpression_elimination_loop_cannot_substitute():
 
 @pytest.mark.parametrize("opcode", ("calldatasize", "gaslimit", "address", "codesize"))
 def test_common_subexpression_elimination_immutable_queries(opcode):
+    """
+    Test that check that instruction that have always same
+    output during the function execution are considered
+    same in analysis
+    """
+
     pre = f"""
     main:
         %1 = {opcode}
