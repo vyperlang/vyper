@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import ArgumentException, InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidType,
+    StateAccessViolation,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -32,6 +38,66 @@ def foo():
     x: Bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,
         InvalidType,
+    ),
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"))
+    """,
+        StateAccessViolation,
+    ),
+    # non-static call cannot be used in a range expression
+    (
+        """
+@external
+def foo(a: address):
+    for i: uint256 in range(
+        0,
+        extract32(raw_call(a, b"", max_outsize=32), 0, output_type=uint256),
+        bound = 12
+    ):
+        pass
+    """,
+        StateAccessViolation,
+    ),
+    # call cannot be both a delegate call and a static call
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
+    """,
+        ArgumentException,
+    ),
+    # value cannot be passed for delegate call
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    #
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_static_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    # second argument should be Bytes
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, 256)
+    """,
+        TypeMismatch,
     ),
 ]
 
