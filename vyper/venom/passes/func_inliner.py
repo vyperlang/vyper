@@ -130,7 +130,9 @@ class FuncInlinerPass(IRGlobalPass):
                     elif inst.annotation == self._RETURN_PC_ANNOTATION:
                         inst.make_nop()
                     else:
+                        assert inst.annotation is not None
                         arg = func.get_param_by_name(inst.annotation)
+                        assert arg is not None
                         inst.opcode = "store"
                         inst.operands = [call_site.operands[arg.index + 1]]
                         inst.annotation = None

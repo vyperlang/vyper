@@ -62,22 +62,3 @@ def foo(x: uint256, y: uint256):
 
     c = get_contract(code)
     c.foo(1, 2)
-
-# TODO: not allowed at all in Vyper at the moment
-# def test_call_recursive(get_contract):
-#     code = """
-# @internal
-# def foo(a: uint256) -> uint256:
-#     if a > 0:
-#         return self.foo(a - 1)
-#     else:
-#         return 1
-
-# @external
-# def test() -> uint256:
-#     return self.foo(10)
-#     """
-
-#     c = get_contract(code)
-
-#     assert c.test() == 1

@@ -111,6 +111,7 @@ def bar(x: uint256) -> uint256:
 
     assert c.bar(70) == 10
 
+
 def test_internal_assign(get_contract):
     code = """
 @internal

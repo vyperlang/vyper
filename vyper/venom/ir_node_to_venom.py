@@ -223,7 +223,9 @@ def _handle_internal_func(
             var = context.lookup_var(arg.name)
             if not var.typ._is_prim_word:
                 continue
-            venom_arg = IRParameter(var.name, index, var.alloca.offset, var.alloca.size, None, None, None)
+            venom_arg = IRParameter(
+                var.name, index, var.alloca.offset, var.alloca.size, None, None, None
+            )
             fn.args.append(venom_arg)
             index += 1
 
