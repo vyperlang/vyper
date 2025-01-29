@@ -44,7 +44,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "smod",
         "exp",
         "sha3",
-        "sha3_64",
         "signextend",
         "chainid",
         "basefee",

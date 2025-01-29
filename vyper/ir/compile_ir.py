@@ -569,37 +569,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_assert_false())
         return o
 
-    # SHA3 a single value
-    elif code.value == "sha3_32":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            [
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "MSTORE",
-                *PUSH(32),
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "SHA3",
-            ]
-        )
-        return o
-    # SHA3 a 64 byte value
-    elif code.value == "sha3_64":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1)
-        )
-        o.extend(
-            [
-                *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                "MSTORE",
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "MSTORE",
-                *PUSH(64),
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "SHA3",
-            ]
-        )
-        return o
     elif code.value == "select":
         # b ^ ((a ^ b) * cond) where cond is 1 or 0
         # let t = a ^ b
