@@ -221,10 +221,10 @@ class _AvailableExpression:
         return res
 
     @staticmethod
-    def intersection(*others: "_AvailableExpression"):
+    def intersection(*others: "_AvailableExpression | None"):
         if len(others) == 0:
             return _AvailableExpression()
-        tmp = list(others)
+        tmp = list(o for o in others if o is not None)
         res = tmp[0].copy()
         for item in tmp[1:]:
             buckets = res.buckets.keys() & item.buckets.keys()
@@ -283,7 +283,7 @@ class CSEAnalysis(IRAnalysis):
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
-            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
+            *(self.bb_outs.get(out_bb, None) for out_bb in bb.cfg_in)
         )
 
         change = False

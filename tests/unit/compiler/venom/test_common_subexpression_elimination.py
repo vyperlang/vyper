@@ -319,3 +319,35 @@ def test_commom_subexpression_elimination_non_indempotent():
     """
 
     _check_no_change(pre)
+
+
+def test_common_subexpression_elimination_loop():
+    pre = """
+    main:
+        %par = param
+        %data0 = mload 0
+        %add0 = add 1, %par
+        %mul0 = mul %add0, %data0
+        jmp @loop
+    loop:
+        %data1 = mload 0
+        %add1 = add 1, %par
+        %mul1 = mul %add1, %data1
+        jmp @loop
+    """
+
+    post = """
+    main:
+        %par = param
+        %data0 = mload 0
+        %add0 = add 1, %par
+        %mul0 = mul %add0, %data0
+        jmp @loop
+    loop:
+        %data1 = mload 0
+        %add1 = %add0
+        %mul1 = %mul0
+        jmp @loop
+    """
+
+    _check_pre_post(pre, post)
