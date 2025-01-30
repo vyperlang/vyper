@@ -288,6 +288,12 @@ class Stmt:
             # single word load/stores are atomic.
             raise TypeCheckFailure("unreachable")
 
+        overlapped = target.referenced_variables & right.referenced_variables
+        for var in overlapped:
+            if not var.typ._is_prim_word:
+                # oob - GHSA-4w26-8p97-f4jp
+                raise CodegenPanic("unreachable")
+
         with target.cache_when_complex("_loc") as (b, target):
             left = IRnode.from_list(LOAD(target), typ=target.typ)
             new_val = Expr.handle_binop(self.stmt.op, left, right, self.context)
