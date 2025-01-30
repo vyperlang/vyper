@@ -294,7 +294,7 @@ class CSEAnalysis(IRAnalysis):
 
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
                 self.inst_to_available[inst] = available_expr.copy()
-            inst_expr = self.get_expression(inst, available_expr)
+            inst_expr = self._get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes
             available_expr.remove_effect(write_effects)
 
@@ -318,9 +318,6 @@ class CSEAnalysis(IRAnalysis):
         if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
-            # this can both create better solutions and is necessery
-            # for correct effect handle, otherwise you could go over
-            # effect bounderies
             # the phi condition is here because it is only way to
             # create call loop
             if inst.opcode == "phi":
@@ -329,7 +326,7 @@ class CSEAnalysis(IRAnalysis):
                 return self._get_operand(inst.operands[0], available_exprs)
             if inst in self.inst_to_expr:
                 return self.inst_to_expr[inst]
-            return self.get_expression(inst, available_exprs)
+            return self._get_expression(inst, available_exprs)
         return op
 
     def _get_operands(
@@ -345,11 +342,15 @@ class CSEAnalysis(IRAnalysis):
         )
 
         assert available_exprs is not None  # help mypy
+        return self._get_expression(inst, available_exprs)
+
+    def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
         same_expr = available_exprs.get_same(expr)
         if same_expr is not None:
+            self.inst_to_expr[inst] = same_expr
             return same_expr
 
         self.inst_to_expr[inst] = expr
