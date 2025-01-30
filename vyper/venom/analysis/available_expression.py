@@ -208,12 +208,6 @@ class _AvailableExpression:
 
         return None
 
-    def exist(self, expr: _Expression) -> bool:
-        if expr.opcode not in self.buckets:
-            return False
-        bucket = self.buckets[expr.opcode]
-        return expr in bucket
-
     def copy(self) -> "_AvailableExpression":
         res = _AvailableExpression()
         for key, val in self.buckets.items():
@@ -351,8 +345,11 @@ class CSEAnalysis(IRAnalysis):
         return self._get_expression(inst, available_exprs)
 
     def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
+        if inst.opcode in IMMUTABLE_ENV_QUERIES:
+            return _Expression(inst, inst.opcode, [], self.ignore_msize)
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
+
 
         same_expr = available_exprs.get_same(expr)
         if same_expr is not None:
