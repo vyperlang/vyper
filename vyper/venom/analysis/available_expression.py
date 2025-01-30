@@ -345,9 +345,6 @@ class CSEAnalysis(IRAnalysis):
         )
 
         assert available_exprs is not None  # help mypy
-        if inst in self.inst_to_expr and available_exprs.exist(self.inst_to_expr[inst]):
-            return self.inst_to_expr[inst]
-        assert available_exprs is not None
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
