@@ -241,6 +241,7 @@ class CSEAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     inst_to_available: dict[IRInstruction, _AvailableExpression]
+    bb_ins: dict[IRBasicBlock, _AvailableExpression]
     bb_outs: dict[IRBasicBlock, _AvailableExpression]
     eq_vars: VarEquivalenceAnalysis
 
@@ -256,6 +257,7 @@ class CSEAnalysis(IRAnalysis):
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
+        self.bb_ins = dict()
         self.bb_outs = dict()
 
         self.ignore_msize = not self._contains_msize()
@@ -285,6 +287,11 @@ class CSEAnalysis(IRAnalysis):
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
             *(self.bb_outs.get(out_bb, None) for out_bb in bb.cfg_in)
         )
+
+        if bb in self.bb_ins and self.bb_ins[bb] == available_expr:
+            return False
+
+        self.bb_ins[bb] = available_expr.copy()
 
         change = False
         for inst in bb.instructions:

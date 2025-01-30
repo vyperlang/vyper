@@ -58,10 +58,10 @@ class CSE(IRPass):
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             self.analyses_cache.invalidate_analysis(VarEquivalenceAnalysis)
             # should be ok to be reevaluted
-            self.expression_analysis.analyze()
-            # self.expression_analysis = self.analyses_cache.force_analysis(
-            # CSEAnalysis
-            # )  # type: ignore
+            # self.expression_analysis.analyze()
+            self.expression_analysis = self.analyses_cache.force_analysis(
+                CSEAnalysis
+            )  # type: ignore
 
     # return instruction and to which instruction it could
     # replaced by
