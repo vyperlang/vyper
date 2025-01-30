@@ -288,8 +288,7 @@ class CSEAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            # if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
-            if inst.opcode in BB_TERMINATORS:
+            if inst.opcode in ("store", "phi") or inst.opcode in BB_TERMINATORS:
                 continue
 
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
