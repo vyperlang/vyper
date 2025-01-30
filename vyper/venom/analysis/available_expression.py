@@ -232,7 +232,7 @@ class _AvailableExpression:
             res = _AvailableExpression()
             for bucket in buckets:
                 res.buckets[bucket] = OrderedSet.intersection(
-                    tmp_res.buckets[bucket], item.buckets[bucket].copy()
+                    tmp_res.buckets[bucket], item.buckets[bucket]
                 )  # type: ignore
         return res
 
@@ -311,7 +311,7 @@ class CSEAnalysis(IRAnalysis):
                 available_expr.add(inst_expr)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
-            self.bb_outs[bb] = available_expr.copy()
+            self.bb_outs[bb] = available_expr
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
