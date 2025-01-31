@@ -155,6 +155,11 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
 
 
 class _AvailableExpression:
+    """
+    Class that holds available expression
+    and provides API for handling them
+    """
+
     buckets: dict[str, OrderedSet[_Expression]]
 
     def __init__(self):
@@ -298,6 +303,9 @@ class CSEAnalysis(IRAnalysis):
             write_effects = inst_expr.get_writes
             available_expr.remove_effect(write_effects)
 
+            # nonidempotent instruction effect other instructions
+            # but since it cannot be substituted it does not have
+            # to be added to available exprs
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
@@ -329,11 +337,6 @@ class CSEAnalysis(IRAnalysis):
             return self._get_expression(inst, available_exprs)
         return op
 
-    def _get_operands(
-        self, inst: IRInstruction, available_exprs: _AvailableExpression
-    ) -> list[IROperand | _Expression]:
-        return [self._get_operand(op, available_exprs) for op in inst.operands]
-
     def get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression | None = None
     ) -> _Expression:
@@ -347,7 +350,11 @@ class CSEAnalysis(IRAnalysis):
     def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
         if inst.opcode in IMMUTABLE_ENV_QUERIES:
             return _Expression(inst, inst.opcode, [], self.ignore_msize)
-        operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
+
+        # create expression
+        operands: list[IROperand | _Expression] = [
+            self._get_operand(op, available_exprs) for op in inst.operands
+        ]
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
         same_expr = available_exprs.get_same(expr)
