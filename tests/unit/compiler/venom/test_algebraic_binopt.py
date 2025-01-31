@@ -1,6 +1,6 @@
 import pytest
 
-from tests.hevm import hevm_check
+from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
@@ -23,8 +23,9 @@ def _sccp_algebraic_runner(pre, post, hevm=True):
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
-    if hevm:
-        hevm_check(pre, post)
+    if not hevm:
+        return
+    hevm_check_venom(pre, post)
 
 
 def test_sccp_algebraic_opt_sub_xor():

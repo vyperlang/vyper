@@ -49,8 +49,9 @@ def _prep_hevm(venom_source_code):
     return assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
 
 
-def hevm_check(pre, post, verbose=False):
+def hevm_check_venom(pre, post, verbose=False):
     global HAS_HEVM
+
     if not HAS_HEVM:
         return
 
@@ -59,9 +60,13 @@ def hevm_check(pre, post, verbose=False):
         print("HEVM COMPARE.")
         print("BEFORE:", pre)
         print("OPTIMIZED:", post)
-    bytecode1 = _prep_hevm(pre)
-    bytecode2 = _prep_hevm(post)
+    bytecode1 = _prep_hevm_venom(pre)
+    bytecode2 = _prep_hevm_venom(post)
 
+    hevm_check_bytecode(bytecode1, bytecode2, verbose=verbose)
+
+
+def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
     # debug:
     if verbose:
         print("RUN HEVM:")
