@@ -350,7 +350,6 @@ class CSEAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
         expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
 
-
         same_expr = available_exprs.get_same(expr)
         if same_expr is not None:
             self.inst_to_expr[inst] = same_expr
