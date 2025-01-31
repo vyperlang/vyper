@@ -235,12 +235,19 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
     return settings
 
 
-@pytest.fixture
-def is_hevm_marker(request):
-    return request.node.get_closest_marker("hevm") is not None
+_HEVM_MARKER = None
 
 
-@pytest.fixture
+# request.node.get_closest_marker does something different if fixture is module-scoped,
+# workaround with a global variable
+@pytest.fixture(autouse=True)
+def hevm_marker(request):
+    global _HEVM_MARKER
+
+    _HEVM_MARKER = request.node.get_closest_marker("hevm")
+
+
+@pytest.fixture(scope="module")
 def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
     def fn(source_code, *args, **kwargs):
         if "override_opt_level" in kwargs:
@@ -248,7 +255,8 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
 
-        if hevm and (mark := request.node.get_closest_marker("hevm")) is not None:
+        global _HEVM_MARKER
+        if hevm and _HEVM_MARKER is not None:
             settings1 = copy.copy(compiler_settings)
             settings1.experimental_codegen = False
             settings1.optimize = OptimizationLevel.NONE
@@ -268,7 +276,7 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
                 settings=settings2,
                 input_bundle=kwargs.get("input_bundle"),
             )["bytecode_runtime"]
-            tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, verbose=True, addl_args=mark.args)
+            tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
 
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
