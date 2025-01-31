@@ -478,3 +478,58 @@ def test_common_subexpression_elimination_immutable_queries(opcode):
     """
 
     _check_pre_post(pre, post)
+
+
+@pytest.mark.parametrize(
+    "opcode", ("dloadbytes", "extcodecopy", "codecopy", "returndatacopy", "calldatacopy")
+)
+def test_common_subexpression_elimination_other_mem_ops_elimination(opcode):
+    pre = f"""
+    main:
+        {opcode} 10, 20, 30
+        {opcode} 10, 20, 30
+        stop
+    """
+
+    post = f"""
+    main:
+        {opcode} 10, 20, 30
+        nop
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_common_subexpression_elimination_self_conflicting_effects():
+    """
+    Test that expression that have conflict in their own effects
+    cannot be substituted
+    """
+    pre1 = """
+    main:
+        mcopy 10, 100, 10
+        mcopy 10, 100, 10
+        stop
+    """
+
+    pre2 = """
+    main:
+        %load1 = mload 0
+        mstore 1000, %load1
+        %load2 = mload 0
+        mstore 1000, %load2
+        stop
+    """
+
+    pre3 = """
+    main:
+        %load1 = mload 0
+        mstore 1000, %load1
+        mstore 1000, %load1
+        stop
+    """
+
+    _check_no_change(pre1)
+    _check_no_change(pre2)
+    _check_no_change(pre3)
