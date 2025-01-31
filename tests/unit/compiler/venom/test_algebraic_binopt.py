@@ -1,5 +1,6 @@
 import pytest
 
+from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
@@ -8,8 +9,10 @@ from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 Test abstract binop+unop optimizations in algebraic optimizations pass
 """
 
+pytestmark = pytest.mark.hevm
 
-def _sccp_algebraic_runner(pre, post):
+
+def _sccp_algebraic_runner(pre, post, hevm=True):
     ctx = parse_from_basic_block(pre)
 
     for fn in ctx.functions.values():
@@ -19,6 +22,10 @@ def _sccp_algebraic_runner(pre, post):
         StoreElimination(ac, fn).run_pass()
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+    if not hevm:
+        return
+    hevm_check_venom(pre, post)
 
 
 def test_sccp_algebraic_opt_sub_xor():
@@ -87,7 +94,8 @@ def test_sccp_algebraic_opt_sub_xor_max():
         return %1, %2, %3
     """
 
-    _sccp_algebraic_runner(pre, post)
+    # hevm chokes on this example.
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_shift():
@@ -222,7 +230,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts(n):
         return %1, %2, %3, %4, %5, %6
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_exp():
@@ -244,7 +252,8 @@ def test_sccp_algebraic_opt_exp():
         return 1, 1, %3, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    # can set hevm=True after https://github.com/ethereum/hevm/pull/638 is merged
+    _sccp_algebraic_runner(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_compare_self():

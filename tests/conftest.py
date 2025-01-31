@@ -7,6 +7,7 @@ import pytest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
+import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
@@ -40,6 +41,7 @@ def pytest_addoption(parser):
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
     parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
+    parser.addoption("--hevm", action="store_true")
 
     parser.addoption(
         "--evm-version",
@@ -112,6 +114,13 @@ def evm_version(pytestconfig):
     # note: configure the evm version that we emit code for.
     # The env will read this fixture and apply the evm version there.
     return pytestconfig.getoption("evm_version")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def set_hevm(pytestconfig):
+    flag_value = pytestconfig.getoption("hevm")
+    assert isinstance(flag_value, bool)
+    tests.hevm.HAS_HEVM = flag_value
 
 
 @pytest.fixture(scope="session")
