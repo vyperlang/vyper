@@ -181,12 +181,13 @@ def test_store_store_overlap_barrier():
         mstore %ptr_mstore02, 11
 
         mstore %ptr_mstore01, 10
+        stop
     """
 
     _check_no_change(pre)
 
 
-def test_store_load_overlap_no_other_store_barrier():
+def test_store_load_no_overlap_different_store():
     """
     Check for barrier between store/load done
     by overlap of the mstore and mload
@@ -212,6 +213,41 @@ def test_store_load_overlap_no_other_store_barrier():
         sstore %ptr_mload, 11
         %tmp02 = %tmp01
         return %tmp01, %tmp02
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_store_store_no_overlap():
+    """
+    Test that if the mstores do not overlap it can still
+    eliminate any possible repeated mstores
+    """
+
+    pre = """
+    main:
+        %ptr_mstore01 = 10
+        %ptr_mstore02 = 42
+        mstore %ptr_mstore01, 10
+
+        # barrier created with overlap
+        mstore %ptr_mstore02, 11
+
+        mstore %ptr_mstore01, 10
+        stop
+    """
+
+    post = """
+    main:
+        %ptr_mstore01 = 10
+        %ptr_mstore02 = 42
+        mstore %ptr_mstore01, 10
+
+        # barrier created with overlap
+        mstore %ptr_mstore02, 11
+
+        nop
+        stop
     """
 
     _check_pre_post(pre, post)
