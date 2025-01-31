@@ -211,7 +211,7 @@ def test_store_load_no_overlap_different_store():
 
         # this should not create barrier
         sstore %ptr_mload, 11
-        %tmp02 = %tmp01
+        %tmp02 = %tmp01  ; mload optimized out
         return %tmp01, %tmp02
     """
 
@@ -244,7 +244,7 @@ def test_store_store_no_overlap():
 
         mstore %ptr_mstore02, 11
 
-        nop
+        nop  ; repeated mstore
         stop
     """
 
