@@ -9,7 +9,7 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral
 HAS_HEVM: bool = False
 
 
-def _prep_hevm(venom_source_code):
+def _prep_hevm_venom(venom_source_code):
     ctx = parse_from_basic_block(venom_source_code)
 
     num_calldataloads = 0
