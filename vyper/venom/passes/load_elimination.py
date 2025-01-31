@@ -83,9 +83,6 @@ class LoadElimination(IRPass):
 
             elif inst.opcode == load_opcode:
                 (ptr,) = inst.operands
-                known_ptr = self.get_literal(ptr)
-                if known_ptr is not None:
-                    ptr = known_ptr
 
                 existing_value = self._lattice.get(ptr)
 
