@@ -78,6 +78,9 @@ def test_common_subexpression_elimination_commutative():
 
 
 def test_common_subexpression_elimination_no_commutative():
+    """
+    Tests you cannot substitute cummutated non-cumutative operations
+    """
     pre = """
     main:
         %1 = param
@@ -90,12 +93,20 @@ def test_common_subexpression_elimination_no_commutative():
 
 
 def test_common_subexpression_elimination_effects_1():
+    """
+    Test that inner dependencies have correct barrier
+    """
     pre = """
     main:
         %par = param
         %mload1 = mload 0
+
+        ; barrier
         mstore 0, %par
         %mload2 = mload 0
+
+        ; adds cannot be substituted because the
+        ; mloads are separated with barrier
         %1 = add %mload1, 10
         %2 = add %mload2, 10
         return %1, %2
@@ -105,14 +116,24 @@ def test_common_subexpression_elimination_effects_1():
 
 
 def test_common_subexpression_elimination_effects_2():
+    """
+    Test that barrier does not affect inner dependencies
+    """
     pre = """
     main:
         %par = param
         %mload1 = mload 0
         %1 = add %mload1, 10
+
+        ; barrier
         mstore 0, %par
         %mload2 = mload 0
+
+        ; mload1 is still valid and same
         %2 = add %mload1, 10
+
+        ; this cannot be substituted since mload1
+        ; and mload2 are separated by barrier
         %3 = add %mload2, 10
         return %1, %2
     """
@@ -145,11 +166,15 @@ def test_common_subexpression_elimination_logs_no_indepontent():
 
 
 def test_common_subexpression_elimination_effects_3():
+    """
+    Test of memory effects that contains barrier that
+    prevents substitution
+    """
     pre = """
     main:
         %addr = 10
         mstore %addr, 0
-        mstore %addr, 2
+        mstore %addr, 2 ; barrier
         mstore %addr, 0
         stop
     """
@@ -158,6 +183,10 @@ def test_common_subexpression_elimination_effects_3():
 
 
 def test_common_subexpression_elimination_effect_mstore():
+    """
+    Test mload and mstore elimination if they are
+    same expression
+    """
     pre = """
     main:
         %1 = 10
