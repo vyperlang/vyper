@@ -9,7 +9,7 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral
 HAS_HEVM: bool = False
 
 
-def _prep_hevm(venom_source_code):
+def _prep_hevm_venom(venom_source_code):
     ctx = parse_from_basic_block(venom_source_code)
 
     num_calldataloads = 0
@@ -66,7 +66,8 @@ def hevm_check_venom(pre, post, verbose=False):
     hevm_check_bytecode(bytecode1, bytecode2, verbose=verbose)
 
 
-def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
+# use hevm to check equality between two bytecodes (hex)
+def hevm_check_bytecode(bytecode1, bytecode2, verbose=False, addl_args: list = None):
     # debug:
     if verbose:
         print("RUN HEVM:")
@@ -74,8 +75,16 @@ def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
         print(bytecode2)
 
     subp_args = ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
+    subp_args.extend(["--num-solvers", "1"])
+    if addl_args:
+        subp_args.extend([*addl_args])
 
+    res = subprocess.run(
+        subp_args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    assert not res.stderr, res.stderr  # hevm does not print to stdout
+    # TODO: get hevm team to provide a way to promote warnings to errors
+    assert "WARNING" not in res.stdout, res.stdout
+    assert "issues" not in res.stdout
     if verbose:
-        subprocess.check_call(subp_args)
-    else:
-        subprocess.check_output(subp_args)
+        print(res.stdout)
