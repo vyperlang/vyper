@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Callable, Optional
 
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
@@ -9,7 +9,7 @@ from eth_utils import to_checksum_address
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
-from vyper.compiler import InputBundle, Settings, compile_code
+from vyper.compiler import CompilerData, InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
 
 
@@ -68,7 +68,7 @@ class BaseEnv:
     def deploy_source(
         self,
         source_code: str,
-        output_formats: Iterable[str],
+        output_formats: dict[str, Callable[[CompilerData], str]],
         *args,
         compiler_settings: Settings = None,
         input_bundle: InputBundle = None,
@@ -218,7 +218,7 @@ class BaseEnv:
 
 def _compile(
     source_code: str,
-    output_formats: Iterable[str],
+    output_formats: dict[str, Callable[[CompilerData], str]],
     input_bundle: InputBundle = None,
     settings: Settings = None,
 ) -> tuple[list[dict], bytes]:
