@@ -13,7 +13,6 @@ def _prep_hevm_venom(venom_source_code):
     ctx = parse_from_basic_block(venom_source_code)
 
     num_calldataloads = 0
-    num_return_values = 0
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
