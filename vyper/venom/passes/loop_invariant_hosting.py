@@ -38,8 +38,9 @@ class LoopInvariantHoisting(IRPass):
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis) # type: ignore
         loops = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
+        assert isinstance(loops, NaturalLoopDetectionAnalysis)
         self.loops = loops.loops
         invalidate = False
         while True:
