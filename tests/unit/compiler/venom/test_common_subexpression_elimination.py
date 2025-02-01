@@ -29,7 +29,7 @@ def _check_no_change_fn(pre: str):
     _check_pre_post_fn(pre, pre)
 
 
-def test_common_subexpression_elimination():
+def test_cse():
     pre = """
     main:
         %1 = param
@@ -53,7 +53,7 @@ def test_common_subexpression_elimination():
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_commutative():
+def test_cse_commutative():
     pre = """
     main:
         %1 = param
@@ -77,7 +77,7 @@ def test_common_subexpression_elimination_commutative():
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_no_commutative():
+def test_cse_no_commutative():
     """
     Tests you cannot substitute cummutated non-cumutative operations
     """
@@ -92,7 +92,7 @@ def test_common_subexpression_elimination_no_commutative():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_effects_1():
+def test_cse_effects_1():
     """
     Test that inner dependencies have correct barrier
     """
@@ -115,7 +115,7 @@ def test_common_subexpression_elimination_effects_1():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_effects_2():
+def test_cse_effects_2():
     """
     Test that barrier does not affect inner dependencies
     """
@@ -153,7 +153,7 @@ def test_common_subexpression_elimination_effects_2():
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_logs_no_indepontent():
+def test_cse_logs_no_indepontent():
     pre = """
     main:
         %1 = 10
@@ -165,7 +165,7 @@ def test_common_subexpression_elimination_logs_no_indepontent():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_effects_3():
+def test_cse_effects_3():
     """
     Test of memory effects that contains barrier that
     prevents substitution
@@ -182,7 +182,7 @@ def test_common_subexpression_elimination_effects_3():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_effect_mstore():
+def test_cse_effect_mstore():
     """
     Test mload and mstore elimination if they are
     same expression
@@ -214,7 +214,7 @@ def test_common_subexpression_elimination_effect_mstore():
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_effect_mstore_with_msize():
+def test_cse_effect_mstore_with_msize():
     """
     Test that checks that msize is handled correctly
     """
@@ -235,7 +235,7 @@ def test_common_subexpression_elimination_effect_mstore_with_msize():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_different_branches_cannot_optimize():
+def test_cse_different_branches_cannot_optimize():
     """
     Test of inter basicblock analysis which would require
     more code movement to achive and would be incorrect
@@ -273,7 +273,7 @@ def test_common_subexpression_elimination_different_branches_cannot_optimize():
     _check_no_change_fn(pre)
 
 
-def test_common_subexpression_elimination_different_branches_can_optimize():
+def test_cse_different_branches_can_optimize():
     """
     Test of inter basicblock analysis
     """
@@ -333,7 +333,7 @@ def test_common_subexpression_elimination_different_branches_can_optimize():
     _check_pre_post_fn(pre, post)
 
 
-def test_commom_subexpression_elimination_non_indempotent():
+def test_cse_non_idempotent():
     """
     Test to check if the instruction that cannot be substituted
     are not substituted with pass and any instruction that would
@@ -372,7 +372,7 @@ def test_commom_subexpression_elimination_non_indempotent():
     _check_no_change(pre)
 
 
-def test_common_subexpression_elimination_loop():
+def test_cse_loop():
     """
     Test of inter basic block common subexpression
     elimination with loops
@@ -409,7 +409,7 @@ def test_common_subexpression_elimination_loop():
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_loop_cannot_substitute():
+def test_cse_loop_cannot_substitute():
     """
     Test of inter basic block common subexpression
     elimination with loops, which contains barrier
@@ -452,7 +452,7 @@ def test_common_subexpression_elimination_loop_cannot_substitute():
 
 
 @pytest.mark.parametrize("opcode", ("calldatasize", "gaslimit", "address", "codesize"))
-def test_common_subexpression_elimination_immutable_queries(opcode):
+def test_cse_immutable_queries(opcode):
     """
     Test that check that instruction that have always same
     output during the function execution are considered
@@ -483,7 +483,7 @@ def test_common_subexpression_elimination_immutable_queries(opcode):
 @pytest.mark.parametrize(
     "opcode", ("dloadbytes", "extcodecopy", "codecopy", "returndatacopy", "calldatacopy")
 )
-def test_common_subexpression_elimination_other_mem_ops_elimination(opcode):
+def test_cse_other_mem_ops_elimination(opcode):
     pre = f"""
     main:
         {opcode} 10, 20, 30
@@ -501,7 +501,7 @@ def test_common_subexpression_elimination_other_mem_ops_elimination(opcode):
     _check_pre_post(pre, post)
 
 
-def test_common_subexpression_elimination_self_conflicting_effects():
+def test_cse_self_conflicting_effects():
     """
     Test that expression that have conflict in their own effects
     cannot be substituted
