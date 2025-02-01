@@ -1,6 +1,6 @@
 import pytest
 
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.common_subexpression_elimination import CSE
 
@@ -13,20 +13,8 @@ def _check_pre_post(pre: str, post: str):
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
-def _check_pre_post_fn(pre: str, post: str):
-    ctx = parse_venom(pre)
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        CSE(ac, fn).run_pass()
-    assert_ctx_eq(ctx, parse_venom(post))
-
-
 def _check_no_change(pre: str):
     _check_pre_post(pre, pre)
-
-
-def _check_no_change_fn(pre: str):
-    _check_pre_post_fn(pre, pre)
 
 
 def test_cse():
@@ -250,7 +238,6 @@ def test_cse_different_branches_cannot_optimize():
         """
 
     pre = f"""
-    function main {{
     main:
         ; random condition
         %par = param
@@ -267,10 +254,9 @@ def test_cse_different_branches_cannot_optimize():
         ; so you cannot substitute
         {same(3)}
         return %m1, %m2, %m3
-    }}
     """
 
-    _check_no_change_fn(pre)
+    _check_no_change(pre)
 
 
 def test_cse_different_branches_can_optimize():
@@ -293,7 +279,6 @@ def test_cse_different_branches_can_optimize():
         """
 
     pre = f"""
-    function main {{
     main:
         ; random condition
         %par = param
@@ -308,11 +293,9 @@ def test_cse_different_branches_can_optimize():
     join:
         {same(3)}
         return %m0, %m1, %m2, %m3
-    }}
     """
 
     post = f"""
-    function main {{
     main:
         ; random condition
         %par = param
@@ -327,10 +310,9 @@ def test_cse_different_branches_can_optimize():
     join:
         {same_opt(3)}
         return %m0, %m1, %m2, %m3
-    }}
     """
 
-    _check_pre_post_fn(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_cse_non_idempotent():
