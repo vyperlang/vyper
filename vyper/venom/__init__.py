@@ -102,7 +102,7 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    # _run_global_passes(ctx, optimize, ir_analyses)
+    _run_global_passes(ctx, optimize, ir_analyses)
 
     ir_analyses = {}
     for fn in ctx.functions.values():

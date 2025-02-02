@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
-ENABLE_NEW_CALL_CONV = False
+ENABLE_NEW_CALL_CONV = True
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}

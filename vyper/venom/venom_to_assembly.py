@@ -164,15 +164,7 @@ class VenomCompiler:
 
                 assert fn.normalized, "Non-normalized CFG!"
 
-                stack = StackModel()
-                # stack.push(IRVariable("return_pc"))
-
-                param_insts = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
-                for inst in param_insts:
-                    stack.push(inst.output)
-                    fn.entry.remove_instruction(inst)
-
-                self._generate_evm_for_basicblock_r(asm, fn.entry, stack)
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
