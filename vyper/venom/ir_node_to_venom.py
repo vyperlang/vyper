@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
-ENABLE_NEW_CALL_CONV = False
+ENABLE_NEW_CALL_CONV = True
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -244,8 +244,8 @@ def _handle_internal_func(
             arg.func_var = ret
 
     # return address
-    symbols["return_pc"] = bb.append_instruction("param")
-    bb.instructions[-1].annotation = "return_pc"
+    fn.return_pc = IRVariable("__return_pc")
+    symbols["return_pc"] = fn.return_pc
 
     if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
@@ -469,7 +469,7 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         if label.value == "return_pc":
             label = symbols.get("return_pc")
-            bb.append_instruction("ret", label)
+            bb.append_instruction("ret")
         else:
             bb.append_instruction("jmp", label)
 
