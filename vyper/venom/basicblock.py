@@ -415,8 +415,8 @@ class IRInstruction:
         inst.parent = self.parent
         inst.liveness = self.liveness.copy()
         inst.annotation = self.annotation
-        inst.ast_source = inst.ast_source
-        inst.error_msg = inst.error_msg
+        inst.ast_source = self.ast_source
+        inst.error_msg = self.error_msg
         return inst
 
     def __repr__(self) -> str:
