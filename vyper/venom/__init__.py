@@ -26,6 +26,8 @@ from vyper.venom.passes import (
     StoreElimination,
     StoreExpansionPass,
 )
+
+from vyper.venom.passes.loop_invariant_hosting import LoopInvariantHoisting
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -85,6 +87,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
+    LoopInvariantHoisting(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
 
