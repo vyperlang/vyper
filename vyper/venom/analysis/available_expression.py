@@ -29,7 +29,7 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegateca
 IMMUTABLE_ENV_QUERIES = frozenset(["calldatasize", "gaslimit", "address", "codesize"])
 
 
-@dataclass
+@dataclass(frozen=True)
 class _Expression:
     inst: IRInstruction
     opcode: str
@@ -37,18 +37,6 @@ class _Expression:
     # there are possibilities for cycles
     operands: list["IROperand | _Expression"]
     ignore_msize: bool
-
-    def __init__(
-        self,
-        inst: IRInstruction,
-        opcode: str,
-        operands: list["IROperand | _Expression"],
-        ignore_msize: bool,
-    ):
-        self.inst = inst
-        self.opcode = opcode
-        self.operands = operands
-        self.ignore_msize = ignore_msize
 
     # equality for lattices only based on original instruction
     def __eq__(self, other) -> bool:
