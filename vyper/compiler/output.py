@@ -1,5 +1,4 @@
 import base64
-import warnings
 from collections import deque
 from pathlib import PurePath
 
@@ -16,8 +15,8 @@ from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
-from vyper.utils import safe_relpath, vyper_warn
-from vyper.warnings import ContractSizeLimitWarning
+from vyper.utils import safe_relpath
+from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
@@ -441,12 +440,12 @@ EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
     compiled_bytecode_runtime_length = len(compiler_data.bytecode_runtime)
     if compiled_bytecode_runtime_length > EIP170_CONTRACT_SIZE_LIMIT:
-        warnings.warn(
-            f"Length of compiled bytecode is bigger than Ethereum contract size limit "
-            "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
-            f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b",
-            ContractSizeLimitWarning,
-            stacklevel=2,
+        vyper_warn(
+            ContractSizeLimit(
+                f"Length of compiled bytecode is bigger than Ethereum contract size limit "
+                "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
+                f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b"
+            )
         )
     return f"0x{compiler_data.bytecode_runtime.hex()}"
 
