@@ -8,7 +8,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "sink"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -36,6 +36,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dload",
         "return",
         "ret",
+        "sink",
         "jmp",
         "jnz",
         "djmp",
@@ -64,6 +65,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "sink",
         "revert",
         "assert",
         "assert_unreachable",
@@ -78,6 +80,10 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "exit",
     ]
 )
+
+
+# instructions that should only be used for testing
+TEST_INSTRUCTIONS = ("sink",)
 
 assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
