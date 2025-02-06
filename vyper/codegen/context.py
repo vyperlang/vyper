@@ -35,6 +35,9 @@ class Alloca:
 
     _id: int
 
+    # special metadata for calloca. hint for venom to tie calloca to call site.
+    _callsite: Optional[str] = None
+
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
 
