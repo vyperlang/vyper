@@ -1291,6 +1291,8 @@ class ExtCall(ExprNode):
                 self.value,
                 hint="did you forget parentheses?",
             )
+        if hasattr(self.value.func, "attr") and self.value.func.attr == "__default__":
+            raise ValueError("function __default__ cannot be called")
 
 
 class StaticCall(ExprNode):
@@ -1303,6 +1305,8 @@ class StaticCall(ExprNode):
                 self.value,
                 hint="did you forget parentheses?",
             )
+        if hasattr(self.value.func, "attr") and self.value.func.attr == "__default__":
+            raise ValueError("function __default__ cannot be called")
 
 
 class keyword(VyperNode):
