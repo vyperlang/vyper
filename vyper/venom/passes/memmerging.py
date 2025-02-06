@@ -101,7 +101,6 @@ class MemMergePass(IRPass):
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
             self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
-            self._handle_bb(bb, "dload", "codecopy", allow_dst_overlaps_src=True)
             self._merge_mstore_dload(bb)
 
             if version_check(begin="cancun"):
