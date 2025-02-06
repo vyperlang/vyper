@@ -1073,15 +1073,16 @@ def test_merge_mstore_dload():
     pre = """
     _global:
         %par = param
-        %dload = dload %par
+        %d = dload %par
         mstore 1000, 123
-        mstore 1000, %dload
+        mstore 1000, %d
         stop
     """
 
     post = """
     _global:
         %par = param
+        nop
         mstore 1000, 123
         dloadbytes 1000, %par, 32
         stop
@@ -1098,9 +1099,9 @@ def test_merge_mstore_dload_disallowed():
     pre = """
     _global:
         %par = param
-        %dload = dload %par
-        mstore 1000, %dload
-        return %dload
+        %d = dload %par
+        mstore 1000, %d
+        return %d
     """
 
     _check_no_change(pre)
