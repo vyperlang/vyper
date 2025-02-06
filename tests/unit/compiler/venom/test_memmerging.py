@@ -1063,3 +1063,44 @@ def test_memzeroing_interleaved():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_merge_mstore_dload():
+    """
+    Test for merging the mstore/dload pairs which contains
+    variable which would normaly trigger barrier
+    """
+    pre = """
+    _global:
+        %par = param
+        %dload = dload %par
+        mstore 1000, 123
+        mstore 1000, %dload
+        stop
+    """
+
+    post = """
+    _global:
+        %par = param
+        mstore 1000, 123
+        dloadbytes 1000, %par, 32
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_merge_mstore_dload_disallowed():
+    """
+    Test for merging the mstore/dload pairs which contains
+    variable which would normaly trigger barrier
+    """
+    pre = """
+    _global:
+        %par = param
+        %dload = dload %par
+        mstore 1000, %dload
+        return %dload
+    """
+
+    _check_no_change(pre)
