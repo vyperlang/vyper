@@ -319,10 +319,10 @@ class IRInstruction:
         return [self.output] if self.output else []
 
     def make_nop(self):
-        self.annotation = str(self) # Keep original instruction as annotation for debugging
-        self.opcode = "nop" 
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
         self.output = None
-        self.operands = []        
+        self.operands = []
 
     def flip(self):
         """
