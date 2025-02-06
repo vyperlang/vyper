@@ -101,6 +101,8 @@ class MemMergePass(IRPass):
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
             self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
+            self._handle_bb(bb, "dload", "codecopy", allow_dst_overlaps_src=True)
+            self._merge_mstore_dload(bb)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -350,6 +352,32 @@ class MemMergePass(IRPass):
                 continue
 
         _barrier()
+        bb.clear_dead_instructions()
+
+    def _merge_mstore_dload(self, bb: IRBasicBlock):
+        for inst in bb.instructions:
+            if inst.opcode == "mstore":
+                var, dst_ptr = inst.operands
+                if not isinstance(var, IRVariable):
+                    continue
+                producer = self.dfg.get_producing_instruction(var)
+                if producer is None:
+                    continue
+                if producer.opcode != "dload":
+                    continue
+
+                assert producer.output is not None, "b"
+                uses = self.dfg.get_uses(producer.output)
+                if len(uses) != 1:
+                    continue
+
+                src_ptr = producer.operands[0]
+
+                inst.opcode = "dloadbytes"
+                inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
+
+                bb.mark_for_removal(producer)
+
         bb.clear_dead_instructions()
 
 

@@ -24,7 +24,11 @@ class BranchOptimizationPass(IRPass):
 
             cond = term_inst.operands[0]
             prev_inst = self.dfg.get_producing_instruction(cond)
-            if cost_a >= cost_b and prev_inst.opcode == "iszero":
+            if cost_a >= cost_b and prev_inst.opcode == "eq":
+                prev_inst.opcode = "xor"
+                new_cond = prev_inst.output
+                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+            elif cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
             elif cost_a > cost_b:
