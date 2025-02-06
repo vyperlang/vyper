@@ -279,7 +279,11 @@ class CSEAnalysis(IRAnalysis):
 
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
                 self.inst_to_available[inst] = available_expr.copy()
+
+            # REVIEW: rename to expr
             inst_expr = self._get_expression(inst, available_expr)
+            # REVIEW: maybe change from property to normal method (unless
+            # it is going to be cached_property)
             write_effects = inst_expr.get_writes
             available_expr.remove_effect(write_effects)
 
@@ -307,7 +311,7 @@ class CSEAnalysis(IRAnalysis):
             inst = self.dfg.get_producing_instruction(op)
             assert inst is not None
             # the phi condition is here because it is only way to
-            # create call loop
+            # create dataflow loop
             if inst.opcode == "phi":
                 return op
             if inst.opcode == "store":
