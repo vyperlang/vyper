@@ -366,7 +366,7 @@ class MemMergePass(IRPass):
                 if producer.opcode != "dload":
                     continue
 
-                assert producer.output is not None, "b"
+                assert producer.output is not None
                 uses = self.dfg.get_uses(producer.output)
                 if len(uses) != 1:
                     continue
