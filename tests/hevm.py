@@ -29,7 +29,7 @@ def _prep_hevm_venom(venom_source_code):
             term = bb.instructions[-1]
             # test convention, terminate by `return`ing the variables
             # you want to check
-            assert term.opcode == "return"
+            assert term.opcode == "sink"
             num_return_values = 0
             for op in term.operands:
                 ptr = IRLiteral(num_return_values * 32)
