@@ -250,7 +250,6 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
-        self.tmp_bb = None
         while True:
             change = False
             for bb in self.function.get_basic_blocks():
@@ -297,7 +296,7 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
+            if inst_expr.get_writes & inst_expr.get_reads == EMPTY:
                 available_expr.add(inst_expr)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
