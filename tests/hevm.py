@@ -38,6 +38,7 @@ def _prep_hevm_venom(venom_source_code):
                 num_return_values += 1
 
             # return 0, 32 * num_variables
+            term.opcode = "return"
             term.operands = [IRLiteral(num_return_values * 32), IRLiteral(0)]
 
         ac = IRAnalysesCache(fn)
