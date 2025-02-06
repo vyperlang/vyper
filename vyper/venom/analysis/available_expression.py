@@ -157,14 +157,7 @@ class _AvailableExpression:
         if not isinstance(other, _AvailableExpression):
             return False
 
-        if self.buckets.keys() != other.buckets.keys():
-            return False
-
-        for key in self.buckets.keys():
-            if self.buckets[key] != other.buckets[key]:
-                return False
-
-        return True
+        return self.buckets == other.buckets
 
     def __repr__(self) -> str:
         res = "available expr\n"
@@ -209,9 +202,9 @@ class _AvailableExpression:
 
     @staticmethod
     def intersection(*others: "_AvailableExpression | None"):
-        if len(others) == 0:
-            return _AvailableExpression()
         tmp = list(o for o in others if o is not None)
+        if len(tmp) == 0:
+            return _AvailableExpression()
         res = tmp[0].copy()
         for item in tmp[1:]:
             buckets = res.buckets.keys() & item.buckets.keys()
