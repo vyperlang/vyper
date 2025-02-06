@@ -318,6 +318,12 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
+    def make_nop(self):
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
+        self.output = None
+        self.operands = []
+
     def flip(self):
         """
         Flip operands for commutative or comparator opcodes
@@ -601,9 +607,7 @@ class IRBasicBlock:
                 inst.opcode = "store"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
-                inst.opcode = "nop"
-                inst.output = None
-                inst.operands = []
+                inst.make_nop()
 
         if needs_sort:
             self.instructions.sort(key=lambda inst: inst.opcode != "phi")
