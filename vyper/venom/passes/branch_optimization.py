@@ -3,6 +3,8 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
 
+# for these instruction exist optimization that
+# could benefit from iszero
 def iszero_can_help(inst: IRInstruction) -> bool:
     if inst.opcode == "eq":
         return True
