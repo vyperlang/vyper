@@ -1,10 +1,15 @@
+import pytest
+
+from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from vyper.evm.address_space import CALLDATA, DATA, MEMORY, STORAGE, TRANSIENT
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.passes.load_elimination import LoadElimination
-from vyper.venom.passes.store_elimination import StoreElimination
+from vyper.venom.passes import LoadElimination, StoreElimination
+
+pytestmark = pytest.mark.hevm
 
 
-def _check_pre_post(pre, post):
+def _check_pre_post(pre, post, hevm=True):
     ctx = parse_from_basic_block(pre)
 
     post_ctx = parse_from_basic_block(post)
@@ -27,56 +32,73 @@ def _check_pre_post(pre, post):
 
     assert_ctx_eq(ctx, post_ctx)
 
+    if hevm:
+        hevm_check_venom(pre, post)
+
 
 def _check_no_change(pre):
-    _check_pre_post(pre, pre)
+    _check_pre_post(pre, pre, hevm=False)
 
 
-def test_simple_load_elimination():
-    pre = """
+# fill memory with symbolic data for hevm
+def _fill_symbolic(addrspace):
+    if addrspace == MEMORY:
+        return "calldatacopy 0, 0, 256"
+
+    return ""
+
+
+ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT, CALLDATA, DATA)
+RW_ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT)
+
+
+@pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
+def test_simple_load_elimination(addrspace):
+    LOAD = addrspace.load_op
+    pre = f"""
     main:
         %ptr = 11
-        %1 = mload %ptr
+        %1 = {LOAD} %ptr
+        %2 = {LOAD} %ptr
 
-        %2 = mload %ptr
-
-        stop
+        sink %1, %2
     """
-    post = """
+    post = f"""
     main:
         %ptr = 11
-        %1 = mload %ptr
-
+        %1 = {LOAD} %ptr
         %2 = %1
 
-        stop
+        sink %1, %2
     """
     _check_pre_post(pre, post)
 
 
-def test_equivalent_var_elimination():
+@pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
+def test_equivalent_var_elimination(addrspace):
     """
     Test that the lattice can "peer through" equivalent vars
     """
-    pre = """
+    LOAD = addrspace.load_op
+    pre = f"""
     main:
         %1 = 11
         %2 = %1
-        %3 = mload %1
 
-        %4 = mload %2
+        %3 = {LOAD} %1
+        %4 = {LOAD} %2
 
-        stop
+        sink %3, %4
     """
-    post = """
+    post = f"""
     main:
         %1 = 11
         %2 = %1
-        %3 = mload %1
 
+        %3 = {LOAD} %1
         %4 = %3  # %2 == %1
 
-        stop
+        sink %3, %4
     """
     _check_pre_post(pre, post)
 
@@ -97,32 +119,35 @@ def test_elimination_barrier():
     _check_no_change(pre)
 
 
-def test_store_load_elimination():
+@pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
+def test_store_load_elimination(addrspace):
     """
-    Check that lattice stores the result of mstores (even through
+    Check that lattice stores the result of stores (even through
     equivalent variables)
     """
-    pre = """
+    LOAD = addrspace.load_op
+    STORE = addrspace.store_op
+    pre = f"""
     main:
         %val = 55
         %ptr1 = 11
         %ptr2 = %ptr1
-        mstore %ptr1, %val
+        {STORE} %ptr1, %val
 
-        %3 = mload %ptr2
+        %3 = {LOAD} %ptr2
 
-        stop
+        sink %3
     """
-    post = """
+    post = f"""
         main:
         %val = 55
         %ptr1 = 11
         %ptr2 = %ptr1
-        mstore %ptr1, %val
+        {STORE} %ptr1, %val
 
         %3 = %val
 
-        stop
+        sink %3
     """
     _check_pre_post(pre, post)
 
@@ -193,59 +218,78 @@ def test_store_load_no_overlap_different_store():
     by overlap of the mstore and mload
     """
 
-    pre = """
+    pre = f"""
     main:
+        {_fill_symbolic(MEMORY)}
+
         %ptr_mload = 10
+
         %tmp01 = mload %ptr_mload
 
         # this should not create barrier
         sstore %ptr_mload, 11
         %tmp02 = mload %ptr_mload
-        return %tmp01, %tmp02
+
+        sink %tmp01, %tmp02
     """
 
-    post = """
+    post = f"""
     main:
+        {_fill_symbolic(MEMORY)}
+
         %ptr_mload = 10
+
         %tmp01 = mload %ptr_mload
 
         # this should not create barrier
         sstore %ptr_mload, 11
         %tmp02 = %tmp01  ; mload optimized out
-        return %tmp01, %tmp02
+
+        sink %tmp01, %tmp02
     """
 
     _check_pre_post(pre, post)
 
 
-def test_store_store_no_overlap():
+@pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
+def test_store_store_no_overlap(addrspace):
     """
     Test that if the mstores do not overlap it can still
     eliminate any possible repeated mstores
     """
+    LOAD = addrspace.load_op
+    STORE = addrspace.store_op
 
-    pre = """
+    pre = f"""
     main:
+        {_fill_symbolic(addrspace)}
+
         %ptr_mstore01 = 10
         %ptr_mstore02 = 42
-        mstore %ptr_mstore01, 10
+        {STORE} %ptr_mstore01, 10
 
-        mstore %ptr_mstore02, 11
+        {STORE} %ptr_mstore02, 11
 
-        mstore %ptr_mstore01, 10
-        stop
+        {STORE} %ptr_mstore01, 10
+
+        %val1 = {LOAD} %ptr_mstore01
+        %val2 = {LOAD} %ptr_mstore02
+        sink %val1, %val2
     """
 
-    post = """
+    post = f"""
     main:
+        {_fill_symbolic(addrspace)}
+
         %ptr_mstore01 = 10
         %ptr_mstore02 = 42
-        mstore %ptr_mstore01, 10
+        {STORE} %ptr_mstore01, 10
 
-        mstore %ptr_mstore02, 11
+        {STORE} %ptr_mstore02, 11
 
-        nop  ; repeated mstore
-        stop
+        nop  ; repeated store
+
+        sink 10, 11
     """
 
     _check_pre_post(pre, post)

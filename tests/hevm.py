@@ -2,7 +2,7 @@ import subprocess
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import StoreExpansionPass, VenomCompiler
+from vyper.venom import LowerDloadPass, StoreExpansionPass, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 
@@ -29,20 +29,28 @@ def _prep_hevm_venom(venom_source_code):
             term = bb.instructions[-1]
             # test convention, terminate by `return`ing the variables
             # you want to check
-            assert term.opcode == "sink"
+            if term.opcode != "sink":
+                continue
+
+            # testing convention: first 256 bytes can be symbolically filled
+            # with calldata
+            RETURN_START = 256
+
             num_return_values = 0
             for op in term.operands:
-                ptr = IRLiteral(num_return_values * 32)
+                ptr = IRLiteral(RETURN_START + num_return_values * 32)
                 new_inst = IRInstruction("mstore", [op, ptr])
                 bb.insert_instruction(new_inst, index=-1)
                 num_return_values += 1
 
             # return 0, 32 * num_variables
             term.opcode = "return"
-            term.operands = [IRLiteral(num_return_values * 32), IRLiteral(0)]
+            term.operands = [IRLiteral(num_return_values * 32), IRLiteral(RETURN_START)]
 
         ac = IRAnalysesCache(fn)
-        # requirement for venom_to_assembly
+
+        # requirements for venom_to_assembly
+        LowerDloadPass(ac, fn).run_pass()
         StoreExpansionPass(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx])
