@@ -85,6 +85,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreElimination(ac, fn).run_pass()
