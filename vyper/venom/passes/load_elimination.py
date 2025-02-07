@@ -61,9 +61,7 @@ class LoadElimination(IRPass):
                     # we found a redundant store, eliminate it
                     existing_val = self._lattice.get(known_ptr)
                     if self.equivalent(val, existing_val):
-                        inst.opcode = "nop"
-                        inst.output = None
-                        inst.operands = []
+                        inst.make_nop()
                         continue
 
                     self._lattice[known_ptr] = val
