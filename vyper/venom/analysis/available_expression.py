@@ -78,6 +78,7 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
+    # REVIEW: dead?
     @property
     def get_reads_deep(self) -> Effects:
         tmp_reads = self.inst.get_read_effects()
@@ -95,6 +96,7 @@ class _Expression:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
+    # REVIEW: dead?
     @property
     def get_writes_deep(self) -> Effects:
         tmp_reads = self.inst.get_write_effects()
