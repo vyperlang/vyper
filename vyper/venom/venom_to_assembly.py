@@ -18,6 +18,7 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
+    TEST_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -565,6 +566,8 @@ class VenomCompiler:
         elif opcode == "nop":
             pass
         elif opcode in PSEUDO_INSTRUCTION:
+            raise CompilerPanic(f"Bad instruction: {opcode}")
+        elif opcode in TEST_INSTRUCTIONS:
             raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")
