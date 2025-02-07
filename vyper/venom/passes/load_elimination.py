@@ -29,6 +29,7 @@ class LoadElimination(IRPass):
             self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
             self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
             self._process_bb(bb, None, "dload", None)
+            self._process_bb(bb, None, "calldataload", None)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
