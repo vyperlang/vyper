@@ -504,9 +504,9 @@ def test_cse_self_conflicting_effects():
         stop
     """
 
-
     _check_no_change(pre1)
     _check_no_change(pre2)
+
 
 def test_cse_allowed_deep_self_conflict():
     pre = """
@@ -526,4 +526,3 @@ def test_cse_allowed_deep_self_conflict():
     """
 
     _check_pre_post(pre, post)
-
