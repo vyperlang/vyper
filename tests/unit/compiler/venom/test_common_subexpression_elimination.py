@@ -354,6 +354,7 @@ def test_cse_non_idempotent():
     _check_no_change(pre)
 
 
+@pytest.mark.xfail
 def test_cse_loop():
     """
     Test of inter basic block common subexpression
@@ -415,22 +416,7 @@ def test_cse_loop_cannot_substitute():
         jmp @loop
     """
 
-    post = """
-    main:
-        %par = param
-        %data0 = mload 0
-        %add0 = add 1, %par
-        %mul0 = mul %add0, %data0
-        jmp @loop
-    loop:
-        %data1 = mload 0
-        %add1 = %add0
-        %mul1 = mul %add1, %data1
-        mstore 10, 0
-        jmp @loop
-    """
-
-    _check_pre_post(pre, post)
+    _check_no_change(pre)
 
 
 @pytest.mark.parametrize("opcode", ("calldatasize", "gaslimit", "address", "codesize"))

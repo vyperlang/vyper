@@ -69,45 +69,22 @@ class _Expression:
         return res
 
     @cached_property
-    def get_depth(self) -> int:
+    def depth(self) -> int:
         max_depth = 0
         for op in self.operands:
             if isinstance(op, _Expression):
-                d = op.get_depth
+                d = op.depth
                 if d > max_depth:
                     max_depth = d
         return max_depth + 1
 
-    # REVIEW: dead?
-    @property
-    def get_reads_deep(self) -> Effects:
-        tmp_reads = self.inst.get_read_effects()
-        for op in self.operands:
-            if isinstance(op, _Expression):
-                tmp_reads = tmp_reads | op.get_reads
-        if self.ignore_msize:
-            tmp_reads &= ~Effects.MSIZE
-        return tmp_reads
 
-    @property
     def get_reads(self) -> Effects:
         tmp_reads = self.inst.get_read_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
-    # REVIEW: dead?
-    @property
-    def get_writes_deep(self) -> Effects:
-        tmp_reads = self.inst.get_write_effects()
-        for op in self.operands:
-            if isinstance(op, _Expression):
-                tmp_reads = tmp_reads | op.get_writes
-        if self.ignore_msize:
-            tmp_reads &= ~Effects.MSIZE
-        return tmp_reads
-
-    @property
     def get_writes(self) -> Effects:
         tmp_reads = self.inst.get_write_effects()
         if self.ignore_msize:
@@ -166,6 +143,19 @@ class _AvailableExpression:
         for key, val in self.buckets.items():
             res += f"\t{key}: {val}\n"
         return res
+
+    def diff(self, other: "_AvailableExpression"):
+        if self.buckets.keys() != other.buckets.keys():
+            print("-", set(set(self.buckets.keys()).difference(set(other.buckets.keys()))))
+            print("+", set(set(other.buckets.keys()).difference(set(self.buckets.keys()))))
+            return
+        for key in self.buckets.keys():
+            if self.buckets[key] != other.buckets[key]:
+                a = self.buckets[key]
+                b = other.buckets[key]
+                print("-", a.difference(b))
+                print("+", b.difference(a))
+
 
     def add(self, expr: _Expression):
         if expr.opcode not in self.buckets:
@@ -245,13 +235,13 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
-        while True:
-            change = False
-            for bb in self.function.get_basic_blocks():
-                change |= self._handle_bb(bb)
-
-            if not change:
-                break
+        from collections import deque
+        worklist = deque()
+        worklist.append(self.function.entry)
+        while len(worklist) > 0:
+            bb: IRBasicBlock = worklist.popleft()
+            if self._handle_bb(bb):
+                worklist.extend(bb.cfg_out)
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -266,7 +256,7 @@ class CSEAnalysis(IRAnalysis):
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
-            *(self.bb_outs.get(out_bb, None) for out_bb in bb.cfg_in)
+            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
         )
 
         if bb in self.bb_ins and self.bb_ins[bb] == available_expr:
@@ -282,11 +272,8 @@ class CSEAnalysis(IRAnalysis):
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
                 self.inst_to_available[inst] = available_expr.copy()
 
-            # REVIEW: rename to expr
-            inst_expr = self._get_expression(inst, available_expr)
-            # REVIEW: maybe change from property to normal method (unless
-            # it is going to be cached_property)
-            write_effects = inst_expr.get_writes
+            expr = self._get_expression(inst, available_expr)
+            write_effects = expr.get_writes()
             available_expr.remove_effect(write_effects)
 
             # nonidempotent instruction effect other instructions
@@ -295,8 +282,8 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            if inst_expr.get_writes & inst_expr.get_reads == EMPTY:
-                available_expr.add(inst_expr)
+            if expr.get_writes() & expr.get_reads() == EMPTY:
+                available_expr.add(expr)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
             self.bb_outs[bb] = available_expr

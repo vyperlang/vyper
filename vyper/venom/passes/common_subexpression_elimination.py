@@ -81,7 +81,7 @@ class CSE(IRPass):
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
                 if inst_expr.inst != inst and (
-                    inst_expr.get_depth > 1 or inst.parent == inst_expr.inst.parent
+                    inst_expr.depth > 1 or inst.parent == inst_expr.inst.parent
                 ):
                     res[inst] = inst_expr.inst
 
