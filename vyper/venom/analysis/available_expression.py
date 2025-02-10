@@ -78,7 +78,6 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
-
     def get_reads(self) -> Effects:
         tmp_reads = self.inst.get_read_effects()
         if self.ignore_msize:
@@ -143,19 +142,6 @@ class _AvailableExpression:
         for key, val in self.buckets.items():
             res += f"\t{key}: {val}\n"
         return res
-
-    def diff(self, other: "_AvailableExpression"):
-        if self.buckets.keys() != other.buckets.keys():
-            print("-", set(set(self.buckets.keys()).difference(set(other.buckets.keys()))))
-            print("+", set(set(other.buckets.keys()).difference(set(self.buckets.keys()))))
-            return
-        for key in self.buckets.keys():
-            if self.buckets[key] != other.buckets[key]:
-                a = self.buckets[key]
-                b = other.buckets[key]
-                print("-", a.difference(b))
-                print("+", b.difference(a))
-
 
     def add(self, expr: _Expression):
         if expr.opcode not in self.buckets:
@@ -236,6 +222,7 @@ class CSEAnalysis(IRAnalysis):
 
     def analyze(self):
         from collections import deque
+
         worklist = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
