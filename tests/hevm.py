@@ -27,7 +27,7 @@ def _prep_hevm_venom(venom_source_code):
                     num_calldataloads += 1
 
             term = bb.instructions[-1]
-            # test convention, terminate by `return`ing the variables
+            # test convention, terminate by `sink`ing the variables
             # you want to check
             if term.opcode != "sink":
                 continue
