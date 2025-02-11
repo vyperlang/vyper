@@ -117,7 +117,7 @@ class AlgebraicOptimizationPass(IRPass):
                     opcode = use_inst.opcode
 
                     if opcode == "iszero":
-                        # We keep iszero instuctions as is
+                        # We keep iszero instructions as is
                         continue
                     if opcode in ("jnz", "assert"):
                         # instructions that accept a truthy value as input:
