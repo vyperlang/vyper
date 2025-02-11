@@ -356,7 +356,7 @@ class VyperNode:
         """
         Property method providing a human-readable description of a node.
 
-        Node-specific description strings are added via the `_descrption` class
+        Node-specific description strings are added via the `_description` class
         attribute. If this attribute is not found, the name of the class is
         returned instead.
         """
