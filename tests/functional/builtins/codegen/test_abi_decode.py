@@ -1193,9 +1193,9 @@ def run(x: Bytes[{buffer_size}], y: uint256):
     c = get_contract(code)
 
     # head points over the buffer end
-    bufffer_payload = (0x0100, *_replicate(0x00, 7))
+    buffer_payload = (0x0100, *_replicate(0x00, 7))
 
-    data = _abi_payload_from_tuple(bufffer_payload, buffer_size)
+    data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
     with tx_failed():
         c.run(data, 1)
