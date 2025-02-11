@@ -104,7 +104,7 @@ def test_caller_approve_allowance(env, erc20, erc20_caller):
     assert erc20_caller.allowance(env.deployer, erc20_caller.address) == 10
 
 
-def test_caller_tranfer_from(env, erc20, erc20_caller, tx_failed):
+def test_caller_transfer_from(env, erc20, erc20_caller, tx_failed):
     # Cannot transfer tokens that are unavailable
     with tx_failed():
         erc20_caller.transferFrom(env.deployer, erc20_caller.address, 10)
