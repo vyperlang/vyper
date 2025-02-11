@@ -559,7 +559,7 @@ def bar():
 
 
 @pytest.mark.parametrize("iface", external_visibility_interface)
-def test_internal_implemenatation_of_external_interface(make_input_bundle, iface):
+def test_internal_implementation_of_external_interface(make_input_bundle, iface):
     input_bundle = make_input_bundle({"foo.vyi": iface})
 
     code = """
