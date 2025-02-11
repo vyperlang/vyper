@@ -45,14 +45,14 @@ def test_give_the_right_to_vote(env, c, tx_failed):
     c.giveRightToVote(a0)
     # Check chairperson has weight of 1
     assert c.voters(a0)[0] == 1  # Voter.weight
-    # Check voter_acount is 2
+    # Check voter_account is 2
     assert c.voterCount() == 2
     # Check several giving rights to vote
     c.giveRightToVote(a2)
     c.giveRightToVote(a3)
     c.giveRightToVote(a4)
     c.giveRightToVote(a5)
-    # Check voter_acount is now 6
+    # Check voter_account is now 6
     assert c.voterCount() == 6
     # Check chairperson cannot give the right to vote twice to the same voter
     with tx_failed():
