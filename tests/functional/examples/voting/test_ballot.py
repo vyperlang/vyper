@@ -20,7 +20,7 @@ def test_initial_state(env, c):
     a0 = env.accounts[0]
     # Check chairperson is msg.sender
     assert c.chairperson() == a0
-    # Check propsal names are correct
+    # Check proposal names are correct
     assert c.proposals(0)[0][:7] == b"Clinton"  # Proposal.name
     assert c.proposals(1)[0][:5] == b"Trump"  # Proposal.name
     # Check proposal voteCount is 0
