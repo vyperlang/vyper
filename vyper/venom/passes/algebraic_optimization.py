@@ -423,15 +423,18 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         after = uses.first()
-        if not after.opcode == "iszero":
+        if after.opcode not in ["iszero", "assert"]:
             return
 
-        # peer down the iszero chain to see if it makes sense
-        # to remove the iszero. (can we simplify this?)
-        n_uses = self.dfg.get_uses(after.output)
-        # "assert" inserts an iszero in assembly
-        if len(n_uses) != 1 or n_uses.first().opcode == "assert":
-            return
+        insert_iszero = after.opcode == "assert"
+
+        if not insert_iszero:
+            # peer down the iszero chain to see if it makes sense
+            # to remove the iszero. (can we simplify this?)
+            n_uses = self.dfg.get_uses(after.output)
+            # "assert" inserts an iszero in assembly
+            if len(n_uses) != 1 or n_uses.first().opcode == "assert":
+                return
 
         val = wrap256(operands[0].value, signed=signed)
         assert val != never, "unreachable"  # sanity
@@ -450,5 +453,11 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.updater._update(inst, new_opcode, [IRLiteral(val), operands[1]])
 
-        assert len(after.operands) == 1
-        self.updater._update(after, "store", after.operands)
+        if insert_iszero:
+            assert inst.output is not None, inst
+            assert len(after.operands) == 1, after
+            var = self.updater._add_before(after, "iszero", [inst.output])
+            self.updater._update_operands(after, {after.operands[0]: var})
+        else:
+            assert len(after.operands) == 1, after
+            self.updater._update(after, "store", after.operands)
