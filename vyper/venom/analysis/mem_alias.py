@@ -11,8 +11,8 @@ class MemoryLocation:
     """Represents a memory location that can be analyzed for aliasing"""
 
     base: IROperand  # Base address
-    offset: Optional[int] = None  # Known constant offset if any
-    size: Optional[int] = None  # Known constant size if any
+    offset: int = 0
+    size: int = 0
     is_alloca: bool = False
 
 
@@ -43,8 +43,8 @@ class MemoryAliasAnalysis(IRAnalysis):
         # Handle alloca instructions
         if inst.opcode == "alloca":
             assert inst.output is not None  # hint
-            size = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else None
-            offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else None
+            size = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else 0
+            offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else 0
             loc = MemoryLocation(base=inst.output, offset=offset, size=size, is_alloca=True)
             self.alias_sets[loc] = OrderedSet([loc])
             return
@@ -67,25 +67,23 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Extract memory location info from an instruction"""
         if inst.opcode == "mstore":
             addr = inst.operands[1]
-            offset = addr.value if isinstance(addr, IRLiteral) else None
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
             size = 32
             return MemoryLocation(addr, offset, size)
         elif inst.opcode == "mload":
             addr = inst.operands[0]
-            offset = addr.value if isinstance(addr, IRLiteral) else None
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
             size = 32
             return MemoryLocation(addr, offset, size)
         elif inst.opcode == "mcopy":
             dst = inst.operands[0]
-            size = inst.operands[2].value if isinstance(inst.operands[2], IRLiteral) else None
-            return MemoryLocation(dst, None, size)
+            size = inst.operands[2].value if isinstance(inst.operands[2], IRLiteral) else 0
+            return MemoryLocation(dst, 0, size)
         return None
 
     def _may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """Determine if two memory locations may alias"""
-        # If we have constant offsets, check for overlap
-        if loc1.offset is not None and loc2.offset is not None:
-            # Check if ranges overlap
+        if loc1.size > 0 and loc2.size > 0:
             start1, end1 = loc1.offset, loc1.offset + loc1.size
             start2, end2 = loc2.offset, loc2.offset + loc2.size
 
