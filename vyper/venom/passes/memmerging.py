@@ -155,7 +155,7 @@ class MemMergePass(IRPass):
                     if not all(use in copy.insts for use in uses):
                         continue
 
-                bb.mark_for_removal(inst)
+                inst.make_nop()
 
         self._copies.clear()
         self._loads.clear()
@@ -285,7 +285,6 @@ class MemMergePass(IRPass):
                 _barrier()
 
         _barrier()
-        bb.clear_dead_instructions()
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
@@ -304,7 +303,7 @@ class MemMergePass(IRPass):
                 inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
 
             for inst in copy.insts[:-1]:
-                bb.mark_for_removal(inst)
+                inst.make_nop()
 
         self._copies.clear()
         self._loads.clear()
@@ -350,7 +349,6 @@ class MemMergePass(IRPass):
                 continue
 
         _barrier()
-        bb.clear_dead_instructions()
 
 
 def _volatile_memory(inst):
