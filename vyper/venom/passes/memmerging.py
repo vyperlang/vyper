@@ -101,6 +101,7 @@ class MemMergePass(IRPass):
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
             self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
+            self._merge_mstore_dload(bb)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -351,6 +352,34 @@ class MemMergePass(IRPass):
 
         _barrier()
         bb.clear_dead_instructions()
+
+    # This pass is necessary for trivial cases of
+    # mstore/dload pair merging that contains
+    # the varibles which is not allowed in more
+    # general passes
+    def _merge_mstore_dload(self, bb: IRBasicBlock):
+        for inst in bb.instructions:
+            if inst.opcode == "mstore":
+                var, dst_ptr = inst.operands
+                if not isinstance(var, IRVariable):
+                    continue
+                producer = self.dfg.get_producing_instruction(var)
+                if producer is None:
+                    continue
+                if producer.opcode != "dload":
+                    continue
+
+                assert producer.output is not None
+                uses = self.dfg.get_uses(producer.output)
+                if len(uses) != 1:
+                    continue
+
+                src_ptr = producer.operands[0]
+
+                inst.opcode = "dloadbytes"
+                inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
+
+                producer.make_nop()
 
 
 def _volatile_memory(inst):
