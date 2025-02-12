@@ -50,46 +50,55 @@ class LoadElimination(IRPass):
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
-                # mstore [val, ptr]
-                val, ptr = inst.operands
-
-                known_ptr: Optional[IRLiteral] = self.get_literal(ptr)
-                if known_ptr is None:
-                    # flush the lattice
-                    self._lattice = {ptr: val}
-                else:
-                    # we found a redundant store, eliminate it
-                    existing_val = self._lattice.get(known_ptr)
-                    if self.equivalent(val, existing_val):
-                        inst.make_nop()
-                        continue
-
-                    self._lattice[known_ptr] = val
-
-                    # kick out any conflicts
-                    for existing_key in self._lattice.copy().keys():
-                        if not isinstance(existing_key, IRLiteral):
-                            # flush the whole thing
-                            self._lattice = {known_ptr: val}
-                            break
-
-                        if _conflict(store_opcode, known_ptr, existing_key):
-                            del self._lattice[existing_key]
-                            self._lattice[known_ptr] = val
+                self._handle_store(inst, store_opcode)
 
             elif eff is not None and eff in inst.get_write_effects():
                 self._lattice = {}
 
             elif inst.opcode == load_opcode:
-                (ptr,) = inst.operands
+                self._handle_load(inst)
 
-                existing_value = self._lattice.get(ptr)
+    def _handle_load(self, inst):
+        (ptr,) = inst.operands
 
-                assert inst.output is not None  # help mypy
+        existing_value = self._lattice.get(ptr)
 
-                # "cache" the value for future load instructions
-                self._lattice[ptr] = inst.output
+        assert inst.output is not None  # help mypy
 
-                if existing_value is not None:
-                    inst.opcode = "store"
-                    inst.operands = [existing_value]
+        # "cache" the value for future load instructions
+        self._lattice[ptr] = inst.output
+
+        if existing_value is not None:
+            inst.opcode = "store"
+            inst.operands = [existing_value]
+
+    def _handle_store(self, inst, store_opcode):
+        # mstore [val, ptr]
+        val, ptr = inst.operands
+
+        known_ptr: Optional[IRLiteral] = self.get_literal(ptr)
+        if known_ptr is None:
+            # it's a variable. assign this ptr in the lattice and flush
+            # everything else.
+            self._lattice = {ptr: val}
+            return
+
+        # we found a redundant store, eliminate it
+        existing_val = self._lattice.get(known_ptr)
+        if self.equivalent(val, existing_val):
+            inst.make_nop()
+            return
+
+        self._lattice[known_ptr] = val
+
+        # kick out any conflicts
+        for existing_key in self._lattice.copy().keys():
+            if not isinstance(existing_key, IRLiteral):
+                # a variable in the lattice. assign this ptr in the lattice
+                # and flush everything else.
+                self._lattice = {known_ptr: val}
+                break
+
+            if _conflict(store_opcode, known_ptr, existing_key):
+                del self._lattice[existing_key]
+                self._lattice[known_ptr] = val
