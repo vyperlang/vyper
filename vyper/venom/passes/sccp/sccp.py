@@ -61,11 +61,12 @@ class SCCP(IRPass):
         super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
-        self.cfg_dirty = False
 
     def run_pass(self):
         self.fn = self.function
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
