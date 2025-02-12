@@ -543,6 +543,10 @@ class IRBasicBlock:
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
+    def clear_nops(self) -> None:
+        if any(inst.opcode == "nop" for inst in self.instructions):
+            self.instructions = [inst for inst in self.instructions if inst.opcode != "nop"]
+
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
