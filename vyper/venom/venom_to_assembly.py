@@ -17,6 +17,7 @@ from vyper.venom.analysis import (
     VarEquivalenceAnalysis,
 )
 from vyper.venom.basicblock import (
+    TEST_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -564,6 +565,8 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
+        elif opcode in TEST_INSTRUCTIONS:
+            raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
