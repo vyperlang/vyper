@@ -1,5 +1,6 @@
 import json
 import re
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -98,6 +99,7 @@ COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
+ir_printer = ContextVar("ir_printer", default=None)
 
 def flip_comparison_opcode(opcode):
     if opcode in ("gt", "sgt"):
@@ -396,6 +398,18 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
+    def str_short(self) -> str:
+        s = ""
+        if self.output:
+            s += f"{self.output} = "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands = list(reversed(operands))
+        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        return s
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
@@ -407,7 +421,6 @@ class IRInstruction:
             operands = [operands[0]] + list(reversed(operands[1:]))
         elif self.opcode not in ("jmp", "jnz", "phi"):
             operands = reversed(operands)  # type: ignore
-
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
@@ -674,12 +687,27 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
-        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        for instruction in self.instructions:
-            s += f"  {str(instruction).strip()}\n"
-        if len(self.instructions) > 30:
-            s += f"  ; {self.label}\n"
-        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
-            s += f"  ; ({self.parent.name})\n\n"
+        printer = ir_printer.get()
+
+        s = (
+            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
+        )
+        if printer and hasattr(printer, "_pre_block"):
+            s += printer._pre_block(self)
+        for inst in self.instructions:
+            if printer and hasattr(printer, "_pre_instruction"):
+                s += printer._pre_instruction(inst)
+            s += f"    {str(inst).strip()}"
+            if printer and hasattr(printer, "_post_instruction"):
+                s += printer._post_instruction(inst)
+            s += "\n"
         return s
+
+
+class IRPrinter:
+    def _pre_instruction(self, inst: IRInstruction) -> str:
+        return ""
+
+    def _post_instruction(self, inst: IRInstruction) -> str:
+        return ""
