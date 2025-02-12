@@ -101,6 +101,7 @@ if TYPE_CHECKING:
 
 ir_printer = ContextVar("ir_printer", default=None)
 
+
 def flip_comparison_opcode(opcode):
     if opcode in ("gt", "sgt"):
         return opcode.replace("g", "l")

@@ -15,7 +15,7 @@ class MemoryAccess:
     @property
     def is_live_on_entry(self) -> bool:
         return self.version == 0
-    
+
     @property
     def version_str(self) -> str:
         if self.is_live_on_entry:
