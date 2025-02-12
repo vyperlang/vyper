@@ -1,5 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
+from .common_subexpression_elimination import CSE
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
 from .literals_codesize import ReduceLiteralsCodesize
