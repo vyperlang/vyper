@@ -469,8 +469,6 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
         self.is_reachable = False
 
-        self._garbage_instructions: set[IRInstruction] = set()
-
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
 
@@ -544,16 +542,6 @@ class IRBasicBlock:
         instruction.ast_source = self.parent.ast_source
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
-
-    def mark_for_removal(self, instruction: IRInstruction) -> None:
-        self._garbage_instructions.add(instruction)
-
-    def clear_dead_instructions(self) -> None:
-        if len(self._garbage_instructions) > 0:
-            self.instructions = [
-                inst for inst in self.instructions if inst not in self._garbage_instructions
-            ]
-            self._garbage_instructions.clear()
 
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
