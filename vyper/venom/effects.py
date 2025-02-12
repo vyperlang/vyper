@@ -36,6 +36,7 @@ _writes = {
     "tstore": TRANSIENT,
     "mstore": MEMORY,
     "istore": IMMUTABLES,
+    "itouch": MSIZE,
     "call": ALL ^ IMMUTABLES,
     "delegatecall": ALL ^ IMMUTABLES,
     "staticcall": MEMORY | RETURNDATA,
@@ -84,11 +85,11 @@ reads = _reads.copy()
 writes = _writes.copy()
 
 for k, v in reads.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         if k not in writes:
             writes[k] = EMPTY
         writes[k] |= MSIZE
 
 for k, v in writes.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         writes[k] |= MSIZE
