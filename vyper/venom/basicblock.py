@@ -690,7 +690,7 @@ class IRBasicBlock:
         printer = ir_printer.get()
 
         s = (
-            f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
+            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
             f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         )
         if printer and hasattr(printer, "_pre_block"):
