@@ -300,8 +300,7 @@ class SCCP(IRPass):
 
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
-                    inst.opcode = "nop"
-                    inst.operands = []
+                    inst.make_nop()
                 else:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",

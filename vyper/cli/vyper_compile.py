@@ -17,7 +17,7 @@ from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Se
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
 
-format_options_help = """Format to print, one or more of:
+format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
