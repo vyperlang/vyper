@@ -23,6 +23,7 @@ from vyper.venom.passes import (
     Mem2Var,
     MemMergePass,
     ReduceLiteralsCodesize,
+    MemSSA,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     StoreElimination,
