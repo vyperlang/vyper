@@ -5,7 +5,7 @@ from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import IRPass,InstUpdater
 
 
 @dataclass
@@ -96,6 +96,7 @@ class MemMergePass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb_memzero(bb)
@@ -106,7 +107,6 @@ class MemMergePass(IRPass):
                 # mcopy is available
                 self._handle_bb(bb, "mload", "mcopy")
 
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
@@ -155,7 +155,7 @@ class MemMergePass(IRPass):
                     if not all(use in copy.insts for use in uses):
                         continue
 
-                inst.make_nop()
+                self.updater.nop(inst)
 
         self._copies.clear()
         self._loads.clear()
@@ -303,7 +303,7 @@ class MemMergePass(IRPass):
                 inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
 
             for inst in copy.insts[:-1]:
-                inst.make_nop()
+                self.updater.nop(inst)
 
         self._copies.clear()
         self._loads.clear()

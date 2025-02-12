@@ -1,5 +1,6 @@
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
+from vyper.venom.analysis.dfg import InstUpdater
 from vyper.venom.function import IRFunction
 
 
@@ -10,6 +11,7 @@ class IRPass:
 
     function: IRFunction
     analyses_cache: IRAnalysesCache
+    updater: InstUpdater  # optional, does not need to be instantiated
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         self.function = function
