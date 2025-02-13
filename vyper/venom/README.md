@@ -38,7 +38,7 @@ function global {
     selector_bucket_0:
         %3 = xor %2, 1579456981
         %4 = iszero %3
-        jnz @1, @2, %4
+        jnz %4, @1, @2
 
     1:
         jmp @fallback
@@ -55,8 +55,6 @@ function global {
     fallback:
         revert 0, 0
 }
-
-[data]
 ```
 
 ### Grammar
