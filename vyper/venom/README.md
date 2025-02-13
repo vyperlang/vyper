@@ -233,7 +233,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
      `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
-    out = phi %var_a, label_a, %var_b, label_b
+    out = phi label_a, %var_a, label_b, %var_b
     ```
   - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
   - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
