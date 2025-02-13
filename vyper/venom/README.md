@@ -38,16 +38,16 @@ function global {
     selector_bucket_0:
         %3 = xor %2, 1579456981
         %4 = iszero %3
-        jnz %4, @1, @2
+        jnz %4, @true, @false
 
-    1:
+    false:
         jmp @fallback
 
-    2:
+    true:
         %5 = callvalue
         %6 = calldatasize
-        %7 = lt %6, 164
-        %8 = or %5, %7
+        %7 = lt 164, %6
+        %8 = or %7, %5
         %9 = iszero %8
         assert %9
         stop
