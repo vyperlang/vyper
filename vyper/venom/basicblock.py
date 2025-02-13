@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "sink"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -35,6 +36,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dload",
         "return",
         "ret",
+        "sink",
         "jmp",
         "jnz",
         "djmp",
@@ -63,6 +65,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "sink",
         "revert",
         "assert",
         "assert_unreachable",
@@ -78,6 +81,10 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     ]
 )
 
+
+# instructions that should only be used for testing
+TEST_INSTRUCTIONS = ("sink",)
+
 assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
@@ -90,6 +97,15 @@ COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
+
+
+def flip_comparison_opcode(opcode):
+    if opcode in ("gt", "sgt"):
+        return opcode.replace("g", "l")
+    elif opcode in ("lt", "slt"):
+        return opcode.replace("l", "g")
+
+    raise CompilerPanic(f"unreachable {opcode}")  # pragma: nocover
 
 
 class IRDebugInfo:
@@ -308,6 +324,12 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
+    def make_nop(self):
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
+        self.output = None
+        self.operands = []
+
     def flip(self):
         """
         Flip operands for commutative or comparator opcodes
@@ -318,10 +340,8 @@ class IRInstruction:
         if self.is_commutative:
             return
 
-        if self.opcode in ("gt", "sgt"):
-            self.opcode = self.opcode.replace("g", "l")
-        else:
-            self.opcode = self.opcode.replace("l", "g")
+        assert self.opcode in COMPARATOR_INSTRUCTIONS  # sanity
+        self.opcode = flip_comparison_opcode(self.opcode)
 
     def replace_operands(self, replacements: dict) -> None:
         """
@@ -593,9 +613,7 @@ class IRBasicBlock:
                 inst.opcode = "store"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
-                inst.opcode = "nop"
-                inst.output = None
-                inst.operands = []
+                inst.make_nop()
 
         if needs_sort:
             self.instructions.sort(key=lambda inst: inst.opcode != "phi")
