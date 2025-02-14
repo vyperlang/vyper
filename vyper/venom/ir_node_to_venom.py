@@ -194,7 +194,10 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if ENABLE_NEW_CALL_CONV:
         callsite_args = _callsites[callsite]
         stack_args = []
-        for ptr in callsite_args:
+        for alloca in callsite_args:
+            if not alloca.typ._is_prim_word:
+                continue
+            ptr = _alloca_table[alloca._id]
             stack_arg = bb.append_instruction("mload", ptr)
             stack_args.append(stack_arg)
         ret_args.extend(stack_args)
@@ -629,8 +632,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]
-            if alloca.typ._is_prim_word:
-                _callsites[alloca._callsite].append(ptr)
+            _callsites[alloca._callsite].append(alloca)
             return ret
 
         return symbols.get(ir.value)
