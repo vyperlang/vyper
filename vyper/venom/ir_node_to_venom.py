@@ -256,7 +256,6 @@ def _handle_internal_func(
         for arg in fn.args:
             var = IRVariable(arg.name)
             bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
-            bb.append_instruction("mstore", arg.func_var, var)  # type: ignore
             arg.addr_var = var
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
