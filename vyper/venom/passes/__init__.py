@@ -9,8 +9,8 @@ from .load_elimination import LoadElimination
 from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
-from .memmerging import MemMergePass
 from .mem_ssa import MemSSA
+from .memmerging import MemMergePass
 from .normalization import NormalizationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP
