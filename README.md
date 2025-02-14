@@ -50,8 +50,12 @@ be a bit behind the latest version found in the master branch of this repository
 
 ```bash
 make dev-init
-python setup.py test
+./quicktest.sh -m "not fuzzing"
 ```
+
+## Testing (with hevm)
+
+Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `./quicktest.sh -m "hevm" --hevm`.
 
 ## Developing (working on the compiler)
 
@@ -67,7 +71,9 @@ To run a python performance profile (to find compiler perf hotspots):
 PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
-To get a call graph from a python profile, https://stackoverflow.com/a/23164271/ is helpful.
+To get a call graph from a python profile, pip install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
+
+The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
 
 
 # Contributing

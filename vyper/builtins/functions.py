@@ -781,7 +781,7 @@ class ECRecover(BuiltinFunctionT):
                 ["mstore", add_ofst(input_buf, 32), args[1]],
                 ["mstore", add_ofst(input_buf, 64), args[2]],
                 ["mstore", add_ofst(input_buf, 96), args[3]],
-                ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
+                ["assert", ["staticcall", "gas", 1, input_buf, 128, output_buf, 32]],
                 ["mload", output_buf],
             ],
             typ=AddressT(),
