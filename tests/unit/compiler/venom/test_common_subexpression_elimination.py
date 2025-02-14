@@ -1,12 +1,12 @@
 import pytest
 
+from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.common_subexpression_elimination import CSE
-from tests.hevm import hevm_check_venom
-
 
 pytestmark = pytest.mark.hevm
+
 
 def _check_pre_post(pre: str, post: str, hevm: bool = True):
     ctx = parse_from_basic_block(pre)
@@ -324,7 +324,7 @@ def test_cse_different_branches_can_optimize():
 
 
 def test_cse_invoke_idempotent():
-    pre = f"""
+    pre = """
     main:
         ; invoke
         %invoke0 = invoke @f
@@ -335,6 +335,7 @@ def test_cse_invoke_idempotent():
     """
 
     _check_no_change(pre, hevm=False)
+
 
 def test_cse_non_idempotent():
     """
