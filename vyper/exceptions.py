@@ -412,7 +412,7 @@ class CodegenPanic(VyperInternalException):
 
 
 class StackTooDeep(CodegenPanic):
-    """Stack too deep"""  # (should not happen)
+    """Stack too deep"""  # (should _never_ happen; if this happens we're on the wrong path)
 
 
 class UnexpectedNodeType(VyperInternalException):
