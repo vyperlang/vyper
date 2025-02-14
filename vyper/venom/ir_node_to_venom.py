@@ -491,6 +491,7 @@ def _convert_ir_bb(fn, ir, symbols):
                     return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
 
             if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
+                raise Exception("unreachable")
                 symbol = symbols.get(ptr.annotation, None)
                 if symbol is not None:
                     return fn.get_basic_block().append_instruction("store", symbol)
@@ -627,10 +628,19 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$calloca"):
             alloca = ir.passthrough_metadata["alloca"]
+            if alloca.typ.is_prim_word:
+                ptr = IRVariable("poison")
+            else:
+                ptr = IRLiteral(alloca.offset)  # bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+            return ptr
+
             if alloca._id not in _alloca_table:
                 assert alloca._callsite is not None
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+                if alloca.typ.is_prim_word:
+                    ptr = IRVariable("poison")
+                else:
+                    ptr = IRLiteral(alloca.offset)  # bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
 
