@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 import re
 from typing import Optional
@@ -112,6 +113,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, Optional[IROperand]]
 _alloca_table: SymbolTable = None  # type: ignore
+_callsites: dict[str, list[IROperand]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -119,8 +121,9 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table
+    global _alloca_table, _callsites
     _alloca_table = {}
+    _callsites = defaultdict(list)
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -172,38 +175,29 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     stack_args: list[IROperand] = []
 
-    if ENABLE_NEW_CALL_CONV:
-        if setup_ir != goto_ir:
-            for arg in args_ir:
-                if not arg.typ._is_prim_word:
-                    _convert_ir_bb(fn, setup_ir, symbols)
-                    continue
-
-                if arg.is_pointer:
-                    a = _convert_ir_bb(fn, LOAD(arg), symbols)
-                else:
-                    a = _convert_ir_bb(fn, arg, symbols)
-
-                bb = fn.get_basic_block()
-                sarg = fn.get_next_variable()
-                assert a is not None, f"a is None: {a}"
-                bb.append_instruction("store", a, ret=sarg)
-                stack_args.append(sarg)
-    else:
-        if setup_ir != goto_ir:
-            _convert_ir_bb(fn, setup_ir, symbols)
+    if setup_ir != goto_ir:
+        _convert_ir_bb(fn, setup_ir, symbols)
 
     # [return_pc], or, [return_buf, return_pc]
     converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
 
+    callsite_op = converted_args[-1]
+    assert isinstance(callsite_op, IRLabel), converted_args
+    callsite = callsite_op.value
+
     bb = fn.get_basic_block()
+    return_buf = None
     if len(converted_args) > 1:
         return_buf = converted_args[0]
         ret_args.append(return_buf)  # type: ignore
 
     if ENABLE_NEW_CALL_CONV:
-        for stack_arg in stack_args:
-            ret_args.append(stack_arg)
+        callsite_args = _callsites[callsite]
+        stack_args = []
+        for ptr in callsite_args:
+            stack_arg = bb.append_instruction("mload", ptr)
+            stack_args.append(stack_arg)
+        ret_args.extend(stack_args)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -487,6 +481,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if ENABLE_NEW_CALL_CONV:
             if isinstance(ptr, IRVariable):
+                # TODO: is this bad code?
                 param = fn.get_param_by_name(ptr)
                 if param is not None:
                     return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
@@ -628,12 +623,15 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$calloca"):
             alloca = ir.passthrough_metadata["alloca"]
+            assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
-                assert alloca._callsite is not None
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+                ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 _alloca_table[alloca._id] = ptr
-            return _alloca_table[alloca._id]
+            ret = _alloca_table[alloca._id]
+            if alloca.typ._is_prim_word:
+                _callsites[alloca._callsite].append(ptr)
+            return ret
 
         return symbols.get(ir.value)
     elif ir.is_literal:
