@@ -113,6 +113,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, Optional[IROperand]]
 _alloca_table: SymbolTable = None  # type: ignore
+# assumption: callsites (return pc labels) are globally unique.
 _callsites: dict[str, list[IROperand]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
@@ -632,6 +633,8 @@ def _convert_ir_bb(fn, ir, symbols):
                 ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]
+            # assumption: callocas appear in the same order as the
+            # order of arguments to the function.
             _callsites[alloca._callsite].append(alloca)
             return ret
 
