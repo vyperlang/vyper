@@ -193,10 +193,12 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if setup_ir != goto_ir:
             _convert_ir_bb(fn, setup_ir, symbols)
 
-    return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
+    # [return_pc], or, [return_buf, return_pc]
+    converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
 
     bb = fn.get_basic_block()
-    if len(goto_ir.args) > 2:
+    if len(converted_args) > 1:
+        return_buf = converted_args[0]
         ret_args.append(return_buf)  # type: ignore
 
     if ENABLE_NEW_CALL_CONV:
