@@ -49,7 +49,7 @@ VENOM_GRAMMAR = """
 
     CONST: SIGNED_INT
     OPCODE: CNAME
-    VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
+    VAR_IDENT: "%" (DIGIT|LETTER|"_"|":"|"%"|"@")+
 
     # handy for identifier to be an escaped string sometimes
     # (especially for machine-generated labels)
@@ -124,6 +124,8 @@ class VenomTransformer(Transformer):
         funcs = children
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
+            if ctx.entry_function is None:
+                ctx.entry_function = fn
             fn._basic_block_dict.clear()
 
             for block_name, instructions in blocks:

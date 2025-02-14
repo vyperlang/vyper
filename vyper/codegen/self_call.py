@@ -132,4 +132,6 @@ def ir_for_self_call(stmt_expr, context):
     )
     o.is_self_call = True
     o.invoked_function_ir = func_t._ir_info.func_ir
+    o.passthrough_metadata["func_t"] = func_t
+    o.passthrough_metadata["args_ir"] = args_ir
     return o

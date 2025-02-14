@@ -2,6 +2,7 @@ import functools
 import re
 from typing import Optional
 
+from vyper.codegen.core import LOAD
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.venom.basicblock import (
@@ -13,7 +14,9 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import IRFunction, IRParameter
+
+ENABLE_NEW_CALL_CONV = True
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -63,7 +66,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "mload",
+        # "mload",
         "iload",
         "istore",
         "dload",
@@ -121,6 +124,7 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
+    ctx.entry_function = fn
 
     _convert_ir_bb(fn, ir, {})
 
@@ -160,15 +164,44 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     target_label = goto_ir.args[0].value  # goto
     return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    func_t = ir.passthrough_metadata["func_t"]
+    args_ir = ir.passthrough_metadata["args_ir"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
 
-    if setup_ir != goto_ir:
-        _convert_ir_bb(fn, setup_ir, symbols)
+    # fn.ctx.create_function(target_label)
+
+    stack_args: list[IROperand] = []
+
+    if ENABLE_NEW_CALL_CONV:
+        if setup_ir != goto_ir:
+            for arg in args_ir:
+                if not arg.typ._is_prim_word:
+                    _convert_ir_bb(fn, setup_ir, symbols)
+                    continue
+
+                if arg.is_pointer:
+                    a = _convert_ir_bb(fn, LOAD(arg), symbols)
+                else:
+                    a = _convert_ir_bb(fn, arg, symbols)
+
+                bb = fn.get_basic_block()
+                sarg = fn.get_next_variable()
+                assert a is not None, f"a is None: {a}"
+                bb.append_instruction("store", a, ret=sarg)
+                stack_args.append(sarg)
+    else:
+        if setup_ir != goto_ir:
+            _convert_ir_bb(fn, setup_ir, symbols)
 
     return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
 
     bb = fn.get_basic_block()
     if len(goto_ir.args) > 2:
         ret_args.append(return_buf)  # type: ignore
+
+    if ENABLE_NEW_CALL_CONV:
+        for stack_arg in stack_args:
+            ret_args.append(stack_arg)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -180,7 +213,24 @@ def _handle_internal_func(
 ) -> IRFunction:
     global _alloca_table
 
+    func_t = ir.passthrough_metadata["func_t"]
+    context = ir.passthrough_metadata["context"]
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
+
+    if ENABLE_NEW_CALL_CONV:
+        index = 0
+        if func_t.return_type is not None:
+            index += 1
+        for arg in func_t.arguments:
+            var = context.lookup_var(arg.name)
+            if not var.typ._is_prim_word:
+                continue
+            venom_arg = IRParameter(
+                var.name, index, var.alloca.offset, var.alloca.size, None, None, None
+            )
+            fn.args.append(venom_arg)
+            index += 1
+
     bb = fn.get_basic_block()
 
     _saved_alloca_table = _alloca_table
@@ -191,13 +241,34 @@ def _handle_internal_func(
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
+    if ENABLE_NEW_CALL_CONV:
+        for arg in fn.args:
+            ret = bb.append_instruction("param")
+            bb.instructions[-1].annotation = arg.name
+            symbols[arg.name] = ret
+            arg.func_var = ret
+
     # return address
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
+    if ENABLE_NEW_CALL_CONV:
+        for arg in fn.args:
+            var = IRVariable(arg.name)
+            bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
+            bb.append_instruction("mstore", arg.func_var, var)  # type: ignore
+            arg.addr_var = var
+
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
     _alloca_table = _saved_alloca_table
+    # if ENABLE_NEW_CALL_CONV:
+    #     for inst in bb.instructions:
+    #         if inst.opcode == "store":
+    #             param = fn.get_param_at_offset(inst.operands[0].value)
+    #             if param is not None:
+    #                 inst.operands[0] = param.addr_var  # type: ignore
+
     return fn
 
 
@@ -413,8 +484,29 @@ def _convert_ir_bb(fn, ir, symbols):
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
-        return fn.get_basic_block().append_instruction("mstore", val, ptr)
+        if ENABLE_NEW_CALL_CONV:
+            if isinstance(ptr, IRVariable):
+                param = fn.get_param_by_name(ptr)
+                if param is not None:
+                    return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
 
+            if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
+                symbol = symbols.get(ptr.annotation, None)
+                if symbol is not None:
+                    return fn.get_basic_block().append_instruction("store", symbol)
+
+        return fn.get_basic_block().append_instruction("mstore", val, ptr)
+    elif ir.value == "mload":
+        arg = ir.args[0]
+        ptr = _convert_ir_bb(fn, arg, symbols)
+
+        if ENABLE_NEW_CALL_CONV:
+            if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
+                symbol = symbols.get(arg.annotation, None)
+                if symbol is not None:
+                    return fn.get_basic_block().append_instruction("store", symbol)
+
+        return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
@@ -524,6 +616,8 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
+            if ENABLE_NEW_CALL_CONV and fn.get_param_at_offset(alloca.offset) is not None:
+                return fn.get_param_at_offset(alloca.offset).addr_var
             if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id

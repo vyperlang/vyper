@@ -1,8 +1,20 @@
 import textwrap
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+
+
+@dataclass
+class IRParameter:
+    name: str
+    index: int
+    offset: int
+    size: int
+    call_site_var: Optional[IRVariable]
+    func_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]
 
 
 class IRFunction:
@@ -42,12 +54,15 @@ class IRFunction:
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        assert bb.label.name not in self._basic_block_dict, bb.label
+        # assert bb.label.name not in self._basic_block_dict, bb.label
         self._basic_block_dict[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):
         assert isinstance(bb, IRBasicBlock), bb
         del self._basic_block_dict[bb.label.name]
+
+    def has_basic_block(self, label: str) -> bool:
+        return label in self._basic_block_dict
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -71,6 +86,10 @@ class IRFunction:
     @property
     def num_basic_blocks(self) -> int:
         return len(self._basic_block_dict)
+
+    @property
+    def code_size_cost(self) -> int:
+        return sum(bb.code_size_cost for bb in self.get_basic_blocks())
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
@@ -149,6 +168,20 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
+    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+        for param in self.args:
+            if param.offset == offset:
+                return param
+        return None
+
+    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
+        if isinstance(var, str):
+            var = IRVariable(var)
+        for param in self.args:
+            if f"%{param.name}" == var.name:
+                return param
+        return None
+
     @property
     def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
@@ -179,10 +212,12 @@ class IRFunction:
             else:
                 bb.append_instruction("stop")
 
-    def copy(self):
-        new = IRFunction(self.name)
-        new._basic_block_dict = self._basic_block_dict.copy()
-        new.last_variable = self.last_variable
+    def copy(self, prefix: str = ""):
+        new_label = IRLabel(f"{prefix}{self.name.value}")
+        new = IRFunction(new_label)
+        for bb in self.get_basic_blocks():
+            new_bb = bb.copy(prefix)
+            new.append_basic_block(new_bb)
         return new
 
     def as_graph(self, only_subgraph=False) -> str:

@@ -1,6 +1,16 @@
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
+
+
+# for these instruction exist optimization that
+# could benefit from iszero
+def iszero_can_help(inst: IRInstruction) -> bool:
+    if inst.opcode == "eq":
+        return True
+    if inst.opcode in ["gt", "lt"]:
+        return any(isinstance(op, IRLiteral) for op in inst.operands)
+    return False
 
 
 class BranchOptimizationPass(IRPass):
@@ -26,6 +36,11 @@ class BranchOptimizationPass(IRPass):
             prev_inst = self.dfg.get_producing_instruction(cond)
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
+                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+            elif cost_a >= cost_b and iszero_can_help(prev_inst):
+                new_cond = fn.get_next_variable()
+                inst = IRInstruction("iszero", [term_inst.operands[0]], output=new_cond)
+                bb.insert_instruction(inst, index=-1)
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
             elif cost_a > cost_b:
                 new_cond = fn.get_next_variable()
