@@ -24,7 +24,7 @@ class IRFunction:
 
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
-    args: list[IRParameter]
+    args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 

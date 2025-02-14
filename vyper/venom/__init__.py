@@ -123,7 +123,6 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
-    print(ctx)
 
     run_passes_on(ctx, optimize)
 
