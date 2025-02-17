@@ -207,7 +207,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     callsite_args = _callsites[callsite]
     stack_args = []
     for alloca in callsite_args:
-        if not alloca.typ._is_prim_word:
+        if not _is_word_type(alloca.typ):
             continue
         ptr = _alloca_table[alloca._id]
         stack_arg = bb.append_instruction("mload", ptr)
@@ -227,10 +227,14 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 _current_func_t = None
 _current_context = None
 
+def _is_word_type(typ):
+    # return typ._is_prim_word
+    return typ.memory_bytes_required == 32
 
 # func_t: ContractFunctionT
 def _returns_word(func_t) -> bool:
-    return func_t.return_type is not None and func_t.return_type._is_prim_word
+    return_t = func_t.return_type
+    return return_t is not None and _is_word_type(return_t)
 
 
 def _handle_internal_func(
@@ -255,7 +259,7 @@ def _handle_internal_func(
             index += 1
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
-            if not var.typ._is_prim_word:
+            if not _is_word_type(var.typ):
                 continue
             venom_arg = IRParameter(
                 var.name, index, var.alloca.offset, var.alloca.size, None, None, None
@@ -520,10 +524,7 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            if (
-                _current_func_t.return_type is not None
-                and _current_func_t.return_type._is_prim_word
-            ):
+            if _returns_word(_current_func_t):
                 buf = symbols["return_buffer"]
                 val = bb.append_instruction("mload", buf)
                 bb.append_instruction("ret", val, label)
