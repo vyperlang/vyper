@@ -210,8 +210,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     if invoke_returns:
         ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
-        bb.append_instruction("mstore", ret_value, 0)
-        return IRLiteral(0)
+        bb.append_instruction("mstore", ret_value, return_buf)
+        return return_buf
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
