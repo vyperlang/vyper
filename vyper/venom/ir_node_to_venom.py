@@ -255,7 +255,7 @@ def _handle_internal_func(
 
     if ENABLE_NEW_CALL_CONV:
         index = 0
-        if func_t.return_type is not None:
+        if func_t.return_type is not None and not _returns_word(func_t):
             index += 1
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
