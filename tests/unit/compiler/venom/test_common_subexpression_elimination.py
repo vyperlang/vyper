@@ -249,7 +249,7 @@ def test_cse_different_branches_cannot_optimize():
     main:
         ; random condition
         %par = param
-        jnz @br1, @br2, %par
+        jnz %par, @br1, @br2
     br1:
         {same(1)}
         jmp @join

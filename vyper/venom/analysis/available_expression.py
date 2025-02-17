@@ -308,7 +308,7 @@ class CSEAnalysis(IRAnalysis):
     ) -> IROperand | _Expression:
         if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
-            assert inst is not None
+            assert inst is not None, op
             # the phi condition is here because it is only way to
             # create dataflow loop
             if inst.opcode == "phi":
