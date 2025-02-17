@@ -28,6 +28,29 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegateca
 # the same value in function
 IMMUTABLE_ENV_QUERIES = frozenset(["calldatasize", "gaslimit", "address", "codesize"])
 
+# instruction that dont need to be stored in available expression
+UNINTERESTING_OPCODES = frozenset(
+    [
+        "store",
+        "phi",
+        "param",
+        "nop",
+        "returndatasize",
+        "gas",
+        "gasprice",
+        "origin",
+        "coinbase",
+        "timestamp",
+        "number",
+        "prevrandao",
+        "chainid",
+        "basefee",
+        "blobbasefee",
+        "pc",
+        "msize",
+    ]
+)
+
 
 @dataclass(frozen=True)
 class _Expression:
@@ -253,7 +276,7 @@ class CSEAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode in ("store", "phi") or inst.opcode in BB_TERMINATORS:
+            if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
                 continue
 
             if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
