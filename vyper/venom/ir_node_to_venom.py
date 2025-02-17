@@ -264,7 +264,10 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if returns_word:
-            symbols["return_buffer"] = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1))
+            # this alloca should be stripped by mem2var. we can remove
+            # the hardcoded offset once we have proper memory allocator
+            # functionality in venom.
+            symbols["return_buffer"] = bb.append_instruction("alloca", IRLiteral("poison"), IRLiteral("poison"), IRLiteral("poison"))
         else:
             symbols["return_buffer"] = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
