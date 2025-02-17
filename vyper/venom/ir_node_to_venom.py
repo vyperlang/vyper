@@ -194,8 +194,10 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     bb = fn.get_basic_block()
     return_buf = None
 
-    if len(converted_args) > 1 and not invoke_returns:
+    if len(converted_args) > 1:
         return_buf = converted_args[0]
+
+    if not invoke_returns:
         ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
