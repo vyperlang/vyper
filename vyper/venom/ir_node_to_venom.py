@@ -1,6 +1,6 @@
-from collections import defaultdict
 import functools
 import re
+from collections import defaultdict
 from typing import Optional
 
 from vyper.codegen.core import LOAD
@@ -219,8 +219,10 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     return return_buf
 
+
 _current_func_t = None
 _current_context = None
+
 
 # func_t: ContractFunctionT
 def _returns_word(func_t) -> bool:
@@ -229,7 +231,10 @@ def _returns_word(func_t) -> bool:
 
 def _handle_internal_func(
     # TODO: remove does_return_data, replace with `func_t.return_type is not None`
-    fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
+    fn: IRFunction,
+    ir: IRnode,
+    does_return_data: bool,
+    symbols: SymbolTable,
 ) -> IRFunction:
     global _alloca_table, _current_func_t, _current_context
 
@@ -267,7 +272,9 @@ def _handle_internal_func(
             # this alloca should be stripped by mem2var. we can remove
             # the hardcoded offset once we have proper memory allocator
             # functionality in venom.
-            symbols["return_buffer"] = bb.append_instruction("alloca", IRLiteral("poison"), IRLiteral("poison"), IRLiteral("poison"))
+            symbols["return_buffer"] = bb.append_instruction(
+                "alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1)
+            )
         else:
             symbols["return_buffer"] = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
@@ -509,7 +516,10 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            if _current_func_t.return_type is not None and _current_func_t.return_type._is_prim_word:
+            if (
+                _current_func_t.return_type is not None
+                and _current_func_t.return_type._is_prim_word
+            ):
                 buf = symbols["return_buffer"]
                 val = bb.append_instruction("mload", buf)
                 bb.append_instruction("ret", val, label)
