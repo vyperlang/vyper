@@ -174,12 +174,17 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     # fn.ctx.create_function(target_label)
 
+    invoke_returns = func_t.return_type is not None and func_t.return_type._is_prim_word
+
     stack_args: list[IROperand] = []
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
     # [return_pc], or, [return_buf, return_pc]
+    # if invoke_returns:
+    #     converted_args = _convert_ir_bb_list(fn, goto_ir.args[2:], symbols)
+    # else:
     converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
 
     callsite_op = converted_args[-1]
@@ -188,20 +193,25 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     bb = fn.get_basic_block()
     return_buf = None
-    if len(converted_args) > 1:
+
+    if len(converted_args) > 1 and not invoke_returns:
         return_buf = converted_args[0]
         ret_args.append(return_buf)  # type: ignore
 
-    if ENABLE_NEW_CALL_CONV:
-        callsite_args = _callsites[callsite]
-        stack_args = []
-        for alloca in callsite_args:
-            if not alloca.typ._is_prim_word:
-                continue
-            ptr = _alloca_table[alloca._id]
-            stack_arg = bb.append_instruction("mload", ptr)
-            stack_args.append(stack_arg)
-        ret_args.extend(stack_args)
+    callsite_args = _callsites[callsite]
+    stack_args = []
+    for alloca in callsite_args:
+        if not alloca.typ._is_prim_word:
+            continue
+        ptr = _alloca_table[alloca._id]
+        stack_arg = bb.append_instruction("mload", ptr)
+        stack_args.append(stack_arg)
+    ret_args.extend(stack_args)
+
+    if invoke_returns:
+        ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
+        bb.append_instruction("mstore", ret_value, 0)
+        return IRLiteral(0)
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
