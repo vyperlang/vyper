@@ -197,7 +197,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    if not returns_word:
+    if return_buf is not None and not returns_word:
         ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
