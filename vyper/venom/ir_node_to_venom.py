@@ -134,6 +134,10 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     ctx.chain_basic_blocks()
 
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            bb.ensure_well_formed()
+
     return ctx
 
 

@@ -606,6 +606,23 @@ class IRBasicBlock:
         assert instruction in self.instructions, "instruction must be in basic block"
         self.instructions = self.instructions[: self.instructions.index(instruction) - 1]
 
+    def ensure_well_formed(self):
+        for inst in self.instructions:
+            if inst.opcode == "revert":
+                self.remove_instructions_after(inst)
+                self.append_instruction("stop")  # TODO: make revert a bb terminator?
+                break
+        # TODO: remove once clear_dead_instructions is removed
+        self.clear_dead_instructions()
+
+        def key(inst):
+            if inst.opcode in ("phi", "param"):
+                return 0
+            if inst.is_bb_terminator:
+                return 2
+            return 1
+        self.instructions.sort(key=key)
+
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
