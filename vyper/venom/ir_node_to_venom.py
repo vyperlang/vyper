@@ -174,7 +174,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     # fn.ctx.create_function(target_label)
 
-    invoke_returns = func_t.return_type is not None and func_t.return_type._is_prim_word
+    returns_word = _returns_word(func_t)
 
     stack_args: list[IROperand] = []
 
@@ -182,7 +182,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         _convert_ir_bb(fn, setup_ir, symbols)
 
     # [return_pc], or, [return_buf, return_pc]
-    # if invoke_returns:
+    # if returns_word:
     #     converted_args = _convert_ir_bb_list(fn, goto_ir.args[2:], symbols)
     # else:
     converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
@@ -197,7 +197,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    if not invoke_returns:
+    if not returns_word:
         ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
@@ -210,7 +210,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         stack_args.append(stack_arg)
     ret_args.extend(stack_args)
 
-    if invoke_returns:
+    if returns_word:
         ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
         bb.append_instruction("mstore", ret_value, return_buf)
         return return_buf
@@ -219,14 +219,25 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     return return_buf
 
+_current_func_t = None
+_current_context = None
+
+# func_t: ContractFunctionT
+def _returns_word(func_t) -> bool:
+    return func_t.return_type is not None and func_t.return_type._is_prim_word
+
 
 def _handle_internal_func(
+    # TODO: remove does_return_data, replace with `func_t.return_type is not None`
     fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
 ) -> IRFunction:
-    global _alloca_table
+    global _alloca_table, _current_func_t, _current_context
 
-    func_t = ir.passthrough_metadata["func_t"]
-    context = ir.passthrough_metadata["context"]
+    _current_func_t = ir.passthrough_metadata["func_t"]
+    _current_context = ir.passthrough_metadata["context"]
+    func_t = _current_func_t
+    context = _current_context
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     if ENABLE_NEW_CALL_CONV:
@@ -248,10 +259,15 @@ def _handle_internal_func(
     _saved_alloca_table = _alloca_table
     _alloca_table = {}
 
+    returns_word = _returns_word(func_t)
+
     # return buffer
     if does_return_data:
-        symbols["return_buffer"] = bb.append_instruction("param")
-        bb.instructions[-1].annotation = "return_buffer"
+        if returns_word:
+            symbols["return_buffer"] = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1))
+        else:
+            symbols["return_buffer"] = bb.append_instruction("param")
+            bb.instructions[-1].annotation = "return_buffer"
 
     if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
@@ -474,6 +490,9 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
+        # TODO: cleanup
+        global _current_func_t
+
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
         _append_return_args(fn, *var_list)
@@ -486,7 +505,13 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         if label.value == "return_pc":
             label = symbols.get("return_pc")
-            bb.append_instruction("ret", label)
+            # return label should be top of stack
+            if _current_func_t.return_type is not None and _current_func_t.return_type._is_prim_word:
+                buf = symbols["return_buffer"]
+                val = bb.append_instruction("mload", buf)
+                bb.append_instruction("ret", val, label)
+            else:
+                bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
 
