@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from vyper.cli.vyper_json import compile_json
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
@@ -13,7 +14,7 @@ a: uint256
 b: uint256"""
 
     storage_layout_overrides = {
-        "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+        "a": {"type": "uint256", "slot": 5, "n_slots": 1},
         "b": {"type": "uint256", "slot": 0, "n_slots": 1},
     }
 
@@ -24,6 +25,31 @@ b: uint256"""
     )
 
     assert out["layout"] == expected_output
+
+
+def test_storage_layout_overrides_json():
+    code = """
+a: uint256
+b: uint256"""
+
+    storage_layout_overrides = {
+        "a": {"type": "uint256", "slot": 5, "n_slots": 1},
+        "b": {"type": "uint256", "slot": 0, "n_slots": 1},
+    }
+
+    input_json = {
+        "language": "Vyper",
+        "sources": {"contracts/foo.vy": {"content": code}},
+        "storage_layout_overrides": {"contracts/foo.vy": storage_layout_overrides},
+        "settings": {"outputSelection": {"*": ["*"]}},
+    }
+
+    out = compile_code(
+        code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
+    )
+    assert (
+        compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == out["layout"]
+    )
 
 
 def test_storage_layout_for_more_complex():
