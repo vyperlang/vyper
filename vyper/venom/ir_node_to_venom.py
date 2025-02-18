@@ -176,8 +176,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     args_ir = ir.passthrough_metadata["args_ir"]
     assert func_t is not None, "func_t not found in passthrough metadata"
 
-    # fn.ctx.create_function(target_label)
-
     returns_word = _returns_word(func_t)
 
     stack_args: list[IROperand] = []
@@ -185,10 +183,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
-    # [return_pc], or, [return_buf, return_pc]
-    # if returns_word:
-    #     converted_args = _convert_ir_bb_list(fn, goto_ir.args[2:], symbols)
-    # else:
     converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
 
     callsite_op = converted_args[-1]
