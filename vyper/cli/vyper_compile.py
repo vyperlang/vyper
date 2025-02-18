@@ -235,6 +235,9 @@ def _parse_args(argv):
     if args.enable_decimals:
         settings.enable_decimals = args.enable_decimals
 
+    if args.warnings_control:
+        settings.warnings_control = args.warnings_control
+
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
 
