@@ -194,26 +194,28 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    if return_buf is not None and not returns_word:
-        ret_args.append(return_buf)  # type: ignore
+    if return_buf is not None:
+        if not ENABLE_NEW_CALL_CONV or not returns_word:
+            ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
     stack_args = []
-    for alloca in callsite_args:
-        if not _is_word_type(alloca.typ):
-            continue
-        ptr = _alloca_table[alloca._id]
-        stack_arg = bb.append_instruction("mload", ptr)
-        assert stack_arg is not None
-        stack_args.append(stack_arg)
-    ret_args.extend(stack_args)
+    if ENABLE_NEW_CALL_CONV:
+        for alloca in callsite_args:
+            if not _is_word_type(alloca.typ):
+                continue
+            ptr = _alloca_table[alloca._id]
+            stack_arg = bb.append_instruction("mload", ptr)
+            assert stack_arg is not None
+            stack_args.append(stack_arg)
+        ret_args.extend(stack_args)
 
-    if returns_word:
-        ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
-        assert ret_value is not None
-        assert isinstance(return_buf, IROperand)
-        bb.append_instruction("mstore", ret_value, return_buf)
-        return return_buf
+        if returns_word:
+            ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
+            assert ret_value is not None
+            assert isinstance(return_buf, IROperand)
+            bb.append_instruction("mstore", ret_value, return_buf)
+            return return_buf
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -274,7 +276,7 @@ def _handle_internal_func(
 
     # return buffer
     if does_return_data:
-        if returns_word:
+        if ENABLE_NEW_CALL_CONV and returns_word:
             # this alloca should be stripped by mem2var. we can remove
             # the hardcoded offset once we have proper memory allocator
             # functionality in venom.
@@ -689,7 +691,7 @@ def _convert_ir_bb(fn, ir, symbols):
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
-                if _is_word_type(alloca.typ):
+                if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 else:
                     ptr = IRLiteral(alloca.offset)
