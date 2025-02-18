@@ -204,7 +204,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if not _is_word_type(alloca.typ):
             continue
         ptr = _alloca_table[alloca._id]
-        stack_arg = bb.append_instruction("mload", IROperand(ptr))
+        stack_arg = bb.append_instruction("mload", ptr)
         assert stack_arg is not None
         stack_args.append(stack_arg)
     ret_args.extend(stack_args)
