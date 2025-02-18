@@ -149,7 +149,9 @@ class FuncInlinerPass(IRGlobalPass):
                 elif inst.opcode == "ret":
                     if len(inst.operands) > 1:
                         ret_value = inst.operands[0]
-                        bb.insert_instruction(IRInstruction("store", [ret_value], call_site.output), -1)
+                        bb.insert_instruction(
+                            IRInstruction("store", [ret_value], call_site.output), -1
+                        )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
                 elif inst.opcode in ["jmp", "jnz", "djmp", "phi"]:

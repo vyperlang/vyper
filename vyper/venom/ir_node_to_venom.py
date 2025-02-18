@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 from typing import Optional
 
-from vyper.codegen.core import LOAD
+from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.venom.basicblock import (
@@ -111,10 +111,10 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
-SymbolTable = dict[str, Optional[IROperand]]
-_alloca_table: SymbolTable = None  # type: ignore
+SymbolTable = dict[str, IROperand]
+_alloca_table: dict[int, IROperand]
 # assumption: callsites (return pc labels) are globally unique.
-_callsites: dict[str, list[IROperand]]
+_callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -167,13 +167,12 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
 
 
 def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
+    global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
-    return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
     func_t = ir.passthrough_metadata["func_t"]
-    args_ir = ir.passthrough_metadata["args_ir"]
     assert func_t is not None, "func_t not found in passthrough metadata"
 
     returns_word = _returns_word(func_t)
@@ -224,9 +223,11 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 _current_func_t = None
 _current_context = None
 
+
 def _is_word_type(typ):
     # return typ._is_prim_word
     return typ.memory_bytes_required == 32
+
 
 # func_t: ContractFunctionT
 def _returns_word(func_t) -> bool:
@@ -277,22 +278,27 @@ def _handle_internal_func(
             # this alloca should be stripped by mem2var. we can remove
             # the hardcoded offset once we have proper memory allocator
             # functionality in venom.
-            symbols["return_buffer"] = bb.append_instruction(
-                "alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1)
-            )
+            buf = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1))
         else:
-            symbols["return_buffer"] = bb.append_instruction("param")
+            buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
+
+        assert buf is not None  # help mypy
+        symbols["return_buffer"] = buf
 
     if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
             ret = bb.append_instruction("param")
             bb.instructions[-1].annotation = arg.name
+            assert ret is not None  # help mypy
             symbols[arg.name] = ret
             arg.func_var = ret
 
     # return address
-    symbols["return_pc"] = bb.append_instruction("param")
+    return_pc = bb.append_instruction("param")
+    assert return_pc is not None  # help mypy
+    symbols["return_pc"] = return_pc
+
     bb.instructions[-1].annotation = "return_pc"
 
     if ENABLE_NEW_CALL_CONV:
@@ -678,6 +684,7 @@ def _convert_ir_bb(fn, ir, symbols):
             return _alloca_table[alloca._id]
 
         elif ir.value.startswith("$calloca"):
+            global _callsites
             alloca = ir.passthrough_metadata["alloca"]
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:

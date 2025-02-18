@@ -622,6 +622,7 @@ class IRBasicBlock:
             if inst.is_bb_terminator:
                 return 2
             return 1
+
         self.instructions.sort(key=key)
 
     @property
