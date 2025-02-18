@@ -37,22 +37,16 @@ def test_warnings(make_file):
     """
     # test code which emits warnings
     code = """
-@external
-def foo():
-    breakpoint()
+x: public(uint256[2**64])
     """
     path = make_file("foo.vy", code)
     path_str = str(path)
 
-    # (1)
-    # test promote warnings to error
-    # doesn't work if it runs after (2)!
-    with pytest.raises(VyperWarning) as e:
-        _parse_args([path_str, "-Werror"])
-
-    # (2)
     with warnings.catch_warnings(record=True) as w:
         _parse_args([str(path)])
+
+    with pytest.raises(VyperWarning) as e:
+        _parse_args([path_str, "-Werror"])
 
     assert len(w) == 1
     warning_message = w[0].message.message
