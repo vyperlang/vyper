@@ -529,7 +529,7 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            if _returns_word(_current_func_t):
+            if _returns_word(_current_func_t) and ENABLE_NEW_CALL_CONV:
                 buf = symbols["return_buffer"]
                 val = bb.append_instruction("mload", buf)
                 bb.append_instruction("ret", val, label)
