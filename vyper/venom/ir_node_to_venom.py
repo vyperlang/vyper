@@ -166,7 +166,7 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
     bb.append_instruction("store", size, ret=ret_size)
 
 
-def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IRVariable]:
+def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -210,12 +210,15 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if not _is_word_type(alloca.typ):
             continue
         ptr = _alloca_table[alloca._id]
-        stack_arg = bb.append_instruction("mload", ptr)
+        stack_arg = bb.append_instruction("mload", IROperand(ptr))
+        assert stack_arg is not None
         stack_args.append(stack_arg)
     ret_args.extend(stack_args)
 
     if returns_word:
         ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
+        assert ret_value is not None
+        assert isinstance(return_buf, IROperand)
         bb.append_instruction("mstore", ret_value, return_buf)
         return return_buf
 
