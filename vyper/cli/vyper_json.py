@@ -267,14 +267,12 @@ def get_search_paths(input_dict: dict) -> list[PurePath]:
 def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
-    settings_dict = input_dict["settings"]
+    optimize = input_dict["settings"].get("optimize")
 
-    optimize = settings_dict.get("optimize")
-
-    experimental_codegen = settings_dict.get("experimentalCodegen")
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
         experimental_codegen = input_dict["settings"].get("venom")
-    elif settings_dict.get("venom") is not None:
+    elif input_dict["settings"].get("venom") is not None:
         raise JSONError("both experimentalCodegen and venom cannot be set")
 
     if isinstance(optimize, bool):
@@ -290,12 +288,10 @@ def get_settings(input_dict: dict) -> Settings:
     else:
         assert optimize is None
 
-    debug = settings_dict.get("debug", None)
+    debug = input_dict["settings"].get("debug", None)
 
     # TODO: maybe change these to camelCase for consistency
-    enable_decimals = settings_dict.get("enable_decimals", None)
-
-    warnings_control = settings_dict.get("warnings_control", None)
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
 
     return Settings(
         evm_version=evm_version,
@@ -303,7 +299,6 @@ def get_settings(input_dict: dict) -> Settings:
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
-        warnings_control=warnings_control,
     )
 
 
