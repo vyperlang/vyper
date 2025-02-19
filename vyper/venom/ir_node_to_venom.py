@@ -111,8 +111,6 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
-# assumption: callsites (return pc labels) are globally unique.
-_callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -120,9 +118,8 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _callsites
+    global _alloca_table
     _alloca_table = {}
-    _callsites = defaultdict(list)
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -165,7 +162,6 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
 
 
 def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
-    global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -571,18 +567,6 @@ def _convert_ir_bb(fn, ir, symbols):
                 )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
-
-        elif ir.value.startswith("$calloca"):
-            global _callsites
-            alloca = ir.passthrough_metadata["alloca"]
-            assert alloca._callsite is not None
-            if alloca._id not in _alloca_table:
-                _alloca_table[alloca._id] = IRLiteral(alloca.offset)
-            ret = _alloca_table[alloca._id]
-            # assumption: callocas appear in the same order as the
-            # order of arguments to the function.
-            _callsites[alloca._callsite].append(alloca)
-            return ret
 
         return symbols.get(ir.value)
     elif ir.is_literal:

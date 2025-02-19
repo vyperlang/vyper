@@ -23,7 +23,7 @@ class FloatAllocas(IRPass):
             # Extract alloca instructions
             non_alloca_instructions = []
             for inst in bb.instructions:
-                if inst.opcode in ("alloca", "palloca", "calloca"):
+                if inst.opcode in ("alloca", "palloca"):
                     # note: order of allocas impacts bytecode.
                     # TODO: investigate.
                     entry_bb.insert_instruction(inst)
