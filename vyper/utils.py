@@ -693,3 +693,14 @@ def safe_relpath(path):
         # on Windows, if path and curdir are on different drives, an exception
         # can be thrown
         return path
+
+
+def all_nonempty(iter):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all_nonempty`
+    diverges by returning `False` if the iterable is empty, whereas `all()`
+    would return `True` for an empty iterable.
+    """
+    items = list(iter)
+    return len(items) > 0 and all(items)
