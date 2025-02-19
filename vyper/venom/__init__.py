@@ -5,7 +5,9 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.check_venom import check_venom_fn
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -55,6 +57,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+
+    errors = check_venom_fn(fn)
+    if errors != []:
+        print(errors)
+        raise CompilerPanic("venom sematic errors" + str(errors))
+
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
@@ -102,6 +110,7 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
+
     run_passes_on(ctx, optimize)
 
     return ctx
