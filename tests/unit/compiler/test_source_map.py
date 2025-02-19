@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.settings import OptimizationLevel
@@ -129,7 +130,8 @@ def foo(i: uint256):
     assert "safemod" in error_map.values()
 
 
-def test_error_map_not_overriding_errors(experimental_codegen):
+@pytest.mark.venom_xfail(raises=AssertionError)
+def test_error_map_not_overriding_errors():
     code = """
 @external
 def foo(i: uint256):
@@ -140,8 +142,7 @@ def bar(i: uint256) -> String[32]:
     return "foo foo"
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
-    if not experimental_codegen:
-        assert "user revert with reason" in error_map.values()
+    assert "user revert with reason" in error_map.values()
     assert "safemod" in error_map.values()
 
 
