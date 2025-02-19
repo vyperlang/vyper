@@ -1,9 +1,7 @@
 import functools
 import re
-from collections import defaultdict
 from typing import Optional
 
-from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.venom.basicblock import (
