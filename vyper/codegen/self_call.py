@@ -65,10 +65,8 @@ def ir_for_self_call(stmt_expr, context, ptr: Optional[IRnode] = None):
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
     if func_t.return_type is not None:
-        return_buffer = IRnode.from_list(
-            context.new_internal_variable(func_t.return_type),
-            annotation=f"{return_label}_return_buf",
-        )
+        return_buffer = context.new_internal_variable(func_t.return_type)
+        return_buffer.annotation = f"{return_label}_return_buf"
     else:
         return_buffer = None
 
@@ -119,4 +117,5 @@ def ir_for_self_call(stmt_expr, context, ptr: Optional[IRnode] = None):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
+    o.invoked_function_ir = func_t._ir_info.func_ir
     return o

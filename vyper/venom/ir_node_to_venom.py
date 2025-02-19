@@ -4,7 +4,6 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.utils import MemoryPositions
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -67,6 +66,8 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "mload",
         "iload",
         "istore",
+        "dload",
+        "dloadbytes",
         "sload",
         "sstore",
         "tload",
@@ -107,14 +108,16 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
 SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = {}
+_alloca_table: SymbolTable = None  # type: ignore
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
-    global _global_symbols
-    _global_symbols = {}
+    _ = ir.unique_symbols  # run unique symbols check
+
+    global _alloca_table
+    _alloca_table = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -214,10 +217,6 @@ def _convert_ir_bb_list(fn, ir, symbols):
     return ret
 
 
-current_func = None
-var_list: list[str] = []
-
-
 def pop_source_on_return(func):
     @functools.wraps(func)
     def pop_source(*args, **kwargs):
@@ -232,7 +231,10 @@ def pop_source_on_return(func):
 @pop_source_on_return
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target, current_func, var_list, _global_symbols
+    # TODO: refactor these to not be globals
+    global _break_target, _continue_target, _alloca_table
+
+    # keep a map from external functions to all possible entry points
 
     ctx = fn.ctx
     fn.push_source(ir)
@@ -252,6 +254,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
+        fn.get_basic_block().append_instruction("exit")
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -265,8 +268,8 @@ def _convert_ir_bb(fn, ir, symbols):
             if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
                 # Internal definition
                 var_list = ir.args[0].args[1]
+                assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-                _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
@@ -274,7 +277,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 return ret
             elif is_external:
-                _global_symbols = {}
                 ret = _convert_ir_bb(fn, ir.args[0], symbols)
                 _append_return_args(fn)
         else:
@@ -295,8 +297,6 @@ def _convert_ir_bb(fn, ir, symbols):
         cont_ret = _convert_ir_bb(fn, cond, symbols)
         cond_block = fn.get_basic_block()
 
-        saved_global_symbols = _global_symbols.copy()
-
         then_block = IRBasicBlock(ctx.get_next_label("then"), fn)
         else_block = IRBasicBlock(ctx.get_next_label("else"), fn)
 
@@ -311,7 +311,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # convert "else"
         cond_symbols = symbols.copy()
-        _global_symbols = saved_global_symbols.copy()
         fn.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
@@ -339,8 +338,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
-
-        _global_symbols = saved_global_symbols
 
         return if_ret
 
@@ -370,17 +367,15 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
-        label = IRLabel(ir.args[0].value)
-        ctx.append_data("dbname", [label])
+        label = IRLabel(ir.args[0].value, True)
+        ctx.append_data_section(label)
         for c in ir.args[1:]:
-            if isinstance(c, int):
-                assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c.value, bytes):
-                ctx.append_data("db", [c.value])  # type: ignore
+            if isinstance(c.value, bytes):
+                ctx.append_data_item(c.value)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
-                ctx.append_data("db", [data])  # type: ignore
+                assert isinstance(data, IRLabel)  # help mypy
+                ctx.append_data_item(data)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
@@ -389,10 +384,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb = IRBasicBlock(label, fn)
         fn.append_basic_block(bb)
         code = ir.args[2]
-        if code.value == "pass":
-            bb.append_instruction("exit")
-        else:
-            _convert_ir_bb(fn, code, symbols)
+        _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
@@ -409,22 +401,6 @@ def _convert_ir_bb(fn, ir, symbols):
             bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
-
-    elif ir.value == "dload":
-        arg_0 = _convert_ir_bb(fn, ir.args[0], symbols)
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", arg_0, IRLabel("code_end"))
-
-        bb.append_instruction("dloadbytes", 32, src, MemoryPositions.FREE_VAR_SPACE)
-        return bb.append_instruction("mload", MemoryPositions.FREE_VAR_SPACE)
-
-    elif ir.value == "dloadbytes":
-        dst, src_offset, len_ = _convert_ir_bb_list(fn, ir.args, symbols)
-
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", src_offset, IRLabel("code_end"))
-        bb.append_instruction("dloadbytes", len_, src, dst)
-        return None
 
     elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
@@ -456,26 +432,17 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "repeat":
 
         def emit_body_blocks():
-            global _break_target, _continue_target, _global_symbols
+            global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
-            saved_global_symbols = _global_symbols.copy()
             _convert_ir_bb(fn, body, symbols.copy())
             _break_target, _continue_target = old_targets
-            _global_symbols = saved_global_symbols
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
 
         assert ir.args[3].is_literal, "repeat bound expected to be literal"
-
         bound = ir.args[3].value
-        if (
-            isinstance(end, IRLiteral)
-            and isinstance(start, IRLiteral)
-            and end.value + start.value <= bound
-        ):
-            bound = None
 
         body = ir.args[4]
 
@@ -491,9 +458,15 @@ def _convert_ir_bb(fn, ir, symbols):
 
         counter_var = entry_block.append_instruction("store", start)
         symbols[sym.value] = counter_var
+
+        if bound is not None:
+            # assert le end bound
+            invalid_end = entry_block.append_instruction("gt", bound, end)
+            valid_end = entry_block.append_instruction("iszero", invalid_end)
+            entry_block.append_instruction("assert", valid_end)
+
         end = entry_block.append_instruction("add", start, end)
-        if bound:
-            bound = entry_block.append_instruction("add", start, bound)
+
         entry_block.append_instruction("jmp", cond_block.label)
 
         xor_ret = cond_block.append_instruction("xor", counter_var, end)
@@ -501,9 +474,6 @@ def _convert_ir_bb(fn, ir, symbols):
         fn.append_basic_block(cond_block)
 
         fn.append_basic_block(body_block)
-        if bound:
-            xor_ret = body_block.append_instruction("xor", counter_var, bound)
-            body_block.append_instruction("assert", xor_ret)
 
         emit_body_blocks()
         body_end = fn.get_basic_block()
@@ -537,16 +507,25 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(fn, ir, symbols)
     elif isinstance(ir.value, str):
-        if ir.value.startswith("$alloca") and ir.value not in _global_symbols:
+        if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
-        elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
-            alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("store", alloca.offset)
-            _global_symbols[ir.value] = ptr
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "alloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
-        return _global_symbols.get(ir.value) or symbols.get(ir.value)
+        elif ir.value.startswith("$palloca"):
+            alloca = ir.passthrough_metadata["alloca"]
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "palloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
+
+        return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:

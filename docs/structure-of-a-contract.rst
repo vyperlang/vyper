@@ -54,6 +54,82 @@ EVM Version
 
 The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
 
+Experimental Code Generation
+-----------------
+The new experimental code generation feature can be activated using the following directive:
+
+.. code-block:: vyper
+
+   #pragma experimental-codegen
+
+Alternatively, you can use the alias ``"venom"`` instead of ``"experimental-codegen"``  to enable this feature.
+
+Imports
+=======
+
+Import statements allow you to import :ref:`modules` or :ref:`interfaces` with the ``import`` or ``from ... import`` syntax.
+
+Imports via ``import``
+----------------------
+
+You may import modules (defined in ``.vy`` files) and interfaces (defined in ``.vyi`` or ``.json`` files) via ``import`` statements. You may use plain or ``as`` variants.
+
+.. code-block:: vyper
+
+    # without an alias
+    import foo
+
+    # with an alias
+    import my_package.foo as bar
+
+Imports via ``from ... import``
+-------------------------------
+
+Using ``from`` you can perform both absolute and relative imports. You may optionally include an alias - if you do not, the name of the interface will be the same as the file.
+
+.. code-block:: vyper
+
+    # without an alias
+    from my_package import foo
+
+    # with an alias
+    from my_package import foo as bar
+
+Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
+
+.. code-block:: vyper
+
+    from . import foo
+    from ..interfaces import baz
+
+Further higher directories can be accessed with ``...``, ``....`` etc., as in Python.
+
+.. _searching_for_imports:
+
+Searching For Imports
+-----------------------------
+
+When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
+
+When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag, e.g.:
+
+::
+
+    $ vyper my_project/contracts/my_contract.vy -p ../path/to/other_project
+
+In the above example, the ``my_project`` folder is set as the root path.
+
+.. note::
+
+    Including the python syspath on the search path means that any Vyper module in the current ``virtualenv`` is discoverable by the Vyper compiler, and Vyper packages can be published to and installed from PyPI and accessed via ``import`` statements with no additional configuration. Keep in mind that best practice is always to install packages *within* a ``virtualenv`` and not globally!
+
+You can additionally disable the behavior of adding the syspath to the search path with the CLI flag ``--disable-sys-path``:
+
+::
+
+    $ vyper --disable-sys-path my_project/my_contract.vy
+
+When compiling from a :ref:`.vyz archive file <vyper-archives>` or :ref:`standard json input <vyper-json>`, the search path is already part of the bundle, it cannot be changed from the command line.
 
 .. _structure-state-variables:
 
@@ -91,6 +167,47 @@ Functions may be called internally or externally depending on their :ref:`visibi
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
 
+.. _modules:
+
+Modules
+==========
+
+A module is a set of function definitions and variable declarations which enables code reuse. Vyper favors code reuse through composition, rather than inheritance.
+
+Broadly speaking, a module contains:
+
+* function definitions
+* state variable declarations
+* type definitions
+
+Therefore, a module encapsulates
+
+* functionality (types and functions), and
+* state (variables), which may be tightly coupled with that functionality 
+
+Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This is a very powerful feature which allows you to assemble contracts via other contracts as building blocks.
+
+.. code-block:: vyper
+    # my_module.vy
+
+    def perform_some_computation() -> uint256:
+        return 5
+
+    @external
+    def some_external_function() -> uint256:
+        return 6
+
+.. code-block:: vyper
+    import my_module
+
+    exports: my_module.some_external_function
+
+    @external
+    def foo() -> uint256:
+        return my_module.perform_some_computation()
+
+Modules are opt-in by design. That is, any operations involving state or exposing external functions must be explicitly opted into using the ``exports``, ``uses`` or ``initializes`` keywords. See the :ref:`Modules <modules>` documentation for more information.
+
 Events
 ======
 
@@ -112,12 +229,14 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
 
 See the :ref:`Event <event-logging>` documentation for more information.
 
+.. _interfaces:
+
 Interfaces
 ==========
 
 An interface is a set of function definitions used to enable calls between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
 
-Interfaces can be added to contracts either through inline definition, or by importing them from a separate file.
+Interfaces can be added to contracts either through inline definition, or by importing them from a separate ``.vyi`` file.
 
 .. code-block:: vyper
 

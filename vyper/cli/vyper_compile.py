@@ -5,7 +5,7 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Optional
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -15,10 +15,9 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
+from vyper.utils import uniq
 
-T = TypeVar("T")
-
-format_options_help = """Format to print, one or more of:
+format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
@@ -34,6 +33,8 @@ combined_json      - All of the above format options combined as single JSON out
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
 annotated_ast      - Annotated AST in JSON format
+cfg                - Control flow graph of deployable bytecode
+cfg_runtime        - Control flow graph of runtime bytecode
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -41,7 +42,10 @@ opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
+bb                 - Basic blocks of Venom IR for deployable bytecode
+bb_runtime         - Basic blocks of Venom IR for runtime bytecode
 asm                - Output the EVM assembly of the deployable bytecode
+integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
 """
@@ -120,8 +124,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
-        "note: cancun support is EXPERIMENTAL",
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
@@ -163,19 +166,25 @@ def _parse_args(argv):
         "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
     )
     parser.add_argument(
-        "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
+        "--path",
+        "-p",
+        help="Add a path to the compiler's search path",
+        action="append",
+        dest="paths",
     )
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
+
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        help="The compiler use the new IR codegen. This is an experimental feature.",
+        "--venom",
+        help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
-    parser.add_argument(
-        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
-    )
 
     args = parser.parse_args(argv)
 
@@ -251,20 +260,6 @@ def _parse_args(argv):
         # https://stackoverflow.com/a/54073813
         with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
             _cli_helper(f, output_formats, compiled)
-
-
-def uniq(seq: Iterable[T]) -> Iterator[T]:
-    """
-    Yield unique items in ``seq`` in order.
-    """
-    seen: Set[T] = set()
-
-    for x in seq:
-        if x in seen:
-            continue
-
-        seen.add(x)
-        yield x
 
 
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
@@ -349,7 +344,7 @@ def compile_files(
             # we allow this instead of requiring a different mode (like
             # `--zip`) so that verifier pipelines do not need a different
             # workflow for archive files and single-file contracts.
-            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
             ret[file_path] = output
             continue
         except NotZipInput:

@@ -5,7 +5,12 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    CompilerPanic,
+    StaticAssertionException,
+    TypeMismatch,
+)
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -533,9 +538,15 @@ def do_slice():
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
 def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    c = get_contract(bad_code)
-    with tx_failed():
-        c.do_slice()
+    try:
+        c = get_contract(bad_code)
+        with tx_failed():
+            c.do_slice()
+    except StaticAssertionException:
+        # it should be ok if we
+        # catch the assert in compile time
+        # since it supposed to be revert
+        pass
 
 
 # tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`
@@ -562,3 +573,53 @@ def foo(cs: String[64]) -> uint256:
     c = get_contract(code)
     # ensure that counter was incremented only once
     assert c.foo(arg) == 1
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_slice_order_of_eval(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 32
+
+@external
+def foo() -> Bytes[96]:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return slice(self.var[0], 3, extcall Bar(self).bar())
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_slice_order_of_eval2(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 3
+
+@external
+def foo() -> Bytes[96]:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return slice(self.var[0], extcall Bar(self).bar(), 32)
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"

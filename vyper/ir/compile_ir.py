@@ -54,6 +54,11 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
+def reset_symbols():
+    global _next_symbol
+    _next_symbol = 0
+
+
 def mkdebug(pc_debugger, ast_source):
     i = Instruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
@@ -580,7 +585,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # SHA3 a 64 byte value
     elif code.value == "sha3_64":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
+        o.extend(
+            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1)
+        )
         o.extend(
             [
                 *PUSH(MemoryPositions.FREE_VAR_SPACE2),
@@ -1031,6 +1038,9 @@ def _stack_peephole_opts(assembly):
         if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:
             changed = True
             del assembly[i]
+        if assembly[i] == "DUP1" and assembly[i + 1] == "SWAP1":
+            changed = True
+            del assembly[i + 1]
         i += 1
 
     return changed
@@ -1153,22 +1163,24 @@ def _relocate_segments(assembly):
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm(assembly, pc_ofst=0, compiler_metadata=None):
     bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, insert_compiler_metadata=insert_compiler_metadata
+        assembly, pc_ofst=pc_ofst, compiler_metadata=compiler_metadata
     )
     return bytecode, source_maps
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadata=False):
+def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None):
     """
     Assembles assembly into EVM
 
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    insert_compiler_metadata: whether to append vyper metadata to output
-                            (should be true for runtime code)
+    compiler_metadata: any compiler metadata to add. pass `None` to indicate
+                       no metadata to be added (should always be `None` for
+                       runtime code). the value is opaque, and will be passed
+                       directly to `cbor2.dumps()`.
     """
     line_number_map = {
         "breakpoints": set(),
@@ -1276,10 +1288,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
             pc += 1
 
     bytecode_suffix = b""
-    if insert_compiler_metadata:
+    if compiler_metadata is not None:
         # this will hold true when we are in initcode
         assert immutables_len is not None
         metadata = (
+            compiler_metadata,
             len(runtime_code),
             data_section_lengths,
             immutables_len,

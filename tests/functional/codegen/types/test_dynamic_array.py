@@ -1,17 +1,21 @@
+import contextlib
 import itertools
 from typing import Any, Callable
 
 import pytest
 
-from tests.utils import decimal_to_int
+from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
+    CompilerPanic,
     ImmutableViolation,
     OverflowException,
     StackTooDeep,
     StateAccessViolation,
+    StaticAssertionException,
     TypeMismatch,
 )
 
@@ -287,6 +291,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -5454
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_four_d_array_accessor(get_contract):
     four_d_array_accessor = """
 @external
@@ -736,7 +741,6 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1862,6 +1866,106 @@ def should_revert() -> DynArray[String[65], 2]:
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
 def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
     # check that length is not clobbered before dynarray data copy happens
+    try:
+        c = get_contract(code)
+        with tx_failed():
+            c.should_revert()
+    except StaticAssertionException:
+        # this test should create
+        # assert error so if it is
+        # detected in compile time
+        # we can continue
+        pass
+
+
+def test_dynarray_make_setter_overlap(get_contract):
+    # GH 4056, variant of GH 3503
+    code = """
+a: DynArray[DynArray[uint256, 10], 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a.append([1, 2, self.boo(), 4])
+    return self.a[0] # returns [11, 12, 3, 4]
+
+@internal
+def boo() -> uint256:
+    self.a.append([11, 12, 13, 14, 15, 16])
+    self.a.pop()
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4]
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+def test_dangling_reference(get_contract, tx_failed):
+    code = """
+a: DynArray[DynArray[uint256, 5], 5]
+
+@external
+def foo():
+    self.a = [[1]]
+    self.a.pop().append(2)
+    """
     c = get_contract(code)
     with tx_failed():
-        c.should_revert()
+        c.foo()
+
+
+def test_dynarray_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+
+@external
+def foo(a: DynArray[uint256, 4000]) -> uint256:
+    b: DynArray[uint256, 4000] = a
+    return b[0]
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    dynarray = [2] * 4000
+    assert c.foo(dynarray) == 2
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(dynarray, gas=gas_used)
+
+
+def test_dynarray_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
+    z: DynArray[String[1000000], 2] = [x, y]
+    # Some code
+    return z
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    calldata0 = "a" * 10
+    calldata1 = "b" * 1000000
+    assert c.foo(calldata0, calldata1) == [calldata0, calldata1]
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata0, calldata1, gas=gas_used)

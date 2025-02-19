@@ -30,7 +30,7 @@ class ExecutionResult:
     gas_used: int
 
 
-class EvmError(RuntimeError):
+class EvmError(Exception):
     """Exception raised when a call fails."""
 
 
@@ -203,6 +203,16 @@ class BaseEnv:
     @property
     def out_of_gas_error(self) -> str:
         """Expected error message when user runs out of gas"""
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def contract_size_limit_error(self) -> str:
+        """Expected error message when contract is over codesize limit"""
+        raise NotImplementedError  # must be implemented by subclasses
+
+    @property
+    def initcode_size_limit_error(self) -> str:
+        """Expected error message when contract is over codesize limit"""
         raise NotImplementedError  # must be implemented by subclasses
 
 

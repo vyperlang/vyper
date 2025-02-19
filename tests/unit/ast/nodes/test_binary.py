@@ -1,5 +1,6 @@
 import pytest
 
+from tests.ast_utils import deepequals
 from vyper import ast as vy_ast
 from vyper.exceptions import SyntaxException
 
@@ -18,7 +19,7 @@ def x():
     """
     )
 
-    assert expected == mutated
+    assert deepequals(expected, mutated)
 
 
 def test_binary_length():
