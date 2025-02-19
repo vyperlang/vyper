@@ -593,8 +593,6 @@ class IRBasicBlock:
                 self.remove_instructions_after(inst)
                 self.append_instruction("stop")  # TODO: make revert a bb terminator?
                 break
-        # TODO: remove once clear_dead_instructions is removed
-        self.clear_dead_instructions()
 
         def key(inst):
             if inst.opcode in ("phi", "param"):
