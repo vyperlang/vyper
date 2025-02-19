@@ -31,6 +31,8 @@ def _runtime_reachable_functions(module_t, id_generator):
     for fn_t in ret:
         id_generator.ensure_id(fn_t)
 
+    print("ENTER", ret)
+
     return ret
 
 
