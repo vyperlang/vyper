@@ -195,21 +195,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     return return_buf
 
 
-_current_func_t = None
-_current_context = None
-
-
-def _is_word_type(typ):
-    return typ._is_prim_word
-    # return typ.memory_bytes_required == 32
-
-
-# func_t: ContractFunctionT
-def _returns_word(func_t) -> bool:
-    return_t = func_t.return_type
-    return return_t is not None and _is_word_type(return_t)
-
-
 def _handle_internal_func(
     # TODO: remove does_return_data, replace with `func_t.return_type is not None`
     fn: IRFunction,
@@ -217,11 +202,9 @@ def _handle_internal_func(
     does_return_data: bool,
     symbols: SymbolTable,
 ) -> IRFunction:
-    global _alloca_table, _current_func_t, _current_context
+    global _alloca_table
 
-    _current_func_t = ir.passthrough_metadata["func_t"]
-    _current_context = ir.passthrough_metadata["context"]
-
+    fn = fn.ctx.create_function(ir.args[0].args[0].value)
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     bb = fn.get_basic_block()
@@ -594,10 +577,7 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
-                bb = fn.get_basic_block()
-                ptr = IRLiteral(alloca.offset)
-
-                _alloca_table[alloca._id] = ptr
+                _alloca_table[alloca._id] = IRLiteral(alloca.offset)
             ret = _alloca_table[alloca._id]
             # assumption: callocas appear in the same order as the
             # order of arguments to the function.
