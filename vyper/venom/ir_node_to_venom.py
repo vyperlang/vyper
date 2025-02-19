@@ -1,7 +1,9 @@
 import functools
 import re
+from collections import defaultdict
 from typing import Optional
 
+from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.venom.basicblock import (
@@ -63,7 +65,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "mload",
+        # "mload",
         "iload",
         "istore",
         "dload",
@@ -107,8 +109,10 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
-SymbolTable = dict[str, Optional[IROperand]]
-_alloca_table: SymbolTable = None  # type: ignore
+SymbolTable = dict[str, IROperand]
+_alloca_table: dict[int, IROperand]
+# assumption: callsites (return pc labels) are globally unique.
+_callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -116,15 +120,21 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table
+    global _alloca_table, _callsites
     _alloca_table = {}
+    _callsites = defaultdict(list)
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
+    ctx.entry_function = fn
 
     _convert_ir_bb(fn, ir, {})
 
     ctx.chain_basic_blocks()
+
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            bb.ensure_well_formed()
 
     return ctx
 
@@ -154,20 +164,30 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
     bb.append_instruction("store", size, ret=ret_size)
 
 
-def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IRVariable]:
+def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
+    global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
-    return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
-    return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
+    converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
+
+    callsite_op = converted_args[-1]
+    assert isinstance(callsite_op, IRLabel), converted_args
 
     bb = fn.get_basic_block()
-    if len(goto_ir.args) > 2:
+    return_buf = None
+
+    if len(converted_args) > 1:
+        return_buf = converted_args[0]
+
+    if return_buf is not None:
         ret_args.append(return_buf)  # type: ignore
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
@@ -175,22 +195,58 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     return return_buf
 
 
+_current_func_t = None
+_current_context = None
+
+
+def _is_word_type(typ):
+    return typ._is_prim_word
+    # return typ.memory_bytes_required == 32
+
+
+# func_t: ContractFunctionT
+def _returns_word(func_t) -> bool:
+    return_t = func_t.return_type
+    return return_t is not None and _is_word_type(return_t)
+
+
 def _handle_internal_func(
-    fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
+    # TODO: remove does_return_data, replace with `func_t.return_type is not None`
+    fn: IRFunction,
+    ir: IRnode,
+    does_return_data: bool,
+    symbols: SymbolTable,
 ) -> IRFunction:
+    global _alloca_table, _current_func_t, _current_context
+
+    _current_func_t = ir.passthrough_metadata["func_t"]
+    _current_context = ir.passthrough_metadata["context"]
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
+
     bb = fn.get_basic_block()
+
+    _saved_alloca_table = _alloca_table
+    _alloca_table = {}
 
     # return buffer
     if does_return_data:
-        symbols["return_buffer"] = bb.append_instruction("param")
+        buf = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
+        assert buf is not None  # help mypy
+        symbols["return_buffer"] = buf
+
     # return address
-    symbols["return_pc"] = bb.append_instruction("param")
+    return_pc = bb.append_instruction("param")
+    assert return_pc is not None  # help mypy
+    symbols["return_pc"] = return_pc
+
     bb.instructions[-1].annotation = "return_pc"
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
+
+    _alloca_table = _saved_alloca_table
 
     return fn
 
@@ -386,6 +442,9 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
+        # TODO: cleanup
+        global _current_func_t
+
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
         _append_return_args(fn, *var_list)
@@ -398,6 +457,7 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         if label.value == "return_pc":
             label = symbols.get("return_pc")
+            # return label should be top of stack
             bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
@@ -408,7 +468,11 @@ def _convert_ir_bb(fn, ir, symbols):
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
+    elif ir.value == "mload":
+        arg = ir.args[0]
+        ptr = _convert_ir_bb(fn, arg, symbols)
 
+        return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
@@ -524,6 +588,21 @@ def _convert_ir_bb(fn, ir, symbols):
                 )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
+
+        elif ir.value.startswith("$calloca"):
+            global _callsites
+            alloca = ir.passthrough_metadata["alloca"]
+            assert alloca._callsite is not None
+            if alloca._id not in _alloca_table:
+                bb = fn.get_basic_block()
+                ptr = IRLiteral(alloca.offset)
+
+                _alloca_table[alloca._id] = ptr
+            ret = _alloca_table[alloca._id]
+            # assumption: callocas appear in the same order as the
+            # order of arguments to the function.
+            _callsites[alloca._callsite].append(alloca)
+            return ret
 
         return symbols.get(ir.value)
     elif ir.is_literal:

@@ -15,6 +15,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
+    FuncInlinerPass,
     LoadElimination,
     LowerDloadPass,
     MakeSSA,
@@ -46,11 +47,9 @@ def generate_assembly_experimental(
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
-
-    ac = IRAnalysesCache(fn)
 
     FloatAllocas(ac, fn).run_pass()
 
@@ -84,8 +83,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    StoreElimination(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
@@ -94,14 +97,29 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     DFTPass(ac, fn).run_pass()
 
 
-def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
+def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    FuncInlinerPass(ir_analyses, ctx).run_pass()
+
+
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
+    ir_analyses = {}
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    _run_global_passes(ctx, optimize, ir_analyses)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize, ir_analyses[fn])
 
 
 def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
+
     run_passes_on(ctx, optimize)
 
     return ctx
