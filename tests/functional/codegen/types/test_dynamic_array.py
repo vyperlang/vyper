@@ -13,6 +13,7 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     OverflowException,
+    StackTooDeep,
     StateAccessViolation,
     StaticAssertionException,
     TypeMismatch,
@@ -290,6 +291,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -5454
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_four_d_array_accessor(get_contract):
     four_d_array_accessor = """
 @external

@@ -298,10 +298,15 @@ class EventT(_UserType):
             return validate_kwargs(node, self.arguments, self.typeclass)
 
         # warn about positional argument depreciation
-        msg = "Instantiating events with positional arguments is "
-        msg += "deprecated as of v0.4.1 and will be disallowed "
-        msg += "in a future release. Use kwargs instead eg. "
-        msg += "Foo(a=1, b=2)"
+        rec0 = ", ".join(
+            f"{argname}={val.node_source_code}"
+            for argname, val in zip(self.arguments.keys(), node.args)
+        )
+        recommendation = f"log {node.func.node_source_code}({rec0})"
+        msg = "Instantiating events with positional arguments is"
+        msg += " deprecated as of v0.4.1 and will be disallowed"
+        msg += " in a future release. Use kwargs instead e.g.:"
+        msg += f"\n```\n{recommendation}\n```"
 
         vyper_warn(msg, node)
 
