@@ -68,5 +68,5 @@ def _handle_incorect_liveness(bb: IRBasicBlock) -> list[VenomSemanticError]:
     undef_vars = bb.instructions[-1].liveness.difference(before_live.union(defined_here))
 
     for var in undef_vars:
-        errors.append(VenomSemanticError(VenomSemanticErrorType.NotDefinedVar, (var, bb.label)))
+        errors.append(VenomSemanticError(VenomSemanticErrorType.NotDefinedVar, var))
     return errors

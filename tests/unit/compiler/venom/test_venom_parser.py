@@ -45,3 +45,26 @@ def test_venom_parser_nonexistant_var():
     errors = check_venom(ctx)
 
     assert len(errors) == 1
+
+
+def test_venom_parser_nonexistant_var2():
+    code = """
+    main:
+        %par = param
+        %1 = 1
+        jnz %par, @br1, @br2
+    br1:
+        %2 = 2
+        jmp @join
+    br2:
+        %3 = 3
+        jmp @join
+    join:
+        ret %1, %2, %3
+    """
+
+    ctx = parse_from_basic_block(code)
+    errors = check_venom(ctx)
+
+    assert len(errors) == 2
+    assert {e.metadata.name for e in errors} == {"%2", "%3"}
