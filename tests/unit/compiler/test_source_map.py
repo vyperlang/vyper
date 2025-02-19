@@ -1,7 +1,5 @@
 from collections import namedtuple
 
-import pytest
-
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.settings import OptimizationLevel
