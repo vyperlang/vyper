@@ -87,8 +87,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    StoreElimination(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
