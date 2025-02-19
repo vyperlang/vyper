@@ -292,7 +292,7 @@ class Stmt:
             if var.typ._is_prim_word:
                 continue
             # oob - GHSA-4w26-8p97-f4jp
-            if var in right.referenced_variables or right.contains_risky_call:
+            if var in right.variable_writes or right.contains_risky_call:
                 raise CodegenPanic("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
