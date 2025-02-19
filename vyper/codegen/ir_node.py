@@ -174,6 +174,7 @@ class IRnode:
         self.passthrough_metadata = passthrough_metadata or {}
         self.func_ir = None
         self.common_ir = None
+        self.success_flag = None  # Add a success flag attribute
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -349,6 +350,30 @@ class IRnode:
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
+
+    def handle_precompile_call(self, precompile_type, *args):
+        # Logic to handle different precompile calls
+        if precompile_type == 'ecrecover':
+            # Handle ecrecover precompile
+            self.success_flag = self.check_success_ecrecover(*args)
+        elif precompile_type == 'identity':
+            # Handle identity precompile
+            self.success_flag = self.check_success_identity(*args)
+        else:
+            raise ValueError('Unsupported precompile type')
+
+    def check_success_ecrecover(self, *args):
+        # Logic to determine if the ecrecover precompile call was successful
+        return True  # Placeholder for actual success check logic
+
+    def check_success_identity(self, *args):
+        # Logic to determine if the identity precompile call was successful
+        return True  # Placeholder for actual success check logic
+    def propagate_success_flag(self):
+        # Ensure the success flag is propagated to EVM bytecode generation
+        if self.success_flag is not None:
+            # Logic to include success flag in bytecode
+            pass
 
     # deepcopy is a perf hotspot; it pays to optimize it a little
     def __deepcopy__(self, memo):

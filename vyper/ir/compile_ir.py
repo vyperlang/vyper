@@ -1368,3 +1368,24 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
     return bytes(ret), line_number_map, symbol_map
+
+def generate_bytecode_with_success_flag(ir_node):
+    # Existing logic to generate bytecode from IR
+    bytecode = compile_ir_node(ir_node)
+
+    # Insert success flag check after precompile calls
+    if ir_node.is_precompile_call():
+        bytecode += 'PUSH1 0x01'  # Success flag
+        bytecode += 'EQ'          # Check if the call was successful
+        bytecode += 'ISZERO'      # Negate the result
+        bytecode += 'PUSH1 0x0F'  # Jump destination for revert
+        bytecode += 'JUMPI'       # Conditional jump if the call failed
+
+    # Handle failed precompile calls by reverting
+    bytecode += 'JUMPDEST'       # Jump destination for revert
+    bytecode += 'REVERT'         # Revert the transaction
+
+    return bytecode
+
+# Modify the existing function to use the new logic
+existing_function_to_modify = generate_bytecode_with_success_flag

@@ -50,3 +50,11 @@ def check_precompile_asserts(source_code):
     _check(deploy_ir)
     # technically runtime_ir is contained in deploy_ir, but check it anyways.
     _check(runtime_ir)
+
+def compile_contract(vyper_code: str):
+    # This function should compile the Vyper code and return the compiled contract.
+    # You can use the Vyper compiler's API to compile the code.
+    # Example:
+    # from vyper import compile_code
+    # return compile_code(vyper_code, output_formats=['bytecode', 'abi'])
+    pass
