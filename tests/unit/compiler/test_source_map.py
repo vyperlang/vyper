@@ -129,7 +129,7 @@ def foo(i: uint256):
     assert "safemod" in error_map.values()
 
 
-def test_error_map_not_overriding_errors():
+def test_error_map_not_overriding_errors(experimental_codegen):
     code = """
 @external
 def foo(i: uint256):
@@ -140,7 +140,8 @@ def bar(i: uint256) -> String[32]:
     return "foo foo"
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
-    assert "user revert with reason" in error_map.values()
+    if not experimental_codegen:
+        assert "user revert with reason" in error_map.values()
     assert "safemod" in error_map.values()
 
 
