@@ -405,27 +405,12 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
-    def copy(self, prefix: str = "") -> "IRInstruction":
-        ops: list[IROperand] = []
-        for op in self.operands:
-            if isinstance(op, IRLabel):
-                ops.append(IRLabel(op.value))
-            elif isinstance(op, IRVariable):
-                ops.append(IRVariable(f"{prefix}{op.name}"))
-            else:
-                ops.append(IRLiteral(op.value))
-
-        output = None
-        if self.output:
-            output = IRVariable(f"{prefix}{self.output.name}")
-
-        inst = IRInstruction(self.opcode, ops, output)
-        inst.parent = self.parent
-        inst.liveness = self.liveness.copy()
-        inst.annotation = self.annotation
-        inst.ast_source = self.ast_source
-        inst.error_msg = self.error_msg
-        return inst
+    def copy(self) -> "IRInstruction":
+        ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
+        ret.annotation = self.annotation
+        ret.ast_source = self.ast_source
+        ret.error_msg = self.error_msg
+        return ret
 
     def str_short(self) -> str:
         s = ""
@@ -736,14 +721,10 @@ class IRBasicBlock:
         return OrderedSet()
 
     def copy(self, prefix: str = "") -> "IRBasicBlock":
-        new_label = IRLabel(f"{prefix}{self.label.value}")
-        bb = IRBasicBlock(new_label, self.parent)
+        bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = [inst.copy(prefix) for inst in self.instructions]
         for inst in bb.instructions:
             inst.parent = bb
-        bb.cfg_in = OrderedSet()
-        bb.cfg_out = OrderedSet()
-        bb.out_vars = OrderedSet()
         return bb
 
     def __repr__(self) -> str:

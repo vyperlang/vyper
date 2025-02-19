@@ -6,7 +6,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -117,7 +117,7 @@ class FuncInlinerPass(IRGlobalPass):
             call_site_return.insert_instruction(inst)
         call_site_func.append_basic_block(call_site_return)
 
-        func_copy = func.copy(prefix)
+        func_copy = self._clone_function(func, prefix)
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
@@ -182,3 +182,42 @@ class FuncInlinerPass(IRGlobalPass):
         dfs(function)
 
         return OrderedSet(call_walk)
+
+    def _clone_function(self, func: IRFunction, prefix: str) -> IRFunction:
+        new_func_label = IRLabel(f"{prefix}{func.name.value}")
+        clone = IRFunction(new_func_label)
+        for bb in func.get_basic_blocks():
+            clone.append_basic_block(self._clone_basic_block(bb, prefix))
+        return clone
+    
+    def _clone_basic_block(self, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
+        new_bb_label = IRLabel(f"{prefix}{bb.label.value}")
+        new_bb = IRBasicBlock(new_bb_label, bb.parent)
+        new_bb.instructions = [self._clone_instruction(inst, prefix) for inst in bb.instructions]
+        for inst in new_bb.instructions:
+            inst.parent = new_bb
+        return new_bb
+
+    def _clone_instruction(self, inst: IRInstruction, prefix: str) -> IRInstruction:
+        ops: list[IROperand] = []
+        for op in inst.operands:
+            if isinstance(op, IRLabel):
+                ops.append(IRLabel(op.value))
+            elif isinstance(op, IRVariable):
+                ops.append(IRVariable(f"{prefix}{op.name}"))
+            else:
+                ops.append(IRLiteral(op.value))
+
+        output = None
+        if inst.output:
+            output = IRVariable(f"{prefix}{inst.output.name}")
+
+        clone = IRInstruction(inst.opcode, ops, output)
+        clone.parent = inst.parent
+        clone.liveness = inst.liveness.copy()
+        clone.annotation = inst.annotation
+        clone.ast_source = inst.ast_source
+        clone.error_msg = inst.error_msg
+
+        return clone
+

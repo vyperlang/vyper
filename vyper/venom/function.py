@@ -212,11 +212,10 @@ class IRFunction:
             else:
                 bb.append_instruction("stop")
 
-    def copy(self, prefix: str = ""):
-        new_label = IRLabel(f"{prefix}{self.name.value}")
-        new = IRFunction(new_label)
+    def copy(self):
+        new = IRFunction(self.name)
         for bb in self.get_basic_blocks():
-            new_bb = bb.copy(prefix)
+            new_bb = bb.copy()
             new.append_basic_block(new_bb)
         return new
 
