@@ -54,7 +54,6 @@ class Settings:
     experimental_codegen: Optional[bool] = None
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
-    warnings_control: Optional[str] = None
 
     def __post_init__(self):
         # sanity check inputs
@@ -66,8 +65,6 @@ class Settings:
             assert isinstance(self.debug, bool)
         if self.enable_decimals is not None:
             assert isinstance(self.enable_decimals, bool)
-        if self.warnings_control is not None:
-            assert isinstance(self.warnings_control, str)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
@@ -87,8 +84,6 @@ class Settings:
             ret.append(" --debug")
         if self.enable_decimals is True:
             ret.append(" --enable-decimals")
-        if self.warnings_control is not None:
-            ret.append(" -W" + self.warnings_control)
 
         return "".join(ret)
 
