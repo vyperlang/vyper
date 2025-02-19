@@ -8,7 +8,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "sink"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -36,6 +36,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dload",
         "return",
         "ret",
+        "sink",
         "jmp",
         "jnz",
         "djmp",
@@ -64,6 +65,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "sink",
         "revert",
         "assert",
         "assert_unreachable",
@@ -78,6 +80,10 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "exit",
     ]
 )
+
+
+# instructions that should only be used for testing
+TEST_INSTRUCTIONS = ("sink",)
 
 assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
@@ -318,6 +324,12 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
+    def make_nop(self):
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
+        self.output = None
+        self.operands = []
+
     def flip(self):
         """
         Flip operands for commutative or comparator opcodes
@@ -457,8 +469,6 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
         self.is_reachable = False
 
-        self._garbage_instructions: set[IRInstruction] = set()
-
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
 
@@ -533,15 +543,9 @@ class IRBasicBlock:
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
-    def mark_for_removal(self, instruction: IRInstruction) -> None:
-        self._garbage_instructions.add(instruction)
-
-    def clear_dead_instructions(self) -> None:
-        if len(self._garbage_instructions) > 0:
-            self.instructions = [
-                inst for inst in self.instructions if inst not in self._garbage_instructions
-            ]
-            self._garbage_instructions.clear()
+    def clear_nops(self) -> None:
+        if any(inst.opcode == "nop" for inst in self.instructions):
+            self.instructions = [inst for inst in self.instructions if inst.opcode != "nop"]
 
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
@@ -601,9 +605,7 @@ class IRBasicBlock:
                 inst.opcode = "store"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
-                inst.opcode = "nop"
-                inst.output = None
-                inst.operands = []
+                inst.make_nop()
 
         if needs_sort:
             self.instructions.sort(key=lambda inst: inst.opcode != "phi")
