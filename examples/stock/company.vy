@@ -63,7 +63,7 @@ def buyStock():
     self.holdings[msg.sender] += buy_order
 
     # Log the buy event.
-    log Buy(msg.sender, buy_order)
+    log Buy(buyer=msg.sender, buy_order=buy_order)
 
 # Public function to allow external access to _getHolding
 @view
@@ -94,7 +94,7 @@ def sellStock(sell_order: uint256):
     send(msg.sender, sell_order * self.price)
 
     # Log the sell event.
-    log Sell(msg.sender, sell_order)
+    log Sell(seller=msg.sender, sell_order=sell_order)
 
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
@@ -109,7 +109,7 @@ def transferStock(receiver: address, transfer_order: uint256):
     self.holdings[receiver] += transfer_order
 
     # Log the transfer event.
-    log Transfer(msg.sender, receiver, transfer_order)
+    log Transfer(sender=msg.sender, receiver=receiver, value=transfer_order)
 
 # Allow the company to pay someone for services rendered.
 @external
@@ -123,7 +123,8 @@ def payBill(vendor: address, amount: uint256):
     send(vendor, amount)
 
     # Log the payment event.
-    log Pay(vendor, amount)
+    log Pay(vendor=vendor, amount=amount)
+
 
 # Public function to allow external access to _debt
 @view
