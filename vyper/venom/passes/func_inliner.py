@@ -6,7 +6,14 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -189,7 +196,7 @@ class FuncInlinerPass(IRGlobalPass):
         for bb in func.get_basic_blocks():
             clone.append_basic_block(self._clone_basic_block(bb, prefix))
         return clone
-    
+
     def _clone_basic_block(self, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
         new_bb_label = IRLabel(f"{prefix}{bb.label.value}")
         new_bb = IRBasicBlock(new_bb_label, bb.parent)
@@ -220,4 +227,3 @@ class FuncInlinerPass(IRGlobalPass):
         clone.error_msg = inst.error_msg
 
         return clone
-

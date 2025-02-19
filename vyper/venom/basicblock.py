@@ -720,9 +720,9 @@ class IRBasicBlock:
                 return inst.liveness
         return OrderedSet()
 
-    def copy(self, prefix: str = "") -> "IRBasicBlock":
+    def copy(self) -> "IRBasicBlock":
         bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = [inst.copy(prefix) for inst in self.instructions]
+        bb.instructions = [inst.copy() for inst in self.instructions]
         for inst in bb.instructions:
             inst.parent = bb
         return bb
