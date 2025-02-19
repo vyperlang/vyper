@@ -1,7 +1,9 @@
+from collections import defaultdict
 import functools
 import re
 from typing import Optional
 
+from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.venom.basicblock import (
@@ -111,6 +113,8 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
+# assumption: callsites (return pc labels) are globally unique.
+_callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -118,8 +122,9 @@ MAIN_ENTRY_LABEL_NAME = "__main_entry"
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table
+    global _alloca_table, _callsites
     _alloca_table = {}
+    _callsites = defaultdict(list)
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -162,6 +167,7 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
 
 
 def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
+    global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -216,6 +222,21 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     return return_buf
 
 
+_current_func_t = None
+_current_context = None
+
+
+def _is_word_type(typ):
+    return typ._is_prim_word
+    # return typ.memory_bytes_required == 32
+
+
+# func_t: ContractFunctionT
+def _returns_word(func_t) -> bool:
+    return_t = func_t.return_type
+    return return_t is not None and _is_word_type(return_t)
+
+
 def _handle_internal_func(
     # TODO: remove does_return_data, replace with `func_t.return_type is not None`
     fn: IRFunction,
@@ -230,7 +251,6 @@ def _handle_internal_func(
     func_t = _current_func_t
     context = _current_context
 
-    fn = fn.ctx.create_function(ir.args[0].args[0].value)
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     if ENABLE_NEW_CALL_CONV:
@@ -671,10 +691,7 @@ def _convert_ir_bb(fn, ir, symbols):
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
-                if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
-                    ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
-                else:
-                    ptr = IRLiteral(alloca.offset)
+                ptr = IRLiteral(alloca.offset)
 
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]
