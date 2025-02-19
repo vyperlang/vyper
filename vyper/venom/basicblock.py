@@ -437,6 +437,10 @@ class IRInstruction:
         if self.annotation:
             s += f" ; {self.annotation}"
 
+        # debug:
+        # if self.error_msg:
+        #     s += f" ;>>> {self.error_msg}"
+
         return f"{s: <30}"
 
 
@@ -565,8 +569,10 @@ class IRBasicBlock:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        instruction.ast_source = self.parent.ast_source
-        instruction.error_msg = self.parent.error_msg
+        if instruction.ast_source is None:
+            instruction.ast_source = self.parent.ast_source
+        if instruction.error_msg is None:
+            instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
     def mark_for_removal(self, instruction: IRInstruction) -> None:
