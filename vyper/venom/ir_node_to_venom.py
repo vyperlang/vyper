@@ -1,6 +1,6 @@
-from collections import defaultdict
 import functools
 import re
+from collections import defaultdict
 from typing import Optional
 
 from vyper.codegen.context import Alloca
@@ -16,8 +16,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
-
-ENABLE_NEW_CALL_CONV = True
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -195,27 +193,27 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         return_buf = converted_args[0]
 
     if return_buf is not None:
-        if not ENABLE_NEW_CALL_CONV or not returns_word:
+        if not returns_word:
             ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
     stack_args = []
-    if ENABLE_NEW_CALL_CONV:
-        for alloca in callsite_args:
-            if not _is_word_type(alloca.typ):
-                continue
-            ptr = _alloca_table[alloca._id]
-            stack_arg = bb.append_instruction("mload", ptr)
-            assert stack_arg is not None
-            stack_args.append(stack_arg)
-        ret_args.extend(stack_args)
 
-        if returns_word:
-            ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
-            assert ret_value is not None
-            assert isinstance(return_buf, IROperand)
-            bb.append_instruction("mstore", ret_value, return_buf)
-            return return_buf
+    for alloca in callsite_args:
+        if not _is_word_type(alloca.typ):
+            continue
+        ptr = _alloca_table[alloca._id]
+        stack_arg = bb.append_instruction("mload", ptr)
+        assert stack_arg is not None
+        stack_args.append(stack_arg)
+    ret_args.extend(stack_args)
+
+    if returns_word:
+        ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
+        assert ret_value is not None
+        assert isinstance(return_buf, IROperand)
+        bb.append_instruction("mstore", ret_value, return_buf)
+        return return_buf
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -253,19 +251,18 @@ def _handle_internal_func(
 
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
-    if ENABLE_NEW_CALL_CONV:
-        index = 0
-        if func_t.return_type is not None and not _returns_word(func_t):
-            index += 1
-        for arg in func_t.arguments:
-            var = context.lookup_var(arg.name)
-            if not _is_word_type(var.typ):
-                continue
-            venom_arg = IRParameter(
-                var.name, index, var.alloca.offset, var.alloca.size, None, None, None
-            )
-            fn.args.append(venom_arg)
-            index += 1
+    index = 0
+    if func_t.return_type is not None and not _returns_word(func_t):
+        index += 1
+    for arg in func_t.arguments:
+        var = context.lookup_var(arg.name)
+        if not _is_word_type(var.typ):
+            continue
+        venom_arg = IRParameter(
+            var.name, index, var.alloca.offset, var.alloca.size, None, None, None
+        )
+        fn.args.append(venom_arg)
+        index += 1
 
     bb = fn.get_basic_block()
 
@@ -276,7 +273,7 @@ def _handle_internal_func(
 
     # return buffer
     if does_return_data:
-        if ENABLE_NEW_CALL_CONV and returns_word:
+        if returns_word:
             # this alloca should be stripped by mem2var. we can remove
             # the hardcoded offset once we have proper memory allocator
             # functionality in venom.
@@ -288,13 +285,12 @@ def _handle_internal_func(
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
 
-    if ENABLE_NEW_CALL_CONV:
-        for arg in fn.args:
-            ret = bb.append_instruction("param")
-            bb.instructions[-1].annotation = arg.name
-            assert ret is not None  # help mypy
-            symbols[arg.name] = ret
-            arg.func_var = ret
+    for arg in fn.args:
+        ret = bb.append_instruction("param")
+        bb.instructions[-1].annotation = arg.name
+        assert ret is not None  # help mypy
+        symbols[arg.name] = ret
+        arg.func_var = ret
 
     # return address
     return_pc = bb.append_instruction("param")
@@ -303,21 +299,14 @@ def _handle_internal_func(
 
     bb.instructions[-1].annotation = "return_pc"
 
-    if ENABLE_NEW_CALL_CONV:
-        for arg in fn.args:
-            var = IRVariable(arg.name)
-            bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
-            arg.addr_var = var
+    for arg in fn.args:
+        var = IRVariable(arg.name)
+        bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
+        arg.addr_var = var
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
     _alloca_table = _saved_alloca_table
-    # if ENABLE_NEW_CALL_CONV:
-    #     for inst in bb.instructions:
-    #         if inst.opcode == "store":
-    #             param = fn.get_param_at_offset(inst.operands[0].value)
-    #             if param is not None:
-    #                 inst.operands[0] = param.addr_var  # type: ignore
 
     return fn
 
@@ -529,7 +518,7 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            if _returns_word(_current_func_t) and ENABLE_NEW_CALL_CONV:
+            if _returns_word(_current_func_t):
                 buf = symbols["return_buffer"]
                 val = bb.append_instruction("mload", buf)
                 bb.append_instruction("ret", val, label)
@@ -543,28 +532,26 @@ def _convert_ir_bb(fn, ir, symbols):
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
-        if ENABLE_NEW_CALL_CONV:
-            if isinstance(ptr, IRVariable):
-                # TODO: is this bad code?
-                param = fn.get_param_by_name(ptr)
-                if param is not None:
-                    return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
+        if isinstance(ptr, IRVariable):
+            # TODO: is this bad code?
+            param = fn.get_param_by_name(ptr)
+            if param is not None:
+                return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
 
-            if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
-                symbol = symbols.get(ptr.annotation, None)
-                if symbol is not None:
-                    return fn.get_basic_block().append_instruction("store", symbol)
+        if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
+            symbol = symbols.get(ptr.annotation, None)
+            if symbol is not None:
+                return fn.get_basic_block().append_instruction("store", symbol)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
     elif ir.value == "mload":
         arg = ir.args[0]
         ptr = _convert_ir_bb(fn, arg, symbols)
 
-        if ENABLE_NEW_CALL_CONV:
-            if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
-                symbol = symbols.get(arg.annotation, None)
-                if symbol is not None:
-                    return fn.get_basic_block().append_instruction("store", symbol)
+        if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
+            symbol = symbols.get(arg.annotation, None)
+            if symbol is not None:
+                return fn.get_basic_block().append_instruction("store", symbol)
 
         return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
@@ -676,7 +663,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if ENABLE_NEW_CALL_CONV and fn.get_param_at_offset(alloca.offset) is not None:
+            if fn.get_param_at_offset(alloca.offset) is not None:
                 return fn.get_param_at_offset(alloca.offset).addr_var
             if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(

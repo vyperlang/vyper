@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -156,8 +155,6 @@ class FuncInlinerPass(IRGlobalPass):
                         inst.make_nop()
                 elif inst.opcode == "ret":
                     if len(inst.operands) > 1:
-                        # sanity check (should remove once new callconv stabilizes)
-                        assert ENABLE_NEW_CALL_CONV
                         ret_value = inst.operands[0]
                         bb.insert_instruction(
                             IRInstruction("store", [ret_value], call_site.output), -1
