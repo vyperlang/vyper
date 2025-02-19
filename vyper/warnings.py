@@ -1,3 +1,4 @@
+import contextlib
 import warnings
 from typing import Optional
 
@@ -13,6 +14,13 @@ def vyper_warn(warning: VyperWarning | str, node=None):
     if isinstance(warning, str):
         warning = VyperWarning(warning, node)
     warnings.warn(warning, stacklevel=2)
+
+
+@contextlib.contextmanager
+def warnings_filter(warnings_control: Optional[str]):
+    with warnings.catch_warnings():
+        set_warnings_filter(warnings_control)
+        yield
 
 
 def set_warnings_filter(warnings_control: Optional[str]):

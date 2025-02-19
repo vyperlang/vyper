@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import functools
 import json
 import os
 import sys
@@ -15,7 +16,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
-from vyper.warnings import set_warnings_filter
+from vyper.warnings import warnings_filter
 
 format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
@@ -293,6 +294,17 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
     return search_paths
 
 
+def _apply_warnings_filter(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        warnings_control = args[-1]
+        with warnings_filter(warnings_control):
+            return func(*args, **kwargs)
+
+    return inner
+
+
+@_apply_warnings_filter
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -304,8 +316,6 @@ def compile_files(
     no_bytecode_metadata: bool = False,
     warnings_control: Optional[str] = None,
 ) -> dict:
-    set_warnings_filter(warnings_control)
-
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
 
