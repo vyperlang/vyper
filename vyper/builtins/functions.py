@@ -2296,15 +2296,9 @@ class Print(BuiltinFunctionT):
 
             schema = args_abi_t.selector_name().encode("utf-8")
             schema_t = StringT(len(schema))
-            schema_buf = context.new_internal_variable(schema_t)
+            schema_buf = Expr._make_bytelike(context, StringT, schema)
 
             ret = ["seq"]
-            ret.append(["mstore", schema_buf, len(schema)])
-
-            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(
-                ["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))]
-            )
 
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
