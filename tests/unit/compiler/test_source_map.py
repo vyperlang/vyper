@@ -131,7 +131,6 @@ def foo(i: uint256):
     assert "safemod" in error_map.values()
 
 
-@pytest.mark.venom_xfail(raises=AssertionError)
 def test_error_map_not_overriding_errors():
     code = """
 @external
