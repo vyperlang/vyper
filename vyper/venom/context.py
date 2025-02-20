@@ -64,7 +64,6 @@ class IRContext:
         label = IRLabel(name, True)
         assert label not in self.functions, f"duplicate function {label}"
         fn = IRFunction(label, self)
-        fn.append_basic_block(IRBasicBlock(label, fn))
         self.add_function(fn)
         return fn
 
