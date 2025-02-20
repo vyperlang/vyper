@@ -132,9 +132,13 @@ class FuncInlinerPass(IRGlobalPass):
             param_idx = 0
             for inst in bb.instructions:
                 if inst.opcode == "param":
+                    # NOTE: one of these params is the return pc. technically assigning
+                    # a variable to a label (e.g. %1 = @label) as we are doing here is
+                    # not valid venom code, but it will get removed in store elimination
+                    # (or unused variable elimination)
                     inst.opcode = "store"
-                    inst.operands = [call_site.operands[-param_idx - 1]]
-                    inst.annotation = None
+                    val = call_site.operands[-param_idx - 1]
+                    inst.operands = [val]
                     param_idx += 1
 
                 elif inst.opcode == "palloca":
