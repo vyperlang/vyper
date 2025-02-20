@@ -33,8 +33,7 @@ class FunctionInlinerPass(IRGlobalPass):
         ctx: IRContext,
         optimize: OptimizationLevel,
     ):
-        self.analyses_caches = analyses_caches
-        self.ctx = ctx
+        super().__init__(analyses_caches, ctx)
         self.optimize = optimize
 
     def run_pass(self):
