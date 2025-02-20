@@ -6,11 +6,6 @@ from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 
 
-def _entry_fn(ctx: "IRContext"):
-    # TODO: make this part of IRContext
-    return next(iter(ctx.functions.values()))
-
-
 def test_variable_equivalence_dfg_order():
     a_code = """
     main:
@@ -26,8 +21,8 @@ def test_variable_equivalence_dfg_order():
     %2 = %1
     %1 = 1
     """
-    fn1 = _entry_fn(parse_from_basic_block(a_code))
-    fn2 = _entry_fn(parse_from_basic_block(b_code))
+    fn1 = parse_from_basic_block(a_code).entry_function
+    fn2 = parse_from_basic_block(b_code).entry_function
 
     dfg1 = IRAnalysesCache(fn1).request_analysis(DFGAnalysis)
     dfg2 = IRAnalysesCache(fn2).request_analysis(DFGAnalysis)
