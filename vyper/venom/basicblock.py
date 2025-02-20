@@ -194,6 +194,10 @@ class IRVariable(IROperand):
     def name(self) -> str:
         return self._name
 
+    @property
+    def plain_name(self) -> str:
+        return self.name.strip("%")
+
 
 class IRLabel(IROperand):
     """

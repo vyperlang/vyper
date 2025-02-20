@@ -204,13 +204,13 @@ class FunctionInlinerPass(IRGlobalPass):
                     label = op
                 ops.append(label)
             elif isinstance(op, IRVariable):
-                ops.append(IRVariable(f"{prefix}{op.name}"))
+                ops.append(IRVariable(f"{prefix}{op.plain_name}"))
             else:
                 ops.append(op)
 
         output = None
         if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.name}")
+            output = IRVariable(f"{prefix}{inst.output.plain_name}")
 
         clone = IRInstruction(inst.opcode, ops, output)
         clone.parent = inst.parent
