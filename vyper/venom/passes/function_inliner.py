@@ -3,10 +3,9 @@ from typing import List, Optional
 from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -26,6 +25,17 @@ class FunctionInlinerPass(IRGlobalPass):
 
     inline_count: int
     fcg: FCGAnalysis
+    optimize: OptimizationLevel
+
+    def __init__(
+        self,
+        analyses_caches: dict[IRFunction, IRAnalysesCache],
+        ctx: IRContext,
+        optimize: OptimizationLevel,
+    ):
+        self.analyses_caches = analyses_caches
+        self.ctx = ctx
+        self.optimize = optimize
 
     def run_pass(self):
         entry = self.ctx.entry_function
@@ -62,17 +72,15 @@ class FunctionInlinerPass(IRGlobalPass):
                 return func
 
             # Decide whether to inline based on the optimization level.
-            if self.settings.optimize == OptimizationLevel.CODESIZE:
+            if self.optimize == OptimizationLevel.CODESIZE:
                 continue
-            elif self.settings.optimize == OptimizationLevel.GAS:
+            elif self.optimize == OptimizationLevel.GAS:
                 if func.code_size_cost <= 15:
                     return func
-            elif self.settings.optimize == OptimizationLevel.NONE:
+            elif self.optimize == OptimizationLevel.NONE:
                 continue
             else:  # pragma: nocover
-                raise CompilerPanic(
-                    f"Unsupported inlining optimization level: {self.settings.optimize}"
-                )
+                raise CompilerPanic(f"Unsupported inlining optimization level: {self.optimize}")
 
         return None
 

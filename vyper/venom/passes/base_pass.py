@@ -29,18 +29,10 @@ class IRGlobalPass:
 
     ctx: IRContext
     analyses_caches: dict[IRFunction, IRAnalysesCache]
-    settings: Settings
 
-    def __init__(
-        self,
-        analyses_caches: dict[IRFunction, IRAnalysesCache],
-        ctx: IRContext,
-        settings: Optional[Settings] = None,
-    ):
+    def __init__(self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext):
         self.analyses_caches = analyses_caches
         self.ctx = ctx
-        settings = settings or get_global_settings()
-        self.settings = settings or Settings()
 
     def run_pass(self, *args, **kwargs):
         raise NotImplementedError(f"Not implemented! {self.__class__}.run_pass()")

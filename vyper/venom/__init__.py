@@ -4,7 +4,7 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -94,7 +94,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
-    FunctionInlinerPass(ir_analyses, ctx).run_pass()
+    FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
@@ -112,10 +112,11 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         _run_passes(fn, optimize, ir_analyses[fn])
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
+def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
 
+    optimize = settings.optimize
     run_passes_on(ctx, optimize)
 
     return ctx
