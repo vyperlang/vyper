@@ -1,7 +1,3 @@
-import pytest
-
-from tests.evm_backends.base_env import ExecutionReverted
-
 """
 Test functionality of internal functions which may be inlined
 """
