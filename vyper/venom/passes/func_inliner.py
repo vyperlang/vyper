@@ -110,7 +110,7 @@ class FuncInlinerPass(IRGlobalPass):
         if call_site.opcode != "invoke":
             raise CompilerPanic(f"Expected invoke instruction, got {call_site.opcode}")
 
-        prefix = f"inline_{self.inline_count}_"
+        prefix = f"il{self.inline_count}_"
         self.inline_count += 1
         call_site_bb = call_site.parent
         call_site_func = call_site_bb.parent
@@ -132,24 +132,14 @@ class FuncInlinerPass(IRGlobalPass):
             param_idx = 0
             for inst in bb.instructions:
                 if inst.opcode == "param":
-                    if inst.annotation == self._RETURN_PC_ANNOTATION:
-                        inst.make_nop()
-                    else:
-                        inst.opcode = "store"
-                        inst.operands = [call_site.operands[-param_idx - 1]]
-                        inst.annotation = None
+                    inst.opcode = "store"
+                    inst.operands = [call_site.operands[-param_idx - 1]]
+                    inst.annotation = None
                     param_idx += 1
 
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]
-                elif inst.opcode == "store":
-                    assert inst.output is not None  # mypy is not smart enough
-                    if (
-                        self._RETURN_OFFSET_MARKER in inst.output.name
-                        or self._RETURN_SIZE_MARKER in inst.output.name
-                    ):
-                        inst.make_nop()
                 elif inst.opcode == "ret":
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
