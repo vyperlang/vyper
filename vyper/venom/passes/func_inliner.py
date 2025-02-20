@@ -31,11 +31,6 @@ class FuncInlinerPass(IRGlobalPass):
     - Invalidates DFG, CFG and VarEquivalence analyses
     """
 
-    _RETURN_BUFFER_ANNOTATION = "return_buffer"
-    _RETURN_PC_ANNOTATION = "return_pc"
-    _RETURN_OFFSET_MARKER = "ret_ofst"
-    _RETURN_SIZE_MARKER = "ret_size"
-
     inline_count: int
     fcg: FCGAnalysis
 
