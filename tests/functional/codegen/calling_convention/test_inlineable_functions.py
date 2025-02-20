@@ -2,6 +2,9 @@ import pytest
 
 from tests.evm_backends.base_env import ExecutionReverted
 
+# note for refactor: this may be able to be merged with
+# calling_convention/test_internal_call.py
+
 
 def test_call_in_call(get_contract):
     code = """
