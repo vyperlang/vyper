@@ -585,13 +585,13 @@ struct X:
 
 @external
 def foo():
-    x: X = X({
-        balance: 123,
-        codesize: 456,
-        is_contract: False,
-        codehash: empty(bytes32),
-        code: empty(Bytes[32])
-    })
+    x: X = X(
+        balance=123,
+        codesize=456,
+        is_contract=False,
+        codehash=empty(bytes32),
+        code=empty(Bytes[32])
+    )
 
     a: uint256 = x.balance
     b: uint256 = x.codesize
