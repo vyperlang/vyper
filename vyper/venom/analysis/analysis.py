@@ -73,7 +73,4 @@ class IRAnalysesCache:
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
 
-        for analysis in self.analyses_cache.values():
-            self.request_analysis(analysis.__class__)
-
         return self.request_analysis(analysis_cls, *args, **kwargs)

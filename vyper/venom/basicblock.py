@@ -567,10 +567,11 @@ class IRBasicBlock:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        if instruction.ast_source is None:
-            instruction.ast_source = self.parent.ast_source
-        if instruction.error_msg is None:
-            instruction.error_msg = self.parent.error_msg
+        fn = self.parent
+        if fn.ast_source is not None:
+            instruction.ast_source = fn.ast_source
+        if fn.error_msg is not None:
+            instruction.error_msg = fn.error_msg
         self.instructions.insert(index, instruction)
 
     def clear_nops(self) -> None:
@@ -584,11 +585,11 @@ class IRBasicBlock:
     def remove_instructions_after(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         assert instruction in self.instructions, "instruction must be in basic block"
-        # TODO: make sure this has coverage in the test suite
         self.instructions = self.instructions[: self.instructions.index(instruction) + 1]
 
     def ensure_well_formed(self):
         for inst in self.instructions:
+            assert inst.parent == self  # sanity
             if inst.opcode == "revert":
                 self.remove_instructions_after(inst)
                 self.append_instruction("stop")  # TODO: make revert a bb terminator?

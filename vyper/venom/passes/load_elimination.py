@@ -24,8 +24,6 @@ class LoadElimination(IRPass):
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
             self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
@@ -37,7 +35,7 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
-        return op1 == op2 or self.dfg.are_equivalent(op1, op2)
+        return op1 == op2
 
     def get_literal(self, op):
         if isinstance(op, IRLiteral):

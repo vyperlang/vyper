@@ -2,7 +2,7 @@ from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
-from .func_inliner import FuncInlinerPass
+from .function_inliner import FunctionInlinerPass
 from .literals_codesize import ReduceLiteralsCodesize
 from .load_elimination import LoadElimination
 from .lower_dload import LowerDloadPass

@@ -37,21 +37,22 @@ def test_jump_map(optimize, experimental_codegen):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    expected_jumps = 1
-    expected_internals = 2
     if optimize == OptimizationLevel.NONE:
         # some jumps which don't get optimized out when optimizer is off
         # (slightly different behavior depending if venom pipeline is enabled):
-        if not experimental_codegen:
-            expected_jumps = 3
-        else:
-            expected_jumps = 2
-    else:
-        if not experimental_codegen:
-            expected_internals = 2
-        else:
+        if experimental_codegen:
             expected_jumps = 0
             expected_internals = 0
+        else:
+            expected_jumps = 3
+            expected_internals = 2
+    else:
+        if experimental_codegen:
+            expected_jumps = 0
+            expected_internals = 0
+        else:
+            expected_jumps = 1
+            expected_internals = 2
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == expected_internals

@@ -15,7 +15,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
-    FuncInlinerPass,
+    FunctionInlinerPass,
     LoadElimination,
     LowerDloadPass,
     MakeSSA,
@@ -83,8 +83,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
-
-    # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
@@ -96,7 +94,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
-    FuncInlinerPass(ir_analyses, ctx).run_pass()
+    FunctionInlinerPass(ir_analyses, ctx).run_pass()
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:

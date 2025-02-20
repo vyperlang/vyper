@@ -328,7 +328,7 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
 
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if settings.optimize != OptimizationLevel.NONE and not settings.experimental_codegen:
+    if settings.optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
     return ir_nodes, ir_runtime

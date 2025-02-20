@@ -65,7 +65,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        # "mload",
+        "mload",
         "iload",
         "istore",
         "dload",
@@ -502,11 +502,9 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
-        # TODO: cleanup
-        global _current_func_t
-
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
+        # TODO: only append return args if the function is external
         _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
         if bb.is_terminated:

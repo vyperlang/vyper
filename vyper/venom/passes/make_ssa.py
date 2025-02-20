@@ -35,8 +35,8 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        work = {var: 0 for var in self.dom.dfs_post_walk}
-        has_already = {var: 0 for var in self.dom.dfs_post_walk}
+        work = {bb: 0 for bb in self.dom.dfs_post_walk}
+        has_already = {bb: 0 for bb in self.dom.dfs_post_walk}
         i = 0
 
         # Iterate over all variables

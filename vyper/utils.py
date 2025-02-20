@@ -695,12 +695,15 @@ def safe_relpath(path):
         return path
 
 
-def all_nonempty(iter):
+def all2(iterator):
     """
     This function checks if all elements in the given `iterable` are truthy,
-    similar to Python's built-in `all()` function. However, `all_nonempty`
-    diverges by returning `False` if the iterable is empty, whereas `all()`
-    would return `True` for an empty iterable.
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
     """
-    items = list(iter)
-    return len(items) > 0 and all(items)
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

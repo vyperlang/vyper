@@ -6,20 +6,13 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
 
-class FuncInlinerPass(IRGlobalPass):
+class FunctionInlinerPass(IRGlobalPass):
     """
     This pass inlines functions into their call sites to reduce function call overhead.
 
@@ -28,13 +21,8 @@ class FuncInlinerPass(IRGlobalPass):
 
     Side effects:
     - Modifies the control flow graph
-    - Invalidates DFG, CFG and VarEquivalence analyses
+    - Invalidates DFG and CFG
     """
-
-    _RETURN_BUFFER_ANNOTATION = "return_buffer"
-    _RETURN_PC_ANNOTATION = "return_pc"
-    _RETURN_OFFSET_MARKER = "ret_ofst"
-    _RETURN_SIZE_MARKER = "ret_size"
 
     inline_count: int
     fcg: FCGAnalysis
@@ -59,6 +47,8 @@ class FuncInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            # TODO: check if recomputing this is a perf issue or we should rather
+            # update it in-place.
             self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
@@ -79,7 +69,7 @@ class FuncInlinerPass(IRGlobalPass):
                     return func
             elif self.settings.optimize == OptimizationLevel.NONE:
                 continue
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic(
                     f"Unsupported inlining optimization level: {self.settings.optimize}"
                 )
@@ -110,7 +100,7 @@ class FuncInlinerPass(IRGlobalPass):
         if call_site.opcode != "invoke":
             raise CompilerPanic(f"Expected invoke instruction, got {call_site.opcode}")
 
-        prefix = f"inline_{self.inline_count}_"
+        prefix = f"il{self.inline_count}_"
         self.inline_count += 1
         call_site_bb = call_site.parent
         call_site_func = call_site_bb.parent
@@ -129,30 +119,20 @@ class FuncInlinerPass(IRGlobalPass):
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
             call_site_func.append_basic_block(bb)
+            param_idx = 0
             for inst in bb.instructions:
                 if inst.opcode == "param":
-                    if inst.annotation == self._RETURN_BUFFER_ANNOTATION:
-                        inst.opcode = "store"
-                        inst.operands = [call_site.operands[1]]
-                    elif inst.annotation == self._RETURN_PC_ANNOTATION:
-                        inst.make_nop()
-                    else:
-                        assert inst.annotation is not None
-                        arg = func.get_param_by_name(inst.annotation)
-                        assert arg is not None
-                        inst.opcode = "store"
-                        inst.operands = [call_site.operands[arg.index + 1]]
-                        inst.annotation = None
+                    # NOTE: one of these params is the return pc. technically assigning
+                    # a variable to a label (e.g. %1 = @label) as we are doing here is
+                    # not valid venom code, but it will get removed in store elimination
+                    # (or unused variable elimination)
+                    inst.opcode = "store"
+                    val = call_site.operands[-param_idx - 1]
+                    inst.operands = [val]
+                    param_idx += 1
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]
-                elif inst.opcode == "store":
-                    assert inst.output is not None  # mypy is not smart enough
-                    if (
-                        self._RETURN_OFFSET_MARKER in inst.output.name
-                        or self._RETURN_SIZE_MARKER in inst.output.name
-                    ):
-                        inst.make_nop()
                 elif inst.opcode == "ret":
                     if len(inst.operands) > 1:
                         ret_value = inst.operands[0]
@@ -161,8 +141,9 @@ class FuncInlinerPass(IRGlobalPass):
                         )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
-                elif inst.opcode in ["jmp", "jnz", "djmp", "phi"]:
+                elif inst.opcode in ("jmp", "jnz", "djmp", "phi"):
                     for i, label in enumerate(inst.operands):
+                        # REVIEW: is has_basic_block necessary?
                         if isinstance(label, IRLabel) and func.has_basic_block(label.name):
                             inst.operands[i] = IRLabel(f"{prefix}{label.name}")
                 elif inst.opcode == "revert":
@@ -175,7 +156,7 @@ class FuncInlinerPass(IRGlobalPass):
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
-        DFS walk over the call graph.
+        postorder DFS walk over the call graph.
         """
         visited = set()
         call_walk = []
@@ -214,11 +195,12 @@ class FuncInlinerPass(IRGlobalPass):
         ops: list[IROperand] = []
         for op in inst.operands:
             if isinstance(op, IRLabel):
+                # label renaming is handled in inline_call_site
                 ops.append(IRLabel(op.value))
             elif isinstance(op, IRVariable):
                 ops.append(IRVariable(f"{prefix}{op.name}"))
             else:
-                ops.append(IRLiteral(op.value))
+                ops.append(op)
 
         output = None
         if inst.output:
