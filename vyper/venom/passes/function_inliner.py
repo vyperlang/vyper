@@ -21,7 +21,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
     Side effects:
     - Modifies the control flow graph
-    - Invalidates DFG, CFG and VarEquivalence analyses
+    - Invalidates DFG and CFG
     """
 
     inline_count: int
@@ -47,6 +47,8 @@ class FunctionInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            # TODO: check if recomputing this is a perf issue or we should rather
+            # update it in-place.
             self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
@@ -67,7 +69,7 @@ class FunctionInlinerPass(IRGlobalPass):
                     return func
             elif self.settings.optimize == OptimizationLevel.NONE:
                 continue
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic(
                     f"Unsupported inlining optimization level: {self.settings.optimize}"
                 )
