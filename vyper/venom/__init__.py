@@ -117,6 +117,7 @@ def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
     ctx = ir_node_to_venom(ir)
 
     optimize = settings.optimize
+    assert optimize is not None  # help mypy
     run_passes_on(ctx, optimize)
 
     return ctx

@@ -1,6 +1,3 @@
-from typing import Optional
-
-from vyper.compiler.settings import Settings, get_global_settings
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
