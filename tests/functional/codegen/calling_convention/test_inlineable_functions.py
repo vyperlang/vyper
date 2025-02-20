@@ -2,6 +2,9 @@ import pytest
 
 from tests.evm_backends.base_env import ExecutionReverted
 
+"""
+Test functionality of internal functions which may be inlined
+"""
 # note for refactor: this may be able to be merged with
 # calling_convention/test_internal_call.py
 
@@ -25,7 +28,7 @@ def foo() -> uint256:
     assert c.foo() == 5
 
 
-def test_call_in_call_with_raise(get_contract):
+def test_call_in_call_with_raise(get_contract, tx_failed):
     code = """
 @internal
 def sum(a: uint256) -> uint256:
@@ -46,7 +49,7 @@ def test(a: uint256) -> uint256:
 
     assert c.test(2) == 3
 
-    with pytest.raises(ExecutionReverted):
+    with tx_failed():
         c.test(0)
 
 
