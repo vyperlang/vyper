@@ -218,7 +218,6 @@ class FuncInlinerPass(IRGlobalPass):
 
         clone = IRInstruction(inst.opcode, ops, output)
         clone.parent = inst.parent
-        clone.liveness = inst.liveness.copy()
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
