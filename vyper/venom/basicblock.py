@@ -567,10 +567,11 @@ class IRBasicBlock:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        if instruction.ast_source is None:
-            instruction.ast_source = self.parent.ast_source
-        if instruction.error_msg is None:
-            instruction.error_msg = self.parent.error_msg
+        fn = self.parent
+        if fn.ast_source is not None:
+            instruction.ast_source = fn.ast_source
+        if fn.error_msg is not None:
+            instruction.error_msg = fn.error_msg
         self.instructions.insert(index, instruction)
 
     def clear_nops(self) -> None:
