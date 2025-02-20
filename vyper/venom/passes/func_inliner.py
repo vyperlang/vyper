@@ -135,7 +135,6 @@ class FuncInlinerPass(IRGlobalPass):
                     val = call_site.operands[-param_idx - 1]
                     inst.operands = [val]
                     param_idx += 1
-
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]
@@ -156,7 +155,7 @@ class FuncInlinerPass(IRGlobalPass):
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
-        DFS walk over the call graph.
+        postorder DFS walk over the call graph.
         """
         visited = set()
         call_walk = []
@@ -195,11 +194,12 @@ class FuncInlinerPass(IRGlobalPass):
         ops: list[IROperand] = []
         for op in inst.operands:
             if isinstance(op, IRLabel):
+                # label renaming is handled in inline_call_site
                 ops.append(IRLabel(op.value))
             elif isinstance(op, IRVariable):
                 ops.append(IRVariable(f"{prefix}{op.name}"))
             else:
-                ops.append(IRLiteral(op.value))
+                ops.append(op)
 
         output = None
         if inst.output:
