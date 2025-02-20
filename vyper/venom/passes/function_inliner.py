@@ -19,7 +19,7 @@ from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
 
-class FuncInlinerPass(IRGlobalPass):
+class FunctionInlinerPass(IRGlobalPass):
     """
     This pass inlines functions into their call sites to reduce function call overhead.
 
