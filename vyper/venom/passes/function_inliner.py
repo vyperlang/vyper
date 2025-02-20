@@ -138,6 +138,7 @@ class FunctionInlinerPass(IRGlobalPass):
                     inst.operands = [call_site_return.label]
                 elif inst.opcode in ("jmp", "jnz", "djmp", "phi"):
                     for i, label in enumerate(inst.operands):
+                        # REVIEW: is has_basic_block necessary?
                         if isinstance(label, IRLabel) and func.has_basic_block(label.name):
                             inst.operands[i] = IRLabel(f"{prefix}{label.name}")
                 elif inst.opcode == "revert":
