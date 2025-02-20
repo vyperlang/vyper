@@ -199,7 +199,6 @@ def _handle_internal_func(
     global _alloca_table
 
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
-    fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     bb = fn.get_basic_block()
 
