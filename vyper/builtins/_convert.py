@@ -363,20 +363,28 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, StringT, BoolT)
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
-    if isinstance(arg.typ, BytesT):
-        bytes_val = LOAD(bytes_data_ptr(arg))
+    if isinstance(arg.typ, _BytestringT):
+        # handle literal bytestrings first
+        if isinstance(expr, vy_ast.Constant) and arg.typ.length <= out_typ.m:
+            arg = int(expr.value.encode("utf-8").hex(), 16)
 
-        # zero out any dirty bytes (which can happen in the last
-        # word of a bytearray)
-        len_ = get_bytearray_length(arg)
-        num_zero_bits = IRnode.from_list(["mul", ["sub", 32, len_], 8])
-        with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
-            arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
-            arg = b.resolve(arg)
+        elif isinstance(arg.typ, BytesT):
+            bytes_val = LOAD(bytes_data_ptr(arg))
+
+            # zero out any dirty bytes (which can happen in the last
+            # word of a bytearray)
+            len_ = get_bytearray_length(arg)
+            num_zero_bits = IRnode.from_list(["mul", ["sub", 32, len_], 8])
+            with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
+                arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
+                arg = b.resolve(arg)
+        
+        else:
+            _FAIL(arg.typ, out_typ, expr)
 
     elif is_bytes_m_type(arg.typ):
         # clamp if it's a downcast
