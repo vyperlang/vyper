@@ -26,16 +26,18 @@ class IRFunction:
     ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
     last_variable: int
+    inline: bool
     _basic_block_dict: dict[str, IRBasicBlock]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
 
-    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
+    def __init__(self, name: IRLabel, ctx: "IRContext" = None, inline: bool = False) -> None:  # type: ignore # noqa: F821
         self.ctx = ctx
         self.name = name
         self.args = []
+        self.inline = inline
         self._basic_block_dict = {}
 
         self.last_variable = 0

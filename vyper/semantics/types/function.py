@@ -97,6 +97,7 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         from_interface: bool = False,
         nonreentrant: bool = False,
+        inline: bool = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
@@ -109,6 +110,7 @@ class ContractFunctionT(VyperType):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
         self.from_interface = from_interface
+        self.inline = inline
 
         # sanity check, nonreentrant used to be Optional[str]
         assert isinstance(self.nonreentrant, bool)
@@ -250,6 +252,7 @@ class ContractFunctionT(VyperType):
             from_interface=True,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
+            inline=False,
         )
 
     @classmethod
@@ -309,6 +312,7 @@ class ContractFunctionT(VyperType):
             state_mutability,
             from_interface=True,
             nonreentrant=False,
+            inline=False,
             ast_def=funcdef,
         )
 
@@ -327,14 +331,14 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant, inline = _parse_decorators(funcdef)
 
-        if nonreentrant:
+        if nonreentrant or inline:
             # TODO: refactor so parse_decorators returns the AST location
-            decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
-            raise FunctionDeclarationException(
-                "`@nonreentrant` not allowed in interfaces", decorator
+            decorator = next(
+                d for d in funcdef.decorator_list if d.id in ("nonreentrant", "inline")
             )
+            raise FunctionDeclarationException(f"`@{d.id}` not allowed in interfaces", decorator)
 
         # it's redundant to specify visibility in vyi - always should be external
         if function_visibility is None:
@@ -378,6 +382,7 @@ class ContractFunctionT(VyperType):
             state_mutability,
             from_interface=True,
             nonreentrant=nonreentrant,
+            inline=False,
             ast_def=funcdef,
         )
 
@@ -395,7 +400,7 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant, inline = _parse_decorators(funcdef)
 
         # it's redundant to specify internal visibility - it's implied by not being external
         if function_visibility is None:
@@ -453,6 +458,7 @@ class ContractFunctionT(VyperType):
             state_mutability,
             from_interface=False,
             nonreentrant=nonreentrant,
+            inline=inline,
             ast_def=funcdef,
         )
 
@@ -726,10 +732,11 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[Optional[FunctionVisibility], StateMutability, bool]:
+) -> tuple[Optional[FunctionVisibility], StateMutability, bool, bool]:
     function_visibility = None
     state_mutability = None
     nonreentrant_node = None
+    inline_node = None
 
     for decorator in funcdef.decorator_list:
         if isinstance(decorator, vy_ast.Call):
@@ -746,6 +753,12 @@ def _parse_decorators(
                 raise StructureException("nonreentrant decorator is already set", nonreentrant_node)
 
             nonreentrant_node = decorator
+
+        elif decorator.get("id") == "inline":
+            if inline_node is not None:
+                raise StructureException("inline decorator is already set", inline_node)
+
+            inline_node = decorator
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):
@@ -786,7 +799,8 @@ def _parse_decorators(
         raise StructureException("Cannot use reentrancy guard on pure functions", nonreentrant_node)
 
     nonreentrant = nonreentrant_node is not None
-    return function_visibility, state_mutability, nonreentrant
+    inline = inline_node is not None
+    return function_visibility, state_mutability, nonreentrant, inline
 
 
 def _parse_args(
