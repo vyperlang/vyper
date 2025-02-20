@@ -60,10 +60,10 @@ class IRContext:
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
 
-    def create_function(self, name: str) -> IRFunction:
+    def create_function(self, name: str, inline: bool = False) -> IRFunction:
         label = IRLabel(name, True)
         assert label not in self.functions, f"duplicate function {label}"
-        fn = IRFunction(label, self)
+        fn = IRFunction(label, self, inline=inline)
         self.add_function(fn)
         return fn
 
