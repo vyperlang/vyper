@@ -372,8 +372,10 @@ def to_bytes_m(expr, arg, out_typ):
         if isinstance(expr, vy_ast.Constant) and arg.typ.length <= out_typ.m:
             val = expr.value
             if isinstance(arg.typ, StringT):
-                val = expr.value.encode("utf-8")
-            arg = int(val.hex(), 16)
+                val = val.encode("utf-8")
+
+            # bytes_m types are left padded with zeros
+            arg = int(val.hex(), 16) << 8 * (out_typ.m - arg.typ.length)
 
         elif isinstance(arg.typ, BytesT):
             bytes_val = LOAD(bytes_data_ptr(arg))
