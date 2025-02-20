@@ -382,7 +382,7 @@ def to_bytes_m(expr, arg, out_typ):
             with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
                 arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
                 arg = b.resolve(arg)
-        
+
         else:
             _FAIL(arg.typ, out_typ, expr)
 
