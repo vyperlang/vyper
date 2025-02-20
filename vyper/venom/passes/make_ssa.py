@@ -35,8 +35,8 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        work = {bb: 0 for bb in self.dom.dfs_walk}
-        has_already = {bb: 0 for bb in self.dom.dfs_walk}
+        work = {bb: 0 for bb in self.dom.dfs_post_walk}
+        has_already = {bb: 0 for bb in self.dom.dfs_post_walk}
         i = 0
 
         # Iterate over all variables
@@ -148,7 +148,7 @@ class MakeSSA(IRPass):
         Compute the definition points of variables in the function.
         """
         self.defs = {}
-        for bb in self.dom.dfs_walk:
+        for bb in self.dom.dfs_post_walk:
             assignments = bb.get_assignments()
             for var in assignments:
                 if var not in self.defs:
