@@ -62,8 +62,7 @@ class IRContext:
 
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)
-        if label in self.functions:
-            return self.functions[label]
+        assert label not in self.functions, f"duplicate function {label}"
         fn = IRFunction(label, self)
         fn.append_basic_block(IRBasicBlock(label, fn))
         self.add_function(fn)

@@ -63,7 +63,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        # "mload",
+        "mload",
         "iload",
         "istore",
         "dload",
@@ -418,9 +418,6 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
-        # TODO: cleanup
-        global _current_func_t
-
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
         _append_return_args(fn, *var_list)
@@ -444,11 +441,6 @@ def _convert_ir_bb(fn, ir, symbols):
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-    elif ir.value == "mload":
-        arg = ir.args[0]
-        ptr = _convert_ir_bb(fn, arg, symbols)
-
-        return fn.get_basic_block().append_instruction("mload", ptr)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])

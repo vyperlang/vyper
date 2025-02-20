@@ -585,11 +585,11 @@ class IRBasicBlock:
     def remove_instructions_after(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         assert instruction in self.instructions, "instruction must be in basic block"
-        # TODO: make sure this has coverage in the test suite
         self.instructions = self.instructions[: self.instructions.index(instruction) + 1]
 
     def ensure_well_formed(self):
         for inst in self.instructions:
+            assert inst.parent == self  # sanity
             if inst.opcode == "revert":
                 self.remove_instructions_after(inst)
                 self.append_instruction("stop")  # TODO: make revert a bb terminator?
