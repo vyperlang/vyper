@@ -134,7 +134,7 @@ class FunctionInlinerPass(IRGlobalPass):
                 elif inst.opcode == "ret":
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
-                elif inst.opcode in ["jmp", "jnz", "djmp", "phi"]:
+                elif inst.opcode in ("jmp", "jnz", "djmp", "phi"):
                     for i, label in enumerate(inst.operands):
                         if isinstance(label, IRLabel) and func.has_basic_block(label.name):
                             inst.operands[i] = IRLabel(f"{prefix}{label.name}")
