@@ -9,7 +9,8 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-from vyper.utils import sha256sum, vyper_warn
+from vyper.utils import sha256sum
+from vyper.warnings import Deprecation, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -442,7 +443,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
             # add full_source_code so that str(VyperException(msg, node)) works
             node.full_source_code = self._source_code
-            vyper_warn(msg, node)
+            vyper_warn(Deprecation(msg, node))
 
             dict_ = node.args[0]
             kw_list = []
