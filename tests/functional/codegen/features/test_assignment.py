@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ImmutableViolation, InvalidType, TypeMismatch
+from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
 def test_augassign(get_contract):
@@ -37,6 +37,21 @@ def augmod(x: int128, y: int128) -> int128:
     assert c.augsub(5, 12) == -7
     assert c.augmod(5, 12) == 5
     print("Passed aug-assignment test")
+
+
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_oob(get_contract, tx_failed):
+    code = """
+def poc():
+    a: DynArray[uint256, 2] = [1, 2]
+    a[1] += a.pop()
+    """
+    # xfail here (with panic):
+    c = get_contract(code)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.poc()
 
 
 @pytest.mark.parametrize(
