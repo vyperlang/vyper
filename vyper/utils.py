@@ -693,3 +693,17 @@ def safe_relpath(path):
         # on Windows, if path and curdir are on different drives, an exception
         # can be thrown
         return path
+
+
+def all2(iterator):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
+    """
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)
