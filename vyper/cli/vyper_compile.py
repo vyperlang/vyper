@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import functools
+import inspect
 import json
 import os
 import sys
@@ -297,7 +298,11 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
 def _apply_warnings_filter(func):
     @functools.wraps(func)
     def inner(*args, **kwargs):
-        warnings_control = args[-1]
+        # find "warnings_control" argument
+        ba = inspect.signature(func).bind(*args, **kwargs)
+        ba.apply_defaults()
+
+        warnings_control = ba.arguments["warnings_control"]
         with warnings_filter(warnings_control):
             return func(*args, **kwargs)
 
