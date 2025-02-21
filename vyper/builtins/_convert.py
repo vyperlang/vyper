@@ -374,7 +374,9 @@ def to_bytes_m(expr, arg, out_typ):
             if isinstance(arg.typ, StringT):
                 val = val.encode("utf-8")
 
-            arg = shl(256 - out_typ.m_bits, int(val.hex(), 16))
+            # bytes_m types are left padded with zeros
+            val = int(val.hex(), 16) << 8 * (out_typ.m - arg.typ.length)
+            arg = shl(256 - out_typ.m_bits, val)
 
         elif isinstance(arg.typ, BytesT):
             bytes_val = LOAD(bytes_data_ptr(arg))
