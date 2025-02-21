@@ -1,3 +1,4 @@
+from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, SimplifyCFGPass
@@ -35,3 +36,5 @@ def test_phi_reduction_after_block_pruning():
 
     ctx2 = parse_venom(post)
     assert_ctx_eq(ctx1, ctx2)
+
+    hevm_check_venom(pre, post)
