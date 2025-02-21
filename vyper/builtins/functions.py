@@ -96,8 +96,8 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
-    vyper_warn,
 )
+from vyper.warnings import vyper_warn
 
 from ._convert import convert
 from ._signatures import BuiltinFunctionT, process_inputs
@@ -2293,19 +2293,12 @@ class Print(BuiltinFunctionT):
 
         else:
             method_id = method_id_int("log(string,bytes)")
+
             schema = args_abi_t.selector_name().encode("utf-8")
-            if len(schema) > 32:
-                raise CompilerPanic(f"print signature too long: {schema}")
-
             schema_t = StringT(len(schema))
-            schema_buf = context.new_internal_variable(schema_t)
-            ret = ["seq"]
-            ret.append(["mstore", schema_buf, len(schema)])
+            schema_buf = Expr._make_bytelike(context, StringT, schema)
 
-            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(
-                ["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))]
-            )
+            ret = ["seq"]
 
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
