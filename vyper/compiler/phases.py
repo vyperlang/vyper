@@ -256,8 +256,8 @@ class CompilerData:
     @cached_property
     def venom_functions(self):
         deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
-        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        deploy_venom = generate_ir(deploy_ir, self.settings)
+        runtime_venom = generate_ir(runtime_ir, self.settings)
         return deploy_venom, runtime_venom
 
     @cached_property
