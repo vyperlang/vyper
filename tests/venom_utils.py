@@ -83,7 +83,7 @@ class PrePostChecker:
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
-            for p in self.passes:
+            for p in self.post_passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass()
