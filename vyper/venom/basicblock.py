@@ -439,7 +439,7 @@ class IRInstruction:
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
-            s += f" ; {self.annotation}"
+            s = f"{s: <30} ; {self.annotation}"
 
         # debug:
         # if self.error_msg:
