@@ -1,4 +1,5 @@
 import textwrap
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterator, Optional
 
@@ -105,6 +106,19 @@ class IRFunction:
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
+
+    def freshen_varnames(self) -> None:
+        self.last_variable = 0
+        varmap = defaultdict(self.get_next_variable)
+        for bb in self.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.output:
+                    inst.output = varmap[inst.output]
+
+                for i, op in enumerate(inst.operands):
+                    if not isinstance(op, IRVariable):
+                        continue
+                    inst.operands[i] = varmap[op]
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
