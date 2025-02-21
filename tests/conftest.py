@@ -7,6 +7,7 @@ import pytest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
+import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
@@ -14,7 +15,7 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -40,6 +41,7 @@ def pytest_addoption(parser):
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
     parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
+    parser.addoption("--hevm", action="store_true")
 
     parser.addoption(
         "--evm-version",
@@ -114,6 +116,13 @@ def evm_version(pytestconfig):
     return pytestconfig.getoption("evm_version")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def set_hevm(pytestconfig):
+    flag_value = pytestconfig.getoption("hevm")
+    assert isinstance(flag_value, bool)
+    tests.hevm.HAS_HEVM = flag_value
+
+
 @pytest.fixture(scope="session")
 def evm_backend(pytestconfig):
     backend_str = pytestconfig.getoption("evm_backend")
@@ -164,12 +173,6 @@ def make_input_bundle(tmp_path, make_file):
         return FilesystemInputBundle([tmp_path])
 
     return fn
-
-
-# for tests which just need an input bundle, doesn't matter what it is
-@pytest.fixture
-def dummy_input_bundle():
-    return InputBundle([])
 
 
 @pytest.fixture(scope="module")

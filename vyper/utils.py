@@ -4,13 +4,14 @@ import decimal
 import enum
 import functools
 import hashlib
+import os
 import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
 _T = TypeVar("_T")
 
@@ -25,9 +26,10 @@ class OrderedSet(Generic[_T]):
     """
 
     def __init__(self, iterable=None):
-        self._data = dict()
-        if iterable is not None:
-            self.update(iterable)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self)
@@ -57,6 +59,7 @@ class OrderedSet(Generic[_T]):
     def add(self, item: _T) -> None:
         self._data[item] = None
 
+    # NOTE to refactor: duplicate of self.update()
     def addmany(self, iterable):
         for item in iterable:
             self._data[item] = None
@@ -86,6 +89,7 @@ class OrderedSet(Generic[_T]):
     def union(self, other):
         return self | other
 
+    # set dunders
     def __ior__(self, other):
         self.update(other)
         return self
@@ -98,6 +102,15 @@ class OrderedSet(Generic[_T]):
     def __eq__(self, other):
         return self._data == other._data
 
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
+
     def copy(self):
         cls = self.__class__
         ret = cls.__new__(cls)
@@ -109,11 +122,25 @@ class OrderedSet(Generic[_T]):
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
 
-        ret = sets[0].copy()
-        for e in sets[0]:
-            if any(e not in s for s in sets[1:]):
-                ret.remove(e)
-        return ret
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
+
+
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
 
 
 class StringEnum(enum.Enum):
@@ -221,6 +248,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -230,7 +264,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -245,7 +279,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_
@@ -295,17 +329,6 @@ def round_towards_zero(d: decimal.Decimal) -> int:
     # (but either way keep this util function bc it's easier at a glance
     # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
-
-
-# Converts string to bytes
-def string_to_bytes(str):
-    bytez = b""
-    for c in str:
-        if ord(c) >= 256:
-            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
-        bytez += bytes([ord(c)])
-    bytez_length = len(bytez)
-    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer
@@ -376,6 +399,11 @@ def int_bounds(signed, bits):
 def evm_twos_complement(x: int) -> int:
     # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
     return ((2**256 - 1) ^ x) + 1
+
+
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
 
 
 # EVM div semantics as a python function
@@ -506,20 +534,79 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
 
 
 @contextlib.contextmanager
-def timeit(msg):
+def timeit(msg):  # pragma: nocover
     start_time = time.perf_counter()
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds")
+    print(f"{msg}: Took {total_time:.6f} seconds", file=sys.stderr)
+
+
+_CUMTIMES = None
+
+
+def _dump_cumtime():  # pragma: nocover
+    global _CUMTIMES
+    for msg, total_time in _CUMTIMES.items():
+        print(f"{msg}: Cumulative time {total_time:.3f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
+def cumtimeit(msg):  # pragma: nocover
+    import atexit
+    from collections import defaultdict
+
+    global _CUMTIMES
+
+    if _CUMTIMES is None:
+        warnings.warn("timing code, disable me before pushing!", stacklevel=2)
+        _CUMTIMES = defaultdict(int)
+        atexit.register(_dump_cumtime)
+
+    start_time = time.perf_counter()
     yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    _CUMTIMES[msg] += total_time
+
+
+_PROF = None
+
+
+def _dump_profile():  # pragma: nocover
+    global _PROF
+
+    _PROF.disable()  # don't profile dumping stats
+    _PROF.dump_stats("stats")
+
+    from pstats import Stats
+
+    stats = Stats("stats", stream=sys.stderr)
+    stats.sort_stats("time")
+    stats.print_stats()
+
+
+@contextlib.contextmanager
+def profileit():  # pragma: nocover
+    """
+    Helper function for local dev use, is not intended to ever be run in
+    production build
+    """
+    import atexit
+    from cProfile import Profile
+
+    global _PROF
+    if _PROF is None:
+        warnings.warn("profiling code, disable me before pushing!", stacklevel=2)
+        _PROF = Profile()
+        _PROF.disable()
+        atexit.register(_dump_profile)
+
+    try:
+        _PROF.enable()
+        yield
+    finally:
+        _PROF.disable()
 
 
 def annotate_source_code(
@@ -597,3 +684,26 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path
+
+
+def all2(iterator):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
+    """
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

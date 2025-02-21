@@ -136,7 +136,7 @@ def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> Non
         parent = node.get_ancestor()
         if isinstance(parent, vy_ast.Call):
             ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
             if ok_func and ok_args:
                 return
 
@@ -154,7 +154,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 "msg.data is only allowed inside of the slice, len or raw_call functions", node
             )
         if parent.get("func.id") == "slice":
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
             if not ok_args:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
@@ -811,13 +811,17 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, typ)
 
         elif is_type_t(func_type, EventT):
-            # events have no kwargs
+            # event ctors
             expected_types = func_type.typedef.arguments.values()  # type: ignore
-            for arg, typ in zip(node.args, expected_types):
-                self.visit(arg, typ)
+            # Handle keyword args if present, otherwise use positional args
+            if len(node.keywords) > 0:
+                for kwarg, arg_type in zip(node.keywords, expected_types):
+                    self.visit(kwarg.value, arg_type)
+            else:
+                for arg, typ in zip(node.args, expected_types):
+                    self.visit(arg, typ)
         elif is_type_t(func_type, StructT):
             # struct ctors
-            # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
             for kwarg, arg_type in zip(node.keywords, expected_types):
                 self.visit(kwarg.value, arg_type)

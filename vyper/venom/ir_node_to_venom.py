@@ -4,7 +4,6 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.utils import MemoryPositions
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -67,6 +66,8 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "mload",
         "iload",
         "istore",
+        "dload",
+        "dloadbytes",
         "sload",
         "sstore",
         "tload",
@@ -106,26 +107,29 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
-SymbolTable = dict[str, Optional[IROperand]]
-_global_symbols: SymbolTable = None  # type: ignore
+SymbolTable = dict[str, IROperand]
+_alloca_table: dict[int, IROperand]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
-_external_functions: dict[int, SymbolTable] = None  # type: ignore
 
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _global_symbols, _external_functions
-    _global_symbols = {}
-    _external_functions = {}
+    global _alloca_table
+    _alloca_table = {}
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
+    ctx.entry_function = fn
 
     _convert_ir_bb(fn, ir, {})
 
     ctx.chain_basic_blocks()
+
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            bb.ensure_well_formed()
 
     return ctx
 
@@ -155,20 +159,29 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
     bb.append_instruction("store", size, ret=ret_size)
 
 
-def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IRVariable]:
+def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
-    return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
-    return_buf = _convert_ir_bb(fn, return_buf_ir, symbols)
+    converted_args = _convert_ir_bb_list(fn, goto_ir.args[1:], symbols)
+
+    callsite_op = converted_args[-1]
+    assert isinstance(callsite_op, IRLabel), converted_args
 
     bb = fn.get_basic_block()
-    if len(goto_ir.args) > 2:
+    return_buf = None
+
+    if len(converted_args) > 1:
+        return_buf = converted_args[0]
+
+    if return_buf is not None:
         ret_args.append(return_buf)  # type: ignore
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
@@ -177,21 +190,39 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
 
 def _handle_internal_func(
-    fn: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
+    # TODO: remove does_return_data, replace with `func_t.return_type is not None`
+    fn: IRFunction,
+    ir: IRnode,
+    does_return_data: bool,
+    symbols: SymbolTable,
 ) -> IRFunction:
+    global _alloca_table
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
+
     bb = fn.get_basic_block()
+
+    _saved_alloca_table = _alloca_table
+    _alloca_table = {}
 
     # return buffer
     if does_return_data:
-        symbols["return_buffer"] = bb.append_instruction("param")
+        buf = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
+        assert buf is not None  # help mypy
+        symbols["return_buffer"] = buf
+
     # return address
-    symbols["return_pc"] = bb.append_instruction("param")
+    return_pc = bb.append_instruction("param")
+    assert return_pc is not None  # help mypy
+    symbols["return_pc"] = return_pc
+
     bb.instructions[-1].annotation = "return_pc"
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
+
+    _alloca_table = _saved_alloca_table
 
     return fn
 
@@ -233,7 +264,7 @@ def pop_source_on_return(func):
 def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
-    global _break_target, _continue_target, _global_symbols, _external_functions
+    global _break_target, _continue_target, _alloca_table
 
     # keep a map from external functions to all possible entry points
 
@@ -255,6 +286,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
+        fn.get_basic_block().append_instruction("exit")
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -268,8 +300,8 @@ def _convert_ir_bb(fn, ir, symbols):
             if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
                 # Internal definition
                 var_list = ir.args[0].args[1]
+                assert var_list.value == "var_list"
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-                _global_symbols = {}
                 symbols = {}
                 new_fn = _handle_internal_func(fn, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
@@ -297,8 +329,6 @@ def _convert_ir_bb(fn, ir, symbols):
         cont_ret = _convert_ir_bb(fn, cond, symbols)
         cond_block = fn.get_basic_block()
 
-        saved_global_symbols = _global_symbols.copy()
-
         then_block = IRBasicBlock(ctx.get_next_label("then"), fn)
         else_block = IRBasicBlock(ctx.get_next_label("else"), fn)
 
@@ -313,7 +343,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # convert "else"
         cond_symbols = symbols.copy()
-        _global_symbols = saved_global_symbols.copy()
         fn.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
@@ -341,8 +370,6 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
-
-        _global_symbols = saved_global_symbols
 
         return if_ret
 
@@ -372,25 +399,16 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
-        label = IRLabel(ir.args[0].value)
-        ctx.append_data("dbname", [label])
+        label = IRLabel(ir.args[0].value, True)
+        ctx.append_data_section(label)
         for c in ir.args[1:]:
-            if isinstance(c, int):
-                assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c.value, bytes):
-                ctx.append_data("db", [c.value])  # type: ignore
+            if isinstance(c.value, bytes):
+                ctx.append_data_item(c.value)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
-                ctx.append_data("db", [data])  # type: ignore
+                assert isinstance(data, IRLabel)  # help mypy
+                ctx.append_data_item(data)
     elif ir.value == "label":
-        function_id_pattern = r"external (\d+)"
-        function_name = ir.args[0].value
-        m = re.match(function_id_pattern, function_name)
-        if m is not None:
-            function_id = m.group(1)
-            _global_symbols = _external_functions.setdefault(function_id, {})
-
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
         if not bb.is_terminated:
@@ -398,13 +416,11 @@ def _convert_ir_bb(fn, ir, symbols):
         bb = IRBasicBlock(label, fn)
         fn.append_basic_block(bb)
         code = ir.args[2]
-        if code.value == "pass":
-            bb.append_instruction("exit")
-        else:
-            _convert_ir_bb(fn, code, symbols)
+        _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
         args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
         var_list = args
+        # TODO: only append return args if the function is external
         _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
         if bb.is_terminated:
@@ -415,25 +431,10 @@ def _convert_ir_bb(fn, ir, symbols):
         label = IRLabel(ir.args[0].value)
         if label.value == "return_pc":
             label = symbols.get("return_pc")
+            # return label should be top of stack
             bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
-
-    elif ir.value == "dload":
-        arg_0 = _convert_ir_bb(fn, ir.args[0], symbols)
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", arg_0, IRLabel("code_end"))
-
-        bb.append_instruction("dloadbytes", 32, src, MemoryPositions.FREE_VAR_SPACE)
-        return bb.append_instruction("mload", MemoryPositions.FREE_VAR_SPACE)
-
-    elif ir.value == "dloadbytes":
-        dst, src_offset, len_ = _convert_ir_bb_list(fn, ir.args, symbols)
-
-        bb = fn.get_basic_block()
-        src = bb.append_instruction("add", src_offset, IRLabel("code_end"))
-        bb.append_instruction("dloadbytes", len_, src, dst)
-        return None
 
     elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
@@ -441,7 +442,6 @@ def _convert_ir_bb(fn, ir, symbols):
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
@@ -465,13 +465,11 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "repeat":
 
         def emit_body_blocks():
-            global _break_target, _continue_target, _global_symbols
+            global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, incr_block
-            saved_global_symbols = _global_symbols.copy()
             _convert_ir_bb(fn, body, symbols.copy())
             _break_target, _continue_target = old_targets
-            _global_symbols = saved_global_symbols
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(fn, ir.args[1:4], symbols)
@@ -542,16 +540,25 @@ def _convert_ir_bb(fn, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(fn, ir, symbols)
     elif isinstance(ir.value, str):
-        if ir.value.startswith("$alloca") and ir.value not in _global_symbols:
+        if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("alloca", alloca.offset, alloca.size)
-            _global_symbols[ir.value] = ptr
-        elif ir.value.startswith("$palloca") and ir.value not in _global_symbols:
-            alloca = ir.passthrough_metadata["alloca"]
-            ptr = fn.get_basic_block().append_instruction("store", alloca.offset)
-            _global_symbols[ir.value] = ptr
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "alloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
 
-        return _global_symbols.get(ir.value) or symbols.get(ir.value)
+        elif ir.value.startswith("$palloca"):
+            alloca = ir.passthrough_metadata["alloca"]
+            if alloca._id not in _alloca_table:
+                ptr = fn.get_basic_block().append_instruction(
+                    "palloca", alloca.offset, alloca.size, alloca._id
+                )
+                _alloca_table[alloca._id] = ptr
+            return _alloca_table[alloca._id]
+
+        return symbols.get(ir.value)
     elif ir.is_literal:
         return IRLiteral(ir.value)
     else:

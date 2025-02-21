@@ -1,5 +1,7 @@
+import copy
 import json
 
+from tests.ast_utils import deepequals
 from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
@@ -137,7 +139,7 @@ def test() -> int128:
     new_dict = json.loads(out_json)
     new_ast = dict_to_ast(new_dict)
 
-    assert new_ast == original_ast
+    assert deepequals(new_ast, original_ast)
 
 
 # strip source annotations like lineno, we don't care for inspecting
@@ -216,23 +218,26 @@ def foo():
     input_bundle = make_input_bundle({"lib1.vy": lib1, "main.vy": main})
 
     lib1_file = input_bundle.load_file("lib1.vy")
-    out = compiler.compile_from_file_input(
+    lib1_out = compiler.compile_from_file_input(
         lib1_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
-    lib1_ast = out["annotated_ast_dict"]["ast"]
+
+    lib1_ast = copy.deepcopy(lib1_out["annotated_ast_dict"]["ast"])
     lib1_sha256sum = lib1_ast.pop("source_sha256sum")
     assert lib1_sha256sum == lib1_file.sha256sum
     to_strip = NODE_SRC_ATTRIBUTES + ("resolved_path", "variable_reads", "variable_writes")
     _strip_source_annotations(lib1_ast, to_strip=to_strip)
 
     main_file = input_bundle.load_file("main.vy")
-    out = compiler.compile_from_file_input(
+    main_out = compiler.compile_from_file_input(
         main_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
-    main_ast = out["annotated_ast_dict"]["ast"]
+    main_ast = main_out["annotated_ast_dict"]["ast"]
     main_sha256sum = main_ast.pop("source_sha256sum")
     assert main_sha256sum == main_file.sha256sum
     _strip_source_annotations(main_ast, to_strip=to_strip)
+
+    assert main_out["annotated_ast_dict"]["imports"][0] == lib1_out["annotated_ast_dict"]["ast"]
 
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
@@ -395,6 +400,7 @@ def foo():
         "node_id": 0,
         "path": "main.vy",
         "source_id": 1,
+        "is_interface": False,
         "type": {
             "name": "main.vy",
             "type_decl_node": {"node_id": 0, "source_id": 1},
@@ -1171,6 +1177,7 @@ def foo():
         "node_id": 0,
         "path": "lib1.vy",
         "source_id": 0,
+        "is_interface": False,
         "type": {
             "name": "lib1.vy",
             "type_decl_node": {"node_id": 0, "source_id": 0},
@@ -1776,3 +1783,49 @@ def qux2():
             },
         }
     ]
+
+
+def test_annotated_ast_export_recursion(make_input_bundle):
+    sources = {
+        "main.vy": """
+import lib1
+
+@external
+def foo():
+    lib1.foo()
+    """,
+        "lib1.vy": """
+import lib2
+
+def foo():
+    lib2.foo()
+    """,
+        "lib2.vy": """
+def foo():
+    pass
+    """,
+    }
+
+    input_bundle = make_input_bundle(sources)
+
+    def compile_and_get_ast(file_name):
+        file = input_bundle.load_file(file_name)
+        output = compiler.compile_from_file_input(
+            file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
+        )
+        return output["annotated_ast_dict"]
+
+    lib1_ast = compile_and_get_ast("lib1.vy")["ast"]
+    lib2_ast = compile_and_get_ast("lib2.vy")["ast"]
+    main_out = compile_and_get_ast("main.vy")
+
+    lib1_import_ast = main_out["imports"][1]
+    lib2_import_ast = main_out["imports"][0]
+
+    # path is once virtual, once libX.vy
+    # type contains name which is based on path
+    keys = [s for s in lib1_import_ast.keys() if s not in {"path", "type"}]
+
+    for key in keys:
+        assert lib1_ast[key] == lib1_import_ast[key]
+        assert lib2_ast[key] == lib2_import_ast[key]
