@@ -18,6 +18,8 @@ def vyper_warn(warning: VyperWarning | str, node=None):
 
 @contextlib.contextmanager
 def warnings_filter(warnings_control: Optional[str]):
+    # note: using warnings.catch_warnings() since it saves and restores
+    # the warnings filter
     with warnings.catch_warnings():
         set_warnings_filter(warnings_control)
         yield
