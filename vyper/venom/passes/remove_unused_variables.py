@@ -37,8 +37,6 @@ class RemoveUnusedVariablesPass(IRPass):
         if inst.is_volatile or inst.is_bb_terminator:
             return
 
-        bb = inst.parent
-
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
             return
