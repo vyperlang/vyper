@@ -1,7 +1,6 @@
 import pytest
 
-from tests.hevm import hevm_check_venom
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from tests.venom_utils import PrePostChecker
 from vyper.utils import evm_not
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLiteral
@@ -16,18 +15,7 @@ def _calc_push_size(val: int):
     return 1 + len(s)
 
 
-def _check_pre_post(pre: str, post: str, hevm: bool = True):
-    ctx = parse_from_basic_block(pre)
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        ReduceLiteralsCodesize(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
-
-    if not hevm:
-        return
-
-    hevm_check_venom(pre, post)
+_check_pre_post = PrePostChecker(ReduceLiteralsCodesize)
 
 
 def _check_no_change(pre):
