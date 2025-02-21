@@ -1,5 +1,9 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import BranchOptimizationPass
+
+pytestmark = pytest.mark.hevm
 
 _check_pre_post = PrePostChecker(BranchOptimizationPass)
 

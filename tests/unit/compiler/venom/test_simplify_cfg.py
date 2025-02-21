@@ -1,40 +1,33 @@
-from tests.hevm import hevm_check_venom
-from tests.venom_utils import assert_ctx_eq, parse_venom
-from vyper.venom.analysis import IRAnalysesCache
+import pytest
+
+from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import SCCP, SimplifyCFGPass
+
+pytestmark = pytest.mark.hevm
+
+
+_check_pre_post = PrePostChecker(SCCP, SimplifyCFGPass)
 
 
 def test_phi_reduction_after_block_pruning():
     pre = """
-    function _global {
-        _global:
-            jnz 1, @then, @else
-        then:
-            %1 = 1
-            jmp @join
-        else:
-            %2 = 2
-            jmp @join
-        join:
-            %3 = phi @then, %1, @else, %2
-            stop
-    }
+    _global:
+        jnz 1, @then, @else
+    then:
+        %1 = 1
+        jmp @join
+    else:
+        %2 = 2
+        jmp @join
+    join:
+        %3 = phi @then, %1, @else, %2
+        stop
     """
     post = """
-    function _global {
-        _global:
-            %1 = 1
-            %3 = %1
-            stop
-    }
+    _global:
+        %1 = 1
+        %3 = %1
+        stop
     """
-    ctx1 = parse_venom(pre)
-    for fn in ctx1.functions.values():
-        ac = IRAnalysesCache(fn)
-        SCCP(ac, fn).run_pass()
-        SimplifyCFGPass(ac, fn).run_pass()
 
-    ctx2 = parse_venom(post)
-    assert_ctx_eq(ctx1, ctx2)
-
-    hevm_check_venom(pre, post)
+    _check_pre_post(pre, post)

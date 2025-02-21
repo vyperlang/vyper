@@ -7,6 +7,8 @@ from vyper.venom.basicblock import IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.passes import ReduceLiteralsCodesize
 
+pytestmark = pytest.mark.hevm
+
 
 def _calc_push_size(val: int):
     s = hex(val).removeprefix("0x")

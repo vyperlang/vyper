@@ -8,6 +8,8 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes import SCCP, MakeSSA
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
+pytestmark = pytest.mark.hevm
+
 _check_pre_post = PrePostChecker(SCCP)
 
 
