@@ -439,6 +439,7 @@ EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
     compiled_bytecode_runtime_length = len(compiler_data.bytecode_runtime)
+    # NOTE: we should actually add the size of the immutables section to this.
     if compiled_bytecode_runtime_length > EIP170_CONTRACT_SIZE_LIMIT:
         vyper_warn(
             ContractSizeLimit(
