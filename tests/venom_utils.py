@@ -66,8 +66,11 @@ class PrePostChecker:
         self.default_hevm = default_hevm
         self.pass_objects = list()
 
-    def __call__(self, pre: str, post: str, hevm: bool = True) -> list[IRPass]:
+    def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
         from tests.hevm import hevm_check_venom
+
+        if hevm is None:
+            hevm = self.default_hevm
 
         pre_ctx = parse_from_basic_block(pre)
         for fn in pre_ctx.functions.values():
