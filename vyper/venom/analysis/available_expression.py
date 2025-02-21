@@ -7,7 +7,6 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
     IRBasicBlock,
