@@ -1,11 +1,26 @@
+import contextlib
 import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
+from tests.evm_backends.base_env import EvmError
+from tests.utils import check_precompile_asserts, decimal_to_int
+from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
 
 
-def test_list_tester_code(get_contract_with_gas_estimation):
+def _map_nested(f, xs):
+    ret = []
+    for x in xs:
+        if isinstance(x, list):
+            ret.append(_map_nested(f, x))
+        else:
+            ret.append(f(x))
+    return ret
+
+
+def test_list_tester_code(get_contract):
     list_tester_code = """
 z: int128[3]
 z2: int128[2][2]
@@ -42,7 +57,7 @@ def loo(x: int128[2][2]) -> int128:
     return self.z2[0][0] + self.z2[0][1] + self.z3[0] * 10 + self.z3[1] * 10
     """
 
-    c = get_contract_with_gas_estimation(list_tester_code)
+    c = get_contract(list_tester_code)
     assert c.foo([3, 4, 5]) == 12
     assert c.goo([[1, 2], [3, 4]]) == 73
     assert c.hoo([3, 4, 5]) == 12
@@ -52,7 +67,7 @@ def loo(x: int128[2][2]) -> int128:
     print("Passed list tests")
 
 
-def test_list_output_tester_code(get_contract_with_gas_estimation):
+def test_list_output_tester_code(get_contract):
     list_output_tester_code = """
 z: int128[2]
 
@@ -107,7 +122,7 @@ def roo(inp: decimal[2]) -> decimal[2][2]:
     return [inp, [3.0, 4.0]]
     """
 
-    c = get_contract_with_gas_estimation(list_output_tester_code)
+    c = get_contract(list_output_tester_code)
     assert c.foo() == [3, 5]
     assert c.goo() == [3, 5]
     assert c.hoo() == [3, 5]
@@ -118,12 +133,12 @@ def roo(inp: decimal[2]) -> decimal[2][2]:
     assert c.noo([3, 5]) == [3, 5]
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
-    assert c.roo([1, 2]) == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.roo(_map_nested(decimal_to_int, [1.0, 2.0])) == _map_nested(
+        decimal_to_int, [[1.0, 2.0], [3.0, 4.0]]
+    )
 
-    print("Passed list output tests")
 
-
-def test_array_accessor(get_contract_with_gas_estimation):
+def test_array_accessor(get_contract):
     array_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -135,12 +150,12 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[0] * 1000 + a[1] * 100 + a[2] * 10 + a[3]
     """
 
-    c = get_contract_with_gas_estimation(array_accessor)
+    c = get_contract(array_accessor)
     assert c.test_array(2, 7, 1, 8) == 2718
     print("Passed basic array accessor test")
 
 
-def test_two_d_array_accessor(get_contract_with_gas_estimation):
+def test_two_d_array_accessor(get_contract):
     two_d_array_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -152,12 +167,12 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[0][0] * 1000 + a[0][1] * 100 + a[1][0] * 10 + a[1][1]
     """
 
-    c = get_contract_with_gas_estimation(two_d_array_accessor)
+    c = get_contract(two_d_array_accessor)
     assert c.test_array(2, 7, 1, 8) == 2718
     print("Passed complex array accessor test")
 
 
-def test_three_d_array_accessor(get_contract_with_gas_estimation):
+def test_three_d_array_accessor(get_contract):
     three_d_array_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -174,11 +189,12 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
         a[1][1][1] * 1000 + a[1][1][0] * 100 + a[1][0][1] * 10 + a[1][0][0]
     """
 
-    c = get_contract_with_gas_estimation(three_d_array_accessor)
+    c = get_contract(three_d_array_accessor)
     assert c.test_array(2, 7, 1, 8) == -5454
 
 
-def test_four_d_array_accessor(get_contract_with_gas_estimation):
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
+def test_four_d_array_accessor(get_contract):
     four_d_array_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -207,11 +223,11 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
         a[1][1][1][1] * 1000 + a[1][1][1][0] * 100 + a[1][1][0][1] * 10 + a[1][1][0][0]
     """
 
-    c = get_contract_with_gas_estimation(four_d_array_accessor)
+    c = get_contract(four_d_array_accessor)
     assert c.test_array(2, 7, 1, 8) == -10908
 
 
-def test_array_negative_accessor(get_contract_with_gas_estimation, assert_compile_failed):
+def test_array_negative_accessor(get_contract, assert_compile_failed):
     array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -223,9 +239,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[-1]
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(array_negative_accessor), ArrayIndexException
-    )
+    assert_compile_failed(lambda: get_contract(array_negative_accessor), ArrayIndexException)
 
     two_d_array_negative_accessor = """
 @external
@@ -238,9 +252,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[-2][-2] * 1000 + a[-2][-1] * 100 + a[-1][-2] * 10 + a[-1][-1]
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(two_d_array_negative_accessor), ArrayIndexException
-    )
+    assert_compile_failed(lambda: get_contract(two_d_array_negative_accessor), ArrayIndexException)
 
     three_d_array_negative_accessor = """
 @external
@@ -259,8 +271,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(three_d_array_negative_accessor),
-        ArrayIndexException,
+        lambda: get_contract(three_d_array_negative_accessor), ArrayIndexException
     )
 
     four_d_array_negative_accessor = """
@@ -295,13 +306,10 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
         a[-1][-1][-2][-1] * 10 + a[-1][-1][-2][-2]
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(four_d_array_negative_accessor),
-        ArrayIndexException,
-    )
+    assert_compile_failed(lambda: get_contract(four_d_array_negative_accessor), ArrayIndexException)
 
 
-def test_returns_lists(get_contract_with_gas_estimation):
+def test_returns_lists(get_contract):
     code = """
 @external
 def test_array_num_return() -> int128[2][2]:
@@ -323,14 +331,14 @@ def test_array_decimal_return3() -> decimal[2][2]:
     return a
 """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.test_array_num_return() == [[1, 2], [3, 4]]
-    assert c.test_array_decimal_return1() == [[1.0, 2.0], [3.0, 4.0]]
-    assert c.test_array_decimal_return2() == [[1.0, 2.0], [3.0, 4.0]]
-    assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.test_array_decimal_return1() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
+    assert c.test_array_decimal_return2() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
+    assert c.test_array_decimal_return3() == _map_nested(decimal_to_int, [[1.0, 2.0], [3.0, 4.0]])
 
 
-def test_mult_list(get_contract_with_gas_estimation):
+def test_mult_list(get_contract):
     code = """
 @external
 def test_multi3() -> uint256[2][2][2]:
@@ -343,7 +351,7 @@ def test_multi4() -> uint256[2][2][2][2]:
     return l
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test_multi3() == [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
     assert c.test_multi4() == [
@@ -353,14 +361,14 @@ def test_multi4() -> uint256[2][2][2][2]:
 
 
 @pytest.mark.parametrize("type_", ["uint8", "uint256"])
-def test_unsigned_accessors(get_contract_with_gas_estimation, tx_failed, type_):
+def test_unsigned_accessors(get_contract, tx_failed, type_):
     code = f"""
 @external
 def bounds_check(ix: {type_}) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
     with tx_failed():
@@ -368,14 +376,14 @@ def bounds_check(ix: {type_}) -> uint256:
 
 
 @pytest.mark.parametrize("type_", ["int128", "int256"])
-def test_signed_accessors(get_contract_with_gas_estimation, tx_failed, type_):
+def test_signed_accessors(get_contract, tx_failed, type_):
     code = f"""
 @external
 def bounds_check(ix: {type_}) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
     with tx_failed():
@@ -384,31 +392,31 @@ def bounds_check(ix: {type_}) -> uint256:
         c.bounds_check(-1)
 
 
-def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
+def test_list_check_heterogeneous_types(get_contract, assert_compile_failed):
     code = """
 @external
 def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[3]
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
+    assert_compile_failed(lambda: get_contract(code), ArrayIndexException)
     code = """
 @external
 def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[-1]
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
+    assert_compile_failed(lambda: get_contract(code), ArrayIndexException)
 
 
-def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
+def test_compile_time_bounds_check(get_contract, assert_compile_failed):
     code = """
 @external
 def parse_list_fail():
     xs: uint256[3] = [2**256, 1, 3]
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), OverflowException)
+    assert_compile_failed(lambda: get_contract(code), OverflowException)
 
 
 def test_2d_array_input_1(get_contract):
@@ -423,7 +431,7 @@ def test_values(arr: int128[2][1], i: int128) -> (int128[2][1], int128):
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
+    assert c.test_values([[1, 2]], 3) == ([[1, 2]], 3)
 
 
 def test_2d_array_input_2(get_contract):
@@ -438,7 +446,7 @@ def test_values(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
+    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == ([[1, 2], [3, 4], [5, 6]], "abcdef")
 
 
 def test_nested_index_of_returned_array(get_contract):
@@ -473,7 +481,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 def test_nested_calls_inside_arrays_with_index_access(get_contract):
@@ -493,7 +501,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 def test_so_many_things_you_should_never_do(get_contract):
@@ -514,7 +522,7 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     return 666, x, [88, self._foo2()[0]]
     """
     c = get_contract(code)
-    assert c.foo() == [666, [1, 2, 3], [88, 12]]
+    assert c.foo() == (666, [1, 2, 3], [88, 12])
 
 
 def test_list_of_dynarray(get_contract):
@@ -674,6 +682,9 @@ def ix(i: uint256) -> {type}:
     """
     c = get_contract(code)
     for i, p in enumerate(value):
+        if type == "decimal":
+            # special case to transform for decimal ABI
+            p = decimal_to_int(p)
         assert c.ix(i) == p
     # assert oob
     with tx_failed():
@@ -809,6 +820,9 @@ def ix(i: uint256, j: uint256) -> {type}:
     c = get_contract(code)
     for i, p in enumerate(value):
         for j, q in enumerate(p):
+            if type == "decimal":
+                # special case for decimal ABI
+                q = decimal_to_int(q)
             assert c.ix(i, j) == q
     # assert oob
     with tx_failed():
@@ -839,3 +853,73 @@ def foo() -> {return_type}:
     return MY_CONSTANT[0][0]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+def test_array_copy_oog(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@internal
+def bar(x: uint256[3000]) -> uint256[3000]:
+    a: uint256[3000] = x
+    return a
+
+@external
+def foo(x: uint256[3000]) -> uint256:
+    s: uint256[3000] = self.bar(x)
+    return s[0]
+    """
+    check_precompile_asserts(code)
+
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+        # fails in bytecode generation due to jumpdests too large
+        with pytest.raises(AssertionError):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    array = [2] * 3000
+    assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(array, gas=gas_used)
+
+
+def test_array_copy_oog2(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+def foo(x: uint256[2500]) -> uint256:
+    s: uint256[2500] = x
+    t: uint256[2500] = s
+    return t[0]
+    """
+    check_precompile_asserts(code)
+
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+        # fails in creating contract due to code too large
+        with tx_failed(EvmError):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    array = [2] * 2500
+    assert c.foo(array) == array[0]
+
+    # get the minimum gas for the contract complete execution
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(array, gas=gas_used)

@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
     InvalidType,
@@ -157,12 +158,12 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
-    log Transfer(msg.sender, _to, _value)
+    log Transfer(sender=msg.sender, receiver=_to, value=_value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
-    log IERC20.Transfer(_from, _to, _value)
+    log IERC20.Transfer(sender=_from, receiver=_to, value=_value)
     return True
 
 @external
@@ -380,13 +381,22 @@ def test_interfaces_success(good_code):
 
 
 def test_imports_and_implements_within_interface(make_input_bundle):
-    interface_code = """
+    ibar_code = """
+@external
+def foobar():
+    ...
+"""
+    ifoo_code = """
+import bar
+
+implements: bar
+
 @external
 def foobar():
     ...
 """
 
-    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code, "bar.vyi": ibar_code})
 
     code = """
 import foo as Foo
@@ -401,23 +411,218 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
-def test_builtins_not_found():
+def test_builtins_not_found(make_input_bundle):
     code = """
 from vyper.interfaces import foobar
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
-
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == "vyper.interfaces.foobar"
     assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+    assert "code.vy:" in str(e.value)
 
 
 @pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
-def test_builtins_not_found2(erc):
+def test_builtins_not_found2(erc, make_input_bundle):
     code = f"""
 from ethereum.ercs import {erc}
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+    assert "code.vy:" in str(e.value)
+
+
+def test_interface_body_check(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    return ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+
+@external
+def foobar():
+    pass
+"""
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "function body in an interface can only be `...`!"
+
+
+def test_interface_body_check2(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    ...
+
+@external
+def bar():
+    ...
+
+@external
+def baz():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo
+
+implements: foo
+
+@external
+def foobar():
+    pass
+
+@external
+def bar():
+    pass
+
+@external
+def baz():
+    pass
+"""
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+invalid_visibility_code = [
+    """
+import foo as Foo
+implements: Foo
+@external
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+def foobar():
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_visibility_code)
+def test_internal_visibility_in_interface(make_input_bundle, code):
+    interface_code = """
+@internal
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "Interface functions can only be marked as `@external`"
+
+
+external_visibility_interface = [
+    """
+@external
+def foobar():
+    ...
+def bar():
+    ...
+    """,
+    """
+def foobar():
+    ...
+@external
+def bar():
+    ...
+    """,
+]
+
+
+@pytest.mark.parametrize("iface", external_visibility_interface)
+def test_internal_implemenatation_of_external_interface(make_input_bundle, iface):
+    input_bundle = make_input_bundle({"foo.vyi": iface})
+
+    code = """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+def bar():
+    pass
+    """
+
+    with pytest.raises(InterfaceViolation) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+
+
+def test_intrinsic_interfaces_different_types(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    lib2 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+@external
+def bar():
+    assert lib1.__at__(self) == lib2.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+@pytest.mark.xfail
+def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def __default__():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    extcall lib1.__at__(self).__default__()
+
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    # TODO make the exception more precise once fixed
+    with pytest.raises(Exception):  # noqa: B017
+        compiler.compile_code(main, input_bundle=input_bundle)

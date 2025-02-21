@@ -368,14 +368,14 @@ def foo():
     """
 @external
 def foo():
-    x: int128 = 5
+    x: int128 = 4
     for i: int128 in range(x, bound=4):
         pass
     """,
     """
 @external
 def foo():
-    x: int128 = 5
+    x: int128 = 4
     for i: int128 in range(0, x, bound=4):
         pass
     """,

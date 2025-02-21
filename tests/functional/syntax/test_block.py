@@ -138,7 +138,7 @@ def foo():
     """
 @external
 def foo():
-    x: uint256 = block.prevrandao + 185
+    x: bytes32 = block.prevrandao
     if tx.origin == self:
         y: Bytes[35] = concat(block.prevhash, b"dog")
     """,
@@ -152,4 +152,32 @@ def foo() -> uint256:
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
+    assert compiler.compile_code(good_code) is not None
+
+
+valid_list = [
+    """
+@external
+def foo() -> uint256:
+    return block.blobbasefee
+    """,
+    """
+@external
+def foo() -> uint256:
+    a: uint256 = 5
+    a = block.blobbasefee
+    return a
+    """,
+    """
+@external
+def foo() -> uint256:
+    a: uint256 = block.blobbasefee
+    return a
+    """,
+]
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("good_code", valid_list)
+def test_block_blob_success(good_code):
     assert compiler.compile_code(good_code) is not None

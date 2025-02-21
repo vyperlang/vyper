@@ -1,6 +1,6 @@
 import ast as python_ast
 
-from vyper.ast.parse import annotate_python_ast, pre_parse
+from vyper.ast.parse import PreParser, annotate_python_ast
 
 
 class AssertionVisitor(python_ast.NodeVisitor):
@@ -28,12 +28,13 @@ def foo() -> int128:
 
 
 def get_contract_info(source_code):
-    _, loop_var_annotations, class_types, reformatted_code = pre_parse(source_code)
-    py_ast = python_ast.parse(reformatted_code)
+    pre_parser = PreParser()
+    pre_parser.parse(source_code)
+    py_ast = python_ast.parse(pre_parser.reformatted_code)
 
-    annotate_python_ast(py_ast, reformatted_code, loop_var_annotations, class_types)
+    annotate_python_ast(py_ast, pre_parser.reformatted_code, pre_parser)
 
-    return py_ast, reformatted_code
+    return py_ast, pre_parser.reformatted_code
 
 
 def test_it_annotates_ast_with_source_code():
@@ -62,5 +63,5 @@ def test_it_rewrites_unary_subtractions():
     function_def = contract_ast.body[2]
     return_stmt = function_def.body[0]
 
-    assert isinstance(return_stmt.value, python_ast.Num)
-    assert return_stmt.value.n == -1
+    assert isinstance(return_stmt.value, python_ast.Constant)
+    assert return_stmt.value.value == -1

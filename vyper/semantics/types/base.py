@@ -114,7 +114,12 @@ class VyperType:
         )
 
     def __lt__(self, other):
+        # CMC 2024-10-20 what is this for?
         return self.abi_type.selector_name() < other.abi_type.selector_name()
+
+    def __repr__(self):
+        # TODO: add `pretty()` to the VyperType API?
+        return self._id
 
     # return a dict suitable for serializing in the AST
     def to_dict(self):
@@ -169,7 +174,7 @@ class VyperType:
         if location == DataLocation.CODE:
             return self.memory_bytes_required
 
-        raise CompilerPanic("unreachable: invalid location {location}")  # pragma: nocover
+        raise CompilerPanic(f"unreachable: invalid location {location}")  # pragma: nocover
 
     @property
     def memory_bytes_required(self) -> int:
@@ -196,7 +201,7 @@ class VyperType:
         """
         return self.abi_type.selector_name()
 
-    def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
+    def to_abi_arg(self, name: str = "") -> dict[str, Any]:
         """
         The JSON ABI description of this type. Note for complex types,
         the implementation is overridden to be compliant with the spec:
@@ -362,10 +367,7 @@ class VyperType:
             raise StructureException(f"{self} instance does not have members", node)
 
         hint = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'.", node, hint=hint)
-
-    def __repr__(self):
-        return self._id
+        raise UnknownAttribute(f"{repr(self)} has no member '{key}'.", node, hint=hint)
 
 
 class KwargSettings:

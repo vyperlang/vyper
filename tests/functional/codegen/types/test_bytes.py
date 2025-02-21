@@ -1,16 +1,17 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
 
 
-def test_test_bytes(get_contract_with_gas_estimation, tx_failed):
+def test_test_bytes(get_contract, tx_failed):
     test_bytes = """
 @external
 def foo(x: Bytes[100]) -> Bytes[100]:
     return x
     """
 
-    c = get_contract_with_gas_estimation(test_bytes)
+    c = get_contract(test_bytes)
     moo_result = c.foo(b"cow")
     assert moo_result == b"cow"
 
@@ -27,7 +28,7 @@ def foo(x: Bytes[100]) -> Bytes[100]:
     print("Passed input-too-long test")
 
 
-def test_test_bytes2(get_contract_with_gas_estimation):
+def test_test_bytes2(get_contract):
     test_bytes2 = """
 @external
 def foo(x: Bytes[100]) -> Bytes[100]:
@@ -35,7 +36,7 @@ def foo(x: Bytes[100]) -> Bytes[100]:
     return y
     """
 
-    c = get_contract_with_gas_estimation(test_bytes2)
+    c = get_contract(test_bytes2)
     assert c.foo(b"cow") == b"cow"
     assert c.foo(b"") == b""
     assert c.foo(b"\x35" * 63) == b"\x35" * 63
@@ -45,7 +46,7 @@ def foo(x: Bytes[100]) -> Bytes[100]:
     print("Passed string copying test")
 
 
-def test_test_bytes3(get_contract_with_gas_estimation):
+def test_test_bytes3(get_contract):
     test_bytes3 = """
 x: int128
 maa: Bytes[60]
@@ -79,24 +80,24 @@ def get_xy() -> int128:
     return self.x * self.y
     """
 
-    c = get_contract_with_gas_estimation(test_bytes3)
-    c.set_maa(b"pig", transact={})
+    c = get_contract(test_bytes3)
+    c.set_maa(b"pig")
     assert c.get_maa() == b"pig"
     assert c.get_maa2() == b"pig"
-    c.set_maa2(b"", transact={})
+    c.set_maa2(b"")
     assert c.get_maa() == b""
     assert c.get_maa2() == b""
-    c.set_maa(b"\x44" * 60, transact={})
+    c.set_maa(b"\x44" * 60)
     assert c.get_maa() == b"\x44" * 60
     assert c.get_maa2() == b"\x44" * 60
-    c.set_maa2(b"mongoose", transact={})
+    c.set_maa2(b"mongoose")
     assert c.get_maa() == b"mongoose"
     assert c.get_xy() == 999
 
     print("Passed advanced string copying test")
 
 
-def test_test_bytes4(get_contract_with_gas_estimation):
+def test_test_bytes4(get_contract):
     test_bytes4 = """
 a: Bytes[60]
 @external
@@ -112,14 +113,14 @@ def bar(inp: Bytes[60]) -> Bytes[60]:
     return b
     """
 
-    c = get_contract_with_gas_estimation(test_bytes4)
+    c = get_contract(test_bytes4)
     assert c.foo(b"") == b"", c.foo()
     assert c.bar(b"") == b""
 
     print("Passed string deleting test")
 
 
-def test_test_bytes5(get_contract_with_gas_estimation):
+def test_test_bytes5(get_contract):
     test_bytes5 = """
 struct G:
     a: Bytes[50]
@@ -159,20 +160,20 @@ def quz(inp1: Bytes[40], inp2: Bytes[45]):
     self.g.b = h.b
     """
 
-    c = get_contract_with_gas_estimation(test_bytes5)
-    c.foo(b"cow", b"horse", transact={})
+    c = get_contract(test_bytes5)
+    c.foo(b"cow", b"horse")
     assert c.check1() == b"cow"
     assert c.check2() == b"horse"
     assert c.bar(b"pig", b"moose") == b"pig"
     assert c.bat(b"pig", b"moose") == b"moose"
-    c.quz(b"badminton", b"fluffysheep", transact={})
+    c.quz(b"badminton", b"fluffysheep")
     assert c.check1() == b"badminton"
     assert c.check2() == b"fluffysheep"
 
     print("Passed string struct test")
 
 
-def test_binary_literal(get_contract_with_gas_estimation):
+def test_binary_literal(get_contract):
     bytes_to_num_code = """
 r: Bytes[1]
 
@@ -194,7 +195,7 @@ def testsome_storage(y: Bytes[1]) -> bool:
     return self.r == y
     """
 
-    c = get_contract_with_gas_estimation(bytes_to_num_code)
+    c = get_contract(bytes_to_num_code)
 
     assert c.getsome() == b"\x0e"
     assert c.testsome(b"a")
@@ -205,7 +206,7 @@ def testsome_storage(y: Bytes[1]) -> bool:
     assert not c.testsome_storage(b"x")
 
 
-def test_bytes_comparison(get_contract_with_gas_estimation):
+def test_bytes_comparison(get_contract):
     code = """
 @external
 def get_mismatch(a: Bytes[1]) -> bool:
@@ -218,7 +219,7 @@ def get_large(a: Bytes[100]) -> bool:
     return a == b
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.get_mismatch(b"\x00") is False
     assert c.get_large(b"\x00") is False
     assert c.get_large(b"ab") is True
@@ -259,6 +260,42 @@ def test2(l: bytes{m} = {vyper_literal}) -> bool:
     assert c.test2(vyper_literal) is True
 
 
+@pytest.mark.parametrize("m,val", [(2, "ab"), (3, "ab"), (4, "abcd")])
+def test_native_hex_literals(get_contract, m, val):
+    vyper_literal = bytes.fromhex(val)
+    code = f"""
+@external
+def test() -> bool:
+    l: Bytes[{m}] = x"{val}"
+    return l == {vyper_literal}
+
+@external
+def test2(l: Bytes[{m}] = x"{val}") -> bool:
+    return l == {vyper_literal}
+    """
+    print(code)
+
+    c = get_contract(code)
+
+    assert c.test() is True
+    assert c.test2() is True
+    assert c.test2(vyper_literal) is True
+
+
+def test_hex_literal_parser_edge_case():
+    # see GH issue 4405 example 2
+    code = """
+interface FooBar:
+    def test(a: Bytes[2], b: String[4]): payable
+
+@deploy
+def __init__(ext: FooBar):
+    extcall ext.test(x'6161', x'6161')  #ext.test(b'\x61\61', '6161') gets called
+    """
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
+
+
 def test_zero_padding_with_private(get_contract):
     code = """
 counter: uint256
@@ -286,11 +323,11 @@ def get_count() -> Bytes[24]:
     c = get_contract(code)
 
     assert c.get_count() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
-    c.set_count(1, transact={})
+    c.set_count(1)
     assert c.get_count() == b"\x01\x00\x00\x00\x00\x00\x00\x00"
-    c.set_count(0xF0F0F0, transact={})
+    c.set_count(0xF0F0F0)
     assert c.get_count() == b"\xf0\xf0\xf0\x00\x00\x00\x00\x00"
-    c.set_count(0x0101010101010101, transact={})
+    c.set_count(0x0101010101010101)
     assert c.get_count() == b"\x01\x01\x01\x01\x01\x01\x01\x01"
 
 

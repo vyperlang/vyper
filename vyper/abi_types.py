@@ -24,11 +24,6 @@ class ABIType:
             return 0
         return self.size_bound()
 
-    def embedded_min_dynamic_size(self):
-        if not self.is_dynamic():
-            return 0
-        return self.min_size()
-
     # size (in bytes) of the static section
     def static_size(self):
         raise NotImplementedError("ABIType.static_size")
@@ -41,14 +36,6 @@ class ABIType:
 
     def size_bound(self):
         return self.static_size() + self.dynamic_size_bound()
-
-    def min_size(self):
-        return self.static_size() + self.min_dynamic_size()
-
-    def min_dynamic_size(self):
-        if not self.is_dynamic():
-            return 0
-        raise NotImplementedError("ABIType.min_dynamic_size")
 
     # The canonical name of the type for calculating the function selector
     def selector_name(self):
@@ -109,35 +96,6 @@ class ABI_Bool(ABI_GIntM):
         return "bool"
 
 
-# fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
-#   M % 8 ==0, and 0 < N <= 80, which denotes the value v as v / (10 ** N).
-# ufixed<M>x<N>: unsigned variant of fixed<M>x<N>.
-# fixed, ufixed: synonyms for fixed128x18, ufixed128x18 respectively.
-#   For computing the function selector, fixed128x18 and ufixed128x18 have to be used.
-class ABI_FixedMxN(ABIType):
-    def __init__(self, m_bits, n_places, signed):
-        if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise InvalidABIType("Invalid M for FixedMxN")
-        if not (0 < n_places and n_places <= 80):
-            raise InvalidABIType("Invalid N for FixedMxN")
-
-        self.m_bits = m_bits
-        self.n_places = n_places
-        self.signed = signed
-
-    def is_dynamic(self):
-        return False
-
-    def static_size(self):
-        return 32
-
-    def selector_name(self):
-        return ("" if self.signed else "u") + f"fixed{self.m_bits}x{self.n_places}"
-
-    def is_complex_type(self):
-        return False
-
-
 # bytes<M>: binary type of M bytes, 0 < M <= 32.
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
@@ -187,9 +145,6 @@ class ABI_StaticArray(ABIType):
     def dynamic_size_bound(self):
         return self.m_elems * self.subtyp.embedded_dynamic_size_bound()
 
-    def min_dynamic_size(self):
-        return self.m_elems * self.subtyp.embedded_min_dynamic_size()
-
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
@@ -215,9 +170,6 @@ class ABI_Bytes(ABIType):
     def dynamic_size_bound(self):
         # length word + data
         return 32 + ceil32(self.bytes_bound)
-
-    def min_dynamic_size(self):
-        return 32
 
     def selector_name(self):
         return "bytes"
@@ -251,9 +203,6 @@ class ABI_DynamicArray(ABIType):
         # length + size of embedded children
         return 32 + subtyp_size * self.elems_bound
 
-    def min_dynamic_size(self):
-        return 32
-
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
@@ -273,9 +222,6 @@ class ABI_Tuple(ABIType):
 
     def dynamic_size_bound(self):
         return sum([t.embedded_dynamic_size_bound() for t in self.subtyps])
-
-    def min_dynamic_size(self):
-        return sum([t.embedded_min_dynamic_size() for t in self.subtyps])
 
     def is_complex_type(self):
         return True

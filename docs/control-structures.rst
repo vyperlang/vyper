@@ -18,12 +18,17 @@ Functions are executable units of code within a contract. Functions may only be 
 
 Functions may be called internally or externally depending on their :ref:`visibility <function-visibility>`. Functions may accept input arguments and return variables in order to pass values between them.
 
-.. _function-visibility:
-
 Visibility
 ----------
 
-All functions must include exactly one visibility decorator.
+.. _function-visibility:
+
+You can optionally declare a function's visibility by using a :ref:`decorator <function-decorators>`. There are three visibility levels in Vyper:
+
+    * ``@external``: exposed in the selector table, can be called by an external call into this contract
+    * ``@internal`` (default): can be invoked only from within this contract. Not available to external callers
+    * ``@deploy``: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
+
 
 External Functions
 ******************
@@ -43,27 +48,74 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
 .. note::
-    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function (this includes interface functions) excludes optional arguments when their default values are used in the function call.
+
+    .. code-block:: vyper
+
+        from ethereum.ercs import IERC4626
+
+        @external
+        def foo(x: IERC4626):
+            extcall x.withdraw(0, self, self)   # keccak256("withdraw(uint256,address,address)")[:4] = 0xb460af94
+            extcall x.withdraw(0)               # keccak256("withdraw(uint256)")[:4] = 0x2e1a7d4d
 
 .. _structure-functions-internal:
 
 Internal Functions
 ******************
 
-Internal functions (marked with the ``@internal`` decorator) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` object:
+Internal functions (optionally marked with the ``@internal`` decorator) are only accessible from other functions within the same contract. They are invoked via the :ref:`self<constants-self>` object:
 
 .. code-block:: vyper
 
-    @internal
-    def _times_two(amount: uint256, two: uint256 = 2) -> uint256:
-        return amount * two
+    def _times_two(amount: uint256) -> uint256:
+        return amount * 2
 
     @external
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
+Or for internal functions which are defined in :ref:`imported modules <modules>`, they are invoked by prefixing the name of the module to the function name:
+
+.. code-block:: vyper
+    import calculator_library
+
+    @external
+    def calculate(amount: uint256) -> uint256:
+        return calculator_library._times_two(amount)
+
+Marking an internal function as ``payable`` specifies that the function can interact with ``msg.value``. A ``nonpayable`` internal function can be called from an external ``payable`` function, but it cannot access ``msg.value``.
+
+.. code-block:: vyper
+
+    @payable
+    def _foo() -> uint256:
+        return msg.value % 2
+
 .. note::
-    Since calling an ``internal`` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps. Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are strongly recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
+   As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
+
+.. note::
+    Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
+
+
+The ``__init__`` Function
+-------------------------
+
+.. _init-function:
+
+The ``__init__()`` function, also known as the constructor, is a special initialization function that is only called at the time of deploying a contract. It can be used to set initial values for storage or immutable variables. It must be declared with the ``@deploy`` decorator. A common use case is to set an ``owner`` variable with the creator of the contract:
+
+.. code-block:: vyper
+
+    owner: address
+
+    @deploy
+    def __init__():
+        self.owner = msg.sender
+
+Additionally, :ref:`immutable variables <immutable-variables>` may only be set within the constructor.
+
 
 Mutability
 ----------
@@ -72,10 +124,10 @@ Mutability
 
 You can optionally declare a function's mutability by using a :ref:`decorator <function-decorators>`. There are four mutability levels:
 
-    * **Pure**: does not read from the contract state or any environment variables.
-    * **View**: may read from the contract state, but does not alter it.
-    * **Nonpayable**: may read from and write to the contract state, but cannot receive Ether.
-    * **Payable**: may read from and write to the contract state, and can receive Ether.
+    * ``@pure``: does not read from the contract state or any environment variables.
+    * ``@view``: may read from the contract state, but does not alter it.
+    * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
+    * ``@payable``: may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
 
 .. code-block:: vyper
 
@@ -97,6 +149,9 @@ Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable
 
 Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
+.. note::
+    The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
+
 Re-entrancy Locks
 -----------------
 
@@ -116,7 +171,7 @@ Nonreentrancy locks work by setting a specially allocated storage slot to a ``<l
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
 
-You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overriden, the compiler will allocate it at slot ``0``.
+You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overridden, the compiler will allocate it at slot ``0``.
 
 .. note::
     A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected by the use of the ``STATICCALL`` opcode.
@@ -151,7 +206,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 Considerations
 **************
 
-Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
+Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this rolls back state changes, and thus will not succeed in receiving funds.
 
 Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
 
@@ -168,33 +223,17 @@ Lastly, although the default function receives no arguments, it can still access
     * the amount of ETH sent (``msg.value``)
     * the gas provided (``msg.gas``).
 
-The ``__init__`` Function
--------------------------
-
-``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
-
-.. code-block:: vyper
-
-    owner: address
-
-    @external
-    def __init__():
-        self.owner = msg.sender
-
-You cannot call to other contract functions from the initialization function.
-
 .. _function-decorators:
 
 Decorators Reference
 --------------------
 
-All functions must include one :ref:`visibility <function-visibility>` decorator (``@external`` or ``@internal``). The remaining decorators are optional.
-
 =============================== ===========================================================
 Decorator                       Description
 =============================== ===========================================================
-``@external``                   Function can only be called externally
+``@external``                   Function can only be called externally, it is part of the runtime selector table
 ``@internal``                   Function can only be called within current contract
+``@deploy``                     Function is called only at deploy time
 ``@pure``                       Function does not read contract state or environment variables
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
@@ -233,7 +272,7 @@ The ``for`` statement is a control flow construct used to iterate over a value:
 
 .. code-block:: vyper
 
-    for i in <ITERABLE>:
+    for i: <TYPE> in <ITERABLE>:
         ...
 
 The iterated value can be a static array, a dynamic array, or generated from the built-in ``range`` function.
@@ -246,16 +285,16 @@ You can use ``for`` to iterate through the values of any array variable:
 .. code-block:: vyper
 
     foo: int128[3] = [4, 23, 42]
-    for i in foo:
+    for i: int128 in foo:
         ...
 
 In the above, example, the loop executes three times with ``i`` assigned the values of ``4``, ``23``, and then ``42``.
 
-You can also iterate over a literal array, as long as a common type can be determined for each item in the array:
+You can also iterate over a literal array, as long as the annotated type is valid for each item in the array:
 
 .. code-block:: vyper
 
-    for i in [4, 23, 42]:
+    for i: int128 in [4, 23, 42]:
         ...
 
 Some restrictions:
@@ -270,32 +309,32 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: vyper
 
-    for i in range(STOP):
+    for i: uint256 in range(STOP):
         ...
 
-``STOP`` is a literal integer greater than zero. ``i`` begins as zero and increments by one until it is equal to ``STOP``.
+``STOP`` is a literal integer greater than zero. ``i`` begins as zero and increments by one until it is equal to ``STOP``. ``i`` must be of the same type as ``STOP``.
 
 .. code-block:: vyper
 
-    for i in range(stop, bound=N):
+    for i: uint256 in range(stop, bound=N):
         ...
 
-Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. In certain cases, you may not have a guarantee that ``stop`` is less than ``N``, but still want to avoid the possibility of runtime reversion. To accomplish this, use the ``bound=`` keyword in combination with ``min(stop, N)`` as the argument to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for use cases like chunking up operations on larger arrays across multiple transactions.
+Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. In certain cases, you may not have a guarantee that ``stop`` is less than ``N``, but still want to avoid the possibility of runtime reversion. To accomplish this, use the ``bound=`` keyword in combination with ``min(stop, N)`` as the argument to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for use cases like chunking up operations on larger arrays across multiple transactions. ``i``, ``stop`` and ``N`` must be of the same type.
 
 Another use of range can be with ``START`` and ``STOP`` bounds.
 
 .. code-block:: vyper
 
-    for i in range(START, STOP):
+    for i: uint256 in range(START, STOP):
         ...
 
-Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
+Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``. ``i``, ``START`` and ``STOP`` must be of the same type.
 
 Finally, it is possible to use ``range`` with runtime `start` and `stop` values as long as a constant `bound` value is provided.
 In this case, Vyper checks at runtime that `end - start <= bound`.
-``N`` must be a compile-time constant.
+``N`` must be a compile-time constant. ``i``, ``stop`` and ``N`` must be of the same type.
 
 .. code-block:: vyper
 
-    for i in range(start, end, bound=N):
+    for i: uint256 in range(start, end, bound=N):
         ...

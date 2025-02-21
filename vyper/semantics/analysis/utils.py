@@ -1,9 +1,11 @@
 import itertools
-from typing import Callable, List
+from typing import Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
+    InstantiationException,
+    InvalidAttribute,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -17,14 +19,14 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType, map_void
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode, int_to_fourbytes
+from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -39,13 +41,17 @@ def _validate_op(node, types_list, validation_fn_name):
         try:
             _validate_fn(node)
             ret.append(type_)
-        except InvalidOperation as e:
+        except (InvalidOperation, OverflowException) as e:
             err_list.append(e)
 
     if ret:
         return ret
 
     raise err_list[0]
+
+
+def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
+    return any(s.variable.is_state_variable() for s in var_accesses)
 
 
 class _ExprAnalyser:
@@ -193,7 +199,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
 
-            if isinstance(s, (VyperType, TYPE_T)):
+            if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
 
@@ -353,7 +359,7 @@ class _ExprAnalyser:
                     # for typeclasses like bytestrings, use a generic type acceptor
                     ret.append(DArrayT(t.any(), 1))
                 else:
-                    raise CompilerPanic("busted type {t}", node)
+                    raise CompilerPanic(f"busted type {t}", node)
             return ret
 
         types_list = get_common_types(*node.elements)
@@ -685,3 +691,56 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
     info = get_expr_info(node)
     return info.modifiability <= modifiability
+
+
+# TODO: move this into part of regular analysis in `local.py`
+def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
+    if "writes_r" in node._metadata:
+        return node._metadata["writes_r"]
+    ret: OrderedSet = OrderedSet()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret = node._expr_info._writes
+    for c in node._children:
+        ret |= get_expr_writes(c)
+    node._metadata["writes_r"] = ret
+    return ret
+
+
+def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass: str):
+    # manually validate kwargs for better error messages instead of
+    # relying on `validate_call_args`
+
+    seen: dict[str, vy_ast.keyword] = {}
+    membernames = list(members.keys())
+
+    # check duplicate kwargs
+    for i, kwarg in enumerate(node.keywords):
+        # x=5 => kwarg(arg="x", value=Int(5))
+        argname = kwarg.arg
+        if argname in seen:
+            prev = seen[argname]
+            raise InvalidAttribute(f"Duplicate {typeclass} argument", prev, kwarg)
+        seen[argname] = kwarg
+
+        hint: Any  # mypy kludge
+        if argname not in members:
+            hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+            raise UnknownAttribute(f"Unknown {typeclass} argument.", kwarg, hint=hint)
+
+        expect_name = membernames[i]
+        if argname != expect_name:
+            # out of order key
+            msg = f"{typeclass} keys are required to be in order, but got"
+            msg += f" `{argname}` instead of `{expect_name}`."
+            hint = "as a reminder, the order of the keys in this"
+            hint += f" {typeclass} are {list(members)}"
+            raise InvalidAttribute(msg, kwarg, hint=hint)
+
+        expected_type = members[argname]
+        _ = infer_type(kwarg.value, expected_type)
+
+    missing = OrderedSet(members.keys()) - OrderedSet(seen.keys())
+    if len(missing) > 0:
+        msg = f"{typeclass} instantiation missing fields:"
+        msg += f" {', '.join(list(missing))}"
+        raise InstantiationException(msg, node)

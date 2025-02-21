@@ -1,18 +1,19 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import CompilerInput, FileInput
+from vyper.compiler.input_bundle import CompilerInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
     from vyper.semantics.types.function import ContractFunctionT
-    from vyper.semantics.types.module import InterfaceT, ModuleT
+    from vyper.semantics.types.module import ModuleT
 
 
 class FunctionVisibility(StringEnum):
@@ -95,6 +96,7 @@ class AnalysisResult:
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
     alias: str
+    # import_node: vy_ast._ImportStmt # maybe could be useful
     ownership: ModuleOwnership = ModuleOwnership.NO_OWNERSHIP
     ownership_decl: Optional[vy_ast.VyperNode] = None
 
@@ -120,11 +122,17 @@ class ModuleInfo(AnalysisResult):
 
 @dataclass
 class ImportInfo(AnalysisResult):
-    typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
     compiler_input: CompilerInput  # to recover file info for ast export
-    node: vy_ast.VyperNode
+    parsed: Any  # (json) abi | AST
+    _typ: Any = None  # type to be filled in during analysis
+
+    @property
+    def typ(self):
+        if self._typ is None:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
+        return self._typ
 
     def to_dict(self):
         ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
@@ -132,9 +140,7 @@ class ImportInfo(AnalysisResult):
         ret["source_id"] = self.compiler_input.source_id
         ret["path"] = str(self.compiler_input.path)
         ret["resolved_path"] = str(self.compiler_input.resolved_path)
-
-        if isinstance(self.compiler_input, FileInput):
-            ret["file_sha256sum"] = self.compiler_input.sha256sum
+        ret["file_sha256sum"] = self.compiler_input.sha256sum
 
         return ret
 
@@ -195,15 +201,22 @@ class VarInfo:
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
-            raise CompilerPanic("Position was already assigned")
+            raise CompilerPanic(f"Position was already assigned: {self}")
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
-    def is_module_variable(self):
-        return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
+    def is_state_variable(self):
+        non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
+        # `self` gets a VarInfo, but it is not considered a state
+        # variable (it is magic), so we ignore it here.
+        return self.location not in non_state_locations and not isinstance(self.typ, SelfT)
 
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)
+
+    @property
+    def is_storage(self):
+        return self.location == DataLocation.STORAGE
 
     @property
     def is_transient(self):
@@ -228,6 +241,17 @@ class VarAccess:
     # A sentinel indicating a subscript access
     SUBSCRIPT_ACCESS: ClassVar[Any] = object()
 
+    # custom __reduce__ and _produce implementations to work around
+    # a pickle bug.
+    # see https://github.com/python/cpython/issues/124937#issuecomment-2392227290
+    def __reduce__(self):
+        dict_obj = {f.name: getattr(self, f.name) for f in fields(self)}
+        return self.__class__._produce, (dict_obj,)
+
+    @classmethod
+    def _produce(cls, data):
+        return cls(**data)
+
     @cached_property
     def attrs(self):
         ret = []
@@ -251,7 +275,10 @@ class VarAccess:
         # map SUBSCRIPT_ACCESS to `"$subscript_access"` (which is an identifier
         # which can't be constructed by the user)
         path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
-        varname = var.decl_node.target.id
+        if isinstance(var.decl_node, vy_ast.arg):
+            varname = var.decl_node.arg
+        else:
+            varname = var.decl_node.target.id
 
         decl_node = var.decl_node.get_id_dict()
         ret = {"name": varname, "decl_node": decl_node, "access_path": path}
@@ -276,8 +303,7 @@ class ExprInfo:
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
-                    raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
-
+                    raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()
 

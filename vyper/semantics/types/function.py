@@ -24,7 +24,12 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarOffset,
 )
-from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node, infer_type
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    get_exact_type_from_node,
+    infer_type,
+    uses_state,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -159,7 +164,15 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
+    def uses_state(self):
+        return (
+            self.nonreentrant
+            or uses_state(self.get_variable_accesses())
+            or any(f.nonreentrant for f in self.reachable_internal_functions)
+        )
+
     def get_used_modules(self):
+        # _used_modules is populated during analysis
         return self._used_modules
 
     def mark_used_module(self, module_info):
@@ -317,7 +330,23 @@ class ContractFunctionT(VyperType):
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
         if nonreentrant:
-            raise FunctionDeclarationException("`@nonreentrant` not allowed in interfaces", funcdef)
+            # TODO: refactor so parse_decorators returns the AST location
+            decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+            raise FunctionDeclarationException(
+                "`@nonreentrant` not allowed in interfaces", decorator
+            )
+
+        # it's redundant to specify visibility in vyi - always should be external
+        if function_visibility is None:
+            function_visibility = FunctionVisibility.EXTERNAL
+
+        if function_visibility != FunctionVisibility.EXTERNAL:
+            nonexternal = next(
+                d for d in funcdef.decorator_list if d.id in FunctionVisibility.values()
+            )
+            raise FunctionDeclarationException(
+                "Interface functions can only be marked as `@external`", nonexternal
+            )
 
         if funcdef.name == "__init__":
             raise FunctionDeclarationException("Constructors cannot appear in interfaces", funcdef)
@@ -331,12 +360,14 @@ class ContractFunctionT(VyperType):
 
         return_type = _parse_return_type(funcdef)
 
-        if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
+        body = funcdef.body
+
+        if len(body) != 1 or not (
+            isinstance(body[0], vy_ast.Expr) and isinstance(body[0].value, vy_ast.Ellipsis)
+        ):
             raise FunctionDeclarationException(
                 "function body in an interface can only be `...`!", funcdef
             )
-
-        assert function_visibility is not None  # mypy hint
 
         return cls(
             funcdef.name,
@@ -366,6 +397,10 @@ class ContractFunctionT(VyperType):
         """
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
+        # it's redundant to specify internal visibility - it's implied by not being external
+        if function_visibility is None:
+            function_visibility = FunctionVisibility.INTERNAL
+
         positional_args, keyword_args = _parse_args(funcdef)
 
         return_type = _parse_return_type(funcdef)
@@ -392,8 +427,7 @@ class ContractFunctionT(VyperType):
                 )
             if function_visibility != FunctionVisibility.DEPLOY:
                 raise FunctionDeclarationException(
-                    f"Constructor must be marked as `@deploy`, not `@{function_visibility}`",
-                    funcdef,
+                    "Constructor must be marked as `@deploy`", funcdef
                 )
             if return_type is not None:
                 raise FunctionDeclarationException(
@@ -405,9 +439,10 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
-
-        # sanity check
-        assert function_visibility is not None
+            if nonreentrant:
+                decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+                msg = "`@nonreentrant` decorator disallowed on `__init__`"
+                raise FunctionDeclarationException(msg, decorator)
 
         return cls(
             funcdef.name,
@@ -447,7 +482,10 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
+
+        # calculated by caller (ModuleAnalyzer.visit_VariableDecl)
+        type_ = node.target._metadata["varinfo"].typ
+
         arguments, return_type = type_.getter_signature
         args = []
         for i, item in enumerate(arguments):
@@ -480,6 +518,8 @@ class ContractFunctionT(VyperType):
         """
         if not self.is_external:  # pragma: nocover
             raise CompilerPanic("unreachable!")
+
+        assert self.visibility == other.visibility
 
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
@@ -705,10 +745,6 @@ def _parse_decorators(
             if nonreentrant_node is not None:
                 raise StructureException("nonreentrant decorator is already set", nonreentrant_node)
 
-            if funcdef.name == "__init__":
-                msg = "`@nonreentrant` decorator disallowed on `__init__`"
-                raise FunctionDeclarationException(msg, decorator)
-
             nonreentrant_node = decorator
 
         elif isinstance(decorator, vy_ast.Name):
@@ -719,6 +755,7 @@ def _parse_decorators(
                         decorator,
                         hint="only one visibility decorator is allowed per function",
                     )
+
                 function_visibility = FunctionVisibility(decorator.id)
 
             elif StateMutability.is_valid_value(decorator.id):
@@ -741,11 +778,6 @@ def _parse_decorators(
         else:
             raise StructureException("Bad decorator syntax", decorator)
 
-    if function_visibility is None:
-        raise FunctionDeclarationException(
-            f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", funcdef
-        )
-
     if state_mutability is None:
         # default to nonpayable
         state_mutability = StateMutability.NONPAYABLE
@@ -753,8 +785,6 @@ def _parse_decorators(
     if state_mutability == StateMutability.PURE and nonreentrant_node is not None:
         raise StructureException("Cannot use reentrancy guard on pure functions", nonreentrant_node)
 
-    # assert function_visibility is not None  # mypy
-    # assert state_mutability is not None  # mypy
     nonreentrant = nonreentrant_node is not None
     return function_visibility, state_mutability, nonreentrant
 
@@ -844,7 +874,7 @@ class MemberFunctionT(VyperType):
         return self.name
 
     def __repr__(self):
-        return f"{self.underlying_type._id} member function '{self.name}'"
+        return f"{self.underlying_type} member function '{self.name}'"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         validate_call_args(node, len(self.arg_types))

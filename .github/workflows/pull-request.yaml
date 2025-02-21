@@ -24,6 +24,7 @@ jobs:
         with:
           types: |
             feat
+            perf
             fix
             chore
             refactor
@@ -31,24 +32,31 @@ jobs:
           # docs: documentation
           # test: test suite
           # lang: language changes
+          # stdlib: changes to the stdlib
           # ux: language changes (UX)
+          # parser: parser changes
           # tool: integration
           # ir: (old) IR/codegen changes
+          # codegen: lowering from vyper AST to codegen
           # venom: venom changes
           scopes: |
             ci
+            build
             docs
             test
             lang
+            stdlib
             ux
+            parser
             tool
             ir
+            codegen
             venom
           requireScope: true
           subjectPattern: '^(?![A-Z]).+$'
           subjectPatternError: |
             Starts with uppercase letter: '{subject}'
             (Full PR title: '{title}')
-          headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
-          validateSingleCommit: true
-          validateSingleCommitMatchesPrTitle: true
+          # type[scope]<optional !>: subject
+          # use [] instead of () for aesthetics
+          headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?!?: (.*)$'

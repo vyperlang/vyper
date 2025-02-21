@@ -58,17 +58,19 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
 
     for u, uses in all_used_modules.items():
         if u not in all_initialized_modules:
+            msg = f"module `{u}` is used but never initialized!"
+
+            # construct a hint if the module is in scope
+            hint = None
             found_module = module_t.find_module_info(u)
             if found_module is not None:
-                hint = f"add `initializes: {found_module.alias}` to the top level of "
-                hint += "your main contract"
-            else:
-                # CMC 2024-02-06 is this actually reachable?
-                hint = f"ensure `{module_t}` is imported in your main contract!"
-            err_list.append(
-                InitializerException(
-                    f"module `{u}` is used but never initialized!", *uses, hint=hint
-                )
-            )
+                # TODO: do something about these constants
+                if str(module_t) in ("<unknown>", "VyperContract.vy"):
+                    module_str = "the top level of your main contract"
+                else:
+                    module_str = f"`{module_t}`"
+                hint = f"add `initializes: {found_module.alias}` to {module_str}"
+
+            err_list.append(InitializerException(msg, *uses, hint=hint))
 
     err_list.raise_if_not_empty()

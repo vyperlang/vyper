@@ -2,10 +2,10 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
+from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -94,7 +94,7 @@ class BytesM_T(_PrimT):
         val = node.value
 
         if node.n_bytes != self.m:
-            raise InvalidLiteral("Invalid literal for type {self}", node)
+            raise InvalidLiteral(f"Invalid literal for type {self}", node)
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
@@ -151,9 +151,9 @@ class NumericT(_PrimT):
 
         def _get_lr():
             if isinstance(node, vy_ast.BinOp):
-                return node.left, node.right
+                return node.left.reduced(), node.right.reduced()
             elif isinstance(node, vy_ast.AugAssign):
-                return node.target, node.value
+                return node.target.reduced(), node.value.reduced()
             else:
                 raise CompilerPanic(f"Unexpected node type for numeric op: {type(node).__name__}")
 
@@ -173,11 +173,11 @@ class NumericT(_PrimT):
             if isinstance(left, vy_ast.Int):
                 if left.value >= 2**value_bits:
                     raise OverflowException(
-                        "Base is too large, calculation will always overflow", left
+                        f"Base is too large for {self}, calculation will always overflow", left
                     )
                 elif left.value < -(2**value_bits):
                     raise OverflowException(
-                        "Base is too small, calculation will always underflow", left
+                        f"Base is too small for {self}, calculation will always underflow", left
                     )
             elif isinstance(right, vy_ast.Int):
                 if right.value < 0:
@@ -211,9 +211,16 @@ def _add_div_hint(node, e):
     else:
         return e
 
+    def _get_source(node):
+        source = node.node_source_code
+        if isinstance(node, vy_ast.BinOp):
+            # parenthesize, to preserve precedence
+            return f"({source})"
+        return source
+
     if isinstance(node, vy_ast.BinOp):
-        e._hint = f"did you mean `{node.left.node_source_code} "
-        e._hint += f"{suggested} {node.right.node_source_code}`?"
+        e._hint = f"did you mean `{_get_source(node.left)} "
+        e._hint += f"{suggested} {_get_source(node.right)}`?"
     elif isinstance(node, vy_ast.AugAssign):
         e._hint = f"did you mean `{node.target.node_source_code} "
         e._hint += f"{suggested}= {node.value.node_source_code}`?"
@@ -339,7 +346,7 @@ class DecimalT(NumericT):
 
     @cached_property
     def abi_type(self) -> ABIType:
-        return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
+        return ABI_GIntM(self._bits, self._is_signed)
 
     @cached_property
     def decimals(self) -> int:
@@ -363,6 +370,11 @@ class DecimalT(NumericT):
         lo, hi = int_bounds(signed=self.is_signed, bits=self.bits)
         DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
+
+    def to_abi_arg(self, name: str = "") -> dict[str, Any]:
+        ret = super().to_abi_arg(name)
+        ret["internalType"] = repr(self)
+        return ret
 
 
 # maybe this even deserves its own module, address.py

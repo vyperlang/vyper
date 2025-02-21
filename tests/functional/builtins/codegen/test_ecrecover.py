@@ -1,8 +1,13 @@
+import contextlib
+
 from eth_account import Account
 from eth_account._utils.signing import to_bytes32
 
+from tests.utils import ZERO_ADDRESS, check_precompile_asserts
+from vyper.compiler.settings import OptimizationLevel
 
-def test_ecrecover_test(get_contract_with_gas_estimation):
+
+def test_ecrecover_test(get_contract):
     ecrecover_test = """
 @external
 def test_ecrecover(h: bytes32, v: uint8, r: bytes32, s: bytes32) -> address:
@@ -28,7 +33,7 @@ def test_ecrecover_uints2() -> address:
 
     """
 
-    c = get_contract_with_gas_estimation(ecrecover_test)
+    c = get_contract(ecrecover_test)
 
     h = b"\x35" * 32
     local_account = Account.from_key(b"\x46" * 32)
@@ -56,8 +61,7 @@ def test_ecrecover(hash: bytes32, v: uint8, r: uint256) -> address:
     hash_ = bytes(i for i in range(32))
     v = 0  # invalid v! ecrecover precompile will not write to output buffer
     r = 0
-    # note web3.py decoding of 0x000..00 address is None.
-    assert c.test_ecrecover(hash_, v, r) is None
+    assert c.test_ecrecover(hash_, v, r) == ZERO_ADDRESS
 
 
 # slightly more subtle example: get_v() stomps memory location 0,
@@ -85,3 +89,40 @@ def test_ecrecover() -> bool:
     """
     c = get_contract(code)
     assert c.test_ecrecover() is True
+
+
+def test_ecrecover_oog_handling(env, get_contract, tx_failed, optimize, experimental_codegen):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def do_ecrecover(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+    return ecrecover(hash, v, r, s)
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+
+    h = b"\x35" * 32
+    local_account = Account.from_key(b"\x46" * 32)
+    sig = local_account.signHash(h)
+    v, r, s = sig.v, sig.r, sig.s
+
+    assert c.do_ecrecover(h, v, r, s) == local_account.address
+
+    gas_used = env.last_result.gas_used
+
+    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+        # if optimizations are off, enough gas is used by the contract
+        # that the gas provided to ecrecover (63/64ths rule) is enough
+        # for it to succeed
+        ctx = contextlib.nullcontext
+    else:
+        # in other cases, the gas forwarded is small enough for ecrecover
+        # to fail with oog, which we handle by reverting.
+        ctx = tx_failed
+
+    with ctx():
+        # provide enough spare gas for the top-level call to not oog but
+        # not enough for ecrecover to succeed
+        c.do_ecrecover(h, v, r, s, gas=gas_used)

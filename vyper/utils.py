@@ -4,18 +4,19 @@ import decimal
 import enum
 import functools
 import hashlib
+import os
 import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
 
 _T = TypeVar("_T")
 
 
-class OrderedSet(Generic[_T], dict[_T, None]):
+class OrderedSet(Generic[_T]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -25,57 +26,121 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     """
 
     def __init__(self, iterable=None):
-        super().__init__()
-        if iterable is not None:
-            for item in iterable:
-                self.add(item)
+        if iterable is None:
+            self._data = dict()
+        else:
+            self._data = dict.fromkeys(iterable)
 
     def __repr__(self):
-        keys = ", ".join(repr(k) for k in self.keys())
+        keys = ", ".join(repr(k) for k in self)
         return f"{{{keys}}}"
 
-    def get(self, *args, **kwargs):
-        raise RuntimeError("can't call get() on OrderedSet!")
+    def __iter__(self):
+        return iter(self._data)
+
+    def __reversed__(self):
+        return reversed(self._data)
+
+    def __contains__(self, item):
+        return self._data.__contains__(item)
+
+    def __len__(self):
+        return len(self._data)
 
     def first(self):
         return next(iter(self))
 
+    def last(self):
+        return next(reversed(self))
+
+    def pop(self):
+        return self._data.popitem()[0]
+
     def add(self, item: _T) -> None:
-        self[item] = None
+        self._data[item] = None
+
+    # NOTE to refactor: duplicate of self.update()
+    def addmany(self, iterable):
+        for item in iterable:
+            self._data[item] = None
 
     def remove(self, item: _T) -> None:
-        del self[item]
+        del self._data[item]
+
+    def drop(self, item: _T):
+        # friendly version of remove
+        self._data.pop(item, None)
+
+    def dropmany(self, iterable):
+        for item in iterable:
+            self._data.pop(item, None)
 
     def difference(self, other):
         ret = self.copy()
-        for k in other.keys():
-            if k in ret:
-                ret.remove(k)
+        ret.dropmany(other)
         return ret
+
+    def update(self, other):
+        # CMC 2024-03-22 for some reason, this is faster than dict.update?
+        # (maybe size dependent)
+        for item in other:
+            self._data[item] = None
 
     def union(self, other):
         return self | other
 
-    def update(self, other):
-        super().update(self.__class__.fromkeys(other))
+    # set dunders
+    def __ior__(self, other):
+        self.update(other)
+        return self
 
     def __or__(self, other):
-        return self.__class__(super().__or__(other))
+        ret = self.copy()
+        ret.update(other)
+        return ret
+
+    def __eq__(self, other):
+        return self._data == other._data
+
+    def __isub__(self, other):
+        self.dropmany(other)
+        return self
+
+    def __sub__(self, other):
+        ret = self.copy()
+        ret.dropmany(other)
+        return ret
 
     def copy(self):
-        return self.__class__(super().copy())
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret._data = self._data.copy()
+        return ret
 
     @classmethod
     def intersection(cls, *sets):
-        res = OrderedSet()
         if len(sets) == 0:
             raise ValueError("undefined: intersection of no sets")
-        if len(sets) == 1:
-            return sets[0].copy()
-        for e in sets[0].keys():
-            if all(e in s for s in sets[1:]):
-                res.add(e)
-        return res
+
+        tmp = sets[0]._data.keys()
+        for s in sets[1:]:
+            tmp &= s._data.keys()
+
+        return cls(tmp)
+
+
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
 
 
 class StringEnum(enum.Enum):
@@ -166,6 +231,12 @@ def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
 
+def get_long_version():
+    from vyper import __long_version__
+
+    return __long_version__
+
+
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
@@ -177,6 +248,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -186,7 +264,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -201,7 +279,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_
@@ -251,17 +329,6 @@ def round_towards_zero(d: decimal.Decimal) -> int:
     # (but either way keep this util function bc it's easier at a glance
     # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
-
-
-# Converts string to bytes
-def string_to_bytes(str):
-    bytez = b""
-    for c in str:
-        if ord(c) >= 256:
-            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
-        bytez += bytes([ord(c)])
-    bytez_length = len(bytez)
-    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer
@@ -334,6 +401,11 @@ def evm_twos_complement(x: int) -> int:
     return ((2**256 - 1) ^ x) + 1
 
 
+def evm_not(val: int) -> int:
+    assert 0 <= val <= SizeLimits.MAX_UINT256, "Value out of bounds"
+    return SizeLimits.MAX_UINT256 ^ val
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
@@ -380,6 +452,12 @@ class SizeLimits:
     MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
+    CEILING_UINT256 = 2**256
+
+
+def quantize(d: decimal.Decimal, places=MAX_DECIMAL_PLACES, rounding_mode=decimal.ROUND_DOWN):
+    quantizer = decimal.Decimal(f"{1:0.{places}f}")
+    return d.quantize(quantizer, rounding_mode)
 
 
 # List of valid IR macros.
@@ -456,20 +534,79 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
 
 
 @contextlib.contextmanager
-def timeit(msg):
+def timeit(msg):  # pragma: nocover
     start_time = time.perf_counter()
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds")
+    print(f"{msg}: Took {total_time:.6f} seconds", file=sys.stderr)
+
+
+_CUMTIMES = None
+
+
+def _dump_cumtime():  # pragma: nocover
+    global _CUMTIMES
+    for msg, total_time in _CUMTIMES.items():
+        print(f"{msg}: Cumulative time {total_time:.3f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
-def timer(msg):
-    t0 = time.time()
+def cumtimeit(msg):  # pragma: nocover
+    import atexit
+    from collections import defaultdict
+
+    global _CUMTIMES
+
+    if _CUMTIMES is None:
+        warnings.warn("timing code, disable me before pushing!", stacklevel=2)
+        _CUMTIMES = defaultdict(int)
+        atexit.register(_dump_cumtime)
+
+    start_time = time.perf_counter()
     yield
-    t1 = time.time()
-    print(f"{msg} took {t1 - t0}s")
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    _CUMTIMES[msg] += total_time
+
+
+_PROF = None
+
+
+def _dump_profile():  # pragma: nocover
+    global _PROF
+
+    _PROF.disable()  # don't profile dumping stats
+    _PROF.dump_stats("stats")
+
+    from pstats import Stats
+
+    stats = Stats("stats", stream=sys.stderr)
+    stats.sort_stats("time")
+    stats.print_stats()
+
+
+@contextlib.contextmanager
+def profileit():  # pragma: nocover
+    """
+    Helper function for local dev use, is not intended to ever be run in
+    production build
+    """
+    import atexit
+    from cProfile import Profile
+
+    global _PROF
+    if _PROF is None:
+        warnings.warn("profiling code, disable me before pushing!", stacklevel=2)
+        _PROF = Profile()
+        _PROF.disable()
+        atexit.register(_dump_profile)
+
+    try:
+        _PROF.enable()
+        yield
+    finally:
+        _PROF.disable()
 
 
 def annotate_source_code(
@@ -549,23 +686,24 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-def ir_pass(func):
+def safe_relpath(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        # on Windows, if path and curdir are on different drives, an exception
+        # can be thrown
+        return path
+
+
+def all2(iterator):
     """
-    Decorator for IR passes. This decorator will run the pass repeatedly until
-    no more changes are made.
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
     """
-
-    def wrapper(*args, **kwargs):
-        count = 0
-
-        while True:
-            changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list) or isinstance(changes, set):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
-                break
-
-        return count
-
-    return wrapper
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

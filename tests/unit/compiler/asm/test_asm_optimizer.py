@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.ir.compile_ir import _merge_jumpdests
 
 codes = [
     """
@@ -95,7 +96,7 @@ def test_dead_code_eliminator(code):
     assert all(ctor_only not in instr for instr in runtime_asm)
 
 
-def test_library_code_eliminator(make_input_bundle):
+def test_library_code_eliminator(make_input_bundle, experimental_codegen):
     library = """
 @internal
 def unused1():
@@ -119,6 +120,15 @@ def foo():
     input_bundle = make_input_bundle({"library.vy": library})
     res = compile_code(code, input_bundle=input_bundle, output_formats=["asm"])
     asm = res["asm"]
-    assert "some_function()" in asm
+
+    if not experimental_codegen:
+        assert "some_function()" in asm  # Venom function inliner will remove this
+
     assert "unused1()" not in asm
     assert "unused2()" not in asm
+
+
+def test_merge_jumpdests():
+    asm = ["_sym_label_0", "JUMP", "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"]
+
+    assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"

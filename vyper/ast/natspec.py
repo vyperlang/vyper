@@ -1,6 +1,8 @@
 import re
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
+# NOTE: this is our only use of asttokens -- consider vendoring in the implementation.
 from asttokens import LineNumbers
 
 from vyper.ast import nodes as vy_ast
@@ -11,7 +13,21 @@ PARAM_FIELDS = ("param", "return")
 USERDOCS_FIELDS = ("notice",)
 
 
-def parse_natspec(annotated_vyper_module: vy_ast.Module) -> Tuple[dict, dict]:
+@dataclass
+class NatspecOutput:
+    userdoc: dict
+    devdoc: dict
+
+
+def parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
+    try:
+        return _parse_natspec(annotated_vyper_module)
+    except NatSpecSyntaxException as e:
+        e.resolved_path = annotated_vyper_module.resolved_path
+        raise e
+
+
+def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     """
     Parses NatSpec documentation from a contract.
 
@@ -63,7 +79,7 @@ def parse_natspec(annotated_vyper_module: vy_ast.Module) -> Tuple[dict, dict]:
             if fn_natspec:
                 devdoc.setdefault("methods", {})[method_id] = fn_natspec
 
-    return userdoc, devdoc
+    return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
 def _parse_docstring(

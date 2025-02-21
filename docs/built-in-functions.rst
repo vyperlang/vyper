@@ -133,13 +133,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 
-.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Deploys a small, EIP1167-compliant "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
 
 
     * ``target``: Address of the contract to proxy to
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
@@ -163,12 +164,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
   Before version 0.3.4, this function was named ``create_forwarder_to``.
 
 
-.. py:function:: create_copy_of(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_copy_of(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
 
     * ``target``: Address of the contract to copy
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
@@ -184,7 +186,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 3, [, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 3, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
@@ -193,6 +195,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``raw_args``: If ``True``, ``*args`` must be a single ``Bytes[...]`` argument, which will be interpreted as a raw bytes buffer to forward to the create operation (which is useful for instance, if pre- ABI-encoded data is passed in from elsewhere). (Optional, default ``False``)
     * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 3)
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.
@@ -261,7 +264,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             x: uint256 = 123
             success, response = raw_call(
                 _target,
-                _abi_encode(x, method_id=method_id("someMethodName(uint256)")),
+                abi_encode(x, method_id=method_id("someMethodName(uint256)")),
                 max_outsize=32,
                 value=msg.value,
                 revert_on_failure=False
@@ -946,6 +949,30 @@ Utilities
         >>> ExampleContract.foo()
         0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
+.. py:function:: blobhash(index: uint256) -> bytes32
+
+    Return the versioned hash of the ``index``-th BLOB associated with the current transaction.
+
+    .. note::
+
+         A versioned hash consists of a single byte representing the version (currently ``0x01``), followed by the last 31 bytes of the ``SHA256`` hash of the KZG commitment (`EIP-4844 <https://eips.ethereum.org/EIPS/eip-4844>`_). For the case ``index >= len(tx.blob_versioned_hashes)``, ``blobhash(index: uint256)`` returns ``empty(bytes32)``.
+
+    .. code-block:: vyper
+
+        @external
+        @view
+        def foo(index: uint256) -> bytes32:
+            return blobhash(index)
+
+    .. code-block:: vyper
+
+        >>> ExampleContract.foo(0)
+        0xfd28610fb309939bfec12b6db7c4525446f596a5a5a66b8e2cb510b45b2bbeb5
+
+        >>> ExampleContract.foo(6)
+        0x0000000000000000000000000000000000000000000000000000000000000000
+
+
 .. py:function:: empty(typename) -> Any
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
@@ -996,7 +1023,7 @@ Utilities
         >>> ExampleContract.foo()
 	0xa9059cbb
 
-.. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+.. py:function:: abi_encode(*args, ensure_tuple: bool = True, method_id: Bytes[4] = None) -> Bytes[<depends on input>]
 
     Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
@@ -1014,7 +1041,7 @@ Utilities
         def foo() -> Bytes[132]:
             x: uint256 = 1
             y: Bytes[32] = b"234"
-            return _abi_encode(x, y, method_id=method_id("foo()"))
+            return abi_encode(x, y, method_id=method_id("foo()"))
 
     .. code-block:: vyper
 
@@ -1025,15 +1052,18 @@ Utilities
         "0000000000000000000000000000000000000000000000000000000000000003"
         "3233340000000000000000000000000000000000000000000000000000000000"
 
+    .. note::
+        Prior to v0.4.0, this function was named ``_abi_encode``.
 
-.. py:function:: _abi_decode(b: Bytes, output_type: type_, unwrap_tuple: bool = True) -> Any
+
+.. py:function:: abi_decode(b: Bytes, output_type: type_, unwrap_tuple: bool = True) -> Any
 
     Takes a byte array as input, and returns the decoded values according to the specified output types. Used for unpacking ABIv2-encoded values.
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
 
     * ``b``: A byte array of a length that is between the minimum and maximum ABIv2 size bounds of the ``output type``.
     * ``output_type``: Name of the output type, or tuple of output types, to be decoded.
-    * ``unwrap_tuple``: If set to True, the input is decoded as a tuple even if only one output type is specified. In other words, ``_abi_decode(b, Bytes[32])`` gets decoded as ``(Bytes[32],)``. This is the convention for ABIv2-encoded values generated by Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+    * ``unwrap_tuple``: If set to True, the input is decoded as a tuple even if only one output type is specified. In other words, ``abi_decode(b, Bytes[32])`` gets decoded as ``(Bytes[32],)``. This is the convention for ABIv2-encoded values generated by Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
 
     Returns the decoded value(s), with type as specified by `output_type`.
 
@@ -1044,8 +1074,11 @@ Utilities
         def foo(someInput: Bytes[128]) -> (uint256, Bytes[32]):
             x: uint256 = empty(uint256)
             y: Bytes[32] = empty(Bytes[32])
-            x, y =  _abi_decode(someInput, (uint256, Bytes[32]))
+            x, y =  abi_decode(someInput, (uint256, Bytes[32]))
             return x, y
+
+    .. note::
+        Prior to v0.4.0, this function was named ``_abi_decode``.
 
 
 .. py:function:: print(*args, hardhat_compat=False) -> None
@@ -1057,3 +1090,6 @@ Utilities
 .. note::
 
     Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.
+
+.. warning::
+    In Vyper, as of v0.4.0, the order of argument evaluation of builtins is not defined. That means that the compiler may choose to reorder evaluation of arguments. For example, ``extract32(x(), y())`` may yield unexpected results if ``x()`` and ``y()`` both touch the same data. For this reason, it is best to avoid calling functions with side-effects inside of builtins. For more information, see `GHSA-g2xh-c426-v8mf <https://github.com/vyperlang/vyper/security/advisories/GHSA-g2xh-c426-v8mf>`_ and `issue #4019 <https://github.com/vyperlang/vyper/issues/4019>`_.

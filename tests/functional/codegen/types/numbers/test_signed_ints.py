@@ -8,6 +8,7 @@ from vyper import compile_code
 from vyper.exceptions import (
     InvalidOperation,
     OverflowException,
+    StaticAssertionException,
     TypeMismatch,
     ZeroDivisionException,
 )
@@ -73,7 +74,24 @@ def foo(x: int256) -> int256:
 
 # TODO: make this test pass
 @pytest.mark.parametrize("base", (0, 1))
-def test_exponent_negative_power(get_contract, tx_failed, base):
+def test_exponent_negative_power_runtime_check(get_contract, tx_failed, base, experimental_codegen):
+    # #2985
+    code = f"""
+@external
+def bar(negative:int16) -> int16:
+    x: int16 = negative
+    return {base} ** x
+    """
+    c = get_contract(code)
+    # known bug: 2985
+    with tx_failed():
+        c.bar(-2)
+
+
+@pytest.mark.parametrize("base", (0, 1))
+def test_exponent_negative_power_compile_time_check(
+    get_contract, tx_failed, base, experimental_codegen
+):
     # #2985
     code = f"""
 @external
@@ -81,10 +99,10 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    c = get_contract(code)
-    # known bug: 2985
-    with tx_failed():
-        c.bar()
+    if not experimental_codegen:
+        return
+    with pytest.raises(StaticAssertionException):
+        get_contract(code)
 
 
 def test_exponent_min_int16(get_contract):
@@ -134,7 +152,7 @@ def foo(x: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_negative_nums(get_contract_with_gas_estimation, typ):
+def test_negative_nums(get_contract, typ):
     negative_nums_code = f"""
 @external
 def negative_one() -> {typ}:
@@ -150,14 +168,14 @@ def negative_four() -> {typ}:
     return -(a+2)
     """
 
-    c = get_contract_with_gas_estimation(negative_nums_code)
+    c = get_contract(negative_nums_code)
     assert c.negative_one() == -1
     assert c.negative_three() == -3
     assert c.negative_four() == -4
 
 
 @pytest.mark.parametrize("typ", types)
-def test_num_bound(tx_failed, get_contract_with_gas_estimation, typ):
+def test_num_bound(tx_failed, get_contract, typ):
     lo, hi = typ.ast_bounds
 
     num_bound_code = f"""
@@ -186,7 +204,7 @@ def _num_min() -> {typ}:
     return {lo}
     """
 
-    c = get_contract_with_gas_estimation(num_bound_code)
+    c = get_contract(num_bound_code)
 
     assert c._num_add(hi, 0) == hi
     assert c._num_sub(lo, 0) == lo

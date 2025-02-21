@@ -1,13 +1,13 @@
 import enum
 import itertools
-
-# import random
+import math
 from decimal import Decimal
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
 import pytest
 
+from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -17,6 +17,7 @@ from vyper.utils import (
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
+    quantize,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -24,8 +25,6 @@ from vyper.utils import (
 BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT(), BoolT()}
 
 TEST_TYPES = BASE_TYPES | {BytesT(32)} | {StringT(32)}
-
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
@@ -248,13 +247,20 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        ret = abi.decode(o_typ.abi_type.selector_name(), val_bits)
+        if isinstance(o_typ, DecimalT):
+            return Decimal(ret) / o_typ.divisor
+        return ret
     except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
+    if isinstance(i_typ, DecimalT):
+        val = val * i_typ.divisor
+        assert math.ceil(val) == math.floor(val)
+        val = int(val)
     return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
@@ -414,20 +420,22 @@ def _vyper_literal(val, typ):
         return "0x" + val.hex()
     if isinstance(typ, DecimalT):
         tmp = val
-        val = val.quantize(DECIMAL_EPSILON)
+        val = quantize(val)
         assert tmp == val
     return str(val)
 
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
-def test_convert_passing(
-    get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val
-):
+def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
     expected_val = _py_convert(val, i_typ, o_typ)
-    if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
-        # web3 has special formatter for zero address
-        expected_val = None
+
+    if isinstance(o_typ, DecimalT):
+        expected_val = decimal_to_int(expected_val)
+
+    input_val = val
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(val)
 
     contract_1 = f"""
 @external
@@ -435,7 +443,6 @@ def test_convert() -> {o_typ}:
     return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
-    c1_exception = None
     skip_c1 = False
 
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
@@ -447,10 +454,8 @@ def test_convert() -> {o_typ}:
     if isinstance(i_typ, AddressT) and o_typ == BYTES20_T and val == val.lower():
         skip_c1 = True
 
-    if c1_exception is not None:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
-    elif not skip_c1:
-        c1 = get_contract_with_gas_estimation(contract_1)
+    if not skip_c1:
+        c1 = get_contract(contract_1)
         assert c1.test_convert() == expected_val
 
     contract_2 = f"""
@@ -459,8 +464,8 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     return convert(x, {o_typ})
     """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
-    assert c2.test_input_convert(val) == expected_val
+    c2 = get_contract(contract_2)
+    assert c2.test_input_convert(input_val) == expected_val
 
     contract_3 = f"""
 bar: {i_typ}
@@ -471,7 +476,7 @@ def test_state_variable_convert() -> {o_typ}:
     return convert(self.bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
+    c3 = get_contract(contract_3)
     assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
@@ -481,13 +486,13 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
     return convert(y, {o_typ})
     """
 
-    c4 = get_contract_with_gas_estimation(contract_4)
-    assert c4.test_memory_variable_convert(val) == expected_val
+    c4 = get_contract(contract_4)
+    assert c4.test_memory_variable_convert(input_val) == expected_val
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
 @pytest.mark.parametrize("val", [1, 2, 2**128, 2**256 - 1, 2**256 - 2])
-def test_flag_conversion(get_contract_with_gas_estimation, assert_compile_failed, val, typ):
+def test_flag_conversion(get_contract, assert_compile_failed, val, typ):
     roles = "\n    ".join([f"ROLE_{i}" for i in range(256)])
     contract = f"""
 flag Roles:
@@ -502,18 +507,16 @@ def bar(a: uint256) -> Roles:
     return convert(a, Roles)
     """
     if typ == "uint256":
-        c = get_contract_with_gas_estimation(contract)
+        c = get_contract(contract)
         assert c.foo(val) == val
         assert c.bar(val) == val
     else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+        assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
 @pytest.mark.parametrize("val", [1, 2, 3, 4, 2**128, 2**256 - 1, 2**256 - 2])
-def test_flag_conversion_2(
-    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, val, typ
-):
+def test_flag_conversion_2(get_contract, assert_compile_failed, tx_failed, val, typ):
     contract = f"""
 flag Status:
     STARTED
@@ -525,7 +528,7 @@ def foo(a: {typ}) -> Status:
     return convert(a, Status)
     """
     if typ == "uint256":
-        c = get_contract_with_gas_estimation(contract)
+        c = get_contract(contract)
         lo, hi = int_bounds(signed=False, bits=3)
         if lo <= val <= hi:
             assert c.foo(val) == val
@@ -533,7 +536,7 @@ def foo(a: {typ}) -> Status:
             with tx_failed():
                 c.foo(val)
     else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+        assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
 # uint256 conversion is currently valid due to type inference on literals
@@ -633,7 +636,7 @@ def foo() -> {typ}:
 
 
 @pytest.mark.parametrize("n", range(1, 33))
-def test_Bytes_to_bytes(get_contract, n):
+def test_Bytes_to_bytes(get_contract, n: int):
     t_bytes = f"bytes{n}"
     t_Bytes = f"Bytes[{n}]"
 
@@ -661,9 +664,7 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(
-    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, i_typ, o_typ, val
-):
+def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -694,7 +695,7 @@ def foo() -> {o_typ}:
     #    skip_c1 = True
 
     if not skip_c1:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
+        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
 
     contract_2 = f"""
 @external
@@ -703,7 +704,7 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
+    c2 = get_contract(contract_2)
     with tx_failed():
         c2.foo()
 
@@ -713,6 +714,9 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
+    c3 = get_contract(contract_3)
+    input_val = val
+    if isinstance(i_typ, DecimalT):
+        input_val = decimal_to_int(input_val)
     with tx_failed():
-        c3.foo(val)
+        c3.foo(input_val)

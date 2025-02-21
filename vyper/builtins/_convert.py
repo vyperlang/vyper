@@ -464,7 +464,7 @@ def to_flag(expr, arg, out_typ):
 def convert(expr, context):
     assert len(expr.args) == 2, "bad typecheck: convert"
 
-    arg_ast = expr.args[0]
+    arg_ast = expr.args[0].reduced()
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
 

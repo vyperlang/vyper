@@ -19,10 +19,11 @@ class _Block(_EnvType):
     _type_members = {
         "coinbase": AddressT(),
         "difficulty": UINT256_T,
-        "prevrandao": UINT256_T,
+        "prevrandao": BYTES32_T,
         "number": UINT256_T,
         "gaslimit": UINT256_T,
         "basefee": UINT256_T,
+        "blobbasefee": UINT256_T,
         "prevhash": BYTES32_T,
         "timestamp": UINT256_T,
     }
@@ -35,7 +36,13 @@ class _Chain(_EnvType):
 
 class _Msg(_EnvType):
     _id = "msg"
-    _type_members = {"data": BytesT(), "gas": UINT256_T, "sender": AddressT(), "value": UINT256_T}
+    _type_members = {
+        "data": BytesT(),
+        "gas": UINT256_T,
+        "mana": UINT256_T,
+        "sender": AddressT(),
+        "value": UINT256_T,
+    }
 
 
 class _Tx(_EnvType):

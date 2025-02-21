@@ -1,6 +1,23 @@
-def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation):
-    extract32_code = """
-y: Bytes[100]
+import pytest
+
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic
+
+
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_extract32_extraction(tx_failed, get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
+    if location == "storage":
+        decl = "y: Bytes[100]"
+    elif location == "transient":
+        decl = "y: transient(Bytes[100])"
+    else:
+        raise Exception("unreachable")
+    extract32_code = f"""
+{decl}
 @external
 def extrakt32(inp: Bytes[100], index: uint256) -> bytes32:
     return extract32(inp, index)
@@ -16,7 +33,7 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
     return extract32(self.y, index)
     """
 
-    c = get_contract_with_gas_estimation(extract32_code)
+    c = get_contract(extract32_code)
     test_cases = (
         (b"c" * 31, 0),
         (b"c" * 32, 0),
@@ -43,10 +60,8 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
             with tx_failed():
                 c.extrakt32(S, i)
 
-    print("Passed bytes32 extraction test")
 
-
-def test_extract32_code(tx_failed, get_contract_with_gas_estimation):
+def test_extract32_code(tx_failed, get_contract):
     extract32_code = """
 @external
 def foo(inp: Bytes[32]) -> int128:
@@ -69,7 +84,7 @@ def foq(inp: Bytes[32]) -> address:
     return extract32(inp, 0, output_type=address)
     """
 
-    c = get_contract_with_gas_estimation(extract32_code)
+    c = get_contract(extract32_code)
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
 
@@ -85,4 +100,49 @@ def foq(inp: Bytes[32]) -> address:
     with tx_failed():
         c.foq(b"crow" * 8)
 
-    print("Passed extract32 test")
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_extract32_order_of_eval(get_contract):
+    extract32_code = """
+var:DynArray[Bytes[96], 1]
+
+@internal
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 3
+
+@external
+def foo() -> bytes32:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return extract32(self.var[0], self.bar(), output_type=bytes32)
+    """
+
+    c = get_contract(extract32_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_extract32_order_of_eval_extcall(get_contract):
+    slice_code = """
+var:DynArray[Bytes[96], 1]
+
+interface Bar:
+    def bar() -> uint256: payable
+
+@external
+def bar() -> uint256:
+    self.var[0] = b'hellohellohellohellohellohellohello'
+    self.var.pop()
+    return 3
+
+@external
+def foo() -> bytes32:
+    self.var = [b'abcdefghijklmnopqrstuvwxyz123456789']
+    return extract32(self.var[0], extcall Bar(self).bar(), output_type=bytes32)
+    """
+
+    c = get_contract(slice_code)
+    assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"

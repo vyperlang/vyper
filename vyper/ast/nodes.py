@@ -3,6 +3,7 @@ import contextlib
 import copy
 import decimal
 import functools
+import math
 import operator
 import pickle
 import sys
@@ -25,7 +26,14 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div, sha256sum
+from vyper.utils import (
+    MAX_DECIMAL_PLACES,
+    SizeLimits,
+    annotate_source_code,
+    evm_div,
+    quantize,
+    sha256sum,
+)
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -323,25 +331,9 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
-    def __hash__(self):
-        values = [getattr(self, i, None) for i in VyperNode._public_slots]
-        return hash(tuple(values))
-
     def __deepcopy__(self, memo):
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
-
-    def __eq__(self, other):
-        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
-        # nodes, especially if they come from other modules
-        if not isinstance(other, type(self)):
-            return False
-        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
-            return False
-        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
-            if getattr(self, field_name, None) != getattr(other, field_name, None):
-                return False
-        return True
 
     def __repr__(self):
         cls = type(self)
@@ -412,6 +404,11 @@ class VyperNode:
             return self._metadata["folded_value"]
         except KeyError:
             raise UnfoldableNode("not foldable", self)
+
+    def reduced(self) -> "ExprNode":
+        if self.has_folded_value:
+            return self.get_folded_value()
+        return self
 
     def _set_folded_value(self, node: "VyperNode") -> None:
         # sanity check this is only called once
@@ -625,7 +622,7 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id")
+    __slots__ = ("path", "resolved_path", "source_id", "is_interface")
 
     def to_dict(self):
         return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
@@ -663,7 +660,6 @@ class DocStr(VyperNode):
     """
 
     __slots__ = ("value",)
-    _translated_fields = {"s": "value"}
 
 
 class arguments(VyperNode):
@@ -775,11 +771,6 @@ class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
 
-    @property
-    def n(self):
-        # TODO phase out use of Num.n and remove this
-        return self.value
-
     def validate(self):
         if self.value < SizeLimits.MIN_INT256:
             raise OverflowException("Value is below lower bound for all numeric types", self)
@@ -823,6 +814,7 @@ class Decimal(Num):
         return ast_dict
 
     def validate(self):
+        # note: maybe use self.value == quantize(self.value) for this check
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
         if self.value < SizeLimits.MIN_AST_DECIMAL:
@@ -845,9 +837,14 @@ class Hex(Constant):
 
     def validate(self):
         if "_" in self.value:
+            # TODO: revisit this, we should probably allow underscores
             raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
+
+        if self.value.startswith("0X"):
+            hint = f"Did you mean `0x{self.value[2:]}`?"
+            raise InvalidLiteral("Hex literal begins with 0X!", self, hint=hint)
 
     @property
     def n_nibbles(self):
@@ -873,22 +870,18 @@ class Hex(Constant):
 
 class Str(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def validate(self):
         for c in self.value:
-            if ord(c) >= 256:
+            # in utf-8, bytes in the 128 and up range deviate from latin1 and
+            # can be control bytes, allowing multi-byte characters.
+            # reject them here.
+            if ord(c) >= 128:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
-
-    @property
-    def s(self):
-        # TODO phase out use of Str.s and remove this
-        return self.value
 
 
 class Bytes(Constant):
     __slots__ = ()
-    _translated_fields = {"s": "value"}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
@@ -902,9 +895,19 @@ class Bytes(Constant):
         ast_dict["value"] = f"0x{self.value.hex()}"
         return ast_dict
 
-    @property
-    def s(self):
-        return self.value
+
+class HexBytes(Constant):
+    __slots__ = ()
+
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        if isinstance(self.value, str):
+            self.value = bytes.fromhex(self.value)
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        ast_dict["value"] = f"0x{self.value.hex()}"
+        return ast_dict
 
 
 class List(ExprNode):
@@ -939,6 +942,12 @@ class NameConstant(Constant):
 
 class Ellipsis(Constant):
     __slots__ = ()
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        # python ast ellipsis() is not json serializable; use a string
+        ast_dict["value"] = self.node_source_code
+        return ast_dict
 
 
 class Dict(ExprNode):
@@ -1009,9 +1018,15 @@ class Mult(Operator):
         value = left * right
         if isinstance(left, decimal.Decimal):
             # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return value.quantize(
-                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
-            )
+            try:
+                # if the intermediate result requires too many decimal places,
+                # decimal will puke - catch the error and raise an
+                # OverflowException
+                return quantize(value)
+            except decimal.InvalidOperation:
+                msg = f"{self._description} requires too many decimal places:"
+                msg += f"\n  {left} * {right} => {value}"
+                raise OverflowException(msg, self) from None
         else:
             return value
 
@@ -1035,10 +1050,15 @@ class Div(Operator):
             # the EVM always truncates toward zero
             value = -(-left / right)
         # ensure that the result is truncated to MAX_DECIMAL_PLACES
-        return value.quantize(decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN)
+        try:
+            return quantize(value)
+        except decimal.InvalidOperation:
+            msg = f"{self._description} requires too many decimal places:"
+            msg += f"\n  {left} {self._pretty} {right} => {value}"
+            raise OverflowException(msg, self) from None
 
 
-class FloorDiv(VyperNode):
+class FloorDiv(Operator):
     __slots__ = ()
     _description = "integer division"
     _pretty = "//"
@@ -1080,6 +1100,16 @@ class Pow(Operator):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
+        # prevent a compiler hang. we are ok with false positives at this
+        # stage since we are just trying to filter out inputs which can cause
+        # the compiler to hang. the others will get caught during constant
+        # folding or codegen.
+        # l**r > 2**256
+        # r * ln(l) > ln(2 ** 256)
+        # r > ln(2 ** 256) / ln(l)
+        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+            raise InvalidLiteral("Out of bounds", self)
+
         return int(left**right)
 
 
@@ -1309,7 +1339,7 @@ class Assign(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class AnnAssign(VyperNode):
+class AnnAssign(Stmt):
     __slots__ = ("target", "annotation", "value")
 
 
@@ -1359,7 +1389,7 @@ class VariableDecl(VyperNode):
             # do the same thing as `validate_call_args`
             # (can't be imported due to cyclic dependency)
             if len(annotation.args) != 1:
-                raise ArgumentException("Invalid number of arguments to `{call_name}`:", self)
+                raise ArgumentException(f"Invalid number of arguments to `{call_name}`:", self)
 
         # the annotation is a "function" call, e.g.
         # `foo: public(constant(uint256))`

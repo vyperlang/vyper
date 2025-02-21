@@ -7,21 +7,19 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
     FlagDeclarationException,
-    InvalidAttribute,
+    InstantiationException,
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
-    UnknownAttribute,
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import check_modifiability, infer_type
+from vyper.semantics.analysis.utils import check_modifiability, infer_type, validate_kwargs
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import keccak256, vyper_warn
 
 
 # user defined type
@@ -74,6 +72,9 @@ class FlagT(_UserType):
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
         return self
+
+    def __str__(self):
+        return f"{self.name}"
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self._flag_members)
@@ -281,6 +282,30 @@ class EventT(_UserType):
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
+        # validate keyword arguments if provided
+        if len(node.keywords) > 0:
+            if len(node.args) > 0:
+                raise InstantiationException(
+                    "Event instantiation requires either all keyword arguments "
+                    "or all positional arguments",
+                    node,
+                )
+
+            return validate_kwargs(node, self.arguments, self.typeclass)
+
+        # warn about positional argument depreciation
+        rec0 = ", ".join(
+            f"{argname}={val.node_source_code}"
+            for argname, val in zip(self.arguments.keys(), node.args)
+        )
+        recommendation = f"log {node.func.node_source_code}({rec0})"
+        msg = "Instantiating events with positional arguments is"
+        msg += " deprecated as of v0.4.1 and will be disallowed"
+        msg += " in a future release. Use kwargs instead e.g.:"
+        msg += f"\n```\n{recommendation}\n```"
+
+        vyper_warn(msg, node)
+
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             infer_type(arg, expected)
@@ -371,8 +396,11 @@ class StructT(_UserType):
 
         return cls(struct_name, members, ast_def=base_node)
 
+    def __str__(self):
+        return f"{self._id}"
+
     def __repr__(self):
-        return f"{self._id} declaration object"
+        return f"{self._id} {self.members}"
 
     def _try_fold(self, node):
         if len(node.args) != 1:
@@ -383,6 +411,12 @@ class StructT(_UserType):
 
         # it can't be reduced, but this lets upstream code know it's constant
         return node
+
+    def def_source_str(self):
+        ret = f"struct {self._id}:\n"
+        for k, v in self.member_types.items():
+            ret += f"    {k}: {v}\n"
+        return ret
 
     @property
     def size_in_bytes(self):
@@ -406,32 +440,7 @@ class StructT(_UserType):
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        # manually validate kwargs for better error messages instead of
-        # relying on `validate_call_args`
-        members = self.member_types.copy()
-        keys = list(self.member_types.keys())
-        for i, kwarg in enumerate(node.keywords):
-            # x=5 => kwarg(arg="x", value=Int(5))
-            argname = kwarg.arg
-            if argname not in members:
-                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
-                raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
-            expected = keys[i]
-            if argname != expected:
-                raise InvalidAttribute(
-                    "Struct keys are required to be in order, but got "
-                    f"`{argname}` instead of `{expected}`. (Reminder: the "
-                    f"keys in this struct are {list(self.member_types.items())})",
-                    kwarg,
-                )
-
-            expected_type = members.pop(argname)
-            infer_type(kwarg.value, expected_type)
-
-        if members:
-            raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
-            )
+        validate_kwargs(node, self.member_types, self.typeclass)
 
         return self
 

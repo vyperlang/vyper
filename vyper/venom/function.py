@@ -1,15 +1,20 @@
-from typing import Optional
+import textwrap
+from dataclasses import dataclass
+from typing import Iterator, Optional
 
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IROperand,
-    IRVariable,
-    MemType,
-)
+from vyper.codegen.ir_node import IRnode
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
-GLOBAL_LABEL = IRLabel("__global")
+
+@dataclass
+class IRParameter:
+    name: str
+    index: int
+    offset: int
+    size: int
+    call_site_var: Optional[IRVariable]
+    func_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]
 
 
 class IRFunction:
@@ -18,53 +23,46 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    entry_points: list[IRLabel]  # entry points
+    ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
-    basic_blocks: list[IRBasicBlock]
-    data_segment: list[IRInstruction]
-    last_label: int
     last_variable: int
+    _basic_block_dict: dict[str, IRBasicBlock]
 
-    def __init__(self, name: IRLabel = None) -> None:
-        if name is None:
-            name = GLOBAL_LABEL
+    # Used during code generation
+    _ast_source_stack: list[IRnode]
+    _error_msg_stack: list[str]
+
+    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
+        self.ctx = ctx
         self.name = name
-        self.entry_points = []
         self.args = []
-        self.ctor_mem_size = None
-        self.immutables_len = None
-        self.basic_blocks = []
-        self.data_segment = []
-        self.last_label = 0
+        self._basic_block_dict = {}
+
         self.last_variable = 0
 
-        self.add_entry_point(name)
+        self._ast_source_stack = []
+        self._error_msg_stack = []
+
         self.append_basic_block(IRBasicBlock(name, self))
 
-    def add_entry_point(self, label: IRLabel) -> None:
-        """
-        Add entry point.
-        """
-        self.entry_points.append(label)
+    @property
+    def entry(self) -> IRBasicBlock:
+        return next(self.get_basic_blocks())
 
-    def remove_entry_point(self, label: IRLabel) -> None:
-        """
-        Remove entry point.
-        """
-        self.entry_points.remove(label)
-
-    def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
+    def append_basic_block(self, bb: IRBasicBlock):
         """
         Append basic block to function.
         """
-        assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
-        self.basic_blocks.append(bb)
+        assert isinstance(bb, IRBasicBlock), bb
+        assert bb.label.name not in self._basic_block_dict, bb.label
+        self._basic_block_dict[bb.label.name] = bb
 
-        # TODO add sanity check somewhere that basic blocks have unique labels
+    def remove_basic_block(self, bb: IRBasicBlock):
+        assert isinstance(bb, IRBasicBlock), bb
+        del self._basic_block_dict[bb.label.name]
 
-        return self.basic_blocks[-1]
+    def has_basic_block(self, label: str) -> bool:
+        return label in self._basic_block_dict
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -72,56 +70,68 @@ class IRFunction:
         If label is None, return the last basic block.
         """
         if label is None:
-            return self.basic_blocks[-1]
-        for bb in self.basic_blocks:
-            if bb.label.value == label:
-                return bb
-        raise AssertionError(f"Basic block '{label}' not found")
+            return next(reversed(self._basic_block_dict.values()))
 
-    def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
-        """
-        Get basic block after label.
-        """
-        for i, bb in enumerate(self.basic_blocks[:-1]):
-            if bb.label.value == label.value:
-                return self.basic_blocks[i + 1]
-        raise AssertionError(f"Basic block after '{label}' not found")
+        return self._basic_block_dict[label]
 
-    def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
-        """
-        Get basic blocks that contain label.
-        """
-        return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
+    def clear_basic_blocks(self):
+        self._basic_block_dict.clear()
 
-    def get_next_label(self) -> IRLabel:
-        self.last_label += 1
-        return IRLabel(f"{self.last_label}")
+    def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
+        """
+        Get an iterator over this function's basic blocks
+        """
+        return iter(self._basic_block_dict.values())
 
-    def get_next_variable(
-        self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: Optional[int] = None
-    ) -> IRVariable:
+    @property
+    def num_basic_blocks(self) -> int:
+        return len(self._basic_block_dict)
+
+    @property
+    def code_size_cost(self) -> int:
+        return sum(bb.code_size_cost for bb in self.get_basic_blocks())
+
+    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
+        """
+        Get basic blocks that are terminal.
+        """
+        for bb in self.get_basic_blocks():
+            if bb.is_terminal:
+                yield bb
+
+    def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
-        return IRVariable(f"%{self.last_variable}", mem_type, mem_addr)
+        return IRVariable(f"%{self.last_variable}")
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
     def remove_unreachable_blocks(self) -> int:
-        removed = 0
-        new_basic_blocks = []
-        for bb in self.basic_blocks:
-            if not bb.is_reachable and bb.label not in self.entry_points:
-                removed += 1
-            else:
-                new_basic_blocks.append(bb)
-        self.basic_blocks = new_basic_blocks
-        return removed
+        # Remove unreachable basic blocks
+        # pre: requires CFG analysis!
+        # NOTE: should this be a pass?
 
-    def append_data(self, opcode: str, args: list[IROperand]) -> None:
-        """
-        Append data
-        """
-        self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
+        removed = set()
+
+        for bb in self.get_basic_blocks():
+            if not bb.is_reachable:
+                removed.add(bb)
+
+        for bb in removed:
+            self.remove_basic_block(bb)
+
+        # Remove phi instructions that reference removed basic blocks
+        for bb in self.get_basic_blocks():
+            for in_bb in list(bb.cfg_in):
+                if in_bb not in removed:
+                    continue
+
+                bb.remove_cfg_in(in_bb)
+
+            # TODO: only run this if cfg_in changed
+            bb.fix_phi_instructions()
+
+        return len(removed)
 
     @property
     def normalized(self) -> bool:
@@ -133,7 +143,7 @@ class IRFunction:
         Having a normalized CFG makes calculation of stack layout easier when
         emitting assembly.
         """
-        for bb in self.basic_blocks:
+        for bb in self.get_basic_blocks():
             # Ignore if there are no multiple predecessors
             if len(bb.cfg_in) <= 1:
                 continue
@@ -147,20 +157,110 @@ class IRFunction:
         # The function is normalized
         return True
 
+    def push_source(self, ir):
+        if isinstance(ir, IRnode):
+            self._ast_source_stack.append(ir.ast_source)
+            self._error_msg_stack.append(ir.error_msg)
+
+    def pop_source(self):
+        assert len(self._ast_source_stack) > 0, "Empty source stack"
+        self._ast_source_stack.pop()
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
+
+    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+        for param in self.args:
+            if param.offset == offset:
+                return param
+        return None
+
+    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
+        if isinstance(var, str):
+            var = IRVariable(var)
+        for param in self.args:
+            if f"%{param.name}" == var.name:
+                return param
+        return None
+
+    @property
+    def ast_source(self) -> Optional[IRnode]:
+        return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
+
+    @property
+    def error_msg(self) -> Optional[str]:
+        return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
+
+    def chain_basic_blocks(self) -> None:
+        """
+        Chain basic blocks together. If a basic block is not terminated, jump to the next one.
+        Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
+        done after the IR is generated.
+        """
+        bbs = list(self.get_basic_blocks())
+        for i, bb in enumerate(bbs):
+            if bb.is_terminated:
+                continue
+
+            if i < len(bbs) - 1:
+                # TODO: revisit this. When contructor calls internal functions
+                # they are linked to the last ctor block. Should separate them
+                # before this so we don't have to handle this here
+                if bbs[i + 1].label.value.startswith("internal"):
+                    bb.append_instruction("stop")
+                else:
+                    bb.append_instruction("jmp", bbs[i + 1].label)
+            else:
+                bb.append_instruction("stop")
+
     def copy(self):
         new = IRFunction(self.name)
-        new.basic_blocks = self.basic_blocks.copy()
-        new.data_segment = self.data_segment.copy()
-        new.last_label = self.last_label
-        new.last_variable = self.last_variable
+        for bb in self.get_basic_blocks():
+            new_bb = bb.copy()
+            new.append_basic_block(new_bb)
         return new
 
+    def as_graph(self, only_subgraph=False) -> str:
+        """
+        Return the function as a graphviz dot string. If only_subgraph is True, only return the
+        subgraph, not the full digraph -for embedding in a larger graph-
+        """
+        import html
+
+        def _make_label(bb):
+            ret = '<<table border="1" cellborder="0" cellspacing="0">'
+            ret += f'<tr><td align="left"><b>{html.escape(str(bb.label))}</b></td></tr>\n'
+            for inst in bb.instructions:
+                ret += f'<tr ><td align="left">{html.escape(str(inst))}</td></tr>\n'
+            ret += "</table>>"
+
+            return ret
+            # return f"{bb.label.value}:\n" + "\n".join([f"    {inst}" for inst in bb.instructions])
+
+        ret = []
+
+        if not only_subgraph:
+            ret.append("digraph G {{")
+        ret.append(f'subgraph "{self.name}" {{')
+
+        for bb in self.get_basic_blocks():
+            for out_bb in bb.cfg_out:
+                ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
+
+        for bb in self.get_basic_blocks():
+            ret.append(f'    "{bb.label.value}" [shape=plaintext, ')
+            ret.append(f'label={_make_label(bb)}, fontname="Courier" fontsize="8"]')
+
+        ret.append("}\n")
+        if not only_subgraph:
+            ret.append("}\n")
+
+        return "\n".join(ret)
+
     def __repr__(self) -> str:
-        str = f"IRFunction: {self.name}\n"
-        for bb in self.basic_blocks:
-            str += f"{bb}\n"
-        if len(self.data_segment) > 0:
-            str += "Data segment:\n"
-            for inst in self.data_segment:
-                str += f"{inst}\n"
-        return str.strip()
+        ret = f"function {self.name} {{\n"
+        for bb in self.get_basic_blocks():
+            bb_str = textwrap.indent(str(bb), "  ")
+            ret += f"{bb_str}\n"
+        ret = ret.strip() + "\n}"
+        ret += f"  ; close function {self.name}"
+        return ret
