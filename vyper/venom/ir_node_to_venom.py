@@ -292,6 +292,9 @@ def _handle_internal_func(
         symbols[arg.name] = ret
         arg.func_var = ret
 
+        assert buf is not None  # help mypy
+        symbols["return_buffer"] = buf
+
     # return address
     return_pc = bb.append_instruction("param")
     assert return_pc is not None  # help mypy
