@@ -53,24 +53,37 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
 class PrePostChecker:
     passes: list[type]
+    post_passes: list[type]
     pass_objects: list[IRPass]
 
-    def __init__(self, *passes):
+    def __init__(self, *passes, post: list[type] | None = None):
         self.passes = list(passes)
+        if post is None:
+            self.post_passes = []
+        else:
+            self.post_passes = post
         self.pass_objects = list()
 
     def __call__(self, pre: str, post: str, hevm: bool = True) -> list[IRPass]:
         from tests.hevm import hevm_check_venom
 
-        ctx = parse_from_basic_block(pre)
-        for fn in ctx.functions.values():
+        pre_ctx = parse_from_basic_block(pre)
+        for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
             for p in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass()
 
-        assert_ctx_eq(ctx, parse_from_basic_block(post))
+        post_ctx = parse_from_basic_block(post)
+        for fn in post_ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            for p in self.passes:
+                obj = p(ac, fn)
+                self.pass_objects.append(obj)
+                obj.run_pass()
+
+        assert_ctx_eq(pre_ctx, post_ctx)
 
         if not hevm:
             return self.pass_objects
