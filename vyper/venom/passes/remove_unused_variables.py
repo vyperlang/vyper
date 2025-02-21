@@ -26,7 +26,7 @@ class RemoveUnusedVariablesPass(IRPass):
             self._process_instruction(inst)
 
         for bb in self.function.get_basic_blocks():
-            bb.clear_dead_instructions()
+            bb.clear_nops()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -48,4 +48,4 @@ class RemoveUnusedVariablesPass(IRPass):
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
 
-        bb.mark_for_removal(inst)
+        inst.make_nop()
