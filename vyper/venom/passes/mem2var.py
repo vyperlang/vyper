@@ -29,7 +29,7 @@ class Mem2Var(IRPass):
 
     def _mk_varname(self, varname: str, alloca_id: int):
         varname = varname.removeprefix("%")
-        varname = f"alloca_{alloca_id}_@{varname}_{self.var_name_count}"
+        varname = f"alloca_{alloca_id}_{varname}_{self.var_name_count}"
         self.var_name_count += 1
         return varname
 

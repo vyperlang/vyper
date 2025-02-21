@@ -33,8 +33,7 @@ class FunctionInlinerPass(IRGlobalPass):
         ctx: IRContext,
         optimize: OptimizationLevel,
     ):
-        self.analyses_caches = analyses_caches
-        self.ctx = ctx
+        super().__init__(analyses_caches, ctx)
         self.optimize = optimize
 
     def run_pass(self):
@@ -149,11 +148,6 @@ class FunctionInlinerPass(IRGlobalPass):
                         )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
-                elif inst.opcode in ("jmp", "jnz", "djmp", "phi"):
-                    for i, label in enumerate(inst.operands):
-                        # REVIEW: is has_basic_block necessary?
-                        if isinstance(label, IRLabel) and func.has_basic_block(label.name):
-                            inst.operands[i] = IRLabel(f"{prefix}{label.name}")
                 elif inst.opcode == "revert":
                     bb.remove_instructions_after(inst)
                     bb.append_instruction("stop")
@@ -203,19 +197,25 @@ class FunctionInlinerPass(IRGlobalPass):
         return new_bb
 
     def _clone_instruction(self, inst: IRInstruction, prefix: str) -> IRInstruction:
+        func = inst.parent.parent
         ops: list[IROperand] = []
         for op in inst.operands:
             if isinstance(op, IRLabel):
-                # label renaming is handled in inline_call_site
-                ops.append(IRLabel(op.value))
+                if func.has_basic_block(op.name):
+                    # it is a valid label inside of this function
+                    label = IRLabel(f"{prefix}{op.name}")
+                else:
+                    # otherwise it is something else (like a data label)
+                    label = op
+                ops.append(label)
             elif isinstance(op, IRVariable):
-                ops.append(IRVariable(f"{prefix}{op.name}"))
+                ops.append(IRVariable(f"{prefix}{op.plain_name}"))
             else:
                 ops.append(op)
 
         output = None
         if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.name}")
+            output = IRVariable(f"{prefix}{inst.output.plain_name}")
 
         clone = IRInstruction(inst.opcode, ops, output)
         clone.parent = inst.parent
