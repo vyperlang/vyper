@@ -224,7 +224,6 @@ class CSEAnalysis(IRAnalysis):
     inst_to_available: dict[IRInstruction, _AvailableExpression]
     bb_ins: dict[IRBasicBlock, _AvailableExpression]
     bb_outs: dict[IRBasicBlock, _AvailableExpression]
-    eq_vars: VarEquivalenceAnalysis
 
     ignore_msize: bool
 
@@ -234,7 +233,6 @@ class CSEAnalysis(IRAnalysis):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         self.dfg = dfg
-        self.eq_vars = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)  # type: ignore
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
