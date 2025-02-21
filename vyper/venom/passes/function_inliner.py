@@ -107,7 +107,7 @@ class FunctionInlinerPass(IRGlobalPass):
         if call_site.opcode != "invoke":
             raise CompilerPanic(f"Expected invoke instruction, got {call_site.opcode}")
 
-        prefix = f"il{self.inline_count}_"
+        prefix = f"inl{self.inline_count}_"
         self.inline_count += 1
         call_site_bb = call_site.parent
         call_site_func = call_site_bb.parent
@@ -147,6 +147,10 @@ class FunctionInlinerPass(IRGlobalPass):
                     bb.remove_instructions_after(inst)
                     bb.append_instruction("stop")
                     break
+
+            for inst in bb.instructions:
+                if not inst.annotation:
+                    inst.annotation = f"from {func.name}"
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
