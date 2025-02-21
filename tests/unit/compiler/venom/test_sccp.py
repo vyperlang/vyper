@@ -1,5 +1,6 @@
 import pytest
 
+from tests.venom_utils import PrePostChecker
 from vyper.exceptions import StaticAssertionException
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
@@ -7,22 +8,30 @@ from vyper.venom.context import IRContext
 from vyper.venom.passes import SCCP, MakeSSA
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
+_check_pre_post = PrePostChecker(SCCP)
+
 
 def test_simple_case():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    _global:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add %2, %3
+        sink %1, %4
+    """
 
-    bb = fn.get_basic_block()
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("return", p1, op3)
+    post = """
+    _global:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add 32, 64
+        sink %1, 96
+    """
 
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
+    passes = _check_pre_post(pre, post)
+    sccp: SCCP = passes[0]  # type: ignore
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
