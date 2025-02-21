@@ -249,7 +249,7 @@ def test_cse_different_branches_cannot_optimize():
     main:
         ; random condition
         %par = param
-        jnz @br1, @br2, %par
+        jnz %par, @br1, @br2
     br1:
         {same(1)}
         jmp @join
@@ -257,14 +257,15 @@ def test_cse_different_branches_cannot_optimize():
         {same(2)}
         jmp @join
     join:
+        %m = phi @br1, %m1, @br2, %m2
         ; here you  cannot guarantee which
         ; branch this expression came from
         ; so you cannot substitute
         {same(3)}
-        sink %m1, %m2, %m3
+        sink %m, %m3
     """
 
-    _check_no_change(pre, hevm=False)
+    _check_no_change(pre)
 
 
 def test_cse_different_branches_can_optimize():
@@ -299,8 +300,9 @@ def test_cse_different_branches_can_optimize():
         {same(2)}
         jmp @join
     join:
+        %m = phi @br1, %m1, @br2, %m2
         {same(3)}
-        sink %m0, %m1, %m2, %m3
+        sink %m0, %m3, %m
     """
 
     post = f"""
@@ -316,11 +318,12 @@ def test_cse_different_branches_can_optimize():
         {same_opt(2)}
         jmp @join
     join:
+        %m = phi @br1, %m1, @br2, %m2
         {same_opt(3)}
-        sink %m0, %m1, %m2, %m3
+        sink %m0, %m3, %m
     """
 
-    _check_pre_post(pre, post, hevm=False)
+    _check_pre_post(pre, post)
 
 
 def test_cse_invoke_idempotent():

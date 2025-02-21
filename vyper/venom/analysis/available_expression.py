@@ -7,7 +7,6 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
     IRBasicBlock,
@@ -224,7 +223,6 @@ class CSEAnalysis(IRAnalysis):
     inst_to_available: dict[IRInstruction, _AvailableExpression]
     bb_ins: dict[IRBasicBlock, _AvailableExpression]
     bb_outs: dict[IRBasicBlock, _AvailableExpression]
-    eq_vars: VarEquivalenceAnalysis
 
     ignore_msize: bool
 
@@ -234,7 +232,6 @@ class CSEAnalysis(IRAnalysis):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         self.dfg = dfg
-        self.eq_vars = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)  # type: ignore
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
@@ -308,7 +305,7 @@ class CSEAnalysis(IRAnalysis):
     ) -> IROperand | _Expression:
         if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
-            assert inst is not None
+            assert inst is not None, op
             # the phi condition is here because it is only way to
             # create dataflow loop
             if inst.opcode == "phi":
