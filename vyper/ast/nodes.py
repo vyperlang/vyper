@@ -7,7 +7,6 @@ import math
 import operator
 import pickle
 import sys
-import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
@@ -23,7 +22,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnfoldableNode,
     VariableDeclarationException,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.utils import (
@@ -34,6 +32,7 @@ from vyper.utils import (
     quantize,
     sha256sum,
 )
+from vyper.warnings import EnumUsage, vyper_warn
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -133,13 +132,9 @@ def get_node(
 
     node = vy_class(parent=parent, **ast_struct)
 
-    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
     if enum_warn:
-        # TODO: hack to pretty print, logic should be factored out of exception
-        pretty_printed_node = str(VyperException("", node))
-        warnings.warn(
-            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
-            stacklevel=2,
+        vyper_warn(
+            EnumUsage("enum will be deprecated in a future release, use flag instead.", node)
         )
 
     node.validate()
