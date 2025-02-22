@@ -431,7 +431,8 @@ def _cast_bytestring(expr, arg, out_typ):
         _FAIL(arg.typ, out_typ, expr)
 
     ret = ["seq"]
-    if out_typ.maxlen < arg.typ.maxlen:
+    assert out_typ.maxlen is not None
+    if arg.typ.maxlen is None or out_typ.maxlen < arg.typ.maxlen:
         ret.append(["assert", ["le", get_bytearray_length(arg), out_typ.maxlen]])
     ret.append(arg)
     # NOTE: this is a pointer cast

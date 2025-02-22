@@ -35,9 +35,9 @@ class _SubscriptableT(VyperType):
 
     def validate_index_type(self, node):
         # TODO: break this cycle
-        from vyper.semantics.analysis.utils import validate_expected_type
+        from vyper.semantics.analysis.utils import infer_type
 
-        validate_expected_type(node, self.key_type)
+        infer_type(node, self.key_type)
 
 
 class HashMapT(_SubscriptableT):
@@ -127,7 +127,7 @@ class _SequenceT(_SubscriptableT):
 
     def validate_index_type(self, node):
         # TODO break this cycle
-        from vyper.semantics.analysis.utils import validate_expected_type
+        from vyper.semantics.analysis.utils import infer_type
 
         node = node.reduced()
 
@@ -137,7 +137,7 @@ class _SequenceT(_SubscriptableT):
             if node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
-        validate_expected_type(node, IntegerT.any())
+        infer_type(node, IntegerT.any())
 
     def get_subscripted_type(self, node):
         return self.value_type
@@ -213,10 +213,17 @@ class SArrayT(_SequenceT):
         value_type = type_from_annotation(node.value)
 
         if not value_type._as_array:
-            raise StructureException(f"arrays of {value_type} are not allowed!")
+            raise StructureException(f"arrays of {value_type} are not allowed!", node.value)
 
-        # note: validates index is a vy_ast.Int.
+        # note: validates index is a vy_ast.Int or vy_ast.Ellipsis.
         length = get_index_value(node.slice)
+        if length is None:
+            # CMC 2024-03-08 would it ever be useful to allow static arrays with
+            # abstract length?
+            raise StructureException(
+                "static arrays cannot be defined with generic length!", node.slice
+            )
+
         return cls(value_type, length)
 
 
