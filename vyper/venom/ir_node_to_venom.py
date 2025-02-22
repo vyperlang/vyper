@@ -203,6 +203,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         assert stack_arg is not None
         stack_args.append(stack_arg)
 
+    # NOTE: order of return buf vis a vis stack args must be the same
+    # as the order of params!
     if return_buf is not None:
         if not returns_word:
             stack_args.append(return_buf)
@@ -280,6 +282,7 @@ def _handle_internal_func(
             # (note frontend generates alloca IDs starting from 1)
             buf = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(0))
         else:
+            # NOTE: must match order of stack args!
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
 
