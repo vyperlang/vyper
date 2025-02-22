@@ -159,7 +159,7 @@ def test_memmerging_bypass_fence():
     assert any(inst.opcode == "mcopy" for inst in bb.instructions)
 
 
-def test_memmerging_imposs_unkown_place():
+def test_memmerging_imposs_unknown_place():
     """
     Test case of impossible merge
     Impossible because of the
@@ -179,7 +179,7 @@ def test_memmerging_imposs_unkown_place():
         mstore 1032, %4
         mstore 10, %1  ; BARRIER
         mstore 1064, %5
-        stop
+        sink %3  ; pin, don't allow removal by remove_unused_variables
     """
     _check_no_change(pre)
 

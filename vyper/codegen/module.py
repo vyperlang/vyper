@@ -490,7 +490,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         # allocation do not clobber uninitialized immutables.
         # cf. GH issue 3101.
         # note mload/iload X touches bytes from X to X+32, and msize rounds up
-        # to the nearest 32, so `iload`ing `immutables_len - 32` guarantees
+        # to the nearest 32, so `itouch`ing `immutables_len - 32` guarantees
         # that `msize` will refer to a memory location of at least
         # `<immutables_start> + immutables_len` (where <immutables_start> ==
         # `_mem_deploy_end` as defined in the assembler).
@@ -499,8 +499,10 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         #   mload 33 => msize == 96
         # assumption in general: (mload X) => msize == ceil32(X + 32)
         # see py-evm extend_memory: after_size = ceil32(start_position + size)
+        # TODO: perhaps itouch should touch the desired end position
+        # internally, rather than doing the +32 calculation in the frontend.
         if immutables_len > 0:
-            deploy_code.append(["iload", max(0, immutables_len - 32)])
+            deploy_code.append(["itouch", max(0, immutables_len - 32)])
 
         deploy_code.append(init_func_ir)
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
