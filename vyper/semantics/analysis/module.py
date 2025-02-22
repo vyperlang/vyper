@@ -100,15 +100,16 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
         for call in function_calls:
             try:
                 call_t = get_exact_type_from_node(call.func)
-            except VyperException:
+            except VyperException as e:
                 # there is a problem getting the call type. this might be
                 # an issue, but it will be handled properly later. right now
                 # we just want to be able to construct the call graph.
+                print("ENTER", e, call)
                 continue
 
-            if isinstance(call_t, ContractFunctionT) and (
+            if isinstance(call_t, MemberFunctionT) or (isinstance(call_t, ContractFunctionT) and (
                 call_t.is_internal or call_t.is_constructor
-            ):
+            )):
                 fn_t.called_functions.add(call_t)
 
     for func in function_defs:

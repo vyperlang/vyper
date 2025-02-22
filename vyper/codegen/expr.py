@@ -703,28 +703,31 @@ class Expr:
             return arg_ir
 
         if isinstance(func_t, MemberFunctionT):
+            ptr = Expr(func.value, self.context).ir_node
+
+            if isinstance(ptr, StructT):
+                return self_call.ir_for_self_call(self.expr, self.context, ptr=ptr)
+
             # TODO consider moving these to builtins or a dedicated file
-            darray = Expr(func.value, self.context).ir_node
-            assert isinstance(darray.typ, DArrayT)
+            assert isinstance(ptr.typ, DArrayT)
             args = [Expr(x, self.context).ir_node for x in self.expr.args]
             if func.attr == "pop":
-                darray = Expr(func.value, self.context).ir_node
                 assert len(self.expr.args) == 0
                 return_item = not self.is_stmt
-                return pop_dyn_array(darray, return_popped_item=return_item)
+                return pop_dyn_array(ptr, return_popped_item=return_item)
             elif func.attr == "append":
                 (arg,) = args
                 check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                    dummy_node_for_type(ptr.typ.value_type), dummy_node_for_type(arg.typ)
                 )
 
                 ret = ["seq"]
-                if potential_overlap(darray, arg):
+                if potential_overlap(ptr, arg):
                     tmp = self.context.new_internal_variable(arg.typ)
                     ret.append(make_setter(tmp, arg))
                     arg = tmp
 
-                ret.append(append_dyn_array(darray, arg))
+                ret.append(append_dyn_array(ptr, arg))
                 return IRnode.from_list(ret)
 
             raise CompilerPanic("unreachable!")  # pragma: nocover

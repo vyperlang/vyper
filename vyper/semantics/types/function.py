@@ -857,6 +857,15 @@ class MemberFunctionT(VyperType):
         self.return_type = return_type
         self.is_modifying = is_modifying
 
+        self._ir_info = None
+
+    @classmethod
+    def from_FunctionDef(cls, structname: str, funcdef: vy_ast.FunctionDef):
+        args = funcdef.args.args[1:]
+        argtypes = [type_from_annotation(arg.annotation) for arg in args]
+        return_type = _parse_return_type(funcdef)
+        return cls(structname, funcdef.name, argtypes, return_type, True)
+
     @property
     def modifiability(self):
         return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
@@ -864,6 +873,18 @@ class MemberFunctionT(VyperType):
     @property
     def _id(self):
         return self.name
+
+    @property
+    def n_positional_args(self):
+        return len(self.arg_types)
+
+    @property
+    def n_total_args(self):
+        return self.n_positional_args
+
+    @property
+    def keyword_args(self):
+        return []
 
     def __repr__(self):
         return f"{self.underlying_type} member function '{self.name}'"
