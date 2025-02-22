@@ -282,18 +282,6 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     ```
   - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - Might translate to something like  `_sym__ctor_exit JUMP`.
-- `sha3_64`
-  - ```
-    out = sha3_64 x y
-    ```
-  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
-  - Essentially translates to
-    ```
-    PUSH y PUSH FREE_VAR_SPACE MSTORE
-    PUSH x PUSH FREE_VAR_SPACE2 MSTORE
-    PUSH 64 PUSH FREE_VAR_SPACE SHA3
-    ```
-    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler, set to 0 and 32 respectively.
 
 - `assert`
   - ```

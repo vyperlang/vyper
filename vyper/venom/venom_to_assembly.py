@@ -527,18 +527,6 @@ class VenomCompiler:
             pass
         elif opcode == "sha3":
             assembly.append("SHA3")
-        elif opcode == "sha3_64":
-            assembly.extend(
-                [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "MSTORE",
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
-                    *PUSH(64),
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "SHA3",
-                ]
-            )
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
         elif opcode == "assert_unreachable":
