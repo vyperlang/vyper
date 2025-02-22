@@ -257,8 +257,8 @@ class Stmt:
 
         ret = ["seq"]
 
-        # list literal, force it to memory first
-        if iter_list.is_literal:
+        # if it's a list literal, force it to memory first
+        if not iter_list.is_pointer:
             tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
