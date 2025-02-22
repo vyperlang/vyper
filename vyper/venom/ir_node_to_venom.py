@@ -280,7 +280,8 @@ def _handle_internal_func(
             # this alloca should be stripped by mem2var. we can remove
             # the hardcoded offset once we have proper memory allocator
             # functionality in venom.
-            buf = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1))
+            # (note frontend generates alloca IDs starting from 1)
+            buf = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(0))
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
