@@ -203,6 +203,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if not _is_word_type(alloca.typ):
             continue
         ptr = _alloca_table[alloca._id]
+        # to be optimized out by mem2var
         stack_arg = bb.append_instruction("mload", ptr)
         assert stack_arg is not None
         stack_args.append(stack_arg)
@@ -212,6 +213,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
         assert ret_value is not None
         assert isinstance(return_buf, IROperand)
+        # to be optimized out by mem2var
         bb.append_instruction("mstore", ret_value, return_buf)
         return return_buf
 
