@@ -4,7 +4,7 @@ import pytest
 from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
-from vyper.compiler import compile_code
+from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import (
     ArgumentException,
     DuplicateImport,
@@ -13,6 +13,7 @@ from vyper.exceptions import (
 )
 
 
+# TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
 def test_basic_extract_interface():
     code = """
 # Events
@@ -21,6 +22,7 @@ event Transfer:
     _from: address
     _to: address
     _value: uint256
+
 
 # Functions
 
@@ -37,6 +39,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     assert code_pass.strip() == out.strip()
 
 
+# TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
 def test_basic_extract_external_interface():
     code = """
 @view
@@ -68,6 +71,7 @@ interface One:
     assert interface.strip() == out.strip()
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_basic_interface_implements(assert_compile_failed):
     code = """
 from ethereum.ercs import IERC20
@@ -82,6 +86,7 @@ def test() -> bool:
     assert_compile_failed(lambda: compile_code(code), InterfaceViolation)
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_external_interface_parsing(make_input_bundle, assert_compile_failed):
     interface_code = """
 @external
@@ -126,6 +131,7 @@ def foo() -> uint256:
         compile_code(not_implemented_code, input_bundle=input_bundle)
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 def test_log_interface_event(make_input_bundle, assert_compile_failed):
     interface_code = """
 event Foo:
@@ -155,16 +161,31 @@ VALID_IMPORT_CODE = [
     ("import Foo as Foo", "Foo.vyi"),
     ("from a import Foo", "a/Foo.vyi"),
     ("from b.a import Foo", "b/a/Foo.vyi"),
-    ("from .a import Foo", "./a/Foo.vyi"),
-    ("from ..a import Foo", "../a/Foo.vyi"),
 ]
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 @pytest.mark.parametrize("code,filename", VALID_IMPORT_CODE)
 def test_extract_file_interface_imports(code, filename, make_input_bundle):
     input_bundle = make_input_bundle({filename: ""})
 
     assert compile_code(code, input_bundle=input_bundle) is not None
+
+
+VALID_RELATIVE_IMPORT_CODE = [
+    # import statement, import path without suffix
+    ("from .a import Foo", "mock.vy"),
+    ("from ..a import Foo", "b/mock.vy"),
+]
+
+
+# TODO CMC 2024-10-13: should probably be in syntax tests
+@pytest.mark.parametrize("code,filename", VALID_RELATIVE_IMPORT_CODE)
+def test_extract_file_interface_relative_imports(code, filename, make_input_bundle):
+    input_bundle = make_input_bundle({"a/Foo.vyi": "", filename: code})
+
+    file_input = input_bundle.load_file(filename)
+    assert compile_from_file_input(file_input, input_bundle=input_bundle) is not None
 
 
 BAD_IMPORT_CODE = [
@@ -177,13 +198,13 @@ BAD_IMPORT_CODE = [
 ]
 
 
+# TODO CMC 2024-10-13: should probably be in syntax tests
 @pytest.mark.parametrize("code,exception_type", BAD_IMPORT_CODE)
-def test_extract_file_interface_imports_raises(
-    code, exception_type, assert_compile_failed, make_input_bundle
-):
-    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
+def test_extract_file_interface_imports_raises(code, exception_type, make_input_bundle):
+    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": "", "mock.vy": code})
+    file_input = input_bundle.load_file("mock.vy")
     with pytest.raises(exception_type):
-        compile_code(code, input_bundle=input_bundle)
+        compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
@@ -451,19 +472,19 @@ def returns_Bytes3() -> Bytes[3]:
     """
 
     should_not_compile = """
-import BadJSONInterface
+import JSONInterface
 @external
-def foo(x: BadJSONInterface) -> Bytes[2]:
+def foo(x: JSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_Bytes3(), 0, 2)
     """
 
     code = """
-import BadJSONInterface
+import JSONInterface
 
-foo: BadJSONInterface
+foo: JSONInterface
 
 @deploy
-def __init__(addr: BadJSONInterface):
+def __init__(addr: JSONInterface):
     self.foo = addr
 
 @external
@@ -478,30 +499,26 @@ def test_fail2() -> Bytes[2]:
     return x
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_success() -> Bytes[3]:
     return extcall self.foo.returns_Bytes3()
     """
+    json_c = get_contract(external_contract)
 
-    bad_c = get_contract(external_contract)
+    json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
+    input_bundle = make_input_bundle({"JSONInterface.json": json_interface})
 
-    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
-    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+    with pytest.raises(ArgumentException):
+        compile_code(should_not_compile, input_bundle=input_bundle)
 
-    assert_compile_failed(
-        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
-    )
-
-    c = get_contract(code, bad_c.address, input_bundle=input_bundle)
-    assert bad_c.returns_Bytes3() == b"123"
+    c = get_contract(code, json_c.address, input_bundle=input_bundle)
+    assert json_c.returns_Bytes3() == b"123"
 
     with tx_failed():
         c.test_fail1()
     with tx_failed():
         c.test_fail2()
-    with tx_failed():
-        c.test_fail3()
+
+    assert c.test_success() == json_c.returns_Bytes3() == b"123"
 
 
 def test_units_interface(env, get_contract, make_input_bundle):
@@ -726,3 +743,237 @@ def bar() -> uint256:
     c = get_contract(code, input_bundle=input_bundle)
 
     assert c.foo() == c.bar() == 1
+
+
+def test_interface_with_structures():
+    code = """
+struct MyStruct:
+    a: address
+    b: uint256
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+struct Voter:
+    weight: int128
+    voted: bool
+    delegate: address
+    vote: int128
+
+@external
+def bar():
+    pass
+
+event Buy:
+    buyer: indexed(address)
+    buy_order: uint256
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
+
+    assert "# Structs" in out
+    assert "struct MyStruct:" in out
+    assert "b: uint256" in out
+    assert "struct Voter:" in out
+    assert "voted: bool" in out
+
+
+def test_intrinsic_interface_instantiation(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+i: lib1.__interface__
+
+@external
+def bar() -> lib1.__interface__:
+    self.i = lib1.__at__(self)
+    return self.i
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar() == c.address
+
+
+def test_intrinsic_interface_converts(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar() -> lib1.__interface__:
+    return lib1.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar() == c.address
+
+
+def test_intrinsic_interface_kws(env, make_input_bundle, get_contract):
+    value = 10**5
+    lib1 = f"""
+@external
+@payable
+def foo(a: address):
+    send(a, {value})
+    """
+    main = f"""
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar(a: address):
+    extcall lib1.__at__(self).foo(a, value={value})
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    env.set_balance(c.address, value)
+    original_balance = env.get_balance(env.deployer)
+    c.bar(env.deployer)
+    assert env.get_balance(env.deployer) == original_balance + value
+
+
+def test_intrinsic_interface_defaults(env, make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def foo(i: uint256=1) -> uint256:
+    return i
+    """
+    main = """
+import lib1
+
+exports: lib1.__interface__
+
+@external
+def bar() -> uint256:
+    return extcall lib1.__at__(self).foo()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+    assert c.bar() == 1
+
+
+def test_interface_with_flags():
+    code = """
+struct MyStruct:
+    a: address
+
+flag Foo:
+    BOO
+    MOO
+    POO
+
+event Transfer:
+    sender: indexed(address)
+
+@external
+def bar():
+    pass
+flag BAR:
+    BIZ
+    BAZ
+    BOO
+
+@external
+@view
+def foo(s: MyStruct) -> MyStruct:
+    return s
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface"])["interface"]
+
+    assert "# Flags" in out
+    assert "flag Foo:" in out
+    assert "flag BAR" in out
+    assert "BOO" in out
+    assert "MOO" in out
+
+    compile_code(out, contract_path="code.vyi", output_formats=["interface"])
+
+
+vyi_filenames = [
+    "test__test.vyi",
+    "test__t.vyi",
+    "t__test.vyi",
+    "t__t.vyi",
+    "t_t.vyi",
+    "test_test.vyi",
+    "t_test.vyi",
+    "test_t.vyi",
+    "_test_t__t_tt_.vyi",
+    "foo_bar_baz.vyi",
+]
+
+
+@pytest.mark.parametrize("vyi_filename", vyi_filenames)
+def test_external_interface_names(vyi_filename):
+    code = """
+@external
+def foo():
+    ...
+    """
+
+    compile_code(code, contract_path=vyi_filename, output_formats=["external_interface"])
+
+
+def test_external_interface_with_flag():
+    code = """
+flag Foo:
+    Blah
+
+@external
+def foo() -> Foo:
+    ...
+    """
+
+    out = compile_code(code, contract_path="test__test.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    assert "-> Foo:" in out
+
+
+def test_external_interface_compiles_again():
+    code = """
+@external
+def foo() -> uint256:
+    ...
+@external
+def bar(a:int32) -> uint256:
+    ...
+    """
+
+    out = compile_code(code, contract_path="test.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    compile_code(out, contract_path="test.vyi", output_formats=["external_interface"])
+
+
+@pytest.mark.xfail
+def test_weird_interface_name():
+    # based on comment https://github.com/vyperlang/vyper/pull/4290#discussion_r1884137428
+    # we replace "_" for "" which results in an interface without name
+    out = compile_code("", contract_path="_.vyi", output_formats=["external_interface"])[
+        "external_interface"
+    ]
+    assert "interface _:" in out

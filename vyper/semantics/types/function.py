@@ -879,7 +879,7 @@ class MemberFunctionT(VyperType):
         return self.name
 
     def __repr__(self):
-        return f"{self.underlying_type._id} member function '{self.name}'"
+        return f"{self.underlying_type} member function '{self.name}'"
 
     def get_return_type(
         self, node: vy_ast.Call, expected_type: VyperType | None = None

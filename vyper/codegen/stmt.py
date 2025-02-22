@@ -93,7 +93,13 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
+        if len(self.stmt.value.keywords) > 0:
+            # keyword arguments
+            to_compile = [arg.value for arg in self.stmt.value.keywords]
+        else:
+            # positional arguments
+            to_compile = self.stmt.value.args
+        args = [Expr(arg, self.context).ir_node for arg in to_compile]
 
         topic_ir = []
         data_ir = []
@@ -252,7 +258,7 @@ class Stmt:
         ret = ["seq"]
 
         # list literal, force it to memory first
-        if isinstance(self.stmt.iter, vy_ast.List):
+        if iter_list.is_literal:
             tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list

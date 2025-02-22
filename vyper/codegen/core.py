@@ -1,3 +1,4 @@
+import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
@@ -325,7 +326,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
@@ -559,7 +560,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         return IRnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
-        assert isinstance(key.value, int)
+        assert isinstance(key.value, int), key
         return parent.args[key.value]
 
     ix = unwrap_location(key)
@@ -854,6 +855,9 @@ def _freshname(name):
 def reset_names():
     global _label
     _label = 0
+
+    # could be refactored
+    ctx._alloca_id = 0
 
 
 # returns True if t is ABI encoded and is a type that needs any kind of
