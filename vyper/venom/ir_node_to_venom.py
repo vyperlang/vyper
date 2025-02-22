@@ -192,9 +192,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    if return_buf is not None:
-        if not returns_word:
-            ret_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
     stack_args = []
@@ -208,6 +205,10 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         assert stack_arg is not None
         stack_args.append(stack_arg)
     ret_args.extend(stack_args)
+
+    if return_buf is not None:
+        if not returns_word:
+            ret_args.append(return_buf)  # type: ignore
 
     if returns_word:
         ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
