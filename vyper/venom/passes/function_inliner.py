@@ -123,6 +123,8 @@ class FunctionInlinerPass(IRGlobalPass):
 
         func_copy = self._clone_function(func, prefix)
 
+        call_site_args = call_site.operands.copy()
+
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
             call_site_func.append_basic_block(bb)
@@ -134,7 +136,7 @@ class FunctionInlinerPass(IRGlobalPass):
                     # not valid venom code, but it will get removed in store elimination
                     # (or unused variable elimination)
                     inst.opcode = "store"
-                    val = call_site.operands[-param_idx - 1]
+                    val = call_site_args.pop()
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
@@ -156,6 +158,8 @@ class FunctionInlinerPass(IRGlobalPass):
             for inst in bb.instructions:
                 if not inst.annotation:
                     inst.annotation = f"from {func.name}"
+
+        assert len(call_site_args) == 0
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
