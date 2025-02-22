@@ -678,7 +678,10 @@ def _convert_ir_bb(fn, ir, symbols):
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
-                ptr = IRLiteral(alloca.offset)
+                if _is_word_type(alloca.typ):
+                    ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
+                else:
+                    ptr = IRLiteral(alloca.offset)
 
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]
