@@ -168,14 +168,14 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
-    target_label = goto_ir.args[0].value  # goto
-    ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+    target_label = goto_ir.args[0].value  # target function
+    assert isinstance(target_label, str)  # help mypy
     func_t = ir.passthrough_metadata["func_t"]
     assert func_t is not None, "func_t not found in passthrough metadata"
 
     returns_word = _returns_word(func_t)
 
-    stack_args: list[IROperand] = []
+    stack_args: list[IROperand] = [IRLabel(target_label)]
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
@@ -192,9 +192,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-
     callsite_args = _callsites[callsite]
-    stack_args = []
 
     for alloca in callsite_args:
         if not _is_word_type(alloca.typ):
@@ -204,21 +202,20 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         stack_arg = bb.append_instruction("mload", ptr)
         assert stack_arg is not None
         stack_args.append(stack_arg)
-    ret_args.extend(stack_args)
 
     if return_buf is not None:
         if not returns_word:
-            ret_args.append(return_buf)  # type: ignore
+            stack_args.append(return_buf)
 
     if returns_word:
-        ret_value = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
+        ret_value = bb.append_invoke_instruction(stack_args, returns=True)  # type: ignore
         assert ret_value is not None
         assert isinstance(return_buf, IROperand)
         # to be optimized out by mem2var
         bb.append_instruction("mstore", ret_value, return_buf)
         return return_buf
 
-    bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
+    bb.append_invoke_instruction(stack_args, returns=False)  # type: ignore
 
     return return_buf
 
