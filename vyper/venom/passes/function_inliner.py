@@ -70,6 +70,10 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 1:
                 return func
 
+            # always inline if it is requested
+            if func.inline:
+                return func
+
             # Decide whether to inline based on the optimization level.
             if self.optimize == OptimizationLevel.CODESIZE:
                 continue

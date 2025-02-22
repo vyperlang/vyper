@@ -198,7 +198,10 @@ def _handle_internal_func(
 ) -> IRFunction:
     global _alloca_table
 
-    fn = fn.ctx.create_function(ir.args[0].args[0].value)
+    func_t = ir.passthrough_metadata["func_t"]
+    inline = func_t.inline
+
+    fn = fn.ctx.create_function(ir.args[0].args[0].value, inline=inline)
 
     bb = fn.get_basic_block()
 
