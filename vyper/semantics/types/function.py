@@ -1,5 +1,4 @@
 import re
-import warnings
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
@@ -771,13 +770,6 @@ def _parse_decorators(
                 state_mutability = StateMutability(decorator.id)
 
             else:
-                if decorator.id == "constant":
-                    warnings.warn(
-                        "'@constant' decorator has been removed (see VIP2040). "
-                        "Use `@view` instead.",
-                        DeprecationWarning,
-                        stacklevel=2,
-                    )
                 raise FunctionDeclarationException(f"Unknown decorator: {decorator.id}", decorator)
 
         else:
