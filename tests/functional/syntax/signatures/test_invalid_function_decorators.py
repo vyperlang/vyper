@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import FunctionDeclarationException, StructureException
 
 FAILING_CONTRACTS = [
     """
@@ -31,3 +31,13 @@ def nonreentrant_foo() -> uint256:
 def test_invalid_function_decorators(failing_contract_code):
     with pytest.raises(StructureException):
         compiler.compile_code(failing_contract_code)
+
+
+def test_invalid_function_decorator_vyi():
+    code = """
+@nonreentrant
+def foo():
+    ...
+    """
+    with pytest.raises(FunctionDeclarationException):
+        compiler.compile_code(code, contract_path="foo.vyi", output_formats=["abi"])
