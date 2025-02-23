@@ -737,6 +737,10 @@ def dummy_node_for_type(typ):
 
 
 def _check_assign_bytes(left, right):
+    # allow assignment if length is 0 e.g. function was imported via json ABI
+    if left.typ.length == 0:
+        return
+
     if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
 
