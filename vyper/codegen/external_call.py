@@ -20,7 +20,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import VOID_TYPE, InterfaceT, TupleT
+from vyper.semantics.types import VOID_TYPE, InterfaceT, TupleT, _BytestringT
 from vyper.semantics.types.function import StateMutability
 
 
@@ -188,9 +188,17 @@ def _extcodesize_check(address):
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
     fn_type = call_expr.func._metadata["type"]
-    # the return type may differ from the function's return type if the function was
-    # imported via ABI e.g. widening of bytestrings
-    return_t = call_expr._metadata["type"]
+    annotated_t = call_expr._metadata["type"]
+
+    # if the function returns a bytestring and was imported via ABI, infer the return type based
+    # on the annotated type so as to enable widening of bytestrings.
+    # alternatively, if no return data is expected, then fall back to the annotated type.
+    # otherwise, always default to the return type of the external function.
+    is_abi_bytestring = fn_type.is_from_abi and isinstance(fn_type.return_type, _BytestringT)
+    if is_abi_bytestring or fn_type.return_type is None:
+        return_t = annotated_t
+    else:
+        return_t = fn_type.return_type
 
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
