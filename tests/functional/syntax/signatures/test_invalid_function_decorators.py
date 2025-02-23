@@ -4,33 +4,51 @@ from vyper import compiler
 from vyper.exceptions import FunctionDeclarationException, StructureException
 
 FAILING_CONTRACTS = [
-    """
+    (
+        """
 @external
 @pure
 @nonreentrant
 def nonreentrant_foo() -> uint256:
     return 1
     """,
-    """
+        StructureException,
+    ),
+    (
+        """
 @external
 @nonreentrant
 @nonreentrant
 def nonreentrant_foo() -> uint256:
     return 1
     """,
-    """
+        StructureException,
+    ),
+    (
+        """
 @external
 @nonreentrant("foo")
 def nonreentrant_foo() -> uint256:
     return 1
     """,
+        StructureException,
+    ),
+    (
+        """
+@deploy
+@nonreentrant
+def __init__():
+    pass
+    """,
+        FunctionDeclarationException,
+    ),
 ]
 
 
-@pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS)
-def test_invalid_function_decorators(failing_contract_code):
-    with pytest.raises(StructureException):
-        compiler.compile_code(failing_contract_code)
+@pytest.mark.parametrize("bad_code,exc", FAILING_CONTRACTS)
+def test_invalid_function_decorators(bad_code, exc):
+    with pytest.raises(exc):
+        compiler.compile_code(bad_code)
 
 
 def test_invalid_function_decorator_vyi():
