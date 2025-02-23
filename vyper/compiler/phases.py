@@ -1,6 +1,5 @@
 import copy
 import json
-import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -20,8 +19,9 @@ from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, sha256sum, vyper_warn
+from vyper.utils import ERC5202_PREFIX, sha256sum
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -256,8 +256,8 @@ class CompilerData:
     @cached_property
     def venom_functions(self):
         deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
-        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        deploy_venom = generate_ir(deploy_ir, self.settings)
+        runtime_venom = generate_ir(runtime_ir, self.settings)
         return deploy_venom, runtime_venom
 
     @cached_property
@@ -352,10 +352,11 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
-        warnings.warn(
-            "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!",
-            stacklevel=2,
+        vyper_warn(
+            VyperWarning(
+                "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
+                "a supported EVM! It will FAIL on all other nodes!"
+            )
         )
     return assembly
 
