@@ -945,3 +945,67 @@ def foo() -> DynArray[uint256, 12]:
     """
     c = get_contract(code)
     assert c.foo() == [1, 2, 3]
+
+
+def test_iterator_eval_order(get_contract):
+    # GHSA-h33q-mhmp-8p67
+    code = """
+x: uint256
+trace: DynArray[uint256, 3]
+
+@deploy
+def __init__():
+    self.x = 0
+
+@external
+def test():
+    for i: uint256 in [self.usesideeffect(), self.usesideeffect(), self.usesideeffect()]:
+        self.x += 1
+        self.trace.append(i)
+
+@view
+def usesideeffect() -> uint256:
+    return self.x
+
+@view
+@external
+def get_trace() -> DynArray[uint256, 3]:
+    return self.trace
+    """
+    c = get_contract(code)
+    c.test()
+    assert c.get_trace() == [0, 0, 0]
+
+
+def test_iterator_eval_order2(get_contract):
+    # GHSA-h33q-mhmp-8p67
+    code = """
+x: uint256
+trace: DynArray[uint256, 3]
+
+@deploy
+def __init__():
+    self.x = 0
+
+@external
+def test():
+    for i: uint256 in ([self.usesideeffect(), self.usesideeffect(), self.usesideeffect()] if True else self.otherclause()):
+        self.x += 1
+        self.trace.append(i)
+
+@view
+def usesideeffect() -> uint256:
+    return self.x
+
+@view
+def otherclause() -> uint256[3]:
+    return [0, 0, 0]
+
+@view
+@external
+def get_trace() -> DynArray[uint256, 3]:
+    return self.trace
+    """  # noqa: E501
+    c = get_contract(code)
+    c.test()
+    assert c.get_trace() == [0, 0, 0]
