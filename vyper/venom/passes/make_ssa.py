@@ -69,6 +69,11 @@ class MakeSSA(IRPass):
 
         basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
 
+    def latest_version_of(self, var: IRVariable) -> IRVariable:
+        name = var.name
+        version = self.var_name_stacks[name][-1]
+        return var.with_version(version)
+
     def _rename_vars(self, basic_block: IRBasicBlock):
         """
         Rename variables. This follows the placement of phi nodes.
@@ -84,7 +89,7 @@ class MakeSSA(IRPass):
                         new_ops.append(op)
                         continue
 
-                    op = op.with_version(self.var_name_stacks[op.name][-1])
+                    op = self.latest_version_of(op)
                     new_ops.append(op)
 
                 inst.operands = new_ops
@@ -96,7 +101,7 @@ class MakeSSA(IRPass):
                 self.var_name_stacks[v_name].append(i)
                 self.var_name_counters[v_name] = i + 1
 
-                inst.output = inst.output.with_version(i)
+                inst.output = self.latest_version_of(inst.output)
                 outs.append(inst.output.name)
 
         for bb in basic_block.cfg_out:
@@ -107,7 +112,7 @@ class MakeSSA(IRPass):
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
-                        inst.operands[i + 1] = var.with_version(self.var_name_stacks[var.name][-1])
+                        inst.operands[i + 1] = self.latest_version_of(var)
 
         for bb in self.dom.dominated[basic_block]:
             if bb == basic_block:
