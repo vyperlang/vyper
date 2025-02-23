@@ -84,7 +84,8 @@ class MakeSSA(IRPass):
                         new_ops.append(op)
                         continue
 
-                    new_ops.append(IRVariable(op.name, version=self.var_name_stacks[op.name][-1]))
+                    op = op.with_version(self.var_name_stacks[op.name][-1])
+                    new_ops.append(op)
 
                 inst.operands = new_ops
 
@@ -95,7 +96,7 @@ class MakeSSA(IRPass):
                 self.var_name_stacks[v_name].append(i)
                 self.var_name_counters[v_name] = i + 1
 
-                inst.output = IRVariable(v_name, version=i)
+                inst.output = inst.output.with_version(i)
                 outs.append(inst.output.name)
 
         for bb in basic_block.cfg_out:
@@ -106,9 +107,7 @@ class MakeSSA(IRPass):
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
-                        inst.operands[i + 1] = IRVariable(
-                            var.name, version=self.var_name_stacks[var.name][-1]
-                        )
+                        inst.operands[i + 1] = var.with_version(self.var_name_stacks[var.name][-1])
 
         for bb in self.dom.dominated[basic_block]:
             if bb == basic_block:
