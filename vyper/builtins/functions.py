@@ -55,6 +55,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import (
+    check_modifiability,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -193,6 +194,9 @@ class Ceil(BuiltinFunctionT):
 
 class Convert(BuiltinFunctionT):
     _id = "convert"
+
+    def check_modifiability_for_call(self, node, modifiability):
+        return check_modifiability(node.args[0], modifiability)
 
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
