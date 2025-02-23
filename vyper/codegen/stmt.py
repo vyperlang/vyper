@@ -289,6 +289,13 @@ class Stmt:
             # single word load/stores are atomic.
             raise TypeCheckFailure("unreachable")
 
+        for var in target.referenced_variables:
+            if var.typ._is_prim_word:
+                continue
+            # oob - GHSA-4w26-8p97-f4jp
+            if var in right.variable_writes or right.contains_risky_call:
+                raise CodegenPanic("unreachable")
+
         with target.cache_when_complex("_loc") as (b, target):
             left = IRnode.from_list(LOAD(target), typ=target.typ)
             new_val = Expr.handle_binop(self.stmt.op, left, right, self.context)
