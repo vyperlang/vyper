@@ -84,6 +84,7 @@ def foo() -> uint256:
 @external
 def poc():
     self.a = [1, 2]
+    # panics due to extcall
     self.a[1] += extcall Foo(self).foo()
     """,
     ],
@@ -114,6 +115,7 @@ def foo() -> uint256:
 @external
 def entry() -> DynArray[uint256, 2]:
     self.a = [1, 1]
+    # panics due to staticcall
     self.a[1] += staticcall Foo(self).foo()
     return self.a
     """
