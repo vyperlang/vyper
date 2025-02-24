@@ -562,9 +562,9 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
-        elif opcode in PSEUDO_INSTRUCTION:
+        elif opcode in PSEUDO_INSTRUCTION: # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
-        elif opcode in TEST_INSTRUCTIONS:
+        elif opcode in TEST_INSTRUCTIONS: # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")
