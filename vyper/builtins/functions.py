@@ -119,8 +119,8 @@ class TypenameFoldedFunctionT(FoldedFunctionT):
     # (2) should always be folded.
     _inputs = [("typename", TYPE_T.any())]
 
-    def fetch_call_return(self, node):
-        type_ = self.infer_arg_types(node)[0].typedef
+    def get_return_type(self, node, expected_type=None):
+        type_ = self.infer_arg_types(node, expected_type)[0].typedef
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -194,8 +194,8 @@ class Ceil(BuiltinFunctionT):
 class Convert(BuiltinFunctionT):
     _id = "convert"
 
-    def fetch_call_return(self, node):
-        _, target_typedef = self.infer_arg_types(node)
+    def get_return_type(self, node, expected_typ=None):
+        _, target_typedef = self.infer_arg_types(node, expected_return_typ=expected_typ)
 
         # note: more type conversion validation happens in convert.py
         return target_typedef.typedef
@@ -293,13 +293,8 @@ class Slice(BuiltinFunctionT):
         ("length", UINT256_T),
     ]
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         arg_type, _, _ = self.infer_arg_types(node)
-
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
 
         # validate start and length are in bounds
 
@@ -330,10 +325,11 @@ class Slice(BuiltinFunctionT):
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
         # we know the length statically
-        if length_literal is not None:
-            return_type.set_length(length_literal)
+        length = length_literal if length_literal is not None else 0
+        if isinstance(arg_type, StringT):
+            return_type = StringT(length)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = BytesT(length)
 
         return return_type
 
@@ -491,7 +487,7 @@ class Len(BuiltinFunctionT):
 class Concat(BuiltinFunctionT):
     _id = "concat"
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         arg_types = self.infer_arg_types(node)
 
         length = 0
@@ -499,10 +495,9 @@ class Concat(BuiltinFunctionT):
             length += arg_t.length
 
         if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
+            return_type = StringT(length)
         else:
-            return_type = BytesT()
-        return_type.set_length(length)
+            return_type = BytesT(length)
         return return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -732,7 +727,7 @@ class MethodID(FoldedFunctionT):
         else:
             return vy_ast.Bytes.from_node(node, value=value)
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         validate_call_args(node, 1, ["output_type"])
 
         type_ = self.infer_kwarg_types(node)["output_type"].typedef
@@ -837,7 +832,7 @@ class Extract32(BuiltinFunctionT):
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
     _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BYTES32_T)}
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         self._validate_arg_types(node)
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
         return return_type
@@ -952,7 +947,7 @@ class AsWeiValue(BuiltinFunctionT):
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         self.infer_arg_types(node)
         return self._return_type
 
@@ -1015,7 +1010,7 @@ class RawCall(BuiltinFunctionT):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         self._validate_arg_types(node)
 
         kwargz = {i.arg: i.value for i in node.keywords}
@@ -1039,8 +1034,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -1231,7 +1225,7 @@ class RawRevert(BuiltinFunctionT):
     _return_type = None
     _is_terminus = True
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         return None
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -1251,7 +1245,7 @@ class RawLog(BuiltinFunctionT):
     _id = "raw_log"
     _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT.any()))]
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         self.infer_arg_types(node)
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -1423,7 +1417,7 @@ class Shift(BuiltinFunctionT):
             value = (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         # return type is the type of the first argument
         return self.infer_arg_types(node)[0]
 
@@ -1903,7 +1897,7 @@ class _UnsafeMath(BuiltinFunctionT):
     def __repr__(self):
         return f"builtin function unsafe_{self.op}"
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
@@ -1988,7 +1982,8 @@ class _MinMax(BuiltinFunctionT):
         value = self._eval_fn(left.value, right.value)
         return type(left).from_node(node, value=value)
 
-    def fetch_call_return(self, node):
+    # TODO: this returns a list of types. should we revert to `fetch_call_return`?
+    def get_return_type(self, node, expected_type=None):
         self._validate_arg_types(node)
 
         types_list = get_common_types(
@@ -2000,7 +1995,7 @@ class _MinMax(BuiltinFunctionT):
         return types_list
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        types_list = self.fetch_call_return(node)
+        types_list = self.get_return_type(node)
         # type mismatch should have been caught in `fetch_call_return`
         assert expected_return_typ in types_list
         return [expected_return_typ, expected_return_typ]
@@ -2041,7 +2036,7 @@ class Uint2Str(BuiltinFunctionT):
     _id = "uint2str"
     _inputs = [("x", IntegerT.unsigneds())]
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         arg_t = self.infer_arg_types(node)[0]
         bits = arg_t.bits
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
@@ -2066,7 +2061,7 @@ class Uint2Str(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return_t = self.fetch_call_return(expr)
+        return_t = self.get_return_type(expr)
         n_digits = return_t.maxlen
 
         with args[0].cache_when_complex("val") as (b1, val):
@@ -2230,7 +2225,7 @@ class ISqrt(BuiltinFunctionT):
 class Empty(TypenameFoldedFunctionT):
     _id = "empty"
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         type_ = self.infer_arg_types(node)[0].typedef
         if isinstance(type_, HashMapT):
             raise TypeMismatch("Cannot use empty on HashMap", node)
@@ -2248,7 +2243,7 @@ class Breakpoint(BuiltinFunctionT):
 
     _warned = False
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         if not self._warned:
             vyper_warn("`breakpoint` should only be used for debugging!", node)
             self._warned = True
@@ -2268,7 +2263,7 @@ class Print(BuiltinFunctionT):
 
     _warned = False
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         if not self._warned:
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
@@ -2368,7 +2363,7 @@ class ABIEncode(BuiltinFunctionT):
             ret[kwarg_name] = typ
         return ret
 
-    def fetch_call_return(self, node):
+    def get_return_type(self, node, expected_type=None):
         self._validate_arg_types(node)
         ensure_tuple = next(
             (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
@@ -2395,9 +2390,7 @@ class ABIEncode(BuiltinFunctionT):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):
@@ -2414,6 +2407,7 @@ class ABIEncode(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         ensure_tuple = kwargs["ensure_tuple"]
         method_id = self._parse_method_id(kwargs["method_id"])
+        expr_type = expr._metadata["type"]
 
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)
@@ -2431,7 +2425,7 @@ class ABIEncode(BuiltinFunctionT):
             maxlen += 4
 
         buf_t = BytesT(maxlen)
-        assert self.fetch_call_return(expr).length == maxlen
+        assert self.get_return_type(expr, expr_type).length == maxlen
         buf = context.new_internal_variable(buf_t)
 
         ret = ["seq"]
@@ -2467,8 +2461,8 @@ class ABIDecode(BuiltinFunctionT):
     _inputs = [("data", BytesT.any()), ("output_type", TYPE_T.any())]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
-    def fetch_call_return(self, node):
-        _, output_type = self.infer_arg_types(node)
+    def get_return_type(self, node, expected_type=None):
+        _, output_type = self.infer_arg_types(node, expected_return_typ=expected_type)
         return output_type.typedef
 
     def infer_arg_types(self, node, expected_return_typ=None):
