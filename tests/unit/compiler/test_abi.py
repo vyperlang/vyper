@@ -230,8 +230,6 @@ def bar():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -371,8 +369,6 @@ def foo():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -405,7 +401,6 @@ def foo():
     """
     main = """
 import lib1
-initializes: lib1
 
 # not exported/reachable from selector table
 @internal
