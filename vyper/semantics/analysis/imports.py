@@ -6,11 +6,11 @@ from typing import Any, Iterator
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
-    ABIInput,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    JSONInput,
     PathLike,
 )
 from vyper.exceptions import (
@@ -203,8 +203,8 @@ class ImportAnalyzer:
 
         try:
             file = self._load_file(path.with_suffix(".json"), level)
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, file.abi
+            assert isinstance(file, JSONInput)  # mypy hint
+            return file, file.data
         except FileNotFoundError:
             pass
 

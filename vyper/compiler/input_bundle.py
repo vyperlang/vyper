@@ -41,12 +41,12 @@ class FileInput(CompilerInput):
 
 
 @dataclass(frozen=True, unsafe_hash=True)
-class ABIInput(CompilerInput):
+class JSONInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    abi: Any = field(hash=False)  # something that json.load() returns
+    data: Any = field(hash=False)  # something that json.load() returns
 
 
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
@@ -54,7 +54,7 @@ def try_parse_abi(file_input: FileInput) -> CompilerInput:
         s = json.loads(file_input.source_code)
         if isinstance(s, dict) and "abi" in s:
             s = s["abi"]
-        return ABIInput(**asdict(file_input), abi=s)
+        return JSONInput(**asdict(file_input), data=s)
     except (ValueError, TypeError):
         return file_input
 
@@ -228,7 +228,7 @@ class JSONInputBundle(InputBundle):
             return FileInput(source_id, original_path, resolved_path, value["content"])
 
         if "abi" in value:
-            return ABIInput(
+            return JSONInput(
                 source_id, original_path, resolved_path, json.dumps(value), value["abi"]
             )
 
