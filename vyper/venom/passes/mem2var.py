@@ -61,6 +61,10 @@ class Mem2Var(IRPass):
                 new_inst = IRInstruction("mstore", [var, inst.operands[1]])
                 bb.insert_instruction(new_inst, idx)
 
+            inst.annotation = f"mem2var alloca{alloca_id}"
+            if alloca_inst.annotation is not None:
+                inst.annotation += f" ({alloca_inst.annotation})"
+
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
         Process alloca allocated variable. If it is only used by mstore/mload
