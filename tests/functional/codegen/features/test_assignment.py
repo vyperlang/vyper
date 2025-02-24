@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ImmutableViolation, InvalidType, TypeMismatch
+from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
 def test_augassign(get_contract):
@@ -37,6 +37,135 @@ def augmod(x: int128, y: int128) -> int128:
     assert c.augsub(5, 12) == -7
     assert c.augmod(5, 12) == 5
     print("Passed aug-assignment test")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+@external
+def poc():
+    a: DynArray[uint256, 2] = [1, 2]
+    a[1] += a.pop()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def side_effect() -> uint256:
+    return self.a.pop()
+
+@external
+def poc():
+    self.a = [1, 2]
+    self.a[1] += self.side_effect()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def side_effect() -> uint256:
+    self.a = [1]
+    return 1
+
+@external
+def poc():
+    self.a = [1, 2]
+    self.a[1] += self.side_effect()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+@external
+def foo() -> uint256:
+    return self.a.pop()
+
+@external
+def poc():
+    self.a = [1, 2]
+    # panics due to extcall
+    self.a[1] += extcall Foo(self).foo()
+    """,
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_oob(get_contract, tx_failed, source):
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.poc()
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+a: public(DynArray[uint256, 2])
+
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    # panics due to staticcall
+    self.a[1] += staticcall Foo(self).foo()
+    return self.a
+    """
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_rhs_references_lhs(get_contract, tx_failed, source):
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    assert c.entry() == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+@external
+def entry() -> DynArray[uint256, 2]:
+    a: DynArray[uint256, 2] = [1, 1]
+    a[1] += a[1]
+    return a
+    """,
+        """
+@external
+def entry() -> DynArray[uint256, 2]:
+    a: uint256 = 1
+    a += a
+    b: DynArray[uint256, 2] = [a, a]
+    b[0] -= b[0]
+    b[0] += b[1] // 2
+    return b
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def read() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    self.a[1] += self.read()
+    return self.a
+    """,
+    ],
+)
+def test_augassign_rhs_references_lhs2(get_contract, source):
+    c = get_contract(source)
+    assert c.entry() == [1, 2]
 
 
 @pytest.mark.parametrize(

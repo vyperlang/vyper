@@ -326,7 +326,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
@@ -560,7 +560,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         return IRnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
-        assert isinstance(key.value, int)
+        assert isinstance(key.value, int), key
         return parent.args[key.value]
 
     ix = unwrap_location(key)

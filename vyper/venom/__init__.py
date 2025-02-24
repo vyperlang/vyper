@@ -4,7 +4,7 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -15,6 +15,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
+    FunctionInlinerPass,
     LoadElimination,
     LowerDloadPass,
     MakeSSA,
@@ -46,28 +47,32 @@ def generate_assembly_experimental(
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
-
-    ac = IRAnalysesCache(fn)
 
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+    # run algebraic opts before mem2var to reduce some pointer arithmetic
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
-    LoadElimination(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    LoadElimination(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
 
     LowerDloadPass(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
     #       smaller code by adding some redundant phi nodes. This is not a
     #       problem for us, but we need to be aware of it, and should be
@@ -76,6 +81,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
@@ -86,14 +93,31 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     DFTPass(ac, fn).run_pass()
 
 
-def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
+def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
+
+
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
+    ir_analyses = {}
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    _run_global_passes(ctx, optimize, ir_analyses)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize, ir_analyses[fn])
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
+def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
+
+    optimize = settings.optimize
+    assert optimize is not None  # help mypy
     run_passes_on(ctx, optimize)
 
     return ctx
