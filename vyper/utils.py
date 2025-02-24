@@ -11,7 +11,7 @@ import traceback
 import warnings
 from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
 
@@ -303,14 +303,6 @@ def trace(n=5, out=sys.stderr):
     for x in list(traceback.format_stack())[-n:]:
         print(x.strip(), file=out)
     print("END TRACE", file=out)
-
-
-# print a warning
-def vyper_warn(msg, node=None):
-    if node is not None:
-        # use VyperException for its formatting abilities
-        msg = str(VyperException(msg, node))
-    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -693,3 +685,17 @@ def safe_relpath(path):
         # on Windows, if path and curdir are on different drives, an exception
         # can be thrown
         return path
+
+
+def all2(iterator):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
+    """
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

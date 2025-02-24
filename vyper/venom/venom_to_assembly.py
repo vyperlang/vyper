@@ -10,12 +10,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
-from vyper.venom.analysis import (
-    CFGAnalysis,
-    IRAnalysesCache,
-    LivenessAnalysis,
-    VarEquivalenceAnalysis,
-)
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
@@ -144,6 +139,7 @@ class VenomCompiler:
     visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness_analysis: LivenessAnalysis
+    dfg: DFGAnalysis
 
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
@@ -165,7 +161,7 @@ class VenomCompiler:
 
                 NormalizationPass(ac, fn).run_pass()
                 self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
-                self.equivalence = ac.request_analysis(VarEquivalenceAnalysis)
+                self.dfg = ac.request_analysis(DFGAnalysis)
                 ac.request_analysis(CFGAnalysis)
 
                 assert fn.normalized, "Non-normalized CFG!"
@@ -234,7 +230,7 @@ class VenomCompiler:
                 continue
 
             to_swap = stack.peek(final_stack_depth)
-            if self.equivalence.equivalent(op, to_swap):
+            if self.dfg.are_equivalent(op, to_swap):
                 # perform a "virtual" swap
                 stack.poke(final_stack_depth, op)
                 stack.poke(depth, to_swap)
@@ -374,7 +370,8 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
         elif opcode in ("alloca", "palloca"):
-            offset, _size = inst.operands
+            assert len(inst.operands) == 3, f"alloca/palloca must have 3 operands, got {inst}"
+            offset, _size, _id = inst.operands
             operands = [offset]
 
         # iload and istore are special cases because they can take a literal
@@ -584,7 +581,7 @@ class VenomCompiler:
 
                 next_scheduled = next_liveness.last()
                 cost = 0
-                if not self.equivalence.equivalent(inst.output, next_scheduled):
+                if not self.dfg.are_equivalent(inst.output, next_scheduled):
                     cost = self.swap_op(assembly, stack, next_scheduled)
 
                 if DEBUG_SHOW_COST and cost != 0:
