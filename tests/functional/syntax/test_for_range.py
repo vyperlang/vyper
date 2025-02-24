@@ -3,7 +3,13 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
+from vyper.exceptions import (
+    ArgumentException,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+    UnknownType,
+)
 
 fail_list = [
     (
@@ -343,6 +349,17 @@ def test_range_fail(bad_code, error_type, message, hint, source_code):
     assert message == exc_info.value._message
     assert hint == exc_info.value.hint
     assert source_code == exc_info.value.args[1].get_original_node().node_source_code
+
+
+def test_syntax_exception():
+    code = """
+@external
+def bar():
+    for i: uint256 = 5 in range(0, 1):
+        pass
+    """
+    with pytest.raises(SyntaxException, match="invalid type annotation"):
+        compiler.compile_code(code)
 
 
 valid_list = [
