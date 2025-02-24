@@ -96,8 +96,8 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
-    vyper_warn,
 )
+from vyper.warnings import vyper_warn
 
 from ._convert import convert
 from ._signatures import BuiltinFunctionT, process_inputs
@@ -2145,6 +2145,9 @@ else:
             break
         y = z
         z = (x / z + z) / 2.0
+
+    if y < z:
+        z = y
             """
 
             x_type = DecimalT()
