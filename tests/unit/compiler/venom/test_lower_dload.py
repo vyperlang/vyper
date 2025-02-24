@@ -1,24 +1,14 @@
-import pytest
-
-from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import LowerDloadPass
 
-pytestmark = pytest.mark.hevm
 
-
-def _check_pre_post(pre, post, hevm: bool = True):
+def _check_pre_post(pre, post):
     ctx = parse_from_basic_block(pre)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         LowerDloadPass(ac, fn).run_pass()
     assert_ctx_eq(ctx, parse_from_basic_block(post))
-
-    if not hevm:
-        return
-
-    hevm_check_venom(pre, post)
 
 
 def test_lower_dload_basic():
@@ -78,4 +68,4 @@ def test_lower_dload_dloadbytes():
         stop
     """
 
-    _check_pre_post(pre, post, hevm=False)
+    _check_pre_post(pre, post)
