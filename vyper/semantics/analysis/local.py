@@ -522,6 +522,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     def _analyse_range_iter(self, iter_node, target_type):
         # iteration via range()
         if iter_node.get("func.id") != "range":
+            # CMC 2025-02-12 I think we can allow this actually
             raise IteratorException("Cannot iterate over the result of a function call", iter_node)
         _validate_range_call(iter_node)
 
