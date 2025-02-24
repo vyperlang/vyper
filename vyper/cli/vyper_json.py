@@ -12,7 +12,6 @@ from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.typing import StorageLayout
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -208,15 +207,15 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     return ret
 
 
-def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, StorageLayout]:
-    storage_layout_overrides: dict[PurePath, StorageLayout] = {}
+def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, PurePath]:
+    storage_layout_overrides: dict[PurePath, PurePath] = {}
 
     for path, value in input_dict.get("storage_layout_overrides", {}).items():
         if path not in input_dict["sources"]:
             raise JSONError(f"unknown target for storage layout override: {path}")
 
         path = PurePath(path)
-        storage_layout_overrides[path] = value
+        storage_layout_overrides[path] = PurePath(value)
 
     return storage_layout_overrides
 
@@ -325,7 +324,10 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
-        storage_layout_override = storage_layout_overrides.get(contract_path)
+        storage_layout_override_path = storage_layout_overrides.get(contract_path)
+        storage_layout_override = None
+        if storage_layout_override_path is not None:
+            storage_layout_override = input_bundle.load_json_file(storage_layout_override_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id

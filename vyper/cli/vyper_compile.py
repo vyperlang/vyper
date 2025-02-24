@@ -381,8 +381,7 @@ def compile_files(
         storage_layout_override = None
         if storage_layout_paths:
             storage_file_path = storage_layout_paths.pop(0)
-            with open(storage_file_path) as sfh:
-                storage_layout_override = json.load(sfh)
+            storage_layout_override = input_bundle.load_json_file(storage_file_path)
 
         output = vyper.compile_from_file_input(
             file,
