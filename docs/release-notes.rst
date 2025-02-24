@@ -31,7 +31,7 @@ Breaking changes
 * fix[stdlib]!: fix ``IERC4626`` signatures (`#4425 <https://github.com/vyperlang/vyper/pull/4425>`_)
 
 Other new features and improvements
----------------------------------
+-----------------------------------
 * feat[lang]: add ``module.__at__()`` to cast to interface (`#4090 <https://github.com/vyperlang/vyper/pull/4090>`_)
 * feat[lang]: use keyword arguments for event instantiation (`#4257 <https://github.com/vyperlang/vyper/pull/4257>`_)
 * feat[lang]: add native hex string literals (`#4271 <https://github.com/vyperlang/vyper/pull/4271>`_)
