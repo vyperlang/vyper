@@ -425,8 +425,6 @@ class IRnode:
 
     @property
     def is_pointer(self) -> bool:
-        # not used yet but should help refactor/clarify downstream code
-        # eventually
         return self.location is not None
 
     @property  # probably could be cached_property but be paranoid

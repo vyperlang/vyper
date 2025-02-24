@@ -198,6 +198,23 @@ The following is a list of supported EVM versions, and changes in the compiler i
    - Functions marked with ``@nonreentrant`` are protected with TLOAD/TSTORE instead of SLOAD/SSTORE
    - The ``MCOPY`` opcode will be generated automatically by the compiler for most memory operations.
 
+
+.. _warnings:
+
+Controlling Warnings
+====================
+
+Vyper allows suppression of warnings via the CLI flag ``-Wnone``, or promotion of (all) warnings to errors via the ``-Werror`` flag.
+
+.. code:: shell
+
+    $ vyper -Wnone foo.vy   # suppress warnings
+
+.. code:: shell
+
+    $ vyper -Werror foo.vy   # promote warnings to errors
+
+
 .. _integrity-hash:
 
 Integrity Hash

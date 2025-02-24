@@ -1,6 +1,6 @@
 from typing import Optional
 
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarEquivalenceAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
@@ -33,7 +33,6 @@ class LoadElimination(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(VarEquivalenceAnalysis)
 
     def equivalent(self, op1, op2):
         return op1 == op2
