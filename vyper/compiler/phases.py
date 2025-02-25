@@ -1,5 +1,4 @@
 import copy
-import json
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -9,7 +8,7 @@ from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
 from vyper.ir.compile_ir import reset_symbols
@@ -62,7 +61,7 @@ class CompilerData:
         input_bundle: InputBundle = None,
         settings: Settings = None,
         integrity_sum: str = None,
-        storage_layout: StorageLayout = None,
+        storage_layout: JSONInput = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
     ) -> None:
@@ -154,7 +153,7 @@ class CompilerData:
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
         if self.storage_layout_override is not None:
-            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            layout_sum = self.storage_layout_override.sha256sum
             return sha256sum(layout_sum + imports_integrity_sum)
         return imports_integrity_sum
 
@@ -217,7 +216,10 @@ class CompilerData:
     @cached_property
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
-        set_data_positions(module_ast, self.storage_layout_override)
+        storage_layout = None
+        if self.storage_layout_override is not None:
+            storage_layout = self.storage_layout_override.data
+        set_data_positions(module_ast, storage_layout)
 
         return generate_layout_export(module_ast)
 
