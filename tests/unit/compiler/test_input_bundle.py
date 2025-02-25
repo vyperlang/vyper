@@ -66,19 +66,17 @@ def test_search_path_precedence(make_file, tmp_path, tmp_path_factory, input_bun
 
 
 # special rules for handling json files
-def test_load_abi(make_file, input_bundle, tmp_path):
+def test_load_json_file(make_file, input_bundle, tmp_path):
     contents = json.dumps("some string")
 
     path = make_file("foo.json", contents)
 
-    file = input_bundle.load_file("foo.json")
-    assert isinstance(file, JSONInput)
+    file = input_bundle.load_json_file("foo.json")
     assert file == JSONInput(0, PurePath("foo.json"), path, contents, "some string")
 
     # suffix doesn't matter
     path = make_file("foo.txt", contents)
-    file = input_bundle.load_file("foo.txt")
-    assert isinstance(file, JSONInput)
+    file = input_bundle.load_json_file("foo.txt")
     assert file == JSONInput(1, PurePath("foo.txt"), path, contents, "some string")
 
 
@@ -124,29 +122,27 @@ def test_source_id_json_input(make_file, input_bundle, tmp_path):
 
     barpath = make_file("bar.json", contents2)
 
-    file = input_bundle.load_file("foo.json")
-    assert isinstance(file, JSONInput)
+    file = input_bundle.load_json_file("foo.json")
     assert file == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
-    file2 = input_bundle.load_file("bar.json")
-    assert isinstance(file2, JSONInput)
+    file2 = input_bundle.load_json_file("bar.json")
     assert file2 == JSONInput(1, PurePath("bar.json"), barpath, contents2, ["some list"])
 
-    file3 = input_bundle.load_file("foo.json")
+    file3 = input_bundle.load_json_file("foo.json")
     assert file3.source_id == 0
     assert file3 == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
     # test source id is stable across different search paths
     with working_directory(tmp_path):
         with input_bundle.search_path(Path(".")):
-            file4 = input_bundle.load_file("foo.json")
+            file4 = input_bundle.load_json_file("foo.json")
             assert file4.source_id == 0
             assert file4 == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
     # test source id is stable even when requested filename is different
     with working_directory(tmp_path.parent):
         with input_bundle.search_path(Path(".")):
-            file5 = input_bundle.load_file(Path(tmp_path.stem) / "foo.json")
+            file5 = input_bundle.load_json_file(Path(tmp_path.stem) / "foo.json")
             assert file5.source_id == 0
             assert file5 == JSONInput(
                 0, Path(tmp_path.stem) / "foo.json", foopath, contents, "some string"
@@ -243,5 +239,5 @@ def test_json_input_abi():
     abi_contents = json.dumps({"abi": some_abi})
     assert file == JSONInput(0, foopath, foopath, abi_contents, some_abi)
 
-    file = input_bundle.load_file(barpath)
+    file = input_bundle.load_json_file(barpath)
     assert file == JSONInput(1, barpath, barpath, some_abi_str, some_abi)

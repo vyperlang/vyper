@@ -214,6 +214,8 @@ class ImportAnalyzer:
 
         try:
             file = self._load_file(path.with_suffix(".json"), level)
+            if isinstance(file, FileInput):
+                file = try_parse_abi(file)
             assert isinstance(file, JSONInput)  # mypy hint
             return file, file.data
         except FileNotFoundError:
@@ -237,7 +239,7 @@ class ImportAnalyzer:
             search_paths = self.absolute_search_paths
 
         with self.input_bundle.temporary_search_paths(search_paths):
-            return try_parse_abi(self.input_bundle.load_file(path))
+            return self.input_bundle.load_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.

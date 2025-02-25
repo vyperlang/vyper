@@ -8,7 +8,7 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
-from vyper.compiler.input_bundle import FileInput, JSONInputBundle
+from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
@@ -207,15 +207,27 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     return ret
 
 
-def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, PurePath]:
-    storage_layout_overrides: dict[PurePath, PurePath] = {}
+def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, JSONInput]:
+    storage_layout_overrides: dict[PurePath, JSONInput] = {}
 
     for path, value in input_dict.get("storage_layout_overrides", {}).items():
         if path not in input_dict["sources"]:
             raise JSONError(f"unknown target for storage layout override: {path}")
 
+        if not isinstance(value, dict) and len(value.items()) != 1:
+            raise JSONError(f"invalid storage layout override: {value}")
+        override_path, override_data = next(iter(value.items()))
+        override_path = _normpath(override_path)
+        storage_layout_input = JSONInput(
+            contents=json.dumps(override_data),
+            data=override_data,
+            source_id=-1,
+            path=override_path,
+            resolved_path=override_path,
+        )
+
         path = PurePath(path)
-        storage_layout_overrides[path] = PurePath(value)
+        storage_layout_overrides[path] = storage_layout_input
 
     return storage_layout_overrides
 
@@ -324,10 +336,7 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
-        storage_layout_override_path = storage_layout_overrides.get(contract_path)
-        storage_layout_override = None
-        if storage_layout_override_path is not None:
-            storage_layout_override = input_bundle.load_json_file(storage_layout_override_path)
+        storage_layout_override = storage_layout_overrides.get(contract_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id

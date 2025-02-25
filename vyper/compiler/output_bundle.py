@@ -187,13 +187,11 @@ class SolcJSONWriter(OutputBundleWriter):
     def write_storage_layout_overrides(
         self, compilation_target_path: str, storage_layout_override: JSONInput
     ):
+        # TODO: generalize to multiple files
+        ret = {}
         path = str(storage_layout_override.path)
-        assert path not in self._output["sources"]
-        self._output["sources"][path] = {
-            "content": storage_layout_override.contents,
-            "sha256sum": storage_layout_override.sha256sum,
-        }
-        self._output["storage_layout_overrides"] = {compilation_target_path: path}
+        ret[compilation_target_path] = {path: storage_layout_override.data}
+        self._output["storage_layout_overrides"] = ret
 
     def write_search_paths(self, search_paths: list[str]):
         self._output["settings"]["search_paths"] = search_paths

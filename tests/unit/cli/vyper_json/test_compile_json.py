@@ -12,7 +12,7 @@ from vyper.cli.vyper_json import (
     get_settings,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
-from vyper.compiler.input_bundle import JSONInputBundle
+from vyper.compiler.input_bundle import JSONInput, JSONInputBundle
 from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
 
 FOO_CODE = """
@@ -106,8 +106,8 @@ def input_json(optimize, evm_version, experimental_codegen, debug):
             "debug": debug,
         },
         "storage_layout_overrides": {
-            "contracts/foo.vy": FOO_STORAGE_LAYOUT_OVERRIDES,
-            "contracts/bar.vy": BAR_STORAGE_LAYOUT_OVERRIDES,
+            "contracts/foo.vy": {"foo_overrides.json": FOO_STORAGE_LAYOUT_OVERRIDES},
+            "contracts/bar.vy": {"bar_overrides.json": BAR_STORAGE_LAYOUT_OVERRIDES},
         },
     }
 
@@ -138,6 +138,13 @@ def test_keyerror_becomes_jsonerror(input_json):
         compile_json(input_json)
 
 
+def json_input(json_data, path):
+    path = PurePath(path)
+    return JSONInput(
+        contents=json.dumps(json_data), data=json_data, source_id=-1, path=path, resolved_path=path
+    )
+
+
 def test_compile_json(input_json, input_bundle):
     foo_input = input_bundle.load_file("contracts/foo.vy")
     # remove venom related from output formats
@@ -151,7 +158,7 @@ def test_compile_json(input_json, input_bundle):
         foo_input,
         output_formats=output_formats,
         input_bundle=input_bundle,
-        storage_layout_override=FOO_STORAGE_LAYOUT_OVERRIDES,
+        storage_layout_override=json_input(FOO_STORAGE_LAYOUT_OVERRIDES, path="foo_override.json"),
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
@@ -164,7 +171,7 @@ def test_compile_json(input_json, input_bundle):
         bar_input,
         output_formats=output_formats,
         input_bundle=input_bundle,
-        storage_layout_override=BAR_STORAGE_LAYOUT_OVERRIDES,
+        storage_layout_override=json_input(BAR_STORAGE_LAYOUT_OVERRIDES, path="bar_override.json"),
     )
 
     compile_code_results = {
@@ -308,7 +315,9 @@ def test_exc_handler_to_dict_compiler(input_json):
 
 def test_unknown_storage_layout_overrides(input_json):
     unknown_contract_path = "contracts/baz.vy"
-    input_json["storage_layout_overrides"] = {unknown_contract_path: FOO_STORAGE_LAYOUT_OVERRIDES}
+    input_json["storage_layout_overrides"] = {
+        unknown_contract_path: {"foo_override.json": FOO_STORAGE_LAYOUT_OVERRIDES}
+    }
     with pytest.raises(JSONError) as e:
         compile_json(input_json)
     assert e.value.args[0] == f"unknown target for storage layout override: {unknown_contract_path}"
