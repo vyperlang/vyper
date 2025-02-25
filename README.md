@@ -19,8 +19,6 @@ See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the docu
 See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
 See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
-**Note: Vyper is beta software, use with care**
-
 # Installation
 See the [Vyper documentation](https://docs.vyperlang.org/en/latest/installing-vyper.html)
 for build instructions.
