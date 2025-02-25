@@ -13,13 +13,11 @@
 
 # Getting Started
 See [Installing Vyper](http://docs.vyperlang.org/en/latest/installing-vyper.html) to install vyper.
-See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
+See [Tools and Resources](https://docs.vyperlang.org/en/latest/resources.html) for an additional list of framework and tools with vyper support.
 See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
 See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
 See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
-
-**Note: Vyper is beta software, use with care**
 
 # Installation
 See the [Vyper documentation](https://docs.vyperlang.org/en/latest/installing-vyper.html)
