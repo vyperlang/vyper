@@ -59,7 +59,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
     SimplifyCFGPass(ac, fn).run_pass()
 
     errors = check_venom_fn(fn)
-    if errors != []:
+    if errors != []:  # pragma: nocover
         print(errors)
         raise CompilerPanic("venom sematic errors" + str(errors))
 
