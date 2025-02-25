@@ -146,6 +146,10 @@ def test_sqrt_bounds(sqrt_contract, value):
 )
 @hypothesis.example(value=Decimal(SizeLimits.MAX_INT128))
 @hypothesis.example(value=Decimal(0))
+# cf. GHSA-2p94-8669-xg86 for the following three examples:
+@hypothesis.example(value=Decimal("0.9999999998"))
+@hypothesis.example(value=Decimal("0.9999999997"))
+@hypothesis.example(value=Decimal("1.1000000000"))
 def test_sqrt_valid_range(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(decimal_to_int(value))
     actual_sqrt = decimal_sqrt(value)

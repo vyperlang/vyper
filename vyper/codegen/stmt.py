@@ -257,26 +257,27 @@ class Stmt:
 
         ret = ["seq"]
 
-        # list literal, force it to memory first
-        if iter_list.is_literal:
+        # if it's a list literal, force it to memory first
+        if not iter_list.is_pointer:
             tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
-        # set up the loop variable
-        e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
+        with iter_list.cache_when_complex("list_iter") as (b1, iter_list):
+            # set up the loop variable
+            e = get_element_ptr(iter_list, i, array_bounds_check=False)
+            body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
-        repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayT):
-            array_len = get_dyn_array_count(iter_list)
-        else:
-            array_len = repeat_bound
+            repeat_bound = iter_list.typ.count
+            if isinstance(iter_list.typ, DArrayT):
+                array_len = get_dyn_array_count(iter_list)
+            else:
+                array_len = repeat_bound
 
-        ret.append(["repeat", i, 0, array_len, repeat_bound, body])
+            ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
-        del self.context.forvars[varname]
-        return IRnode.from_list(ret)
+            del self.context.forvars[varname]
+            return b1.resolve(IRnode.from_list(ret))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -287,6 +288,13 @@ class Stmt:
             # make_setter references lhs<->rhs as in parse_Assign -
             # single word load/stores are atomic.
             raise TypeCheckFailure("unreachable")
+
+        for var in target.referenced_variables:
+            if var.typ._is_prim_word:
+                continue
+            # oob - GHSA-4w26-8p97-f4jp
+            if var in right.variable_writes or right.contains_risky_call:
+                raise CodegenPanic("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
             left = IRnode.from_list(LOAD(target), typ=target.typ)
