@@ -22,7 +22,7 @@ from vyper.utils import get_long_version, safe_relpath
 # information.
 
 
-def _anonymize(p: str):
+def _anonymize(p: str) -> str:
     segments = []
     # replace ../../../a/b with 0/1/2/a/b
     for i, s in enumerate(PurePath(p).parts):
@@ -252,12 +252,14 @@ class VyperArchiveWriter(OutputBundleWriter):
 
     def write_sources(self, sources: dict[str, CompilerInput]):
         for path, c in sources.items():
-            self.archive.writestr(_anonymize(path), c.contents)
+            path = f"sources/{_anonymize(path)}"
+            self.archive.writestr(path, c.contents)
 
     def write_storage_layout_overrides(
         self, compilation_target_path: str, storage_layout_override: StorageLayout
     ):
-        self.archive.writestr("MANIFEST/storage_layout.json", json.dumps(storage_layout_override))
+        path = f"storage_layouts/{compilation_target_path}.json"
+        self.archive.writestr(path, json.dumps(storage_layout_override))
 
     def write_search_paths(self, search_paths: list[str]):
         self.archive.writestr("MANIFEST/searchpaths", "\n".join(search_paths))

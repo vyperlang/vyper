@@ -45,17 +45,18 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
     fcontents = archive.read("MANIFEST/compilation_targets").decode("utf-8")
     compilation_targets = fcontents.splitlines()
 
-    storage_layout_path = "MANIFEST/storage_layout.json"
+    if len(compilation_targets) != 1:
+        raise BadArchive("Multiple compilation targets not supported!")
+
+    mainpath = PurePath(compilation_targets[0])
+
+    storage_layout_path = f"storage_layouts/{mainpath}.json"
     storage_layout = None
     if storage_layout_path in archive.namelist():
         storage_layout = json.loads(archive.read(storage_layout_path).decode("utf-8"))
 
-    if len(compilation_targets) != 1:
-        raise BadArchive("Multiple compilation targets not supported!")
-
     input_bundle = ZipInputBundle(archive)
 
-    mainpath = PurePath(compilation_targets[0])
     file = input_bundle.load_file(mainpath)
     assert isinstance(file, FileInput)  # mypy hint
 
