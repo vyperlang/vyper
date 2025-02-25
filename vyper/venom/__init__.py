@@ -5,7 +5,9 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.check_venom import check_venom_fn
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -54,6 +56,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+
+    errors = check_venom_fn(fn)
+    if errors != []:  # pragma: nocover
+        print(errors)
+        raise CompilerPanic("venom sematic errors" + str(errors))
+
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
@@ -87,7 +95,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     StoreExpansionPass(ac, fn).run_pass()
 
-    if optimize == OptimizationLevel.CODESIZE:
+    if optimize == OptimizationLevel.CODESIZE:https://www.youtube.com/watch?v=KuhCoUfMWx0
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
