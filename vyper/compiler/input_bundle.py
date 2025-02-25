@@ -243,6 +243,8 @@ class JSONInputBundle(InputBundle):
 # input bundle for vyper archives. similar to JSONInputBundle, but takes
 # a zipfile as input.
 class ZipInputBundle(InputBundle):
+    SOURCES_DIRECTORY = PurePath("sources")
+
     def __init__(self, archive: "ZipFile"):
         assert archive.testzip() is None
         self.archive = archive
@@ -259,7 +261,7 @@ class ZipInputBundle(InputBundle):
         # zipfile.BadZipFile: File is not a zip file
 
         try:
-            p = PurePath("sources") / resolved_path
+            p = self.SOURCES_DIRECTORY / resolved_path
             value = self.archive.read(p.as_posix()).decode("utf-8")
         except KeyError:
             # zipfile literally raises KeyError if the file is not there

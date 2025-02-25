@@ -7,7 +7,7 @@ from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
-from vyper.compiler.input_bundle import CompilerInput, _NotFound
+from vyper.compiler.input_bundle import CompilerInput, ZipInputBundle, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
@@ -252,7 +252,8 @@ class VyperArchiveWriter(OutputBundleWriter):
 
     def write_sources(self, sources: dict[str, CompilerInput]):
         for path, c in sources.items():
-            path = f"sources/{_anonymize(path)}"
+            prefix = ZipInputBundle.SOURCES_DIRECTORY
+            path = str(prefix / _anonymize(path))
             self.archive.writestr(path, c.contents)
 
     def write_storage_layout_overrides(
