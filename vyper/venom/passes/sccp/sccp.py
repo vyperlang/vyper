@@ -61,11 +61,12 @@ class SCCP(IRPass):
         super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
-        self.cfg_dirty = False
 
     def run_pass(self):
         self.fn = self.function
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
@@ -177,8 +178,8 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ["store", "alloca", "palloca"]:
-            assert inst.output is not None, "Got store/alloca without output"
+        if opcode in ("store", "alloca", "palloca"):
+            assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
@@ -300,8 +301,7 @@ class SCCP(IRPass):
 
             if isinstance(lat, IRLiteral):
                 if lat.value > 0:
-                    inst.opcode = "nop"
-                    inst.operands = []
+                    inst.make_nop()
                 else:
                     raise StaticAssertionException(
                         f"assertion found to fail at compile time ({inst.error_msg}).",

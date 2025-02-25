@@ -124,6 +124,8 @@ class VenomTransformer(Transformer):
         funcs = children
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
+            if ctx.entry_function is None:
+                ctx.entry_function = fn
             fn._basic_block_dict.clear()
 
             for block_name, instructions in blocks:
