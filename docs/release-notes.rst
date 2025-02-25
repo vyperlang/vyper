@@ -165,6 +165,8 @@ Docs
 * chore[docs]: abi function signature for default arguments (`#4415 <https://github.com/vyperlang/vyper/pull/4415>`_)
 * chore[tool]: update ``FUNDING.json`` for optimism RPGF (`#4218 <https://github.com/vyperlang/vyper/pull/4218>`_)
 * chore[tool]: mention that output format is comma separated (`#4467 <https://github.com/vyperlang/vyper/pull/4467>`_)
+* fix[tool]: roll back OS used to build binaries (`#4494 <https://github.com/vyperlang/vyper/pull/4494>`_)
+
 
 Test suite improvements
 -----------------------
