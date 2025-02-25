@@ -14,6 +14,7 @@ from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.typing import StorageLayout
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 TRANSLATE_MAP = {
     "abi": "abi",
@@ -276,9 +277,10 @@ def get_settings(input_dict: dict) -> Settings:
 
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
-        warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
-            stacklevel=2,
+        vyper_warn(
+            Deprecation(
+                "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            )
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):

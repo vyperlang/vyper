@@ -21,7 +21,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os:
+          # the binary will not work for users with an older libc than what
+          # is available on the ubuntu that the binary was built with.
+          # therefore, use the oldest available ubuntu.
+          - ubuntu-22.04
+          - macos-latest
 
     steps:
       - uses: actions/checkout@v4
