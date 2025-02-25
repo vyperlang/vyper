@@ -1,10 +1,13 @@
 import pytest
 
+from tests.venom_utils import PrePostChecker
 from vyper.utils import evm_not
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.passes import ReduceLiteralsCodesize
+
+pytestmark = pytest.mark.hevm
 
 
 def _calc_push_size(val: int):
@@ -12,6 +15,13 @@ def _calc_push_size(val: int):
     if len(s) % 2 != 0:  # justify to multiple of 2
         s = "0" + s
     return 1 + len(s)
+
+
+_check_pre_post = PrePostChecker(ReduceLiteralsCodesize)
+
+
+def _check_no_change(pre):
+    _check_pre_post(pre, pre, hevm=False)
 
 
 should_invert = [2**256 - 1] + [((2**i) - 1) << (256 - i) for i in range(121, 256 + 1)]
@@ -22,22 +32,25 @@ def test_literal_codesize_ff_inversion(orig_value):
     """
     Test that literals like 0xfffffffffffabcd get inverted to `not 0x5432`
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-    bb = fn.get_basic_block()
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
 
-    bb.append_instruction("store", IRLiteral(orig_value))
-    bb.append_instruction("stop")
-    ac = IRAnalysesCache(fn)
-    ReduceLiteralsCodesize(ac, fn).run_pass()
+    not_val = evm_not(orig_value)
 
-    inst0 = bb.instructions[0]
-    assert inst0.opcode == "not"
-    op0 = inst0.operands[0]
-    assert evm_not(op0.value) == orig_value
+    post = f"""
+    main:
+        %1 = not {not_val}
+        sink %1
+    """
+
+    _check_pre_post(pre, post)
+
     # check the optimization actually improved codesize, after accounting
     # for the addl NOT instruction
-    assert _calc_push_size(op0.value) + 1 < _calc_push_size(orig_value)
+    assert _calc_push_size(not_val) + 1 < _calc_push_size(orig_value)
 
 
 should_not_invert = [1, 0xFE << 248 | (2**248 - 1)] + [
@@ -50,17 +63,14 @@ def test_literal_codesize_no_inversion(orig_value):
     """
     Check funky cases where inversion would result in bytecode increase
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-    bb = fn.get_basic_block()
 
-    bb.append_instruction("store", IRLiteral(orig_value))
-    bb.append_instruction("stop")
-    ac = IRAnalysesCache(fn)
-    ReduceLiteralsCodesize(ac, fn).run_pass()
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
 
-    assert bb.instructions[0].opcode == "store"
-    assert bb.instructions[0].operands[0].value == orig_value
+    _check_no_change(pre)
 
 
 should_shl = (
@@ -104,14 +114,10 @@ def test_literal_codesize_no_shl(orig_value):
     """
     Check funky cases where shl transformation would result in bytecode increase
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-    bb = fn.get_basic_block()
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
 
-    bb.append_instruction("store", IRLiteral(orig_value))
-    bb.append_instruction("stop")
-    ac = IRAnalysesCache(fn)
-    ReduceLiteralsCodesize(ac, fn).run_pass()
-
-    assert bb.instructions[0].opcode == "store"
-    assert bb.instructions[0].operands[0].value == orig_value
+    _check_no_change(pre)
