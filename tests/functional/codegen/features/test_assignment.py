@@ -190,6 +190,63 @@ def test_augassign_rhs_references_lhs2(get_contract, source):
     assert c.entry() == [1, 2]
 
 
+@pytest.mark.requires_evm_version("cancun")
+def test_augassign_rhs_references_lhs_transient(get_contract):
+    source = """
+x: transient(DynArray[uint256, 2])
+
+def read() -> uint256:
+    return self.x[0]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    self.x[1] += self.read()
+    self.x[0] += self.x[1]
+    return self.x
+    """
+    c = get_contract(source)
+
+    assert c.entry() == [3, 2]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+x: transient(DynArray[uint256, 2])
+
+def write() -> uint256:
+    return self.x.pop()
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    self.x[1] += self.write()
+    return self.x
+    """,
+        """
+x: transient(DynArray[uint256, 2])
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    self.x[1] += self.x.pop()
+    return self.x
+    """,
+    ],
+)
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source):
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.entry()
+
+
 @pytest.mark.parametrize(
     "typ,in_val,out_val",
     [
