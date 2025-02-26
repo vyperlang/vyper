@@ -103,36 +103,6 @@ def test_augassign_oob(get_contract, tx_failed, source):
     "source",
     [
         """
-a: public(DynArray[uint256, 2])
-
-interface Foo:
-    def foo() -> uint256: view
-
-@external
-def foo() -> uint256:
-    return self.a[1]
-
-@external
-def entry() -> DynArray[uint256, 2]:
-    self.a = [1, 1]
-    # panics due to staticcall
-    self.a[1] += staticcall Foo(self).foo()
-    return self.a
-    """
-    ],
-)
-@pytest.mark.xfail(strict=True, raises=CodegenPanic)
-def test_augassign_rhs_references_lhs(get_contract, tx_failed, source):
-    # xfail here (with panic):
-    c = get_contract(source)
-
-    assert c.entry() == [1, 2]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
 @external
 def entry() -> DynArray[uint256, 2]:
     a: DynArray[uint256, 2] = [1, 1]
@@ -159,6 +129,23 @@ def read() -> uint256:
 def entry() -> DynArray[uint256, 2]:
     self.a = [1, 1]
     self.a[1] += self.read()
+    return self.a
+    """,
+        """
+a: public(DynArray[uint256, 2])
+
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    # panics due to staticcall
+    self.a[1] += staticcall Foo(self).foo()
     return self.a
     """,
     ],
