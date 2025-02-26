@@ -29,6 +29,7 @@ Breaking changes
 * feat[lang]!: make ``@external`` modifier optional in ``.vyi`` files (`#4178 <https://github.com/vyperlang/vyper/pull/4178>`_)
 * feat[codegen]!: check ``returndatasize`` even when ``skip_contract_check`` is set (`#4148 <https://github.com/vyperlang/vyper/pull/4148>`_)
 * fix[stdlib]!: fix ``IERC4626`` signatures (`#4425 <https://github.com/vyperlang/vyper/pull/4425>`_)
+* fix[lang]!: disallow absolute relative imports (`#4268 <https://github.com/vyperlang/vyper/pull/4268>`_)
 
 Other new features and improvements
 -----------------------------------
@@ -79,7 +80,6 @@ Bugfixes
 * fix[ux]: fix validation for ``abi_encode()`` ``method_id`` kwarg (`#4369 <https://github.com/vyperlang/vyper/pull/4369>`_)
 * fix[ux]: fix false positive for overflow in type checker (`#4385 <https://github.com/vyperlang/vyper/pull/4385>`_)
 * fix[ux]: add missing filename to syntax exceptions (`#4343 <https://github.com/vyperlang/vyper/pull/4343>`_)
-* fix[lang]: disallow absolute relative imports (`#4268 <https://github.com/vyperlang/vyper/pull/4268>`_)
 * fix[ux]: improve error message on failed imports (`#4409 <https://github.com/vyperlang/vyper/pull/4409>`_)
 * fix[parser]: fix bad tokenization of hex strings (`#4406 <https://github.com/vyperlang/vyper/pull/4406>`_)
 * fix[lang]: fix encoding of string literals (`#3091 <https://github.com/vyperlang/vyper/pull/3091>`_)
@@ -166,7 +166,6 @@ Docs
 * chore[tool]: update ``FUNDING.json`` for optimism RPGF (`#4218 <https://github.com/vyperlang/vyper/pull/4218>`_)
 * chore[tool]: mention that output format is comma separated (`#4467 <https://github.com/vyperlang/vyper/pull/4467>`_)
 * fix[tool]: roll back OS used to build binaries (`#4494 <https://github.com/vyperlang/vyper/pull/4494>`_)
-
 
 Test suite improvements
 -----------------------
