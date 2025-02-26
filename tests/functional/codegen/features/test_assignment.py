@@ -135,6 +135,22 @@ def entry() -> DynArray[uint256, 2]:
 interface Foo:
     def foo() -> uint256: nonpayable
 
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
+    a: DynArray[uint256, 2] = [1, 1]
+    a[1] += extcall Foo(self).foo()
+    return a
+    """,
+        """
+interface Foo:
+    def foo() -> uint256: nonpayable
+
 def get_foo() -> uint256:
     return extcall Foo(self).foo()
 
@@ -144,7 +160,8 @@ def foo() -> uint256:
 
 @external
 def entry() -> DynArray[uint256, 2]:
-    # memory variable, can't be overwritten by extcall
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
     a: DynArray[uint256, 2] = [1, 1]
     # extcall hidden inside internal function
     a[1] += self.get_foo()
