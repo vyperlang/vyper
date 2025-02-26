@@ -24,17 +24,17 @@ Date released: 2025-02-25
 
 v0.4.1 is primarily a polishing release, focusing on bug fixes, UX improvements, and security-related fixes (with four low-to-moderate severity GHSA reports published). However, a substantial amount of effort has also been invested in improving the Venom pipeline, resulting in better performance and code generation from the Venom pipeline. Venom can be enabled by passing the ``--venom`` or ``--experimental-codegen`` flag to the Vyper compiler (they are aliases of each other). Venom code can now also be compiled directly, using the ``venom`` binary (included in this release).
 
-Breaking changes
+Breaking changes and improvements
 ----------------
 * feat[lang]!: make ``@external`` modifier optional in ``.vyi`` files (`#4178 <https://github.com/vyperlang/vyper/pull/4178>`_)
 * feat[codegen]!: check ``returndatasize`` even when ``skip_contract_check`` is set (`#4148 <https://github.com/vyperlang/vyper/pull/4148>`_)
 * fix[stdlib]!: fix ``IERC4626`` signatures (`#4425 <https://github.com/vyperlang/vyper/pull/4425>`_)
 * fix[lang]!: disallow absolute relative imports (`#4268 <https://github.com/vyperlang/vyper/pull/4268>`_)
+* feat[lang]: use keyword arguments for event instantiation (`#4257 <https://github.com/vyperlang/vyper/pull/4257>`_)
 
 Other new features and improvements
 -----------------------------------
 * feat[lang]: add ``module.__at__()`` to cast to interface (`#4090 <https://github.com/vyperlang/vyper/pull/4090>`_)
-* feat[lang]: use keyword arguments for event instantiation (`#4257 <https://github.com/vyperlang/vyper/pull/4257>`_)
 * feat[lang]: add native hex string literals (`#4271 <https://github.com/vyperlang/vyper/pull/4271>`_)
 * feat[lang]: introduce ``mana`` as an alias for ``gas`` (`#3713 <https://github.com/vyperlang/vyper/pull/3713>`_)
 * feat[lang]: support top level ``"abi"`` key in json interfaces (`#4279 <https://github.com/vyperlang/vyper/pull/4279>`_)
