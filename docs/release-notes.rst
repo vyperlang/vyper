@@ -19,7 +19,7 @@ Release Notes
 v0.4.1 ("Tokara Habu")
 **********************
 
-Date released: 2025-02-26
+Date released: 2025-02-27
 =========================
 
 v0.4.1 is primarily a polishing release, focusing on bug fixes, UX improvements, and security-related fixes (with four low-to-moderate severity GHSA reports published). However, a substantial amount of effort has also been invested in improving the Venom pipeline, resulting in better performance and code generation from the Venom pipeline. Venom can be enabled by passing the ``--venom`` or ``--experimental-codegen`` flag to the Vyper compiler (they are aliases of each other). Venom code can now also be compiled directly, using the ``venom`` binary (included in this release).
