@@ -201,8 +201,10 @@ def read() -> uint256:
 @external
 def entry() -> DynArray[uint256, 2]:
     self.x = [1, 1]
-    self.x[1] += self.read()
-    self.x[0] += self.x[1]
+    # test augassign with state read hidden behind function call
+    self.x[0] += self.read()
+    # augassign with direct state read
+    self.x[1] += self.x[0]
     return self.x
     """
     c = get_contract(source)
@@ -222,6 +224,7 @@ def write() -> uint256:
 @external
 def entry() -> DynArray[uint256, 2]:
     self.x = [1, 1]
+    # hide state write behind function call
     self.x[1] += self.write()
     return self.x
     """,
@@ -231,6 +234,7 @@ x: transient(DynArray[uint256, 2])
 @external
 def entry() -> DynArray[uint256, 2]:
     self.x = [1, 1]
+    # direct state write
     self.x[1] += self.x.pop()
     return self.x
     """,
