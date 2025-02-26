@@ -209,7 +209,7 @@ def entry() -> DynArray[uint256, 2]:
     """
     c = get_contract(source)
 
-    assert c.entry() == [3, 2]
+    assert c.entry() == [2, 3]
 
 
 @pytest.mark.parametrize(
