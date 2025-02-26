@@ -89,6 +89,7 @@ Bugfixes
 * fix[codegen]: fix gas usage of iterators (`#4485 <https://github.com/vyperlang/vyper/pull/4485>`_)
 * fix[codegen]: cache result of iter eval (`#4488 <https://github.com/vyperlang/vyper/pull/4488>`_)
 * fix[lang]: fix recursive interface imports (`#4303 <https://github.com/vyperlang/vyper/pull/4303>`_)
+* fix[tool]: roll back OS used to build binaries (`#4494 <https://github.com/vyperlang/vyper/pull/4494>`_)
 
 Patched security advisories (GHSAs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -149,23 +150,22 @@ Venom improvements
 
 Docs
 ----
-* chore[docs]: update readme about testing (`#4448 <https://github.com/vyperlang/vyper/pull/4448>`_)
-* chore[docs]: add giveth to ``FUNDING.yml`` (`#4466 <https://github.com/vyperlang/vyper/pull/4466>`_)
-* feat[docs]: add installation via pipx and uv (`#4274 <https://github.com/vyperlang/vyper/pull/4274>`_)
-* chore[docs]: add ``FUNDING.json`` for drips funding (`#4167 <https://github.com/vyperlang/vyper/pull/4167>`_)
-* chore[docs]: update ``sourceMap`` field descriptions (`#4170 <https://github.com/vyperlang/vyper/pull/4170>`_)
-* chore[docs]: remove experimental note for cancun (`#4183 <https://github.com/vyperlang/vyper/pull/4183>`_)
-* feat[docs]: add bug bounty program to security policy (`#4230 <https://github.com/vyperlang/vyper/pull/4230>`_)
-* chore[docs]: add binary installation methods (`#4258 <https://github.com/vyperlang/vyper/pull/4258>`_)
-* chore[venom]: expand venom docs (`#4314 <https://github.com/vyperlang/vyper/pull/4314>`_)
-* feat[docs]: add Telegram badge to README.md (`#4342 <https://github.com/vyperlang/vyper/pull/4342>`_)
 * chore[docs]: add ``method_id`` to ``abi_encode`` signature (`#4355 <https://github.com/vyperlang/vyper/pull/4355>`_)
 * chore[docs]: mention the ``--venom`` flag in venom docs (`#4353 <https://github.com/vyperlang/vyper/pull/4353>`_)
-* chore[docs]: ``nonpayable`` ``internal`` function behaviour (`#4416 <https://github.com/vyperlang/vyper/pull/4416>`_)
+* feat[docs]: add bug bounty program to security policy (`#4230 <https://github.com/vyperlang/vyper/pull/4230>`_)
+* feat[docs]: add installation via pipx and uv (`#4274 <https://github.com/vyperlang/vyper/pull/4274>`_)
+* chore[docs]: add binary installation methods (`#4258 <https://github.com/vyperlang/vyper/pull/4258>`_)
+* chore[docs]: update ``sourceMap`` field descriptions (`#4170 <https://github.com/vyperlang/vyper/pull/4170>`_)
+* chore[docs]: remove experimental note for cancun (`#4183 <https://github.com/vyperlang/vyper/pull/4183>`_)
+* chore[venom]: expand venom docs (`#4314 <https://github.com/vyperlang/vyper/pull/4314>`_)
 * chore[docs]: abi function signature for default arguments (`#4415 <https://github.com/vyperlang/vyper/pull/4415>`_)
+* feat[docs]: add Telegram badge to README.md (`#4342 <https://github.com/vyperlang/vyper/pull/4342>`_)
+* chore[docs]: update readme about testing (`#4448 <https://github.com/vyperlang/vyper/pull/4448>`_)
+* chore[docs]: ``nonpayable`` ``internal`` function behaviour (`#4416 <https://github.com/vyperlang/vyper/pull/4416>`_)
+* chore[docs]: add ``FUNDING.json`` for drips funding (`#4167 <https://github.com/vyperlang/vyper/pull/4167>`_)
+* chore[docs]: add giveth to ``FUNDING.yml`` (`#4466 <https://github.com/vyperlang/vyper/pull/4466>`_)
 * chore[tool]: update ``FUNDING.json`` for optimism RPGF (`#4218 <https://github.com/vyperlang/vyper/pull/4218>`_)
 * chore[tool]: mention that output format is comma separated (`#4467 <https://github.com/vyperlang/vyper/pull/4467>`_)
-* fix[tool]: roll back OS used to build binaries (`#4494 <https://github.com/vyperlang/vyper/pull/4494>`_)
 
 Test suite improvements
 -----------------------
