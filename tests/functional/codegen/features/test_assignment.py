@@ -246,6 +246,7 @@ def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source
     if not version_check(begin="cancun"):
         # no transient available before cancun
         pytest.skip()
+
     # xfail here (with panic):
     c = get_contract(source)
 
