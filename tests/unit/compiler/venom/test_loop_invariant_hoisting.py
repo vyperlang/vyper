@@ -131,10 +131,11 @@ def _unhoistable_body(fn, loop_id, depth):
     bb.append_instruction("mload", 64, ret=add_var_a)
     add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
     bb.append_instruction("add", add_var_a, 2, ret=add_var_b)
+    bb.append_instruction("mstore", 10, add_var_b)
 
 
-@pytest.mark.parametrize("depth", range(1, 2))
-@pytest.mark.parametrize("count", range(1, 2))
+@pytest.mark.parametrize("depth", range(1, 4))
+@pytest.mark.parametrize("count", range(1, 4))
 def test_loop_invariant_hoisting_unhoistable(depth, count):
     ctx = IRContext()
     fn = ctx.create_function("_global")

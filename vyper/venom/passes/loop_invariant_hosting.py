@@ -11,8 +11,7 @@ from vyper.venom.effects import Effects, EMPTY
 
 def _ignore_instruction(inst: IRInstruction) -> bool:
     return (
-        inst.is_volatile
-        or inst.is_bb_terminator
+        inst.is_bb_terminator
         or inst.opcode == "returndatasize"
         or inst.opcode == "phi"
         or (inst.opcode == "add" and isinstance(inst.operands[1], IRLabel))
