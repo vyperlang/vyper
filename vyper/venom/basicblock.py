@@ -90,7 +90,7 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
 )
 
 # These instruction shoulld be eliminated/rewriten
-# before going into assembly emit
+# before going into assembly emission
 PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
