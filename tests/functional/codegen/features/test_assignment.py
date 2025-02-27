@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
@@ -240,9 +241,11 @@ def entry() -> DynArray[uint256, 2]:
     """,
     ],
 )
-@pytest.mark.requires_evm_version("cancun")
 @pytest.mark.xfail(strict=True, raises=CodegenPanic)
 def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source):
+    if not version_check(begin="cancun"):
+        # no transient available before cancun
+        pytest.skip()
     # xfail here (with panic):
     c = get_contract(source)
 
