@@ -71,6 +71,7 @@ Bugfixes
 * fix[lang]: fix precedence in floordiv hint (`#4203 <https://github.com/vyperlang/vyper/pull/4203>`_)
 * fix[lang]: define rounding mode for sqrt (`#4486 <https://github.com/vyperlang/vyper/pull/4486>`_)
 * fix[codegen]: disable augassign with overlap (`#4487 <https://github.com/vyperlang/vyper/pull/4487>`_)
+* fix[codegen]: relax the filter for augassign oob check (`#4497 <https://github.com/vyperlang/vyper/pull/4497>`_)
 * fix[lang]: fix panic in call cycle detection (`#4200 <https://github.com/vyperlang/vyper/pull/4200>`_)
 * fix[tool]: update ``InterfaceT.__str__`` implementation (`#4205 <https://github.com/vyperlang/vyper/pull/4205>`_)
 * fix[tool]: fix classification of AST nodes (`#4210 <https://github.com/vyperlang/vyper/pull/4210>`_)
