@@ -1,5 +1,3 @@
-# @version ^0.3.7
-
 """
 @title Yearn Vault Factory
 @license GNU AGPLv3
@@ -31,7 +29,7 @@
     fee recipient.
 """
 
-from vyper.interfaces import ERC20
+from ethereum.ercs import IERC20
 
 event NewVault:
     vault_address: indexed(address)
@@ -94,7 +92,7 @@ custom_protocol_fee: public(HashMap[address, uint16])
 # Repersents if a custom protocol fee should be used.
 use_custom_protocol_fee: public(HashMap[address, bool])
 
-@external
+@deploy
 def __init__(name: String[64], vault_blueprint: address, governance: address):
     self.name = name
     VAULT_BLUEPRINT = vault_blueprint
@@ -102,7 +100,7 @@ def __init__(name: String[64], vault_blueprint: address, governance: address):
 
 @external
 def deploy_new_vault(
-    asset: ERC20, 
+    asset: IERC20, 
     name: String[64], 
     symbol: String[32], 
     role_manager: address, 
@@ -129,10 +127,10 @@ def deploy_new_vault(
             role_manager, 
             profit_max_unlock_time, 
             code_offset=3, 
-            salt=keccak256(_abi_encode(msg.sender, asset.address, name, symbol))
+            salt=keccak256(abi_encode(msg.sender, asset.address, name, symbol))
         )
         
-    log NewVault(vault_address, asset.address)
+    log NewVault(vault_address=vault_address, asset=asset.address)
     return vault_address
 
 @view
@@ -165,10 +163,10 @@ def protocol_fee_config() -> PFConfig:
     # If there is a custom protocol fee set we return it.
     if self.use_custom_protocol_fee[msg.sender]:
         # Always use the default fee recipient even with custom fees.
-        return PFConfig({
-            fee_bps: self.custom_protocol_fee[msg.sender],
-            fee_recipient: self.default_protocol_fee_config.fee_recipient
-        })
+        return PFConfig(
+            fee_bps = self.custom_protocol_fee[msg.sender],
+            fee_recipient = self.default_protocol_fee_config.fee_recipient
+        )
     else:
         # Otherwise return the default config.
         return self.default_protocol_fee_config
@@ -186,8 +184,8 @@ def set_protocol_fee_bps(new_protocol_fee_bps: uint16):
     assert self.default_protocol_fee_config.fee_recipient != empty(address), "no recipient"
 
     log UpdateProtocolFeeBps(
-        self.default_protocol_fee_config.fee_bps, 
-        new_protocol_fee_bps
+        old_fee_bps=self.default_protocol_fee_config.fee_bps,
+        new_fee_bps=new_protocol_fee_bps
     )
 
     self.default_protocol_fee_config.fee_bps = new_protocol_fee_bps
@@ -203,10 +201,10 @@ def set_protocol_fee_recipient(new_protocol_fee_recipient: address):
     assert new_protocol_fee_recipient != empty(address), "zero address"
 
     log UpdateProtocolFeeRecipient(
-        self.default_protocol_fee_config.fee_recipient,
-        new_protocol_fee_recipient
+        old_fee_recipient=self.default_protocol_fee_config.fee_recipient,
+        new_fee_recipient=new_protocol_fee_recipient
     )
-    
+
     self.default_protocol_fee_config.fee_recipient = new_protocol_fee_recipient
 
 @external
@@ -230,7 +228,7 @@ def set_custom_protocol_fee_bps(vault: address, new_custom_protocol_fee: uint16)
     if not self.use_custom_protocol_fee[vault]:
         self.use_custom_protocol_fee[vault] = True
 
-    log UpdateCustomProtocolFee(vault, new_custom_protocol_fee)
+    log UpdateCustomProtocolFee(vault=vault, new_custom_protocol_fee=new_custom_protocol_fee)
 
 @external 
 def remove_custom_protocol_fee(vault: address):
@@ -248,7 +246,7 @@ def remove_custom_protocol_fee(vault: address):
     # Set custom fee bool back to false.
     self.use_custom_protocol_fee[vault] = False
 
-    log RemovedCustomProtocolFee(vault)
+    log RemovedCustomProtocolFee(vault=vault)
 
 @external
 def shutdown_factory():
@@ -275,7 +273,7 @@ def set_governance(new_governance: address):
     assert msg.sender == self.governance, "not governance"
     self.pending_governance = new_governance
 
-    log NewPendingGovernance(new_governance)
+    log NewPendingGovernance(pending_governance=new_governance)
 
 @external
 def accept_governance():
@@ -286,4 +284,4 @@ def accept_governance():
     self.governance = msg.sender
     self.pending_governance = empty(address)
 
-    log UpdateGovernance(msg.sender)
+    log UpdateGovernance(governance=msg.sender)
