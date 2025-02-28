@@ -645,9 +645,6 @@ def exchange_underlying(
     @param j Index value of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
     @param _min_dy Minimum amount of `j` to receive
-    @param _use_eth Use native token transfers (if pool has WETH20)
-                    For MetaNG: native token wrapping/unwrapping is disabled; this
-                    parameter can be whatever.
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -680,7 +677,6 @@ def exchange_underlying_extended(
     @param j Index value of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
     @param _min_dy Minimum amount of `j` to receive
-    @param _use_eth Use native token transfers (if pool has WETH20)
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -713,7 +709,6 @@ def exchange_underlying_received(
     @param j Index value of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
     @param _min_dy Minimum amount of `j` to receive
-    @param _use_eth Use native token transfers (if pool has WETH20)
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -1118,13 +1113,13 @@ def _exchange_underlying(
         if input_coin == BASE_COINS[base_i]:
             # we expect base_coin's balance to be 0. So swap whatever base_coin's
             # balance the pool has:
-            dx_w_fee = IERC20(input_coin).balanceOf(self)
+            dx_w_fee = staticcall IERC20(input_coin).balanceOf(self)
         else:
-            dx_w_fee = IERC20(input_coin).balanceOf(self) - self.stored_balances[meta_i]
+            dx_w_fee = staticcall IERC20(input_coin).balanceOf(self) - self.stored_balances[meta_i]
             assert dx_w_fee == _dx
             self.stored_balances[meta_i] += dx_w_fee
 
-        dx_w_fee = IERC20(input_coin).balanceOf(self) - _dx
+        dx_w_fee = staticcall IERC20(input_coin).balanceOf(self) - _dx
 
     else:
 
@@ -1160,7 +1155,7 @@ def _exchange_underlying(
         # Withdraw from the base pool if needed
         if j > 0:
             out_amount: uint256 = staticcall IERC20(output_coin).balanceOf(self)
-            StableSwap(BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
+            extcall StableSwap(BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
             dy = staticcall IERC20(output_coin).balanceOf(self) - out_amount
 
         assert dy >= _min_dy
@@ -1171,12 +1166,12 @@ def _exchange_underlying(
     else:  # base pool swap (user should swap at base pool for better gas)
 
         dy = staticcall IERC20(output_coin).balanceOf(self)
-        StableSwap(BASE_POOL).exchange(base_i, base_j, dx_w_fee, _min_dy)
+        extcall StableSwap(BASE_POOL).exchange(base_i, base_j, dx_w_fee, _min_dy)
         dy = staticcall IERC20(output_coin).balanceOf(self) - dy
 
     # --------------------------- Do Transfer out ----------------------------
 
-    assert extcall ERC20(output_coin).transfer(receiver, dy, default_return_value=True)
+    assert extcall IERC20(output_coin).transfer(receiver, dy, default_return_value=True)
 
     # ------------------------------------------------------------------------
 
@@ -1189,25 +1184,25 @@ def _exchange_underlying(
 def _meta_add_liquidity(dx: uint256, base_i: int128) -> uint256:
 
     coin_i: address = coins[MAX_METAPOOL_COIN_INDEX]
-    x: uint256 = staticcall ERC20(coin_i).balanceOf(self)
+    x: uint256 = staticcall IERC20(coin_i).balanceOf(self)
 
     if BASE_N_COINS == 2:
 
         base_inputs: uint256[2] = empty(uint256[2])
         base_inputs[base_i] = dx
-        StableSwap2(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap2(BASE_POOL).add_liquidity(base_inputs, 0)
 
     if BASE_N_COINS == 3:
 
         base_inputs: uint256[3] = empty(uint256[3])
         base_inputs[base_i] = dx
-        StableSwap3(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap3(BASE_POOL).add_liquidity(base_inputs, 0)
 
     else:
 
         base_inputs: uint256[4] = empty(uint256[4])
         base_inputs[base_i] = dx
-        StableSwap4(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap4(BASE_POOL).add_liquidity(base_inputs, 0)
 
     return staticcall IERC20(coin_i).balanceOf(self) - x
 
@@ -1215,7 +1210,7 @@ def _meta_add_liquidity(dx: uint256, base_i: int128) -> uint256:
 @internal
 def _withdraw_admin_fees():
 
-    fee_receiver: address = factory.get_fee_receiver()
+    fee_receiver: address = staticcall factory.get_fee_receiver()
     assert fee_receiver != empty(address)  # dev: fee receiver not set
 
     for i: int128 in range(N_COINS_128):
@@ -1286,7 +1281,7 @@ def get_y(
 
     for _i: int128 in range(255):
         y_prev = y
-        y = (y*y + c) / (2 * y + b - D)
+        y = (y*y + c) // (2 * y + b - D)
         # Equality with the precision of 1
         if y > y_prev:
             if y - y_prev <= 1:
@@ -1304,10 +1299,10 @@ def get_D(_xp: DynArray[uint256, MAX_COINS], _amp: uint256) -> uint256:
     D invariant calculation in non-overflowing integer operations
     iteratively
 
-    A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
+    A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) // (n**n * prod(x_i))
 
     Converging solution:
-    D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) / (n**n prod(x_i))) / (A * n**n - 1)
+    D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) // (n**n prod(x_i))) // (A * n**n - 1)
     """
     S: uint256 = 0
     for x: uint256 in _xp:
@@ -1321,9 +1316,9 @@ def get_D(_xp: DynArray[uint256, MAX_COINS], _amp: uint256) -> uint256:
     Dprev: uint256 = 0
 
     for i: uint256  in range(255):
-        D_P = D * D / _xp[0] * D / _xp[1] / pow_mod256(N_COINS, N_COINS)
+        D_P = D * D // _xp[0] * D // _xp[1] // pow_mod256(N_COINS, N_COINS)
         Dprev = D
-        D = (Ann * S / A_PRECISION + D_P * N_COINS) * D / ((Ann - A_PRECISION) * D / A_PRECISION + (N_COINS + 1) * D_P)
+        D = (Ann * S // A_PRECISION + D_P * N_COINS) * D // ((Ann - A_PRECISION) * D // A_PRECISION + (N_COINS + 1) * D_P)
         # Equality with the precision of 1
         if D > Dprev:
             if D - Dprev <= 1:
@@ -1348,10 +1343,10 @@ def get_y_D(
     Calculate x[i] if one reduces D from being calculated for xp to D
 
     Done by solving quadratic equation iteratively.
-    x_1**2 + x_1 * (sum' - (A*n**n - 1) * D / (A * n**n)) = D ** (n + 1) / (n ** (2 * n) * prod' * A)
+    x_1**2 + x_1 * (sum' - (A*n**n - 1) * D // (A * n**n)) = D ** (n + 1) // (n ** (2 * n) * prod' * A)
     x_1**2 + b*x_1 = c
 
-    x_1 = (x_1**2 + c) / (2*x_1 + b)
+    x_1 = (x_1**2 + c) // (2*x_1 + b)
     """
     # x in the input is converted to the same price/precision
 
@@ -1371,15 +1366,15 @@ def get_y_D(
         else:
             continue
         S_ += _x
-        c = c * D / (_x * N_COINS)
+        c = c * D // (_x * N_COINS)
 
-    c = c * D * A_PRECISION / (Ann * N_COINS)
-    b: uint256 = S_ + D * A_PRECISION / Ann
+    c = c * D * A_PRECISION // (Ann * N_COINS)
+    b: uint256 = S_ + D * A_PRECISION // Ann
     y: uint256 = D
 
     for _i: uint256 in range(255):
         y_prev = y
-        y = (y*y + c) / (2 * y + b - D)
+        y = (y*y + c) // (2 * y + b - D)
         # Equality with the precision of 1
         if y > y_prev:
             if y - y_prev <= 1:
@@ -1404,9 +1399,9 @@ def _A() -> uint256:
         t0: uint256 = self.initial_A_time
         # Expressions in uint256 cannot have negative numbers, thus "if"
         if A1 > A0:
-            return A0 + (A1 - A0) * (block.timestamp - t0) / (t1 - t0)
+            return A0 + (A1 - A0) * (block.timestamp - t0) // (t1 - t0)
         else:
-            return A0 - (A0 - A1) * (block.timestamp - t0) / (t1 - t0)
+            return A0 - (A0 - A1) * (block.timestamp - t0) // (t1 - t0)
 
     else:  # when t1 == 0 or block.timestamp >= t1
         return A1
@@ -1423,7 +1418,7 @@ def _xp_mem(
 
     for i: int128 in range(N_COINS_128):
 
-        result[i] = _rates[i] * _balances[i] / PRECISION
+        result[i] = _rates[i] * _balances[i] // PRECISION
 
     return result
 
@@ -1458,10 +1453,10 @@ def _calc_withdraw_one_coin(
     D0: uint256 = self.get_D(xp, amp)
 
     total_supply: uint256 = self.totalSupply
-    D1: uint256 = D0 - _burn_amount * D0 / total_supply
+    D1: uint256 = D0 - _burn_amount * D0 // total_supply
     new_y: uint256 = self.get_y_D(amp, i, xp, D1)
 
-    base_fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
+    base_fee: uint256 = self.fee * N_COINS // (4 * (N_COINS - 1))
     xp_reduced: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
 
     for j: int128 in range(N_COINS_128):
@@ -1469,14 +1464,14 @@ def _calc_withdraw_one_coin(
         dx_expected: uint256 = 0
         xp_j: uint256 = xp[j]
         if j == i:
-            dx_expected = xp_j * D1 / D0 - new_y
+            dx_expected = xp_j * D1 // D0 - new_y
         else:
-            dx_expected = xp_j - xp_j * D1 / D0
-        xp_reduced[j] = xp_j - base_fee * dx_expected / FEE_DENOMINATOR
+            dx_expected = xp_j - xp_j * D1 // D0
+        xp_reduced[j] = xp_j - base_fee * dx_expected // FEE_DENOMINATOR
 
     dy: uint256 = xp_reduced[i] - self.get_y_D(amp, i, xp_reduced, D1)
-    dy_0: uint256 = (xp[i] - new_y) * PRECISION / rates[i]  # w/o fees
-    dy = (dy - 1) * PRECISION / rates[i]  # Withdraw less to account for rounding errors
+    dy_0: uint256 = (xp[i] - new_y) * PRECISION // rates[i]  # w/o fees
+    dy = (dy - 1) * PRECISION // rates[i]  # Withdraw less to account for rounding errors
 
     xp[i] = new_y
     last_p: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
@@ -1504,16 +1499,16 @@ def _get_p(
     D: uint256,
 ) -> DynArray[uint256, MAX_COINS]:
 
-    # dx_0 / dx_1 only, however can have any number of coins in pool
+    # dx_0 // dx_1 only, however can have any number of coins in pool
     ANN: uint256 = unsafe_mul(amp, N_COINS)
     Dr: uint256 = unsafe_div(D, pow_mod256(N_COINS, N_COINS))
 
     for i: int128 in range(N_COINS_128):
-        Dr = Dr * D / xp[i]
+        Dr = Dr * D // xp[i]
 
     p: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
-    xp0_A: uint256 = ANN * xp[0] / A_PRECISION
-    p.append(10**18 * (xp0_A + Dr * xp[0] / xp[1]) / (xp0_A + Dr))
+    xp0_A: uint256 = ANN * xp[0] // A_PRECISION
+    p.append(10**18 * (xp0_A + Dr * xp[0] // xp[1]) // (xp0_A + Dr))
 
     return p
 
@@ -1551,8 +1546,8 @@ def _ma_price() -> uint256:
     last_ema_price: uint256 = (pp >> 128)
 
     if ma_last_time < block.timestamp:
-        alpha: uint256 = self.exp(- convert((block.timestamp - ma_last_time) * 10**18 / self.ma_exp_time, int256))
-        return (last_price * (10**18 - alpha) + last_ema_price * alpha) / 10**18
+        alpha: uint256 = self.exp(- convert((block.timestamp - ma_last_time) * 10**18 // self.ma_exp_time, int256))
+        return (last_price * (10**18 - alpha) + last_ema_price * alpha) // 10**18
 
     else:
         return last_ema_price
@@ -1792,7 +1787,7 @@ def permit(
     if _owner.is_contract:
         sig: Bytes[65] = concat(abi_encode(_r, _s), slice(convert(_v, bytes32), 31, 1))
         # reentrancy not a concern since this is a staticcall
-        assert ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL
+        assert staticcall ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL
     else:
         assert ecrecover(digest, convert(_v, uint256), convert(_r, uint256), convert(_s, uint256)) == _owner
 
@@ -1827,7 +1822,7 @@ def get_dx(i: int128, j: int128, dy: uint256) -> uint256:
     @param dy Amount of `j` being received after exchange
     @return Amount of `i` predicted
     """
-    return StableSwapViews(factory.views_implementation()).get_dx(i, j, dy, self)
+    return staticcall StableSwapViews(staticcall factory.views_implementation()).get_dx(i, j, dy, self)
 
 
 @view
@@ -1841,7 +1836,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    return StableSwapViews(factory.views_implementation()).get_dy(i, j, dx, self)
+    return staticcall StableSwapViews(staticcall factory.views_implementation()).get_dy(i, j, dx, self)
 
 
 @view
@@ -1869,7 +1864,7 @@ def get_virtual_price() -> uint256:
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
-    return D * PRECISION / self.totalSupply
+    return D * PRECISION // self.totalSupply
 
 
 @view
@@ -1884,8 +1879,8 @@ def calc_token_amount(
     @param _is_deposit set True for deposits, False for withdrawals
     @return Expected amount of LP tokens received
     """
-    views: address = factory.views_implementation()
-    return StableSwapViews(views).calc_token_amount(_amounts, _is_deposit, self)
+    views: address = staticcall factory.views_implementation()
+    return staticcall StableSwapViews(views).calc_token_amount(_amounts, _is_deposit, self)
 
 
 @view
@@ -1897,7 +1892,7 @@ def admin_fee() -> uint256:
 @view
 @external
 def A() -> uint256:
-    return self._A() / A_PRECISION
+    return self._A() // A_PRECISION
 
 
 @view
@@ -1941,7 +1936,7 @@ def stored_rates(i: uint256) -> uint256:
 
 @external
 def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == factory.admin()  # dev: only owner
+    assert msg.sender == staticcall factory.admin()  # dev: only owner
     assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
     assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
 
@@ -1964,7 +1959,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
 
 @external
 def stop_ramp_A():
-    assert msg.sender == factory.admin()  # dev: only owner
+    assert msg.sender == staticcall factory.admin()  # dev: only owner
 
     current_A: uint256 = self._A()
     self.initial_A = current_A
@@ -1979,7 +1974,7 @@ def stop_ramp_A():
 @external
 def apply_new_fee(_new_fee: uint256):
 
-    assert msg.sender == factory.admin()
+    assert msg.sender == staticcall factory.admin()
     assert _new_fee <= MAX_FEE
     self.fee = _new_fee
 
@@ -1990,9 +1985,9 @@ def apply_new_fee(_new_fee: uint256):
 def set_ma_exp_time(_ma_exp_time: uint256):
     """
     @notice Set the moving average window of the price oracle.
-    @param _ma_exp_time Moving average window. It is time_in_seconds / ln(2)
+    @param _ma_exp_time Moving average window. It is time_in_seconds // ln(2)
     """
-    assert msg.sender == factory.admin()  # dev: only owner
+    assert msg.sender == staticcall factory.admin()  # dev: only owner
     assert _ma_exp_time != 0
 
     self.ma_exp_time = _ma_exp_time
