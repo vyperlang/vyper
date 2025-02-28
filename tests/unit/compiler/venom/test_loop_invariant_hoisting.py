@@ -1,6 +1,6 @@
 import pytest
 
-from tests.venom_utils import parse_from_basic_block
+from tests.venom_utils import parse_from_basic_block, assert_ctx_eq
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
@@ -61,7 +61,6 @@ def _create_loops_code(depth, loop_id, body=lambda _, _a: "", last: bool = False
     if depth <= 0:
         return ""
     inner = _create_loops_code(depth - 1, loop_id, body, False)
-    print(inner)
 
     res = f"""
         jmp @cond{depth}{loop_id}
@@ -84,7 +83,7 @@ def _create_loops_code(depth, loop_id, body=lambda _, _a: "", last: bool = False
 
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
-def test_loop_detection_analysis_code(depth, count):
+def test_loop_detection_analysis(depth, count):
     loops = ""
     for i in range(count):
         loops += _create_loops_code(depth, i, _simple_body_code, last=(i == count - 1))
@@ -111,29 +110,44 @@ def test_loop_detection_analysis_code(depth, count):
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
 def test_loop_invariant_hoisting_simple(depth, count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre_loops = ""
+    for i in range(count):
+        pre_loops += _create_loops_code(depth, i, _simple_body_code, last=(i == count - 1))
 
-    for c in range(count):
-        _create_loops(fn, depth, c, _simple_body)
+    post_loops = ""
+    for i in range(count):
+        hoisted = ""
+        for d in range(depth):
+            hoisted += _simple_body_code(i, depth - d)
+        post_loops += hoisted
+        post_loops += _create_loops_code(depth, i, last=(i == count - 1))
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("ret")
 
-    ac = IRAnalysesCache(fn)
-    LoopInvariantHoisting(ac, fn).run_pass()
+    pre = f"""
+    main:
+        %par = param
+    {pre_loops}
+    """
 
-    entry = fn.entry
-    assignments = list(map(lambda x: x.value, entry.get_assignments()))
-    for bb in filter(lambda bb: bb.label.name.startswith("exit_top"), fn.get_basic_blocks()):
-        assignments.extend(map(lambda x: x.value, bb.get_assignments()))
+    post = f"""
+    main:
+        %par = param
+    {post_loops}
+    """
+    
+    ctx = parse_from_basic_block(pre)
+    print(ctx)
 
-    assert len(assignments) == depth * count * 2
-    for loop_id in range(count):
-        for d in range(1, depth + 1):
-            assert f"%add_var{loop_id}{d}" in assignments, repr(fn)
-            assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        LoopInvariantHoisting(ac, fn).run_pass()
 
+    post_ctx = parse_from_basic_block(post)
+    
+    print(ctx)
+    print(post_ctx)
+
+    assert_ctx_eq(ctx, post_ctx)
 
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
