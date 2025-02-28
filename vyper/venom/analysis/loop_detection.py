@@ -16,15 +16,15 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
 
     def analyze(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        self.loops = self._find_natural_loops(self.function.entry)        
+        self.loops = self._find_natural_loops(self.function.entry)
 
     # Could possibly reuse the dominator tree algorithm to find the back edges
     # if it is already cached it will be faster. Still might need to separate the
-    # varius extra information that the dominator analysis provides 
+    # varius extra information that the dominator analysis provides
     # (like frontiers and immediate dominators)
     def _find_back_edges(self, entry: IRBasicBlock) -> list[tuple[IRBasicBlock, IRBasicBlock]]:
         back_edges = []
-        visited = OrderedSet()
+        visited: OrderedSet[IRBasicBlock] = OrderedSet()
         stack = []
 
         def dfs(bb: IRBasicBlock):
@@ -42,14 +42,16 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
         dfs(entry)
 
         return back_edges
-    
-    def _find_natural_loops(self, entry: IRBasicBlock) -> dict[IRBasicBlock, OrderedSet[IRBasicBlock]]:
+
+    def _find_natural_loops(
+        self, entry: IRBasicBlock
+    ) -> dict[IRBasicBlock, OrderedSet[IRBasicBlock]]:
         back_edges = self._find_back_edges(entry)
         natural_loops = {}
 
         for u, v in back_edges:
             # back edge: u -> v
-            loop = OrderedSet()
+            loop: OrderedSet[IRBasicBlock] = OrderedSet()
             stack = [u]
 
             while stack:
@@ -65,4 +67,3 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
             natural_loops[v.cfg_in.first()] = loop
 
         return natural_loops
-

@@ -3,10 +3,10 @@ from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.effects import Effects, EMPTY
 
 
 def _ignore_instruction(inst: IRInstruction) -> bool:
@@ -38,7 +38,7 @@ class LoopInvariantHoisting(IRPass):
 
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis) # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         loops = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
         assert isinstance(loops, NaturalLoopDetectionAnalysis)
         self.loops = loops.loops
@@ -68,11 +68,11 @@ class LoopInvariantHoisting(IRPass):
     def _get_loop_effects_write(self, loop: OrderedSet[IRBasicBlock]) -> Effects:
         res: Effects = EMPTY
         for bb in loop:
-            assert isinstance(bb, IRBasicBlock) # help mypy
+            assert isinstance(bb, IRBasicBlock)  # help mypy
             for inst in bb.instructions:
                 res |= inst.get_write_effects()
         return res
-    
+
     def _get_hoistable_loop(
         self, from_bb: IRBasicBlock, loop: OrderedSet[IRBasicBlock]
     ) -> list[IRInstruction]:
@@ -82,7 +82,9 @@ class LoopInvariantHoisting(IRPass):
             result.extend(self._get_hoistable_bb(bb, from_bb, loop_effects))
         return result
 
-    def _get_hoistable_bb(self, bb: IRBasicBlock, loop_idx: IRBasicBlock, loop_effects: Effects) -> list[IRInstruction]:
+    def _get_hoistable_bb(
+        self, bb: IRBasicBlock, loop_idx: IRBasicBlock, loop_effects: Effects
+    ) -> list[IRInstruction]:
         result: list[IRInstruction] = []
         for inst in bb.instructions:
             if self._can_hoist_instruction_ignore_stores(inst, self.loops[loop_idx], loop_effects):
@@ -109,7 +111,7 @@ class LoopInvariantHoisting(IRPass):
     # since the stores are always hoistable this ignores
     # stores in analysis (their are hoisted if some instrution is dependent on them)
     def _can_hoist_instruction_ignore_stores(
-            self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock], loop_effects: Effects
+        self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock], loop_effects: Effects
     ) -> bool:
         if (inst.get_read_effects() & loop_effects) != EMPTY:
             return False

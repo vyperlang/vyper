@@ -27,7 +27,6 @@ from vyper.venom.passes import (
     StoreElimination,
     StoreExpansionPass,
 )
-
 from vyper.venom.passes.loop_invariant_hosting import LoopInvariantHoisting
 from vyper.venom.venom_to_assembly import VenomCompiler
 

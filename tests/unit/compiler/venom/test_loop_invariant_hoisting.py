@@ -1,5 +1,6 @@
 import pytest
 
+from tests.venom_utils import parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
@@ -51,20 +52,59 @@ def _hoistable_body(fn, loop_id, depth):
     bb.append_instruction("add", store_var, add_var_a, ret=add_var_b)
 
 
+def _simple_body_code(loop_id, depth):
+    return f"""
+        %a{depth}{loop_id} = add 1, 2"""
+
+
+def _create_loops_code(depth, loop_id, body=lambda _, _a: "", last: bool = False):
+    if depth <= 0:
+        return ""
+    inner = _create_loops_code(depth - 1, loop_id, body, False)
+    print(inner)
+
+    res = f"""
+        jmp @cond{depth}{loop_id}
+    cond{depth}{loop_id}:
+        jnz %par, @exit{depth}{loop_id}, @body{depth}{loop_id}
+    body{depth}{loop_id}:
+        {body(loop_id, depth)}
+    {inner}
+        jmp @cond{depth}{loop_id}
+    exit{depth}{loop_id}:
+    """
+
+    if last:
+        res += """
+        stop
+        """
+
+    return res
+
+
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
-def test_loop_detection_analysis(depth, count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+def test_loop_detection_analysis_code(depth, count):
+    loops = ""
+    for i in range(count):
+        loops += _create_loops_code(depth, i, _simple_body_code, last=(i == count - 1))
 
-    for c in range(count):
-        _create_loops(fn, depth, c, _simple_body)
+    code = f"""
+    main:
+        %par = param
+    {loops}
+    """
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("ret")
+    print(code)
 
+    ctx = parse_from_basic_block(code)
+    assert len(ctx.functions) == 1
+
+    fn = list(ctx.functions.values())[0]
     ac = IRAnalysesCache(fn)
     analysis = ac.request_analysis(NaturalLoopDetectionAnalysis)
+    assert isinstance(analysis, NaturalLoopDetectionAnalysis)
+
     assert len(analysis.loops) == depth * count
 
 
@@ -145,7 +185,7 @@ def test_loop_invariant_hoisting_unhoistable(depth, count):
 
     bb = fn.get_basic_block()
     bb.append_instruction("ret")
-    
+
     print(fn)
 
     ac = IRAnalysesCache(fn)
