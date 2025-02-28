@@ -1,6 +1,6 @@
 import pytest
 
-from tests.venom_utils import parse_from_basic_block, assert_ctx_eq
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
@@ -32,13 +32,6 @@ def _create_loops(fn, depth, loop_id, body_fn=lambda _: (), top=True):
     bb = fn.get_basic_block()
     bb.append_instruction("jmp", cond.label)
     fn.append_basic_block(exit_block)
-
-
-def _simple_body(fn, loop_id, depth):
-    assert isinstance(fn, IRFunction)
-    bb = fn.get_basic_block()
-    add_var = IRVariable(f"add_var{loop_id}{depth}")
-    bb.append_instruction("add", 1, 2, ret=add_var)
 
 
 def _hoistable_body(fn, loop_id, depth):
@@ -122,7 +115,6 @@ def test_loop_invariant_hoisting_simple(depth, count):
         post_loops += hoisted
         post_loops += _create_loops_code(depth, i, last=(i == count - 1))
 
-
     pre = f"""
     main:
         %par = param
@@ -134,7 +126,7 @@ def test_loop_invariant_hoisting_simple(depth, count):
         %par = param
     {post_loops}
     """
-    
+
     ctx = parse_from_basic_block(pre)
     print(ctx)
 
@@ -143,11 +135,12 @@ def test_loop_invariant_hoisting_simple(depth, count):
         LoopInvariantHoisting(ac, fn).run_pass()
 
     post_ctx = parse_from_basic_block(post)
-    
+
     print(ctx)
     print(post_ctx)
 
     assert_ctx_eq(ctx, post_ctx)
+
 
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
