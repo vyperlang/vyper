@@ -817,9 +817,9 @@ def add_liquidity(
     total_supply += mint_amount
     self.balanceOf[_receiver] += mint_amount
     self.totalSupply = total_supply
-    log Transfer(empty(address), _receiver, mint_amount)
+    log Transfer(sender=empty(address), receiver=_receiver, value=mint_amount)
 
-    log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
+    log AddLiquidity(provider=msg.sender, token_amounts=_amounts, fees=fees, invariant=D1, token_supply=total_supply)
 
     return mint_amount
 
@@ -850,11 +850,11 @@ def remove_liquidity_one_coin(
 
     self._burnFrom(msg.sender, _burn_amount)
 
-    log Transfer(msg.sender, empty(address), _burn_amount)
+    log Transfer(sender=msg.sender, receiver=empty(address), value=_burn_amount)
 
     self._transfer_out(i, dy, _use_eth, _receiver)
 
-    log RemoveLiquidityOne(msg.sender, i, _burn_amount, dy, self.totalSupply)
+    log RemoveLiquidityOne(provider=msg.sender, token_id=i, token_amount=_burn_amount, coin_amount=dy, token_supply=self.totalSupply)
 
     self.save_p_from_price(p)
 
@@ -916,7 +916,7 @@ def remove_liquidity_imbalance(
 
     self._burnFrom(msg.sender, burn_amount)
 
-    log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
+    log RemoveLiquidityImbalance(provider=msg.sender, token_amounts=_amounts, fees=fees, invariant=D1, token_supply=total_supply)
 
     return burn_amount
 
@@ -950,7 +950,7 @@ def remove_liquidity(
 
     self._burnFrom(msg.sender, _burn_amount)  # dev: insufficient funds
 
-    log RemoveLiquidity(msg.sender, amounts, empty(DynArray[uint256, MAX_COINS]), total_supply)  # TODO: check this!
+    log RemoveLiquidity(provider=msg.sender, token_amounts=amounts, fees=empty(DynArray[uint256, MAX_COINS]), token_supply=total_supply) # TODO: check this!
 
     # Withdraw admin fees if _claim_admin_fees is set to True. Helps automate.
     if _claim_admin_fees:
@@ -1054,7 +1054,7 @@ def _exchange(
 
     # ------------------------------------------------------------------------
 
-    log TokenExchange(msg.sender, i, _dx, j, dy)
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=_dx, bought_id=j, tokens_bought=dy)
 
     return dy
 
@@ -1175,7 +1175,7 @@ def _exchange_underlying(
 
     # ------------------------------------------------------------------------
 
-    log TokenExchangeUnderlying(sender, i, _dx, j, dy)  # TODO: check this!
+    log TokenExchangeUnderlying(buyer=sender, sold_id=i, tokens_sold=_dx, bought_id=j, tokens_bought=dy) # TODO: check this!
 
     return dy
 
@@ -1689,7 +1689,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
 
-    log Transfer(_from, _to, _value)
+    log Transfer(sender=_from, receiver=_to, value=_value)
 
 
 @internal
@@ -1743,7 +1743,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     """
     self.allowance[msg.sender][_spender] = _value
 
-    log Approval(msg.sender, _spender, _value)
+    log Approval(owner=msg.sender, spender=_spender, value=_value)
     return True
 
 
@@ -1794,7 +1794,7 @@ def permit(
     self.allowance[_owner][_spender] = _value
     self.nonces[_owner] = nonce + 1
 
-    log Approval(_owner, _spender, _value)
+    log Approval(owner=_owner, spender=_spender, value=_value)
     return True
 
 
@@ -1954,7 +1954,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
     self.initial_A_time = block.timestamp
     self.future_A_time = _future_time
 
-    log RampA(_initial_A, _future_A_p, block.timestamp, _future_time)
+    log RampA(old_A=_initial_A, new_A=_future_A_p, initial_time=block.timestamp, future_time=_future_time)
 
 
 @external
@@ -1968,7 +1968,7 @@ def stop_ramp_A():
     self.future_A_time = block.timestamp
     # now (block.timestamp < t1) is always False, so we return saved A
 
-    log StopRampA(current_A, block.timestamp)
+    log StopRampA(A=current_A, t=block.timestamp)
 
 
 @external
@@ -1978,7 +1978,7 @@ def apply_new_fee(_new_fee: uint256):
     assert _new_fee <= MAX_FEE
     self.fee = _new_fee
 
-    log ApplyNewFee(_new_fee)
+    log ApplyNewFee(fee=_new_fee)
 
 
 @external
