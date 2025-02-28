@@ -191,7 +191,7 @@ def __init__(
     # Pack A and gamma:
     # shifted A + gamma
     A_gamma: uint256 = A << 128
-    A_gamma = bitwise_or(A_gamma, gamma)
+    A_gamma = A_gamma | gamma
     self.initial_A_gamma = A_gamma
     self.future_A_gamma = A_gamma
 
@@ -452,7 +452,7 @@ def _A_gamma() -> uint256[2]:
     t1: uint256 = self.future_A_gamma_time
 
     A_gamma_1: uint256 = self.future_A_gamma
-    gamma1: uint256 = bitwise_and(A_gamma_1, 2**128-1)
+    gamma1: uint256 = A_gamma_1 & (2**128-1)
     A1: uint256 = A_gamma_1 >> 128
 
     if block.timestamp < t1:
@@ -461,7 +461,7 @@ def _A_gamma() -> uint256[2]:
         t0: uint256 = self.initial_A_gamma_time
 
         # Less readable but more compact way of writing and converting to uint256
-        # gamma0: uint256 = bitwise_and(A_gamma_0, 2**128-1)
+        # gamma0: uint256 = A_gamma_0 & (2**128-1)
         # A0: uint256 = A_gamma_0 >> 128
         # A1 = A0 + (A1 - A0) * (block.timestamp - t0) // (t1 - t0)
         # gamma1 = gamma0 + (gamma1 - gamma0) * (block.timestamp - t0) // (t1 - t0)
@@ -471,7 +471,7 @@ def _A_gamma() -> uint256[2]:
         t2: uint256 = t1 - t0
 
         A1 = ((A_gamma_0 >> 128) * t2 + A1 * t0) // t1
-        gamma1 = (bitwise_and(A_gamma_0, 2**128-1) * t2 + gamma1 * t0) // t1
+        gamma1 = (A_gamma_0 & (2**128-1) * t2 + gamma1 * t0) // t1
 
     return [A1, gamma1]
 
@@ -546,7 +546,7 @@ def _claim_admin_fees():
             claimed: uint256 = extcall CurveToken(token).mint_relative(receiver, frac)
             xcp_profit -= fees*2
             self.xcp_profit = xcp_profit
-            log ClaimAdminFee(receiver, claimed)
+            log ClaimAdminFee(admin=receiver, tokens=claimed)
 
     total_supply: uint256 = staticcall CurveToken(token).totalSupply()
 
@@ -739,7 +739,7 @@ def exchange(i: uint256, j: uint256, dx: uint256, min_dy: uint256):
 
     self.tweak_price(A_gamma, xp, p, 0)
 
-    log TokenExchange(msg.sender, i, dx, j, dy)
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx, bought_id=j, tokens_bought=dy)
 
 
 @external
@@ -877,7 +877,7 @@ def add_liquidity(amounts: uint256[N_COINS], min_mint_amount: uint256):
 
     assert d_token >= min_mint_amount, "Slippage"
 
-    log AddLiquidity(msg.sender, amounts, d_token_fee, token_supply)
+    log AddLiquidity(provider=msg.sender, token_amounts=amounts, fee=d_token_fee, token_supply=token_supply)
 
 
 @external
@@ -901,7 +901,7 @@ def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]):
     D: uint256 = self.D
     self.D = D - D * amount // total_supply
 
-    log RemoveLiquidity(msg.sender, balances, total_supply - _amount)
+    log RemoveLiquidity(provider=msg.sender, token_amounts=balances, token_supply=total_supply - _amount)
 
 
 @view
@@ -1003,7 +1003,7 @@ def remove_liquidity_one_coin(token_amount: uint256, i: uint256, min_amount: uin
     _coins: address[N_COINS] = coins
     assert extcall IERC20(_coins[i]).transfer(msg.sender, dy)
 
-    log RemoveLiquidityOne(msg.sender, token_amount, i, dy)
+    log RemoveLiquidityOne(provider=msg.sender, token_amount=token_amount, coin_index=i, coin_amount=dy)
 
 
 @external
@@ -1020,7 +1020,7 @@ def ramp_A_gamma(future_A: uint256, future_gamma: uint256, future_time: uint256)
 
     A_gamma: uint256[2] = self._A_gamma()
     initial_A_gamma: uint256 = A_gamma[0] << 128
-    initial_A_gamma = bitwise_or(initial_A_gamma, A_gamma[1])
+    initial_A_gamma = initial_A_gamma | A_gamma[1]
 
     assert future_A > 0
     assert future_A < MAX_A+1
@@ -1039,11 +1039,11 @@ def ramp_A_gamma(future_A: uint256, future_gamma: uint256, future_time: uint256)
     self.initial_A_gamma_time = block.timestamp
 
     future_A_gamma: uint256 = future_A << 128
-    future_A_gamma = bitwise_or(future_A_gamma, future_gamma)
+    future_A_gamma = future_A_gamma | future_gamma
     self.future_A_gamma_time = future_time
     self.future_A_gamma = future_A_gamma
 
-    log RampAgamma(A_gamma[0], future_A, A_gamma[1], future_gamma, block.timestamp, future_time)
+    log RampAgamma(initial_A=A_gamma[0], future_A=future_A, initial_gamma=A_gamma[1], future_gamma=future_gamma, initial_time=block.timestamp, future_time=future_time)
 
 
 @external
@@ -1052,14 +1052,14 @@ def stop_ramp_A_gamma():
 
     A_gamma: uint256[2] = self._A_gamma()
     current_A_gamma: uint256 = A_gamma[0] << 128
-    current_A_gamma = bitwise_or(current_A_gamma, A_gamma[1])
+    current_A_gamma = current_A_gamma | A_gamma[1]
     self.initial_A_gamma = current_A_gamma
     self.future_A_gamma = current_A_gamma
     self.initial_A_gamma_time = block.timestamp
     self.future_A_gamma_time = block.timestamp
     # now (block.timestamp < t1) is always False, so we return saved A
 
-    log StopRampA(A_gamma[0], A_gamma[1], block.timestamp)
+    log StopRampA(current_A=A_gamma[0], current_gamma=A_gamma[1], time=block.timestamp)
 
 
 @external
@@ -1121,10 +1121,16 @@ def commit_new_parameters(
     self.future_adjustment_step = new_adjustment_step
     self.future_ma_half_time = new_ma_half_time
 
-    log CommitNewParameters(_deadline, new_admin_fee, new_mid_fee, new_out_fee,
-                            new_fee_gamma,
-                            new_allowed_extra_profit, new_adjustment_step,
-                            new_ma_half_time)
+    log CommitNewParameters(
+            deadline=_deadline,
+            admin_fee=new_admin_fee,
+            mid_fee=new_mid_fee,
+            out_fee=new_out_fee,
+            fee_gamma=new_fee_gamma,
+            allowed_extra_profit=new_allowed_extra_profit,
+            adjustment_step=new_adjustment_step,
+            ma_half_time=new_ma_half_time
+        )
 
 
 @external
@@ -1153,10 +1159,15 @@ def apply_new_parameters():
     ma_half_time: uint256 = self.future_ma_half_time
     self.ma_half_time = ma_half_time
 
-    log NewParameters(admin_fee, mid_fee, out_fee,
-                      fee_gamma,
-                      allowed_extra_profit, adjustment_step,
-                      ma_half_time)
+    log NewParameters(
+            admin_fee=admin_fee,
+            mid_fee=mid_fee,
+            out_fee=out_fee,
+            fee_gamma=fee_gamma,
+            allowed_extra_profit=allowed_extra_profit,
+            adjustment_step=adjustment_step,
+            ma_half_time=ma_half_time
+    )
 
 
 @external
@@ -1175,7 +1186,7 @@ def commit_transfer_ownership(_owner: address):
     self.transfer_ownership_deadline = _deadline
     self.future_owner = _owner
 
-    log CommitNewAdmin(_deadline, _owner)
+    log CommitNewAdmin(deadline=_deadline, admin=_owner)
 
 
 @external
@@ -1188,7 +1199,7 @@ def apply_transfer_ownership():
     _owner: address = self.future_owner
     self.owner = _owner
 
-    log NewAdmin(_owner)
+    log NewAdmin(admin=_owner)
 
 
 @external
