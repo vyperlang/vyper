@@ -919,11 +919,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        if isinstance(base_type, HashMapT):
-            index_type = base_type.key_type
-        else:
-            # Arrays allow most int types as index: Take the least specific
-            index_type = get_possible_types_from_node(node.slice).pop()
+        index_type = base_type.get_subscripted_type(node.slice)
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
