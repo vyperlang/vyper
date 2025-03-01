@@ -226,7 +226,7 @@ class _ExprAnalyser:
             # can be different types
             types_list = get_possible_types_from_node(node.left)
             # check rhs is unsigned integer
-            _ = infer_type(node.right, IntegerT.unsigneds())
+            validate_expected_type(node.right, IntegerT.unsigneds())
         else:
             types_list = get_common_types(node.left, node.right)
 
@@ -327,7 +327,7 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_IfExp(self, node):
-        _ = infer_type(node.test, expected_type=BoolT())
+        validate_expected_type(node.test, expected_type=BoolT())
         types_list = get_common_types(node.body, node.orelse)
 
         if not types_list:
@@ -540,16 +540,25 @@ def _validate_literal_array(node, expected):
 
     for item in node.elements:
         try:
-            _ = infer_type(item, expected.value_type)
+            validate_expected_type(item, expected.value_type)
         except (InvalidType, TypeMismatch):
             return False
 
     return True
 
 
-def infer_type(node, expected_type):
+def validate_expected_type(node: vy_ast.VyperNode, expected_type: VyperType) -> None:
     """
-    Validate that the given node matches the expected type(s)
+    Do the same thing as infer_type, but don't return anything.
+    """
+    _ = infer_type(node, expected_type)
+    return None
+
+
+def infer_type(node: vy_ast.VyperNode, expected_type: VyperType) -> VyperType:
+    """
+    Validate that the given node matches the expected type(s) and return
+    the final, inferred type.
 
     Raises if the node does not match one of the expected types.
 
@@ -737,7 +746,7 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
             raise InvalidAttribute(msg, kwarg, hint=hint)
 
         expected_type = members[argname]
-        _ = infer_type(kwarg.value, expected_type)
+        validate_expected_type(kwarg.value, expected_type)
 
     missing = OrderedSet(members.keys()) - OrderedSet(seen.keys())
     if len(missing) > 0:

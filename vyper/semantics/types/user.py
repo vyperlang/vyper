@@ -14,7 +14,11 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import check_modifiability, infer_type, validate_kwargs
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    validate_expected_type,
+    validate_kwargs,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -309,7 +313,7 @@ class EventT(_UserType):
 
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
-            infer_type(arg, expected)
+            validate_expected_type(arg, expected)
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
