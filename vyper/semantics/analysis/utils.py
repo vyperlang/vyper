@@ -22,7 +22,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType, map_void
+from vyper.semantics.types.base import TYPE_T, VyperType, _GenericTypeAcceptor, map_void
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -611,7 +611,10 @@ def _infer_type_helper(node, expected_type):
     else:
         for given, expected in itertools.product(given_types, expected_type):
             if expected.compare_type(given):
-                return expected
+                if isinstance(expected, _GenericTypeAcceptor):
+                    return given
+                else:
+                    return expected
 
     # validation failed, prepare a meaningful error message
     if len(expected_type) > 1:
