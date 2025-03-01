@@ -634,7 +634,7 @@ def _infer_type_helper(node, expected_type):
         hint = None
         # TODO: refactor the suggestions code. compare_type could maybe return
         # a suggestion if the type is close.
-        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", hint=hint)
+        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node, hint=hint)
     else:
         if len(given_types) == 1:
             given_str = str(given_types[0])
@@ -647,7 +647,7 @@ def _infer_type_helper(node, expected_type):
             hint = f" Did you mean `{checksum_encode(node.value)}`?"
 
         raise TypeMismatch(
-            f"Expected {expected_str} but literal can only be cast as {given_str}.", hint=hint
+            f"Expected {expected_str} but literal can only be cast as {given_str}.", node, hint=hint
         )
 
 
