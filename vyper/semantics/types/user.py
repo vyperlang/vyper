@@ -19,7 +19,8 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256, vyper_warn
+from vyper.utils import keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 
 # user defined type
@@ -304,7 +305,7 @@ class EventT(_UserType):
         msg += " in a future release. Use kwargs instead e.g.:"
         msg += f"\n```\n{recommendation}\n```"
 
-        vyper_warn(msg, node)
+        vyper_warn(Deprecation(msg, node))
 
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
