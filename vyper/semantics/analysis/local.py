@@ -919,7 +919,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        index_type = base_type.get_subscripted_type(node.slice)
+        index_type = infer_type(node.slice, base_type.key_type)
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)

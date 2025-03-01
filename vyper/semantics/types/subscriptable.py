@@ -115,7 +115,7 @@ class _SequenceT(_SubscriptableT):
         if length >= 2**64:
             vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
-        super().__init__(UINT256_T, value_type)
+        super().__init__(IntegerT.any(), value_type)
         self.length = length
 
     @property
