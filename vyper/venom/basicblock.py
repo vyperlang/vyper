@@ -190,6 +190,13 @@ class IRVariable(IROperand):
             value = f"{name}:{version}"
         super().__init__(value)
 
+    def with_version(self, version: int) -> "IRVariable":
+        if version == self.version:
+            # IRVariable ctor is a hotspot, try to avoid calling it
+            # if possible
+            return self
+        return self.__class__(self.name, version)
+
     @property
     def name(self) -> str:
         return self._name
