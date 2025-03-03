@@ -21,6 +21,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -304,12 +305,37 @@ class VenomCompiler:
 
         all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
 
-        for i, inst in enumerate(all_insts):
-            next_liveness = (
-                all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
-            )
+        if ENABLE_NEW_CALL_CONV:
+            param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
+            body_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            params_to_pop = []
+            for inst in param_insts:
+                assert isinstance(inst.output, IRVariable)
+                stack.push(inst.output)
+                if len(self.dfg.get_uses(inst.output)) == 0:
+                    params_to_pop.append(inst.output)
+
+            for param in params_to_pop:
+                depth = stack.get_depth(param)
+                if depth != StackModel.NOT_IN_STACK:
+                    self.swap(asm, stack, depth)
+                    self.pop(asm, stack)
+
+            for i, inst in enumerate(body_insts):
+                next_liveness = (
+                    body_insts[i + 1].liveness if i + 1 < len(body_insts) else basicblock.out_vars
+                )
+                asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+        else:
+            all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
+
+            for i, inst in enumerate(all_insts):
+                next_liveness = (
+                    all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
+                )
+
+                asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
@@ -367,8 +393,8 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode in ("alloca", "palloca"):
-            assert len(inst.operands) == 3, f"alloca/palloca must have 3 operands, got {inst}"
+        elif opcode in ("alloca", "palloca", "calloca"):
+            assert len(inst.operands) == 3, f"alloca/palloca/calloca must have 3 operands, got {inst}"
             offset, _size, _id = inst.operands
             operands = [offset]
 
@@ -470,7 +496,7 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode in ("alloca", "palloca"):
+        elif opcode in ("alloca", "palloca", "calloca"):
             pass
         elif opcode == "param":
             pass
