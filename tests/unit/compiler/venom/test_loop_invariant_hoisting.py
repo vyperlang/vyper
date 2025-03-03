@@ -6,7 +6,13 @@ from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.passes import DFTPass
 from vyper.venom.passes.loop_invariant_hosting import LoopInvariantHoisting
+
+
+def _helper_reorder(fn: IRFunction):
+    for bb in fn.get_basic_blocks():
+        bb.instructions.sort(key=lambda inst: repr(inst))
 
 
 def _create_loops(fn, depth, loop_id, body_fn=lambda _: (), top=True):
@@ -34,18 +40,15 @@ def _create_loops(fn, depth, loop_id, body_fn=lambda _: (), top=True):
     fn.append_basic_block(exit_block)
 
 
-def _hoistable_body(fn, loop_id, depth):
-    assert isinstance(fn, IRFunction)
-    bb = fn.get_basic_block()
-    store_var = IRVariable(f"store_var{loop_id}{depth}")
-    add_var_a = IRVariable(f"add_var_a{loop_id}{depth}")
-    bb.append_instruction("store", 1, ret=store_var)
-    bb.append_instruction("add", 1, store_var, ret=add_var_a)
-    add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
-    bb.append_instruction("add", store_var, add_var_a, ret=add_var_b)
+def _hoistable_body(loop_id, depth):
+    return f"""
+        %{loop_id}{depth} = 1
+        %a0{loop_id}{depth} = add %{loop_id}{depth}, 1
+        %a1{loop_id}{depth} = add %a0{loop_id}{depth}, %{loop_id}{depth}
+        """
 
 
-def _simple_body_code(loop_id, depth):
+def _simple_body(loop_id, depth):
     return f"""
         %a{depth}{loop_id} = add 1, 2"""
 
@@ -79,7 +82,7 @@ def _create_loops_code(depth, loop_id, body=lambda _, _a: "", last: bool = False
 def test_loop_detection_analysis(depth, count):
     loops = ""
     for i in range(count):
-        loops += _create_loops_code(depth, i, _simple_body_code, last=(i == count - 1))
+        loops += _create_loops_code(depth, i, _simple_body, last=(i == count - 1))
 
     code = f"""
     main:
@@ -105,13 +108,13 @@ def test_loop_detection_analysis(depth, count):
 def test_loop_invariant_hoisting_simple(depth, count):
     pre_loops = ""
     for i in range(count):
-        pre_loops += _create_loops_code(depth, i, _simple_body_code, last=(i == count - 1))
+        pre_loops += _create_loops_code(depth, i, _simple_body, last=(i == count - 1))
 
     post_loops = ""
     for i in range(count):
         hoisted = ""
         for d in range(depth):
-            hoisted += _simple_body_code(i, depth - d)
+            hoisted += _simple_body(i, depth - d)
         post_loops += hoisted
         post_loops += _create_loops_code(depth, i, last=(i == count - 1))
 
@@ -133,8 +136,13 @@ def test_loop_invariant_hoisting_simple(depth, count):
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         LoopInvariantHoisting(ac, fn).run_pass()
+        _helper_reorder(fn)
 
     post_ctx = parse_from_basic_block(post)
+
+    for fn in post_ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        _helper_reorder(fn)
 
     print(ctx)
     print(post_ctx)
@@ -145,30 +153,47 @@ def test_loop_invariant_hoisting_simple(depth, count):
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
 def test_loop_invariant_hoisting_dependant(depth, count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre_loops = ""
+    for i in range(count):
+        pre_loops += _create_loops_code(depth, i, _hoistable_body, last=(i == count - 1))
 
-    for c in range(count):
-        _create_loops(fn, depth, c, _hoistable_body)
+    post_loops = ""
+    for i in range(count):
+        hoisted = ""
+        for d in range(depth):
+            hoisted += _hoistable_body(i, depth - d)
+        post_loops += hoisted
+        post_loops += _create_loops_code(depth, i, last=(i == count - 1))
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("ret")
+    pre = f"""
+    main:
+        %par = param
+    {pre_loops}
+    """
 
-    ac = IRAnalysesCache(fn)
-    LoopInvariantHoisting(ac, fn).run_pass()
+    post = f"""
+    main:
+        %par = param
+    {post_loops}
+    """
 
-    entry = fn.entry
-    assignments = list(map(lambda x: x.value, entry.get_assignments()))
-    for bb in filter(lambda bb: bb.label.name.startswith("exit_top"), fn.get_basic_blocks()):
-        assignments.extend(map(lambda x: x.value, bb.get_assignments()))
+    ctx = parse_from_basic_block(pre)
+    print(ctx)
 
-    assert len(assignments) == depth * count * 4
-    for loop_id in range(count):
-        for d in range(1, depth + 1):
-            assert f"%store_var{loop_id}{d}" in assignments, repr(fn)
-            assert f"%add_var_a{loop_id}{d}" in assignments, repr(fn)
-            assert f"%add_var_b{loop_id}{d}" in assignments, repr(fn)
-            assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        LoopInvariantHoisting(ac, fn).run_pass()
+        _helper_reorder(fn)
+
+    post_ctx = parse_from_basic_block(post)
+
+    for fn in post_ctx.functions.values():
+        _helper_reorder(fn)
+
+    print(ctx)
+    print(post_ctx)
+
+    assert_ctx_eq(ctx, post_ctx)
 
 
 def _unhoistable_body(fn, loop_id, depth):
