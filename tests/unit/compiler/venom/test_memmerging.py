@@ -1,18 +1,11 @@
 import pytest
 
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from tests.venom_utils import PrePostChecker, parse_venom
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
-
-def _check_pre_post(pre, post):
-    ctx = parse_from_basic_block(pre)
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-        RemoveUnusedVariablesPass(ac, fn).run_pass()
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+_check_pre_post = PrePostChecker(MemMergePass, RemoveUnusedVariablesPass, default_hevm=False)
 
 
 def _check_no_change(pre):
