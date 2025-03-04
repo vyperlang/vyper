@@ -278,7 +278,7 @@ def _handle_internal_func(
             # TODO: remove this once we have proper memory allocator
             # functionality in venom. Currently, we hardcode the scratch
             # buffer size of 32 bytes.
-            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(-1))
+            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(99999999999999999))
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
