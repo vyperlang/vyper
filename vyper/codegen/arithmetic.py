@@ -334,6 +334,8 @@ def safe_div(x, y):
 def safe_mod(x, y):
     typ = x.typ
     MOD = "smod" if typ.is_signed else "mod"
+    # TODO: (force) propagate safemod error msg down to all children,
+    # overriding the "clamp" error msg.
     return IRnode.from_list([MOD, x, clamp("gt", y, 0)], error_msg="safemod")
 
 
