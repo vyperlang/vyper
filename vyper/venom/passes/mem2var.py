@@ -77,14 +77,8 @@ class Mem2Var(IRPass):
 
         # some value given to us by the calling convention
         fn = self.function
-        if ENABLE_NEW_CALL_CONV and (param := fn.get_param_by_id(alloca_id.value)) is not None:
-            palloca_inst.opcode = "store"
-            palloca_inst.operands = [param.func_var]
-            palloca_inst.output = var
-        else:
-            palloca_inst.opcode = "mload"
-            palloca_inst.operands = [ofst]
-            palloca_inst.output = var
+        if ENABLE_NEW_CALL_CONV:
+            assert fn.get_param_by_id(alloca_id.value) is not None
 
         for inst in uses:
             if inst.opcode == "mstore":
