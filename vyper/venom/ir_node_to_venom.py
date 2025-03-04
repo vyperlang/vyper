@@ -1,6 +1,6 @@
-from collections import defaultdict
 import functools
 import re
+from collections import defaultdict
 from typing import Optional
 
 from vyper.codegen.context import Alloca
@@ -215,10 +215,10 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
             bb.append_instruction("mstore", ret_value, return_buf)
             return return_buf
 
-
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
     return return_buf
+
 
 _current_func_t = None
 _current_context = None
@@ -234,6 +234,7 @@ def _returns_word(func_t) -> bool:
     return_t = func_t.return_type
     return return_t is not None and _is_word_type(return_t)
 
+
 def _handle_internal_func(
     # TODO: remove does_return_data, replace with `func_t.return_type is not None`
     fn: IRFunction,
@@ -247,7 +248,6 @@ def _handle_internal_func(
     _current_context = ir.passthrough_metadata["context"]
     func_t = _current_func_t
     context = _current_context
-
 
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
@@ -278,15 +278,16 @@ def _handle_internal_func(
             # TODO: remove this once we have proper memory allocator
             # functionality in venom. Currently, we hardcode the scratch
             # buffer size of 32 bytes.
-            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(99999999999999999))
+            buf = bb.append_instruction(
+                "alloca", IRLiteral(0), IRLiteral(32), IRLiteral(99999999999999999)
+            )
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
 
-
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
-        
+
     if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
             ret = bb.append_instruction("param")
@@ -294,7 +295,6 @@ def _handle_internal_func(
             assert ret is not None  # help mypy
             symbols[arg.name] = ret
             arg.func_var = ret
-
 
     # return address
     return_pc = bb.append_instruction("param")
@@ -547,8 +547,6 @@ def _convert_ir_bb(fn, ir, symbols):
                 symbol = symbols.get(ptr.annotation, None)
                 if symbol is not None:
                     return fn.get_basic_block().append_instruction("store", symbol)
-
-
 
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
     elif ir.value == "mload":

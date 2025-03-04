@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -8,6 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalys
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -149,7 +149,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         ret_value = inst.operands[0]
                         bb.insert_instruction(
                             IRInstruction("store", [ret_value], call_site.output), -1
-                        )                    
+                        )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
                 elif inst.opcode == "revert":

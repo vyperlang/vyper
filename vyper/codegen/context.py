@@ -40,6 +40,7 @@ class Alloca:
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
 
+
 # Function variable
 @dataclass
 class VariableRecord:

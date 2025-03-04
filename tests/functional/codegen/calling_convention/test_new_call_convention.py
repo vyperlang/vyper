@@ -13,6 +13,7 @@ def foo() -> (uint256, uint256):
 
     assert c.foo() == (1, 2)
 
+
 def test_returning_immutables(get_contract):
     """
     This test checks that we can return an immutable from an internal function, which results in

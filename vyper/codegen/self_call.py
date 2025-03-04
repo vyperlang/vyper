@@ -91,7 +91,6 @@ def ir_for_self_call(stmt_expr, context):
         # legacy
         args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
-
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
     # write args to a temporary buffer until all the arguments

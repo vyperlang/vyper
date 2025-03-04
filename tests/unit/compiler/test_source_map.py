@@ -131,6 +131,7 @@ def foo(i: uint256):
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "safemod" in error_map.values()
 
+
 @pytest.mark.venom_xfail()
 def test_error_map_not_overriding_errors():
     code = """
