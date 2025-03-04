@@ -38,16 +38,16 @@ function global {
     selector_bucket_0:
         %3 = xor %2, 1579456981
         %4 = iszero %3
-        jnz @1, @2, %4
+        jnz %4, @true, @false
 
-    1:
+    false:
         jmp @fallback
 
-    2:
+    true:
         %5 = callvalue
         %6 = calldatasize
-        %7 = lt %6, 164
-        %8 = or %5, %7
+        %7 = lt 164, %6
+        %8 = or %7, %5
         %9 = iszero %8
         assert %9
         stop
@@ -55,8 +55,6 @@ function global {
     fallback:
         revert 0, 0
 }
-
-[data]
 ```
 
 ### Grammar
@@ -233,7 +231,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
      `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
-    out = phi %var_a, label_a, %var_b, label_b
+    out = phi label_a, %var_a, label_b, %var_b
     ```
   - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
   - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
@@ -361,14 +359,14 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Translates to `label JUMP`.
 - `jnz`
    - ```
-     jnz label1, label2, op
+     jnz op, label1, label2
      ```
   - A conditional jump depending on the value of `op`.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
   - For example
     ```
     %op = 15
-    jnz label1, label2, %op
+    jnz %op, @label1, @label2
     ```
     could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
