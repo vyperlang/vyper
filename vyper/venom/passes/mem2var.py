@@ -3,6 +3,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 
 
 class Mem2Var(IRPass):
@@ -75,9 +76,15 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
 
         # some value given to us by the calling convention
-        palloca_inst.opcode = "mload"
-        palloca_inst.operands = [ofst]
-        palloca_inst.output = var
+        fn = self.function
+        if ENABLE_NEW_CALL_CONV and (param := fn.get_param_by_id(alloca_id.value)) is not None:
+            palloca_inst.opcode = "store"
+            palloca_inst.operands = [param.func_var]
+            palloca_inst.output = var
+        else:
+            palloca_inst.opcode = "mload"
+            palloca_inst.operands = [ofst]
+            palloca_inst.output = var
 
         for inst in uses:
             if inst.opcode == "mstore":
