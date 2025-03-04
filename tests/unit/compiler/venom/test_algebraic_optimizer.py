@@ -1,88 +1,110 @@
 import pytest
 
 import vyper
+from tests.venom_utils import PrePostChecker
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.passes import AlgebraicOptimizationPass, MakeSSA, RemoveUnusedVariablesPass
 
+pytestmark = pytest.mark.hevm
+
+_check_pre_post = PrePostChecker(AlgebraicOptimizationPass, RemoveUnusedVariablesPass)
+
 
 @pytest.mark.parametrize("iszero_count", range(5))
 def test_simple_jump_case(iszero_count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
 
-    bb = fn.get_basic_block()
+    pre = f"""
+    main:
+        %par = param
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {iszero_chain}
+        jnz %cond{iszero_count}, @then, @else
+    then:
+        %4 = add 10, %3
+        jmp @join
+    else:
+        %5 = add %3, %par
+        jmp @join
+    join:
+        %6 = phi @then, %4, @else, %5
+        sink %6
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
+    post_chain = "%cond1 = iszero %cond0" if iszero_count % 2 == 1 else ""
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    jnz_input = op3
+    post = f"""
+    main:
+        %par = param
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {post_chain}
+        jnz %cond{iszero_count % 2}, @then, @else
+    then:
+        %4 = add 10, %3
+        jmp @join
+    else:
+        %5 = add %3, %par
+        jmp @join
+    join:
+        %6 = phi @then, %4, @else, %5
+        sink %6
+    """
 
-    for _ in range(iszero_count):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
-
-    bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
-    br2.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
-    removed_iszeros = iszero_count - len(iszeros)
-
-    assert removed_iszeros % 2 == 0
-    assert len(iszeros) == iszero_count % 2
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("iszero_count", range(1, 5))
 def test_simple_bool_cast_case(iszero_count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
 
-    bb = fn.get_basic_block()
+    pre = f"""
+    main:
+        %par = param
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {iszero_chain}
+        sink %cond{iszero_count}
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
+    post_chain = "%cond1 = iszero %cond0"
+    if iszero_count % 2 == 0:
+        post_chain = f"""
+        %cond1 = iszero %cond0
+        %cond2 = iszero %cond1
+        """
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    jnz_input = op3
+    end_cond = 2 if iszero_count % 2 == 0 else 1
 
-    for _ in range(iszero_count):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
+    post = f"""
+    main:
+        %par = param
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {post_chain}
+        sink %cond{end_cond}
+    """
 
-    bb.append_instruction("mstore", jnz_input, p1)
-    bb.append_instruction("jmp", br1.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
-    removed_iszeros = iszero_count - len(iszeros)
-
-    assert removed_iszeros % 2 == 0
-    assert len(iszeros) in [1, 2]
-    assert len(iszeros) % 2 == iszero_count % 2
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("interleave_point", range(1, 5))
@@ -129,54 +151,39 @@ def test_interleaved_case(interleave_point):
 
 
 def test_offsets():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        %par = param
+        %1 = add @main, 0
+        jnz %par, @then, @else
+    then:
+        %2 = add @main, 10
+        jmp @join
+    else:
+        %3 = add @main, 20
+        jmp @join
+    join:
+        %4 = phi @then, %2, @else, %3
+        sink %1, %4
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        %par = param
+        %1 = offset @main, 0
+        jnz %par, @then, @else
+    then:
+        %2 = offset @main, 10
+        jmp @join
+    else:
+        %3 = offset @main, 20
+        jmp @join
+    join:
+        %4 = phi @then, %2, @else, %3
+        sink %1, %4
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("add", 0, IRLabel("mem"))
-    op3 = bb.append_instruction("store", 64)
-    bb.append_instruction("dloadbytes", op1, op2, op3)
-    op5 = bb.append_instruction("mload", op3)
-    op6 = bb.append_instruction("iszero", op5)
-    bb.append_instruction("jnz", op6, br1.label, br2.label)
-
-    op01 = br1.append_instruction("store", 32)
-    op02 = br1.append_instruction("add", 0, IRLabel("mem"))
-    op03 = br1.append_instruction("store", 64)
-    br1.append_instruction("dloadbytes", op01, op02, op03)
-    op05 = br1.append_instruction("mload", op03)
-    op06 = br1.append_instruction("iszero", op05)
-    br1.append_instruction("return", p1, op06)
-
-    op11 = br2.append_instruction("store", 32)
-    op12 = br2.append_instruction("add", 0, IRLabel("mem"))
-    op13 = br2.append_instruction("store", 64)
-    br2.append_instruction("dloadbytes", op11, op12, op13)
-    op15 = br2.append_instruction("mload", op13)
-    op16 = br2.append_instruction("iszero", op15)
-    br2.append_instruction("return", p1, op16)
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    offset_count = 0
-    for bb in fn.get_basic_blocks():
-        for instruction in bb.instructions:
-            assert instruction.opcode != "add"
-            if instruction.opcode == "offset":
-                offset_count += 1
-
-    assert offset_count == 3
+    _check_pre_post(pre, post)
 
 
 # Test the case of https://github.com/vyperlang/vyper/issues/4288
