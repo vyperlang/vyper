@@ -14,20 +14,20 @@ def test_phi_reduction_after_block_pruning():
     _global:
         jnz 1, @then, @else
     then:
-        %1 = 1
+        %1 = param
         jmp @join
     else:
-        %2 = 2
+        %2 = param
         jmp @join
     join:
         %3 = phi @then, %1, @else, %2
-        stop
+        sink %3
     """
     post = """
     _global:
-        %1 = 1
+        %1 = param
         %3 = %1
-        stop
+        sink %3
     """
 
     _check_pre_post(pre, post)

@@ -74,33 +74,40 @@ def test_literal_codesize_no_inversion(orig_value):
 
 
 should_shl = (
-    [2**i for i in range(3 * 8, 255)]
-    + [((2**i) - 1) << (256 - i) for i in range(1, 121)]
-    + [((2**255 - 1) >> i) << i for i in range(3 * 8, 254)]
+    [(2**i, i) for i in range(3 * 8, 255)]
+    + [(((2**i) - 1) << (256 - i), (256 - i)) for i in range(1, 121)]
+    + [(((2**255 - 1) >> i) << i, i) for i in range(3 * 8, 254)]
 )
 
 
-@pytest.mark.parametrize("orig_value", should_shl)
-def test_literal_codesize_shl(orig_value):
+@pytest.mark.parametrize("data", should_shl)
+def test_literal_codesize_shl(data):
     """
     Test that literals like 0xabcd00000000 get transformed to `shl 32 0xabcd`
     """
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-    bb = fn.get_basic_block()
+    (orig_value, shift) = data
 
-    bb.append_instruction("store", IRLiteral(orig_value))
-    bb.append_instruction("stop")
-    ac = IRAnalysesCache(fn)
-    ReduceLiteralsCodesize(ac, fn).run_pass()
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
 
-    assert bb.instructions[0].opcode == "shl"
-    op0, op1 = bb.instructions[0].operands
-    assert op0.value << op1.value == orig_value
+    new_val = orig_value >> shift
+
+    assert orig_value == new_val << shift, "wrong shift"
+
+    post = f"""
+    main:
+        %1 = shl {shift}, {new_val}
+        sink %1
+    """
+
+    _check_pre_post(pre, post)
 
     # check the optimization actually improved codesize, after accounting
     # for the addl PUSH and SHL instructions
-    assert _calc_push_size(op0.value) + _calc_push_size(op1.value) + 1 < _calc_push_size(orig_value)
+    assert _calc_push_size(new_val) + _calc_push_size(shift) + 1 < _calc_push_size(orig_value)
 
 
 should_not_shl = [1 << i for i in range(0, 3 * 8)] + [
