@@ -17,7 +17,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
-ENABLE_NEW_CALL_CONV = False
+ENABLE_NEW_CALL_CONV = True
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -301,13 +301,13 @@ def _handle_internal_func(
     assert return_pc is not None  # help mypy
     symbols["return_pc"] = return_pc
 
+    bb.instructions[-1].annotation = "return_pc"
+
     if ENABLE_NEW_CALL_CONV:
         for arg in fn.args:
             var = IRVariable(arg.name)
             bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
             arg.addr_var = var
-
-    bb.instructions[-1].annotation = "return_pc"
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
