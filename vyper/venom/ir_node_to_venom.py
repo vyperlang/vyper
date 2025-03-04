@@ -649,12 +649,14 @@ def _convert_ir_bb(fn, ir, symbols):
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                ptr = fn.get_basic_block().append_instruction(
+                bb = fn.get_basic_block()
+                ptr = bb.append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id
                 )
+                bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     param = fn.get_param_by_id(alloca._id)
-                    fn.get_basic_block().append_instruction("mstore", param.func_var, ptr)
+                    bb.append_instruction("mstore", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
         elif ir.value.startswith("$calloca"):
