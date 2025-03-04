@@ -275,10 +275,10 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if ENABLE_NEW_CALL_CONV and returns_word:
-            # this alloca should be stripped by mem2var. we can remove
-            # the hardcoded offset once we have proper memory allocator
-            # functionality in venom.
-            buf = bb.append_instruction("alloca", IRLiteral(-1), IRLiteral(-1), IRLiteral(-1))
+            # TODO: remove this once we have proper memory allocator
+            # functionality in venom. Currently, we hardcode the scratch
+            # buffer size of 32 bytes.
+            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(-1))
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
