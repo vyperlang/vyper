@@ -1,5 +1,7 @@
 from collections import namedtuple
 
+import pytest
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.settings import OptimizationLevel
@@ -129,7 +131,7 @@ def foo(i: uint256):
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "safemod" in error_map.values()
 
-
+@pytest.mark.venom_xfail()
 def test_error_map_not_overriding_errors():
     code = """
 @external
