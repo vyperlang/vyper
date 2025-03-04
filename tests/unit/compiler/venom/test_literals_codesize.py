@@ -2,9 +2,6 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.utils import evm_not
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLiteral
-from vyper.venom.context import IRContext
 from vyper.venom.passes import ReduceLiteralsCodesize
 
 pytestmark = pytest.mark.hevm
