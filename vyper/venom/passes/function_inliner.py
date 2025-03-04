@@ -135,7 +135,8 @@ class FunctionInlinerPass(IRGlobalPass):
                     # not valid venom code, but it will get removed in store elimination
                     # (or unused variable elimination)
                     inst.opcode = "store"
-                    val = call_site.operands[-param_idx - 1]
+                    ops = call_site.operands[1:] + [call_site.operands[0]]
+                    val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
