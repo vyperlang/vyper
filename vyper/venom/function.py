@@ -9,10 +9,11 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 @dataclass
 class IRParameter:
     name: str
-    index: int
+    index: int  # needed?
     offset: int
-    size: int
-    call_site_var: Optional[IRVariable]
+    size: int  # needed?
+    id_: int
+    call_site_var: Optional[IRVariable]  # needed?
     func_var: Optional[IRVariable]
     addr_var: Optional[IRVariable]
 
@@ -168,9 +169,9 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
-    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
         for param in self.args:
-            if param.offset == offset:
+            if param.id_ == id_:
                 return param
         return None
 

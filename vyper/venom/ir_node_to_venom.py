@@ -69,6 +69,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "returndatasize",
         "iload",
         "istore",
+        "mload",
         "dload",
         "dloadbytes",
         "sload",
@@ -175,7 +176,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     returns_word = _returns_word(func_t)
 
-
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
@@ -259,7 +259,14 @@ def _handle_internal_func(
             if not _is_word_type(var.typ):
                 continue
             venom_arg = IRParameter(
-                var.name, index, var.alloca.offset, var.alloca.size, None, None, None
+                var.name,
+                index,
+                var.alloca.offset,
+                var.alloca.size,
+                var.alloca._id,
+                None,
+                None,
+                None,
             )
             fn.args.append(venom_arg)
             index += 1
@@ -303,12 +310,6 @@ def _handle_internal_func(
     symbols["return_pc"] = return_pc
 
     bb.instructions[-1].annotation = "return_pc"
-
-    if ENABLE_NEW_CALL_CONV:
-        for arg in fn.args:
-            var = IRVariable(arg.name)
-            bb.append_instruction("store", IRLiteral(arg.offset), ret=var)  # type: ignore
-            arg.addr_var = var
 
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
@@ -536,31 +537,7 @@ def _convert_ir_bb(fn, ir, symbols):
         # some upstream code depends on reversed order of evaluation --
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
-
-        if ENABLE_NEW_CALL_CONV:
-            if isinstance(ptr, IRVariable):
-                # TODO: is this bad code?
-                param = fn.get_param_by_name(ptr)
-                if param is not None:
-                    return fn.get_basic_block().append_instruction("store", val, ret=param.func_var)
-
-            if isinstance(ptr, IRLabel) and ptr.value.startswith("$palloca"):
-                symbol = symbols.get(ptr.annotation, None)
-                if symbol is not None:
-                    return fn.get_basic_block().append_instruction("store", symbol)
-
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
-    elif ir.value == "mload":
-        arg = ir.args[0]
-        ptr = _convert_ir_bb(fn, arg, symbols)
-
-        if ENABLE_NEW_CALL_CONV:
-            if isinstance(arg.value, str) and arg.value.startswith("$palloca"):
-                symbol = symbols.get(arg.annotation, None)
-                if symbol is not None:
-                    return fn.get_basic_block().append_instruction("store", symbol)
-
-        return fn.get_basic_block().append_instruction("mload", ptr)
 
     elif ir.value == "ceil32":
         x = ir.args[0]
@@ -671,12 +648,13 @@ def _convert_ir_bb(fn, ir, symbols):
 
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
-            if ENABLE_NEW_CALL_CONV and fn.get_param_at_offset(alloca.offset) is not None:
-                return fn.get_param_at_offset(alloca.offset).addr_var
             if alloca._id not in _alloca_table:
                 ptr = fn.get_basic_block().append_instruction(
                     "palloca", alloca.offset, alloca.size, alloca._id
                 )
+                if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
+                    param = fn.get_param_by_id(alloca._id)
+                    fn.get_basic_block().append_instruction("mstore", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
         elif ir.value.startswith("$calloca"):
