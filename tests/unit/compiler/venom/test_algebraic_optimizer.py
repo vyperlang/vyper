@@ -2,10 +2,7 @@ import pytest
 
 import vyper
 from tests.venom_utils import PrePostChecker
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel
-from vyper.venom.context import IRContext
-from vyper.venom.passes import AlgebraicOptimizationPass, MakeSSA, RemoveUnusedVariablesPass
+from vyper.venom.passes import AlgebraicOptimizationPass, RemoveUnusedVariablesPass
 
 pytestmark = pytest.mark.hevm
 
@@ -86,7 +83,7 @@ def test_simple_bool_cast_case(iszero_count):
 
     post_chain = "%cond1 = iszero %cond0"
     if iszero_count % 2 == 0:
-        post_chain = f"""
+        post_chain = """
         %cond1 = iszero %cond0
         %cond2 = iszero %cond1
         """
@@ -107,47 +104,65 @@ def test_simple_bool_cast_case(iszero_count):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("interleave_point", range(1, 5))
+@pytest.mark.parametrize("interleave_point", range(5))
 def test_interleaved_case(interleave_point):
     iszeros_after_interleave_point = interleave_point // 2
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
 
-    bb = fn.get_basic_block()
+    before_iszeros = ""
+    for i in range(interleave_point):
+        new = i + 2
+        before_iszeros += f"""
+        %cond{new} = iszero %cond{i + 1}"""
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
+    after_iszeros = ""
+    for i in range(iszeros_after_interleave_point):
+        index = i + interleave_point + 1
+        new = index + 1
+        after_iszeros += f"""
+        %cond{new} = iszero %cond{index}"""
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    op3_inv = bb.append_instruction("iszero", op3)
-    jnz_input = op3_inv
-    for _ in range(interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
-    bb.append_instruction("mstore", jnz_input, p1)
-    for _ in range(iszeros_after_interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
-    bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
-    br2.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    assert bb.instructions[-1].opcode == "jnz"
-    if (interleave_point + iszeros_after_interleave_point) % 2 == 0:
-        assert bb.instructions[-1].operands[0] == op3_inv
+    pre = f"""
+    main:
+        %par = param
+        %cond0 = add 64, %par
+        %cond1 = iszero %cond0
+        {before_iszeros}
+        mstore %par, %cond{interleave_point + 1}
+        {after_iszeros}
+        jnz %cond{interleave_point + iszeros_after_interleave_point + 1}, @then, @else
+    then:
+        %2 = add 10, %par
+        jmp @join
     else:
-        assert bb.instructions[-1].operands[0] == op3
+        %3 = add %cond0, %par
+        jmp @join
+    join:
+        %4 = phi @then, %2, @else, %3
+        sink %4
+    """
+
+    post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
+
+    post = f"""
+    main:
+        %par = param
+        %cond0 = add 64, %par
+        %cond1 = iszero %cond0
+        {post_iszero}
+        mstore %par, %cond{(interleave_point % 2) + 1}
+        jnz %cond{(interleave_point + iszeros_after_interleave_point + 1) % 2}, @then, @else
+    then:
+        %2 = add 10, %par
+        jmp @join
+    else:
+        %3 = add %cond0, %par
+        jmp @join
+    join:
+        %4 = phi @then, %2, @else, %3
+        sink %4
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_offsets():
