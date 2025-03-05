@@ -28,6 +28,7 @@ jobs:
             fix
             chore
             refactor
+            release
           # ci: continuous integration
           # docs: documentation
           # test: test suite
