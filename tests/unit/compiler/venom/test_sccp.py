@@ -2,15 +2,13 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.exceptions import StaticAssertionException
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
-from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, MakeSSA
+from vyper.venom.basicblock import IRVariable
+from vyper.venom.passes import SCCP, SimplifyCFGPass
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(SCCP)
+_check_pre_post = PrePostChecker(SCCP, SimplifyCFGPass)
 
 
 def test_simple_case():
@@ -42,98 +40,86 @@ def test_simple_case():
 
 
 def test_branch_eliminator_simple():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        jnz 1, @else, @then
+    then:
+        sink 1
+    else:
+        jmp @foo
+    foo:
+        mstore 0, 0
+        jnz 0, @else, @then
+    """
 
-    bb1 = fn.get_basic_block()
+    post = """
+    main:
+        mstore 0, 0
+        sink 1
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    br1.append_instruction("stop")
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    br2.append_instruction("jmp", IRLabel("foo"))
-
-    fn.append_basic_block(br1)
-    fn.append_basic_block(br2)
-
-    bb1.append_instruction("jnz", IRLiteral(1), br1.label, br2.label)
-
-    bb2 = IRBasicBlock(IRLabel("foo"), fn)
-    bb2.append_instruction("jnz", IRLiteral(0), br1.label, br2.label)
-    fn.append_basic_block(bb2)
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
-
-    assert bb1.instructions[-1].opcode == "jmp"
-    assert bb1.instructions[-1].operands == [br1.label]
-    assert bb2.instructions[-1].opcode == "jmp"
-    assert bb2.instructions[-1].operands == [br2.label]
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_assert_elimination():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        assert 1
+        assert_unreachable 1
+        sink 1
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        nop
+        nop
+        sink 1
+    """
 
-    bb.append_instruction("assert", IRLiteral(1))
-    bb.append_instruction("assert_unreachable", IRLiteral(1))
-    bb.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
-
-    for inst in bb.instructions[:-1]:
-        assert inst.opcode == "nop"
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
 def test_assert_false(asserter):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    code = f"""
+    main:
+        {asserter} 0
+        stop
+    """
 
-    bb = fn.get_basic_block()
-
-    bb.append_instruction(asserter, IRLiteral(0))
-    bb.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
     with pytest.raises(StaticAssertionException):
-        sccp.run_pass()
+        _check_pre_post(code, code, hevm=False)
 
 
 def test_cont_jump_case():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add %3, %2
+        jnz %4, @then, @else
+    then:
+        %5 = add 10, %4
+        sink %5
+    else:
+        %6 = add %1, %4
+        sink %6
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add 64, 32
+        %5 = add 10, 96
+        sink 106
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
-    br2.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
+    passes = _check_pre_post(pre, post)
+    sccp = passes[0]
+    assert isinstance(sccp, SCCP)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
@@ -144,112 +130,111 @@ def test_cont_jump_case():
 
 
 def test_cont_phi_case():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add %3, %2
+        jnz %4, @then, @else
+    then:
+        %5:1 = add 10, %4
+        jmp @join
+    else:
+        %5:2 = add %1, %4
+        jmp @join
+    join:
+        %5 = phi @then, %5:1, @else, %5:2
+        sink %5
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        %1 = param
+        %2 = 32
+        %3 = 64
+        %4 = add 64, 32
+        %5:1 = add 10, 96
+        %5 = %5:1
+        sink %5
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-    join = IRBasicBlock(IRLabel("join"), fn)
-    fn.append_basic_block(join)
-
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
-
-    op4 = br1.append_instruction("add", op3, 10)
-    br1.append_instruction("jmp", join.label)
-    br2.append_instruction("add", op3, p1, ret=op4)
-    br2.append_instruction("jmp", join.label)
-
-    join.append_instruction("return", op4, p1)
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
+    passes = _check_pre_post(pre, post)
+    sccp = passes[0]
+    assert isinstance(sccp, SCCP)
 
     assert sccp.lattice[IRVariable("%1")] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=1)] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
+    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.BOTTOM
     assert sccp.lattice[IRVariable("%5")].value == 2
 
 
 def test_cont_phi_const_case():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        %1 = 1
+        %2 = 32
+        %3 = 64
+        %4 = add %3, %2
+        jnz %4, @then, @else
+    then:
+        %5:1 = add 10, %4
+        jmp @join
+    else:
+        %5:2 = add %1, %4
+        jmp @join
+    join:
+        %5 = phi @then, %5:1, @else, %5:2
+        sink %5
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        %1 = 1
+        %2 = 32
+        %3 = 64
+        %4 = add 64, 32
+        %5:1 = add 10, 96
+        %5 = %5:1
+        sink %5
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-    join = IRBasicBlock(IRLabel("join"), fn)
-    fn.append_basic_block(join)
-
-    p1 = bb.append_instruction("store", 1)
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", op3, br1.label, br2.label)
-
-    op4 = br1.append_instruction("add", op3, 10)
-    br1.append_instruction("jmp", join.label)
-    br2.append_instruction("add", op3, p1, ret=op4)
-    br2.append_instruction("jmp", join.label)
-
-    join.append_instruction("return", op4, p1)
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    sccp = SCCP(ac, fn)
-    sccp.run_pass()
+    passes = _check_pre_post(pre, post)
+    sccp = passes[0]
+    assert isinstance(sccp, SCCP)
 
     assert sccp.lattice[IRVariable("%1")].value == 1
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     # dependent on cfg traversal order
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 97
+    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
+    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
     assert sccp.lattice[IRVariable("%5")].value == 2
 
 
 def test_phi_reduction_after_unreachable_block():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    main:
+        %1 = 1
+        jnz 1, @then, @join
+    then:
+        %2 = 2
+        jmp @join
+    join:
+        %3 = phi @main, %1, @then, %2
+        sink %3
+    """
 
-    bb = fn.get_basic_block()
+    post = """
+    main:
+        %1 = 1
+        %2 = 2
+        %3 = %2
+        sink 2
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    join = IRBasicBlock(IRLabel("join"), fn)
-    fn.append_basic_block(join)
-
-    op = bb.append_instruction("store", 1)
-    true = IRLiteral(1)
-    bb.append_instruction("jnz", true, br1.label, join.label)
-
-    op1 = br1.append_instruction("store", 2)
-
-    br1.append_instruction("jmp", join.label)
-
-    join.append_instruction("phi", bb.label, op, br1.label, op1)
-    join.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-
-    assert join.instructions[0].opcode == "store", join.instructions[0]
-    assert join.instructions[0].operands == [op1]
-
-    assert join.instructions[1].opcode == "stop"
+    _check_pre_post(pre, post)
