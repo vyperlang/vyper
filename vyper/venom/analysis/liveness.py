@@ -15,7 +15,7 @@ class LivenessAnalysis(IRAnalysis):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
 
-        worklist = deque(cfg.dfs_walk)
+        worklist = deque(cfg.dfs_post_walk)
 
         while len(worklist) > 0:
             changed = False
