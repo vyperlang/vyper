@@ -11,6 +11,10 @@ _check_pre_post = PrePostChecker(AlgebraicOptimizationPass, RemoveUnusedVariable
 
 @pytest.mark.parametrize("iszero_count", range(5))
 def test_simple_jump_case(iszero_count):
+    """
+    Test remove iszero chains to jnz
+    """
+
     iszero_chain = ""
     for i in range(iszero_count):
         new = i + 1
@@ -58,6 +62,16 @@ def test_simple_jump_case(iszero_count):
 
 @pytest.mark.parametrize("iszero_count", range(1, 5))
 def test_simple_bool_cast_case(iszero_count):
+    """
+    Test that iszero chain elimination would not eliminate
+    bool cast
+
+    mstore(izero(iszero(iszero(iszero(x))))) => mstore(iszero(iszero(x)))
+
+    You cannot remove all iszeros because the mstore expects the bool
+    and the total elimination would invalidate it
+    """
+
     iszero_chain = ""
     for i in range(iszero_count):
         new = i + 1
@@ -100,6 +114,11 @@ def test_simple_bool_cast_case(iszero_count):
 
 @pytest.mark.parametrize("interleave_point", range(5))
 def test_interleaved_case(interleave_point):
+    """
+    Test for the case where one of the iszeros results in
+    the chain is used
+    """
+
     iszeros_after_interleave_point = interleave_point // 2
 
     before_iszeros = ""
@@ -154,6 +173,10 @@ def test_interleaved_case(interleave_point):
 
 
 def test_offsets():
+    """
+    Test of addition to offset rewrites
+    """
+
     pre = """
     main:
         %par = param
