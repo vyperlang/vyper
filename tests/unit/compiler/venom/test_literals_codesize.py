@@ -82,8 +82,6 @@ def test_literal_codesize_shl(orig_value, shift_amount):
     """
     Test that literals like 0xabcd00000000 get transformed to `shl 32 0xabcd`
     """
-    #(orig_value, shift_amount) = data
-
     pre = f"""
     main:
         %1 = {orig_value}
@@ -104,7 +102,9 @@ def test_literal_codesize_shl(orig_value, shift_amount):
 
     # check the optimization actually improved codesize, after accounting
     # for the addl PUSH and SHL instructions
-    assert _calc_push_size(new_val) + _calc_push_size(shift_amount) + 1 < _calc_push_size(orig_value)
+    old_size = _calc_push_size(orig_value)
+    new_size = _calc_push_size(new_val) + _calc_push_size(shift_amount) + 1
+    assert new_size < old_size, orig_value
 
 
 should_not_shl = [1 << i for i in range(0, 3 * 8)] + [
