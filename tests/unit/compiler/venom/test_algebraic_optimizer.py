@@ -201,7 +201,12 @@ def test_offsets():
     main:
         %par = param
         %1 = offset @main, 0
-        %2 = offset 0, @main
+
+        ; TODO fix this
+        ; the store is used directly because
+        ; the parser does not see the label
+        ; as literal
+        %2 = store @main
         %3 = add %par, @main
         sink %1, %2, %3
     """
