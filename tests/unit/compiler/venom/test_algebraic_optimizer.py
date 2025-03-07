@@ -68,7 +68,7 @@ def test_simple_bool_cast_case(iszero_count):
 
     sink(izero(iszero(iszero(iszero(x))))) => sink(iszero(iszero(x)))
 
-    You cannot remove all iszeros because the mstore expects the bool
+    You cannot remove all iszeros because the sink expects the bool
     and the total elimination would invalidate it
     """
 
@@ -89,14 +89,17 @@ def test_simple_bool_cast_case(iszero_count):
         sink %cond{iszero_count}
     """
 
-    post_chain = "%cond1 = iszero %cond0"
     if iszero_count % 2 == 0:
         post_chain = """
         %cond1 = iszero %cond0
         %cond2 = iszero %cond1
         """
-
-    end_cond = 2 if iszero_count % 2 == 0 else 1
+        end_cond = "cond2"
+    else:
+        post_chain = """
+        %cond1 = iszero %cond0
+        """
+        end_cond = "cond1"
 
     post = f"""
     main:
@@ -106,7 +109,7 @@ def test_simple_bool_cast_case(iszero_count):
         %3 = add %1, %2
         %cond0 = %3
         {post_chain}
-        sink %cond{end_cond}
+        sink %{end_cond}
     """
 
     _check_pre_post(pre, post)
