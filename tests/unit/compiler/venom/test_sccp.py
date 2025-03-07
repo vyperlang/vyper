@@ -8,7 +8,7 @@ from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(SCCP, SimplifyCFGPass)
+_check_pre_post = PrePostChecker(SCCP)
 
 
 def test_simple_case():
@@ -42,23 +42,27 @@ def test_simple_case():
 def test_branch_eliminator_simple():
     pre = """
     main:
-        jnz 1, @else, @then
+        jnz 1, @then, @else
     then:
-        sink 1
-    else:
         jmp @foo
+    else:
+        sink 1
     foo:
-        mstore 0, 0
-        jnz 0, @else, @then
+        jnz 0, @then, @else
     """
 
     post = """
     main:
-        mstore 0, 0
+        jmp @then
+    then:
+        jmp @foo
+    else:
         sink 1
+    foo:
+        jmp @else
     """
 
-    _check_pre_post(pre, post, hevm=False)
+    _check_pre_post(pre, post, hevm=True)
 
 
 def test_assert_elimination():
@@ -113,6 +117,8 @@ def test_cont_jump_case():
         %2 = 32
         %3 = 64
         %4 = add 64, 32
+        jmp @then
+    then:
         %5 = add 10, 96
         sink 106
     """
@@ -154,7 +160,11 @@ def test_cont_phi_case():
         %2 = 32
         %3 = 64
         %4 = add 64, 32
+        jmp @then
+    then:
         %5:1 = add 10, 96
+        jmp @join
+    join:
         %5 = %5:1
         sink %5
     """
@@ -197,7 +207,11 @@ def test_cont_phi_const_case():
         %2 = 32
         %3 = 64
         %4 = add 64, 32
+        jmp @then
+    then:
         %5:1 = add 10, 96
+        jmp @join
+    join:
         %5 = %5:1
         sink %5
     """
@@ -232,7 +246,11 @@ def test_phi_reduction_after_unreachable_block():
     post = """
     main:
         %1 = 1
+        jmp @then
+    then:
         %2 = 2
+        jmp @join
+    join:
         %3 = %2
         sink 2
     """
