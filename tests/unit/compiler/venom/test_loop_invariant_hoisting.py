@@ -196,40 +196,36 @@ def test_loop_invariant_hoisting_dependant(depth, count):
     assert_ctx_eq(ctx, post_ctx)
 
 
-def _unhoistable_body(fn, loop_id, depth):
-    assert isinstance(fn, IRFunction)
-    bb = fn.get_basic_block()
-    add_var_a = IRVariable(f"add_var_a{loop_id}{depth}")
-    bb.append_instruction("mload", 64, ret=add_var_a)
-    add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
-    bb.append_instruction("add", add_var_a, 2, ret=add_var_b)
-    bb.append_instruction("mstore", 10, add_var_b)
+def _unhoistable_body(loop_id, depth):
+    return f"""
+        %l{loop_id}{depth} = mload 64
+        %a{loop_id}{depth} = add 2, %l{loop_id}{depth}
+        mstore %a{loop_id}{depth}, 10
+    """
 
 
 @pytest.mark.parametrize("depth", range(1, 4))
 @pytest.mark.parametrize("count", range(1, 4))
 def test_loop_invariant_hoisting_unhoistable(depth, count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre_loops = ""
+    for i in range(count):
+        pre_loops += _create_loops_code(depth, i, _unhoistable_body, last=(i == count - 1))
 
-    for c in range(count):
-        _create_loops(fn, depth, c, _unhoistable_body)
+    pre = f"""
+    main:
+        %par = param
+    {pre_loops}
+    """
 
-    bb = fn.get_basic_block()
-    bb.append_instruction("ret")
+    ctx = parse_from_basic_block(pre)
+    print(ctx)
 
-    print(fn)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        LoopInvariantHoisting(ac, fn).run_pass()
 
-    ac = IRAnalysesCache(fn)
-    LoopInvariantHoisting(ac, fn).run_pass()
-    print(fn)
+    print(ctx)
 
-    entry = fn.entry
-    assignments = list(map(lambda x: x.value, entry.get_assignments()))
-    for bb in filter(lambda bb: bb.label.name.startswith("exit_top"), fn.get_basic_blocks()):
-        assignments.extend(map(lambda x: x.value, bb.get_assignments()))
+    orig = parse_from_basic_block(pre)
 
-    assert len(assignments) == depth * count
-    for loop_id in range(count):
-        for d in range(1, depth + 1):
-            assert f"%cond_var{loop_id}{d}" in assignments, repr(fn)
+    assert_ctx_eq(ctx, orig)
