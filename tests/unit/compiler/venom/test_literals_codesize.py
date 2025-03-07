@@ -77,12 +77,12 @@ should_shl = (
 )
 
 
-@pytest.mark.parametrize("data", should_shl)
-def test_literal_codesize_shl(data):
+@pytest.mark.parametrize("orig_value,shift_amount", should_shl)
+def test_literal_codesize_shl(orig_value, shift_amount):
     """
     Test that literals like 0xabcd00000000 get transformed to `shl 32 0xabcd`
     """
-    (orig_value, shift) = data
+    #(orig_value, shift_amount) = data
 
     pre = f"""
     main:
@@ -90,13 +90,13 @@ def test_literal_codesize_shl(data):
         sink %1
     """
 
-    new_val = orig_value >> shift
+    new_val = orig_value >> shift_amount
 
-    assert orig_value == new_val << shift, "wrong shift"
+    assert orig_value == new_val << shift_amount, "wrong shift"
 
     post = f"""
     main:
-        %1 = shl {shift}, {new_val}
+        %1 = shl {shift_amount}, {new_val}
         sink %1
     """
 
@@ -104,7 +104,7 @@ def test_literal_codesize_shl(data):
 
     # check the optimization actually improved codesize, after accounting
     # for the addl PUSH and SHL instructions
-    assert _calc_push_size(new_val) + _calc_push_size(shift) + 1 < _calc_push_size(orig_value)
+    assert _calc_push_size(new_val) + _calc_push_size(shift_amount) + 1 < _calc_push_size(orig_value)
 
 
 should_not_shl = [1 << i for i in range(0, 3 * 8)] + [
