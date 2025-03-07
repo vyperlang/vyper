@@ -4,9 +4,7 @@ from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import DFTPass
 from vyper.venom.passes.loop_invariant_hosting import LoopInvariantHoisting
 
 
