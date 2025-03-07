@@ -1,22 +1,23 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import SCCP, SimplifyCFGPass
+from vyper.venom.passes import SimplifyCFGPass
 
 pytestmark = pytest.mark.hevm
 
 
-_check_pre_post = PrePostChecker(SCCP, SimplifyCFGPass)
+_check_pre_post = PrePostChecker(SimplifyCFGPass)
 
 
 def test_phi_reduction_after_block_pruning():
     pre = """
     _global:
-        jnz 1, @then, @else
+        jmp @then
     then:
         %1 = param
         jmp @join
     else:
+        # dead code
         %2 = param
         jmp @join
     join:
