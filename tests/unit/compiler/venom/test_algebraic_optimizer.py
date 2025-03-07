@@ -181,7 +181,6 @@ def test_interleaved_case(interleave_point):
     _check_pre_post(pre, post)
 
 
-
 def test_offsets():
     """
     Test of addition to offset rewrites
