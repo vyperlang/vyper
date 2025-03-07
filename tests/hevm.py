@@ -49,7 +49,7 @@ def _prep_hevm_venom(venom_source_code):
 
         ac = IRAnalysesCache(fn)
 
-        # required right now but should be removed
+        # required for venom_to_assembly right now but should be removed
         SimplifyCFGPass(ac, fn).run_pass()
 
         # requirements for venom_to_assembly
