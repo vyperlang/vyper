@@ -188,6 +188,8 @@ def test_cont_phi_case():
         jmp @join
     join:
         %5 = %5:1
+        # TODO: this should be converted to `sink 106` by sccp, but is not.
+        # to investigate.
         sink %5
     """
 
@@ -240,6 +242,8 @@ def test_cont_phi_const_case():
         jmp @join
     join:
         %5 = %5:1
+        # TODO: this should be converted to `sink 106` by sccp, but is not.
+        # to investigate.
         sink %5
     """
 
