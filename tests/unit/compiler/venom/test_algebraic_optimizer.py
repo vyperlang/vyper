@@ -28,13 +28,10 @@ def test_simple_jump_case(iszero_count):
         jnz %cond{iszero_count}, @then, @else
     then:
         %4 = add 10, %3
-        jmp @join
+        sink %4
     else:
         %5 = add %3, %par
-        jmp @join
-    join:
-        %6 = phi @then, %4, @else, %5
-        sink %6
+        sink %5
     """
 
     post_chain = "%cond1 = iszero %cond0" if iszero_count % 2 == 1 else ""
@@ -50,13 +47,10 @@ def test_simple_jump_case(iszero_count):
         jnz %cond{iszero_count % 2}, @then, @else
     then:
         %4 = add 10, %3
-        jmp @join
+        sink %4
     else:
         %5 = add %3, %par
-        jmp @join
-    join:
-        %6 = phi @then, %4, @else, %5
-        sink %6
+        sink %5
     """
 
     _check_pre_post(pre, post)
@@ -132,13 +126,10 @@ def test_interleaved_case(interleave_point):
         jnz %cond{interleave_point + iszeros_after_interleave_point + 1}, @then, @else
     then:
         %2 = add 10, %par
-        jmp @join
+        sink %2
     else:
         %3 = add %cond0, %par
-        jmp @join
-    join:
-        %4 = phi @then, %2, @else, %3
-        sink %4
+        sink %3
     """
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
@@ -153,13 +144,10 @@ def test_interleaved_case(interleave_point):
         jnz %cond{(interleave_point + iszeros_after_interleave_point + 1) % 2}, @then, @else
     then:
         %2 = add 10, %par
-        jmp @join
+        sink %2
     else:
         %3 = add %cond0, %par
-        jmp @join
-    join:
-        %4 = phi @then, %2, @else, %3
-        sink %4
+        sink %3
     """
 
     _check_pre_post(pre, post)
