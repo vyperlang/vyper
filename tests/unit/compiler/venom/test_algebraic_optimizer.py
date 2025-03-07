@@ -115,7 +115,6 @@ def test_simple_bool_cast_case(iszero_count):
     _check_pre_post(pre, post)
 
 
-# TODO MOVE COND INDEXES OUTSIDE
 @pytest.mark.parametrize("interleave_point", range(5))
 def test_interleaved_case(interleave_point):
     """
