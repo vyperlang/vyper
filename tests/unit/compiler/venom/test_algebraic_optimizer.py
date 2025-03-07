@@ -38,7 +38,9 @@ def test_simple_jump_case(iszero_count):
         sink %5
     """
 
-    post_chain = "%cond1 = iszero %cond0" if iszero_count % 2 == 1 else ""
+    post_chain = ""
+    if iszero_count % 2 == 1:
+        post_chain = "%cond1 = iszero %cond0"
 
     post = f"""
     main:
@@ -159,8 +161,8 @@ def test_interleaved_case(interleave_point):
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
 
-    mstore_condition = (interleave_point) % 2 + 1
-    jnz_condition = (interleave_point + iszeros_after_interleave_point + 1) % 2
+    mstore_condition = interleave_point % 2 + 1
+    jnz_condition = (interleave_point + iszeros_after_interleave_point) % 2 + 1
 
     post = f"""
     main:
