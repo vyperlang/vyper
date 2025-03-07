@@ -190,9 +190,20 @@ class IRVariable(IROperand):
             value = f"{name}:{version}"
         super().__init__(value)
 
+    def with_version(self, version: int) -> "IRVariable":
+        if version == self.version:
+            # IRVariable ctor is a hotspot, try to avoid calling it
+            # if possible
+            return self
+        return self.__class__(self.name, version)
+
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def plain_name(self) -> str:
+        return self.name.strip("%")
 
 
 class IRLabel(IROperand):
@@ -387,6 +398,12 @@ class IRInstruction:
                 del self.operands[i : i + 2]
                 return
 
+    @property
+    def code_size_cost(self) -> int:
+        if self.opcode == "store":
+            return 1
+        return 2
+
     def get_ast_source(self) -> Optional[IRnode]:
         if self.ast_source:
             return self.ast_source
@@ -395,6 +412,25 @@ class IRInstruction:
             if inst.ast_source:
                 return inst.ast_source
         return self.parent.parent.ast_source
+
+    def copy(self) -> "IRInstruction":
+        ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
+        ret.annotation = self.annotation
+        ret.ast_source = self.ast_source
+        ret.error_msg = self.error_msg
+        return ret
+
+    def str_short(self) -> str:
+        s = ""
+        if self.output:
+            s += f"{self.output} = "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands = list(reversed(operands))
+        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        return s
 
     def __repr__(self) -> str:
         s = ""
@@ -407,11 +443,14 @@ class IRInstruction:
             operands = [operands[0]] + list(reversed(operands[1:]))
         elif self.opcode not in ("jmp", "jnz", "phi"):
             operands = reversed(operands)  # type: ignore
-
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
-            s += f" ; {self.annotation}"
+            s = f"{s: <30} ; {self.annotation}"
+
+        # debug:
+        # if self.error_msg:
+        #     s += f" ;>>> {self.error_msg}"
 
         return f"{s: <30}"
 
@@ -539,8 +578,11 @@ class IRBasicBlock:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        instruction.ast_source = self.parent.ast_source
-        instruction.error_msg = self.parent.error_msg
+        fn = self.parent
+        if fn.ast_source is not None:
+            instruction.ast_source = fn.ast_source
+        if fn.error_msg is not None:
+            instruction.error_msg = fn.error_msg
         self.instructions.insert(index, instruction)
 
     def clear_nops(self) -> None:
@@ -550,6 +592,28 @@ class IRBasicBlock:
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
+
+    def remove_instructions_after(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        assert instruction in self.instructions, "instruction must be in basic block"
+        self.instructions = self.instructions[: self.instructions.index(instruction) + 1]
+
+    def ensure_well_formed(self):
+        for inst in self.instructions:
+            assert inst.parent == self  # sanity
+            if inst.opcode == "revert":
+                self.remove_instructions_after(inst)
+                self.append_instruction("stop")  # TODO: make revert a bb terminator?
+                break
+
+        def key(inst):
+            if inst.opcode in ("phi", "param"):
+                return 0
+            if inst.is_bb_terminator:
+                return 2
+            return 1
+
+        self.instructions.sort(key=key)
 
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
@@ -578,6 +642,10 @@ class IRBasicBlock:
     @property
     def body_instructions(self) -> Iterator[IRInstruction]:
         return (inst for inst in self.instructions[:-1] if not inst.is_pseudo)
+
+    @property
+    def code_size_cost(self) -> int:
+        return sum(inst.code_size_cost for inst in self.instructions)
 
     def replace_operands(self, replacements: dict) -> None:
         """
@@ -657,12 +725,11 @@ class IRBasicBlock:
                 return inst.liveness
         return OrderedSet()
 
-    def copy(self):
+    def copy(self) -> "IRBasicBlock":
         bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = self.instructions.copy()
-        bb.cfg_in = self.cfg_in.copy()
-        bb.cfg_out = self.cfg_out.copy()
-        bb.out_vars = self.out_vars.copy()
+        bb.instructions = [inst.copy() for inst in self.instructions]
+        for inst in bb.instructions:
+            inst.parent = bb
         return bb
 
     def __repr__(self) -> str:
