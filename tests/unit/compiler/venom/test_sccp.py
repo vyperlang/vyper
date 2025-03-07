@@ -201,7 +201,7 @@ def test_cont_phi_case():
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
     assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.BOTTOM
-    assert sccp.lattice[IRVariable("%5")].value == 2
+    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
 
 
 def test_cont_phi_const_case():
@@ -254,7 +254,7 @@ def test_cont_phi_const_case():
     # dependent on cfg traversal order
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
     assert sccp.lattice[IRVariable("%5", version=2)].value == 97
-    assert sccp.lattice[IRVariable("%5")].value == 2
+    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
 
 
 def test_phi_reduction_without_basic_block_removal():
