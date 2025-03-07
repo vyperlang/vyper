@@ -119,7 +119,7 @@ def test_simple_bool_cast_case(iszero_count):
 def test_interleaved_case(interleave_point):
     """
     Test for the case where one of the iszeros results in
-    the chain is used
+    the chain is used by another instruction (outside the chain)
     """
 
     iszeros_after_interleave_point = interleave_point // 2
