@@ -115,6 +115,7 @@ def test_simple_bool_cast_case(iszero_count):
     _check_pre_post(pre, post)
 
 
+# TODO MOVE COND INDEXES OUTSIDE
 @pytest.mark.parametrize("interleave_point", range(5))
 def test_interleaved_case(interleave_point):
     """
@@ -137,15 +138,18 @@ def test_interleaved_case(interleave_point):
         after_iszeros += f"""
         %cond{new} = iszero %cond{index}"""
 
+    mstore_condition = interleave_point + 1
+    jnz_condition = interleave_point + iszeros_after_interleave_point + 1
+
     pre = f"""
     main:
         %par = param
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {before_iszeros}
-        mstore %par, %cond{interleave_point + 1}
+        mstore %par, %cond{mstore_condition}
         {after_iszeros}
-        jnz %cond{interleave_point + iszeros_after_interleave_point + 1}, @then, @else
+        jnz %cond{jnz_condition}, @then, @else
     then:
         %2 = add 10, %par
         sink %2
@@ -156,14 +160,17 @@ def test_interleaved_case(interleave_point):
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
 
+    mstore_condition = (interleave_point) % 2 + 1
+    jnz_condition = (interleave_point + iszeros_after_interleave_point + 1) % 2
+
     post = f"""
     main:
         %par = param
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {post_iszero}
-        mstore %par, %cond{(interleave_point % 2) + 1}
-        jnz %cond{(interleave_point + iszeros_after_interleave_point + 1) % 2}, @then, @else
+        mstore %par, %cond{mstore_condition}
+        jnz %cond{jnz_condition}, @then, @else
     then:
         %2 = add 10, %par
         sink %2
@@ -175,6 +182,7 @@ def test_interleaved_case(interleave_point):
     _check_pre_post(pre, post)
 
 
+
 def test_offsets():
     """
     Test of addition to offset rewrites
@@ -184,32 +192,18 @@ def test_offsets():
     main:
         %par = param
         %1 = add @main, 0
-        jnz %par, @then, @else
-    then:
-        %2 = add @main, 10
-        jmp @join
-    else:
-        %3 = add @main, 20
-        jmp @join
-    join:
-        %4 = phi @then, %2, @else, %3
-        sink %1, %4
+        %2 = add 0, @main
+        %3 = add %par, @main
+        sink %1, %2, %3
     """
 
     post = """
     main:
         %par = param
         %1 = offset @main, 0
-        jnz %par, @then, @else
-    then:
-        %2 = offset @main, 10
-        jmp @join
-    else:
-        %3 = offset @main, 20
-        jmp @join
-    join:
-        %4 = phi @then, %2, @else, %3
-        sink %1, %4
+        %2 = offset 0, @main
+        %3 = add %par, @main
+        sink %1, %2, %3
     """
 
     _check_pre_post(pre, post)
