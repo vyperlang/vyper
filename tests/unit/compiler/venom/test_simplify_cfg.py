@@ -17,7 +17,7 @@ def test_phi_reduction_after_block_pruning():
         %1 = param
         jmp @join
     else:
-        # dead code
+        ; dead block
         %2 = param
         jmp @join
     join:
