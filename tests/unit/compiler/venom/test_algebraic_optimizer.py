@@ -153,10 +153,14 @@ def test_interleaved_case(interleave_point):
         jnz %cond{jnz_condition}, @then, @else
     then:
         %2 = add 10, %par
-        sink %2
+
+        ; mload to sink value for hevm
+        %4 = mload %par
+        sink %2, %4
     else:
         %3 = add %cond0, %par
-        sink %3
+        %5 = mload %par
+        sink %3, %5
     """
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
@@ -174,10 +178,12 @@ def test_interleaved_case(interleave_point):
         jnz %cond{jnz_condition}, @then, @else
     then:
         %2 = add 10, %par
-        sink %2
+        %4 = mload %par
+        sink %2, %4
     else:
         %3 = add %cond0, %par
-        sink %3
+        %5 = mload %par
+        sink %3, %5
     """
 
     _check_pre_post(pre, post)
