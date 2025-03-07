@@ -201,10 +201,9 @@ def test_offsets():
         %par = param
         %1 = offset @main, 0
 
-        ; TODO fix this
-        ; the store is used directly because
-        ; the parser does not see the label
-        ; as literal
+        ; TODO fix this, should be `offset @main, 0`
+        ; (also, the `store` opcode is used directly because
+        ; the parser does not see the label as literal)
         %2 = store @main
         %3 = add %par, @main
         sink %1, %2, %3
