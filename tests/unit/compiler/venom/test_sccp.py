@@ -3,7 +3,7 @@ import pytest
 from tests.venom_utils import PrePostChecker
 from vyper.exceptions import StaticAssertionException
 from vyper.venom.basicblock import IRVariable
-from vyper.venom.passes import SCCP, SimplifyCFGPass
+from vyper.venom.passes import SCCP
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 pytestmark = pytest.mark.hevm

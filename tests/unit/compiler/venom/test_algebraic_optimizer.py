@@ -66,7 +66,7 @@ def test_simple_bool_cast_case(iszero_count):
     Test that iszero chain elimination would not eliminate
     bool cast
 
-    mstore(izero(iszero(iszero(iszero(x))))) => mstore(iszero(iszero(x)))
+    sink(izero(iszero(iszero(iszero(x))))) => sink(iszero(iszero(x)))
 
     You cannot remove all iszeros because the mstore expects the bool
     and the total elimination would invalidate it

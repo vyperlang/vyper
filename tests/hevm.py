@@ -2,7 +2,7 @@ import subprocess
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import LowerDloadPass, StoreExpansionPass, VenomCompiler, SimplifyCFGPass
+from vyper.venom import LowerDloadPass, SimplifyCFGPass, StoreExpansionPass, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 

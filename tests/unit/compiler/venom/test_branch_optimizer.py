@@ -9,6 +9,11 @@ _check_pre_post = PrePostChecker(BranchOptimizationPass)
 
 
 def test_simple_jump_case():
+    """
+    Test that it removes the case when
+    it can remove iszero and switch branches
+    """
+
     pre = """
     main:
         %p1 = param
