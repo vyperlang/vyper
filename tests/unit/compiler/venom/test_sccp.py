@@ -12,6 +12,9 @@ _check_pre_post = PrePostChecker(SCCP)
 
 
 def test_simple_case():
+    """
+    Test of basic operation
+    """
     pre = """
     _global:
         %1 = param
@@ -40,6 +43,10 @@ def test_simple_case():
 
 
 def test_branch_eliminator_simple():
+    """
+    Test of eliminating the jnz if the value is known
+    at compile time
+    """
     pre = """
     main:
         jnz 1, @then, @else
@@ -66,6 +73,10 @@ def test_branch_eliminator_simple():
 
 
 def test_assert_elimination():
+    """
+    Test of compile time evaluation of asserts
+    the positive case
+    """
     pre = """
     main:
         assert 1
@@ -85,6 +96,10 @@ def test_assert_elimination():
 
 @pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
 def test_assert_false(asserter):
+    """
+    Test of compile time evaluation of asserts
+    the negative case
+    """
     code = f"""
     main:
         {asserter} 0
@@ -96,6 +111,9 @@ def test_assert_false(asserter):
 
 
 def test_cont_jump_case():
+    """
+    Test of jnz removal which eliminates the basic block
+    """
     pre = """
     main:
         %1 = param
@@ -136,6 +154,10 @@ def test_cont_jump_case():
 
 
 def test_cont_phi_case():
+    """
+    Test of jnz removal with phi correction
+    """
+
     pre = """
     main:
         %1 = param
@@ -183,6 +205,11 @@ def test_cont_phi_case():
 
 
 def test_cont_phi_const_case():
+    """
+    Test of jnz removal with phi correction
+    with all of the values known at compile
+    time
+    """
     pre = """
     main:
         %1 = 1
@@ -230,7 +257,10 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%5")].value == 2
 
 
-def test_phi_reduction_after_unreachable_block():
+def test_phi_reduction_without_basic_block_removal():
+    """
+    Test of phi reduction `if` end not `if-else`
+    """
     pre = """
     main:
         %1 = 1
