@@ -6,7 +6,10 @@ from vyper.venom.passes import LoadElimination, StoreElimination
 
 pytestmark = pytest.mark.hevm
 
-
+# the first store elimination is needed for
+# variable equivalence in load elimination
+# and the second/in post is needed to create
+# easier equivalence in the test for pre and post
 _check_pre_post = PrePostChecker(
     StoreElimination, LoadElimination, StoreElimination, post=[StoreElimination]
 )
