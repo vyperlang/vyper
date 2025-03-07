@@ -57,8 +57,8 @@ class PrePostChecker:
     pass_objects: list[IRPass]
     default_hevm: bool
 
-    def __init__(self, *passes, post: list[type] | None = None, default_hevm: bool = True):
-        self.passes = list(passes)
+    def __init__(self, passes: list[type], post: list[type] | None = None, default_hevm: bool = True):
+        self.passes = passes
         if post is None:
             self.post_passes = []
         else:

@@ -14,7 +14,7 @@ def _calc_push_size(val: int):
     return 1 + len(s)
 
 
-_check_pre_post = PrePostChecker(ReduceLiteralsCodesize)
+_check_pre_post = PrePostChecker([ReduceLiteralsCodesize])
 
 
 def _check_no_change(pre):

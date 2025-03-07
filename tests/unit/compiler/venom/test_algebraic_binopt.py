@@ -9,7 +9,7 @@ Test abstract binop+unop optimizations in algebraic optimizations pass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(StoreElimination, AlgebraicOptimizationPass, StoreElimination)
+_check_pre_post = PrePostChecker([StoreElimination, AlgebraicOptimizationPass, StoreElimination])
 
 
 def test_sccp_algebraic_opt_sub_xor():

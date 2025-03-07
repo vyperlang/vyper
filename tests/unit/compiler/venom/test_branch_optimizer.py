@@ -5,7 +5,7 @@ from vyper.venom.passes import BranchOptimizationPass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(BranchOptimizationPass)
+_check_pre_post = PrePostChecker([BranchOptimizationPass])
 
 
 def test_simple_jump_case():

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.hevm
 # and the second/in post is needed to create
 # easier equivalence in the test for pre and post
 _check_pre_post = PrePostChecker(
-    StoreElimination, LoadElimination, StoreElimination, post=[StoreElimination]
+    passes = [StoreElimination, LoadElimination, StoreElimination], post=[StoreElimination]
 )
 
 

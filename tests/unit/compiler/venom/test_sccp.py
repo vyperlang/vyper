@@ -8,7 +8,7 @@ from vyper.venom.passes.sccp.sccp import LatticeEnum
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(SCCP)
+_check_pre_post = PrePostChecker([SCCP])
 
 
 def test_simple_case():

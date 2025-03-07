@@ -5,7 +5,7 @@ from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
-_check_pre_post = PrePostChecker(MemMergePass, RemoveUnusedVariablesPass, default_hevm=False)
+_check_pre_post = PrePostChecker([MemMergePass, RemoveUnusedVariablesPass], default_hevm=False)
 
 
 def _check_no_change(pre):

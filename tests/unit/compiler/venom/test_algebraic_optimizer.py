@@ -6,7 +6,7 @@ from vyper.venom.passes import AlgebraicOptimizationPass, RemoveUnusedVariablesP
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker(AlgebraicOptimizationPass, RemoveUnusedVariablesPass)
+_check_pre_post = PrePostChecker([AlgebraicOptimizationPass, RemoveUnusedVariablesPass])
 
 
 @pytest.mark.parametrize("iszero_count", range(5))

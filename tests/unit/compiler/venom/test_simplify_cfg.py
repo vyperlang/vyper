@@ -6,7 +6,7 @@ from vyper.venom.passes import SimplifyCFGPass
 pytestmark = pytest.mark.hevm
 
 
-_check_pre_post = PrePostChecker(SimplifyCFGPass)
+_check_pre_post = PrePostChecker([SimplifyCFGPass])
 
 
 def test_phi_reduction_after_block_pruning():
