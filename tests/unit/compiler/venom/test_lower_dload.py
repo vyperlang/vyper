@@ -1,9 +1,11 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import LowerDloadPass
+
 """
 test dload/dloadbytes -> codecopy pass
 """
+
 
 def _check_pre_post(pre, post):
     ctx = parse_from_basic_block(pre)
