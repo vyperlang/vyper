@@ -162,7 +162,7 @@ def test_interleaved_case(interleave_point):
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
 
     mstore_condition = interleave_point % 2 + 1
-    jnz_condition = (interleave_point + iszeros_after_interleave_point) % 2 + 1
+    jnz_condition = (interleave_point + iszeros_after_interleave_point + 1) % 2
 
     post = f"""
     main:
