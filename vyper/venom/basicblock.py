@@ -89,7 +89,7 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
 
-# These instruction shoulld be eliminated/rewriten
+# These instructions should be eliminated/rewritten
 # before going into assembly emission
 PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
 

@@ -1,7 +1,9 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import LowerDloadPass
-
+"""
+test dload/dloadbytes -> codecopy pass
+"""
 
 def _check_pre_post(pre, post):
     ctx = parse_from_basic_block(pre)
@@ -30,6 +32,9 @@ def test_lower_dload_basic():
 
 
 def test_lower_dload_var():
+    """
+    test that dload lowering pass lowers dload properly when the argument is a param
+    """
     pre = """
     main:
         %par = param
@@ -50,6 +55,9 @@ def test_lower_dload_var():
 
 
 def test_lower_dload_dloadbytes():
+    """
+    test that dload lowering pass lowers dloadbytes instruction
+    """
     pre = """
     main:
         %par = param
