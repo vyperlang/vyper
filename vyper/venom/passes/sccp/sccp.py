@@ -195,6 +195,7 @@ class SCCP(IRPass):
                 self.work_list.append(FlowWorkItem(inst.parent, target))
             else:
                 # jnz True branch (any nonzero condition)
+                assert isinstance(lat, IRLiteral) and lat.value != 0  # for clarity
                 target = self.fn.get_basic_block(inst.operands[1].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
