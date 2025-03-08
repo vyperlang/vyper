@@ -31,10 +31,10 @@ class VarDefinition(IRAnalysis):
             )
 
         for inst in bb.instructions:
+            self.defined_vars[inst] = bb_defined.copy()
+
             if inst.output is not None:
                 bb_defined.add(inst.output)
-
-            self.defined_vars[inst] = bb_defined.copy()
 
         if self.defined_vars_bb[bb] != bb_defined:
             self.defined_vars_bb[bb] = bb_defined
