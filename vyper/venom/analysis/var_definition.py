@@ -7,23 +7,34 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
 
 class VarDefinition(IRAnalysis):
+    """
+    Find the variables that whose definitions are available at every
+    point in the program
+    """
     defined_vars: dict[IRInstruction, OrderedSet[IRVariable]]
     defined_vars_bb: dict[IRBasicBlock, OrderedSet[IRVariable]]
 
     def analyze(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
-        self.defined_vars = dict()
-        self.defined_vars_bb = defaultdict(OrderedSet)
-        while True:
-            change = False
-            for bb in self.function.get_basic_blocks():
-                change |= self._handle_bb(bb)
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-            if not change:
-                break
+        # the variables that are defined up to (but not including) this point
+        self.defined_vars = dict()
+
+        # variables that are defined at the output of the basic block
+        self.defined_vars_bb = defaultdict(OrderedSet)
+
+        # heuristic: faster if we seed with the dfs prewalk
+        worklist = OrderedSet(cfg.dfs_pre_walk)
+        while len(worklist) > 0:
+            bb = worklist.pop()
+            changed = self._handle_bb(bb)
+
+            if changed:
+                worklist.update(bb.cfg_out)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         if len(bb.cfg_in) == 0:
+            # special case for intersection()
             bb_defined = OrderedSet()
         else:
             bb_defined = OrderedSet.intersection(
