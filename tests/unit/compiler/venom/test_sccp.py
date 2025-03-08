@@ -76,7 +76,7 @@ def test_branch_eliminator_simple():
         jmp @else
     """
 
-    _check_pre_post(pre, post, hevm=True)
+    _check_pre_post(pre, post)
 
 
 def test_assert_elimination():
