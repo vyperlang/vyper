@@ -22,8 +22,8 @@ def test_simple_jump_case():
         %op2 = 64
         %op3 = add %op1, %op2
 
-        ; this condition will be inverted
         %cond = iszero %op3
+        ; this condition will be inverted
         jnz %cond, @br1, @br2
     br1:
         %res1 = add %op3, %op1
