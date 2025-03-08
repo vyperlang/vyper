@@ -12,6 +12,7 @@ from vyper.ir.compile_ir import (
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
+    PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
@@ -47,6 +48,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "number",
         "extcodesize",
         "extcodehash",
+        "codecopy",
         "extcodecopy",
         "returndatasize",
         "returndatacopy",
@@ -476,8 +478,6 @@ class VenomCompiler:
             pass
         elif opcode == "store":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
-            assembly.append("CODECOPY")
         elif opcode == "dbname":
             pass
         elif opcode == "jnz":
@@ -562,7 +562,9 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
-        elif opcode in TEST_INSTRUCTIONS:
+        elif opcode in PSEUDO_INSTRUCTION:  # pragma: nocover
+            raise CompilerPanic(f"Bad instruction: {opcode}")
+        elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")
