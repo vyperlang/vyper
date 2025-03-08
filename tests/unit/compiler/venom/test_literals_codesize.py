@@ -90,7 +90,7 @@ def test_literal_codesize_shl(orig_value, shift_amount):
 
     new_val = orig_value >> shift_amount
 
-    assert orig_value == new_val << shift_amount, "wrong shift"
+    assert orig_value == new_val << shift_amount, "bad test input"
 
     post = f"""
     main:
