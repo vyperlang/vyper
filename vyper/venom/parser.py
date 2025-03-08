@@ -10,7 +10,6 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
 

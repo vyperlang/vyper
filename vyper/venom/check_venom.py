@@ -1,8 +1,5 @@
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any
+from typing import Any, Sequence
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
 from vyper.venom.basicblock import IRBasicBlock, IRVariable
 from vyper.venom.context import IRContext
@@ -39,15 +36,15 @@ def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[Ven
     return errors
 
 
-def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
-    errors = []
+def find_semantic_errors_fn(fn: IRFunction) -> Sequence[VenomError]:
+    errors: list[VenomError] = []
 
     # check that all the bbs are terminated
     for bb in fn.get_basic_blocks():
         if not bb.is_terminated:
             errors.append(BasicBlockNotTerminated(metadata=bb))
 
-    if errors != []:
+    if len(errors) > 0:
         return errors
 
     ac = IRAnalysesCache(fn)
@@ -58,7 +55,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def find_semantic_errors(context: IRContext) -> list[VenomError]:
+def find_semantic_errors(context: IRContext) -> Sequence[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():

@@ -1,5 +1,3 @@
-import pytest
-
 from tests.venom_utils import parse_from_basic_block
 from vyper.venom.check_venom import BasicBlockNotTerminated, VarNotDefined, find_semantic_errors
 
