@@ -1,8 +1,5 @@
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any
+from typing import Any, Sequence
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.context import IRContext
@@ -28,7 +25,7 @@ class VarNotDefined(VenomError):
     message: str = "variable is used before definition"
 
 
-def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomError]:
+def _handle_incorrect_liveness(bb: IRBasicBlock) -> Sequence[VenomError]:
     errors = []
     bb_defs = set()
     for inst in bb.instructions:
@@ -46,15 +43,15 @@ def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomError]:
     return errors
 
 
-def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
-    errors = []
+def find_semantic_errors_fn(fn: IRFunction) -> Sequence[VenomError]:
+    errors: list[VenomError] = []
 
     # check that all the bbs are terminated
     for bb in fn.get_basic_blocks():
         if not bb.is_terminated:
             errors.append(BasicBlockNotTerminated(metadata=bb))
 
-    if errors != []:
+    if len(errors) > 0:
         return errors
 
     ac = IRAnalysesCache(fn)
@@ -65,13 +62,14 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def find_semantic_errors(context: IRContext) -> list[VenomError]:
+def find_semantic_errors(context: IRContext) -> Sequence[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():
         errors.extend(find_semantic_errors_fn(fn))
 
     return errors
+
 
 def check_venom_ctx(context: IRContext):
     errors = find_semantic_errors(context)

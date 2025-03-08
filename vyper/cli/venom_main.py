@@ -7,6 +7,7 @@ import vyper.evm.opcodes as evm
 from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.venom import generate_assembly_experimental, run_passes_on
+from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.parser import parse_venom
 
 """
