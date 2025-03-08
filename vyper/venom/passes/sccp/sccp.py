@@ -189,14 +189,14 @@ class SCCP(IRPass):
             if lat == LatticeEnum.BOTTOM:
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
-            elif lat == IRLiteral(0):
-                # jnz False branch
-                target = self.fn.get_basic_block(inst.operands[2].name)
-                self.work_list.append(FlowWorkItem(inst.parent, target))
             else:
-                # jnz True branch (any nonzero condition)
-                assert isinstance(lat, IRLiteral) and lat.value != 0  # for clarity
-                target = self.fn.get_basic_block(inst.operands[1].name)
+                assert isinstance(lat, IRLiteral)  # sanity
+                if lat.value == 0:
+                    # jnz False branch
+                    target = self.fn.get_basic_block(inst.operands[2].name)
+                else:
+                    # jnz True branch (any nonzero condition)
+                    target = self.fn.get_basic_block(inst.operands[1].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
