@@ -84,6 +84,6 @@ def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
     subp_args = ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
 
     if verbose:
-        subprocess.check_call(subp_args)
+        subprocess.check_call(subp_args, text=True)
     else:
-        subprocess.check_output(subp_args)
+        subprocess.check_output(subp_args, text=True)
