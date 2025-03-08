@@ -89,6 +89,10 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
 
+# These instructions should be eliminated/rewritten
+# before going into assembly emission
+PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
+
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
