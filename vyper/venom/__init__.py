@@ -95,7 +95,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     StoreExpansionPass(ac, fn).run_pass()
 
-    if optimize == OptimizationLevel.CODESIZE:https://www.youtube.com/watch?v=KuhCoUfMWx0
+    if optimize == OptimizationLevel.CODESIZE:
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
