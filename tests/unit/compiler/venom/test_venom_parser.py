@@ -1,5 +1,7 @@
+import pytest
+
 from tests.venom_utils import parse_from_basic_block
-from vyper.venom.check_venom import VenomSemanticErrorType, check_venom
+from vyper.venom.check_venom import BasicBlockNotTerminated, VarNotDefined, check_venom_ctx
 
 
 def test_venom_parser():
@@ -10,9 +12,9 @@ def test_venom_parser():
     """
 
     ctx = parse_from_basic_block(code)
-    errors = check_venom(ctx)
+    errors = check_venom_ctx(ctx)
 
-    assert errors == []
+    assert len(errors) == 0
 
 
 def test_venom_parser_not_terminated():
@@ -31,10 +33,10 @@ def test_venom_parser_not_terminated():
         calldataload 10, 20, 30
     """
 
-    ctx = parse_from_basic_block(code)
-    errors = check_venom(ctx)
-
-    all(e.error_type == VenomSemanticErrorType.NotTerminatedBasicBlock for e in errors)
+    with pytest.raises(ExceptionGroup) as e:
+        ctx = parse_from_basic_block(code)
+    errors = e.value.exceptions
+    assert all(isinstance(err, BasicBlockNotTerminated) for err in errors)
     assert len(errors) == 2
     assert list(e.metadata.label.name for e in errors) == ["bb0", "bb3"]
 
@@ -48,10 +50,13 @@ def test_venom_parser_nonexistant_var():
         ret %1
     """
 
-    ctx = parse_from_basic_block(code)
-    errors = check_venom(ctx)
+    with pytest.raises(ExceptionGroup) as e:
+        ctx = parse_from_basic_block(code)
 
+    errors = e.value.exceptions
+    assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 1
+    assert [err.metadata[0].name for err in errors] == ["%1"]
 
 
 def test_venom_parser_nonexistant_var2():
@@ -73,8 +78,10 @@ def test_venom_parser_nonexistant_var2():
         ret %1, %2, %3
     """
 
-    ctx = parse_from_basic_block(code)
-    errors = check_venom(ctx)
+    with pytest.raises(ExceptionGroup) as e:
+        ctx = parse_from_basic_block(code)
 
+    errors = e.value.exceptions
+    assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 2
-    assert {e.metadata.name for e in errors} == {"%2", "%3"}
+    assert [err.metadata[0].name for err in errors] == ["%2", "%3"]

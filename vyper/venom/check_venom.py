@@ -65,7 +65,7 @@ def check_venom_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def check_venom(context: IRContext) -> list[VenomError]:
+def check_venom_ctx(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():
