@@ -92,8 +92,7 @@ class PrePostChecker:
 
         assert_ctx_eq(pre_ctx, post_ctx)
 
-        if not hevm:
-            return self.pass_objects
+        if hevm:
+            hevm_check_venom(pre, post)
 
-        hevm_check_venom(pre, post)
         return self.pass_objects
