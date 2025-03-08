@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any
 
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
 from vyper.venom.basicblock import IRBasicBlock, IRVariable
@@ -26,7 +26,7 @@ class VarNotDefined(VenomError):
 
 
 def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[VenomError]:
-    errors = []
+    errors: list[VenomError] = []
     for inst in bb.instructions:
         defined = var_def.defined_vars[inst]
         for op in inst.operands:
@@ -36,7 +36,7 @@ def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[Ven
     return errors
 
 
-def find_semantic_errors_fn(fn: IRFunction) -> Sequence[VenomError]:
+def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     errors: list[VenomError] = []
 
     # check that all the bbs are terminated
@@ -55,7 +55,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> Sequence[VenomError]:
     return errors
 
 
-def find_semantic_errors(context: IRContext) -> Sequence[VenomError]:
+def find_semantic_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():

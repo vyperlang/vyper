@@ -11,6 +11,7 @@ class VarDefinition(IRAnalysis):
     Find the variables that whose definitions are available at every
     point in the program
     """
+
     defined_vars: dict[IRInstruction, OrderedSet[IRVariable]]
     defined_vars_bb: dict[IRBasicBlock, OrderedSet[IRVariable]]
 
@@ -33,6 +34,7 @@ class VarDefinition(IRAnalysis):
                 worklist.update(bb.cfg_out)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        bb_defined: OrderedSet[IRVariable]
         if len(bb.cfg_in) == 0:
             # special case for intersection()
             bb_defined = OrderedSet()
