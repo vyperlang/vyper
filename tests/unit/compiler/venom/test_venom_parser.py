@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import parse_from_basic_block
-from vyper.venom.check_venom import BasicBlockNotTerminated, VarNotDefined, check_venom_ctx
+from vyper.venom.check_venom import BasicBlockNotTerminated, VarNotDefined, find_semantic_errors
 
 
 def test_venom_parser():
@@ -12,7 +12,7 @@ def test_venom_parser():
     """
 
     ctx = parse_from_basic_block(code)
-    errors = check_venom_ctx(ctx)
+    errors = find_semantic_errors(ctx)
 
     assert len(errors) == 0
 
@@ -33,9 +33,9 @@ def test_venom_parser_not_terminated():
         calldataload 10, 20, 30
     """
 
-    with pytest.raises(ExceptionGroup) as e:
-        ctx = parse_from_basic_block(code)
-    errors = e.value.exceptions
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
     assert all(isinstance(err, BasicBlockNotTerminated) for err in errors)
     assert len(errors) == 2
     assert list(e.metadata.label.name for e in errors) == ["bb0", "bb3"]
@@ -50,10 +50,9 @@ def test_venom_parser_nonexistant_var():
         ret %1
     """
 
-    with pytest.raises(ExceptionGroup) as e:
-        ctx = parse_from_basic_block(code)
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
 
-    errors = e.value.exceptions
     assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 1
     assert [err.metadata[0].name for err in errors] == ["%1"]
@@ -75,13 +74,14 @@ def test_venom_parser_nonexistant_var2():
         %3 = 3
         jmp @join
     join:
+        ; %2 and %3 are not defined in all input bbs(!)
         ret %1, %2, %3
     """
 
-    with pytest.raises(ExceptionGroup) as e:
-        ctx = parse_from_basic_block(code)
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
 
-    errors = e.value.exceptions
     assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 2
     assert [err.metadata[0].name for err in errors] == ["%2", "%3"]
+    assert [err.metadata[1].label.name for err in errors] == ["join", "join"]

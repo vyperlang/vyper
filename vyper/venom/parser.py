@@ -238,9 +238,4 @@ def parse_venom(source: str) -> IRContext:
     tree = VENOM_PARSER.parse(source)
     ctx = VenomTransformer().transform(tree)
     assert isinstance(ctx, IRContext)  # help mypy
-
-    errors = check_venom_ctx(ctx)
-    if errors:
-        raise ExceptionGroup("venom semantic errors", errors)
-
     return ctx

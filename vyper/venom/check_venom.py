@@ -46,7 +46,7 @@ def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomError]:
     return errors
 
 
-def check_venom_fn(fn: IRFunction) -> list[VenomError]:
+def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     errors = []
 
     # check that all the bbs are terminated
@@ -65,10 +65,16 @@ def check_venom_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def check_venom_ctx(context: IRContext) -> list[VenomError]:
+def find_semantic_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():
-        errors.extend(check_venom_fn(fn))
+        errors.extend(find_semantic_errors_fn(fn))
 
     return errors
+
+def check_venom_ctx(context: IRContext):
+    errors = find_semantic_errors(context)
+
+    if errors:
+        raise ExceptionGroup("venom semantic errors", errors)
