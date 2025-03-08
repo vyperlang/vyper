@@ -21,7 +21,8 @@ def test_simple_case():
         %2 = 32
         %3 = 64
         %4 = add %2, %3
-        sink %1, %4
+        %5 = add %1, 8  ; can't be optimized since %1 is a variable
+        sink %4, %5
     """
 
     post = """
@@ -30,7 +31,8 @@ def test_simple_case():
         %2 = 32
         %3 = 64
         %4 = add 32, 64
-        sink %1, 96
+        %5 = add %1, 8
+        sink 96, %5
     """
 
     passes = _check_pre_post(pre, post)
