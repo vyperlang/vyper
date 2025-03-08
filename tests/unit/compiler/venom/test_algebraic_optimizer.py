@@ -132,6 +132,8 @@ def test_interleaved_case(interleave_point):
 
     iszeros_after_interleave_point = interleave_point // 2
 
+    total_iszeros = interleave_point + iszeros_after_interleave_point
+
     iszero_chain = ""
     for i in range(interleave_point):
         new = i + 2
@@ -151,7 +153,7 @@ def test_interleaved_case(interleave_point):
         %cond{new} = iszero %cond{i}"""
 
     # output of iszero chain
-    jnz_cond = interleave_point + iszeros_after_interleave_point + 1
+    jnz_cond = total_iszeros + 1
 
     pre = f"""
     main:
@@ -176,8 +178,8 @@ def test_interleaved_case(interleave_point):
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
 
-    mstore_cond = interleave_point % 2 + 1
-    jnz_cond = (interleave_point + iszeros_after_interleave_point + 1) % 2
+    mstore_cond = (interleave_point % 2) + 1
+    jnz_cond = (total_iszeros + 1) % 2
 
     post = f"""
     main:
