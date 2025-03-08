@@ -108,6 +108,11 @@ class IRFunction:
         return f"%{self.last_variable}"
 
     def freshen_varnames(self) -> None:
+        """
+        Reset `self.last_variable`, and regenerate all variable names.
+        Helpful for debugging.
+        So fresh, so clean!
+        """
         self.last_variable = 0
         varmap = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
