@@ -46,7 +46,7 @@ def test_simple_case():
 
 def test_branch_eliminator_simple():
     """
-    Test of eliminating the jnz if the value is known
+    Test of simplifying the jnz if the condition is known
     at compile time
     """
     pre = """
@@ -57,7 +57,10 @@ def test_branch_eliminator_simple():
     else:
         sink 1
     foo:
-        jnz 0, @then, @else
+        jnz 0, @foo, @bar
+    bar:
+        ; test when condition not in (0, 1)
+        jnz 100, @else, @foo
     """
 
     post = """
@@ -68,6 +71,8 @@ def test_branch_eliminator_simple():
     else:
         sink 1
     foo:
+        jmp @bar
+    bar:
         jmp @else
     """
 
@@ -83,11 +88,15 @@ def test_assert_elimination():
     main:
         assert 1
         assert_unreachable 1
+        assert 100
+        assert_unreachable 100
         sink 1
     """
 
     post = """
     main:
+        nop
+        nop
         nop
         nop
         sink 1
