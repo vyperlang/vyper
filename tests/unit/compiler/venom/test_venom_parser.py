@@ -41,7 +41,7 @@ def test_venom_parser_not_terminated():
     assert list(e.metadata.label.name for e in errors) == ["bb0", "bb3"]
 
 
-def test_venom_parser_nonexistant_var():
+def test_venom_parser_nonexistent_var():
     """
     Test use of undefined variable
     """
@@ -58,9 +58,9 @@ def test_venom_parser_nonexistant_var():
     assert [err.metadata[0].name for err in errors] == ["%1"]
 
 
-def test_venom_parser_nonexistant_var2():
+def test_venom_parser_nonexistent_var2():
     """
-    Test definition of variable is not always reached
+    Test variable is not defined in all input bbs
     """
     code = """
     main:
