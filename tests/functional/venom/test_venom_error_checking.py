@@ -83,5 +83,5 @@ def test_venom_parser_nonexistent_var2():
 
     assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 2
-    assert [err.metadata[0].name for err in errors] == ["%2", "%3"]
+    assert [err.metadata[0].name for err in errors] == ["%3", "%2"]
     assert [err.metadata[1].label.name for err in errors] == ["join", "join"]

@@ -3,8 +3,8 @@ from enum import Enum
 from typing import Any
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.analysis import IRAnalysesCache, VarDefinition
+from vyper.venom.basicblock import IRBasicBlock, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -28,21 +28,14 @@ class VarNotDefined(VenomError):
     message: str = "variable is used before definition"
 
 
-def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomError]:
+def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[VenomError]:
     errors = []
-    bb_defs = set()
     for inst in bb.instructions:
-        if inst.output is not None:
-            bb_defs.add(inst.output)
-
-    # all variables defined in this block, plus variables from all input bbs.
-    defined_vars = bb_defs.union(*(in_bb.out_vars for in_bb in bb.cfg_in))
-
-    undef_vars = bb.instructions[-1].liveness.difference(defined_vars)
-
-    for var in undef_vars:
-        errors.append(VarNotDefined(metadata=(var, bb)))
-
+        defined = var_def.defined_vars[inst]
+        for op in inst.operands:
+            if isinstance(op, IRVariable):
+                if op not in defined:
+                    errors.append(VarNotDefined(metadata=(op, bb)))
     return errors
 
 
@@ -58,9 +51,9 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
         return errors
 
     ac = IRAnalysesCache(fn)
-    ac.request_analysis(LivenessAnalysis)
+    var_def: VarDefinition = ac.request_analysis(VarDefinition)  # type: ignore
     for bb in fn.get_basic_blocks():
-        e = _handle_incorrect_liveness(bb)
+        e = _handle_var_definition(bb, var_def)
         errors.extend(e)
     return errors
 
@@ -72,6 +65,7 @@ def find_semantic_errors(context: IRContext) -> list[VenomError]:
         errors.extend(find_semantic_errors_fn(fn))
 
     return errors
+
 
 def check_venom_ctx(context: IRContext):
     errors = find_semantic_errors(context)
