@@ -144,11 +144,11 @@ def test_interleaved_case(interleave_point):
 
     # continue building on iszero_chain1
     continue_iszero_chain = ""
-    for i in range(iszeros_after_interleave_point):
-        index = i + interleave_point + 1
-        new = index + 1
+    for i0 in range(iszeros_after_interleave_point):
+        i = i0 + interleave_point + 1
+        new = i + 1
         continue_iszero_chain += f"""
-        %cond{new} = iszero %cond{index}"""
+        %cond{new} = iszero %cond{i}"""
 
     # output of iszero chain
     jnz_cond = interleave_point + iszeros_after_interleave_point + 1
