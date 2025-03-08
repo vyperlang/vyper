@@ -170,8 +170,7 @@ class VenomTransformer(Transformer):
         return DataItem(bytes.fromhex(item))
 
     def block(self, children) -> tuple[str, list[IRInstruction]]:
-        label_tok, *instructions = children
-        label = label_tok.value
+        label, *instructions = children
         return label, instructions
 
     def assignment(self, children) -> IRInstruction:
