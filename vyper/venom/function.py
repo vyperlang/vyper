@@ -114,7 +114,7 @@ class IRFunction:
         So fresh, so clean!
         """
         self.last_variable = 0
-        varmap = defaultdict(self.get_next_variable)
+        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.output:
