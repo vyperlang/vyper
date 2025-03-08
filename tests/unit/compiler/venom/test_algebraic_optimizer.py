@@ -145,7 +145,10 @@ def test_interleaved_case(interleave_point):
         after_iszeros += f"""
         %cond{new} = iszero %cond{index}"""
 
+    # use a variable from middle of iszero chain
     mstore_cond = interleave_point + 1
+
+    # output of iszero chain
     jnz_cond = interleave_point + iszeros_after_interleave_point + 1
 
     pre = f"""
