@@ -56,16 +56,16 @@ def check_venom(context: IRContext) -> list[VenomSemanticError]:
     return errors
 
 
-def _handle_incorect_liveness(bb: IRBasicBlock) -> list[VenomSemanticError]:
+def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomSemanticError]:
     errors = []
-    defined_here = set()
+    bb_defs = set()
     for inst in bb.instructions:
         if inst.output is not None:
-            defined_here.add(inst.output)
+            bb_defs.add(inst.output)
 
     before_live = set().union(*(in_bb.out_vars for in_bb in bb.cfg_in))
 
-    undef_vars = bb.instructions[-1].liveness.difference(before_live.union(defined_here))
+    undef_vars = bb.instructions[-1].liveness.difference(before_live.union(bb_defs))
 
     for var in undef_vars:
         errors.append(VenomSemanticError(VenomSemanticErrorType.NotDefinedVar, var))
