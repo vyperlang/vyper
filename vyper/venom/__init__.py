@@ -57,11 +57,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
 
-    errors = check_venom_fn(fn)
-    if errors != []:  # pragma: nocover
-        print(errors)
-        raise CompilerPanic("venom sematic errors" + str(errors))
-
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
