@@ -16,6 +16,10 @@ def test_venom_parser():
 
 
 def test_venom_parser_not_terminated():
+    """
+    Test if the venom check finds the unterminated
+    basic blocks
+    """
     code = """
     bb0:
         %1 = 1
@@ -36,6 +40,9 @@ def test_venom_parser_not_terminated():
 
 
 def test_venom_parser_nonexistant_var():
+    """
+    Test use of undefined variable
+    """
     code = """
     main:
         ret %1
@@ -48,6 +55,9 @@ def test_venom_parser_nonexistant_var():
 
 
 def test_venom_parser_nonexistant_var2():
+    """
+    Test definition of variable is not always reached
+    """
     code = """
     main:
         %par = param
