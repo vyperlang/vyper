@@ -9,32 +9,29 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
 
-class VenomSemanticErrorType(Enum):
-    NotTerminatedBasicBlock = 1
-    NotDefinedVar = 2
-
-    def __repr__(self) -> str:
-        if self == VenomSemanticErrorType.NotTerminatedBasicBlock:
-            return "basic block does not terminate"
-        elif self == VenomSemanticErrorType.NotDefinedVar:
-            return "var not defined"
-        else:
-            raise CompilerPanic("unknown venom semantic error")
-
-
-@dataclass
-class VenomSemanticError:
-    error_type: VenomSemanticErrorType
+class VenomError(Exception):
+    message: str
     metadata: Any
 
+    def __init__(self, metadata):
+        self.metadata = metadata
 
-def check_venom_fn(fn: IRFunction) -> list[VenomSemanticError]:
+    def __str__(self):
+        return f"{self.message}\n\n{self.metadata}"
+
+class BasicBlockNotTerminated(VenomError):
+    message: str = "basic block does not terminate"
+
+class VarNotDefined(VenomError):
+    message: str = "variable is used before definition"
+
+def check_venom_fn(fn: IRFunction) -> list[VenomError]:
     errors = []
 
     # check that all the bbs are terminated
     for bb in fn.get_basic_blocks():
         if not bb.is_terminated:
-            errors.append(VenomSemanticError(VenomSemanticErrorType.NotTerminatedBasicBlock, bb))
+            errors.append(BasicBlockNotTerminated(metadata=bb))
 
     if errors != []:
         return errors
@@ -47,8 +44,8 @@ def check_venom_fn(fn: IRFunction) -> list[VenomSemanticError]:
     return errors
 
 
-def check_venom(context: IRContext) -> list[VenomSemanticError]:
-    errors: list[VenomSemanticError] = []
+def check_venom(context: IRContext) -> list[VenomError]:
+    errors: list[VenomError] = []
 
     for fn in context.functions.values():
         errors.extend(check_venom_fn(fn))
@@ -56,7 +53,7 @@ def check_venom(context: IRContext) -> list[VenomSemanticError]:
     return errors
 
 
-def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomSemanticError]:
+def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomError]:
     errors = []
     bb_defs = set()
     for inst in bb.instructions:
@@ -68,5 +65,6 @@ def _handle_incorrect_liveness(bb: IRBasicBlock) -> list[VenomSemanticError]:
     undef_vars = bb.instructions[-1].liveness.difference(before_live.union(bb_defs))
 
     for var in undef_vars:
-        errors.append(VenomSemanticError(VenomSemanticErrorType.NotDefinedVar, var))
+        errors.append(VariableNotDefined(metadata=(var, bb)))
+
     return errors
