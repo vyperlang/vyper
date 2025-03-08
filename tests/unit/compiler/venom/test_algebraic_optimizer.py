@@ -20,6 +20,7 @@ def test_simple_jump_case(iszero_count):
         new = i + 1
         iszero_chain += f"""
         %cond{new} = iszero %cond{i}"""
+    iszero_chain_output = f"cond{iszero_count}"
 
     pre = f"""
     main:
@@ -29,7 +30,7 @@ def test_simple_jump_case(iszero_count):
         %3 = add %1, %2
         %cond0 = %3
         {iszero_chain}
-        jnz %cond{iszero_count}, @then, @else
+        jnz %{iszero_chain_output}, @then, @else
     then:
         %4 = add 10, %3
         sink %4
@@ -38,9 +39,12 @@ def test_simple_jump_case(iszero_count):
         sink %5
     """
 
-    post_chain = ""
     if iszero_count % 2 == 1:
         post_chain = "%cond1 = iszero %cond0"
+        jnz_cond = "cond1"
+    else:
+        post_chain = ""
+        jnz_cond = "cond0"
 
     post = f"""
     main:
@@ -50,7 +54,7 @@ def test_simple_jump_case(iszero_count):
         %3 = add %1, %2
         %cond0 = %3
         {post_chain}
-        jnz %cond{iszero_count % 2}, @then, @else
+        jnz %{jnz_cond}, @then, @else
     then:
         %4 = add 10, %3
         sink %4
@@ -80,6 +84,8 @@ def test_simple_bool_cast_case(iszero_count):
         iszero_chain += f"""
         %cond{new} = iszero %cond{i}"""
 
+    iszero_chain_output = f"cond{iszero_count}"
+
     pre = f"""
     main:
         %par = param
@@ -88,7 +94,7 @@ def test_simple_bool_cast_case(iszero_count):
         %3 = add %1, %2
         %cond0 = %3
         {iszero_chain}
-        sink %cond{iszero_count}
+        sink %{iszero_chain_output}
     """
 
     if iszero_count % 2 == 0:
@@ -139,8 +145,8 @@ def test_interleaved_case(interleave_point):
         after_iszeros += f"""
         %cond{new} = iszero %cond{index}"""
 
-    mstore_condition = interleave_point + 1
-    jnz_condition = interleave_point + iszeros_after_interleave_point + 1
+    mstore_cond = interleave_point + 1
+    jnz_cond = interleave_point + iszeros_after_interleave_point + 1
 
     pre = f"""
     main:
@@ -148,9 +154,9 @@ def test_interleaved_case(interleave_point):
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {before_iszeros}
-        mstore %par, %cond{mstore_condition}
+        mstore %par, %cond{mstore_cond}
         {after_iszeros}
-        jnz %cond{jnz_condition}, @then, @else
+        jnz %cond{jnz_cond}, @then, @else
     then:
         %2 = add 10, %par
 
@@ -165,8 +171,8 @@ def test_interleaved_case(interleave_point):
 
     post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
 
-    mstore_condition = interleave_point % 2 + 1
-    jnz_condition = (interleave_point + iszeros_after_interleave_point + 1) % 2
+    mstore_cond = interleave_point % 2 + 1
+    jnz_cond = (interleave_point + iszeros_after_interleave_point + 1) % 2
 
     post = f"""
     main:
@@ -174,8 +180,8 @@ def test_interleaved_case(interleave_point):
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {post_iszero}
-        mstore %par, %cond{mstore_condition}
-        jnz %cond{jnz_condition}, @then, @else
+        mstore %par, %cond{mstore_cond}
+        jnz %cond{jnz_cond}, @then, @else
     then:
         %2 = add 10, %par
         %4 = mload %par
