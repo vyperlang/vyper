@@ -27,6 +27,7 @@ class LoadElimination(IRPass):
 
     def run_pass(self):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         self._big_lattice = defaultdict(lambda: defaultdict(dict))
 
@@ -38,11 +39,11 @@ class LoadElimination(IRPass):
 
             bb = worklist.pop()
 
-            #changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            #changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
+            changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
+            changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
             changed |= self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            #changed |= self._process_bb(bb, None, "dload", None)
-            #changed |= self._process_bb(bb, None, "calldataload", None)
+            changed |= self._process_bb(bb, None, "dload", None)
+            changed |= self._process_bb(bb, None, "calldataload", None)
 
             if changed:
                 worklist.update(bb.cfg_out)
@@ -54,9 +55,11 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
+        return self.dfg.are_equivalent(op1, op2)
         return op1 == op2
 
     def get_literal(self, op):
+        op = self.dfg._traverse_store_chain(op)
         if isinstance(op, IRLiteral):
             return op
         return None
@@ -64,6 +67,7 @@ class LoadElimination(IRPass):
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
         # not really a lattice even though it is not really inter-basic block;
         # we may generalize in the future
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self._lattice = {}
         old_lattice = self._big_lattice[load_opcode][bb].copy()
 
@@ -85,13 +89,7 @@ class LoadElimination(IRPass):
                     phi_args.append(in_bb.label)
 
                     val = in_values[k]
-
-                    if isinstance(val, IRLiteral):
-                        var = self.function.get_next_variable()
-                        in_bb.insert_instruction(IRInstruction("store", [val], var), index=-1)
-                    else:
-                        var = val
-                    phi_args.append(var)
+                    phi_args.append(val)
 
                 phi_out = self.function.get_next_variable()
                 phi_inst = IRInstruction("phi", phi_args, output=phi_out)
@@ -108,6 +106,7 @@ class LoadElimination(IRPass):
         #print("(pre)", old_lattice)
         #print(f"\n\nENTER {load_opcode} starting lattice", self._lattice)
         #print(bb)
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -119,10 +118,20 @@ class LoadElimination(IRPass):
             elif inst.opcode == load_opcode:
                 self._handle_load(inst)
 
-        changed = (old_lattice != self._lattice)# self._big_lattice[load_opcode][bb])
+        for k, v in self._lattice.items():
+            if v != old_lattice.get(k) and isinstance(v, IRLiteral):
+                # produce variables mapping them to literals
+                var = self.function.get_next_variable()
+                bb.insert_instruction(IRInstruction("store", [v], var), index=-1)
+                self._lattice[k] = var
+
+        changed = (old_lattice != self._lattice)
         self._big_lattice[load_opcode][bb] = self._lattice
+        #print(bb)
         #print(f"ENTER {load_opcode} ending lattice", self._lattice)
         #print("CHANGED", changed)
+
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         return changed
 
@@ -153,6 +162,7 @@ class LoadElimination(IRPass):
 
         # we found a redundant store, eliminate it
         existing_val = self._lattice.get(known_ptr)
+        #print("EQUIVALENT", val, existing_val, self.equivalent(val, existing_val))
         if self.equivalent(val, existing_val):
             inst.make_nop()
             return

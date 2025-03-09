@@ -45,9 +45,8 @@ class DFGAnalysis(IRAnalysis):
         if var1 == var2:
             return True
 
-        if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
-            var1 = self._traverse_store_chain(var1)
-            var2 = self._traverse_store_chain(var2)
+        var1 = self._traverse_store_chain(var1)
+        var2 = self._traverse_store_chain(var2)
 
         return var1 == var2
 
