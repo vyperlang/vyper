@@ -1,7 +1,6 @@
-from subprocess import CalledProcessError
 import pytest
-from tests.hevm import hevm_check_venom
-from tests.venom_utils import parse_from_basic_block
+
+from tests.hevm import hevm_check_venom, hevm_raises
 
 """
 Test that the hevm harness can actually detect faults,
@@ -10,6 +9,7 @@ setup.
 """
 
 pytestmark = pytest.mark.hevm
+
 
 def test_hevm_simple():
     code1 = """
@@ -23,6 +23,7 @@ def test_hevm_simple():
     """
     hevm_check_venom(code1, code2)
 
+
 def test_hevm_fault_simple():
     code1 = """
     main:
@@ -32,9 +33,10 @@ def test_hevm_fault_simple():
     main:
         sink 2
     """
- 
-    with pytest.raises(CalledProcessError):
+
+    with hevm_raises():
         hevm_check_venom(code1, code2)
+
 
 def test_hevm_branch():
     # test hevm detects branch always taken
@@ -53,6 +55,7 @@ def test_hevm_branch():
     """
     hevm_check_venom(code1, code2)
 
+
 def test_hevm_branch_fault():
     # test hevm detects branch always taken
     code1 = """
@@ -69,8 +72,58 @@ def test_hevm_branch_fault():
     else:
         sink 2
     """
-    with pytest.raises(CalledProcessError) as e:
+    with hevm_raises() as e:
+        hevm_check_venom(code1, code2)
+
+    # hevm-provided a counterexample:
+    assert "Calldata:" in e.value.stdout
+
+
+def test_hevm_detect_environment():
+    # test hevm detects environment variables
+    code1 = """
+    main:
+        sink 1
+    """
+    code2 = """
+    main:
+        %1 = address
+        %2 = caller
+        %3 = eq %1, %2
+        assert %3
+        sink 1
+    """
+    with hevm_raises() as e:
         hevm_check_venom(code1, code2)
 
     # hevm-provided counterexample:
-    assert "Calldata:\n  0x01" in e.value.stdout
+    assert 'SymAddr "caller"' in e.value.stdout
+    assert 'SymAddr "entrypoint"' in e.value.stdout
+
+
+def test_hevm_detect_needle():
+    # test hevm detects "needle-in-a-haystack" counterexamples
+    code1 = """
+    main:
+        sink 0
+    """
+    code2 = """
+    main:
+        %1 = param
+        %2 = add %1, 500
+        %3 = iszero %2  ; should eval to nonzero except if param is (2**256 - 500)
+        sink %3
+    """
+    with hevm_raises() as e:
+        hevm_check_venom(code1, code2)
+
+    # hevm-provided counterexample:
+    assert "Calldata:" in e.value.stdout
+    assert (
+        "fe0c" in e.value.stdout
+    )  # -500, but hevm with z3 solver reports the wrong counterexample
+
+    # canary to let us know when hevm has fixed it:
+    assert "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0c" not in e.value.stdout
+    # the correct assertion
+    # assert hex(2**256 - 500) in e.value.stdout
