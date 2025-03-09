@@ -1,7 +1,9 @@
+from collections import deque, defaultdict
 from typing import Optional
+from vyper.utils import OrderedSet
 
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
+from vyper.venom.basicblock import IRLiteral, IRBasicBlock, IRInstruction
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import IRPass
 
@@ -24,12 +26,29 @@ class LoadElimination(IRPass):
     # should this be renamed to EffectsElimination?
 
     def run_pass(self):
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        self._big_lattice = defaultdict(lambda: defaultdict(dict))
+
+        # seed with dfs pre walk
+        worklist = OrderedSet(cfg.dfs_pre_walk)
+
+        while len(worklist) > 0:
+            changed = False
+
+            bb = worklist.pop()
+
+            changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
+            changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
+            changed |= self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
+            changed |= self._process_bb(bb, None, "dload", None)
+            changed |= self._process_bb(bb, None, "calldataload", None)
+
+            if changed:
+                worklist.update(bb.cfg_out)
+
         for bb in self.function.get_basic_blocks():
-            self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
-            self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            self._process_bb(bb, None, "dload", None)
-            self._process_bb(bb, None, "calldataload", None)
+            bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -46,6 +65,36 @@ class LoadElimination(IRPass):
         # not really a lattice even though it is not really inter-basic block;
         # we may generalize in the future
         self._lattice = {}
+        old_lattice = self._big_lattice[load_opcode][bb].copy()
+
+        cfg_in = list(bb.cfg_in)
+        if len(cfg_in) > 0:
+            common_keys = self._big_lattice[load_opcode][cfg_in[0]].keys()
+            for in_bb in cfg_in:
+                common_keys &= self._big_lattice[load_opcode][in_bb].keys()
+
+            for k in common_keys:
+                # insert phi nodes and seed our lattice
+                if k in self._lattice:
+                    # already inserted the phi node, skip
+                    continue
+
+                phi_args = []
+                for in_bb in bb.cfg_in:
+                    in_values = self._big_lattice[load_opcode][in_bb]
+                    phi_args.append(in_bb.label)
+                    phi_args.append(in_values[k])
+
+                phi_out = self.function.get_next_variable()
+                phi_inst = IRInstruction("phi", phi_args, output=phi_out)
+                bb.insert_instruction(phi_inst, index=0)
+
+                # fix degenerate phis
+                if len(phi_args) == 2:
+                    phi_inst.opcode = "store"
+                    phi_inst.args = [phi_args[1]]
+
+                self._lattice[k] = phi_out
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -56,6 +105,11 @@ class LoadElimination(IRPass):
 
             elif inst.opcode == load_opcode:
                 self._handle_load(inst)
+
+        changed = (old_lattice != self._big_lattice[load_opcode][bb] )
+        self._big_lattice[load_opcode][bb] = self._lattice
+
+        return changed
 
     def _handle_load(self, inst):
         (ptr,) = inst.operands
