@@ -38,11 +38,11 @@ class LoadElimination(IRPass):
 
             bb = worklist.pop()
 
-            changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
+            #changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
+            #changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
             changed |= self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            changed |= self._process_bb(bb, None, "dload", None)
-            changed |= self._process_bb(bb, None, "calldataload", None)
+            #changed |= self._process_bb(bb, None, "dload", None)
+            #changed |= self._process_bb(bb, None, "calldataload", None)
 
             if changed:
                 worklist.update(bb.cfg_out)
@@ -83,18 +83,31 @@ class LoadElimination(IRPass):
                 for in_bb in bb.cfg_in:
                     in_values = self._big_lattice[load_opcode][in_bb]
                     phi_args.append(in_bb.label)
-                    phi_args.append(in_values[k])
+
+                    val = in_values[k]
+
+                    if isinstance(val, IRLiteral):
+                        var = self.function.get_next_variable()
+                        in_bb.insert_instruction(IRInstruction("store", [val], var), index=-1)
+                    else:
+                        var = val
+                    phi_args.append(var)
 
                 phi_out = self.function.get_next_variable()
                 phi_inst = IRInstruction("phi", phi_args, output=phi_out)
                 bb.insert_instruction(phi_inst, index=0)
+                #print("INSERT PHI", phi_inst)
 
                 # fix degenerate phis
                 if len(phi_args) == 2:
                     phi_inst.opcode = "store"
-                    phi_inst.args = [phi_args[1]]
+                    phi_inst.operands = [phi_args[1]]
 
                 self._lattice[k] = phi_out
+
+        #print("(pre)", old_lattice)
+        #print(f"\n\nENTER {load_opcode} starting lattice", self._lattice)
+        #print(bb)
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -106,8 +119,10 @@ class LoadElimination(IRPass):
             elif inst.opcode == load_opcode:
                 self._handle_load(inst)
 
-        changed = (old_lattice != self._big_lattice[load_opcode][bb] )
+        changed = (old_lattice != self._lattice)# self._big_lattice[load_opcode][bb])
         self._big_lattice[load_opcode][bb] = self._lattice
+        #print(f"ENTER {load_opcode} ending lattice", self._lattice)
+        #print("CHANGED", changed)
 
         return changed
 
