@@ -1,7 +1,7 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
 
 class VarDefinition(IRAnalysis):
@@ -11,7 +11,7 @@ class VarDefinition(IRAnalysis):
     """
 
     defined_vars: dict[IRInstruction, OrderedSet[IRVariable]]
-    defined_vars_bb: dict[IRLabel, OrderedSet[IRVariable]]
+    defined_vars_bb: dict[IRBasicBlock, OrderedSet[IRVariable]]
 
     def analyze(self):
         cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore
@@ -32,18 +32,15 @@ class VarDefinition(IRAnalysis):
                 worklist.update(bb.cfg_out)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        input_defined = [
+            self.defined_vars_bb[in_bb] for in_bb in bb.cfg_in if in_bb in self.defined_vars_bb
+        ]
         bb_defined: OrderedSet[IRVariable]
-        if len(bb.cfg_in) == 0:
+        if len(input_defined) == 0:
             # special case for intersection()
-            bb_defined: OrderedSet[IRVariable] = OrderedSet()
+            bb_defined = OrderedSet()
         else:
-            bb_defined = OrderedSet.intersection(
-                *(
-                    self.defined_vars_bb[in_bb.label]
-                    for in_bb in bb.cfg_in
-                    if in_bb.label in self.defined_vars_bb
-                )
-            )
+            bb_defined = OrderedSet.intersection(*input_defined)
 
         for inst in bb.instructions:
             self.defined_vars[inst] = bb_defined.copy()
@@ -51,8 +48,8 @@ class VarDefinition(IRAnalysis):
             if inst.output is not None:
                 bb_defined.add(inst.output)
 
-        if bb.label not in self.defined_vars_bb or self.defined_vars_bb[bb.label] != bb_defined:
-            self.defined_vars_bb[bb.label] = bb_defined
+        if bb not in self.defined_vars_bb or self.defined_vars_bb[bb] != bb_defined:
+            self.defined_vars_bb[bb] = bb_defined
             return True
 
         return False

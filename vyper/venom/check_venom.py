@@ -25,12 +25,14 @@ class VarNotDefined(VenomError):
     message: str = "variable is used before definition"
 
 
-def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[VenomError]:
+def _handle_var_definition(
+    fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
+) -> list[VenomError]:
     errors: list[VenomError] = []
     for inst in bb.instructions:
         if inst.opcode == "phi":
             for label, op in inst.phi_operands:
-                defined = var_def.defined_vars_bb[label]
+                defined = var_def.defined_vars_bb[fn.get_basic_block(label.name)]
                 if op not in defined:
                     errors.append(VarNotDefined(metadata=(op, bb, inst)))
             continue
@@ -56,7 +58,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     ac = IRAnalysesCache(fn)
     var_def: VarDefinition = ac.request_analysis(VarDefinition)  # type: ignore
     for bb in fn.get_basic_blocks():
-        e = _handle_var_definition(bb, var_def)
+        e = _handle_var_definition(fn, bb, var_def)
         errors.extend(e)
     return errors
 
