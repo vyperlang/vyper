@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -119,8 +119,12 @@ class MemMergePass(IRPass):
             pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32 or load_opcode == "dload":
-                operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
-                self.updater.update(inst, copy_opcode, operands)
+                ops: list[IROperand] = [
+                    IRLiteral(copy.length),
+                    IRLiteral(copy.src),
+                    IRLiteral(copy.dst),
+                ]
+                self.updater.update(inst, copy_opcode, ops)
             elif inst.opcode == "mstore":
                 # we already have a load which is the val for this mstore;
                 # leave it in place.
@@ -284,12 +288,12 @@ class MemMergePass(IRPass):
         for copy in self._copies:
             inst = copy.insts[-1]
             if copy.length == 32:
-                args = [IRLiteral(0), IRLiteral(copy.dst)]
-                self.updater.update(inst, "mstore", args)
+                new_ops: list[IROperand] = [IRLiteral(0), IRLiteral(copy.dst)]
+                self.updater.update(inst, "mstore", new_ops)
             else:
                 calldatasize = self.updater.add_before(inst, "calldatasize", [])
-                args = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
-                self.updater.update(inst, "calldatacopy", args)
+                new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                self.updater.update(inst, "calldatacopy", new_ops)
 
             for inst in copy.insts[:-1]:
                 self.updater.nop(inst)

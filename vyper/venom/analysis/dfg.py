@@ -140,7 +140,7 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
-        if opcode in NO_OUTPUT_INSTRUCTIONS:
+        if opcode in NO_OUTPUT_INSTRUCTIONS and inst.output is not None:
             assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
             inst.output = None
 
@@ -166,6 +166,7 @@ class InstUpdater:
         index = inst.parent.instructions.index(inst)
         var = inst.parent.parent.get_next_variable()
         operands = list(args)
+        # TODO: add support for NO_OUTPUT_INSTRUCTIONS
         new_inst = IRInstruction(opcode, operands, output=var)
         inst.parent.insert_instruction(new_inst, index)
         for op in new_inst.operands:
