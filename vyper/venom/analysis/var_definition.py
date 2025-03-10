@@ -32,6 +32,7 @@ class VarDefinition(IRAnalysis):
                 worklist.update(bb.cfg_out)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        bb_defined: OrderedSet[IRVariable]
         if len(bb.cfg_in) == 0:
             # special case for intersection()
             bb_defined: OrderedSet[IRVariable] = OrderedSet()
