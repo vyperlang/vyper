@@ -85,7 +85,7 @@ def test_venom_parser_nonexistent_var2():
     assert [err.inst.parent.label.name for err in errors] == ["join", "join"]
 
 
-def test_venom_parser_nonexistant_var_loop():
+def test_venom_parser_nonexistent_var_loop():
     code = """
     main:
         %par = param
@@ -113,7 +113,7 @@ def test_venom_parser_nonexistant_var_loop():
     assert [err.inst.parent.label.name for err in errors] == ["after"]
 
 
-def test_venom_parser_nonexistant_var_loop_incorrect_phi():
+def test_venom_parser_nonexistent_var_loop_incorrect_phi():
     code = """
     main:
         %par = param
