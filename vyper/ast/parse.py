@@ -399,6 +399,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
             ) from e
+        # block things like `for x: uint256 = 5 in ...`
+        if (value_node := fake_node.value) is not None:
+            raise SyntaxException(
+                "invalid type annotation",
+                self._source_code,
+                value_node.lineno,
+                value_node.col_offset,
+            )
 
         # replace the dummy target name with the real target name.
         fake_node.target = node.target
