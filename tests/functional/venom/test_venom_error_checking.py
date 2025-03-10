@@ -53,7 +53,7 @@ def test_venom_parser_nonexistent_var():
 
     assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 1
-    assert [err.metadata[0].name for err in errors] == ["%1"]
+    assert [err.var.name for err in errors] == ["%1"]
 
 
 def test_venom_parser_nonexistent_var2():
@@ -81,8 +81,8 @@ def test_venom_parser_nonexistent_var2():
 
     assert all(isinstance(err, VarNotDefined) for err in errors)
     assert len(errors) == 2
-    assert [err.metadata[0].name for err in errors] == ["%3", "%2"]
-    assert [err.metadata[1].label.name for err in errors] == ["join", "join"]
+    assert [err.var.name for err in errors] == ["%3", "%2"]
+    assert [err.inst.parent.label.name for err in errors] == ["join", "join"]
 
 
 def test_venom_parser_nonexistant_var_loop():
@@ -107,13 +107,10 @@ def test_venom_parser_nonexistant_var_loop():
 
     assert all(isinstance(err, VarNotDefined) for err in errors)
 
-    for e in errors:
-        print(e.metadata[0], e.metadata[1].label, e.metadata[2])
-
     assert len(errors) == 1
 
-    assert [err.metadata[0].name for err in errors] == ["%var"]
-    assert [err.metadata[1].label.name for err in errors] == ["after"]
+    assert [err.var.name for err in errors] == ["%var"]
+    assert [err.inst.parent.label.name for err in errors] == ["after"]
 
 
 def test_venom_parser_nonexistant_var_loop_incorrect_phi():
@@ -138,10 +135,7 @@ def test_venom_parser_nonexistant_var_loop_incorrect_phi():
 
     assert all(isinstance(err, VarNotDefined) for err in errors)
 
-    for e in errors:
-        print(e.metadata[0], e.metadata[1].label, e.metadata[2])
-
     assert len(errors) == 2
 
-    assert [err.metadata[0].name for err in errors] == ["%var", "%var"]
-    assert [err.metadata[1].label.name for err in errors] == ["cond", "after"]
+    assert [err.var.name for err in errors] == ["%var", "%var"]
+    assert [err.inst.parent.label.name for err in errors] == ["cond", "after"]

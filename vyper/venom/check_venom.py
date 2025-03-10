@@ -24,6 +24,14 @@ class BasicBlockNotTerminated(VenomError):
 class VarNotDefined(VenomError):
     message: str = "variable is used before definition"
 
+    def __init__(self, var, inst):
+        self.var = var
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return f"var {self.var} not defined:\n  {self.inst}\n\n{bb}"
+
 
 def _handle_var_definition(
     fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
@@ -34,13 +42,13 @@ def _handle_var_definition(
             for label, op in inst.phi_operands:
                 defined = var_def.defined_vars_bb[fn.get_basic_block(label.name)]
                 if op not in defined:
-                    errors.append(VarNotDefined(metadata=(op, bb, inst)))
+                    errors.append(VarNotDefined(var=op, inst=inst))
             continue
         defined = var_def.defined_vars[inst]
         for op in inst.operands:
             if isinstance(op, IRVariable):
                 if op not in defined:
-                    errors.append(VarNotDefined(metadata=(op, bb, inst)))
+                    errors.append(VarNotDefined(var=op, inst=inst))
     return errors
 
 
