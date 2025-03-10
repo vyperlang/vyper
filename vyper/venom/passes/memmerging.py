@@ -5,7 +5,7 @@ from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import IRPass,InstUpdater
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 @dataclass
