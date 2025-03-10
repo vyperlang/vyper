@@ -37,4 +37,4 @@ class StoreElimination(IRPass):
         for use_inst in uses.copy():
             self.updater.update_operands(use_inst, {var: new_var})
 
-        self.updater.nop(inst)
+        self.updater.remove(inst)

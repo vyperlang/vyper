@@ -3,7 +3,13 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    NO_OUTPUT_INSTRUCTIONS,
+    IRBasicBlock,
+    IRInstruction,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 
 
@@ -135,12 +141,20 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
+        if opcode in NO_OUTPUT_INSTRUCTIONS:
+            assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
+            inst.output = None
+
         inst.opcode = opcode
         inst.operands = new_operands
 
     def nop(self, inst: IRInstruction):
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
+
+    def remove(self, inst: IRInstruction):
+        self.nop(inst)  # for dfg updates and checks
+        inst.parent.remove_instruction(inst)
 
     def store(self, inst: IRInstruction, op: IROperand):
         self.update(inst, "store", [op])
@@ -158,6 +172,5 @@ class InstUpdater:
         for op in new_inst.operands:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, new_inst)
-        self.dfg.add_use(var, inst)
         self.dfg.set_producing_instruction(var, new_inst)
         return var

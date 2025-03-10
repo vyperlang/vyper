@@ -119,9 +119,8 @@ class MemMergePass(IRPass):
             pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32 or load_opcode == "dload":
-                inst.output = None
-                inst.opcode = copy_opcode
-                inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
+                operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
+                self.updater.update(inst, copy_opcode, operands)
             elif inst.opcode == "mstore":
                 # we already have a load which is the val for this mstore;
                 # leave it in place.
@@ -133,14 +132,8 @@ class MemMergePass(IRPass):
             else:
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
-                index = inst.parent.instructions.index(inst)
-                var = bb.parent.get_next_variable()
-                load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
-                inst.parent.insert_instruction(load, index)
-
-                inst.output = None
-                inst.opcode = "mstore"
-                inst.operands = [var, IRLiteral(copy.dst)]
+                val = self.updater.add_before(inst, load_opcode, [IRLiteral(copy.src)])
+                self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
 
             for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
@@ -291,16 +284,12 @@ class MemMergePass(IRPass):
         for copy in self._copies:
             inst = copy.insts[-1]
             if copy.length == 32:
-                inst.opcode = "mstore"
-                inst.operands = [IRLiteral(0), IRLiteral(copy.dst)]
+                args = [IRLiteral(0), IRLiteral(copy.dst)]
+                self.updater.update(inst, "mstore", args)
             else:
-                index = bb.instructions.index(inst)
-                calldatasize = bb.parent.get_next_variable()
-                bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
-
-                inst.output = None
-                inst.opcode = "calldatacopy"
-                inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                calldatasize = self.updater.add_before(inst, "calldatasize", [])
+                args = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                self.updater.update(inst, "calldatacopy", args)
 
             for inst in copy.insts[:-1]:
                 self.updater.nop(inst)
