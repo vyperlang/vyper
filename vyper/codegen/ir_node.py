@@ -499,6 +499,18 @@ class IRnode:
         return ret
 
     @cached_property
+    def contains_writeable_call(self):
+        ret = self.value in ("call", "delegatecall", "create", "create2")
+
+        for arg in self.args:
+            ret |= arg.contains_writeable_call
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.contains_writeable_call
+
+        return ret
+
+    @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
