@@ -95,7 +95,7 @@ def test_venom_parser_nonexistant_var_loop():
         %condition = lt %iter, 100
         jnz %condition, @after, @loop_body
     loop_body:
-        %var = mload 100
+        %var = mload %par
         %iter:1 = add 1, %iter
         jmp @cond
     after:
@@ -126,7 +126,7 @@ def test_venom_parser_nonexistant_var_loop_incorrect_phi():
         %condition = lt %iter, 100
         jnz %condition, @after, @loop_body
     loop_body:
-        %var = mload 100
+        %var = mload %par
         %iter:1 = add 1, %iter
         jmp @cond
     after:
