@@ -26,13 +26,19 @@ class VarNotDefined(VenomError):
 
 
 def _handle_var_definition(bb: IRBasicBlock, var_def: VarDefinition) -> list[VenomError]:
-    errors = []
+    errors: list[VenomError] = []
     for inst in bb.instructions:
+        if inst.opcode == "phi":
+            for label, op in inst.phi_operands:
+                defined = var_def.defined_vars_bb[label]
+                if op not in defined:
+                    errors.append(VarNotDefined(metadata=(op, bb, inst)))
+            continue
         defined = var_def.defined_vars[inst]
         for op in inst.operands:
             if isinstance(op, IRVariable):
                 if op not in defined:
-                    errors.append(VarNotDefined(metadata=(op, bb)))
+                    errors.append(VarNotDefined(metadata=(op, bb, inst)))
     return errors
 
 

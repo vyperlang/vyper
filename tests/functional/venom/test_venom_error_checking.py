@@ -83,3 +83,65 @@ def test_venom_parser_nonexistent_var2():
     assert len(errors) == 2
     assert [err.metadata[0].name for err in errors] == ["%3", "%2"]
     assert [err.metadata[1].label.name for err in errors] == ["join", "join"]
+
+
+def test_venom_parser_nonexistant_var_loop():
+    code = """
+    main:
+        %par = param
+        jmp @cond
+    cond:
+        %iter = phi @main, %par, @loop_body, %iter:1
+        %condition = lt %iter, 100
+        jnz %condition, @after, @loop_body
+    loop_body:
+        %var = mload 100
+        %iter:1 = add 1, %iter
+        jmp @cond
+    after:
+        sink %condition, %var
+    """
+
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
+    assert all(isinstance(err, VarNotDefined) for err in errors)
+
+    for e in errors:
+        print(e.metadata[0], e.metadata[1].label, e.metadata[2])
+
+    assert len(errors) == 1
+
+    assert [err.metadata[0].name for err in errors] == ["%var"]
+    assert [err.metadata[1].label.name for err in errors] == ["after"]
+
+
+def test_venom_parser_nonexistant_var_loop_incorrect_phi():
+    code = """
+    main:
+        %par = param
+        jmp @cond
+    cond:
+        %iter = phi @main, %var, @loop_body, %iter:1
+        %condition = lt %iter, 100
+        jnz %condition, @after, @loop_body
+    loop_body:
+        %var = mload 100
+        %iter:1 = add 1, %iter
+        jmp @cond
+    after:
+        sink %condition, %var
+    """
+
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
+    assert all(isinstance(err, VarNotDefined) for err in errors)
+
+    for e in errors:
+        print(e.metadata[0], e.metadata[1].label, e.metadata[2])
+
+    assert len(errors) == 2
+
+    assert [err.metadata[0].name for err in errors] == ["%var", "%var"]
+    assert [err.metadata[1].label.name for err in errors] == ["cond", "after"]
