@@ -134,8 +134,7 @@ class InstUpdater:
             if not isinstance(op, IRVariable):
                 continue
             uses = self.dfg.get_uses(op)
-            if inst in uses:
-                uses.remove(inst)
+            uses.discard(inst)
 
         for op in new_operands:
             if isinstance(op, IRVariable):
