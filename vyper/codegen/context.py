@@ -35,6 +35,8 @@ class Alloca:
 
     _id: int
 
+    _callsite: Optional[str] = None
+
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
 

@@ -178,7 +178,7 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ("store", "alloca", "palloca"):
+        if opcode in ("store", "alloca", "palloca", "calloca"):
             assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
