@@ -754,7 +754,6 @@ class _ParsedDecorators:
         self.state_mutability_node = decorator_node
 
     @property
-    # TODO: change signature to Optional[StateMutability]
     def state_mutability(self) -> StateMutability:
         if self.state_mutability_node is None:
             return StateMutability.NONPAYABLE  # default
