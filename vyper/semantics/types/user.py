@@ -298,7 +298,7 @@ class EventT(_UserType):
 
             return validate_kwargs(node, self.arguments, self.typeclass)
 
-        # warn about positional argument depreciation
+        # warn about positional argument deprecation
         if len(node.args) != 0:
             rec0 = ", ".join(
                 f"{argname}={val.node_source_code}"
