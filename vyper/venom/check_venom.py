@@ -1,5 +1,3 @@
-from typing import Any
-
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
 from vyper.venom.basicblock import IRBasicBlock, IRVariable
 from vyper.venom.context import IRContext
@@ -8,6 +6,7 @@ from vyper.venom.function import IRFunction
 
 class VenomError(Exception):
     message: str
+
 
 class BasicBlockNotTerminated(VenomError):
     message: str = "basic block does not terminate"
