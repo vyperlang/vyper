@@ -24,7 +24,7 @@ jobs:
         cache: "pip"
 
     - name: Install Dependencies
-      run: pip install .[lint]
+      run: pip install -v .[lint]
 
     - name: Debug dependencies
       run: pip freeze
@@ -55,7 +55,7 @@ jobs:
 
       - name: Install deps
         # TODO these should really be in setup.py
-        run: pip install shibuya sphinx sphinx-copybutton
+        run: pip install -v shibuya sphinx sphinx-copybutton
 
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
@@ -75,7 +75,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install -v .[test]
 
     - name: Install hevm
       run: |
@@ -174,7 +174,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install -v .[test]
 
     - name: Debug dependencies
       run: pip freeze
@@ -234,7 +234,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install -v .[test]
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
@@ -289,7 +289,7 @@ jobs:
         cache: "pip"
   
     - name: Install coverage
-      run: pip install coverage
+      run: pip install -v coverage
 
     - name: Download coverage artifacts
       uses: actions/download-artifact@v4
