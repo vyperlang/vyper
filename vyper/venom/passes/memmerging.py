@@ -215,7 +215,8 @@ class MemMergePass(IRPass):
         self._copies = []
 
         def _barrier():
-            self._optimize_copy(bb, self._copies, copy_opcode, load_opcode)
+            # hard barrier. flush everything
+            _barrier_for(self._copies)
             self._copies.clear()
             self._loads.clear()
 
@@ -237,7 +238,7 @@ class MemMergePass(IRPass):
 
                 read_interval = _Interval(src_op.value, 32)
 
-                # we will read from this memory so we need to put barier
+                # we will read from this memory so we need to put barrier
                 if not allow_dst_overlaps_src and self._overwrites(read_interval):
                     _load_barrier(read_interval)
 
