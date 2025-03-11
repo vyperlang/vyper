@@ -160,16 +160,7 @@ class MemMergePass(IRPass):
                 inst.make_nop()
 
         for c in copies:
-            if c in self._copies:
-                self._copies.remove(c)
-            for inst in c.insts:
-                if inst.opcode == load_opcode:
-                    assert isinstance(inst.output, IRVariable)
-                    if inst.output in self._loads:
-                        del self._loads[inst.output]
-
-        # self._copies.clear()
-        # self._loads.clear()
+            self._copies.remove(c)
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
         res = []
