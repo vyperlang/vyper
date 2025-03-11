@@ -8,17 +8,15 @@ from vyper.venom.function import IRFunction
 
 class VenomError(Exception):
     message: str
-    metadata: Any
-
-    def __init__(self, metadata):
-        self.metadata = metadata
-
-    def __str__(self):
-        return f"{self.message}\n\n{self.metadata}"
-
 
 class BasicBlockNotTerminated(VenomError):
     message: str = "basic block does not terminate"
+
+    def __init__(self, basicblock):
+        self.basicblock = basicblock
+
+    def __str__(self):
+        return f"basic block is not terminated:\n{self.basicblock}"
 
 
 class VarNotDefined(VenomError):
@@ -58,7 +56,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     # check that all the bbs are terminated
     for bb in fn.get_basic_blocks():
         if not bb.is_terminated:
-            errors.append(BasicBlockNotTerminated(metadata=bb))
+            errors.append(BasicBlockNotTerminated(basicblock=bb))
 
     if len(errors) > 0:
         return errors

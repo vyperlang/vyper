@@ -36,7 +36,7 @@ def test_venom_parser_not_terminated():
 
     assert all(isinstance(err, BasicBlockNotTerminated) for err in errors)
     assert len(errors) == 2
-    assert list(e.metadata.label.name for e in errors) == ["bb0", "bb3"]
+    assert list(e.basicblock.label.name for e in errors) == ["bb0", "bb3"]
 
 
 def test_venom_parser_nonexistent_var():
