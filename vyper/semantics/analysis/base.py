@@ -206,6 +206,7 @@ class VarInfo:
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
+    # TODO: convert to property
     def is_state_variable(self):
         non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
         # `self` gets a VarInfo, but it is not considered a state
