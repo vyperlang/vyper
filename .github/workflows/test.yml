@@ -16,6 +16,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.6.5"
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
@@ -24,7 +29,7 @@ jobs:
         cache: "pip"
 
     - name: Install Dependencies
-      run: pip install -vvv .[lint]
+      run: uv pip install -vvv .[lint]
 
     - name: Debug dependencies
       run: pip freeze
@@ -46,6 +51,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          # Install a specific version of uv.
+          version: "0.6.5"
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -55,7 +65,7 @@ jobs:
 
       - name: Install deps
         # TODO these should really be in setup.py
-        run: pip install -vvv shibuya sphinx sphinx-copybutton
+        run: uv pip install -vvv shibuya sphinx sphinx-copybutton
 
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
@@ -67,6 +77,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.6.5"
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
@@ -75,7 +90,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install -vvv .[test]
+      run: uv pip install -vvv .[test]
 
     - name: Install hevm
       run: |
@@ -102,6 +117,7 @@ jobs:
   # "Regular"/core tests.
   tests:
     runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+
     # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
     # it is annoying that we need to duplicate them, but it is necessary
     # to avoid repeating defaults for every "include" in the matrix.
@@ -166,6 +182,11 @@ jobs:
       with:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.6.5"
 
     - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
@@ -174,7 +195,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install -vvv .[test]
+      run: uv pip install -vvv .[test]
 
     - name: Debug dependencies
       run: pip freeze
@@ -226,6 +247,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.6.5"
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
@@ -234,7 +260,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install -vvv .[test]
+      run: uv pip install -vvv .[test]
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
@@ -281,6 +307,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        # Install a specific version of uv.
+        version: "0.6.5"
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
@@ -289,7 +320,7 @@ jobs:
         cache: "pip"
   
     - name: Install coverage
-      run: pip install -vvv coverage
+      run: uv pip install -vvv coverage
 
     - name: Download coverage artifacts
       uses: actions/download-artifact@v4
