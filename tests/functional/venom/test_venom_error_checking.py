@@ -86,6 +86,10 @@ def test_venom_parser_nonexistent_var2():
 
 
 def test_venom_parser_nonexistant_var_loop():
+    """
+    Test detecting usage of variable in loop
+    body outside of loop body
+    """
     code = """
     main:
         %par = param
@@ -117,11 +121,17 @@ def test_venom_parser_nonexistant_var_loop():
 
 
 def test_venom_parser_nonexistant_var_loop_incorrect_phi():
+    """
+    Test detecting incorrect phi var usage.
+    The variable that is taken from main is
+    not defined in main
+    """
     code = """
     main:
         %par = param
         jmp @cond
     cond:
+        ; incorrect phi (var is not main)
         %iter = phi @main, %var, @loop_body, %iter:1
         %condition = lt %iter, 100
         jnz %condition, @after, @loop_body
