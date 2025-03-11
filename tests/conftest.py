@@ -118,10 +118,15 @@ def evm_version(pytestconfig):
     return pytestconfig.getoption("evm_version")
 
 
+# This is a separate flag from just setting `-m hevm`, since it turns out
+# that marker detection is somewhat cumbersome in pytest. To run hevm tests,
+# run `./quicktest.sh -m hevm --hevm`, combining the CLI arguments.
 @pytest.fixture(scope="session", autouse=True)
 def set_hevm(pytestconfig):
     flag_value = pytestconfig.getoption("hevm")
     assert isinstance(flag_value, bool)
+    # set a global, this way helper functions can be defined without
+    # reference to pytest fixtures.
     tests.hevm.HAS_HEVM = flag_value
 
 
