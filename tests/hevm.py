@@ -69,9 +69,7 @@ def _prep_hevm_venom(venom_source_code, verbose=False):
 
 
 def hevm_check_venom(pre, post, verbose=False):
-    global HAS_HEVM
-
-    if not HAS_HEVM:
+    if not has_hevm():
         return
 
     # perform hevm equivalence check
@@ -87,9 +85,7 @@ def hevm_check_venom(pre, post, verbose=False):
 
 @contextlib.contextmanager
 def hevm_raises():
-    global HAS_HEVM
-
-    if not HAS_HEVM:
+    if not has_hevm():
         pytest.skip("skipping because `--hevm` was not specified")
 
     with pytest.raises(subprocess.CalledProcessError) as e:
