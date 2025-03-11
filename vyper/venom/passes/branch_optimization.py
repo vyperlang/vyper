@@ -5,7 +5,7 @@ from vyper.venom.passes.base_pass import IRPass
 
 # for these instruction exist optimization that
 # could benefit from iszero
-def iszero_can_help(inst: IRInstruction) -> bool:
+def prefer_iszero(inst: IRInstruction) -> bool:
     if inst.opcode == "eq":
         return True
     if inst.opcode in ["gt", "lt"]:
@@ -37,7 +37,7 @@ class BranchOptimizationPass(IRPass):
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
                 term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
-            elif cost_a >= cost_b and iszero_can_help(prev_inst):
+            elif cost_a >= cost_b and prefer_iszero(prev_inst):
                 new_cond = fn.get_next_variable()
                 inst = IRInstruction("iszero", [term_inst.operands[0]], output=new_cond)
                 bb.insert_instruction(inst, index=-1)

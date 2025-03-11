@@ -1065,7 +1065,6 @@ def test_merge_mstore_dload():
     post = """
     _global:
         %par = param
-        nop
         mstore 1000, 123
         dloadbytes 1000, %par, 32
         stop
