@@ -17,6 +17,10 @@ class _Interval:
     def end(self):
         return self.start + self.length
 
+    def overlaps(self, other):
+        a = max(self.start, other.start)
+        b = min(self.end, other.end)
+        return a < b
 
 @dataclass
 class _Copy:
@@ -56,9 +60,7 @@ class _Copy:
 
     def overwrites(self, interval: _Interval) -> bool:
         # return true if dst of self overwrites the interval
-        a = max(self.dst, interval.start)
-        b = min(self.dst_end, interval.end)
-        return a < b
+        return _Interval(self.dst, self.length).overlaps(interval)
 
     def can_merge(self, other: "_Copy"):
         # both source and destination have to be offset by same amount,
@@ -161,6 +163,14 @@ class MemMergePass(IRPass):
 
         for c in copies:
             self._copies.remove(c)
+
+            self._invalidate(c.dst_interval())
+
+    def _invalidate(self, interval: _Interval):
+        for var, ptr in self._loads.copy().items():
+            if _Interval(ptr, 32).overlaps(interval):
+                del self._loads[var]
+
 
     def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
         res = []
