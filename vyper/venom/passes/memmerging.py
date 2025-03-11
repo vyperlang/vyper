@@ -159,6 +159,15 @@ class MemMergePass(IRPass):
 
                 inst.make_nop()
 
+        for c in copies:
+            if c in self._copies:
+                self._copies.remove(c)
+            for inst in c.insts:
+                if inst.opcode == load_opcode:
+                    assert isinstance(inst.output, IRVariable)
+                    if inst.output in self._loads:
+                        del self._loads[inst.output]
+
         # self._copies.clear()
         # self._loads.clear()
 
@@ -225,14 +234,6 @@ class MemMergePass(IRPass):
 
         def _barrier_for(copies: list[_Copy]):
             self._optimize_copy(bb, copies, copy_opcode, load_opcode)
-            for c in copies:
-                if c in self._copies:
-                    self._copies.remove(c)
-                for inst in c.insts:
-                    if inst.opcode == load_opcode:
-                        assert isinstance(inst.output, IRVariable)
-                        if inst.output in self._loads:
-                            del self._loads[inst.output]
 
         # copy in necessary because there is a possibility
         # of insertion in optimizations
