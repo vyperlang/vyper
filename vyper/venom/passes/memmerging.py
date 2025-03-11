@@ -94,6 +94,9 @@ class _Copy:
 class MemMergePass(IRPass):
     dfg: DFGAnalysis
     _copies: list[_Copy]
+
+    # %1 = mload 5 => {%1: 5}
+    # this represents the available loads, which have not been invalidated.
     _loads: dict[IRVariable, int]
 
     def run_pass(self):
@@ -175,22 +178,24 @@ class MemMergePass(IRPass):
     def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
         res = []
         for copy in self._copies:
+            if copy.can_merge(new_copy) or new_copy.can_merge(copy):
+                # safe
+                continue
+
             # note, these are the same:
             # - new_copy.overwrites(copy.dst_interval())
             # - copy.overwrites(new_copy.dst_interval())
-            if new_copy.overwrites(copy.dst_interval()) and not (
-                copy.can_merge(new_copy) or new_copy.can_merge(copy)
-            ):
+            if new_copy.overwrites(copy.dst_interval()):
                 res.append(copy)
 
         return res
 
     def _read_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
-        # new_copies = self._copies + [new_copy]
+        res = []
+        for copy in self._copies:
+            if new_copy.overwrites(copy.src_interval()) or copy.overwrites(new_copy.src_interval()):
+                res.append(copy)
 
-        res = [copy for copy in self._copies if new_copy.overwrites(copy.src_interval())] + [
-            copy for copy in self._copies if copy.overwrites(new_copy.src_interval())
-        ]
         return res
 
     def _find_insertion_point(self, new_copy: _Copy):
@@ -248,7 +253,8 @@ class MemMergePass(IRPass):
 
                 read_interval = _Interval(src_op.value, 32)
 
-                # we will read from this memory so we need to put barrier
+                # existing copies trample the read_interval, so we need to flush
+                # them first.
                 if not allow_dst_overlaps_src and self._overwrites(read_interval):
                     _load_barrier(read_interval)
 
@@ -262,6 +268,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
 
+                # unknown memory (not writing the result of an available load)
                 if var not in self._loads:
                     _barrier()
                     continue
