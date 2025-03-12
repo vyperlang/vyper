@@ -72,7 +72,7 @@ class Mem2Var(IRPass):
         # and instead "add_after" the palloca instruction.
         self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
 
-        for inst in uses:
+        for inst in uses.copy():
             if inst.opcode == "mstore":
                 self.updater.store(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
