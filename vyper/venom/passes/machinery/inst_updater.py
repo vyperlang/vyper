@@ -52,6 +52,9 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
+        inst.opcode = opcode
+        inst.operands = new_operands
+
         if opcode in NO_OUTPUT_INSTRUCTIONS:
             if inst.output is not None:
                 assert new_output is None
@@ -63,9 +66,6 @@ class InstUpdater:
             if new_output is not None:
                 self.update_output(inst, new_output)
 
-        inst.opcode = opcode
-        inst.operands = new_operands
-
     def nop(self, inst: IRInstruction):
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
@@ -74,8 +74,8 @@ class InstUpdater:
         self.nop(inst)  # for dfg updates and checks
         inst.parent.remove_instruction(inst)
 
-    def store(self, inst: IRInstruction, op: IROperand):
-        self.update(inst, "store", [op])
+    def store(self, inst: IRInstruction, op: IROperand, new_output:Optional[IRVariable]=None):
+        self.update(inst, "store", [op], new_output=new_output)
 
     def add_before(self, inst: IRInstruction, opcode: str, args: list[IROperand]) -> IRVariable:
         """
