@@ -429,7 +429,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "invoke"]:
+        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -443,7 +443,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
