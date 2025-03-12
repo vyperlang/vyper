@@ -31,7 +31,7 @@ class LoadElimination(IRPass):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         # TODO: request_analysis
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
-        self.updater = InstUpdater(dfg)
+        self.updater = InstUpdater(self.dfg)
 
         self._big_lattice = defaultdict(lambda: defaultdict(dict))
 
