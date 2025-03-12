@@ -1,6 +1,5 @@
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class BranchOptimizationPass(IRPass):
@@ -26,17 +25,18 @@ class BranchOptimizationPass(IRPass):
             prev_inst = self.dfg.get_producing_instruction(cond)
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
-                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                self.updater.update(term_inst, term_inst.opcode, new_operands)
             elif cost_a > cost_b:
-                new_cond = fn.get_next_variable()
-                inst = IRInstruction("iszero", [term_inst.operands[0]], output=new_cond)
-                bb.insert_instruction(inst, index=-1)
-                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                new_cond = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
+                new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                self.updater.update(term_inst, term_inst.opcode, new_operands)
 
     def run_pass(self):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
 
         self._optimize_branches()
 
