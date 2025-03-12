@@ -178,7 +178,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, (IRLiteral, IRVariable)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
