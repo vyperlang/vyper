@@ -1,5 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
@@ -14,16 +14,19 @@ class VarDefinition(IRAnalysis):
     defined_vars_bb: dict[IRBasicBlock, OrderedSet[IRVariable]]
 
     def analyze(self):
-        cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore
+        self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore
+        dfg: DFGAnalysis = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
 
         # the variables that are defined up to (but not including) this point
         self.defined_vars = dict()
 
         # variables that are defined at the output of the basic block
-        self.defined_vars_bb = dict()
+        self.defined_vars_bb = {
+            bb: OrderedSet(dfg.outputs.keys()) for bb in self.function.get_basic_blocks()
+        }
 
         # heuristic: faster if we seed with the dfs prewalk
-        worklist = OrderedSet(cfg.dfs_post_walk)
+        worklist = OrderedSet(self.function.get_basic_blocks())
         while len(worklist) > 0:
             bb = worklist.pop()
             changed = self._handle_bb(bb)
