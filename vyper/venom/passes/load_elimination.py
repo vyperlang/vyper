@@ -5,7 +5,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
 from vyper.venom.basicblock import IRLiteral, IRBasicBlock, IRInstruction
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
@@ -25,9 +25,13 @@ class LoadElimination(IRPass):
 
     # should this be renamed to EffectsElimination?
 
+    updater: InstUpdater
+
     def run_pass(self):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        # TODO: request_analysis
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        self.updater = InstUpdater(dfg)
 
         self._big_lattice = defaultdict(lambda: defaultdict(dict))
 
@@ -93,6 +97,7 @@ class LoadElimination(IRPass):
 
                 phi_out = self.function.get_next_variable()
                 phi_inst = IRInstruction("phi", phi_args, output=phi_out)
+                # TODO: update instupdater to handle phi
                 bb.insert_instruction(phi_inst, index=0)
                 #print("INSERT PHI", phi_inst)
 
@@ -164,7 +169,7 @@ class LoadElimination(IRPass):
         existing_val = self._lattice.get(known_ptr)
         #print("EQUIVALENT", val, existing_val, self.equivalent(val, existing_val))
         if self.equivalent(val, existing_val):
-            inst.make_nop()
+            self.updater.nop(inst)
             return
 
         self._lattice[known_ptr] = val
