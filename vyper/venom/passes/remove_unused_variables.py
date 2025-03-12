@@ -14,7 +14,6 @@ class RemoveUnusedVariablesPass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.updater = InstUpdater
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -45,4 +44,4 @@ class RemoveUnusedVariablesPass(IRPass):
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
 
-        inst.parent.remove_instruction(inst)
+        inst.make_nop()
