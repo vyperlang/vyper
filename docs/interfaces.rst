@@ -69,14 +69,14 @@ Either the ``extcall`` or ``staticcall`` keyword is required to precede the exte
 
 Vyper offers the option to set the following additional keyword arguments when making external calls:
 
-=============================== ===========================================================
+=============================== ==============================================================
 Keyword                         Description
-=============================== ===========================================================
+=============================== ==============================================================
 ``gas``                         Specify gas value for the call
 ``value``                       Specify amount of ether sent with the call
-``skip_contract_check``         Drop ``EXTCODESIZE`` and ``RETURNDATASIZE`` checks
+``skip_contract_check``         Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)
 ``default_return_value``        Specify a default return value if no value is returned
-=============================== ===========================================================
+=============================== ==============================================================
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
 

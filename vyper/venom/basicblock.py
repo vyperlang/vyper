@@ -90,6 +90,10 @@ assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
 
+# These instructions should be eliminated/rewritten
+# before going into assembly emission
+PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
+
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
@@ -192,6 +196,13 @@ class IRVariable(IROperand):
         if version > 0:
             value = f"{name}:{version}"
         super().__init__(value)
+
+    def with_version(self, version: int) -> "IRVariable":
+        if version == self.version:
+            # IRVariable ctor is a hotspot, try to avoid calling it
+            # if possible
+            return self
+        return self.__class__(self.name, version)
 
     @property
     def name(self) -> str:
