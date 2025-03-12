@@ -86,6 +86,8 @@ class SimplifyCFGPass(IRPass):
         """
         Remove empty basic blocks.
         """
+        # NOTE CMC 2025-03-12 this function is a no-op!
+
         fn = self.function
         worklist = list(fn.get_basic_blocks())
         i = count = 0
