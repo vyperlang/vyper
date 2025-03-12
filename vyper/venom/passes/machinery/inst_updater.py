@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.basicblock import NO_OUTPUT_INSTRUCTIONS, IRInstruction, IROperand, IRVariable
 
@@ -16,7 +18,24 @@ class InstUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands)
 
-    def update(self, inst: IRInstruction, opcode: str, new_operands: list[IROperand]):
+    def update_output(self, inst: IRInstruction, new_output: Optional[IRVariable]):
+        assert (new_output is None) == (inst.opcode in NO_OUTPUT_INSTRUCTIONS)
+
+        if inst.output is not None:
+            self.dfg.remove_producing_instruction(inst.output)
+
+        if new_output is not None:
+            self.dfg.set_producing_instruction(new_output, inst)
+
+        inst.output = new_output
+
+    def update(
+        self,
+        inst: IRInstruction,
+        opcode: str,
+        new_operands: list[IROperand],
+        new_output: Optional[IRVariable] = None,
+    ):
         assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
@@ -33,9 +52,16 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
-        if opcode in NO_OUTPUT_INSTRUCTIONS and inst.output is not None:
-            assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
-            inst.output = None
+        if opcode in NO_OUTPUT_INSTRUCTIONS:
+            if inst.output is not None:
+                assert new_output is None
+                assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
+                # remove from dfg
+                self.update_output(inst, None)
+        else:
+            # new_output is None is sentinel meaning "no change"
+            if new_output is not None:
+                self.update_output(inst, new_output)
 
         inst.opcode = opcode
         inst.operands = new_operands
