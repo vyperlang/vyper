@@ -83,13 +83,17 @@ class InstUpdater:
         """
         assert opcode != "phi"
         index = inst.parent.instructions.index(inst)
-        var = inst.parent.parent.get_next_variable()
+
+        var = None
+        if opcode not in NO_OUTPUT_INSTRUCTIONS:
+            var = inst.parent.parent.get_next_variable()
+
         operands = list(args)
-        # TODO: add support for NO_OUTPUT_INSTRUCTIONS
         new_inst = IRInstruction(opcode, operands, output=var)
         inst.parent.insert_instruction(new_inst, index)
         for op in new_inst.operands:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, new_inst)
-        self.dfg.set_producing_instruction(var, new_inst)
+        if var is not None:
+            self.dfg.set_producing_instruction(var, new_inst)
         return var
