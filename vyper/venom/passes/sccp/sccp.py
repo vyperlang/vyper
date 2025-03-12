@@ -36,8 +36,9 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
 Lattice = dict[IRVariable, LatticeItem]
+
 
 class SCCP(IRPass):
     """
@@ -149,7 +150,7 @@ class SCCP(IRPass):
         assert isinstance(op, IRVariable), f"Not a variable: {op}"
         self.lattice[op] = value
 
-    def _eval_from_lattice(self, op: IROperand) -> IRLiteral | LatticeEnum:
+    def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
         if isinstance(op, (IRLiteral, IRLabel)):
             return op
 
