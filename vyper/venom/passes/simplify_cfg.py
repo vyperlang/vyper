@@ -36,6 +36,8 @@ class SimplifyCFGPass(IRPass):
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
 
+        self._replace_label(b.label, next_bb.label)
+
         # Update CFG
         a.remove_cfg_out(b)
         a.add_cfg_out(next_bb)
@@ -104,17 +106,18 @@ class SimplifyCFGPass(IRPass):
                 replaced_label, replacement_label = replacement_label, replaced_label
                 next_bb.label = replacement_label
 
-            for bb2 in fn.get_basic_blocks():
-                for inst in bb2.instructions:
-                    for op in inst.operands:
-                        if isinstance(op, IRLabel) and op.value == replaced_label.value:
-                            op.value = replacement_label.value
+            self._replace_label(replaced_label, replacement_label)
 
             fn.remove_basic_block(bb)
             i -= 1
             count += 1
 
         return count
+
+    def _replace_label(self, original_label: IRLabel, replacement_label: IRLabel):
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                inst.replace_operands({original_label: replacement_label})
 
     def run_pass(self):
         fn = self.function
