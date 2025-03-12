@@ -1,7 +1,7 @@
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.analysis.dfg import InstUpdater
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
 class IRPass:
