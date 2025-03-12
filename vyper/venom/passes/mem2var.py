@@ -2,7 +2,7 @@ from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
-from vyper.venom.passes.base_pass import IRPass, InstUpdater
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class Mem2Var(IRPass):
