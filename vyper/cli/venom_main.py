@@ -57,7 +57,7 @@ def _parse_args(argv: list[str]):
 
     ctx = parse_venom(venom_source)
 
-    # check_venom_ctx(ctx)
+    check_venom_ctx(ctx)
 
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
