@@ -1,7 +1,7 @@
 from vyper.utils import OrderedSet, uniq
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.passes.base_pass import InstUpdater, IRPass
+from vyper.venom.passes.base_pass import IRPass
 
 
 class RemoveUnusedVariablesPass(IRPass):
