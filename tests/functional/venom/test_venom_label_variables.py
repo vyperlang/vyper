@@ -1,12 +1,8 @@
-    
-import vyper
-import vyper.evm.opcodes as evm
 from vyper.compiler.phases import generate_bytecode
-from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
+from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.parser import parse_venom
- 
 
 
 def test_labels_as_variables():
@@ -86,5 +82,4 @@ def test_labels_as_variables():
 
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
-
+    generate_bytecode(asm, compiler_metadata=None)
