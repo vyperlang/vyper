@@ -24,9 +24,11 @@ def decimal_sqrt(val):
 
 def test_sqrt_literal(get_contract):
     code = """
+import stdlib.math as math
+
 @external
 def test() -> decimal:
-    return sqrt(2.0)
+    return math.sqrt(2.0)
     """
     c = get_contract(code)
     assert c.test() == decimal_sqrt(Decimal("2"))
@@ -35,14 +37,16 @@ def test() -> decimal:
 # TODO: use parametrization here
 def test_sqrt_variable(get_contract):
     code = """
+import stdlib.math as math
+
 @external
 def test(a: decimal) -> decimal:
-    return sqrt(a)
+    return math.sqrt(a)
 
 @external
 def test2() -> decimal:
     a: decimal = 44.001
-    return sqrt(a)
+    return math.sqrt(a)
     """
 
     c = get_contract(code)
@@ -59,17 +63,19 @@ def test2() -> decimal:
 
 def test_sqrt_storage(get_contract):
     code = """
+import stdlib.math as math
+
 s_var: decimal
 
 @external
 def test(a: decimal) -> decimal:
     self.s_var = a + 1.0
-    return sqrt(self.s_var)
+    return math.sqrt(self.s_var)
 
 @external
 def test2() -> decimal:
     self.s_var = 444.44
-    return sqrt(self.s_var)
+    return math.sqrt(self.s_var)
     """
 
     c = get_contract(code)
@@ -82,12 +88,14 @@ def test2() -> decimal:
 
 def test_sqrt_inline_memory_correct(get_contract):
     code = """
+import stdlib.math as math
+
 @external
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100]):
     x: decimal = 1.0
     y: decimal = 2.0
     z: decimal = 3.0
-    e: decimal = sqrt(a)
+    e: decimal = math.sqrt(a)
     f: String[100] = 'hello world'
     return a, x, y, z, e, f
     """
@@ -108,9 +116,11 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
 @pytest.mark.parametrize("value", DECIMAL_RANGE)
 def test_sqrt_sub_decimal_places(value, get_contract):
     code = """
+import stdlib.math as math
+
 @external
 def test(a: decimal) -> decimal:
-    return sqrt(a)
+    return math.sqrt(a)
     """
 
     c = get_contract(code)
@@ -123,9 +133,11 @@ def test(a: decimal) -> decimal:
 @pytest.fixture(scope="module")
 def sqrt_contract(get_contract):
     code = """
+import stdlib.math as math
+
 @external
 def test(a: decimal) -> decimal:
-    return sqrt(a)
+    return math.sqrt(a)
     """
     c = get_contract(code)
     return c
@@ -171,6 +183,8 @@ def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
 
 def test_sqrt_eval_once(get_contract):
     code = """
+import stdlib.math as math
+
 c: uint256
 
 @internal
@@ -180,7 +194,7 @@ def some_decimal() -> decimal:
 
 @external
 def foo() -> uint256:
-    k: decimal = sqrt(self.some_decimal())
+    k: decimal = math.sqrt(self.some_decimal())
     return self.c
     """
 

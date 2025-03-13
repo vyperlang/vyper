@@ -1,4 +1,3 @@
-
 @internal
 @pure
 def sqrt(x: decimal) -> decimal:
