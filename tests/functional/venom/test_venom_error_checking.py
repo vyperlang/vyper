@@ -172,4 +172,3 @@ def test_venom_parser_unrechable():
 
     assert [err.var.name for err in errors] == ["%par"]
     assert [err.inst.parent.label.name for err in errors] == ["unreachable"]
-
