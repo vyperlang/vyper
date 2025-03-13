@@ -196,7 +196,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
-    
+
     # Check for revert_on_failure and get return type
     revert_on_failure = call_kwargs.revert_on_failure
     return_t = fn_type.return_type
@@ -242,16 +242,16 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
         call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
-    
+
     # Handle standard case (revert_on_failure=True)
     if revert_on_failure:
         ret.append(check_external_call(call_op))
-        
+
         if return_t is not None:
             ret.append(ret_unpacker)
-            
+
         return IRnode.from_list(ret, typ=return_t, location=MEMORY)
-    
+
     # Handle non-reverting case (revert_on_failure=False)
     if return_t is None:
         # Return just the success flag when no return type
@@ -265,7 +265,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
         # Create a temporary variable and store the call result
         ret.append(["mstore", success_var, call_op])
-        
+
         # Create a memory location for any default value
         default_val_var = context.new_internal_variable(return_t)
         # Initialize with zero by default (for integers)
@@ -274,16 +274,17 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
         # Store the success flag and return data
         # Process return data if call succeeded, otherwise use default value
         ret.append(
-            ["if", 
-                success_var,              # If call succeeded
-                ret_unpacker,             # Process return data
-                ["pass"]                  # Otherwise use default (already zeroed)
+            [
+                "if",
+                success_var,  # If call succeeded
+                ret_unpacker,  # Process return data
+                ["pass"],  # Otherwise use default (already zeroed)
             ]
         )
 
         # Create a memory location for the result tuple
         tuple_loc = context.new_internal_variable(TupleT([bool_ty, return_t]))
-        
+
         # Create an array of operations to copy the return data
         # If success=true, use the return data, otherwise use the default value (0)
         copy_return_data = [
@@ -291,15 +292,16 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
             # Success flag (0 or 1)
             ["mstore", tuple_loc, success_loc],
             # If success, use ret_unpacker[2], else use default_val_var
-            ["if",
-               success_loc,  # If success
-               ["mstore", ["add", tuple_loc, 32], ["mload", ret_unpacker[2]]],  # Use returned data
-               ["mstore", ["add", tuple_loc, 32], ["mload", default_val_var]]   # Use default value
-            ]
+            [
+                "if",
+                success_loc,  # If success
+                ["mstore", ["add", tuple_loc, 32], ["mload", ret_unpacker[2]]],  # Use returned data
+                ["mstore", ["add", tuple_loc, 32], ["mload", default_val_var]],  # Use default value
+            ],
         ]
-        
+
         ret.append(copy_return_data)
-        
+
         # Return the tuple
         return IRnode.from_list(ret + [tuple_loc], typ=TupleT([bool_ty, return_t]), location=MEMORY)
 

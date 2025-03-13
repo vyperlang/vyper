@@ -1251,6 +1251,7 @@ def get_lucky(contract_address: address) -> int128:
     assert c1.get_lucky() == 1
     assert c2.get_lucky(c1.address) == 1
 
+
 def test_external_contract_call_revert_on_failure(get_contract, tx_failed):
     target_source = """
 @external
@@ -1302,6 +1303,7 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     success, result = caller.call_target_return(target.address, True)
     assert success is False
     assert result == 0  # Default value
+
 
 def test_complex_external_contract_call_declaration(get_contract):
     contract_1 = """

@@ -692,7 +692,11 @@ class ContractFunctionT(VyperType):
         # Check if revert_on_failure is explicitly set to False
         revert_kwarg = next((kw for kw in node.keywords if kw.arg == "revert_on_failure"), None)
         revert_on_failure = True
-        if revert_kwarg and isinstance(revert_kwarg.value, vy_ast.NameConstant) and revert_kwarg.value.value is False:
+        if (
+            revert_kwarg
+            and isinstance(revert_kwarg.value, vy_ast.NameConstant)
+            and revert_kwarg.value.value is False
+        ):
             revert_on_failure = False
 
         # TODO this should be moved to validate_call_args
@@ -731,7 +735,7 @@ class ContractFunctionT(VyperType):
             if self.return_type is None:
                 return BoolT()
             return TupleT([BoolT(), self.return_type])
-        
+
         return self.return_type
 
     def to_toplevel_abi_dict(self):
