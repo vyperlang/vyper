@@ -305,7 +305,7 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
         remapped_module = remapped_module.removeprefix("ethereum.ercs")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
     else:
-        remapped_module = vyper.builtins.__package__ + '.' + remapped_module
+        remapped_module = vyper.builtins.__package__ + "." + remapped_module
 
     path = _import_to_path(level, remapped_module)
     path = path.with_suffix(".vy") if not is_erc_interface else path.with_suffix(".vyi")

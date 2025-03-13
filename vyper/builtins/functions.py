@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.context import Context, VariableRecord
+from vyper.codegen.context import Context
 from vyper.codegen.core import (
     LOAD,
     STORE,
@@ -53,7 +53,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
