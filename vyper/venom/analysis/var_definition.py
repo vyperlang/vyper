@@ -1,5 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
@@ -25,7 +26,6 @@ class VarDefinition(IRAnalysis):
             bb: OrderedSet(dfg.outputs.keys()) for bb in self.function.get_basic_blocks()
         }
 
-        # heuristic: faster if we seed with the dfs prewalk
         worklist = OrderedSet(self.function.get_basic_blocks())
         while len(worklist) > 0:
             bb = worklist.pop()
