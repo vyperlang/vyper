@@ -12,9 +12,9 @@ of the error within the code:
 
 .. code-block:: python
 
-    vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highstBid
+    vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highestBid
          78     # If bid is less than highest bid, bid fails
-    ---> 79     if (value <= self.highstBid):
+    ---> 79     if (value <= self.highestBid):
     -------------------------^
          80         return False
 
@@ -172,12 +172,12 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between two or more objects with known, dislike types.
+    Raises when attempting to perform an action between two or more objects with known, distinct types.
 
     .. code-block:: vyper
 
         @external
-        def foo(:
+        def foo():
             bar: int128 = 3
             foo: decimal = 4.2
 
@@ -196,9 +196,9 @@ of the error within the code:
 
     .. code-block:: bash
 
-        vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highstBid
+        vyper.exceptions.VariableDeclarationException: line 79:17 Persistent variable undeclared: highestBid
              78     # If bid is less than highest bid, bid fails
-        ---> 79     if (value <= self.highstBid):
+        ---> 79     if (value <= self.highestBid):
         -------------------------^
              80         return False
 
