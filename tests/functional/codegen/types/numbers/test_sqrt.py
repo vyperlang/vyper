@@ -200,16 +200,3 @@ def foo() -> uint256:
 
     c = get_contract(code)
     assert c.foo() == 1
-
-
-def test_sqrt_import(get_contract):
-    code = """
-import stdlib.math as math
-
-@external
-def foo():
-    k: decimal = math.sqrt(self.some_decimal())
-    """
-
-    c = get_contract(code)
-    assert c.foo() == 1
