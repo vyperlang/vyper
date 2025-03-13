@@ -373,7 +373,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
   - ```
-    djmp @label1, @label2, ..., @labeln, %var
+    djmp %var, @label1, @label2, ..., @labeln
     ```
   - Dynamic jump to an address specified by the variable operand, constrained to the provided labels.
   - Accepts a variable number of labels.
