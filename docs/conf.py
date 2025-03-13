@@ -27,7 +27,7 @@ html_theme_options = {
     "accent_color": "purple",
     "twitter_creator": "vyperlang",
     "twitter_site": "vyperlang",
-    "twitter_url": "https://twitter.com/vyperlang",
+    "twitter_url": "https://x.com/vyperlang",
     "github_url": "https://github.com/vyperlang",
 }
 html_favicon = "logo.svg"
