@@ -13,5 +13,6 @@ from .normalization import NormalizationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
+from .simplify_phi import SimplifyPhiPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass

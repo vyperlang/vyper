@@ -25,6 +25,7 @@ from vyper.venom.passes import (
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
+    SimplifyPhiPass,
     StoreElimination,
     StoreExpansionPass,
 )
@@ -82,6 +83,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     #       without making the code generation more expensive by running
     #       MakeSSA again.
     MakeSSA(ac, fn).run_pass()
+    # Simplify phi nodes with identical operands
+    SimplifyPhiPass(ac, fn).run_pass()
+    # Add SimplifyCFG right after SimplifyPhiPass to clean up control flow
+    SimplifyCFGPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
