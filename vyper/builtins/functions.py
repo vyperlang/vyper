@@ -2117,66 +2117,6 @@ class Uint2Str(BuiltinFunctionT):
             return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
 
 
-class Sqrt(BuiltinFunctionT):
-    _id = "sqrt"
-    _inputs = [("d", DecimalT())]
-    _return_type = DecimalT()
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        # TODO fix cyclic dependency with codegen/stmt.py
-        from ._utils import generate_inline_function
-
-        arg = args[0]
-        # TODO: reify decimal and integer sqrt paths (see isqrt)
-        with arg.cache_when_complex("x") as (b1, arg):
-            sqrt_code = """
-assert x >= 0.0
-z: decimal = 0.0
-
-if x == 0.0:
-    z = 0.0
-else:
-    z = x / 2.0 + 0.5
-    y: decimal = x
-
-    for i: uint256 in range(256):
-        if z == y:
-            break
-        y = z
-        z = (x / z + z) / 2.0
-
-    if y < z:
-        z = y
-            """
-
-            x_type = DecimalT()
-            placeholder_copy = ["pass"]
-            # Steal current position if variable is already allocated.
-            if arg.value == "mload":
-                new_var_pos = arg.args[0]
-            # Other locations need to be copied.
-            else:
-                new_var_pos = context.new_internal_variable(x_type)
-                placeholder_copy = ["mstore", new_var_pos, arg]
-            # Create input variables.
-            variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-            # Dictionary to update new (i.e. typecheck) namespace
-            variables_2 = {"x": VarInfo(DecimalT())}
-            # Generate inline IR.
-            new_ctx, sqrt_ir = generate_inline_function(
-                code=sqrt_code,
-                variables=variables,
-                variables_2=variables_2,
-                memory_allocator=context.memory_allocator,
-            )
-            z_ir = new_ctx.vars["z"].as_ir_node()
-            ret = IRnode.from_list(
-                ["seq", placeholder_copy, sqrt_ir, z_ir], typ=DecimalT(), location=MEMORY
-            )
-            return b1.resolve(ret)
-
-
 class ISqrt(BuiltinFunctionT):
     _id = "isqrt"
     _inputs = [("d", UINT256_T)]
@@ -2664,7 +2604,6 @@ DISPATCH_TABLE = {
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
     "isqrt": ISqrt(),
-    "sqrt": Sqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
