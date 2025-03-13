@@ -361,7 +361,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Translates to `label JUMP`.
 - `jnz`
    - ```
-     jnz op, @label1, @label2
+     jnz %op, @label1, @label2
      ```
   - A conditional jump depending on the value of `op`.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
