@@ -51,7 +51,7 @@ class LoadElimination(IRPass):
         self._big_lattice = defaultdict(dict)
 
         # seed with dfs pre walk
-        worklist = OrderedSet(self.cfg.dfs_pre_walk)
+        worklist = OrderedSet(self.cfg.dfs_post_walk)
 
         while len(worklist) > 0:
             bb = worklist.pop()
