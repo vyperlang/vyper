@@ -18,6 +18,7 @@ class DominatorTreeAnalysis(IRAnalysis):
     entry_block: IRBasicBlock
     dominators: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
+    # K => [V]: basic blocks V dominated by K
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
