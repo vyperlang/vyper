@@ -28,35 +28,37 @@ class LoadElimination(IRPass):
     updater: InstUpdater
 
     def run_pass(self):
-        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         # TODO: request_analysis
-        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
-        self._big_lattice = defaultdict(lambda: defaultdict(dict))
-
-        # seed with dfs pre walk
-        worklist = OrderedSet(cfg.dfs_pre_walk)
-
-        while len(worklist) > 0:
-            changed = False
-
-            bb = worklist.pop()
-
-            changed |= self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            changed |= self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
-            changed |= self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            changed |= self._process_bb(bb, None, "dload", None)
-            changed |= self._process_bb(bb, None, "calldataload", None)
-
-            if changed:
-                worklist.update(bb.cfg_out)
+        self._run(Effects.MEMORY, "mload", "mstore")
+        self._run(Effects.TRANSIENT, "tload", "tstore")
+        self._run(Effects.STORAGE, "sload", "sstore")
+        self._run(None, "dload", None)
+        self._run(None, "calldataload", None)
 
         for bb in self.function.get_basic_blocks():
             bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
+        #print(self.function)
+
+    def _run(self, eff, load_opcode, store_opcode):
+        self._big_lattice = defaultdict(dict)
+
+        # seed with dfs pre walk
+        worklist = OrderedSet(self.cfg.dfs_pre_walk)
+
+        while len(worklist) > 0:
+            bb = worklist.pop()
+
+            changed = self._process_bb(bb, eff, load_opcode, store_opcode)
+            if changed:
+                worklist.update(bb.cfg_out)
 
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
@@ -73,45 +75,40 @@ class LoadElimination(IRPass):
         # we may generalize in the future
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self._lattice = {}
-        old_lattice = self._big_lattice[load_opcode][bb].copy()
+        old_lattice = self._big_lattice[bb].copy()
 
         cfg_in = list(bb.cfg_in)
         if len(cfg_in) > 0:
-            common_keys = self._big_lattice[load_opcode][cfg_in[0]].keys()
+            common_keys = self._big_lattice[cfg_in[0]].keys()
             for in_bb in cfg_in:
-                common_keys &= self._big_lattice[load_opcode][in_bb].keys()
+                common_keys &= self._big_lattice[in_bb].keys()
 
             for k in common_keys:
                 # insert phi nodes and seed our lattice
-                if k in self._lattice:
+                if k in old_lattice:
                     # already inserted the phi node, skip
                     continue
 
                 phi_args = []
                 for in_bb in bb.cfg_in:
-                    in_values = self._big_lattice[load_opcode][in_bb]
                     phi_args.append(in_bb.label)
 
+                    in_values = self._big_lattice[in_bb]
                     val = in_values[k]
                     phi_args.append(val)
 
-                phi_out = self.function.get_next_variable()
-                phi_inst = IRInstruction("phi", phi_args, output=phi_out)
-                # TODO: update instupdater to handle phi
-                bb.insert_instruction(phi_inst, index=0)
-                #print("INSERT PHI", phi_inst)
-
-                # fix degenerate phis
                 if len(phi_args) == 2:
-                    phi_inst.opcode = "store"
-                    phi_inst.operands = [phi_args[1]]
-
+                    # fix degenerate phis
+                    phi_out = self.updater.add_before(bb.instructions[0], "store", [phi_args[1]])
+                else:
+                    phi_out = self.updater.add_before(bb.instructions[0], "phi", phi_args)
+                #print("INSERT PHI", phi_inst)
                 self._lattice[k] = phi_out
 
         #print("(pre)", old_lattice)
         #print(f"\n\nENTER {load_opcode} starting lattice", self._lattice)
         #print(bb)
-        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        #self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -126,17 +123,16 @@ class LoadElimination(IRPass):
         for k, v in self._lattice.items():
             if v != old_lattice.get(k) and isinstance(v, IRLiteral):
                 # produce variables mapping them to literals
-                var = self.function.get_next_variable()
-                bb.insert_instruction(IRInstruction("store", [v], var), index=-1)
+                var = self.updater.add_before(bb.instructions[-1], "store", [v])
                 self._lattice[k] = var
 
         changed = (old_lattice != self._lattice)
-        self._big_lattice[load_opcode][bb] = self._lattice
+        self._big_lattice[bb] = self._lattice
         #print(bb)
         #print(f"ENTER {load_opcode} ending lattice", self._lattice)
         #print("CHANGED", changed)
 
-        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        #self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         return changed
 
