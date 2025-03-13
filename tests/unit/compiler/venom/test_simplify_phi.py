@@ -31,7 +31,7 @@ def test_simplify_identical_phi_operands():
         %result = phi @then, %y, @else, %y
         sink %result
     """
-    
+
     post = """
     _global:
         %x = param
@@ -46,7 +46,7 @@ def test_simplify_identical_phi_operands():
         %result = %y
         sink %result
     """
-    
+
     _check_pre_post(pre, post)
 
 
@@ -66,7 +66,7 @@ def test_simplify_identical_phi_with_literals():
         %result = phi @then, 42, @else, 42
         sink %result
     """
-    
+
     post = """
     _global:
         %condition = param
@@ -79,7 +79,7 @@ def test_simplify_identical_phi_with_literals():
         %result = 42
         sink %result
     """
-    
+
     _check_pre_post(pre, post)
 
 
@@ -102,5 +102,5 @@ def test_dont_simplify_different_phi_operands():
         %result = phi @then, %x, @else, %y
         sink %result
     """
-    
+
     _check_no_change(pre)
