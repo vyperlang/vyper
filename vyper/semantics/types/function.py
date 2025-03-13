@@ -734,7 +734,7 @@ class ContractFunctionT(VyperType):
         if not revert_on_failure:
             if self.return_type is None:
                 return BoolT()
-            return TupleT([BoolT(), self.return_type])
+            return TupleT((BoolT(), self.return_type))
 
         return self.return_type
 
