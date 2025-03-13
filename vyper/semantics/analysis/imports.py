@@ -272,7 +272,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs"]
+BUILTIN_PREFIXES = ["ethereum.ercs", "stdlib"]
 
 
 # TODO: could move this to analysis/common.py or something
@@ -287,24 +287,28 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     if not _is_builtin(module_str):  # pragma: nocover
         raise CompilerPanic("unreachable!")
 
-    builtins_path = vyper.builtins.interfaces.__path__[0]
+    builtins_path = vyper.builtins.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
     # conversion, so we must use the `os` module).
     builtins_path = safe_relpath(builtins_path)
 
-    search_path = Path(builtins_path).parent.parent.parent
+    search_path = Path(builtins_path).parent.parent
     # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
 
     # remap builtins directory --
     # ethereum/ercs => vyper/builtins/interfaces
+    is_erc_interface = module_str.startswith("ethereum.ercs")
     remapped_module = module_str
-    if remapped_module.startswith("ethereum.ercs"):
+    if is_erc_interface:
         remapped_module = remapped_module.removeprefix("ethereum.ercs")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
+    else:
+        remapped_module = vyper.builtins.__package__ + '.' + remapped_module
 
-    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
+    path = _import_to_path(level, remapped_module)
+    path = path.with_suffix(".vy") if not is_erc_interface else path.with_suffix(".vyi")
 
     # builtins are globally the same, so we can safely cache them
     # (it is also *correct* to cache them, so that types defined in builtins
@@ -326,12 +330,12 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
             hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
         raise ModuleNotFound(module_str, hint=hint) from e
 
-    interface_ast = _parse_ast(file)
+    builtin_ast = _parse_ast(file)
 
     # no recursion needed since builtins don't have any imports
 
-    _builtins_cache[path] = file, interface_ast
-    return file, interface_ast
+    _builtins_cache[path] = file, builtin_ast
+    return file, builtin_ast
 
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
