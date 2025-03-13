@@ -38,16 +38,16 @@ function global {
     selector_bucket_0:
         %3 = xor %2, 1579456981
         %4 = iszero %3
-        jnz @1, @2, %4
+        jnz %4, @true, @false
 
-    1:
+    false:
         jmp @fallback
 
-    2:
+    true:
         %5 = callvalue
         %6 = calldatasize
-        %7 = lt %6, 164
-        %8 = or %5, %7
+        %7 = lt 164, %6
+        %8 = or %7, %5
         %9 = iszero %8
         assert %9
         stop
@@ -56,7 +56,7 @@ function global {
         revert 0, 0
 }
 
-[data]
+data readonly {}
 ```
 
 ### Grammar
@@ -185,7 +185,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
 
 - `invoke`
   - ```
-    invoke offset, label
+    invoke offset, @label
     ```
   - Causes control flow to jump to a function denoted by the `label`.
   - Return values are passed in the return buffer at the `offset` address.
@@ -193,7 +193,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
-    out = alloca size, offset, id
+    %out = alloca size, offset, id
     ```
   - Allocates memory of a given `size` at a given `offset` in memory.
   - The `id` argument is there to help debugging translation into venom
@@ -202,12 +202,12 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   
 - `palloca`
   - ```
-    out = palloca size, offset, id
+    %out = palloca size, offset, id
     ```
   - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
 - `iload`
   - ```
-    out = iload offset
+    %out = iload offset
     ```
   - Loads value at an immutable section of memory denoted by `offset` into `out` variable.
   - The operand can be either a literal, which is a statically computed offset, or a variable.
@@ -233,27 +233,27 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
      `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
-    out = phi %var_a, label_a, %var_b, label_b
+    %out = phi @label_a, %var_a, @label_b, %var_b
     ```
   - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
   - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
-  - In this example, essentially the `out` variable is set to `%var_a` if the program entered the current block from `label_a` or to `%var_b` when it went through `label_b`.
+  - In this example, essentially the `%out` variable is set to `%var_a` if the program entered the current block from `@label_a` or to `%var_b` when it went through `@label_b`. Note that `%var_a%` must be defined in the `@label_a` block and `%var_b` must be defined in the `@label_b` block.
 - `offset`
   - ```
-    ret = offset label, op
+    %ret = offset @label, op
     ```
   - Statically compute offset before compiling into bytecode. Useful for `mstore`, `mload` and such.
-  - Basically `label` + `op`.
+  - Basically `@label` + `op`.
   - The `asm` output could show something like `_OFST _sym_<op> label`.
 - `param`
   - ```
-    out = param
+    %out = param
     ```
   - The `param` instruction is used to represent function arguments passed by the stack.
   - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
 - `store`
   - ```
-    out = op
+    %out = op
     ```
   - Store variable value or literal into `out` variable.
 - `dbname`
@@ -284,9 +284,9 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Might translate to something like  `_sym__ctor_exit JUMP`.
 - `sha3_64`
   - ```
-    out = sha3_64 x y
+    %out = sha3_64 x, y
     ```
-  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
+  - Shortcut to access the `SHA3` EVM opcode where `%out` is the result.
   - Essentially translates to
     ```
     PUSH y PUSH FREE_VAR_SPACE MSTORE
@@ -348,32 +348,32 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - No operation, does nothing.
 - `offset`
   - ```
-    %2 = offset %1 label1
+    %2 = offset %1 @label1
   - Similar to `add`, but takes a label as the second argument. If the first argument is a literal, the addition will get optimized at assembly time.
 
 ### Jump instructions
 
 - `jmp`
   - ```
-    jmp label
+    jmp @label
     ```
   - Unconditional jump to code denoted by given `label`.
   - Translates to `label JUMP`.
 - `jnz`
    - ```
-     jnz label1, label2, op
+     jnz op, @label1, @label2
      ```
   - A conditional jump depending on the value of `op`.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
   - For example
     ```
     %op = 15
-    jnz label1, label2, %op
+    jnz %op, @label1, @label2
     ```
     could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
   - ```
-    djmp %var, label1, label2, label3, ...
+    djmp %var, @label1, @label2, ..., @labeln
     ```
   - Dynamic jump to an address specified by the variable operand, constrained to the provided labels.
   - Accepts a variable number of labels.
