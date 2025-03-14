@@ -1321,6 +1321,12 @@ def return_array(should_raise: bool) -> DynArray[uint256, 5]:
     if should_raise:
         raise "fail"
     return [1, 2, 3, 4, 5]
+
+@external
+def return_string(should_raise: bool) -> String[11]:
+    if should_raise:
+        raise "fail"
+    return "hello vyper"
     """
 
     caller_source = """
@@ -1331,6 +1337,7 @@ struct Point:
 interface Target:
     def return_array(should_raise: bool) -> DynArray[uint256, 5]: nonpayable
     def return_point(should_raise: bool) -> Point: nonpayable
+    def return_string(should_raise: bool) -> String[11]: nonpayable
 
 @external
 def call_target_point(target: address, should_raise: bool) -> (bool, Point):
@@ -1345,6 +1352,14 @@ def call_target_array(target: address, should_raise: bool) -> (bool, DynArray[ui
     success: bool = False
     result: DynArray[uint256, 5] = []
     success, result = extcall Target(target).return_array(should_raise, revert_on_failure=False)
+
+    return success, result
+
+@external
+def call_target_string(target: address, should_raise: bool) -> (bool, String[11]):
+    success: bool = False
+    result: String[11] = ""
+    success, result = extcall Target(target).return_string(should_raise, revert_on_failure=False)
 
     return success, result
     """
@@ -1373,6 +1388,16 @@ def call_target_array(target: address, should_raise: bool) -> (bool, DynArray[ui
     success, result = caller.call_target_array(target.address, True)
     assert success is False
     assert result == []  # Default empty array
+
+    # Test successful call with string return value
+    success, result = caller.call_target_string(target.address, False)
+    assert success is True
+    assert result == "hello vyper"
+
+    # Test failed call with string return value
+    success, result = caller.call_target_string(target.address, True)
+    assert success is False
+    assert result == ""  # Default empty string
 
 def test_complex_external_contract_call_declaration(get_contract):
     contract_1 = """
