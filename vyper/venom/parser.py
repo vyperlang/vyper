@@ -178,7 +178,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, (IRLiteral, IRVariable)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
@@ -200,7 +200,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
