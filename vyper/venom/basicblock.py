@@ -72,7 +72,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "stop",
         "invalid",
-        "invoke",
         "jmp",
         "djmp",
         "jnz",
