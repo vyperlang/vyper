@@ -1251,14 +1251,36 @@ def get_lucky(contract_address: address) -> int128:
     assert c1.get_lucky() == 1
     assert c2.get_lucky(c1.address) == 1
 
-
-def test_external_contract_call_revert_on_failure(get_contract, tx_failed):
+def test_external_contract_call_revert_on_failure_noreturn(get_contract, tx_failed):
     target_source = """
 @external
 def fail(should_raise: bool):
     if should_raise:
         raise "fail"
+    """
 
+    caller_source = """
+interface Target:
+    def fail(should_raise: bool): nonpayable
+
+@external
+def call_target_fail(target: address, should_raise: bool) -> bool:
+    success: bool = extcall Target(target).fail(should_raise, revert_on_failure=False)
+    return success
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    # Test successful call
+    assert caller.call_target_fail(target.address, False) is True
+
+    # Test failed call
+    assert caller.call_target_fail(target.address, True) is False
+
+
+def test_external_contract_call_revert_on_failure(get_contract, tx_failed):
+    target_source = """
 @external
 def return_value(should_raise: bool) -> uint256:
     if should_raise:
@@ -1268,13 +1290,7 @@ def return_value(should_raise: bool) -> uint256:
 
     caller_source = """
 interface Target:
-    def fail(should_raise: bool): nonpayable
     def return_value(should_raise: bool) -> uint256: nonpayable
-
-@external
-def call_target_fail(target: address, should_raise: bool) -> bool:
-    success: bool = extcall Target(target).fail(should_raise, revert_on_failure=False)
-    return success
 
 @external
 def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
@@ -1288,12 +1304,6 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     target = get_contract(target_source)
     caller = get_contract(caller_source)
 
-    # Test successful call
-    assert caller.call_target_fail(target.address, False) is True
-
-    # Test failed call
-    assert caller.call_target_fail(target.address, True) is False
-
     # Test successful call with return value
     success, result = caller.call_target_return(target.address, False)
     assert success is True
@@ -1304,7 +1314,7 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     assert success is False
     assert result == 0  # Default value
 
-def test_external_call_with_complex_return_types_revert_on_failure(get_contract, tx_failed):
+def test_external_call_with_struct_return_type_revert_on_failure(get_contract):
     target_source = """
 struct Point:
     x: uint256
@@ -1315,18 +1325,6 @@ def return_point(should_raise: bool) -> Point:
     if should_raise:
         raise "fail"
     return Point(x=45, y=67)
-
-@external
-def return_array(should_raise: bool) -> DynArray[uint256, 5]:
-    if should_raise:
-        raise "fail"
-    return [1, 2, 3, 4, 5]
-
-@external
-def return_string(should_raise: bool) -> String[11]:
-    if should_raise:
-        raise "fail"
-    return "hello vyper"
     """
 
     caller_source = """
@@ -1335,31 +1333,13 @@ struct Point:
     y: uint256
 
 interface Target:
-    def return_array(should_raise: bool) -> DynArray[uint256, 5]: nonpayable
     def return_point(should_raise: bool) -> Point: nonpayable
-    def return_string(should_raise: bool) -> String[11]: nonpayable
 
 @external
 def call_target_point(target: address, should_raise: bool) -> (bool, Point):
     success: bool = False
     result: Point = Point(x=0, y=0)
     success, result = extcall Target(target).return_point(should_raise, revert_on_failure=False)
-
-    return success, result
-
-@external
-def call_target_array(target: address, should_raise: bool) -> (bool, DynArray[uint256, 5]):
-    success: bool = False
-    result: DynArray[uint256, 5] = []
-    success, result = extcall Target(target).return_array(should_raise, revert_on_failure=False)
-
-    return success, result
-
-@external
-def call_target_string(target: address, should_raise: bool) -> (bool, String[11]):
-    success: bool = False
-    result: String[11] = ""
-    success, result = extcall Target(target).return_string(should_raise, revert_on_failure=False)
 
     return success, result
     """
@@ -1379,6 +1359,32 @@ def call_target_string(target: address, should_raise: bool) -> (bool, String[11]
     assert result[0] == 0
     assert result[1] == 0
 
+
+def test_external_call_with_array_return_type_revert_on_failure(get_contract):
+    target_source = """
+@external
+def return_array(should_raise: bool) -> DynArray[uint256, 5]:
+    if should_raise:
+        raise "fail"
+    return [1, 2, 3, 4, 5]
+    """
+
+    caller_source = """
+interface Target:
+    def return_array(should_raise: bool) -> DynArray[uint256, 5]: nonpayable
+
+@external
+def call_target_array(target: address, should_raise: bool) -> (bool, DynArray[uint256, 5]):
+    success: bool = False
+    result: DynArray[uint256, 5] = []
+    success, result = extcall Target(target).return_array(should_raise, revert_on_failure=False)
+
+    return success, result
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
     # Test successful call with array return value
     success, result = caller.call_target_array(target.address, False)
     assert success is True
@@ -1388,6 +1394,32 @@ def call_target_string(target: address, should_raise: bool) -> (bool, String[11]
     success, result = caller.call_target_array(target.address, True)
     assert success is False
     assert result == []  # Default empty array
+
+
+def test_external_call_with_string_return_type_revert_on_failure(get_contract):
+    target_source = """
+@external
+def return_string(should_raise: bool) -> String[11]:
+    if should_raise:
+        raise "fail"
+    return "hello vyper"
+    """
+
+    caller_source = """
+interface Target:
+    def return_string(should_raise: bool) -> String[11]: nonpayable
+
+@external
+def call_target_string(target: address, should_raise: bool) -> (bool, String[11]):
+    success: bool = False
+    result: String[11] = ""
+    success, result = extcall Target(target).return_string(should_raise, revert_on_failure=False)
+
+    return success, result
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
 
     # Test successful call with string return value
     success, result = caller.call_target_string(target.address, False)
