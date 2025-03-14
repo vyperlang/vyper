@@ -1,15 +1,22 @@
+import contextlib
 import subprocess
+
+import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import LowerDloadPass, StoreExpansionPass, VenomCompiler
+from vyper.venom import LowerDloadPass, SimplifyCFGPass, StoreExpansionPass, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 
 HAS_HEVM: bool = False
 
 
-def _prep_hevm_venom(venom_source_code):
+def has_hevm():
+    return HAS_HEVM
+
+
+def _prep_hevm_venom(venom_source_code, verbose=False):
     ctx = parse_from_basic_block(venom_source_code)
 
     num_calldataloads = 0
@@ -49,18 +56,20 @@ def _prep_hevm_venom(venom_source_code):
 
         ac = IRAnalysesCache(fn)
 
+        # required for venom_to_assembly right now but should be removed
+        SimplifyCFGPass(ac, fn).run_pass()
+
         # requirements for venom_to_assembly
         LowerDloadPass(ac, fn).run_pass()
         StoreExpansionPass(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx])
-    return assembly_to_evm(compiler.generate_evm(no_optimize=True))[0].hex()
+    asm = compiler.generate_evm(no_optimize=False)
+    return assembly_to_evm(asm)[0].hex()
 
 
 def hevm_check_venom(pre, post, verbose=False):
-    global HAS_HEVM
-
-    if not HAS_HEVM:
+    if not has_hevm():
         return
 
     # perform hevm equivalence check
@@ -68,13 +77,23 @@ def hevm_check_venom(pre, post, verbose=False):
         print("HEVM COMPARE.")
         print("BEFORE:", pre)
         print("OPTIMIZED:", post)
-    bytecode1 = _prep_hevm_venom(pre)
-    bytecode2 = _prep_hevm_venom(post)
+    bytecode1 = _prep_hevm_venom(pre, verbose=verbose)
+    bytecode2 = _prep_hevm_venom(post, verbose=verbose)
 
     hevm_check_bytecode(bytecode1, bytecode2, verbose=verbose)
 
 
-def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
+@contextlib.contextmanager
+def hevm_raises():
+    if not has_hevm():
+        pytest.skip("skipping because `--hevm` was not specified")
+
+    with pytest.raises(subprocess.CalledProcessError) as e:
+        yield e
+
+
+# use hevm to check equality between two bytecodes (hex)
+def hevm_check_bytecode(bytecode1, bytecode2, verbose=False, addl_args: list = None):
     # debug:
     if verbose:
         print("RUN HEVM:")
@@ -82,8 +101,16 @@ def hevm_check_bytecode(bytecode1, bytecode2, verbose=False):
         print(bytecode2)
 
     subp_args = ["hevm", "equivalence", "--code-a", bytecode1, "--code-b", bytecode2]
+    subp_args.extend(["--num-solvers", "1"])
+    if addl_args:
+        subp_args.extend([*addl_args])
 
+    res = subprocess.run(
+        subp_args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    assert not res.stderr, res.stderr  # hevm does not print to stderr
+    # TODO: get hevm team to provide a way to promote warnings to errors
+    assert "WARNING" not in res.stdout, res.stdout
+    assert "issues" not in res.stdout
     if verbose:
-        subprocess.check_call(subp_args)
-    else:
-        subprocess.check_output(subp_args)
+        print(res.stdout)

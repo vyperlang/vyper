@@ -12,6 +12,7 @@ from vyper.ir.compile_ir import (
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
+    PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
@@ -48,6 +49,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "number",
         "extcodesize",
         "extcodehash",
+        "codecopy",
         "extcodecopy",
         "returndatasize",
         "returndatacopy",
@@ -393,10 +395,9 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
+
         elif opcode in ("alloca", "palloca", "calloca"):
-            assert (
-                len(inst.operands) == 3
-            ), f"alloca/palloca/calloca must have 3 operands, got {inst}"
+            assert len(inst.operands) == 3, inst
             offset, _size, _id = inst.operands
             operands = [offset]
 
@@ -504,8 +505,6 @@ class VenomCompiler:
             pass
         elif opcode == "store":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
-            assembly.append("CODECOPY")
         elif opcode == "dbname":
             pass
         elif opcode == "jnz":
@@ -590,7 +589,9 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
-        elif opcode in TEST_INSTRUCTIONS:
+        elif opcode in PSEUDO_INSTRUCTION:  # pragma: nocover
+            raise CompilerPanic(f"Bad instruction: {opcode}")
+        elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")

@@ -72,7 +72,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "stop",
         "invalid",
-        "invoke",
         "jmp",
         "djmp",
         "jnz",
@@ -88,6 +87,10 @@ TEST_INSTRUCTIONS = ("sink",)
 assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
+
+# These instructions should be eliminated/rewritten
+# before going into assembly emission
+PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
@@ -382,10 +385,8 @@ class IRInstruction:
         for i in range(0, len(self.operands), 2):
             label = self.operands[i]
             var = self.operands[i + 1]
-            assert isinstance(label, IRLabel), "phi operand must be a label"
-            assert isinstance(
-                var, (IRVariable, IRLiteral)
-            ), "phi operand must be a variable or literal"
+            assert isinstance(label, IRLabel), f"not a label: {label} (at `{self}`)"
+            assert isinstance(var, IRVariable), f"not a variable: {var} (at `{self}`)"
             yield label, var
 
     def remove_phi_operand(self, label: IRLabel) -> None:
@@ -427,7 +428,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "invoke"]:
+        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -441,7 +442,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
