@@ -1,7 +1,9 @@
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
+from vyper.venom.passes.base_pass import IRPass
 
 
 def parse_from_basic_block(source: str, funcname="_global"):
@@ -47,3 +49,50 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
     assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
+
+
+class PrePostChecker:
+    passes: list[type]
+    post_passes: list[type]
+    pass_objects: list[IRPass]
+    default_hevm: bool
+
+    def __init__(self, passes: list[type], post: list[type] = None, default_hevm: bool = True):
+        self.passes = passes
+        if post is None:
+            self.post_passes = []
+        else:
+            self.post_passes = post
+        self.default_hevm = default_hevm
+        self.pass_objects = list()
+
+    def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
+        from tests.hevm import hevm_check_venom
+
+        self.pass_objects.clear()
+
+        if hevm is None:
+            hevm = self.default_hevm
+
+        pre_ctx = parse_from_basic_block(pre)
+        for fn in pre_ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            for p in self.passes:
+                obj = p(ac, fn)
+                self.pass_objects.append(obj)
+                obj.run_pass()
+
+        post_ctx = parse_from_basic_block(post)
+        for fn in post_ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            for p in self.post_passes:
+                obj = p(ac, fn)
+                self.pass_objects.append(obj)
+                obj.run_pass()
+
+        assert_ctx_eq(pre_ctx, post_ctx)
+
+        if hevm:
+            hevm_check_venom(pre, post)
+
+        return self.pass_objects

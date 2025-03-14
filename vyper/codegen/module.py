@@ -433,11 +433,13 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     internal_functions_ir: list[IRnode] = []
 
-    # module_tinternal functions first so we have the function info
+    # module_t internal functions first so we have the function info
     for func_ast in internal_functions:
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
+    # TODO: add option to specifically force linear selector section,
+    # useful for testing and downstream tooling.
     if core._opt_none():
         selector_section = _selector_section_linear(external_functions, module_t)
     # dense vs sparse global overhead is amortized after about 4 methods.
