@@ -18,17 +18,6 @@ class InstUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands)
 
-    def update_output(self, inst: IRInstruction, new_output: Optional[IRVariable]):
-        assert (new_output is None) == (inst.opcode in NO_OUTPUT_INSTRUCTIONS)
-
-        if inst.output is not None:
-            self.dfg.remove_producing_instruction(inst.output)
-
-        if new_output is not None:
-            self.dfg.set_producing_instruction(new_output, inst)
-
-        inst.output = new_output
-
     def update(
         self,
         inst: IRInstruction,
@@ -52,19 +41,21 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
-        inst.opcode = opcode
-        inst.operands = new_operands
-
         if opcode in NO_OUTPUT_INSTRUCTIONS:
             if inst.output is not None:
                 assert new_output is None
                 assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
-                # remove from dfg
-                self.update_output(inst, None)
+                self.dfg.remove_producing_instruction(inst.output)
+                inst.output = None
         else:
             # new_output is None is sentinel meaning "no change"
-            if new_output is not None:
-                self.update_output(inst, new_output)
+            if new_output is not None and new_output != inst.output:
+                self.dfg.remove_producing_instruction(inst.output)
+                self.dfg.set_producing_instruction(new_output, inst)
+                inst.output = new_output
+
+        inst.opcode = opcode
+        inst.operands = new_operands
 
     def nop(self, inst: IRInstruction):
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
