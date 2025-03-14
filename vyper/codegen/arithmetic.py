@@ -337,6 +337,23 @@ def safe_mod(x, y):
     return IRnode.from_list([MOD, x, clamp("gt", y, 0)], error_msg="safemod")
 
 
+def estimate_pow_gas(x, y, typ):
+    """
+    Estimate gas cost for power operation.
+    """
+    # Base gas cost for EXP opcode
+    base_gas = 10
+
+    # Gas per byte of exponent
+    if y.is_literal:
+        byte_length = (y.value.bit_length() + 7) // 8
+    else:
+        # Conservative estimate for unknown exponent
+        byte_length = (typ.bits + 7) // 8
+
+    return base_gas + (50 * byte_length)
+
+
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:
 def safe_pow(x, y):
     typ = x.typ
@@ -371,6 +388,10 @@ def safe_pow(x, y):
         # TODO this is currently unreachable, once we implement a way to do it safely
         # remove the check in `vyper/context/types/value/numeric.py`
         return
+    gas_estimate = estimate_pow_gas(x, y, typ)
+    operation = ["exp", x, y]
+    if hasattr(x, "add_gas_estimate"):
+        operation = IRnode.from_list(operation, add_gas_estimate=gas_estimate)
 
     assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
-    return IRnode.from_list(["seq", assertion, ["exp", x, y]])
+    return IRnode.from_list(["seq", assertion, operation])
