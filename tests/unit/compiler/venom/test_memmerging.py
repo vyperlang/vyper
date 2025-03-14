@@ -839,6 +839,16 @@ def test_memmerging_two_intervals_diff_offset(load_opcode, copy_opcode):
     _check_pre_post(pre, post)
 
 
+def test_memmerging_copy_overlap():
+    pre = """
+    main:
+        mcopy 100, 90, 20
+        mcopy 120, 110, 20
+        stop
+    """
+
+    _check_no_change(pre)
+
 def test_memzeroing_1():
     """
     Test of basic memzeroing done with mstore only
