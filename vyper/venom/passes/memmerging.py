@@ -137,6 +137,7 @@ class MemMergePass(IRPass):
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
                 val = self.updater.add_before(inst, load_opcode, [IRLiteral(copy.src)])
+                assert val is not None  # help mypy
                 self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
 
             for inst in copy.insts[:-1]:
@@ -292,6 +293,7 @@ class MemMergePass(IRPass):
                 self.updater.update(inst, "mstore", new_ops)
             else:
                 calldatasize = self.updater.add_before(inst, "calldatasize", [])
+                assert calldatasize is not None  # help mypy
                 new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
                 self.updater.update(inst, "calldatacopy", new_ops)
 
