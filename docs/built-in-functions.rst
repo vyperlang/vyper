@@ -711,7 +711,7 @@ Math
 
 .. py:function:: sqrt(d: decimal) -> decimal
 
-    Return the square root of the provided decimal number, using the Babylonian square root algorithm.
+    Return the square root of the provided decimal number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest epsilon. For instance, ``sqrt(0.9999999998) == 0.9999999998``.
 
     .. code-block:: vyper
 
