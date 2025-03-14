@@ -18,8 +18,8 @@ class RemoveUnusedVariablesPass(IRPass):
         work_list = OrderedSet()
         self.work_list = work_list
 
-        uses = self.dfg.outputs.values()
-        work_list.addmany(uses)
+        instructions = self.dfg.outputs.values()
+        work_list.addmany(instructions)
 
         while len(work_list) > 0:
             inst = work_list.pop()
@@ -35,6 +35,7 @@ class RemoveUnusedVariablesPass(IRPass):
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
+
         uses = self.dfg.get_uses(inst.output)
         if len(uses) > 0:
             return

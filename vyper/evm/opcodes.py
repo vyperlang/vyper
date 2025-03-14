@@ -201,6 +201,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "DEBUGGER": (None, 0, 0, 0),
     "ILOAD": (None, 1, 1, 6),
     "ISTORE": (None, 2, 0, 6),
+    "ITOUCH": (None, 1, 0, 9),
     "DLOAD": (None, 1, 1, 9),
     "DLOADBYTES": (None, 3, 0, 3),
 }

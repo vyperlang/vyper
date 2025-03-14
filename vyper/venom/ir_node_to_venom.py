@@ -66,6 +66,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "mload",
         "iload",
         "istore",
+        "itouch",
         "dload",
         "dloadbytes",
         "sload",
@@ -265,8 +266,6 @@ def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
     global _break_target, _continue_target, _alloca_table
-
-    # keep a map from external functions to all possible entry points
 
     ctx = fn.ctx
     fn.push_source(ir)
