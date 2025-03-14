@@ -298,8 +298,6 @@ class MemMergePass(IRPass):
                     read_hazards = self._write_after_read_hazard(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
-                    if n_copy.overwrites_self_src():
-                        continue
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
