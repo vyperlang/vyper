@@ -36,7 +36,7 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
 Lattice = dict[IRVariable, LatticeItem]
 
 
@@ -147,13 +147,14 @@ class SCCP(IRPass):
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
-        assert isinstance(op, IRVariable), "Can't set lattice for non-variable"
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         self.lattice[op] = value
 
-    def _eval_from_lattice(self, op: IROperand) -> IRLiteral | LatticeEnum:
-        if isinstance(op, IRLiteral):
+    def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
+        if isinstance(op, (IRLiteral, IRLabel)):
             return op
 
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         return self._lookup_from_lattice(op)
 
     def _visit_phi(self, inst: IRInstruction):
@@ -244,6 +245,7 @@ class SCCP(IRPass):
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
             else:
+                assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
             # The value from the lattice should have evaluated to BOTTOM
