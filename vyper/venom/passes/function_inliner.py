@@ -135,13 +135,13 @@ class FunctionInlinerPass(IRGlobalPass):
                     # not valid venom code, but it will get removed in store elimination
                     # (or unused variable elimination)
                     inst.opcode = "store"
+                    # handle return pc specially - it's at top of stack.
                     ops = call_site.operands[1:] + [call_site.operands[0]]
                     val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
-                    inst.opcode = "store"
-                    inst.operands = [inst.operands[0]]
+                    inst.opcode = "alloca"
                 elif inst.opcode == "ret":
                     if len(inst.operands) > 1:
                         # sanity check (should remove once new callconv stabilizes)
