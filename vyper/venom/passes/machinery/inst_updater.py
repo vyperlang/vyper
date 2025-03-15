@@ -17,7 +17,6 @@ class InstUpdater:
         self.update(inst, inst.opcode, new_operands)
 
     def update(self, inst: IRInstruction, opcode: str, new_operands: list[IROperand]):
-        assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
 
@@ -55,7 +54,6 @@ class InstUpdater:
         """
         Insert another instruction before the given instruction
         """
-        assert opcode != "phi"
         index = inst.parent.instructions.index(inst)
         var = inst.parent.parent.get_next_variable()
         operands = list(args)
