@@ -376,7 +376,8 @@ def compile_files(
         # rare, strange race conditions if the file changes in between
         # the two reads).
         file = input_bundle.load_file(file_path)
-        assert isinstance(file, FileInput)  # mypy hint
+        if not isinstance(file, FileInput):
+            raise ValueError(f"Invalid Vyper content: '{file_path}'")
 
         storage_layout_override = None
         if storage_layout_paths:
