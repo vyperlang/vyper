@@ -1690,10 +1690,9 @@ class RawCreate(_CreateBase):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
+        args = [ensure_in_memory(arg, context) for arg in args]
         initcode = args[0]
         ctor_args = args[1:]
-
-        ctor_args = [ensure_in_memory(arg, context) for arg in ctor_args]
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
