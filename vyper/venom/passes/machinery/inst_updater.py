@@ -50,7 +50,8 @@ class InstUpdater:
         else:
             # new_output is None is sentinel meaning "no change"
             if new_output is not None and new_output != inst.output:
-                self.dfg.remove_producing_instruction(inst.output)
+                if inst.output is not None:
+                    self.dfg.remove_producing_instruction(inst.output)
                 self.dfg.set_producing_instruction(new_output, inst)
                 inst.output = new_output
 
