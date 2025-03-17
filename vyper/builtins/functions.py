@@ -966,7 +966,7 @@ class AsWeiValue(BuiltinFunctionT):
                 product = IRnode.from_list(["mul", value, denom_divisor])
                 with product.cache_when_complex("ans") as (b2, product):
                     irlist = ["seq"]
-                    ok = ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]]
+                    ok = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
                     irlist.append(["assert", ok])
                     irlist.append(product)
                     sub = b2.resolve(irlist)
