@@ -102,13 +102,13 @@ class MemSSA(IRAnalysis):
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
-            if inst.opcode == self.store_op:
+            if inst.opcode == self.store_op or inst.opcode == "invoke":
                 mem_def = MemoryDef(self.next_version, inst)
                 self.next_version += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
 
-            elif inst.opcode == self.load_op:
+            elif inst.opcode == self.load_op or inst.opcode == "invoke":
                 mem_use = MemoryUse(self.next_version, inst)
                 self.memory_uses.setdefault(block, []).append(mem_use)
 
