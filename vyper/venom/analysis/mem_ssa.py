@@ -1,8 +1,9 @@
 import contextlib
 from typing import Optional
 
-from vyper.venom.analysis import IRAnalysis, CFGAnalysis, DominatorTreeAnalysis, MemoryAliasAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
+
 
 class MemoryAccess:
     """Base class for memory SSA nodes"""

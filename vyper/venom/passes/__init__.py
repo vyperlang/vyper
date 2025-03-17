@@ -1,5 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
+from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
@@ -15,4 +16,3 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
-from .dead_store_elimination import DeadStoreElimination

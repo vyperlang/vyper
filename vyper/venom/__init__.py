@@ -28,8 +28,8 @@ from vyper.venom.passes import (
     StoreElimination,
     StoreExpansionPass,
 )
-from vyper.venom.venom_to_assembly import VenomCompiler
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
