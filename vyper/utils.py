@@ -67,10 +67,11 @@ class OrderedSet(Generic[_T]):
     def remove(self, item: _T) -> None:
         del self._data[item]
 
-    def drop(self, item: _T):
+    def discard(self, item: _T):
         # friendly version of remove
         self._data.pop(item, None)
 
+    # consider renaming to "discardmany"
     def dropmany(self, iterable):
         for item in iterable:
             self._data.pop(item, None)

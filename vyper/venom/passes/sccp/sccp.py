@@ -36,7 +36,7 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
 Lattice = dict[IRVariable, LatticeItem]
 
 
@@ -131,9 +131,6 @@ class SCCP(IRPass):
                     continue
                 self._visit_expr(inst)
 
-        if len(end.cfg_out) == 1:
-            self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
-
     def _handle_SSA_work_item(self, work_item: SSAWorkListItem):
         """
         This method handles a SSAWorkListItem.
@@ -150,13 +147,14 @@ class SCCP(IRPass):
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
-        assert isinstance(op, IRVariable), "Can't set lattice for non-variable"
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         self.lattice[op] = value
 
-    def _eval_from_lattice(self, op: IROperand) -> IRLiteral | LatticeEnum:
-        if isinstance(op, IRLiteral):
+    def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
+        if isinstance(op, (IRLiteral, IRLabel)):
             return op
 
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         return self._lookup_from_lattice(op)
 
     def _visit_phi(self, inst: IRInstruction):
@@ -169,8 +167,7 @@ class SCCP(IRPass):
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
 
-        if inst.output not in self.lattice:
-            return
+        assert inst.output in self.lattice, "unreachable"  # sanity
 
         if value != self._lookup_from_lattice(inst.output):
             self._set_lattice(inst.output, value)
@@ -178,7 +175,7 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ("store", "alloca", "palloca"):
+        if opcode in ("store", "alloca", "palloca", "calloca"):
             assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
@@ -194,12 +191,14 @@ class SCCP(IRPass):
                 for out_bb in inst.parent.cfg_out:
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
-                if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
-                    target = self.fn.get_basic_block(inst.operands[1].name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
-                if _meet(lat, IRLiteral(1)) == LatticeEnum.BOTTOM:
+                assert isinstance(lat, IRLiteral)  # sanity
+                if lat.value == 0:
+                    # jnz False branch
                     target = self.fn.get_basic_block(inst.operands[2].name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                else:
+                    # jnz True branch (any nonzero condition)
+                    target = self.fn.get_basic_block(inst.operands[1].name)
+                self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
@@ -246,6 +245,7 @@ class SCCP(IRPass):
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
             else:
+                assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
             # The value from the lattice should have evaluated to BOTTOM
