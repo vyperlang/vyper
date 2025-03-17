@@ -963,19 +963,13 @@ class AsWeiValue(BuiltinFunctionT):
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
             if value.typ in IntegerT.unsigneds():
-                sub = [
-                    "with",
-                    "ans",
-                    ["mul", value, denom_divisor],
-                    [
-                        "seq",
-                        [
-                            "assert",
-                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                        ],
-                        "ans",
-                    ],
-                ]
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    ok = ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(irlist)
             elif value.typ in IntegerT.signeds():
                 product = IRnode.from_list(["mul", value, denom_divisor])
                 with product.cache_when_complex("ans") as (b2, product):
@@ -989,7 +983,7 @@ class AsWeiValue(BuiltinFunctionT):
                     ok = ["and", positive, safemul]
                     irlist.append(["assert", ok])
                     irlist.append(product)
-                    sub = b2.resolve(sub)
+                    sub = b2.resolve(irlist)
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
