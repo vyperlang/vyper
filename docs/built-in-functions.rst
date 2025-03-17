@@ -232,7 +232,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
 .. py:function:: raw_create(initcode: Bytes[...], *args, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
-    Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
+    Create a contract using the given ``initcode``. Provides low-level access to the ``CREATE`` and ``CREATE2`` opcodes.
 
     * ``initcode``: Initcode bytes
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
