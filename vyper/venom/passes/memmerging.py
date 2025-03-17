@@ -22,6 +22,7 @@ class _Interval:
         b = min(self.end, other.end)
         return a < b
 
+
 @dataclass
 class _Copy:
     # abstract "copy" operation which contains a list of copy instructions
@@ -169,7 +170,6 @@ class MemMergePass(IRPass):
             if _Interval(ptr, 32).overlaps(interval):
                 del self._loads[var]
 
-
     def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
         res = []
         for copy in self._copies:
@@ -200,7 +200,6 @@ class MemMergePass(IRPass):
                 res.append(copy)
 
         return res
-
 
     def _find_insertion_point(self, new_copy: _Copy):
         return bisect_left(self._copies, new_copy.dst, key=lambda c: c.dst)
@@ -293,8 +292,8 @@ class MemMergePass(IRPass):
                 # check if the new copy does not overwrites existing data
                 if not allow_dst_overlaps_src:
                     read_hazards = self._read_after_write_hazard(n_copy)
-                    if len(read_hazards) > 0:
-                        _barrier_for(read_hazards)
+                    # the reads come from loads and they are already eliminated
+                    assert len(read_hazards) == 0, "read hazard should never happened here"
                     read_hazards = self._write_after_read_hazard(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)

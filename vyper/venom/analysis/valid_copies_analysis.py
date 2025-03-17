@@ -1,8 +1,9 @@
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRInstruction, IRBasicBlock, IRVariable, IRLiteral
 from dataclasses import dataclass
 
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
+
 
 @dataclass
 class ValidCopy:
@@ -13,36 +14,33 @@ class ValidCopy:
     place: IRInstruction
     others: list[IRInstruction]
 
+
 @dataclass
 class BBValidCopies:
     bb: IRBasicBlock
     copies: list[ValidCopy]
+
 
 class ValidCopiesAnalysis(IRAnalysis):
     valid_copies: dict[str, list[BBValidCopies]]
 
     _loads: dict[IRVariable, tuple[int, IRInstruction]]
 
-    _load_to_copy = {
-        "mload": "mcopy",
-        "dload": "dloadbytes",
-        "calldataload": "calldatacopy",
-    }
+    _load_to_copy = {"mload": "mcopy", "dload": "dloadbytes", "calldataload": "calldatacopy"}
 
     def analyze(self):
         self._loads = dict()
         self.valid_copies = dict()
-        for (load_op, copy_op) in self._load_to_copy.items():
+        for load_op, copy_op in self._load_to_copy.items():
             self.valid_copies[load_op] = []
             for bb in self.function.get_basic_blocks():
                 self._handle_bb(bb, load_op, copy_op)
 
     def _invalidate_loads(self, dst: int, length: int):
-        for (var, (src, _)) in self._loads.copy().items():
+        for var, (src, _) in self._loads.copy().items():
             diff = abs(src - dst)
             if diff < max(length, 32):
                 del self._loads[var]
-
 
     def _handle_bb(self, bb: IRBasicBlock, load_op: str, copy_op: str):
         res: list = []
@@ -64,7 +62,7 @@ class ValidCopiesAnalysis(IRAnalysis):
 
                 if not isinstance(var, IRVariable):
                     continue
-                
+
                 if not allow_ovelap:
                     self._invalidate_loads(dst.value, 32)
 
@@ -90,6 +88,7 @@ class ValidCopiesAnalysis(IRAnalysis):
                 self._loads.clear()
 
         self.valid_copies[load_op].append(BBValidCopies(bb, res))
+
 
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()

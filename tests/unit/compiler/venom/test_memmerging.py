@@ -849,6 +849,22 @@ def test_memmerging_copy_overlap():
 
     _check_no_change(pre)
 
+
+def test_memmerging_copy_write_after_read():
+    """
+    Test for write after read case in copy instruction merge logic
+    """
+    pre = """
+    main:
+        mcopy 100, 0, 20
+        mcopy 0, 1000, 20
+        mcopy 120, 20, 20
+        stop
+    """
+
+    _check_no_change(pre)
+
+
 def test_memzeroing_1():
     """
     Test of basic memzeroing done with mstore only
