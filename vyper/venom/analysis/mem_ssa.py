@@ -1,7 +1,7 @@
 import contextlib
 from typing import Optional
 
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, MemoryAliasAnalysis
+from vyper.venom.analysis import IRAnalysis, CFGAnalysis, DominatorTreeAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.passes.base_pass import IRPass
 
@@ -49,7 +49,7 @@ class MemoryPhi(MemoryAccess):
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
 
-class MemSSA(IRPass):
+class MemSSA(IRAnalysis):
     """
     This pass converts memory/storage operations into Memory SSA form,
     tracking memory definitions and uses explicitly.
@@ -73,7 +73,7 @@ class MemSSA(IRPass):
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
         self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
 
-    def run_pass(self):
+    def analyze(self):
         # Request required analyses
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
