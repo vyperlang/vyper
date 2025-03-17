@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    create_memory_copy,
     dummy_node_for_type,
     ensure_eval_once,
     ensure_in_memory,
@@ -357,9 +358,8 @@ class Slice(BuiltinFunctionT):
             # copy_bytes works on pointers.
             assert is_bytes32, src
             src = ensure_in_memory(src, context)
-
-        if potential_overlap(src, start) or potential_overlap(src, length):
-            raise CompilerPanic("risky overlap")
+        elif potential_overlap(src, start) or potential_overlap(src, length):
+            src = create_memory_copy(src, context)
 
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
@@ -867,7 +867,7 @@ class Extract32(BuiltinFunctionT):
         ret_type = kwargs["output_type"]
 
         if potential_overlap(bytez, index):
-            raise CompilerPanic("risky overlap")
+            bytez = create_memory_copy(bytez, context)
 
         def finalize(ret):
             annotation = "extract32"
