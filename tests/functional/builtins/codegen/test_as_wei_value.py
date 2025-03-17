@@ -181,10 +181,10 @@ def test_as_wei_success(good_code):
 def test_as_wei_revert(get_contract, tx_failed):
     code = """
 @external
-def foo() -> uint256:
-    a: uint248 = max_value(uint248)
+def foo(a: uint248) -> uint256:
     return as_wei_value(a, "grand")
     """
     contract = get_contract(code)
+    bad_value = 2**248 - 1
     with tx_failed():
-        contract.foo()
+        contract.foo(bad_value)
