@@ -631,12 +631,12 @@ def foobar(token: IERC20):
     ...
         """
     code = """
-from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20 as XYZD
 import foo as Foo
 implements: Foo
 
 @internal
-def foobar(token: IERC20):
+def foobar(token: XYZD):
     pass
         """
 
@@ -645,7 +645,4 @@ def foobar(token: IERC20):
     with pytest.raises(InterfaceViolation) as e:
         compiler.compile_code(code, input_bundle=input_bundle)
 
-    assert (
-        e.value.message
-        == "Contract does not implement all interface functions: foobar(IERC20)"
-    )
+    assert e.value.message == "Contract does not implement all interface functions: foobar(XYZD)"

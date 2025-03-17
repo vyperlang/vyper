@@ -116,19 +116,21 @@ class InterfaceT(_UserType):
         # only external functions can implement interfaces
         fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
 
-        unimplemented = []
-
         def _is_function_implemented(fn_name, fn_type):
             if fn_name not in fns_by_name:
                 return False
 
             to_compare = fns_by_name[fn_name]
-            assert to_compare.is_external
+            if not to_compare.is_external:
+                return False
+
             assert isinstance(to_compare, ContractFunctionT)
             assert isinstance(fn_type, ContractFunctionT)
 
             return to_compare.implements(fn_type)
 
+        unimplemented = []
+        missing_strs = []
         # check for missing functions
         for name, type_ in self.functions.items():
             if not isinstance(type_, ContractFunctionT):
@@ -136,15 +138,18 @@ class InterfaceT(_UserType):
                 continue
 
             if not _is_function_implemented(name, type_):
-                unimplemented.append(type_._pp_signature)
+                if type_.decl_node is not None:
+                    unimplemented.append(type_.decl_node)
+                else:
+                    missing_strs.append(type_._pp_signature)
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
             # mismatch is small (like mutability, or just one argument
             # is off, etc).
-            missing_str = ", ".join(sorted(unimplemented))
+            missing_str = " " + (", ".join(sorted(missing_strs)))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions: {missing_str}", node
+                f"Contract does not implement all interface functions{missing_str}", *unimplemented, node
             )
 
     def to_toplevel_abi_dict(self) -> list[dict]:

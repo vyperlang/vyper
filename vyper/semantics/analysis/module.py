@@ -368,7 +368,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # grab exposed functions
         funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
-        type_.validate_implements(node, funcs)
+        type_.validate_implements(node, self._all_functions)
 
         node._metadata["interface_type"] = type_
 
