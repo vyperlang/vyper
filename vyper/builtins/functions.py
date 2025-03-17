@@ -76,14 +76,7 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import (
-    BYTES4_T,
-    BYTES32_T,
-    INT128_T,
-    INT256_T,
-    UINT8_T,
-    UINT256_T,
-)
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -988,7 +981,11 @@ class AsWeiValue(BuiltinFunctionT):
                 with product.cache_when_complex("ans") as (b2, product):
                     irlist = ["seq"]
                     positive = ["sge", value, 0]
-                    safemul = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
+                    safemul = [
+                        "or",
+                        ["eq", ["div", product, value], denom_divisor],
+                        ["iszero", value],
+                    ]
                     ok = ["and", positive, safemul]
                     irlist.append(["assert", ok])
                     irlist.append(product)

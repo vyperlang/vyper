@@ -2,10 +2,10 @@ import pytest
 from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
-from vyper.semantics.types import DecimalT
 from vyper.compiler import compile_code
-from vyper.utils import quantize, round_towards_zero
 from vyper.exceptions import InvalidLiteral, OverflowException
+from vyper.semantics.types import DecimalT
+from vyper.utils import quantize, round_towards_zero
 
 wei_denoms = {
     "femtoether": 3,
@@ -133,6 +133,7 @@ def bar() -> uint8:
     c = get_contract(code)
     assert c.foo() == to_wei(7, "ether")
 
+
 fail_list = [
     (
         """
@@ -159,6 +160,7 @@ def foo():
 def test_bad_as_wei_code(get_contract, assert_compile_failed, bad_code, exception):
     with pytest.raises(exception):
         compile_code(bad_code)
+
 
 valid_list = [
     """
