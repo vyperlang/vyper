@@ -115,7 +115,7 @@ Chain Interaction
 =================
 
 
-Vyper has three built-ins for contract creation; all three contract creation built-ins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
+Vyper has four built-ins for contract creation; the first three contract creation built-ins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
 
 * ``create_minimal_proxy_to(target: address, ...)``
     * Creates an immutable proxy to ``target``
@@ -132,6 +132,8 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
+* ``raw_create(initcode: Bytes[...], ...)```
+    * Low-level create. Takes the given initcode, along with the arguments to be abi-encoded, and deploys the initcode after concatenating the abi-encoded arguments.
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
@@ -226,6 +228,27 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def foo(blueprint: address) -> address:
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
+
+
+.. py:function:: raw_create(initcode: Bytes[...], *args, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
+
+    Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
+
+    * ``initcode``: Initcode bytes
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``*args``: Constructor arguments to forward to the initcode.
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
+
+    .. code-block:: vyper
+
+        @external
+        def foo() -> address:
+            # create the bytes of an empty contract
+            return raw_create(x"0x61000361000f6000396100036000f35f5ffd855820cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6038000a1657679706572830004020033")
+
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
