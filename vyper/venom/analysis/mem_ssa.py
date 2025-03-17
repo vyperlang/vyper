@@ -3,8 +3,6 @@ from typing import Optional
 
 from vyper.venom.analysis import IRAnalysis, CFGAnalysis, DominatorTreeAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
-from vyper.venom.passes.base_pass import IRPass
-
 
 class MemoryAccess:
     """Base class for memory SSA nodes"""

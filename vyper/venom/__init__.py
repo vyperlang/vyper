@@ -22,7 +22,6 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
-    MemSSA,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
@@ -30,6 +29,7 @@ from vyper.venom.passes import (
     StoreExpansionPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -74,6 +74,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
+    DeadStoreElimination(ac, fn).run_pass()
 
     LowerDloadPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
