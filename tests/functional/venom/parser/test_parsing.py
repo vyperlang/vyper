@@ -55,7 +55,6 @@ def test_multi_bb_single_fn():
     has_callvalue_bb = IRBasicBlock(IRLabel("has_callvalue"), start_fn)
     start_fn.append_basic_block(has_callvalue_bb)
     has_callvalue_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    has_callvalue_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -152,7 +151,6 @@ def test_multi_function():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -215,7 +213,6 @@ def test_multi_function_and_data():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     expected_ctx.data_segment = [
         DataSection(
@@ -313,7 +310,6 @@ def test_phis():
         %50 = 0
         %51 = 0
         revert %51, %50
-        stop
         ; (__main_entry)
     }  ; close function __main_entry
     """
