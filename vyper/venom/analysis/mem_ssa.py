@@ -3,6 +3,7 @@ from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.effects import Effects
 
 
 class MemoryAccess:
@@ -102,13 +103,15 @@ class MemSSA(IRAnalysis):
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
-            if inst.opcode == self.store_op or inst.opcode == "invoke":
+            # Check for memory writes
+            if Effects.MEMORY in inst.get_write_effects():
                 mem_def = MemoryDef(self.next_version, inst)
                 self.next_version += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
 
-            elif inst.opcode == self.load_op or inst.opcode == "invoke":
+            # Check for memory reads
+            if Effects.MEMORY in inst.get_read_effects():
                 mem_use = MemoryUse(self.next_version, inst)
                 self.memory_uses.setdefault(block, []).append(mem_use)
 
@@ -160,7 +163,7 @@ class MemSSA(IRAnalysis):
         for inst in bb.instructions:
             if inst == use.load_inst:
                 break
-            if inst.opcode == self.store_op:
+            if Effects.MEMORY in inst.get_write_effects():
                 for def_ in reversed(self.memory_defs[bb]):
                     if self.alias.may_alias(def_.store_inst, use.load_inst):
                         return def_
