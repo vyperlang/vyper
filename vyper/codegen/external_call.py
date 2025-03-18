@@ -258,38 +258,28 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
             return IRnode.from_list(ret, typ=bool_ty)
 
         tuple_t = TupleT([bool_ty, return_t])
+
+        success_buf = context.new_internal_variable(bool_ty)
         tuple_buf = context.new_internal_variable(tuple_t)
 
-        # Pointer to the success flag in the tuple
-        tuple_index_0 = add_ofst(tuple_buf, 0)
-        tuple_index_0.typ = bool_ty
+        store_success = IRnode.from_list(["mstore", success_buf, "success"])
+        conditional_unpacker = IRnode.from_list(["if", "success", ret_unpacker, "pass"])
 
-        # Pointer to the return data in the tuple
-        tuple_index_1 = add_ofst(tuple_buf, 32)
-        tuple_index_1.typ = return_t
+        handler = IRnode.from_list(["with", "success", call_op,
+                                    ["seq",
+                                     store_success,
+                                     conditional_unpacker]])
 
-        # Buffer to store success, because we'll need it twice
-        success_buf = context.new_internal_variable(bool_ty)
+        ret.append(handler)
 
-        success = IRnode.from_list(call_op)
-
-        # Store the success flag in the variable
-        ret.append(["mstore", success_buf, success])
-
-        # Copy the success flag to the tuple
-        ret.append(make_setter(tuple_index_0, success_buf, hi=None))
-
-        # Helper to check success flag from variable
-        is_success = ["mload", success_buf]
-
-        # Set return data type (for setter)
         ret_ofst.typ = return_t
-        setter = make_setter(tuple_index_1, ret_ofst, hi=None)
 
-        unpack_and_set = ["seq", ret_unpacker, setter]
-        if_success_unpack = ["if", is_success, unpack_and_set, ["pass"]]
-        ret.append(if_success_unpack)
+        multi = IRnode.from_list(["multi", success_buf, ret_ofst], typ=tuple_t)
+        res_setter = make_setter(tuple_buf, multi)
+
+        ret.append(res_setter)
         ret.append(tuple_buf)
+
 
         return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
