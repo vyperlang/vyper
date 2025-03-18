@@ -990,3 +990,90 @@ def deploy(s: Bytes[1024]) -> address:
     res = FooContract(res)
 
     assert res.foo() == arg
+
+
+# salt=self.change_code(salt) changes the value at the ptr self.c
+# this test checks that the previous evaluation of self.c (the initcode argument) is not
+# overwritten by the new value
+def test_raw_create_change_value_at_ptr(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+c: Bytes[1024]
+
+def change_code(salt: bytes32) -> bytes32:
+    self.c = b""
+    return salt
+
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address:
+    self.c = s
+    return raw_create(self.c, arg, salt=self.change_code(salt))
+    """
+
+    deployer = get_contract(deployer_code)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+    assert env.get_code(res) == runtime
+
+
+# evaluation of the value kwarg changes the value of the salt kwarg
+# value kwarg comes after the salt kwarg in the source code
+@pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
+def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+c: Bytes[1024]
+salt: bytes32
+
+def change_salt(value_: uint256) -> uint256:
+    self.salt = convert(0x01, bytes32)
+    return value_
+
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: uint256) -> address:
+    self.salt = salt
+    return raw_create(s, arg, salt=self.salt, value=self.change_salt(value_))
+    """
+
+    deployer = get_contract(deployer_code)
+    value = 42
+    env.set_balance(deployer.address, value)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt, value)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+    assert env.get_code(res) == runtime
+    assert env.get_balance(res) == value
