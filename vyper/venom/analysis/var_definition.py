@@ -1,5 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
@@ -15,15 +15,16 @@ class VarDefinition(IRAnalysis):
 
     def analyze(self):
         self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore
-        dfg: DFGAnalysis = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+
+        all_variables = OrderedSet()
+        for bb in self.function.get_basic_blocks():
+            all_variables.update(bb.get_assignments())
 
         # the variables that are defined up to (but not including) this point
         self.defined_vars = dict()
 
         # variables that are defined at the output of the basic block
-        self.defined_vars_bb = {
-            bb: OrderedSet(dfg.outputs.keys()) for bb in self.function.get_basic_blocks()
-        }
+        self.defined_vars_bb = {bb: all_variables.copy() for bb in self.function.get_basic_blocks()}
 
         worklist = OrderedSet(self.function.get_basic_blocks())
         while len(worklist) > 0:
@@ -34,9 +35,11 @@ class VarDefinition(IRAnalysis):
                 worklist.update(bb.cfg_out)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        input_defined = [
-            self.defined_vars_bb[in_bb] for in_bb in bb.cfg_in if in_bb in self.defined_vars_bb
-        ]
+        # note that the any basic block with no predecessors
+        # (either the function entry or the entry block to an unreachable
+        # subgraph) will seed with empty. therefore, the fixed point will
+        # keep refining down as we iterate over the lattice.
+        input_defined = [self.defined_vars_bb[in_bb] for in_bb in bb.cfg_in]
         bb_defined: OrderedSet[IRVariable]
         if len(input_defined) == 0:
             # special case for intersection()
@@ -50,7 +53,7 @@ class VarDefinition(IRAnalysis):
             if inst.output is not None:
                 bb_defined.add(inst.output)
 
-        if bb not in self.defined_vars_bb or self.defined_vars_bb[bb] != bb_defined:
+        if self.defined_vars_bb[bb] != bb_defined:
             self.defined_vars_bb[bb] = bb_defined
             return True
 
