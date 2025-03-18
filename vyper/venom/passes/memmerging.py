@@ -186,12 +186,7 @@ class MemMergePass(IRPass):
         return res
 
     def _read_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
-        res = []
-        for copy in self._copies:
-            if copy.overwrites(new_copy.src_interval()):
-                res.append(copy)
-
-        return res
+        return self._copies_that_overwrite(new_copy.src_interval())
 
     def _write_after_read_hazard(self, new_copy: _Copy) -> list[_Copy]:
         res = []
@@ -216,11 +211,9 @@ class MemMergePass(IRPass):
             else:
                 i += 1
 
-    def _overwrites(self, read_interval: _Interval) -> bool:
+    def _copies_that_overwrite(self, read_interval: _Interval) -> list[_Copy]:
         # check if any of self._copies tramples the interval
-
-        # could use bisect_left to optimize, but it's harder to reason about
-        return any(c.overwrites(read_interval) for c in self._copies)
+        return [c for c in self._copies if c.overwrites(read_interval)]
 
     def _handle_bb(
         self,
@@ -232,15 +225,11 @@ class MemMergePass(IRPass):
         self._loads = {}
         self._copies = []
 
-        def _barrier():
+        def _hard_barrier():
             # hard barrier. flush everything
             _barrier_for(self._copies)
             self._copies.clear()
             self._loads.clear()
-
-        def _load_barrier(interval: _Interval):
-            copies = [c for c in self._copies if c.overwrites(interval)]
-            _barrier_for(copies)
 
         def _barrier_for(copies: list[_Copy]):
             self._optimize_copy(bb, copies, copy_opcode, load_opcode)
@@ -251,15 +240,16 @@ class MemMergePass(IRPass):
             if inst.opcode == load_opcode:
                 src_op = inst.operands[0]
                 if not isinstance(src_op, IRLiteral):
-                    _barrier()
+                    _hard_barrier()
                     continue
 
                 read_interval = _Interval(src_op.value, 32)
 
-                # existing copies trample the read_interval, so we need to flush
-                # them first.
-                if not allow_dst_overlaps_src and self._overwrites(read_interval):
-                    _load_barrier(read_interval)
+                # flush any existing copies that trample read_interval
+                if not allow_dst_overlaps_src:
+                    copies = self._copies_that_overwrite(read_interval)
+                    if len(copies) > 0:
+                        _barrier_for(copies)
 
                 assert inst.output is not None
                 self._loads[inst.output] = src_op.value
@@ -268,7 +258,7 @@ class MemMergePass(IRPass):
                 var, dst = inst.operands
 
                 if not isinstance(var, IRVariable) or not isinstance(dst, IRLiteral):
-                    _barrier()
+                    _hard_barrier()
                     continue
 
                 if not allow_dst_overlaps_src:
@@ -276,7 +266,7 @@ class MemMergePass(IRPass):
 
                 # unknown memory (not writing the result of an available load)
                 if var not in self._loads:
-                    _barrier()
+                    _hard_barrier()
                     continue
 
                 src_ptr = self._loads[var]
@@ -287,21 +277,25 @@ class MemMergePass(IRPass):
                 write_hazards = self._write_after_write_hazard(n_copy)
                 if len(write_hazards) > 0:
                     _barrier_for(write_hazards)
-                    # no continue needed, we have not invalidated the loads dict
 
-                # check if the new copy does not overwrites existing data
+                # for mem2mem, we need to check if n_copy overwrites any
+                # existing copies, or if any existing copies overwrite n_copy.
                 if not allow_dst_overlaps_src:
                     read_hazards = self._read_after_write_hazard(n_copy)
-                    # the reads come from loads and they are already eliminated
+                    # we are performing a store, so it's impossible to have a
+                    # read hazard. (if a read hazard happened, it was already
+                    # handled when we handled the load instruction).
                     assert len(read_hazards) == 0, "read hazard should never happened here"
+
                     read_hazards = self._write_after_read_hazard(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
+
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
                 if not all(isinstance(op, IRLiteral) for op in inst.operands):
-                    _barrier()
+                    _hard_barrier()
                     continue
 
                 length, src, dst = inst.operands
@@ -312,7 +306,9 @@ class MemMergePass(IRPass):
                 write_hazards = self._write_after_write_hazard(n_copy)
                 if len(write_hazards) > 0:
                     _barrier_for(write_hazards)
-                # check if the new copy does not overwrites existing data
+
+                # for mem2mem, we need to check if n_copy overwrites any
+                # existing copies, or if any existing copies overwrite n_copy.
                 if not allow_dst_overlaps_src:
                     read_hazards = self._read_after_write_hazard(n_copy)
                     if len(read_hazards) > 0:
@@ -321,13 +317,14 @@ class MemMergePass(IRPass):
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
                     if n_copy.overwrites_self_src():
+                        # invalid copy
                         continue
                 self._add_copy(n_copy)
 
             elif _volatile_memory(inst):
-                _barrier()
+                _hard_barrier()
 
-        _barrier()
+        _hard_barrier()
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
