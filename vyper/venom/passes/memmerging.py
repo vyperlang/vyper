@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 @dataclass
@@ -96,6 +96,7 @@ class MemMergePass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb_memzero(bb)
@@ -106,7 +107,6 @@ class MemMergePass(IRPass):
                 # mcopy is available
                 self._handle_bb(bb, "mload", "mcopy")
 
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _optimize_copy(self, bb: IRBasicBlock, copy_opcode: str, load_opcode: str):
@@ -119,9 +119,12 @@ class MemMergePass(IRPass):
             pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32 or load_opcode == "dload":
-                inst.output = None
-                inst.opcode = copy_opcode
-                inst.operands = [IRLiteral(copy.length), IRLiteral(copy.src), IRLiteral(copy.dst)]
+                ops: list[IROperand] = [
+                    IRLiteral(copy.length),
+                    IRLiteral(copy.src),
+                    IRLiteral(copy.dst),
+                ]
+                self.updater.update(inst, copy_opcode, ops)
             elif inst.opcode == "mstore":
                 # we already have a load which is the val for this mstore;
                 # leave it in place.
@@ -133,14 +136,8 @@ class MemMergePass(IRPass):
             else:
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
-                index = inst.parent.instructions.index(inst)
-                var = bb.parent.get_next_variable()
-                load = IRInstruction(load_opcode, [IRLiteral(copy.src)], output=var)
-                inst.parent.insert_instruction(load, index)
-
-                inst.output = None
-                inst.opcode = "mstore"
-                inst.operands = [var, IRLiteral(copy.dst)]
+                val = self.updater.add_before(inst, load_opcode, [IRLiteral(copy.src)])
+                self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
 
             for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
@@ -155,7 +152,7 @@ class MemMergePass(IRPass):
                     if not all(use in copy.insts for use in uses):
                         continue
 
-                bb.mark_for_removal(inst)
+                self.updater.nop(inst)
 
         self._copies.clear()
         self._loads.clear()
@@ -285,26 +282,21 @@ class MemMergePass(IRPass):
                 _barrier()
 
         _barrier()
-        bb.clear_dead_instructions()
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
         for copy in self._copies:
             inst = copy.insts[-1]
             if copy.length == 32:
-                inst.opcode = "mstore"
-                inst.operands = [IRLiteral(0), IRLiteral(copy.dst)]
+                new_ops: list[IROperand] = [IRLiteral(0), IRLiteral(copy.dst)]
+                self.updater.update(inst, "mstore", new_ops)
             else:
-                index = bb.instructions.index(inst)
-                calldatasize = bb.parent.get_next_variable()
-                bb.insert_instruction(IRInstruction("calldatasize", [], output=calldatasize), index)
-
-                inst.output = None
-                inst.opcode = "calldatacopy"
-                inst.operands = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                calldatasize = self.updater.add_before(inst, "calldatasize", [])
+                new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                self.updater.update(inst, "calldatacopy", new_ops)
 
             for inst in copy.insts[:-1]:
-                bb.mark_for_removal(inst)
+                self.updater.nop(inst)
 
         self._copies.clear()
         self._loads.clear()
@@ -350,7 +342,6 @@ class MemMergePass(IRPass):
                 continue
 
         _barrier()
-        bb.clear_dead_instructions()
 
 
 def _volatile_memory(inst):
