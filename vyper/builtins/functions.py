@@ -84,6 +84,7 @@ from vyper.utils import (
     EIP_170_LIMIT,
     SHA3_PER_WORD,
     MemoryPositions,
+    SizeLimits,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
@@ -985,6 +986,8 @@ class AsWeiValue(BuiltinFunctionT):
                     irlist.append(product)
                     sub = b2.resolve(irlist)
             elif value.typ == DecimalT():
+                # sanity check (so we don't have to use safemul)
+                assert (SizeLimits.MAXDECIMAL * denom_divisor) < 2**256 - 1
                 sub = [
                     "seq",
                     ["assert", ["sge", value, 0]],
