@@ -72,6 +72,7 @@ class MemSSA(IRAnalysis):
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
         self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
+        self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
 
     def analyze(self):
         # Request required analyses
@@ -103,18 +104,18 @@ class MemSSA(IRAnalysis):
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
+            # Check for memory reads
+            if Effects.MEMORY in inst.get_read_effects():
+                mem_use = MemoryUse(self.next_version, inst)
+                self.memory_uses.setdefault(block, []).append(mem_use)
+
             # Check for memory writes
             if Effects.MEMORY in inst.get_write_effects():
                 mem_def = MemoryDef(self.next_version, inst)
                 self.next_version += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
-
-            # Check for memory reads
-            if Effects.MEMORY in inst.get_read_effects():
-                mem_use = MemoryUse(self.next_version, inst)
-                self.memory_uses.setdefault(block, []).append(mem_use)
-
+                self.inst_to_def[inst] = mem_def
     def _insert_phi_nodes(self):
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
@@ -126,7 +127,7 @@ class MemSSA(IRAnalysis):
                     phi = MemoryPhi(self.next_version, frontier)
                     # Add operands from each predecessor block
                     for pred in frontier.cfg_in:
-                        reaching_def = self._get_reaching_def(pred)
+                        reaching_def = self._get_in_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
                     self.next_version += 1
@@ -142,31 +143,36 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(bb, use)
 
-    def _get_reaching_def(
-        self, bb: IRBasicBlock, use: Optional[MemoryUse] = None
-    ) -> Optional[MemoryAccess]:
-        """Get the reaching definition for a block"""
+    def _get_in_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+        """Get the cfg in memorydefinition for a block"""
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
-        if use is None and bb in self.memory_defs:
+        if bb in self.memory_defs:
             return self.memory_defs[bb][-1]
-
+        
         if bb.cfg_in:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators[bb]
-            return self._get_reaching_def(idom, use) if idom else self.live_on_entry
+            return self._get_in_def(idom) if idom else self.live_on_entry
 
-        if use is None:
-            return self.live_on_entry
+        return self.live_on_entry
 
-        for inst in bb.instructions:
-            if inst == use.load_inst:
-                break
-            if Effects.MEMORY in inst.get_write_effects():
-                for def_ in reversed(self.memory_defs[bb]):
-                    if self.alias.may_alias(def_.store_inst, use.load_inst):
-                        return def_
+    def _get_reaching_def(
+        self, bb: IRBasicBlock, use: MemoryUse
+    ) -> Optional[MemoryAccess]:
+        """Get the reaching definition for a memory use"""
+        use_idx = bb.instructions.index(use.load_inst)
+        for inst in reversed(bb.instructions[:use_idx]):
+            if inst in self.inst_to_def:
+                return self.inst_to_def[inst]
+
+        if bb in self.memory_phis:
+            return self.memory_phis[bb]
+
+        if bb.cfg_in:
+            idom = self.dom.immediate_dominators.get(bb)
+            return self._get_in_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
 

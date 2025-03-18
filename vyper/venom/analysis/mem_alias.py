@@ -15,6 +15,7 @@ class MemoryLocation:
     size: int = 0
     is_alloca: bool = False
 
+FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)
 
 class MemoryAliasAnalysis(IRAnalysis):
     """
@@ -79,6 +80,14 @@ class MemoryAliasAnalysis(IRAnalysis):
             dst = inst.operands[0]
             size = inst.operands[2].value if isinstance(inst.operands[2], IRLiteral) else 0
             return MemoryLocation(dst, 0, size)
+        elif inst.opcode == "calldatacopy":
+            return FULL_MEMORY_ACCESS
+        elif inst.opcode == "dloadbytes":
+            return FULL_MEMORY_ACCESS
+        elif inst.opcode == "dload":
+            return FULL_MEMORY_ACCESS
+        elif inst.opcode == "invoke":
+            return FULL_MEMORY_ACCESS
         return None
 
     def _may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
@@ -100,6 +109,8 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Public API to check if two memory instructions may alias"""
         loc1 = self._get_memory_location(inst1)
         loc2 = self._get_memory_location(inst2)
+        if loc1 == FULL_MEMORY_ACCESS or loc2 == FULL_MEMORY_ACCESS:
+            return True
         if loc1 is None or loc2 is None:
             return False
         return self._may_alias(loc1, loc2)
