@@ -987,7 +987,7 @@ class AsWeiValue(BuiltinFunctionT):
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
-                    ["assert", ["sgt", value, -1]],
+                    ["assert", ["sge", value, 0]],
                     ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
                 ]
             else:
