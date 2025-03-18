@@ -170,7 +170,7 @@ class MemMergePass(IRPass):
             if _Interval(ptr, 32).overlaps(interval):
                 del self._loads[var]
 
-    def _write_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
+    def _write_after_write_hazards(self, new_copy: _Copy) -> list[_Copy]:
         res = []
         for copy in self._copies:
             if copy.can_merge(new_copy) or new_copy.can_merge(copy):
@@ -185,10 +185,10 @@ class MemMergePass(IRPass):
 
         return res
 
-    def _read_after_write_hazard(self, new_copy: _Copy) -> list[_Copy]:
+    def _read_after_write_hazards(self, new_copy: _Copy) -> list[_Copy]:
         return self._copies_that_overwrite(new_copy.src_interval())
 
-    def _write_after_read_hazard(self, new_copy: _Copy) -> list[_Copy]:
+    def _write_after_read_hazards(self, new_copy: _Copy) -> list[_Copy]:
         res = []
         for copy in self._copies:
             if new_copy.overwrites(copy.src_interval()):
@@ -274,20 +274,20 @@ class MemMergePass(IRPass):
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
 
-                write_hazards = self._write_after_write_hazard(n_copy)
+                write_hazards = self._write_after_write_hazards(n_copy)
                 if len(write_hazards) > 0:
                     _barrier_for(write_hazards)
 
                 # for mem2mem, we need to check if n_copy overwrites any
                 # existing copies, or if any existing copies overwrite n_copy.
                 if not allow_dst_overlaps_src:
-                    read_hazards = self._read_after_write_hazard(n_copy)
+                    read_hazards = self._read_after_write_hazards(n_copy)
                     # we are performing a store, so it's impossible to have a
                     # read hazard. (if a read hazard happened, it was already
                     # handled when we handled the load instruction).
                     assert len(read_hazards) == 0, "read hazard should never happened here"
 
-                    read_hazards = self._write_after_read_hazard(n_copy)
+                    read_hazards = self._write_after_read_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
 
@@ -303,17 +303,17 @@ class MemMergePass(IRPass):
                 if not allow_dst_overlaps_src:
                     self._invalidate_loads(_Interval(dst.value, length.value))
 
-                write_hazards = self._write_after_write_hazard(n_copy)
+                write_hazards = self._write_after_write_hazards(n_copy)
                 if len(write_hazards) > 0:
                     _barrier_for(write_hazards)
 
                 # for mem2mem, we need to check if n_copy overwrites any
                 # existing copies, or if any existing copies overwrite n_copy.
                 if not allow_dst_overlaps_src:
-                    read_hazards = self._read_after_write_hazard(n_copy)
+                    read_hazards = self._read_after_write_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
-                    read_hazards = self._write_after_read_hazard(n_copy)
+                    read_hazards = self._write_after_read_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
                     if n_copy.overwrites_self_src():
@@ -362,7 +362,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_copy = _Copy.memzero(dst.value, 32, [inst])
-                assert len(self._write_after_write_hazard(n_copy)) == 0
+                assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
                 length, var, dst = inst.operands
@@ -378,7 +378,7 @@ class MemMergePass(IRPass):
                     _barrier()
                     continue
                 n_copy = _Copy.memzero(dst.value, length.value, [inst])
-                assert len(self._write_after_write_hazard(n_copy)) == 0
+                assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
             elif _volatile_memory(inst):
                 _barrier()
