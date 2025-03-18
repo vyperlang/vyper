@@ -32,6 +32,9 @@ class DeadStoreElimination(IRPass):
 
     def _is_dead_store(self, mem_def) -> bool:
         store_inst = mem_def.store_inst
+        if store_inst.opcode != "mstore":
+            return False
+
         bb = store_inst.parent
 
         for _use_bb, uses in self.mem_ssa.memory_uses.items():
