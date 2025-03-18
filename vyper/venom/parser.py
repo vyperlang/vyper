@@ -88,15 +88,6 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
-def _ensure_terminated(bb):
-    # Since "revert" is not considered terminal explicitly check for it
-    # to ensure basic blocks are terminating
-    if not bb.is_terminated:
-        if any(inst.opcode == "revert" for inst in bb.instructions):
-            bb.append_instruction("stop")
-        # note: check_venom_ctx will raise error later if still not terminated.
-
-
 def _unescape(s: str):
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
@@ -135,8 +126,6 @@ class VenomTransformer(Transformer):
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
-
-                _ensure_terminated(bb)
 
             _set_last_var(fn)
         _set_last_label(ctx)
