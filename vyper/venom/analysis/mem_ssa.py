@@ -1,10 +1,10 @@
 import contextlib
-from typing import Optional
+from typing import Optional, NamedTuple
 
+from analysis.mem_alias import MemoryLocation
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
-
 
 class MemoryAccess:
     """Base class for memory SSA nodes"""
@@ -116,6 +116,7 @@ class MemSSA(IRAnalysis):
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
+
     def _insert_phi_nodes(self):
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())

@@ -28,7 +28,7 @@ class DeadStoreElimination(IRPass):
 
         for mem_def in mem_defs:
             if self._is_dead_store(mem_def):
-                self.updater.nop(mem_def.store_inst)
+                self.updater.nop(mem_def.store_inst, "[dead store]")
 
     def _is_dead_store(self, mem_def) -> bool:
         store_inst = mem_def.store_inst
