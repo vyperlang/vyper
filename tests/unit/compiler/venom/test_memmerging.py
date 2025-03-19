@@ -885,6 +885,20 @@ def test_memmerging_copy_overlap_ok():
     _check_pre_post(pre, post)
 
 
+def test_memmerging_copy_overlap_not_allowed():
+    """
+    Test merging overlapping copies that is not allowed
+    """
+    pre = """
+    main:
+        mcopy 0, 10, 100
+        mcopy 10, 20, 100
+        stop
+    """
+
+    _check_no_change(pre)
+
+
 def test_memmerge_mload_mstore_overlap_ok():
     """
     Test merging overlapping copies that is allowed
