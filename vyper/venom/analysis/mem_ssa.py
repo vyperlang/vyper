@@ -86,6 +86,7 @@ class MemSSA(IRAnalysis):
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
         self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
         self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
+        self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
     def analyze(self):
         # Request required analyses
@@ -98,6 +99,16 @@ class MemSSA(IRAnalysis):
 
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
+
+    def get_memory_def(self, inst: IRInstruction) -> Optional[MemoryDef]:
+        if inst in self.inst_to_def:
+            return self.inst_to_def[inst]
+        return None
+    
+    def get_memory_use(self, inst: IRInstruction) -> Optional[MemoryUse]:
+        if inst in self.inst_to_use:
+            return self.inst_to_use[inst]
+        return None
 
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
@@ -121,6 +132,7 @@ class MemSSA(IRAnalysis):
             if Effects.MEMORY in inst.get_read_effects():
                 mem_use = MemoryUse(self.next_id, inst)
                 self.memory_uses.setdefault(block, []).append(mem_use)
+                self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
             if Effects.MEMORY in inst.get_write_effects():
@@ -129,7 +141,7 @@ class MemSSA(IRAnalysis):
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
-
+                
     def _insert_phi_nodes(self):
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
