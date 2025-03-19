@@ -1,5 +1,5 @@
 import contextlib
-from typing import Optional, NamedTuple
+from typing import Optional
 
 from analysis.mem_alias import MemoryLocation
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
@@ -11,6 +11,10 @@ class MemoryAccess:
 
     def __init__(self, version: int):
         self.version = version
+
+    @property
+    def loc(self) -> MemoryLocation:
+        raise NotImplementedError("Subclasses must implement this method")
 
     @property
     def is_live_on_entry(self) -> bool:
@@ -30,6 +34,9 @@ class MemoryDef(MemoryAccess):
         super().__init__(version)
         self.store_inst = store_inst
 
+    @property
+    def loc(self) -> MemoryLocation:
+        return self.store_inst.get_write_memory_location()
 
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
@@ -39,6 +46,9 @@ class MemoryUse(MemoryAccess):
         self.load_inst = load_inst
         self.reaching_def: Optional[MemoryAccess] = None
 
+    @property
+    def loc(self) -> MemoryLocation:
+        return self.load_inst.get_read_memory_location()
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
@@ -183,6 +193,38 @@ class MemSSA(IRAnalysis):
             if all(op[1] == phi for op in phi.operands):
                 del self.memory_phis[phi.block]
 
+
+    def get_clobbered_memory_access(self, access: MemoryAccess) -> MemoryAccess:
+        query_loc = access.loc
+        if isinstance(access, MemoryPhi):
+            # For a phi, check all incoming paths
+            for incoming in access.incoming:
+                clobbering = self._walk_for_clobbered_access(incoming, query_loc)
+                if clobbering and not clobbering.is_live_on_entry:
+                    # Phi itself if any path has a clobber
+                    return access
+            result = self.live_on_entry
+        else:
+            result = self._walk_for_clobbered_access(access.reaching_def, query_loc) or self.live_on_entry
+        
+        return result
+
+
+    def _walk_for_clobbered_access(self, current: MemoryAccess, query_loc: MemoryAccess) -> Optional[MemoryAccess]:
+        while current and current.id != 0:
+            if isinstance(current, MemoryDef) and self.alias.may_alias(query_loc, current.loc):
+                return current
+            elif isinstance(current, MemoryPhi):
+                for access, _ in current.operands:
+                    clobbering = self._walk_for_clobbered_access(access, query_loc)
+                    if clobbering:
+                        return clobbering
+            current = current.reaching_def()
+        return None
+
+    #
+    # Printing context methods
+    #
     def _post_instruction(self, inst: IRInstruction) -> str:
         s = ""
         if inst.parent in self.memory_uses:
