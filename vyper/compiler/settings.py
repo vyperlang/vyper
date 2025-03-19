@@ -54,6 +54,7 @@ class Settings:
     experimental_codegen: Optional[bool] = None
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
+    nonreentrancy_by_default: Optional[bool] = None
 
     def __post_init__(self):
         # sanity check inputs
@@ -65,6 +66,8 @@ class Settings:
             assert isinstance(self.debug, bool)
         if self.enable_decimals is not None:
             assert isinstance(self.enable_decimals, bool)
+        if self.nonreentrancy_by_default is not None:
+            assert isinstance(self.nonreentrancy_by_default, bool)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:

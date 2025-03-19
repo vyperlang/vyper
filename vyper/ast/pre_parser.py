@@ -56,10 +56,11 @@ def _parse_pragma(comment_contents, settings, code, start):
         compiler_version = pragma.removeprefix("version ").strip()
         validate_version_pragma(compiler_version, code, start)
         settings.compiler_version = compiler_version
+        return
 
     # TODO: refactor these to something like Settings.from_pragma
     # note similarity to cli arg parsing.
-    elif pragma.startswith("optimize "):
+    if pragma.startswith("optimize "):
         if settings.optimize is not None:
             raise StructureException("pragma optimize specified twice!", start)
         try:
@@ -67,24 +68,38 @@ def _parse_pragma(comment_contents, settings, code, start):
             settings.optimize = OptimizationLevel.from_string(mode)
         except ValueError:
             raise StructureException(f"Invalid optimization mode `{mode}`", start)
-    elif pragma.startswith("evm-version "):
+        return
+
+    if pragma.startswith("evm-version "):
         if settings.evm_version is not None:
             raise StructureException("pragma evm-version specified twice!", start)
         evm_version = pragma.removeprefix("evm-version").strip()
         if evm_version not in EVM_VERSIONS:
             raise StructureException(f"Invalid evm version: `{evm_version}`", start)
         settings.evm_version = evm_version
-    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
+        return
+
+    if pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
         if settings.experimental_codegen is not None:
             raise StructureException("pragma experimental-codegen/venom specified twice!", start)
         settings.experimental_codegen = True
-    elif pragma.startswith("enable-decimals"):
+        return
+    if pragma.startswith("enable-decimals"):
         if settings.enable_decimals is not None:
             raise StructureException("pragma enable_decimals specified twice!", start)
         settings.enable_decimals = True
+        return
 
-    else:
-        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
+    if pragma.startswith("nonreentrancy"):
+        if settings.nonreentrancy_by_default is not None:
+            raise StructureException("pragma reentrancy specified twice!", start)
+        pragma = pragma.removeprefix("nonreentrancy").strip()
+        if pragma not in ("on", "off", "true", "false"):
+            raise StructureException("invalid pragma reentrancy (expected on/off)", start)
+        settings.nonreentrancy_by_default = pragma in ("on", "true")
+        return
+
+    raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")  # pragma: nocover
 
 
 class ParserState(enum.Enum):
