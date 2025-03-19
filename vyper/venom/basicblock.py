@@ -3,6 +3,7 @@ import re
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
+from analysis.mem_alias import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, MemoryLocation
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
@@ -315,6 +316,50 @@ class IRInstruction:
 
     def get_write_effects(self):
         return effects.writes.get(self.opcode, effects.EMPTY)
+    
+    def get_write_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            addr = self.operands[1]
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
+            size = 32
+            return MemoryLocation(addr, offset, size)
+        elif opcode == "mload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mcopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dload":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
+
+    def get_read_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mload":
+            addr = self.operands[0]
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
+            size = 32
+            return MemoryLocation(addr, offset, size)
+        elif opcode == "mcopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """

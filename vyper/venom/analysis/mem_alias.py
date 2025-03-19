@@ -35,10 +35,9 @@ class MemoryAliasAnalysis(IRAnalysis):
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode in ("mstore", "mload", "mcopy"):
-                    self._analyze_mem_instruction(inst)
+                self._analyze_instruction(inst)
 
-    def _analyze_mem_instruction(self, inst: IRInstruction):
+    def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
@@ -51,81 +50,27 @@ class MemoryAliasAnalysis(IRAnalysis):
             self.alias_sets[loc] = OrderedSet([loc])
             return
 
-        loc = self._get_memory_location(inst)
-        if loc is None:
-            return
+        loc = self._get_read_memory_location(inst)
+        if loc is not None:
+            self._analyze_mem_location(loc)
+        
+        loc = self._get_write_memory_location(inst)
+        if loc is not None:
+            self._analyze_mem_location(loc)
+    
 
-        # Add to alias set
+    def _analyze_mem_location(self, loc: MemoryLocation):
+        """Analyze a memory location to determine aliasing"""
         if loc not in self.alias_sets:
             self.alias_sets[loc] = OrderedSet([loc])
 
         # Check for aliasing with existing locations
         for other_loc in self.alias_sets:
-            if self._may_alias(loc, other_loc):
+            if self.may_alias(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
-
-    def _get_write_memory_location(self, inst: IRInstruction) -> MemoryLocation:
-        """Extract memory location info from an instruction"""
-        opcode = inst.opcode
-        if opcode == "mstore":
-            addr = inst.operands[1]
-            offset = addr.value if isinstance(addr, IRLiteral) else 0
-            size = 32
-            return MemoryLocation(addr, offset, size)
-        elif opcode == "mload":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mcopy":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "calldatacopy":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "dloadbytes":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "dload":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "invoke":
-            return FULL_MEMORY_ACCESS
-        return EMPTY_MEMORY_ACCESS
-
-    def _get_read_memory_location(self, inst: IRInstruction) -> MemoryLocation:
-        """Extract memory location info from an instruction"""
-        opcode = inst.opcode
-        if opcode == "mstore":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mload":
-            addr = inst.operands[0]
-            offset = addr.value if isinstance(addr, IRLiteral) else 0
-            size = 32
-            return MemoryLocation(addr, offset, size)
-        elif opcode == "mcopy":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "calldatacopy":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "dloadbytes":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "dload":
-            return FULL_MEMORY_ACCESS
-        elif opcode == "invoke":
-            return FULL_MEMORY_ACCESS
-        return EMPTY_MEMORY_ACCESS
-
-
-    def _may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
-        """Determine if two memory locations may alias"""
-        if loc1.size > 0 and loc2.size > 0:
-            start1, end1 = loc1.offset, loc1.offset + loc1.size
-            start2, end2 = loc2.offset, loc2.offset + loc2.size
-
-            return start1 <= end2 and start2 <= end1
-
-        # If bases are the same variable, they may alias
-        if isinstance(loc1.base, IRVariable) and isinstance(loc2.base, IRVariable):
-            return loc1.base == loc2.base
-
-        # Conservative - assume may alias if we can't prove otherwise
-        return True
     
-    def alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+    def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations alias.
         """
@@ -155,13 +100,3 @@ class MemoryAliasAnalysis(IRAnalysis):
         start2, end2 = loc2.offset, loc2.offset + loc2.size
         
         return (start1 <= start2 < end1) or (start2 <= start1 < end2)
-
-    def may_alias(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
-        """Public API to check if two memory instructions may alias"""
-        loc1 = self._get_write_memory_location(inst1)
-        loc2 = self._get_write_memory_location(inst2)
-        if loc1 == FULL_MEMORY_ACCESS or loc2 == FULL_MEMORY_ACCESS:
-            return True
-        if loc1 is None or loc2 is None:
-            return False
-        return self._may_alias(loc1, loc2)
