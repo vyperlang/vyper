@@ -23,7 +23,8 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256, vyper_warn
+from vyper.utils import keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 
 # user defined type
@@ -76,6 +77,9 @@ class FlagT(_UserType):
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
         return self
+
+    def __str__(self):
+        return f"{self.name}"
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self._flag_members)
@@ -294,13 +298,19 @@ class EventT(_UserType):
 
             return validate_kwargs(node, self.arguments, self.typeclass)
 
-        # warn about positional argument depreciation
-        msg = "Instantiating events with positional arguments is "
-        msg += "deprecated as of v0.4.1 and will be disallowed "
-        msg += "in a future release. Use kwargs instead eg. "
-        msg += "Foo(a=1, b=2)"
+        # warn about positional argument deprecation
+        if len(node.args) != 0:
+            rec0 = ", ".join(
+                f"{argname}={val.node_source_code}"
+                for argname, val in zip(self.arguments.keys(), node.args)
+            )
+            recommendation = f"log {node.func.node_source_code}({rec0})"
+            msg = "Instantiating events with positional arguments is"
+            msg += " deprecated as of v0.4.1 and will be disallowed"
+            msg += " in a future release. Use kwargs instead e.g.:"
+            msg += f"\n```\n{recommendation}\n```"
 
-        vyper_warn(msg, node)
+            vyper_warn(Deprecation(msg, node))
 
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):

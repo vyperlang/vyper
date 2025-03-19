@@ -136,7 +136,7 @@ def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> Non
         parent = node.get_ancestor()
         if isinstance(parent, vy_ast.Call):
             ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
             if ok_func and ok_args:
                 return
 
@@ -154,7 +154,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 "msg.data is only allowed inside of the slice, len or raw_call functions", node
             )
         if parent.get("func.id") == "slice":
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
             if not ok_args:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
@@ -522,6 +522,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     def _analyse_range_iter(self, iter_node, target_type):
         # iteration via range()
         if iter_node.get("func.id") != "range":
+            # CMC 2025-02-12 I think we can allow this actually
             raise IteratorException("Cannot iterate over the result of a function call", iter_node)
         _validate_range_call(iter_node)
 

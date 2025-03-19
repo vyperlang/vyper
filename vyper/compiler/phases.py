@@ -1,9 +1,10 @@
 import copy
-import warnings
+import json
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
+import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
@@ -11,14 +12,16 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
 from vyper.ir import compile_ir, optimizer
+from vyper.ir.compile_ir import reset_symbols
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, vyper_warn
+from vyper.utils import ERC5202_PREFIX, sha256sum
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -112,11 +115,14 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
+        is_vyi = self.contract_path.suffix == ".vyi"
+
         settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
+            is_interface=is_vyi,
         )
 
         if self.original_settings:
@@ -146,29 +152,41 @@ class CompilerData:
         _, ast = self._generate_ast
         return ast
 
+    def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
+        if self.storage_layout_override is not None:
+            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            return sha256sum(layout_sum + imports_integrity_sum)
+        return imports_integrity_sum
+
     @cached_property
     def _resolve_imports(self):
         # deepcopy so as to not interfere with `-f ast` output
         vyper_module = copy.deepcopy(self.vyper_module)
         with self.input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-            return vyper_module, resolve_imports(vyper_module, self.input_bundle)
+            imports = resolve_imports(vyper_module, self.input_bundle)
 
-    @cached_property
-    def resolved_imports(self):
-        imports = self._resolve_imports[1]
+        # check integrity sum
+        integrity_sum = self._compute_integrity_sum(imports._integrity_sum)
 
         expected = self.expected_integrity_sum
-
-        if expected is not None and imports.integrity_sum != expected:
+        if expected is not None and integrity_sum != expected:
             # warn for now. strict/relaxed mode was considered but it costs
             # interface and testing complexity to add another feature flag.
             vyper_warn(
                 f"Mismatched integrity sum! Expected {expected}"
-                f" but got {imports.integrity_sum}."
+                f" but got {integrity_sum}."
                 " (This likely indicates a corrupted archive)"
             )
 
-        return imports
+        return vyper_module, imports, integrity_sum
+
+    @cached_property
+    def integrity_sum(self):
+        return self._resolve_imports[2]
+
+    @cached_property
+    def resolved_imports(self):
+        return self._resolve_imports[1]
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
@@ -238,8 +256,8 @@ class CompilerData:
     @cached_property
     def venom_functions(self):
         deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
-        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        deploy_venom = generate_ir(deploy_ir, self.settings)
+        runtime_venom = generate_ir(runtime_ir, self.settings)
         return deploy_venom, runtime_venom
 
     @cached_property
@@ -266,7 +284,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         metadata = None
         if not self.no_bytecode_metadata:
-            metadata = bytes.fromhex(self.resolved_imports.integrity_sum)
+            metadata = bytes.fromhex(self.integrity_sum)
         return generate_bytecode(self.assembly, compiler_metadata=metadata)
 
     @cached_property
@@ -304,6 +322,10 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
+    # make IR output the same between runs
+    codegen.reset_names()
+    reset_symbols()
+
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if settings.optimize != OptimizationLevel.NONE:
@@ -330,10 +352,11 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
-        warnings.warn(
-            "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!",
-            stacklevel=2,
+        vyper_warn(
+            VyperWarning(
+                "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
+                "a supported EVM! It will FAIL on all other nodes!"
+            )
         )
     return assembly
 

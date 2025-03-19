@@ -1,48 +1,70 @@
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral
-from vyper.venom.context import IRContext
-from vyper.venom.passes import SCCP, SimplifyCFGPass
+import pytest
+
+from tests.venom_utils import PrePostChecker
+from vyper.venom.passes import SimplifyCFGPass
+
+pytestmark = pytest.mark.hevm
+
+
+_check_pre_post = PrePostChecker([SimplifyCFGPass])
 
 
 def test_phi_reduction_after_block_pruning():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    pre = """
+    _global:
+        jmp @then
+    then:
+        %1 = param
+        jmp @join
+    else:
+        ; dead block
+        %2 = param
+        jmp @join
+    join:
+        %3 = phi @then, %1, @else, %2
+        sink %3
+    """
+    post = """
+    _global:
+        %1 = param
+        %3 = %1
+        sink %3
+    """
 
-    bb = fn.get_basic_block()
+    _check_pre_post(pre, post)
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
 
-    join = IRBasicBlock(IRLabel("join"), fn)
-    fn.append_basic_block(join)
+def test_block_merging():
+    """
+    demonstrate merging of basic blocks (even if they occur "out of order"
+    in the function)
+    """
+    pre = """
+    _global:
+        %1 = param
+        %2 = param
+        jmp @b
+    a:
+        ; demonstrate order of basic blocks
+        %3 = %1
+        sstore 0, %3
+        jmp @c
+    b:
+        %4 = %2
+        sstore 1, %4
+        jmp @a
+    c:
+        sink %3, %4
+    """
+    post = """
+    _global:
+        %1 = param
+        %2 = param
+        %4 = %2
+        sstore 1, %4
+        %3 = %1
+        sstore 0, %3
+        sink %3, %4
+    """
 
-    true = IRLiteral(1)
-    bb.append_instruction("jnz", true, br1.label, br2.label)
-
-    op1 = br1.append_instruction("store", 1)
-    op2 = br2.append_instruction("store", 2)
-
-    br1.append_instruction("jmp", join.label)
-    br2.append_instruction("jmp", join.label)
-
-    join.append_instruction("phi", br1.label, op1, br2.label, op2)
-    join.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    SCCP(ac, fn).run_pass()
-    SimplifyCFGPass(ac, fn).run_pass()
-
-    bbs = list(fn.get_basic_blocks())
-
-    assert len(bbs) == 1
-    final_bb = bbs[0]
-
-    inst0, inst1, inst2 = final_bb.instructions
-
-    assert inst0.opcode == "store"
-    assert inst0.operands == [IRLiteral(1)]
-    assert inst1.opcode == "store"
-    assert inst1.operands == [inst0.output]
-    assert inst2.opcode == "stop"
+    _check_pre_post(pre, post)

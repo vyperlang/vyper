@@ -37,17 +37,25 @@ def test_jump_map(optimize, experimental_codegen):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    expected_jumps = 1
     if optimize == OptimizationLevel.NONE:
         # some jumps which don't get optimized out when optimizer is off
         # (slightly different behavior depending if venom pipeline is enabled):
-        if not experimental_codegen:
-            expected_jumps = 3
+        if experimental_codegen:
+            expected_jumps = 0
+            expected_internals = 0
         else:
-            expected_jumps = 2
+            expected_jumps = 3
+            expected_internals = 2
+    else:
+        if experimental_codegen:
+            expected_jumps = 0
+            expected_internals = 0
+        else:
+            expected_jumps = 1
+            expected_internals = 2
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
-    assert len([v for v in jump_map.values() if v == "i"]) == 2
+    assert len([v for v in jump_map.values() if v == "i"]) == expected_internals
 
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
@@ -97,8 +105,44 @@ def update_foo():
     self.foo += 1
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
-    assert "safeadd" in list(error_map.values())
-    assert "fallback function" in list(error_map.values())
+    assert "safeadd" in error_map.values()
+    assert "fallback function" in error_map.values()
+
+
+def test_error_map_with_user_error():
+    code = """
+@external
+def foo():
+    raise "some error"
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "user revert with reason" in error_map.values()
+
+
+def test_error_map_with_user_error2():
+    code = """
+@external
+def foo(i: uint256):
+    a: DynArray[uint256, 10] = [1]
+    a[i % 10] = 2
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "safemod" in error_map.values()
+
+
+def test_error_map_not_overriding_errors():
+    code = """
+@external
+def foo(i: uint256):
+    raise self.bar(5%i)
+
+@pure
+def bar(i: uint256) -> String[32]:
+    return "foo foo"
+    """
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    assert "user revert with reason" in error_map.values()
+    assert "safemod" in error_map.values()
 
 
 def test_compress_source_map():

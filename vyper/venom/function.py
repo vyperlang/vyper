@@ -1,8 +1,21 @@
+import textwrap
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.utils import OrderedSet
-from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+
+
+@dataclass
+class IRParameter:
+    name: str
+    index: int
+    offset: int
+    size: int
+    call_site_var: Optional[IRVariable]
+    func_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]
 
 
 class IRFunction:
@@ -13,7 +26,6 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: "IRContext"  # type: ignore # noqa: F821
     args: list
-    last_label: int
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
@@ -43,12 +55,15 @@ class IRFunction:
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), bb
-        assert bb.label.name not in self._basic_block_dict
+        assert bb.label.name not in self._basic_block_dict, bb.label
         self._basic_block_dict[bb.label.name] = bb
 
     def remove_basic_block(self, bb: IRBasicBlock):
         assert isinstance(bb, IRBasicBlock), bb
         del self._basic_block_dict[bb.label.name]
+
+    def has_basic_block(self, label: str) -> bool:
+        return label in self._basic_block_dict
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -73,6 +88,10 @@ class IRFunction:
     def num_basic_blocks(self) -> int:
         return len(self._basic_block_dict)
 
+    @property
+    def code_size_cost(self) -> int:
+        return sum(bb.code_size_cost for bb in self.get_basic_blocks())
+
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
         Get basic blocks that are terminal.
@@ -88,61 +107,50 @@ class IRFunction:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
+    def freshen_varnames(self) -> None:
+        """
+        Reset `self.last_variable`, and regenerate all variable names.
+        Helpful for debugging.
+        So fresh, so clean!
+        """
+        self.last_variable = 0
+        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
+        for bb in self.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.output:
+                    inst.output = varmap[inst.output]
+
+                for i, op in enumerate(inst.operands):
+                    if not isinstance(op, IRVariable):
+                        continue
+                    inst.operands[i] = varmap[op]
+
     def remove_unreachable_blocks(self) -> int:
-        self._compute_reachability()
-
-        removed = []
-
         # Remove unreachable basic blocks
+        # pre: requires CFG analysis!
+        # NOTE: should this be a pass?
+
+        removed = set()
+
         for bb in self.get_basic_blocks():
             if not bb.is_reachable:
-                removed.append(bb)
+                removed.add(bb)
 
         for bb in removed:
             self.remove_basic_block(bb)
 
         # Remove phi instructions that reference removed basic blocks
-        for bb in removed:
-            for out_bb in bb.cfg_out:
-                out_bb.remove_cfg_in(bb)
-                for inst in out_bb.instructions:
-                    if inst.opcode != "phi":
-                        continue
-                    in_labels = inst.get_label_operands()
-                    if bb.label in in_labels:
-                        inst.remove_phi_operand(bb.label)
-                    op_len = len(inst.operands)
-                    if op_len == 2:
-                        inst.opcode = "store"
-                        inst.operands = [inst.operands[1]]
-                    elif op_len == 0:
-                        out_bb.remove_instruction(inst)
+        for bb in self.get_basic_blocks():
+            for in_bb in list(bb.cfg_in):
+                if in_bb not in removed:
+                    continue
+
+                bb.remove_cfg_in(in_bb)
+
+            # TODO: only run this if cfg_in changed
+            bb.fix_phi_instructions()
 
         return len(removed)
-
-    def _compute_reachability(self) -> None:
-        """
-        Compute reachability of basic blocks.
-        """
-        for bb in self.get_basic_blocks():
-            bb.reachable = OrderedSet()
-            bb.is_reachable = False
-
-        self._compute_reachability_from(self.entry)
-
-    def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
-        """
-        Compute reachability of basic blocks from bb.
-        """
-        if bb.is_reachable:
-            return
-        bb.is_reachable = True
-        for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
-                for op in inst.get_label_operands():
-                    out_bb = self.get_basic_block(op.value)
-                    bb.reachable.add(out_bb)
-                    self._compute_reachability_from(out_bb)
 
     @property
     def normalized(self) -> bool:
@@ -179,6 +187,20 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
+    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+        for param in self.args:
+            if param.offset == offset:
+                return param
+        return None
+
+    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
+        if isinstance(var, str):
+            var = IRVariable(var)
+        for param in self.args:
+            if f"%{param.name}" == var.name:
+                return param
+        return None
+
     @property
     def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
@@ -187,33 +209,11 @@ class IRFunction:
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
-    def chain_basic_blocks(self) -> None:
-        """
-        Chain basic blocks together. If a basic block is not terminated, jump to the next one.
-        Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
-        done after the IR is generated.
-        """
-        bbs = list(self.get_basic_blocks())
-        for i, bb in enumerate(bbs):
-            if bb.is_terminated:
-                continue
-
-            if i < len(bbs) - 1:
-                # TODO: revisit this. When contructor calls internal functions
-                # they are linked to the last ctor block. Should separate them
-                # before this so we don't have to handle this here
-                if bbs[i + 1].label.value.startswith("internal"):
-                    bb.append_instruction("stop")
-                else:
-                    bb.append_instruction("jmp", bbs[i + 1].label)
-            else:
-                bb.append_instruction("stop")
-
     def copy(self):
         new = IRFunction(self.name)
-        new._basic_block_dict = self._basic_block_dict.copy()
-        new.last_label = self.last_label
-        new.last_variable = self.last_variable
+        for bb in self.get_basic_blocks():
+            new_bb = bb.copy()
+            new.append_basic_block(new_bb)
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -254,7 +254,10 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        str = f"IRFunction: {self.name}\n"
+        ret = f"function {self.name} {{\n"
         for bb in self.get_basic_blocks():
-            str += f"{bb}\n"
-        return str.strip()
+            bb_str = textwrap.indent(str(bb), "  ")
+            ret += f"{bb_str}\n"
+        ret = ret.strip() + "\n}"
+        ret += f"  ; close function {self.name}"
+        return ret

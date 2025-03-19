@@ -94,17 +94,18 @@ setup(
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
         "packaging>=23.1,<24",
+        "lark>=1.0.0,<2",
         "importlib-metadata",
         "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
-    tests_require=extras_require["test"],
+    setup_requires=["setuptools_scm>=7.1.0,<8.0.0"],
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
+            "venom=vyper.cli.venom_main:_parse_cli_args",
         ]
     },
     classifiers=[
@@ -113,6 +114,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],

@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -20,9 +20,18 @@ class DFGAnalysis(IRAnalysis):
     def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         return self._dfg_inputs.get(op, OrderedSet())
 
+    def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
+        """
+        Get uses of a given variable in a specific basic block.
+        """
+        return [inst for inst in self.get_uses(op) if inst.parent == bb]
+
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
+
+    def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):
+        self._dfg_outputs[op] = inst
 
     def add_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.setdefault(op, OrderedSet())
@@ -31,6 +40,23 @@ class DFGAnalysis(IRAnalysis):
     def remove_use(self, op: IRVariable, inst: IRInstruction):
         uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
+
+    def are_equivalent(self, var1: IROperand, var2: IROperand) -> bool:
+        if var1 == var2:
+            return True
+
+        if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
+            var1 = self._traverse_store_chain(var1)
+            var2 = self._traverse_store_chain(var2)
+
+        return var1 == var2
+
+    def _traverse_store_chain(self, var: IRVariable) -> IRVariable:
+        while True:
+            inst = self.get_producing_instruction(var)
+            if inst is None or inst.opcode != "store":
+                return var
+            var = inst.operands[0]  # type: ignore
 
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
