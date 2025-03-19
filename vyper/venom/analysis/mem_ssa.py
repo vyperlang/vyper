@@ -11,6 +11,7 @@ class MemoryAccess:
 
     def __init__(self, id: int):
         self.id = id
+        self.reaching_def: Optional[MemoryAccess] = None
 
     @property
     def loc(self) -> MemoryLocation:
@@ -44,7 +45,6 @@ class MemoryUse(MemoryAccess):
     def __init__(self, id: int, load_inst: IRInstruction):
         super().__init__(id)
         self.load_inst = load_inst
-        self.reaching_def: Optional[MemoryAccess] = None
 
     @property
     def loc(self) -> MemoryLocation:
@@ -219,7 +219,7 @@ class MemSSA(IRAnalysis):
                     clobbering = self._walk_for_clobbered_access(access, query_loc)
                     if clobbering:
                         return clobbering
-            current = current.reaching_def()
+            current = current.reaching_def
         return None
 
     #

@@ -38,11 +38,11 @@ class MemoryAliasAnalysis(IRAnalysis):
             self.alias_sets[loc] = OrderedSet([loc])
             return
 
-        loc = self._get_read_memory_location(inst)
+        loc = inst.get_read_memory_location()
         if loc is not None:
             self._analyze_mem_location(loc)
         
-        loc = self._get_write_memory_location(inst)
+        loc = inst.get_write_memory_location()
         if loc is not None:
             self._analyze_mem_location(loc)
     
