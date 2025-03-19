@@ -1,16 +1,17 @@
 import contextlib
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePath
 from typing import Any, Iterator
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
-    ABIInput,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    JSONInput,
     PathLike,
 )
 from vyper.exceptions import (
@@ -69,6 +70,16 @@ class _ImportGraph:
             yield
         finally:
             self.pop_path(module_ast)
+
+
+def try_parse_abi(file_input: FileInput) -> CompilerInput:
+    try:
+        s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
+        return JSONInput(**asdict(file_input), data=s)
+    except (ValueError, TypeError):
+        return file_input
 
 
 class ImportAnalyzer:
@@ -203,8 +214,10 @@ class ImportAnalyzer:
 
         try:
             file = self._load_file(path.with_suffix(".json"), level)
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, file.abi
+            if isinstance(file, FileInput):
+                file = try_parse_abi(file)
+            assert isinstance(file, JSONInput)  # mypy hint
+            return file, file.data
         except FileNotFoundError:
             pass
 
