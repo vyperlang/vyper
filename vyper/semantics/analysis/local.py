@@ -776,8 +776,8 @@ class ExprVisitor(VyperNodeVisitorBase):
                     hint = f"try `{should} {node.node_source_code}`"
                     raise CallViolation(msg, hint=hint)
 
-                if isinstance(node.func, vy_ast.Attribute) and node.func.attr == "__default__":
-                    raise CallViolation("function __default__ cannot be called")
+                if func_type.is_fallback:
+                    raise CallViolation("Function __default__ cannot be called directly")
             else:
                 if not node.is_plain_call:
                     kind = node.kind_str
