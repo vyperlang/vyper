@@ -9,8 +9,8 @@ from vyper.venom.effects import Effects
 class MemoryAccess:
     """Base class for memory SSA nodes"""
 
-    def __init__(self, version: int):
-        self.version = version
+    def __init__(self, id: int):
+        self.id = id
 
     @property
     def loc(self) -> MemoryLocation:
@@ -18,20 +18,20 @@ class MemoryAccess:
 
     @property
     def is_live_on_entry(self) -> bool:
-        return self.version == 0
+        return self.id == 0
 
     @property
-    def version_str(self) -> str:
+    def id_str(self) -> str:
         if self.is_live_on_entry:
             return "live_on_entry"
-        return f"{self.version}"
+        return f"{self.id}"
 
 
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
-    def __init__(self, version: int, store_inst: IRInstruction):
-        super().__init__(version)
+    def __init__(self, id: int, store_inst: IRInstruction):
+        super().__init__(id)
         self.store_inst = store_inst
 
     @property
@@ -41,8 +41,8 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(self, version: int, load_inst: IRInstruction):
-        super().__init__(version)
+    def __init__(self, id: int, load_inst: IRInstruction):
+        super().__init__(id)
         self.load_inst = load_inst
         self.reaching_def: Optional[MemoryAccess] = None
 
@@ -53,8 +53,8 @@ class MemoryUse(MemoryAccess):
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
 
-    def __init__(self, version: int, block: IRBasicBlock):
-        super().__init__(version)
+    def __init__(self, id: int, block: IRBasicBlock):
+        super().__init__(id)
         self.block = block
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
@@ -76,7 +76,7 @@ class MemSSA(IRAnalysis):
         self.store_op = "mstore" if location_type == "memory" else "sstore"
 
         # Memory SSA specific state
-        self.next_version = 1  # Start from 1 since 0 will be live_on_entry
+        self.next_id = 1  # Start from 1 since 0 will be live_on_entry
         self.live_on_entry = MemoryAccess(0)  # live_on_entry node
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
@@ -116,13 +116,13 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions:
             # Check for memory reads
             if Effects.MEMORY in inst.get_read_effects():
-                mem_use = MemoryUse(self.next_version, inst)
+                mem_use = MemoryUse(self.next_id, inst)
                 self.memory_uses.setdefault(block, []).append(mem_use)
 
             # Check for memory writes
             if Effects.MEMORY in inst.get_write_effects():
-                mem_def = MemoryDef(self.next_version, inst)
-                self.next_version += 1
+                mem_def = MemoryDef(self.next_id, inst)
+                self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
@@ -135,13 +135,13 @@ class MemSSA(IRAnalysis):
             block = worklist.pop()
             for frontier in self.dom.dominator_frontiers[block]:
                 if frontier not in self.memory_phis:
-                    phi = MemoryPhi(self.next_version, frontier)
+                    phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
                     for pred in frontier.cfg_in:
                         reaching_def = self._get_in_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
-                    self.next_version += 1
+                    self.next_id += 1
                     self.memory_phis[frontier] = phi
                     worklist.append(frontier)
 
@@ -211,7 +211,7 @@ class MemSSA(IRAnalysis):
 
 
     def _walk_for_clobbered_access(self, current: MemoryAccess, query_loc: MemoryAccess) -> Optional[MemoryAccess]:
-        while current and current.id != 0:
+        while current and not current.is_live_on_entry:
             if isinstance(current, MemoryDef) and self.alias.may_alias(query_loc, current.loc):
                 return current
             elif isinstance(current, MemoryPhi):
@@ -230,11 +230,11 @@ class MemSSA(IRAnalysis):
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
                 if use.load_inst == inst:
-                    s += f"\t; use: {use.reaching_def.version_str if use.reaching_def else None}"
+                    s += f"\t; use: {use.reaching_def.id_str if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
-                    s += f"\t; def: {def_.version_str}"
+                    s += f"\t; def: {def_.id_str}"
 
         return s
 
@@ -242,8 +242,8 @@ class MemSSA(IRAnalysis):
         s = ""
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
-            s += f"    ; phi: {phi.version_str} <- "
-            s += ", ".join(f"{op[0].version_str} from @{op[1].label}" for op in phi.operands)
+            s += f"    ; phi: {phi.id_str} <- "
+            s += ", ".join(f"{op[0].id_str} from @{op[1].label}" for op in phi.operands)
             s += "\n"
         return s
 
