@@ -1,9 +1,9 @@
+from dataclasses import dataclass
 import json
 import re
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
-from analysis.mem_alias import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, MemoryLocation
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
@@ -238,7 +238,17 @@ class IRLabel(IROperand):
 
         return json.dumps(self.value)  # escape it
 
+@dataclass(frozen=True)
+class MemoryLocation:
+    """Represents a memory location that can be analyzed for aliasing"""
 
+    base: IROperand  # Base address
+    offset: int = 0
+    size: int = 0
+    is_alloca: bool = False
+
+FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)
+EMPTY_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=0, is_alloca=False)
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,

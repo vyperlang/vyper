@@ -1,8 +1,8 @@
 import contextlib
 from typing import Optional
 
-from analysis.mem_alias import MemoryLocation
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
+from vyper.venom.analysis.mem_alias import MemoryLocation
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 

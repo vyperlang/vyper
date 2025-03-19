@@ -3,20 +3,8 @@ from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRInstruction, IRLiteral, IROperand, IRVariable, MemoryLocation
 
-
-@dataclass(frozen=True)
-class MemoryLocation:
-    """Represents a memory location that can be analyzed for aliasing"""
-
-    base: IROperand  # Base address
-    offset: int = 0
-    size: int = 0
-    is_alloca: bool = False
-
-FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)
-EMPTY_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=0, is_alloca=False)
 
 class MemoryAliasAnalysis(IRAnalysis):
     """
