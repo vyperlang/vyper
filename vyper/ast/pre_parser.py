@@ -47,6 +47,49 @@ def validate_version_pragma(version_str: str, full_source_code: str, start: Pars
             *start,
         )
 
+def _parse_pragma(comment_contents, settings):
+    pragma = comment_contents.removeprefix("pragma ").strip()
+    if pragma.startswith("version "):
+        if settings.compiler_version is not None:
+            raise StructureException("pragma version specified twice!", start)
+        compiler_version = pragma.removeprefix("version ").strip()
+        validate_version_pragma(compiler_version, code, start)
+        settings.compiler_version = compiler_version
+
+    # TODO: refactor these to something like Settings.from_pragma
+    # note similarity to cli arg parsing.
+    elif pragma.startswith("optimize "):
+        if settings.optimize is not None:
+            raise StructureException("pragma optimize specified twice!", start)
+        try:
+            mode = pragma.removeprefix("optimize").strip()
+            settings.optimize = OptimizationLevel.from_string(mode)
+        except ValueError:
+            raise StructureException(f"Invalid optimization mode `{mode}`", start)
+    elif pragma.startswith("evm-version "):
+        if settings.evm_version is not None:
+            raise StructureException("pragma evm-version specified twice!", start)
+        evm_version = pragma.removeprefix("evm-version").strip()
+        if evm_version not in EVM_VERSIONS:
+            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
+        settings.evm_version = evm_version
+    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
+        if settings.experimental_codegen is not None:
+            raise StructureException(
+                "pragma experimental-codegen/venom specified twice!", start
+            )
+        settings.experimental_codegen = True
+    elif pragma.startswith("enable-decimals"):
+        if settings.enable_decimals is not None:
+            raise StructureException(
+                "pragma enable_decimals specified twice!", start
+            )
+        settings.enable_decimals = True
+
+    else:
+        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
+
+
 
 class ParserState(enum.Enum):
     NOT_RUNNING = enum.auto()
@@ -242,45 +285,7 @@ class PreParser:
                     settings.compiler_version = compiler_version
 
                 if contents.startswith("pragma "):
-                    pragma = contents.removeprefix("pragma ").strip()
-                    if pragma.startswith("version "):
-                        if settings.compiler_version is not None:
-                            raise StructureException("pragma version specified twice!", start)
-                        compiler_version = pragma.removeprefix("version ").strip()
-                        validate_version_pragma(compiler_version, code, start)
-                        settings.compiler_version = compiler_version
-
-                    # TODO: refactor these to something like Settings.from_pragma
-                    elif pragma.startswith("optimize "):
-                        if settings.optimize is not None:
-                            raise StructureException("pragma optimize specified twice!", start)
-                        try:
-                            mode = pragma.removeprefix("optimize").strip()
-                            settings.optimize = OptimizationLevel.from_string(mode)
-                        except ValueError:
-                            raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    elif pragma.startswith("evm-version "):
-                        if settings.evm_version is not None:
-                            raise StructureException("pragma evm-version specified twice!", start)
-                        evm_version = pragma.removeprefix("evm-version").strip()
-                        if evm_version not in EVM_VERSIONS:
-                            raise StructureException(f"Invalid evm version: `{evm_version}`", start)
-                        settings.evm_version = evm_version
-                    elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
-                        if settings.experimental_codegen is not None:
-                            raise StructureException(
-                                "pragma experimental-codegen/venom specified twice!", start
-                            )
-                        settings.experimental_codegen = True
-                    elif pragma.startswith("enable-decimals"):
-                        if settings.enable_decimals is not None:
-                            raise StructureException(
-                                "pragma enable_decimals specified twice!", start
-                            )
-                        settings.enable_decimals = True
-
-                    else:
-                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
+                    _parse_pragma(contents, settings)
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
