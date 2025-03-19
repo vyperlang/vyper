@@ -121,9 +121,6 @@ class MemMergePass(IRPass):
         for copy in copies:
             copy.insts.sort(key=bb.instructions.index)
 
-            if copy_opcode == "mcopy":
-                assert not copy.overwrites_self_src()
-
             pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32 or load_opcode == "dload":
@@ -261,15 +258,16 @@ class MemMergePass(IRPass):
                     _hard_barrier()
                     continue
 
-                if not allow_dst_overlaps_src:
-                    self._invalidate_loads(_Interval(dst.value, 32))
-
                 # unknown memory (not writing the result of an available load)
                 if var not in self._loads:
                     _hard_barrier()
                     continue
 
                 src_ptr = self._loads[var]
+
+                if not allow_dst_overlaps_src:
+                    self._invalidate_loads(_Interval(dst.value, 32))
+
                 load_inst = self.dfg.get_producing_instruction(var)
                 assert load_inst is not None  # help mypy
                 n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
@@ -316,9 +314,6 @@ class MemMergePass(IRPass):
                     read_hazards = self._write_after_read_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
-                    if n_copy.overwrites_self_src():
-                        # invalid copy
-                        continue
                 self._add_copy(n_copy)
 
             elif _volatile_memory(inst):

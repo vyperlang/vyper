@@ -865,6 +865,49 @@ def test_memmerging_copy_write_after_read():
     _check_no_change(pre)
 
 
+def test_memmerging_copy_overlap_ok():
+    """
+    Test merging overlapping copies that is allowed
+    """
+    pre = """
+    main:
+        mcopy 0, 0, 100
+        mcopy 100, 100, 10
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 0, 110
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_memmerge_mload_mstore_overlap_ok():
+    """
+    Test merging overlapping copies that is allowed
+    mload/mstore case
+    """
+    pre = """
+    main:
+        %1 = mload 0
+        mstore 0, %1
+        %2 = mload 32
+        mstore 32, %2
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 0, 64
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
 def test_memzeroing_1():
     """
     Test of basic memzeroing done with mstore only
