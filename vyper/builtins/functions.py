@@ -1225,8 +1225,7 @@ class BlobHash(BuiltinFunctionT):
         return IRnode.from_list(["blobhash", args[0]], typ=BYTES32_T)
 
 
-class RawRevert(BuiltinFunctionT):
-    _id = "raw_revert"
+class _RawReturnOrRevert(BuiltinFunctionT):
     _inputs = [("data", BytesT.any())]
     _return_type = None
     _is_terminus = True
@@ -1239,12 +1238,27 @@ class RawRevert(BuiltinFunctionT):
         data_type = get_possible_types_from_node(node.args[0]).pop()
         return [data_type]
 
+    @property
+    def OPCODE(self):
+        # must be implemented by subclass
+        raise NotImplementedError()
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (b, buf):
+        with ensure_in_memory(args[0], context).cache_when_complex("buf") as (b, buf):
             data = bytes_data_ptr(buf)
             len_ = get_bytearray_length(buf)
-            return b.resolve(IRnode.from_list(["revert", data, len_]))
+            return b.resolve(IRnode.from_list([self.OPCODE, data, len_]))
+
+
+class RawRevert(_RawReturnOrRevert):
+    _id = "raw_revert"
+    OPCODE = "revert"
+
+
+class RawReturn(_RawReturnOrRevert):
+    _id = "raw_return"
+    OPCODE = "return"
 
 
 class RawLog(BuiltinFunctionT):
@@ -2687,6 +2701,7 @@ STMT_DISPATCH_TABLE = {
     "raw_call": RawCall(),
     "raw_log": RawLog(),
     "raw_revert": RawRevert(),
+    "raw_return": RawReturn(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
