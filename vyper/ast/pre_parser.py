@@ -47,7 +47,8 @@ def validate_version_pragma(version_str: str, full_source_code: str, start: Pars
             *start,
         )
 
-def _parse_pragma(comment_contents, settings):
+
+def _parse_pragma(comment_contents, settings, code, start):
     pragma = comment_contents.removeprefix("pragma ").strip()
     if pragma.startswith("version "):
         if settings.compiler_version is not None:
@@ -75,20 +76,15 @@ def _parse_pragma(comment_contents, settings):
         settings.evm_version = evm_version
     elif pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
         if settings.experimental_codegen is not None:
-            raise StructureException(
-                "pragma experimental-codegen/venom specified twice!", start
-            )
+            raise StructureException("pragma experimental-codegen/venom specified twice!", start)
         settings.experimental_codegen = True
     elif pragma.startswith("enable-decimals"):
         if settings.enable_decimals is not None:
-            raise StructureException(
-                "pragma enable_decimals specified twice!", start
-            )
+            raise StructureException("pragma enable_decimals specified twice!", start)
         settings.enable_decimals = True
 
     else:
         raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
-
 
 
 class ParserState(enum.Enum):
@@ -285,7 +281,7 @@ class PreParser:
                     settings.compiler_version = compiler_version
 
                 if contents.startswith("pragma "):
-                    _parse_pragma(contents, settings)
+                    _parse_pragma(contents, settings, code, start)
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
