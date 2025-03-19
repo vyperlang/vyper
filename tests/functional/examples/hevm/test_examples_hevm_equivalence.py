@@ -2,6 +2,13 @@ from pathlib import Path
 
 import pytest
 
+# test the legacy/venom bytecode equivalence via HEVM
+# the tests are divided to passing/failing
+# HEVM currently lacks some features necessary for successful verification
+# once those features are added, the failing tests will start passing
+# and will fail the testsuite (see the strict=True marker)
+# additionally, we provide 10s timeout so the failing tests don't deplete resources
+
 PASSING = ["examples/storage/storage.vy", "examples/storage/advanced_storage.vy"]
 
 
@@ -23,7 +30,7 @@ def test_check_passing(check_hevm_eq, contract_path):
 
 
 @pytest.mark.hevm("--smttimeout", "10")
-@pytest.mark.xfail(reason="timeout or hevm can't handle the contract")
+@pytest.mark.xfail(strict=True, reason="timeout or hevm can't handle the contract")
 @pytest.mark.parametrize("contract_path", get_example_contracts())
 def test_check_failing(check_hevm_eq, contract_path):
     check(contract_path, check_hevm_eq)
