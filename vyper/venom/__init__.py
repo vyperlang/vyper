@@ -3,10 +3,10 @@
 
 from typing import Optional
 
-from vyper.venom.analysis import MemSSA
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import CompilerPanic
+from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -79,26 +79,26 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     # memssa = ac.request_analysis(MemSSA)
     # with memssa.print_context():
-    #   print('------------------------')
-    #   print(fn)
+    #     print("------------------------")
+    #     print(fn)
 
-    # LowerDloadPass(ac, fn).run_pass()
-    # # NOTE: MakeSSA is after algebraic optimization it currently produces
-    # #       smaller code by adding some redundant phi nodes. This is not a
-    # #       problem for us, but we need to be aware of it, and should be
-    # #       removed when the dft pass is fixed to produce the smallest code
-    # #       without making the code generation more expensive by running
-    # #       MakeSSA again.
-    # MakeSSA(ac, fn).run_pass()
-    # BranchOptimizationPass(ac, fn).run_pass()
+    LowerDloadPass(ac, fn).run_pass()
+    # NOTE: MakeSSA is after algebraic optimization it currently produces
+    #       smaller code by adding some redundant phi nodes. This is not a
+    #       problem for us, but we need to be aware of it, and should be
+    #       removed when the dft pass is fixed to produce the smallest code
+    #       without making the code generation more expensive by running
+    #       MakeSSA again.
+    MakeSSA(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
 
-    # AlgebraicOptimizationPass(ac, fn).run_pass()
-    # RemoveUnusedVariablesPass(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    # StoreExpansionPass(ac, fn).run_pass()
+    StoreExpansionPass(ac, fn).run_pass()
 
-    # if optimize == OptimizationLevel.CODESIZE:
-    #     ReduceLiteralsCodesize(ac, fn).run_pass()
+    if optimize == OptimizationLevel.CODESIZE:
+        ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
 
