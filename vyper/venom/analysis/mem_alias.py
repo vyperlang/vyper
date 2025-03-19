@@ -1,9 +1,15 @@
-from dataclasses import dataclass
 from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRInstruction, IRLiteral, IROperand, IRVariable, MemoryLocation
+from vyper.venom.basicblock import (
+    EMPTY_MEMORY_ACCESS,
+    FULL_MEMORY_ACCESS,
+    IRInstruction,
+    IRLiteral,
+    IRVariable,
+    MemoryLocation,
+)
 
 
 class MemoryAliasAnalysis(IRAnalysis):
@@ -41,11 +47,10 @@ class MemoryAliasAnalysis(IRAnalysis):
         loc = inst.get_read_memory_location()
         if loc is not None:
             self._analyze_mem_location(loc)
-        
+
         loc = inst.get_write_memory_location()
         if loc is not None:
             self._analyze_mem_location(loc)
-    
 
     def _analyze_mem_location(self, loc: MemoryLocation):
         """Analyze a memory location to determine aliasing"""
@@ -57,7 +62,7 @@ class MemoryAliasAnalysis(IRAnalysis):
             if self.may_alias(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
-    
+
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations alias.
@@ -66,13 +71,13 @@ class MemoryAliasAnalysis(IRAnalysis):
             return loc2 != EMPTY_MEMORY_ACCESS
         if loc2 == FULL_MEMORY_ACCESS:
             return loc1 != EMPTY_MEMORY_ACCESS
-            
+
         if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
             return False
-            
+
         if loc1.size <= 0 or loc2.size <= 0:
             return False
-            
+
         bases_match = False
         if isinstance(loc1.base, IRVariable) and isinstance(loc2.base, IRVariable):
             bases_match = loc1.base == loc2.base
@@ -80,11 +85,11 @@ class MemoryAliasAnalysis(IRAnalysis):
             bases_match = loc1.base.value == loc2.base.value
         else:
             return False  # Can't prove bases must match
-            
+
         if not bases_match:
             return False
-            
+
         start1, end1 = loc1.offset, loc1.offset + loc1.size
         start2, end2 = loc2.offset, loc2.offset + loc2.size
-        
+
         return (start1 <= start2 < end1) or (start2 <= start1 < end2)

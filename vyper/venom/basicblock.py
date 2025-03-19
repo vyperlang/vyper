@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 import json
 import re
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -238,6 +238,7 @@ class IRLabel(IROperand):
 
         return json.dumps(self.value)  # escape it
 
+
 @dataclass(frozen=True)
 class MemoryLocation:
     """Represents a memory location that can be analyzed for aliasing"""
@@ -247,8 +248,11 @@ class MemoryLocation:
     size: int = 0
     is_alloca: bool = False
 
+
 FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)
 EMPTY_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=0, is_alloca=False)
+
+
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -326,7 +330,7 @@ class IRInstruction:
 
     def get_write_effects(self):
         return effects.writes.get(self.opcode, effects.EMPTY)
-    
+
     def get_write_memory_location(self) -> MemoryLocation:
         """Extract memory location info from an instruction"""
         opcode = self.opcode

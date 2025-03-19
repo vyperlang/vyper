@@ -6,6 +6,7 @@ from vyper.venom.analysis.mem_alias import MemoryLocation
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 
+
 class MemoryAccess:
     """Base class for memory SSA nodes"""
 
@@ -39,6 +40,7 @@ class MemoryDef(MemoryAccess):
     def loc(self) -> MemoryLocation:
         return self.store_inst.get_write_memory_location()
 
+
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
@@ -49,6 +51,7 @@ class MemoryUse(MemoryAccess):
     @property
     def loc(self) -> MemoryLocation:
         return self.load_inst.get_read_memory_location()
+
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
@@ -161,7 +164,7 @@ class MemSSA(IRAnalysis):
 
         if bb in self.memory_defs:
             return self.memory_defs[bb][-1]
-        
+
         if bb.cfg_in:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators[bb]
@@ -169,9 +172,7 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
-    def _get_reaching_def(
-        self, bb: IRBasicBlock, use: MemoryUse
-    ) -> Optional[MemoryAccess]:
+    def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
         """Get the reaching definition for a memory use"""
         use_idx = bb.instructions.index(use.load_inst)
         for inst in reversed(bb.instructions[:use_idx]):
@@ -193,24 +194,30 @@ class MemSSA(IRAnalysis):
             if all(op[1] == phi for op in phi.operands):
                 del self.memory_phis[phi.block]
 
+    def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:
+        if access is None or access.is_live_on_entry:
+            return None
 
-    def get_clobbered_memory_access(self, access: MemoryAccess) -> MemoryAccess:
         query_loc = access.loc
         if isinstance(access, MemoryPhi):
             # For a phi, check all incoming paths
-            for incoming in access.incoming:
-                clobbering = self._walk_for_clobbered_access(incoming, query_loc)
+            for acc, _ in access.operands:
+                clobbering = self._walk_for_clobbered_access(acc, query_loc)
                 if clobbering and not clobbering.is_live_on_entry:
                     # Phi itself if any path has a clobber
                     return access
             result = self.live_on_entry
         else:
-            result = self._walk_for_clobbered_access(access.reaching_def, query_loc) or self.live_on_entry
-        
+            result = (
+                self._walk_for_clobbered_access(access.reaching_def, query_loc)
+                or self.live_on_entry
+            )
+
         return result
 
-
-    def _walk_for_clobbered_access(self, current: MemoryAccess, query_loc: MemoryAccess) -> Optional[MemoryAccess]:
+    def _walk_for_clobbered_access(
+        self, current: Optional[MemoryAccess], query_loc: MemoryLocation
+    ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
             if isinstance(current, MemoryDef) and self.alias.may_alias(query_loc, current.loc):
                 return current
