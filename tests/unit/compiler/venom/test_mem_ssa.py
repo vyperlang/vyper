@@ -1,6 +1,6 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryPhi, MemoryUse
 from vyper.venom.basicblock import IRLabel
 
 
@@ -192,3 +192,41 @@ def test_complex_loop_clobber():
     different_loc_store = mem_ssa.memory_defs[nested_a2_block][0]
     assert different_loc_store.loc.offset == 32
     assert different_loc_store.store_inst.operands[0].value == "%val_a2"
+
+
+def test_simple_def_chain():
+    code = """
+    function _global {
+        entry:
+            %val1 = 10
+            mstore 0, %val1
+            %val2 = 20
+            mstore 0, %val2
+            %val3 = 30
+            mstore 0, %val3
+            %val4 = mload 0
+            stop
+    }
+    """
+
+    ctx = parse_venom(code)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    bb = fn.get_basic_block("entry")
+    def_1 = mem_ssa.get_memory_def(bb.instructions[1])
+    def_2 = mem_ssa.get_memory_def(bb.instructions[3])
+    def_3 = mem_ssa.get_memory_def(bb.instructions[5])
+    use_loc0 = mem_ssa.get_memory_use(bb.instructions[-2])
+    
+    assert use_loc0 is not None
+    assert isinstance(use_loc0, MemoryUse)
+    assert use_loc0.loc.offset == 0
+    assert use_loc0.reaching_def == def_3
+    assert def_3.reaching_def == def_2
+    assert def_2.reaching_def == def_1
+
+
