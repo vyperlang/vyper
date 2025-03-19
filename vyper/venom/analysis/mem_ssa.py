@@ -138,6 +138,9 @@ class MemSSA(IRAnalysis):
             if Effects.MEMORY in inst.get_write_effects():
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
+                
+                mem_def.reaching_def = self._get_reaching_def_for_def(block, mem_def)
+                
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
@@ -198,6 +201,33 @@ class MemSSA(IRAnalysis):
             idom = self.dom.immediate_dominators.get(bb)
             return self._get_in_def(idom) if idom else self.live_on_entry
 
+        return self.live_on_entry
+
+    def _get_reaching_def_for_def(self, bb: IRBasicBlock, def_inst: MemoryDef) -> MemoryAccess:
+        """Get the reaching definition for a memory definition"""
+        def_idx = bb.instructions.index(def_inst.store_inst)
+        def_loc = def_inst.loc
+        
+        for inst in reversed(bb.instructions[:def_idx]):
+            if inst in self.inst_to_def:
+                prev_def = self.inst_to_def[inst]
+                if self.alias.may_alias(def_loc, prev_def.loc):
+                    return prev_def
+        
+        if bb in self.memory_phis:
+            phi = self.memory_phis[bb]
+            for op, _ in phi.operands:
+                if isinstance(op, MemoryDef) and self.alias.may_alias(def_loc, op.loc):
+                    return phi
+                
+        if bb.cfg_in:
+            idom = self.dom.immediate_dominators.get(bb)
+            if idom:
+                in_def = self._get_in_def(idom)
+                # Only use the in_def if it might alias with our definition
+                if isinstance(in_def, MemoryDef) and self.alias.may_alias(def_loc, in_def.loc):
+                    return in_def
+        
         return self.live_on_entry
 
     def _remove_redundant_phis(self):
