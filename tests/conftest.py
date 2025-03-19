@@ -253,13 +253,8 @@ def hevm_marker(request):
 
 
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
-    def fn(source_code, *args, **kwargs):
-        if "override_opt_level" in kwargs:
-            kwargs["compiler_settings"] = Settings(
-                **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
-            )
-
+def check_hevm_eq(hevm, compiler_settings):
+    def check(source_code, **kwargs):
         global _HEVM_MARKER
         if hevm and _HEVM_MARKER is not None:
             settings1 = copy.copy(compiler_settings)
@@ -282,6 +277,19 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
                 input_bundle=kwargs.get("input_bundle"),
             )["bytecode_runtime"]
             tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
+
+    return check
+
+
+@pytest.fixture(scope="module")
+def get_contract(env, optimize, output_formats, compiler_settings, request, check_hevm_eq):
+    def fn(source_code, *args, **kwargs):
+        if "override_opt_level" in kwargs:
+            kwargs["compiler_settings"] = Settings(
+                **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
+            )
+
+        check_hevm_eq(source_code, **kwargs)
 
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
