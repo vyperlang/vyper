@@ -228,5 +228,6 @@ def test_simple_def_chain():
     assert use_loc0.reaching_def == def_3
     assert def_3.reaching_def == def_2
     assert def_2.reaching_def == def_1
+    assert def_1.reaching_def == mem_ssa.live_on_entry
 
 
