@@ -1,17 +1,11 @@
 import pytest
 
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from tests.venom_utils import PrePostChecker, parse_venom
 from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import SCCP, MemMergePass
+from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
-
-def _check_pre_post(pre, post):
-    ctx = parse_from_basic_block(pre)
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        MemMergePass(ac, fn).run_pass()
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+_check_pre_post = PrePostChecker([MemMergePass, RemoveUnusedVariablesPass], default_hevm=False)
 
 
 def _check_no_change(pre):
@@ -853,8 +847,6 @@ def test_memzeroing_2():
 
     post = """
     _global:
-        %1 = calldatasize
-        %2 = calldatasize
         %3 = calldatasize
         calldatacopy 64, %3, 256
         stop
@@ -881,8 +873,6 @@ def test_memzeroing_3():
 
     post = """
     _global:
-        %1 = calldatasize
-        %2 = calldatasize
         %3 = calldatasize
         calldatacopy 0, %3, 264
         stop
@@ -905,7 +895,6 @@ def test_memzeroing_small_calldatacopy():
 
     post = """
     _global:
-        %1 = calldatasize
         mstore 0, 0
         stop
     """
@@ -935,13 +924,8 @@ def test_memzeroing_smaller_calldatacopy():
 
     post = """
     _global:
-        %1 = calldatasize
-        %2 = calldatasize
         %6 = calldatasize
         calldatacopy 0, %6, 24
-        %3 = calldatasize
-        %4 = calldatasize
-        %5 = calldatasize
         mstore 100, 0
         stop
     """
@@ -966,7 +950,6 @@ def test_memzeroing_overlap():
 
     post = """
     _global:
-        %1 = calldatasize
         %2 = calldatasize
         calldatacopy 100, %2, 64
         stop

@@ -711,7 +711,7 @@ Math
 
 .. py:function:: sqrt(d: decimal) -> decimal
 
-    Return the square root of the provided decimal number, using the Babylonian square root algorithm.
+    Return the square root of the provided decimal number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest epsilon. For instance, ``sqrt(0.9999999998) == 0.9999999998``.
 
     .. code-block:: vyper
 
@@ -914,7 +914,7 @@ Utilities
 
     Take an amount of ether currency specified by a number and a unit and return the integer quantity of wei equivalent to that amount.
 
-    * ``_value``: Value for the ether unit. Any numeric type may be used, however the value cannot be negative.
+    * ``_value``: Value for the ether unit. Any numeric type may be used, however, the value cannot be negative.
     * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``_value``. Must be given as a literal string.
 
     .. code-block:: vyper
@@ -928,6 +928,10 @@ Utilities
 
         >>> ExampleContract.foo(1)
         1337000000000000000
+
+.. note::
+    When ``as_wei_value`` is given some ``decimal``, the result might be rounded down to the nearest integer, for example, the following is true: ``as_wei_value(12.2, "wei") == 12``.
+
 
 .. py:function:: blockhash(block_num: uint256) -> bytes32
 

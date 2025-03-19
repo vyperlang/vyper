@@ -8,7 +8,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "sink"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -36,6 +36,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dload",
         "return",
         "ret",
+        "sink",
         "jmp",
         "jnz",
         "djmp",
@@ -64,6 +65,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "sink",
         "revert",
         "assert",
         "assert_unreachable",
@@ -79,9 +81,17 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     ]
 )
 
+
+# instructions that should only be used for testing
+TEST_INSTRUCTIONS = ("sink",)
+
 assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
     NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
 )
+
+# These instructions should be eliminated/rewritten
+# before going into assembly emission
+PSEUDO_INSTRUCTION = frozenset(["dload", "dloadbytes"])
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
@@ -184,9 +194,20 @@ class IRVariable(IROperand):
             value = f"{name}:{version}"
         super().__init__(value)
 
+    def with_version(self, version: int) -> "IRVariable":
+        if version == self.version:
+            # IRVariable ctor is a hotspot, try to avoid calling it
+            # if possible
+            return self
+        return self.__class__(self.name, version)
+
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def plain_name(self) -> str:
+        return self.name.strip("%")
 
 
 class IRLabel(IROperand):
@@ -318,6 +339,12 @@ class IRInstruction:
         """
         return [self.output] if self.output else []
 
+    def make_nop(self):
+        self.annotation = str(self)  # Keep original instruction as annotation for debugging
+        self.opcode = "nop"
+        self.output = None
+        self.operands = []
+
     def flip(self):
         """
         Flip operands for commutative or comparator opcodes
@@ -359,10 +386,8 @@ class IRInstruction:
         for i in range(0, len(self.operands), 2):
             label = self.operands[i]
             var = self.operands[i + 1]
-            assert isinstance(label, IRLabel), "phi operand must be a label"
-            assert isinstance(
-                var, (IRVariable, IRLiteral)
-            ), "phi operand must be a variable or literal"
+            assert isinstance(label, IRLabel), f"not a label: {label} (at `{self}`)"
+            assert isinstance(var, IRVariable), f"not a variable: {var} (at `{self}`)"
             yield label, var
 
     def remove_phi_operand(self, label: IRLabel) -> None:
@@ -375,6 +400,12 @@ class IRInstruction:
                 del self.operands[i : i + 2]
                 return
 
+    @property
+    def code_size_cost(self) -> int:
+        if self.opcode == "store":
+            return 1
+        return 2
+
     def get_ast_source(self) -> Optional[IRnode]:
         if self.ast_source:
             return self.ast_source
@@ -383,6 +414,25 @@ class IRInstruction:
             if inst.ast_source:
                 return inst.ast_source
         return self.parent.parent.ast_source
+
+    def copy(self) -> "IRInstruction":
+        ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
+        ret.annotation = self.annotation
+        ret.ast_source = self.ast_source
+        ret.error_msg = self.error_msg
+        return ret
+
+    def str_short(self) -> str:
+        s = ""
+        if self.output:
+            s += f"{self.output} = "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
+            operands = list(reversed(operands))
+        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        return s
 
     def __repr__(self) -> str:
         s = ""
@@ -393,13 +443,16 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
-
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
         if self.annotation:
-            s += f" ; {self.annotation}"
+            s = f"{s: <30} ; {self.annotation}"
+
+        # debug:
+        # if self.error_msg:
+        #     s += f" ;>>> {self.error_msg}"
 
         return f"{s: <30}"
 
@@ -456,8 +509,6 @@ class IRBasicBlock:
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
         self.is_reachable = False
-
-        self._garbage_instructions: set[IRInstruction] = set()
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
@@ -529,23 +580,42 @@ class IRBasicBlock:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        instruction.ast_source = self.parent.ast_source
-        instruction.error_msg = self.parent.error_msg
+        fn = self.parent
+        if fn.ast_source is not None:
+            instruction.ast_source = fn.ast_source
+        if fn.error_msg is not None:
+            instruction.error_msg = fn.error_msg
         self.instructions.insert(index, instruction)
 
-    def mark_for_removal(self, instruction: IRInstruction) -> None:
-        self._garbage_instructions.add(instruction)
-
-    def clear_dead_instructions(self) -> None:
-        if len(self._garbage_instructions) > 0:
-            self.instructions = [
-                inst for inst in self.instructions if inst not in self._garbage_instructions
-            ]
-            self._garbage_instructions.clear()
+    def clear_nops(self) -> None:
+        if any(inst.opcode == "nop" for inst in self.instructions):
+            self.instructions = [inst for inst in self.instructions if inst.opcode != "nop"]
 
     def remove_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.remove(instruction)
+
+    def remove_instructions_after(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        assert instruction in self.instructions, "instruction must be in basic block"
+        self.instructions = self.instructions[: self.instructions.index(instruction) + 1]
+
+    def ensure_well_formed(self):
+        for inst in self.instructions:
+            assert inst.parent == self  # sanity
+            if inst.opcode == "revert":
+                self.remove_instructions_after(inst)
+                self.append_instruction("stop")  # TODO: make revert a bb terminator?
+                break
+
+        def key(inst):
+            if inst.opcode in ("phi", "param"):
+                return 0
+            if inst.is_bb_terminator:
+                return 2
+            return 1
+
+        self.instructions.sort(key=key)
 
     @property
     def phi_instructions(self) -> Iterator[IRInstruction]:
@@ -575,6 +645,10 @@ class IRBasicBlock:
     def body_instructions(self) -> Iterator[IRInstruction]:
         return (inst for inst in self.instructions[:-1] if not inst.is_pseudo)
 
+    @property
+    def code_size_cost(self) -> int:
+        return sum(inst.code_size_cost for inst in self.instructions)
+
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
@@ -601,9 +675,7 @@ class IRBasicBlock:
                 inst.opcode = "store"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
-                inst.opcode = "nop"
-                inst.output = None
-                inst.operands = []
+                inst.make_nop()
 
         if needs_sort:
             self.instructions.sort(key=lambda inst: inst.opcode != "phi")
@@ -655,12 +727,11 @@ class IRBasicBlock:
                 return inst.liveness
         return OrderedSet()
 
-    def copy(self):
+    def copy(self) -> "IRBasicBlock":
         bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = self.instructions.copy()
-        bb.cfg_in = self.cfg_in.copy()
-        bb.cfg_out = self.cfg_out.copy()
-        bb.out_vars = self.out_vars.copy()
+        bb.instructions = [inst.copy() for inst in self.instructions]
+        for inst in bb.instructions:
+            inst.parent = bb
         return bb
 
     def __repr__(self) -> str:

@@ -1,8 +1,21 @@
 import textwrap
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+
+
+@dataclass
+class IRParameter:
+    name: str
+    index: int
+    offset: int
+    size: int
+    call_site_var: Optional[IRVariable]
+    func_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]
 
 
 class IRFunction:
@@ -49,6 +62,9 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), bb
         del self._basic_block_dict[bb.label.name]
 
+    def has_basic_block(self, label: str) -> bool:
+        return label in self._basic_block_dict
+
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
@@ -72,6 +88,10 @@ class IRFunction:
     def num_basic_blocks(self) -> int:
         return len(self._basic_block_dict)
 
+    @property
+    def code_size_cost(self) -> int:
+        return sum(bb.code_size_cost for bb in self.get_basic_blocks())
+
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
         Get basic blocks that are terminal.
@@ -86,6 +106,24 @@ class IRFunction:
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
+
+    def freshen_varnames(self) -> None:
+        """
+        Reset `self.last_variable`, and regenerate all variable names.
+        Helpful for debugging.
+        So fresh, so clean!
+        """
+        self.last_variable = 0
+        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
+        for bb in self.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.output:
+                    inst.output = varmap[inst.output]
+
+                for i, op in enumerate(inst.operands):
+                    if not isinstance(op, IRVariable):
+                        continue
+                    inst.operands[i] = varmap[op]
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
@@ -149,6 +187,20 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
+    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+        for param in self.args:
+            if param.offset == offset:
+                return param
+        return None
+
+    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
+        if isinstance(var, str):
+            var = IRVariable(var)
+        for param in self.args:
+            if f"%{param.name}" == var.name:
+                return param
+        return None
+
     @property
     def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
@@ -181,8 +233,9 @@ class IRFunction:
 
     def copy(self):
         new = IRFunction(self.name)
-        new._basic_block_dict = self._basic_block_dict.copy()
-        new.last_variable = self.last_variable
+        for bb in self.get_basic_blocks():
+            new_bb = bb.copy()
+            new.append_basic_block(new_bb)
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
