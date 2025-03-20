@@ -180,7 +180,7 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
-        if bb in self.memory_defs:
+        if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
 
         if bb.cfg_in:
