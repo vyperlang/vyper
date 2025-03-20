@@ -75,7 +75,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
-    # DeadStoreElimination(ac, fn).run_pass()
+    DeadStoreElimination(ac, fn).run_pass()
 
     # memssa = ac.request_analysis(MemSSA)
     # with memssa.print_context():
