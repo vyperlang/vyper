@@ -19,12 +19,8 @@ class DeadStoreElimination(IRPass):
         self.updater = InstUpdater(self.dfg)
 
         self.dead_stores = OrderedSet[IRInstruction]()
-
-        # Preprocess never-used stores
         self._preprocess_never_used_stores()
-        # Identify clobbered stores and refine
         self._identify_dead_stores()
-        # Remove all dead stores
         self._remove_dead_stores()
 
     def _preprocess_never_used_stores(self):
@@ -71,18 +67,6 @@ class DeadStoreElimination(IRPass):
                         clobbered_by and 
                         not clobbered_by.is_live_on_entry):
                         self.dead_stores.add(inst)
-                    elif mem_def in live_defs and inst in self.dead_stores:
-                        self.dead_stores.remove(inst)
-
-            for succ in bb.cfg_out:
-                if succ in self.mem_ssa.memory_phis:
-                    phi = self.mem_ssa.memory_phis[succ]
-                    for op_def, pred in phi.operands:
-                        if pred == bb and op_def in self.mem_ssa.memory_defs.get(bb, []):
-                            live_defs.add(op_def)
-                            if op_def.store_inst in self.dead_stores:
-                                self.dead_stores.remove(op_def.store_inst)
-
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 if mem_def and mem_def in live_defs and inst in self.dead_stores:
