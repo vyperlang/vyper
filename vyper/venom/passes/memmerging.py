@@ -115,7 +115,7 @@ class MemMergePass(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _optimize_copy(
+    def _flush_copies(
         self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
     ):
         for copy in copies:
@@ -225,11 +225,11 @@ class MemMergePass(IRPass):
         def _hard_barrier():
             # hard barrier. flush everything
             _barrier_for(self._copies)
-            self._copies.clear()
+            assert len(self._copies) == 0
             self._loads.clear()
 
         def _barrier_for(copies: list[_Copy]):
-            self._optimize_copy(bb, copies, copy_opcode, load_opcode)
+            self._flush_copies(bb, copies, copy_opcode, load_opcode)
 
         # copy in necessary because there is a possibility
         # of insertion in optimizations
