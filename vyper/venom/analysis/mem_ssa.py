@@ -275,23 +275,30 @@ class MemSSA(IRAnalysis):
         return None
     
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+        """
+        Return the memory access that clobbers (overwrites) this access, if any.
+        Returns None if no clobbering access is found before a use of this access's value.
+        """
         if access.is_live_on_entry:
             return None
 
-        def_loc = access.loc
         if not isinstance(access, MemoryDef):
             return None  # Only defs can be clobbered by subsequent stores
 
+        def_loc = access.loc
         block = access.store_inst.parent
         def_idx = block.instructions.index(access.store_inst)
 
+        # Check remaining instructions in the same block
         for inst in block.instructions[def_idx + 1:]:
             next_def = self.inst_to_def.get(inst)
             if next_def and self.alias.may_alias(def_loc, next_def.loc):
                 return next_def
-            if self.inst_to_use.get(inst):
-                return None  # Found a use before a clobber
+            mem_use = self.inst_to_use.get(inst)
+            if mem_use and mem_use.reaching_def == access:
+                return None  # Found a use of this specific def before a clobber
 
+        # Traverse successors
         worklist = list(block.cfg_out)
         visited = {block}
         while worklist:
@@ -300,23 +307,28 @@ class MemSSA(IRAnalysis):
                 continue
             visited.add(succ)
 
+            # Check phi nodes
             if succ in self.memory_phis:
                 phi = self.memory_phis[succ]
                 for op_def, pred in phi.operands:
                     if pred == block and op_def == access:
+                        # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
                             if next_def and self.alias.may_alias(def_loc, next_def.loc):
                                 return next_def
-                            if self.inst_to_use.get(inst):
-                                return None
+                            mem_use = self.inst_to_use.get(inst)
+                            if mem_use and mem_use.reaching_def == access:
+                                return None  # Use of this def in phi’s block
 
+            # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
                 if next_def and self.alias.may_alias(def_loc, next_def.loc):
                     return next_def
-                if self.inst_to_use.get(inst):
-                    return None
+                mem_use = self.inst_to_use.get(inst)
+                if mem_use and mem_use.reaching_def == access:
+                    return None  # Found a use of this specific def before a clobber
 
             worklist.extend(succ.cfg_out)
 
