@@ -429,6 +429,46 @@ def test_memmerging_mcopy_small():
     _check_pre_post(pre, post)
 
 
+def test_memmerging_mcopy_small_overlap():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 0, 0, 32
+        stop
+    """
+
+    post = """
+    _global:
+        %1 = mload 0
+        mstore 0, %1
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_memmerging_mcopy_small_partial_overlap():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 0, 16, 32
+        stop
+    """
+
+    post = """
+    _global:
+        %1 = mload 16
+        mstore 0, %1
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
 def test_memmerging_mcopy_weird_bisect():
     """
     Check that bisect_left finds the correct merge
@@ -931,6 +971,93 @@ def test_memmerge_mload_mstore_overlap_ok():
     post = """
     main:
         mcopy 0, 0, 64
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_memmmerging_enclosed_mcopy():
+    """
+    Test with enclosed copy (basic)
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        mcopy 0, 0, 20
+        mcopy 0, 0, 50
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 0, 50
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_memmerging_enclosed_mcopy_dst_src_offset():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        mcopy 0, 5, 20
+        mcopy 0, 5, 50
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 5, 50
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_memmerging_enclosed_mcopy_different_start():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        mcopy 10, 10, 20
+        mcopy 0, 0, 50
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 0, 50
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_memmerging_enclosed_mcopy_():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    main:
+        mcopy 10, 15, 20
+        mcopy 0, 5, 50
+        stop
+    """
+
+    post = """
+    main:
+        mcopy 0, 5, 50
         stop
     """
 
