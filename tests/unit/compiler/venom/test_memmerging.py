@@ -727,6 +727,31 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
     _check_no_change(pre)
 
 
+def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %1 = mload 0
+        %2 = mload 132
+        mstore 1000, %1
+        mcopy 1000, 100, 16  ; write barrier
+        mstore 1032, %2
+        mcopy 1016, 116, 64
+        stop
+    """
+
+    post = """
+    _global:
+        %1 = mload 0
+        mstore 1000, %1
+        mcopy 1000, 100, 80
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
 def test_memmerging_write_after_write_only_mcopy():
     """
     Check that conflicting writes (from different source locations)
