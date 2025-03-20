@@ -88,14 +88,6 @@ class IRContext:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def chain_basic_blocks(self) -> None:
-        """
-        Chain basic blocks together. This is necessary for the IR to be valid, and is done after
-        the IR is generated.
-        """
-        for fn in self.functions.values():
-            fn.chain_basic_blocks()
-
     def append_data_section(self, name: IRLabel) -> None:
         self.data_segment.append(DataSection(name))
 
