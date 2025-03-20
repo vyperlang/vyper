@@ -107,6 +107,62 @@ def test_phi_node_clobber():
     assert block1_def.store_inst.operands[0].value == "%val1"
     assert block2_def.store_inst.operands[0].value == "%val2"
 
+def test_clobbering_with_multiple_stores():
+    pre = """
+    function _global {
+        _global:
+            %cond = 1
+            %val1 = 42
+            %val2 = 24
+            jnz %cond, @then, @else
+        then:
+            mstore 0, %val1
+            jmp @merge
+        else:
+            mstore 0, %val2
+            jmp @merge
+        merge:
+            %val3 = 84
+            mstore 0, %val3
+            %loaded = mload 0
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the blocks
+    then_block = fn.get_basic_block("then")
+    else_block = fn.get_basic_block("else")
+    merge_block = fn.get_basic_block("merge")
+
+    # Get the MemoryDefs
+    def1 = mem_ssa.get_memory_def(then_block.instructions[0])  # mstore 0, %val1
+    def2 = mem_ssa.get_memory_def(else_block.instructions[0])  # mstore 0, %val2
+    def3 = mem_ssa.get_memory_def(merge_block.instructions[1])  # mstore 0, %val3
+    use1 = mem_ssa.get_memory_use(merge_block.instructions[-2])  # mload 0
+
+    # Verify reaching defs
+    assert use1.reaching_def == def3, f"Expected def3, got {use1.reaching_def}"
+
+    # Test clobbering
+    clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
+    assert clobberer1 == def3, f"Expected def3 to clobber def1, got {clobberer1}"
+    assert clobberer1.loc.offset == 0
+    assert clobberer1.store_inst.operands[0].value == "%val3"
+
+    clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
+    assert clobberer2 == def3, f"Expected def3 to clobber def2, got {clobberer2}"
+    assert clobberer2.loc.offset == 0
+    assert clobberer2.store_inst.operands[0].value == "%val3"
+
+    clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
+    assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
 def test_complex_loop_clobber():
     pre = """
