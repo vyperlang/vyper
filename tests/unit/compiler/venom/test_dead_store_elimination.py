@@ -184,4 +184,4 @@ def test_multiple_dead_stores():
             %loaded = mload 0
             stop
     """
-    _check_pre_post(pre, post) 
+    _check_pre_post(pre, post)

@@ -1,6 +1,6 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryPhi, MemoryUse
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryUse
 from vyper.venom.basicblock import IRLabel
 
 
@@ -107,6 +107,7 @@ def test_phi_node_clobber():
     assert block1_def.store_inst.operands[0].value == "%val1"
     assert block2_def.store_inst.operands[0].value == "%val2"
 
+
 def test_clobbering_with_multiple_stores():
     pre = """
     function _global {
@@ -163,6 +164,7 @@ def test_clobbering_with_multiple_stores():
 
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
+
 
 def test_complex_loop_clobber():
     pre = """
@@ -277,7 +279,7 @@ def test_simple_def_chain():
     def_2 = mem_ssa.get_memory_def(bb.instructions[3])
     def_3 = mem_ssa.get_memory_def(bb.instructions[5])
     use_loc0 = mem_ssa.get_memory_use(bb.instructions[-2])
-    
+
     assert use_loc0 is not None
     assert isinstance(use_loc0, MemoryUse)
     assert use_loc0.loc.offset == 0
@@ -285,5 +287,3 @@ def test_simple_def_chain():
     assert def_3.reaching_def == def_2
     assert def_2.reaching_def == def_1
     assert def_1.reaching_def == mem_ssa.live_on_entry
-
-

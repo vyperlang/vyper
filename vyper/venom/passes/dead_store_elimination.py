@@ -1,15 +1,15 @@
 from typing import Optional
-from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
+
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, MemSSA, CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
+from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
-    A store is considered dead if:
     """
 
     def run_pass(self):
@@ -63,9 +63,11 @@ class DeadStoreElimination(IRPass):
 
                 if mem_def:
                     clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                    if (mem_def not in live_defs and 
-                        clobbered_by and 
-                        not clobbered_by.is_live_on_entry):
+                    if (
+                        mem_def not in live_defs
+                        and clobbered_by
+                        and not clobbered_by.is_live_on_entry
+                    ):
                         self.dead_stores.add(inst)
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
@@ -90,9 +92,12 @@ class DeadStoreElimination(IRPass):
                     self.updater.nop(inst)
             if bb in self.mem_ssa.memory_defs:
                 self.mem_ssa.memory_defs[bb] = [
-                    mem_def for mem_def in self.mem_ssa.memory_defs[bb]
+                    mem_def
+                    for mem_def in self.mem_ssa.memory_defs[bb]
                     if mem_def.store_inst not in self.dead_stores
                 ]
-                if (self.mem_ssa.current_def.get(bb) and 
-                    self.mem_ssa.current_def[bb].store_inst in self.dead_stores):
+                if (
+                    self.mem_ssa.current_def.get(bb)
+                    and self.mem_ssa.current_def[bb].store_inst in self.dead_stores
+                ):
                     self.mem_ssa.current_def[bb] = self._get_previous_def(bb)

@@ -27,7 +27,7 @@ class MemoryAccess:
         if self.is_live_on_entry:
             return "live_on_entry"
         return f"{self.id}"
-    
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.id_str})"
 
@@ -107,7 +107,7 @@ class MemSSA(IRAnalysis):
         if inst in self.inst_to_def:
             return self.inst_to_def[inst]
         return None
-    
+
     def get_memory_use(self, inst: IRInstruction) -> Optional[MemoryUse]:
         if inst in self.inst_to_use:
             return self.inst_to_use[inst]
@@ -141,13 +141,13 @@ class MemSSA(IRAnalysis):
             if Effects.MEMORY in inst.get_write_effects():
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
-                
+
                 mem_def.reaching_def = self._get_reaching_def_for_def(block, mem_def)
-                
+
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
-                
+
     def _insert_phi_nodes(self):
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
@@ -210,19 +210,19 @@ class MemSSA(IRAnalysis):
         """Get the reaching definition for a memory definition"""
         def_idx = bb.instructions.index(def_inst.store_inst)
         def_loc = def_inst.loc
-        
+
         for inst in reversed(bb.instructions[:def_idx]):
             if inst in self.inst_to_def:
                 prev_def = self.inst_to_def[inst]
                 if self.alias.may_alias(def_loc, prev_def.loc):
                     return prev_def
-        
+
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
             for op, _ in phi.operands:
                 if isinstance(op, MemoryDef) and self.alias.may_alias(def_loc, op.loc):
                     return phi
-                
+
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
             if idom:
@@ -230,7 +230,7 @@ class MemSSA(IRAnalysis):
                 # Only use the in_def if it might alias with our definition
                 if isinstance(in_def, MemoryDef) and self.alias.may_alias(def_loc, in_def.loc):
                     return in_def
-        
+
         return self.live_on_entry
 
     def _remove_redundant_phis(self):
@@ -273,7 +273,7 @@ class MemSSA(IRAnalysis):
                         return clobbering
             current = current.reaching_def
         return None
-    
+
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
         Return the memory access that clobbers (overwrites) this access, if any.
@@ -290,7 +290,7 @@ class MemSSA(IRAnalysis):
         def_idx = block.instructions.index(access.store_inst)
 
         # Check remaining instructions in the same block
-        for inst in block.instructions[def_idx + 1:]:
+        for inst in block.instructions[def_idx + 1 :]:
             next_def = self.inst_to_def.get(inst)
             if next_def and self.alias.may_alias(def_loc, next_def.loc):
                 return next_def
