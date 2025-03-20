@@ -925,7 +925,8 @@ def test_memmerging_two_intervals_diff_offset(load_opcode, copy_opcode):
 
 def test_memmerging_copy_overlap():
     """
-    Test self overlaping mcopies
+    Test self overlapping mcopies. The fusing is blocked because
+    it is not semantics preserving.
     """
     if not version_check(begin="cancun"):
         return
@@ -1051,8 +1052,8 @@ def test_memmmerging_enclosed_mcopy():
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_dst_src_offset():
     """
-    Test on two self overlaping mcopies that ovelaps
-    them selfs (should be ok but current solution does not handle it)
+    Test on two self overlapping mcopies that each has src/dst overlap
+    (should be valid transformation but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
         return
@@ -1101,7 +1102,7 @@ def test_memmerging_enclosed_mcopy_different_start():
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_most_general():
     """
-    Test on two self overlaping mcopies that ovelaps
+    Test on two self overlapping mcopies that overlaps
     them selfs (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
