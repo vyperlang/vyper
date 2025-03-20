@@ -27,6 +27,9 @@ class MemoryAccess:
         if self.is_live_on_entry:
             return "live_on_entry"
         return f"{self.id}"
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.id_str})"
 
 
 class MemoryDef(MemoryAccess):
@@ -269,6 +272,54 @@ class MemSSA(IRAnalysis):
                     if clobbering:
                         return clobbering
             current = current.reaching_def
+        return None
+    
+    def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+        if access.is_live_on_entry:
+            return None
+
+        def_loc = access.loc
+        if not isinstance(access, MemoryDef):
+            return None  # Only defs can be clobbered by subsequent stores
+
+        block = access.store_inst.parent
+        def_idx = block.instructions.index(access.store_inst)
+
+        for inst in block.instructions[def_idx + 1:]:
+            next_def = self.inst_to_def.get(inst)
+            if next_def and self.alias.may_alias(def_loc, next_def.loc):
+                return next_def
+            if self.inst_to_use.get(inst):
+                return None  # Found a use before a clobber
+
+        worklist = list(block.cfg_out)
+        visited = {block}
+        while worklist:
+            succ = worklist.pop()
+            if succ in visited:
+                continue
+            visited.add(succ)
+
+            if succ in self.memory_phis:
+                phi = self.memory_phis[succ]
+                for op_def, pred in phi.operands:
+                    if pred == block and op_def == access:
+                        for inst in succ.instructions:
+                            next_def = self.inst_to_def.get(inst)
+                            if next_def and self.alias.may_alias(def_loc, next_def.loc):
+                                return next_def
+                            if self.inst_to_use.get(inst):
+                                return None
+
+            for inst in succ.instructions:
+                next_def = self.inst_to_def.get(inst)
+                if next_def and self.alias.may_alias(def_loc, next_def.loc):
+                    return next_def
+                if self.inst_to_use.get(inst):
+                    return None
+
+            worklist.extend(succ.cfg_out)
+
         return None
 
     #
