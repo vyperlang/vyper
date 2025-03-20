@@ -282,14 +282,14 @@ def hevm_check_vyper(hevm, compiler_settings):
 
 
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats, compiler_settings, request, check_hevm_eq):
+def get_contract(env, optimize, output_formats, compiler_settings, request, hevm_check_vyper):
     def fn(source_code, *args, **kwargs):
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
 
-        check_hevm_eq(source_code, **kwargs)
+        hevm_check_vyper(source_code, **kwargs)
 
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
