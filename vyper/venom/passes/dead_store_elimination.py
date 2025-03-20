@@ -10,8 +10,6 @@ class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
     A store is considered dead if:
-    1. Its value is never used (no loads read from it before the next store)
-    2. It is overwritten by another store to the same location
     """
 
     def run_pass(self):
@@ -22,11 +20,14 @@ class DeadStoreElimination(IRPass):
 
         self.dead_stores = OrderedSet[IRInstruction]()
 
+        # Preprocess never-used stores
+        self._preprocess_never_used_stores()
+        # Identify clobbered stores and refine
         self._identify_dead_stores()
+        # Remove all dead stores
         self._remove_dead_stores()
-        self._remove_never_used_stores()
 
-    def _remove_never_used_stores(self):
+    def _preprocess_never_used_stores(self):
         all_defs = OrderedSet[MemoryDef]()
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_defs:
@@ -48,37 +49,30 @@ class DeadStoreElimination(IRPass):
 
         never_used_defs = all_defs - used_defs
         for mem_def in never_used_defs:
-            self.updater.nop(mem_def.store_inst)
+            self.dead_stores.add(mem_def.store_inst)
 
     def _identify_dead_stores(self):
         for bb in self.cfg.dfs_pre_walk:
             if bb not in self.mem_ssa.memory_defs:
                 continue
 
-            live_defs: OrderedSet[MemoryDef] = OrderedSet()
-            
+            live_defs = OrderedSet[MemoryDef]()
             for inst in reversed(bb.instructions):
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 mem_use = self.mem_ssa.get_memory_use(inst)
 
-                # Handle uses
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
                         live_defs.add(mem_use.reaching_def)
 
-                # Handle definitions
                 if mem_def:
-                    clobbered = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                    
-                    # Check if this store is dead
+                    clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
                     if (mem_def not in live_defs and 
-                        clobbered and 
-                        not clobbered.is_live_on_entry):
-                        # This store is overwritten before any use
+                        clobbered_by and 
+                        not clobbered_by.is_live_on_entry):
                         self.dead_stores.add(inst)
-                    else:
-                        # This store is live
-                        live_defs.add(mem_def)
+                    elif mem_def in live_defs and inst in self.dead_stores:
+                        self.dead_stores.remove(inst)
 
             for succ in bb.cfg_out:
                 if succ in self.mem_ssa.memory_phis:
@@ -86,29 +80,22 @@ class DeadStoreElimination(IRPass):
                     for op_def, pred in phi.operands:
                         if pred == bb and op_def in self.mem_ssa.memory_defs.get(bb, []):
                             live_defs.add(op_def)
+                            if op_def.store_inst in self.dead_stores:
+                                self.dead_stores.remove(op_def.store_inst)
 
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
-                if (mem_def and 
-                    mem_def not in live_defs and 
-                    inst in self.dead_stores):
-                    # Confirm this store is still dead
-                    continue
-                elif mem_def and inst in self.dead_stores:
+                if mem_def and mem_def in live_defs and inst in self.dead_stores:
                     self.dead_stores.remove(inst)
 
     def _get_previous_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
-        """Get the previous valid definition for a block after removal"""
         if bb in self.mem_ssa.memory_defs and self.mem_ssa.memory_defs[bb]:
             return self.mem_ssa.memory_defs[bb][-1]
-        
         if bb in self.mem_ssa.memory_phis:
             return self.mem_ssa.memory_phis[bb]
-        
         if bb.cfg_in:
             idom = self.mem_ssa.dom.immediate_dominators.get(bb)
             return self.mem_ssa._get_in_def(idom) if idom else self.mem_ssa.live_on_entry
-        
         return self.mem_ssa.live_on_entry
 
     def _remove_dead_stores(self):
@@ -125,4 +112,3 @@ class DeadStoreElimination(IRPass):
                 if (self.mem_ssa.current_def.get(bb) and 
                     self.mem_ssa.current_def[bb].store_inst in self.dead_stores):
                     self.mem_ssa.current_def[bb] = self._get_previous_def(bb)
-                    
