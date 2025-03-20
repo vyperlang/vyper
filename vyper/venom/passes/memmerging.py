@@ -168,6 +168,12 @@ class MemMergePass(IRPass):
                 del self._loads[var]
 
     def _write_after_write_hazards(self, new_copy: _Copy) -> list[_Copy]:
+        """
+        check if there is an ordering hazard between new_copy
+        and anything in self._copies. if new_copy and any existing
+        copy write to the same destination, we need to preserve
+        both writes (unless they can be fused into a single copy).
+        """
         res = []
         for copy in self._copies:
             if copy.can_merge(new_copy) or new_copy.can_merge(copy):
@@ -183,9 +189,17 @@ class MemMergePass(IRPass):
         return res
 
     def _read_after_write_hazards(self, new_copy: _Copy) -> list[_Copy]:
+        """
+        check if any copies in self._copies overwrite the read interval
+        of new_copy
+        """
         return self._copies_that_overwrite(new_copy.src_interval())
 
     def _write_after_read_hazards(self, new_copy: _Copy) -> list[_Copy]:
+        """
+        check if new_copy overwrites the read interval of anything in
+        self._copies
+        """
         res = []
         for copy in self._copies:
             if new_copy.overwrites(copy.src_interval()):
