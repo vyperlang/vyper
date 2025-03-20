@@ -433,6 +433,9 @@ def test_memmerging_mcopy_small():
 
 
 def test_memmerging_mcopy_small_overlap():
+    """
+    Check that mcopy with overlapping src/dst can get optimized
+    """
     if not version_check(begin="cancun"):
         return
 
