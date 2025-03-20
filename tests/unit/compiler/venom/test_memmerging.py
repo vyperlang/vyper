@@ -726,7 +726,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
     _check_no_change(pre)
 
 
-def test_memmerging_write_after_write_mstore_oand_mcopy_allowed():
+def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
     """
     Test on tangled case of possible write after writes
     hazards that are however ok
