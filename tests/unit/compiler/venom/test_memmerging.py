@@ -840,6 +840,9 @@ def test_memmerging_two_intervals_diff_offset(load_opcode, copy_opcode):
 
 
 def test_memmerging_copy_overlap():
+    if not version_check(begin="cancun"):
+        return
+
     pre = """
     main:
         mcopy 100, 90, 20
@@ -854,6 +857,9 @@ def test_memmerging_copy_write_after_read():
     """
     Test for write after read case in copy instruction merge logic
     """
+    if not version_check(begin="cancun"):
+        return
+
     pre = """
     main:
         mcopy 100, 0, 20
@@ -869,6 +875,9 @@ def test_memmerging_copy_overlap_ok():
     """
     Test merging overlapping copies that is allowed
     """
+    if not version_check(begin="cancun"):
+        return
+
     pre = """
     main:
         mcopy 0, 0, 100
@@ -889,6 +898,9 @@ def test_memmerging_copy_overlap_not_allowed():
     """
     Test merging overlapping copies that is not allowed
     """
+    if not version_check(begin="cancun"):
+        return
+
     pre = """
     main:
         mcopy 0, 10, 100
@@ -904,6 +916,9 @@ def test_memmerge_mload_mstore_overlap_ok():
     Test merging overlapping copies that is allowed
     mload/mstore case
     """
+    if not version_check(begin="cancun"):
+        return
+
     pre = """
     main:
         %1 = mload 0
