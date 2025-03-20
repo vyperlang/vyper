@@ -70,8 +70,10 @@ def test_memmerging_out_of_order():
     _check_pre_post(pre, post)
 
 
-def test_memmerging_tmp():
-    """ """
+def test_memmerging_interleaved_overlap():
+    """
+    Test that mstores do not flush everything in the _loads dict
+    """
     if not version_check(begin="cancun"):
         return
 
