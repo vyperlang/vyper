@@ -13,7 +13,7 @@ from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
-from vyper.semantics.types.module import InterfaceT
+from vyper.semantics.types.module import InterfaceT, ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
@@ -123,13 +123,15 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    interface = module_t.interface
     out = ""
 
-    if len(interface.structs) > 0:
+    structs = _get_structs(module_t)
+    if len(structs) > 0:
         out += "# Structs\n\n"
-        for struct in interface.structs.values():
-            out += f"struct {struct.name}:\n"
+        for prefix, struct in structs:
+            out += f"struct {prefix[1:] + ' ' if prefix else ''}{struct.name}:\n"
             for member_name, member_type in struct.members.items():
                 out += f"    {member_name}: {member_type}\n"
             out += "\n\n"
@@ -163,6 +165,25 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     out += "\n"
 
     return out
+
+
+def _get_structs(m: ModuleT, prefix="", visited: set[ModuleT] = None) -> list:
+    visited = visited or set()
+    if m in visited:
+        return []
+    visited.add(m)
+
+    structs = [(prefix, val) for val in m.interface.structs.values()]
+
+    for alias, interface in m.interfaces.items():
+        structs += [(prefix + "." + alias, val) for val in interface.structs.values()]
+
+    for val in m.imported_modules.values():
+        structs += _get_structs(
+            val.module_node._metadata["type"], prefix + "." + val.alias, visited
+        )
+
+    return structs
 
 
 def build_bb_output(compiler_data: CompilerData) -> IRnode:
