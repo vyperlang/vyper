@@ -253,7 +253,7 @@ def hevm_marker(request):
 
 
 @pytest.fixture(scope="module")
-def check_hevm_eq(hevm, compiler_settings):
+def hevm_check_vyper(hevm, compiler_settings):
     def check(source_code, **kwargs):
         global _HEVM_MARKER
         if hevm and _HEVM_MARKER is not None:

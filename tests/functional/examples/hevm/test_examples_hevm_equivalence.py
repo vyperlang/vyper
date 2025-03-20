@@ -25,19 +25,19 @@ def get_example_contracts(passing=False):
 
 @pytest.mark.hevm
 @pytest.mark.parametrize("contract_path", get_example_contracts(passing=True))
-def test_check_passing(check_hevm_eq, contract_path):
-    check(contract_path, check_hevm_eq)
+def test_check_passing(hevm_check_vyper, contract_path):
+    check(contract_path, hevm_check_vyper)
 
 
 @pytest.mark.hevm("--smttimeout", "10")
 @pytest.mark.xfail(strict=True, reason="timeout or hevm can't handle the contract")
 @pytest.mark.parametrize("contract_path", get_example_contracts())
-def test_check_failing(check_hevm_eq, contract_path):
-    check(contract_path, check_hevm_eq)
+def test_check_failing(hevm_check_vyper, contract_path):
+    check(contract_path, hevm_check_vyper)
 
 
-def check(contract_path, check_hevm_eq):
+def check(contract_path, hevm_check_vyper):
     with open(contract_path, "r") as f:
         source_code = f.read()
 
-    check_hevm_eq(source_code)
+    hevm_check_vyper(source_code)
