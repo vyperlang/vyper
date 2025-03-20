@@ -456,6 +456,11 @@ def test_memmerging_mcopy_small_overlap():
 
 
 def test_memmerging_mcopy_small_partial_overlap():
+    """
+    Test that we can split small mcopy
+    even though it is partialy self
+    overlaping mcopy
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -555,30 +560,11 @@ def test_memmerging_allowed_overlapping():
     _check_pre_post(pre, post)
 
 
-def test_memmerging_allowed_overlapping2():
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        mcopy 1000, 0, 64
-        %1 = mload 1032
-        mstore 2000, %1
-        %2 = mload 1064
-        mstore 2032, %2
-        stop
-    """
-
-    post = """
-    _global:
-        mcopy 1000, 0, 64
-        mcopy 2000, 1032, 64
-        stop
-    """
-    _check_pre_post(pre, post)
-
-
 def test_memmerging_unused_mload():
+    """
+    Test that mload that are unused in memmerge
+    will be respected
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -607,6 +593,10 @@ def test_memmerging_unused_mload():
 
 
 def test_memmerging_unused_mload1():
+    """
+    Test that mload that are unused in memmerge
+    will be respected - different order of copies
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -634,6 +624,9 @@ def test_memmerging_unused_mload1():
 
 
 def test_memmerging_mload_read_after_write_hazard():
+    """
+    Test on invalidating load by writes
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -643,10 +636,8 @@ def test_memmerging_mload_read_after_write_hazard():
         %2 = mload 132
         mstore 0, %1
         %3 = mload 32
-        mstore 32, %2
+        mstore 32, %2 ; BARRIER - the load is overriden
         %4 = mload 64
-
-        ; BARRIER - the load is overriden by existing copy
         mstore 1000, %3
         mstore 1032, %4
         stop
@@ -665,6 +656,11 @@ def test_memmerging_mload_read_after_write_hazard():
 
 
 def test_memmerging_mcopy_read_after_write_hazard():
+    """
+    Test that check the read after write hazards on mcopy
+    the existing copies must be flushed when the some
+    other copy needs to read from them
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -730,7 +726,11 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
     _check_no_change(pre)
 
 
-def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
+def test_memmerging_write_after_write_mstore_oand_mcopy_allowed():
+    """
+    Test on tangled case of possible write after writes
+    hazards that are however ok
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -739,7 +739,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
         %1 = mload 0
         %2 = mload 132
         mstore 1000, %1
-        mcopy 1000, 100, 16  ; write barrier
+        mcopy 1000, 100, 16
         mstore 1032, %2
         mcopy 1016, 116, 64
         stop
@@ -783,6 +783,9 @@ def test_memmerging_write_after_write_only_mcopy():
 
 
 def test_memmerging_not_allowed_overlapping():
+    """
+    Test on invalidating mloads by mcopy
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -793,8 +796,8 @@ def test_memmerging_not_allowed_overlapping():
     _global:
         %1 = mload 1000
         %2 = mload 1032
-        mcopy 1000, 0, 128
-        mstore 2000, %1  ; BARRIER - the mload and mcopy cannot be combined
+        mcopy 1000, 0, 128 ; BARRIER - invalidates (mload 1000)
+        mstore 2000, %1
         mstore 2032, %2
         stop
     """
@@ -802,6 +805,9 @@ def test_memmerging_not_allowed_overlapping():
 
 
 def test_memmerging_not_allowed_overlapping2():
+    """
+    Test that mcopy invalidates with partial overlap
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -811,7 +817,7 @@ def test_memmerging_not_allowed_overlapping2():
     pre = """
     _global:
         %1 = mload 1032
-        mcopy 1000, 0, 64
+        mcopy 1000, 0, 64 ; BARRIER - invalidates (mload 1032)
         mstore 2000, %1
         %2 = mload 1064
         mstore 2032, %2
@@ -844,6 +850,10 @@ def test_memmerging_existing_copy_overwrite():
 
 
 def test_memmerging_double_use():
+    """
+    Test that the mloads that are used in more places then
+    the copying are not removed
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -868,6 +878,9 @@ def test_memmerging_double_use():
 
 @pytest.mark.parametrize("load_opcode,copy_opcode", LOAD_COPY)
 def test_memmerging_load(load_opcode, copy_opcode):
+    """
+    Test basic merge of two load store pairs into copy
+    """
     pre = f"""
     _global:
         %1 = {load_opcode} 0
@@ -911,6 +924,9 @@ def test_memmerging_two_intervals_diff_offset(load_opcode, copy_opcode):
 
 
 def test_memmerging_copy_overlap():
+    """
+    Test self overlaping mcopies
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -1034,6 +1050,10 @@ def test_memmmerging_enclosed_mcopy():
 
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_dst_src_offset():
+    """
+    Test on two self overlaping mcopies that ovelaps
+    them selfs (should be ok but current solution does not handle it)
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -1055,6 +1075,10 @@ def test_memmerging_enclosed_mcopy_dst_src_offset():
 
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_different_start():
+    """
+    Test on two self overlaping mcopies that ovelaps
+    them selfs (should be ok but current solution does not handle it)
+    """
     if not version_check(begin="cancun"):
         return
 
@@ -1075,7 +1099,11 @@ def test_memmerging_enclosed_mcopy_different_start():
 
 
 @pytest.mark.xfail
-def test_memmerging_enclosed_mcopy_():
+def test_memmerging_enclosed_mcopy_most_general():
+    """
+    Test on two self overlaping mcopies that ovelaps
+    them selfs (should be ok but current solution does not handle it)
+    """
     if not version_check(begin="cancun"):
         return
 
