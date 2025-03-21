@@ -83,6 +83,14 @@ def test_basic_dead_store():
     """
     _check_pre_post(pre, post)
 
+def test_basic_not_dead_store():
+    pre = """
+        _global:
+            %1 = param
+            mstore %1, 1
+            stop
+    """
+    _check_pre_post(pre, pre)
 
 def test_never_read_store():
     pre = """
