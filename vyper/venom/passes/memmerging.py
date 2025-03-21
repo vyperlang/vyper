@@ -159,7 +159,8 @@ class MemMergePass(IRPass):
 
                 self.updater.nop(inst)
 
-        for c in copies:
+        # need copy, since `copies` might be the same object as `self._copies`
+        for c in copies.copy():
             self._copies.remove(c)
 
     def _invalidate_loads(self, interval: _Interval):
