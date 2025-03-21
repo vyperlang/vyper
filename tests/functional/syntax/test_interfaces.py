@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    CallViolation,
     FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
@@ -622,7 +623,7 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
-    with pytest.raises(ValueError):
+    with pytest.raises(CallViolation):
         compiler.compile_code(main, input_bundle=input_bundle)
 
 
@@ -643,5 +644,5 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
-    with pytest.raises(ValueError):
+    with pytest.raises(CallViolation):
         compiler.compile_code(main, input_bundle=input_bundle)
