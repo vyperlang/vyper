@@ -213,7 +213,7 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
-        if str(val).startswith('0x'):
+        if str(val).startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
