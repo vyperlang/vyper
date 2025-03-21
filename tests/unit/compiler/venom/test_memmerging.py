@@ -459,9 +459,8 @@ def test_memmerging_mcopy_small_overlap():
 
 def test_memmerging_mcopy_small_partial_overlap():
     """
-    Test that we can split small mcopy
-    even though it is partialy self
-    overlaping mcopy
+    Test that we can optimize small mcopy even though it is a
+    partially self overlapping mcopy
     """
     if not version_check(begin="cancun"):
         return
@@ -639,7 +638,7 @@ def test_memmerging_mload_read_after_write_hazard():
         mstore 0, %1
         %3 = mload 32
 
-        ; BARRIER. the mload 32 is overwritten, cannot fuse
+        ; BARRIER. the mload 32 is overwritten. cannot fuse
         ; into mcopy(1000, 0, 64)!
         mstore 32, %2
 
@@ -733,7 +732,10 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
         %1 = mload 0
         %2 = mload 32
         mstore 1000, %1
-        mcopy 1000, 100, 64  ; write barrier
+
+        ; barrier, writes to dst buf of previous instruction
+        mcopy 1000, 100, 64
+
         mstore 1032, %2
         mcopy 1016, 116, 64
         stop
