@@ -152,10 +152,6 @@ class FunctionInlinerPass(IRGlobalPass):
                         )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
-                elif inst.opcode == "revert":
-                    bb.remove_instructions_after(inst)
-                    bb.append_instruction("stop")
-                    break
 
             for inst in bb.instructions:
                 if not inst.annotation:
