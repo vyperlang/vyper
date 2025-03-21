@@ -37,8 +37,8 @@ def test_hex_literal():
     expected_ctx = IRContext()
     expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
     main_bb = main_fn.get_basic_block("main")
-    main_bb.append_instruction("mstore", IRLiteral(0), IRLiteral(7))
-    main_bb.append_instruction("mstore", IRLiteral(1), IRLiteral(3))
+    main_bb.append_instruction("mstore", IRLiteral(7), IRLiteral(0))
+    main_bb.append_instruction("mstore", IRLiteral(3), IRLiteral(1))
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
