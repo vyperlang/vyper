@@ -96,24 +96,24 @@ class MemoryAliasAnalysis(IRAnalysis):
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = MemoryLocation(
-            base=loc.base, 
-            offset=loc.offset, 
-            size=loc.size, 
-            is_alloca=loc.is_alloca, 
-            is_volatile=True
+            base=loc.base,
+            offset=loc.offset,
+            size=loc.size,
+            is_alloca=loc.is_alloca,
+            is_volatile=True,
         )
-        
+
         if loc in self.alias_sets:
             self.alias_sets[volatile_loc] = OrderedSet([volatile_loc])
 
-            # new and old locations are aliased            
+            # new and old locations are aliased
             self.alias_sets[volatile_loc].add(loc)
             self.alias_sets[loc].add(volatile_loc)
-            
+
             # copy aliasing relationships
             for other_loc in self.alias_sets[loc]:
                 if other_loc != loc and other_loc != volatile_loc:
                     self.alias_sets[volatile_loc].add(other_loc)
                     self.alias_sets[other_loc].add(volatile_loc)
-                    
+
         return volatile_loc

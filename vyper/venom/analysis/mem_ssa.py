@@ -21,7 +21,7 @@ class MemoryAccess:
 
     @property
     def is_volatile(self) -> bool:
-        return self.loc.is_volatile
+        return self.loc is not None and self.loc.is_volatile
 
     @property
     def id_str(self) -> str:
@@ -41,6 +41,7 @@ class MemoryDef(MemoryAccess):
         self.store_inst = store_inst
         self.loc = store_inst.get_write_memory_location()
 
+
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
@@ -48,6 +49,7 @@ class MemoryUse(MemoryAccess):
         super().__init__(id)
         self.load_inst = load_inst
         self.loc = load_inst.get_read_memory_location()
+
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
@@ -98,19 +100,20 @@ class MemSSA(IRAnalysis):
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = self.alias.mark_volatile(loc)
-        
+
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
                 if self.alias.may_alias(mem_def.loc, loc):
+                    assert mem_def.loc is not None
                     new_loc = MemoryLocation(
                         base=mem_def.loc.base,
                         offset=mem_def.loc.offset,
                         size=mem_def.loc.size,
                         is_alloca=mem_def.loc.is_alloca,
-                        is_volatile=True
+                        is_volatile=True,
                     )
                     mem_def.loc = new_loc
-        
+
         return volatile_loc
 
     def get_memory_def(self, inst: IRInstruction) -> Optional[MemoryDef]:
@@ -254,6 +257,7 @@ class MemSSA(IRAnalysis):
             return None
 
         query_loc = access.loc
+        assert query_loc is not None
         if isinstance(access, MemoryPhi):
             # For a phi, check all incoming paths
             for acc, _ in access.operands:
