@@ -7,7 +7,6 @@ from vyper.venom.basicblock import (
     FULL_MEMORY_ACCESS,
     IRInstruction,
     IRLiteral,
-    IRVariable,
     MemoryLocation,
 )
 
@@ -85,10 +84,7 @@ class MemoryAliasAnalysis(IRAnalysis):
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = MemoryLocation(
-            offset=loc.offset,
-            size=loc.size,
-            is_alloca=loc.is_alloca,
-            is_volatile=True,
+            offset=loc.offset, size=loc.size, is_alloca=loc.is_alloca, is_volatile=True
         )
 
         if loc in self.alias_sets:

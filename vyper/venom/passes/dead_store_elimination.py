@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, MemoryLocation
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 

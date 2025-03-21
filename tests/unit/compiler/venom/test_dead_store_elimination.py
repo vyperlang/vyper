@@ -20,7 +20,7 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        from vyper.venom.basicblock import IROperand, MemoryLocation
+        from vyper.venom.basicblock import MemoryLocation
 
         self.pass_objects.clear()
 
@@ -34,9 +34,7 @@ class VolatilePrePostChecker(PrePostChecker):
             mem_ssa = ac.request_analysis(MemSSA)
 
             for address, size in self.volatile_locations:
-                volatile_loc = MemoryLocation(
-                    offset=address, size=size, is_volatile=True
-                )
+                volatile_loc = MemoryLocation(offset=address, size=size, is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
             for p in self.passes:
