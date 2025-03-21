@@ -18,11 +18,6 @@ class DeadStoreElimination(IRPass):
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
-        # ΤΕΣΤ
-        self.mem_ssa.mark_location_volatile(
-            MemoryLocation(offset=0xFFFF0000, size=32, is_alloca=False, is_volatile=True)
-        )
-
         self.dead_stores = OrderedSet[IRInstruction]()
         self._preprocess_never_used_stores()
         self._identify_dead_stores()
