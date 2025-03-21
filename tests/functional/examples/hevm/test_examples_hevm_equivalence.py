@@ -1,6 +1,11 @@
+import copy
 from pathlib import Path
 
 import pytest
+
+import tests.hevm
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 
 # test the legacy/venom bytecode equivalence via HEVM
 # the tests are divided to passing/failing
@@ -25,22 +30,36 @@ def get_example_contracts(passing=False):
 
 @pytest.mark.hevm
 @pytest.mark.parametrize("contract_path", get_example_contracts(passing=True))
-def test_check_passing(hevm_check_vyper, hevm, contract_path):
-    check(contract_path, hevm, hevm_check_vyper)
+def test_check_passing(hevm, contract_path, compiler_settings):
+    check(contract_path, hevm, compiler_settings)
 
 
-@pytest.mark.hevm("--smttimeout", "10")
+@pytest.mark.hevm
 @pytest.mark.xfail(strict=True, reason="timeout or hevm can't handle the contract")
-@pytest.mark.parametrize("contract_path", get_example_contracts())
-def test_check_failing(hevm_check_vyper, hevm, contract_path):
-    check(contract_path, hevm, hevm_check_vyper)
+@pytest.mark.parametrize("contract_path", get_example_contracts(passing=False))
+def test_check_failing(hevm, contract_path, compiler_settings):
+    check(contract_path, hevm, compiler_settings, addl_args=["--smttimeout", "10"])
 
 
-def check(contract_path, hevm, hevm_check_vyper):
+def check(contract_path, hevm, compiler_settings, addl_args: list = None):
     if not hevm:
         pytest.skip("Test requires hevm to be enabled")
 
     with open(contract_path, "r") as f:
         source_code = f.read()
 
-    hevm_check_vyper(source_code)
+    settings1 = copy.copy(compiler_settings)
+    settings1.experimental_codegen = False
+    settings1.optimize = OptimizationLevel.NONE
+    settings2 = copy.copy(compiler_settings)
+    settings2.experimental_codegen = True
+    settings2.optimize = OptimizationLevel.NONE
+
+    bytecode1 = compile_code(source_code, output_formats=("bytecode_runtime",), settings=settings1)[
+        "bytecode_runtime"
+    ]
+    bytecode2 = compile_code(source_code, output_formats=("bytecode_runtime",), settings=settings2)[
+        "bytecode_runtime"
+    ]
+
+    tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=addl_args)
