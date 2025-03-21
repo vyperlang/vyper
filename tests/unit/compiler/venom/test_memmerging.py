@@ -72,8 +72,8 @@ def test_memmerging_out_of_order():
 
 def test_memmerging_interleaved_overlap():
     """
-    Test that mstores do not flush everything in the _loads dict, only
-    flush regions that they write to.
+    Test that mloads do not flush all potential copies, only flush regions
+    that they read from.
     """
     if not version_check(begin="cancun"):
         return
@@ -639,7 +639,8 @@ def test_memmerging_mload_read_after_write_hazard():
         mstore 0, %1
         %3 = mload 32
 
-        ; BARRIER, the load is overwritten, cannot fuse into mcopy(1000, 0, 64)!
+        ; BARRIER. the mload 32 is overwritten, cannot fuse
+        ; into mcopy(1000, 0, 64)!
         mstore 32, %2
 
         %4 = mload 64
@@ -650,8 +651,14 @@ def test_memmerging_mload_read_after_write_hazard():
 
     post = """
     _global:
-        %3 = mload 32  ; must load before overwriting with mcopy
+        ; must mload before the read buffer gets overwritten with mcopy
+        %3 = mload 32
+
+        ; fuse to mcopy
         mcopy 0, 100, 64
+
+        ; the mloads/mstores from [32,96) to [1000,1064) cannot be fused
+        ; to mcopy
         %4 = mload 64
         mstore 1000, %3
         mstore 1032, %4
@@ -662,8 +669,8 @@ def test_memmerging_mload_read_after_write_hazard():
 
 def test_memmerging_mcopy_read_after_write_hazard():
     """
-    Test that check the read after write hazards on mcopy
-    the existing copies must be flushed when the some
+    Test that check the read after write hazards on mcopy.
+    The existing copies must be flushed when some
     other copy needs to read from them
     """
     if not version_check(begin="cancun"):
@@ -672,7 +679,10 @@ def test_memmerging_mcopy_read_after_write_hazard():
     pre = """
     _global:
         mcopy 1000, 32, 64
-        mcopy 2000, 1000, 64  ; BARRIER
+
+        ; BARRIER. reads from destination buffer of prev instruction
+        mcopy 2000, 1000, 64
+
         mcopy 1064, 96, 64
         stop
     """
@@ -826,7 +836,7 @@ def test_memmerging_not_allowed_overlapping2():
     pre = """
     _global:
         %1 = mload 1032
-        mcopy 1000, 0, 64 ; BARRIER - invalidates (mload 1032)
+        mcopy 1000, 0, 64  ; BARRIER - invalidates (mload 1032)
         mstore 2000, %1
         %2 = mload 1064
         mstore 2032, %2
@@ -970,7 +980,7 @@ def test_memmerging_copy_write_after_read():
 
 def test_memmerging_copy_overlap_ok():
     """
-    Test merging overlapping copies that is allowed
+    Test merging of overlapping copies that is ok
     """
     if not version_check(begin="cancun"):
         return
@@ -993,7 +1003,7 @@ def test_memmerging_copy_overlap_ok():
 
 def test_memmerging_copy_overlap_not_allowed():
     """
-    Test merging overlapping copies that is not allowed
+    Test merging overlapping copies that is *not* allowed
     """
     if not version_check(begin="cancun"):
         return
@@ -1010,8 +1020,7 @@ def test_memmerging_copy_overlap_not_allowed():
 
 def test_memmerge_mload_mstore_overlap_ok():
     """
-    Test merging overlapping copies that is allowed
-    mload/mstore case
+    Test merging overlapping copies that is allowed - mload/mstore case
     """
     if not version_check(begin="cancun"):
         return
@@ -1088,7 +1097,7 @@ def test_memmerging_enclosed_mcopy_dst_src_offset():
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_different_start():
     """
-    Test on two self overlapping mcopies that overlaps themselves
+    Test on two self overlapping mcopies that overlap themselves
     (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
@@ -1113,7 +1122,7 @@ def test_memmerging_enclosed_mcopy_different_start():
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_most_general():
     """
-    Test on two self overlapping mcopies that overlaps
+    Test on two self overlapping mcopies that overlap
     themselves (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
