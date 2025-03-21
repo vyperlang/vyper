@@ -45,6 +45,8 @@ class DeadStoreElimination(IRPass):
 
         never_used_defs = all_defs - used_defs
         for mem_def in never_used_defs:
+            if mem_def.loc.is_volatile:
+                continue
             self.dead_stores.add(mem_def.store_inst)
 
     def _identify_dead_stores(self):
@@ -61,7 +63,7 @@ class DeadStoreElimination(IRPass):
                     if isinstance(mem_use.reaching_def, MemoryDef):
                         live_defs.add(mem_use.reaching_def)
 
-                if mem_def:
+                if mem_def and not mem_def.loc.is_volatile:
                     clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
                     if (
                         mem_def not in live_defs
