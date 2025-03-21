@@ -33,9 +33,9 @@ class VolatilePrePostChecker(PrePostChecker):
 
             mem_ssa = ac.request_analysis(MemSSA)
 
-            for loc in self.volatile_locations:
+            for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocation(
-                    base=IROperand(loc), offset=0, size=32, is_volatile=True
+                    base=IROperand(address), offset=0, size=size, is_volatile=True
                 )
                 mem_ssa.mark_location_volatile(volatile_loc)
 
@@ -242,7 +242,6 @@ def test_multiple_dead_stores():
 
 
 def test_volatile_location_store():
-    volatile_addr = 0xFFFF0000
     pre = """
         _global:
             %val = 42
@@ -252,13 +251,11 @@ def test_volatile_location_store():
     """
 
     # Should not change - volatile stores are preserved
-    checker = VolatilePrePostChecker([DeadStoreElimination], volatile_locations=[volatile_addr])
+    checker = VolatilePrePostChecker([DeadStoreElimination], volatile_locations=[(0xFFFF0000, 32)])
     checker(pre, pre)
 
 
 def test_volatile_vs_non_volatile_store():
-    volatile_addr = 0xFFFF0000
-
     pre = """
         _global:
             %val1 = 42
@@ -283,13 +280,11 @@ def test_volatile_vs_non_volatile_store():
             stop
     """
 
-    checker = VolatilePrePostChecker([DeadStoreElimination], volatile_locations=[volatile_addr])
+    checker = VolatilePrePostChecker([DeadStoreElimination], volatile_locations=[(0xFFFF0000, 32)])
     checker(pre, post)
 
 
 def test_multiple_volatile_locations():
-    volatile_addrs = [0xFFFF0000, 0xFFFF1000]
-
     pre = """
         _global:
             %val1 = 42
@@ -318,5 +313,46 @@ def test_multiple_volatile_locations():
             stop
     """
 
-    checker = VolatilePrePostChecker([DeadStoreElimination], volatile_locations=volatile_addrs)
+    checker = VolatilePrePostChecker(
+        [DeadStoreElimination], volatile_locations=[(0xFFFF0000, 32), (0xFFFF1000, 32)]
+    )
+    checker(pre, post)
+
+
+def test_volatile_locations_with_different_sizes():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            %val3 = 84
+            %val4 = 16
+
+            mstore 0xFFFF0000, %val1
+            mstore 0xFFFF1000, %val2
+            mstore 0xFFFF1020, %val3
+
+            mstore 0x2000, %val4
+
+            stop
+    """
+
+    post = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            %val3 = 84
+            %val4 = 16
+
+            mstore 0xFFFF0000, %val1
+            mstore 0xFFFF1000, %val2
+            mstore 0xFFFF1020, %val3
+
+            nop
+
+            stop
+    """
+
+    checker = VolatilePrePostChecker(
+        [DeadStoreElimination], volatile_locations=[(0xFFFF0000, 32), (0xFFFF1000, 64)]
+    )
     checker(pre, post)
