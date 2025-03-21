@@ -564,8 +564,7 @@ def test_memmerging_allowed_overlapping():
 
 def test_memmerging_no_eliminate_mload():
     """
-    Test that mload that are unused in memmerge
-    will be respected
+    Test that mload that are unused in memmerge will not be eliminated
     """
     if not version_check(begin="cancun"):
         return
@@ -596,7 +595,8 @@ def test_memmerging_no_eliminate_mload():
 
 def test_memmerging_no_eliminate_mload1():
     """
-    Test that mload used outside of memmerge will not be eliminated
+    Test that mload used both inside and outside of memmerge will not be
+    eliminated
     """
     if not version_check(begin="cancun"):
         return
@@ -633,11 +633,15 @@ def test_memmerging_mload_read_after_write_hazard():
 
     pre = """
     _global:
+
         %1 = mload 100
         %2 = mload 132
         mstore 0, %1
         %3 = mload 32
-        mstore 32, %2 ; BARRIER - the load is overriden
+
+        ; BARRIER, the load is overwritten, cannot fuse into mcopy(1000, 0, 64)!
+        mstore 32, %2
+
         %4 = mload 64
         mstore 1000, %3
         mstore 1032, %4
@@ -646,7 +650,7 @@ def test_memmerging_mload_read_after_write_hazard():
 
     post = """
     _global:
-        %3 = mload 32
+        %3 = mload 32  ; must load before overwriting with mcopy
         mcopy 0, 100, 64
         %4 = mload 64
         mstore 1000, %3
@@ -690,7 +694,7 @@ def test_memmerging_write_after_write():
         %3 = mload 32
         %4 = mload 132
         mstore 1000, %1
-        mstore 1000, %2  ; partial BARRIER
+        mstore 1000, %2  ; result of mload(100), partial barrier
         mstore 1032, %4
         mstore 1032, %3  ; BARRIER
     """
@@ -729,7 +733,7 @@ def test_memmerging_write_after_write_mstore_and_mcopy():
 
 def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
     """
-    Test on tangled case of possible write after writes
+    Test on interleaved case of possible write after writes
     hazards that are however ok
     """
     if not version_check(begin="cancun"):
@@ -740,9 +744,13 @@ def test_memmerging_write_after_write_mstore_and_mcopy_allowed():
         %1 = mload 0
         %2 = mload 132
         mstore 1000, %1
+
+        ; these three instructions write to the same region from the same
+        ; source. they can be merged into a single mcopy.
         mcopy 1000, 100, 16
         mstore 1032, %2
         mcopy 1016, 116, 64
+
         stop
     """
 
@@ -952,7 +960,7 @@ def test_memmerging_copy_write_after_read():
     pre = """
     main:
         mcopy 100, 0, 20
-        mcopy 0, 1000, 20  ; reads from prev instruction's dst buffer
+        mcopy 0, 1000, 20  ; barrier. reads from prev instruction's dst buffer
         mcopy 120, 20, 20
         stop
     """
