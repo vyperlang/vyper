@@ -89,7 +89,7 @@ class _Copy:
         self.insts.extend(other.insts)
 
     def __repr__(self) -> str:
-        return f"({self.src}, {self.src_end}, {self.length}, {self.dst}, {self.dst_end})"
+        return f"_Copy({self.dst}, {self.src}, {self.length})"
 
 
 class MemMergePass(IRPass):
