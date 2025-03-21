@@ -181,35 +181,18 @@ class IRVariable(IROperand):
     """
 
     _name: str
-    version: Optional[int]
 
-    def __init__(self, name: str, version: int = 0) -> None:
+    def __init__(self, name: str) -> None:
         assert isinstance(name, str)
-        # TODO: allow version to be None
-        assert isinstance(version, int)
-        if not name.startswith("%"):
-            name = f"%{name}"
-        self._name = name
-        self.version = version
-        value = name
-        if version > 0:
-            value = f"{name}:{version}"
-        super().__init__(value)
+        name = name.removeprefix("%")
+        super().__init__(name)
 
-    def with_version(self, version: int) -> "IRVariable":
-        if version == self.version:
-            # IRVariable ctor is a hotspot, try to avoid calling it
-            # if possible
-            return self
-        return self.__class__(self.name, version)
-
-    @property
-    def name(self) -> str:
-        return self._name
+    def __repr__(self):
+        return f"%{self.value}"
 
     @property
     def plain_name(self) -> str:
-        return self.name.strip("%")
+        return self.value
 
 
 class IRLabel(IROperand):
