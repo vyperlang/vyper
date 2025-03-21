@@ -10,7 +10,9 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "stop", "exit", "sink"])
+BB_TERMINATORS = frozenset(
+    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
+)
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -665,11 +667,7 @@ class IRBasicBlock:
 
     def ensure_well_formed(self):
         for inst in self.instructions:
-            assert inst.parent == self  # sanity
-            if inst.opcode == "revert":
-                self.remove_instructions_after(inst)
-                self.append_instruction("stop")  # TODO: make revert a bb terminator?
-                break
+            assert inst.parent == self  # sanity check
 
         def key(inst):
             if inst.opcode in ("phi", "param"):
