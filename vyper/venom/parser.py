@@ -47,7 +47,7 @@ VENOM_GRAMMAR = """
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: SIGNED_INT
+    CONST: SIGNED_INT | "0x" HEXDIGIT+
     OPCODE: CNAME
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -213,6 +213,8 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
+        if str(val).startswith("0x"):
+            return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
     def CNAME(self, val) -> str:
