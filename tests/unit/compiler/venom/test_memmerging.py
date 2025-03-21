@@ -72,7 +72,8 @@ def test_memmerging_out_of_order():
 
 def test_memmerging_interleaved_overlap():
     """
-    Test that mstores do not flush everything in the _loads dict
+    Test that mstores do not flush everything in the _loads dict, only
+    flush regions that they write to.
     """
     if not version_check(begin="cancun"):
         return
@@ -81,9 +82,10 @@ def test_memmerging_interleaved_overlap():
     main:
         %1 = mload 352
         mstore 448, %1
+
         %2 = mload 416
         mstore 64, %2
-        %3 = mload 448  ; barrier, flushes mload 416 from list of potential copies
+        %3 = mload 448  ; barrier, flushes mstore 448 from list of potential copies
         mstore 96, %3
         stop
     """
@@ -560,7 +562,7 @@ def test_memmerging_allowed_overlapping():
     _check_pre_post(pre, post)
 
 
-def test_memmerging_unused_mload():
+def test_memmerging_no_eliminate_mload():
     """
     Test that mload that are unused in memmerge
     will be respected
@@ -592,10 +594,9 @@ def test_memmerging_unused_mload():
     _check_pre_post(pre, post)
 
 
-def test_memmerging_unused_mload1():
+def test_memmerging_no_eliminate_mload1():
     """
-    Test that mload that are unused in memmerge
-    will be respected - different order of copies
+    Test that mload used outside of memmerge will not be eliminated
     """
     if not version_check(begin="cancun"):
         return
@@ -606,8 +607,8 @@ def test_memmerging_unused_mload1():
         %2 = mload 132
         mstore 0, %1
 
-        # does not interfere with the mload/mstore merging even though
-        # it cannot be removed
+        # this gets subsumed by the mcopy, but it still cannot be
+        # removed because of the later use after mcopy.
         %3 = mload 32
 
         mstore 32, %2
@@ -951,7 +952,7 @@ def test_memmerging_copy_write_after_read():
     pre = """
     main:
         mcopy 100, 0, 20
-        mcopy 0, 1000, 20
+        mcopy 0, 1000, 20  ; reads from prev instruction's dst buffer
         mcopy 120, 20, 20
         stop
     """
@@ -992,7 +993,7 @@ def test_memmerging_copy_overlap_not_allowed():
     pre = """
     main:
         mcopy 0, 10, 100
-        mcopy 10, 20, 100
+        mcopy 10, 20, 100  ; can't fuse these; breaks semantics of mcopy
         stop
     """
 
@@ -1026,6 +1027,8 @@ def test_memmerge_mload_mstore_overlap_ok():
 
 
 @pytest.mark.xfail
+# we could theoretically merge mcopies in the case that one range
+# encloses the other range, but currently we don't.
 def test_memmmerging_enclosed_mcopy():
     """
     Test with enclosed copy (basic)
@@ -1077,8 +1080,8 @@ def test_memmerging_enclosed_mcopy_dst_src_offset():
 @pytest.mark.xfail
 def test_memmerging_enclosed_mcopy_different_start():
     """
-    Test on two self overlaping mcopies that ovelaps
-    them selfs (should be ok but current solution does not handle it)
+    Test on two self overlapping mcopies that overlaps themselves
+    (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
         return
@@ -1103,7 +1106,7 @@ def test_memmerging_enclosed_mcopy_different_start():
 def test_memmerging_enclosed_mcopy_most_general():
     """
     Test on two self overlapping mcopies that overlaps
-    them selfs (should be ok but current solution does not handle it)
+    themselves (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
         return
