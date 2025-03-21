@@ -77,10 +77,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     MemMergePass(ac, fn).run_pass()
     DeadStoreElimination(ac, fn).run_pass()
 
-    memssa = ac.request_analysis(MemSSA)
-    with memssa.print_context():
-        print("------------------------")
-        print(fn)
+    # memssa = ac.request_analysis(MemSSA)
+    # with memssa.print_context():
+    #     print("------------------------")
+    #     print(fn)
 
     LowerDloadPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
@@ -112,7 +112,7 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    # _run_global_passes(ctx, optimize, ir_analyses)
+    _run_global_passes(ctx, optimize, ir_analyses)
 
     ir_analyses = {}
     for fn in ctx.functions.values():

@@ -250,8 +250,8 @@ class MemoryLocation:
     is_volatile: bool = False
 
 
-FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1)
-EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0)
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_volatile=True)
+EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
 class IRInstruction:
@@ -336,10 +336,9 @@ class IRInstruction:
         """Extract memory location info from an instruction"""
         opcode = self.opcode
         if opcode == "mstore":
-            addr = self.operands[1]
-            offset = addr.value if isinstance(addr, IRLiteral) else 0
-            size = 32
-            return MemoryLocation(offset=offset, size=size)
+            if isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=32)
+            return FULL_MEMORY_ACCESS
         elif opcode == "mload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mcopy":
@@ -360,10 +359,9 @@ class IRInstruction:
         if opcode == "mstore":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mload":
-            addr = self.operands[0]
-            offset = addr.value if isinstance(addr, IRLiteral) else 0
-            size = 32
-            return MemoryLocation(offset=offset, size=size)
+            if isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[0].value, size=32)
+            return FULL_MEMORY_ACCESS
         elif opcode == "mcopy":
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
