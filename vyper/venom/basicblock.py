@@ -247,12 +247,11 @@ class MemoryLocation:
 
     offset: int = 0
     size: int = 0
-    is_alloca: bool = False
     is_volatile: bool = False
 
 
-FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_alloca=False)
-EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_alloca=False)
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1)
+EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0)
 
 
 class IRInstruction:

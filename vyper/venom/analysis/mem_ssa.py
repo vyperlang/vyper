@@ -108,7 +108,6 @@ class MemSSA(IRAnalysis):
                     new_loc = MemoryLocation(
                         offset=mem_def.loc.offset,
                         size=mem_def.loc.size,
-                        is_alloca=mem_def.loc.is_alloca,
                         is_volatile=True,
                     )
                     mem_def.loc = new_loc
