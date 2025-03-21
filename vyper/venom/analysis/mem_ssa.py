@@ -106,7 +106,6 @@ class MemSSA(IRAnalysis):
                 if self.alias.may_alias(mem_def.loc, loc):
                     assert mem_def.loc is not None
                     new_loc = MemoryLocation(
-                        base=mem_def.loc.base,
                         offset=mem_def.loc.offset,
                         size=mem_def.loc.size,
                         is_alloca=mem_def.loc.is_alloca,

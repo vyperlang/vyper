@@ -40,7 +40,7 @@ class MemoryAliasAnalysis(IRAnalysis):
             assert inst.output is not None  # hint
             size = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else 0
             offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else 0
-            loc = MemoryLocation(base=inst.output, offset=offset, size=size, is_alloca=True)
+            loc = MemoryLocation(offset=offset, size=size, is_alloca=True)
             self.alias_sets[loc] = OrderedSet([loc])
             return
 
@@ -78,17 +78,6 @@ class MemoryAliasAnalysis(IRAnalysis):
         if loc1.size <= 0 or loc2.size <= 0:
             return False
 
-        bases_match = False
-        if isinstance(loc1.base, IRVariable) and isinstance(loc2.base, IRVariable):
-            bases_match = loc1.base == loc2.base
-        elif isinstance(loc1.base, IRLiteral) and isinstance(loc2.base, IRLiteral):
-            bases_match = loc1.base.value == loc2.base.value
-        else:
-            return False  # Can't prove bases must match
-
-        if not bases_match:
-            return False
-
         start1, end1 = loc1.offset, loc1.offset + loc1.size
         start2, end2 = loc2.offset, loc2.offset + loc2.size
 
@@ -96,7 +85,6 @@ class MemoryAliasAnalysis(IRAnalysis):
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = MemoryLocation(
-            base=loc.base,
             offset=loc.offset,
             size=loc.size,
             is_alloca=loc.is_alloca,

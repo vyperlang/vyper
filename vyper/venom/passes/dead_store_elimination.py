@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, MemoryLocation
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -17,6 +17,11 @@ class DeadStoreElimination(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
+
+        # ΤΕΣΤ
+        self.mem_ssa.mark_location_volatile(
+            MemoryLocation(offset=0xFFFF0000, size=32, is_alloca=False, is_volatile=True)
+        )
 
         self.dead_stores = OrderedSet[IRInstruction]()
         self._preprocess_never_used_stores()

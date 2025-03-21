@@ -245,15 +245,14 @@ class IRLabel(IROperand):
 class MemoryLocation:
     """Represents a memory location that can be analyzed for aliasing"""
 
-    base: IROperand  # Base address
     offset: int = 0
     size: int = 0
     is_alloca: bool = False
     is_volatile: bool = False
 
 
-FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)
-EMPTY_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=0, is_alloca=False)
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_alloca=False)
+EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_alloca=False)
 
 
 class IRInstruction:
@@ -341,7 +340,7 @@ class IRInstruction:
             addr = self.operands[1]
             offset = addr.value if isinstance(addr, IRLiteral) else 0
             size = 32
-            return MemoryLocation(addr, offset, size)
+            return MemoryLocation(offset=offset, size=size)
         elif opcode == "mload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mcopy":
@@ -365,7 +364,7 @@ class IRInstruction:
             addr = self.operands[0]
             offset = addr.value if isinstance(addr, IRLiteral) else 0
             size = 32
-            return MemoryLocation(addr, offset, size)
+            return MemoryLocation(offset=offset, size=size)
         elif opcode == "mcopy":
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
