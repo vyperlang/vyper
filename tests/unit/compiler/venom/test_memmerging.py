@@ -1051,7 +1051,7 @@ def test_memmmerging_enclosed_mcopy():
     Test with enclosed copy (basic)
     """
     if not version_check(begin="cancun"):
-        return
+        raise AssertionError()  # xfail
 
     pre = """
     main:
@@ -1076,7 +1076,7 @@ def test_memmerging_enclosed_mcopy_dst_src_offset():
     (should be valid transformation but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
-        return
+        raise AssertionError()  # xfail
 
     pre = """
     main:
@@ -1101,7 +1101,7 @@ def test_memmerging_enclosed_mcopy_different_start():
     (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
-        return
+        raise AssertionError()  # xfail
 
     pre = """
     main:
@@ -1126,7 +1126,7 @@ def test_memmerging_enclosed_mcopy_most_general():
     themselves (should be ok but current solution does not handle it)
     """
     if not version_check(begin="cancun"):
-        return
+        raise AssertionError()  # xfail
 
     pre = """
     main:
