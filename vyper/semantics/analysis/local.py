@@ -775,6 +775,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                     msg += f"must use the `{should}` keyword."
                     hint = f"try `{should} {node.node_source_code}`"
                     raise CallViolation(msg, hint=hint)
+
+                if func_type.is_fallback:
+                    raise CallViolation("Function __default__ cannot be called directly")
             else:
                 if not node.is_plain_call:
                     kind = node.kind_str
