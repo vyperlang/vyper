@@ -247,6 +247,7 @@ class MemoryLocation:
     offset: int = 0
     size: int = 0
     is_alloca: bool = False
+    is_volatile: bool = False
 
 
 FULL_MEMORY_ACCESS = MemoryLocation(base=IROperand(0), offset=0, size=-1, is_alloca=False)

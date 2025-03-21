@@ -13,14 +13,15 @@ class MemoryAccess:
     def __init__(self, id: int):
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
-
-    @property
-    def loc(self) -> MemoryLocation:
-        raise NotImplementedError("Subclasses must implement this method")
+        self.loc: Optional[MemoryLocation] = None
 
     @property
     def is_live_on_entry(self) -> bool:
         return self.id == 0
+
+    @property
+    def is_volatile(self) -> bool:
+        return self.loc.is_volatile
 
     @property
     def id_str(self) -> str:
@@ -38,11 +39,7 @@ class MemoryDef(MemoryAccess):
     def __init__(self, id: int, store_inst: IRInstruction):
         super().__init__(id)
         self.store_inst = store_inst
-
-    @property
-    def loc(self) -> MemoryLocation:
-        return self.store_inst.get_write_memory_location()
-
+        self.loc = store_inst.get_write_memory_location()
 
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
@@ -50,11 +47,7 @@ class MemoryUse(MemoryAccess):
     def __init__(self, id: int, load_inst: IRInstruction):
         super().__init__(id)
         self.load_inst = load_inst
-
-    @property
-    def loc(self) -> MemoryLocation:
-        return self.load_inst.get_read_memory_location()
-
+        self.loc = load_inst.get_read_memory_location()
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
@@ -102,6 +95,23 @@ class MemSSA(IRAnalysis):
 
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
+
+    def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
+        volatile_loc = self.alias.mark_volatile(loc)
+        
+        for bb in self.memory_defs:
+            for mem_def in self.memory_defs[bb]:
+                if self.alias.may_alias(mem_def.loc, loc):
+                    new_loc = MemoryLocation(
+                        base=mem_def.loc.base,
+                        offset=mem_def.loc.offset,
+                        size=mem_def.loc.size,
+                        is_alloca=mem_def.loc.is_alloca,
+                        is_volatile=True
+                    )
+                    mem_def.loc = new_loc
+        
+        return volatile_loc
 
     def get_memory_def(self, inst: IRInstruction) -> Optional[MemoryDef]:
         if inst in self.inst_to_def:
@@ -319,7 +329,7 @@ class MemSSA(IRAnalysis):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
                             if mem_use and mem_use.reaching_def == access:
-                                return None  # Use of this def in phi’s block
+                                return None
 
             # Check instructions in successor block
             for inst in succ.instructions:
