@@ -1,5 +1,7 @@
 import json
 import re
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -103,6 +105,8 @@ COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
+
+ir_printer = ContextVar("ir_printer", default=None)
 
 
 def flip_comparison_opcode(opcode):
@@ -237,6 +241,20 @@ class IRLabel(IROperand):
         return json.dumps(self.value)  # escape it
 
 
+@dataclass(frozen=True)
+class MemoryLocation:
+    """Represents a memory location that can be analyzed for aliasing"""
+
+    offset: int = 0
+    size: int = 0
+    is_alloca: bool = False
+    is_volatile: bool = False
+
+
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_alloca=False)
+EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_alloca=False)
+
+
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -314,6 +332,50 @@ class IRInstruction:
 
     def get_write_effects(self):
         return effects.writes.get(self.opcode, effects.EMPTY)
+
+    def get_write_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            addr = self.operands[1]
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
+            size = 32
+            return MemoryLocation(offset=offset, size=size)
+        elif opcode == "mload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mcopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dload":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
+
+    def get_read_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mload":
+            addr = self.operands[0]
+            offset = addr.value if isinstance(addr, IRLiteral) else 0
+            size = 32
+            return MemoryLocation(offset=offset, size=size)
+        elif opcode == "mcopy":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
@@ -733,12 +795,27 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
-        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        for instruction in self.instructions:
-            s += f"  {str(instruction).strip()}\n"
-        if len(self.instructions) > 30:
-            s += f"  ; {self.label}\n"
-        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
-            s += f"  ; ({self.parent.name})\n\n"
+        printer = ir_printer.get()
+
+        s = (
+            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
+        )
+        if printer and hasattr(printer, "_pre_block"):
+            s += printer._pre_block(self)
+        for inst in self.instructions:
+            if printer and hasattr(printer, "_pre_instruction"):
+                s += printer._pre_instruction(inst)
+            s += f"    {str(inst).strip()}"
+            if printer and hasattr(printer, "_post_instruction"):
+                s += printer._post_instruction(inst)
+            s += "\n"
         return s
+
+
+class IRPrinter:
+    def _pre_instruction(self, inst: IRInstruction) -> str:
+        return ""
+
+    def _post_instruction(self, inst: IRInstruction) -> str:
+        return ""
