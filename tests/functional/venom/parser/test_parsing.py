@@ -23,6 +23,26 @@ def test_single_bb():
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
+def test_hex_literal():
+    source = """
+    function main {
+        main:
+            mstore 0, 0x7  ; test odd-length literal
+            mstore 1, 0x03
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_bb = main_fn.get_basic_block("main")
+    main_bb.append_instruction("mstore", IRLiteral(7), IRLiteral(0))
+    main_bb.append_instruction("mstore", IRLiteral(3), IRLiteral(1))
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
 def test_multi_bb_single_fn():
     source = """
     function start {
