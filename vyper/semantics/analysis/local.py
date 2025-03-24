@@ -777,7 +777,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     raise CallViolation(msg, hint=hint)
 
                 if func_type.is_fallback:
-                    raise CallViolation("Function __default__ cannot be called directly")
+                    raise CallViolation("`__default__` function cannot be called directly. if you mean to call the default function, use `raw_call`")
             else:
                 if not node.is_plain_call:
                     kind = node.kind_str
