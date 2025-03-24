@@ -342,6 +342,8 @@ class IRInstruction:
         elif opcode == "mload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mcopy":
+            if isinstance(self.operands[0], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
             return FULL_MEMORY_ACCESS
@@ -363,6 +365,8 @@ class IRInstruction:
                 return MemoryLocation(offset=self.operands[0].value, size=32)
             return FULL_MEMORY_ACCESS
         elif opcode == "mcopy":
+            if isinstance(self.operands[0], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
             return EMPTY_MEMORY_ACCESS
@@ -372,6 +376,10 @@ class IRInstruction:
             return EMPTY_MEMORY_ACCESS
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
+        elif opcode == "return":
+            return MemoryLocation(
+                offset=self.operands[0].value, size=self.operands[1].value, is_volatile=False
+            )
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:

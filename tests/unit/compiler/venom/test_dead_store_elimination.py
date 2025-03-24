@@ -141,6 +141,19 @@ def test_dead_store_different_locations():
     _check_pre_post(pre, post)
 
 
+def test_dead_store_different_locations():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1
+            mstore 32, %val2
+            mcopy 128, 0, 64
+            return 128, 64
+    """
+    _check_pre_post(pre, pre)
+
+
 def test_dead_store_in_branches():
     pre = """
         _global:
