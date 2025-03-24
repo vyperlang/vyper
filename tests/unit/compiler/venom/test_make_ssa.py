@@ -69,15 +69,32 @@ def test_multiple_make_ssa_error():
         jmp @test
     """
 
+    post = """
+    main:
+        %v = mload 64
+        jmp @test
+    test:
+        %v:1:1 = phi @main, %v, @if_exit, %v:2
+        jnz %v:1:1, @then, @else
+    then:
+        %t = mload 96
+        assert %t
+        jmp @if_exit
+    else:
+        jmp @if_exit
+    if_exit:
+        %v:2 = add %v:1:1, 1
+        jmp @test
+    """
+
     ctx = parse_from_basic_block(pre)
-    print("hello")
-    print(ctx)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         MakeSSA(ac, fn).run_pass()
-        Mem2Var(ac, fn).run_pass()
+        #Mem2Var(ac, fn).run_pass()
         MakeSSA(ac, fn).run_pass()
         #RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     print(ctx)
-    assert False
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post));
