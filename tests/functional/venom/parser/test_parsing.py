@@ -1,3 +1,4 @@
+# flake8: noqa: W291
 from tests.venom_utils import assert_bb_eq, assert_ctx_eq
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import DataItem, DataSection, IRContext
