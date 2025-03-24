@@ -594,7 +594,7 @@ class Keccak256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
@@ -641,7 +641,7 @@ class Sha256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
