@@ -561,6 +561,29 @@ def test_memmerging_allowed_overlapping():
     _check_pre_post(pre, post)
 
 
+def test_memmerging_allowed_overlapping2():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 1000, 0, 64
+        %1 = mload 1032
+        mstore 2000, %1
+        %2 = mload 1064
+        mstore 2032, %2
+        stop
+    """
+
+    post = """
+    _global:
+        mcopy 1000, 0, 64
+        mcopy 2000, 1032, 64
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
 def test_memmerging_no_eliminate_mload():
     """
     Test that mload that are unused in memmerge will not be eliminated
