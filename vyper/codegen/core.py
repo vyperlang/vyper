@@ -200,10 +200,11 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     length_calc_cost = 6 * (item_size != 1)  # PUSH MUL
 
     if _opt_codesize():
-        # if we are optimizing for codesize, we are ok with a much higher
+        # if we are optimizing for codesize, we are ok with a higher
         # gas cost before switching to copy(dst, src, <precise length>).
-        # 5x is chosen based on vibes.
-        length_calc_cost *= 5
+        # +15 is based on vibes -- it says we are willing to burn 45 (15*3)
+        # gas at runtime to save these ~9 bytes.
+        length_calc_cost += 15
 
     src_bound = src.typ.memory_bytes_required
     if src.location in (CALLDATA, MEMORY) and src_bound <= (5 + length_calc_cost) * 32:
