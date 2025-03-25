@@ -1,3 +1,6 @@
+import warnings
+
+
 def test_selfdestruct_with_storage_variable(env, get_contract):
     contract = """
 owner: address
@@ -15,11 +18,14 @@ def refund():
     a0 = env.accounts[0]
     val = 10
     env.set_balance(env.deployer, val)
-    c = get_contract(contract, a0, value=val)
+    with warnings.catch_warnings(record=True) as w:
+        c = get_contract(contract, a0, value=val)
     assert env.get_balance(a0) == 0
     assert env.get_balance(c.address) == val
     c.refund()
     assert env.get_balance(a0) == val
+
+    check_selfdestruct_warning(w)
 
 
 def test_selfdestruct_double_eval(env, get_contract):
@@ -47,10 +53,20 @@ def refund():
     owner, recipient = env.accounts[:2]
     val = 10
     env.set_balance(env.deployer, val)
-    c = get_contract(contract, owner, recipient, value=val)
+    with warnings.catch_warnings(record=True) as w:
+        c = get_contract(contract, owner, recipient, value=val)
     assert env.get_balance(owner) == 0
     assert env.get_balance(recipient) == 0
     assert env.get_balance(c.address) == val
     c.refund()
     assert env.get_balance(owner) == val // 2
     assert env.get_balance(recipient) == val // 2
+
+    check_selfdestruct_warning(w)
+
+
+def check_selfdestruct_warning(w):
+    expected = "`selfdestruct` is deprecated!"
+    expected += " The opcode is no longer recommended for use."
+    assert len(w) == 1, [s.message for s in w]
+    assert str(w[0].message).startswith(expected)
