@@ -14,7 +14,7 @@ from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
-    validate_expected_type,
+    infer_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -100,8 +100,8 @@ class InterfaceT(_UserType):
 
     def _ctor_arg_types(self, node):
         validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressT())
-        return [AddressT()]
+        typ = infer_type(node.args[0], AddressT())
+        return [typ]
 
     def _ctor_kwarg_types(self, node):
         return {}
