@@ -47,7 +47,7 @@ VENOM_GRAMMAR = """
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: SIGNED_INT
+    CONST: SIGNED_INT | "0x" HEXDIGIT+
     OPCODE: CNAME
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -88,15 +88,6 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
-def _ensure_terminated(bb):
-    # Since "revert" is not considered terminal explicitly check for it
-    # to ensure basic blocks are terminating
-    if not bb.is_terminated:
-        if any(inst.opcode == "revert" for inst in bb.instructions):
-            bb.append_instruction("stop")
-        # note: check_venom_ctx will raise error later if still not terminated.
-
-
 def _unescape(s: str):
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
@@ -135,8 +126,6 @@ class VenomTransformer(Transformer):
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
-
-                _ensure_terminated(bb)
 
             _set_last_var(fn)
         _set_last_label(ctx)
@@ -224,6 +213,8 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
+        if str(val).startswith("0x"):
+            return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
     def CNAME(self, val) -> str:
