@@ -211,6 +211,10 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
     return _ir_to_dict(compiler_data.ir_runtime)
 
 
+def build_settings_output(compiler_data: CompilerData) -> dict:
+    return compiler_data.settings.as_dict()
+
+
 def build_metadata_output(compiler_data: CompilerData) -> dict:
     # need ir info to be computed
     _ = compiler_data.function_signatures
