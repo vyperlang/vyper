@@ -50,6 +50,7 @@ asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
+settings           - Output the settings for a given build in json format
 """
 
 combined_json_outputs = [
@@ -63,6 +64,7 @@ combined_json_outputs = [
     "method_identifiers",
     "userdoc",
     "devdoc",
+    "settings_dict",
 ]
 
 
@@ -342,6 +344,7 @@ def compile_files(
         "ast": "ast_dict",
         "annotated_ast": "annotated_ast_dict",
         "ir_json": "ir_dict",
+        "settings": "settings_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
