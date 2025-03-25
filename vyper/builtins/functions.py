@@ -1187,15 +1187,12 @@ class SelfDestruct(BuiltinFunctionT):
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
     _is_terminus = True
-    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self._warned:
-            vyper_warn(
-                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+        )
 
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
@@ -1299,12 +1296,9 @@ class BitwiseAnd(BuiltinFunctionT):
     _id = "bitwise_and"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
 
         validate_call_args(node, 2)
         values = [i.get_folded_value() for i in node.args]
@@ -1324,12 +1318,9 @@ class BitwiseOr(BuiltinFunctionT):
     _id = "bitwise_or"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
 
         validate_call_args(node, 2)
         values = [i.get_folded_value() for i in node.args]
@@ -1349,12 +1340,9 @@ class BitwiseXor(BuiltinFunctionT):
     _id = "bitwise_xor"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
 
         validate_call_args(node, 2)
         values = [i.get_folded_value() for i in node.args]
@@ -1374,12 +1362,9 @@ class BitwiseNot(BuiltinFunctionT):
     _id = "bitwise_not"
     _inputs = [("x", UINT256_T)]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
 
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
@@ -1400,12 +1385,9 @@ class Shift(BuiltinFunctionT):
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
 
         validate_call_args(node, 2)
         args = [i.get_folded_value() for i in node.args]
@@ -1766,14 +1748,10 @@ class CreateMinimalProxyTo(_CreateBase):
 
 
 class CreateForwarderTo(CreateMinimalProxyTo):
-    _warned = False
-
     def build_IR(self, expr, context):
-        if not self._warned:
-            vyper_warn(
-                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+        )
 
         return super().build_IR(expr, context)
 
@@ -2599,24 +2577,18 @@ class ABIDecode(BuiltinFunctionT):
 
 
 class OldABIEncode(ABIEncode):
-    _warned = False
     _id = "_abi_encode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
 class OldABIDecode(ABIDecode):
-    _warned = False
     _id = "_abi_decode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
