@@ -389,14 +389,14 @@ class Expr:
         is_shift_op = isinstance(op, (vy_ast.LShift, vy_ast.RShift))
 
         if is_shift_op:
-            assert is_numeric_type(left.typ)
+            assert is_numeric_type(left.typ) or is_bytes_m_type(left.typ)
             assert is_numeric_type(right.typ)
         else:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable: {left.typ} != {right.typ}")
-            assert is_numeric_type(left.typ) or is_flag_type(left.typ)
+            assert is_numeric_type(left.typ) or is_flag_type(left.typ) or is_bytes_m_type(left.typ)
 
         out_typ = left.typ
 
@@ -409,14 +409,18 @@ class Expr:
 
         if isinstance(op, vy_ast.LShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                raise TypeCheckFailure("unreachable")
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
                 raise TypeCheckFailure("unreachable")
             return IRnode.from_list(shl(right, left), typ=new_typ)
         if isinstance(op, vy_ast.RShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
+                raise TypeCheckFailure("unreachable")
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
                 raise TypeCheckFailure("unreachable")
             op = shr if not left.typ.is_signed else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
@@ -654,10 +658,10 @@ class Expr:
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
-            if operand.typ == UINT256_T:
+            if operand.typ in (UINT256_T, BYTES32_T):
                 return IRnode.from_list(["not", operand], typ=operand.typ)
 
-            # block `~` for all other integer types, since reasoning
+            # block `~` for all other types, since reasoning
             # about dirty bits is not entirely trivial. maybe revisit
             # this at a later date.
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
