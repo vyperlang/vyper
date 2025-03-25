@@ -18,6 +18,7 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
+    assert _goal > 0, "Goal must be non-zero"
     self.goal = _goal
 
 # Participate in this crowdfunding campaign
@@ -33,8 +34,9 @@ def participate():
 def finalize():
     assert block.timestamp >= self.deadline, "deadline has not expired yet"
     assert self.balance >= self.goal, "goal has not been reached"
+    assert self.balance > 0
 
-    selfdestruct(self.beneficiary)
+    send(self.beneficiary, self.balance)
 
 # Let participants withdraw their fund
 @external
