@@ -91,6 +91,17 @@ def check_external_call(call_ir):
     return ["if", ["iszero", call_ir], propagate_revert_ir]
 
 
+# propagate revert message when create operations fail
+# note the code for this is substantially the same as check_external_call,
+# but keep it separate in case the assumptions about CREATE change.
+def check_create_operation(create_ir: IRnode):
+    copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
+    revert = IRnode.from_list(["revert", 0, "returndatasize"], error_msg="create failed")
+
+    propagate_revert_ir = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", create_ir], propagate_revert_ir]
+
+
 # cost per byte of the identity precompile
 def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)

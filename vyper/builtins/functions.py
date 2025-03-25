@@ -15,11 +15,11 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_buffer_overflow_ir,
+    check_create_operation,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
-    clamp_nonzero,
     copy_bytes,
     create_memory_copy,
     dummy_node_for_type,
@@ -1560,8 +1560,7 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
     if not revert_on_failure:
         return ret
 
-    ret = clamp_nonzero(ret)
-    ret.set_error_msg(f"{create_op} failed")
+    ret = check_create_operation(ret)
     return ret
 
 
