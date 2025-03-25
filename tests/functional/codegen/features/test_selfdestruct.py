@@ -15,15 +15,15 @@ def refund():
     selfdestruct(self.owner)
     """
 
-    a0 = env.accounts[0]
+    owner = env.accounts[0]
     val = 10
     env.set_balance(env.deployer, val)
     with warnings.catch_warnings(record=True) as w:
-        c = get_contract(contract, a0, value=val)
-    assert env.get_balance(a0) == 0
+        c = get_contract(contract, owner, value=val)
+    assert env.get_balance(owner) == 0
     assert env.get_balance(c.address) == val
     c.refund()
-    assert env.get_balance(a0) == val
+    assert env.get_balance(owner) == val
 
     check_selfdestruct_warning(w)
 
