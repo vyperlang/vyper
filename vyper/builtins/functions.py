@@ -77,20 +77,15 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import (
-    BYTES4_T,
-    BYTES32_T,
-    INT128_T,
-    INT256_T,
-    UINT8_T,
-    UINT256_T,
-)
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
+    EIP_3860_LIMIT,
     SHA3_PER_WORD,
     MemoryPositions,
+    SizeLimits,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
@@ -969,28 +964,34 @@ class AsWeiValue(BuiltinFunctionT):
 
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
-            if value.typ in (UINT256_T, UINT8_T):
-                sub = [
-                    "with",
-                    "ans",
-                    ["mul", value, denom_divisor],
-                    [
-                        "seq",
-                        [
-                            "assert",
-                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                        ],
-                        "ans",
-                    ],
-                ]
-            elif value.typ == INT128_T:
-                # signed types do not require bounds checks because the
-                # largest possible converted value will not overflow 2**256
-                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            if value.typ in IntegerT.unsigneds():
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    ok = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(irlist)
+            elif value.typ in IntegerT.signeds():
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    positive = ["sge", value, 0]
+                    safemul = [
+                        "or",
+                        ["eq", ["div", product, value], denom_divisor],
+                        ["iszero", value],
+                    ]
+                    ok = ["and", positive, safemul]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(irlist)
             elif value.typ == DecimalT():
+                # sanity check (so we don't have to use safemul)
+                assert (SizeLimits.MAXDECIMAL * denom_divisor) < 2**256 - 1
                 sub = [
                     "seq",
-                    ["assert", ["sgt", value, -1]],
+                    ["assert", ["sge", value, 0]],
                     ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
                 ]
             else:
@@ -1680,6 +1681,47 @@ class _CreateBase(BuiltinFunctionT):
         return IRnode.from_list(
             ir_builder, typ=AddressT(), annotation=self._id, add_gas_estimate=add_gas_estimate
         )
+
+
+class RawCreate(_CreateBase):
+    _id = "raw_create"
+    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _has_varargs = True
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
+        args = [ensure_in_memory(arg, context) for arg in args]
+        initcode = args[0]
+        ctor_args = args[1:]
+
+        # encode the varargs
+        to_encode = ir_tuple_from_args(ctor_args)
+        type_size_bound = to_encode.typ.abi_type.size_bound()
+        bufsz = initcode.typ.maxlen + type_size_bound
+
+        buf = context.new_internal_variable(get_type_for_exact_size(bufsz))
+
+        ret = ["seq"]
+
+        with scope_multi((initcode, value, salt), ("initcode", "value", "salt")) as (
+            b1,
+            (initcode, value, salt),
+        ):
+            bytecode_len = get_bytearray_length(initcode)
+            with bytecode_len.cache_when_complex("initcode_len") as (b2, bytecode_len):
+                maxlen = initcode.typ.maxlen
+                ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
+
+                argbuf = add_ofst(buf, bytecode_len)
+                argslen = abi_encode(
+                    argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
+                )
+                total_len = add_ofst(bytecode_len, argslen)
+                ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
+
+                return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
 class CreateMinimalProxyTo(_CreateBase):
@@ -2687,6 +2729,7 @@ STMT_DISPATCH_TABLE = {
     "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
+    "raw_create": RawCreate(),
     "raw_log": RawLog(),
     "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
