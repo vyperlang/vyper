@@ -2738,6 +2738,16 @@ STMT_DISPATCH_TABLE = {
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
 
+# reset the state of the builtins
+# so that attributes like `_warned` don't persist across runs
+def reinstantiate_builtins():
+    for t in [DISPATCH_TABLE, STMT_DISPATCH_TABLE]:
+        for k, v in t.items():
+            new_instance = type(v)()
+            t[k] = new_instance
+    global BUILTIN_FUNCTIONS
+    BUILTIN_FUNCTIONS = {**DISPATCH_TABLE, **STMT_DISPATCH_TABLE}.keys()
+
 
 def get_builtin_functions():
     return {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}
