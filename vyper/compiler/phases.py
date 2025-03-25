@@ -7,6 +7,7 @@ from typing import Any, Optional
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
+from vyper.builtins import functions as builtins
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
@@ -115,6 +116,7 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
+        builtins.reinstantiate_builtins()
         is_vyi = self.contract_path.suffix == ".vyi"
 
         settings, ast = vy_ast.parse_to_ast_with_settings(
