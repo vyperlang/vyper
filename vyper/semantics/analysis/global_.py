@@ -3,6 +3,7 @@ from collections import defaultdict
 from vyper.exceptions import ExceptionList, InitializerException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
 from vyper.semantics.types.module import ModuleT
+from vyper.utils import OrderedSet
 
 
 def validate_compilation_target(module_t: ModuleT):
@@ -54,6 +55,30 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
     all_used_modules = _collect_used_modules_r(module_t)
     all_initialized_modules = _collect_initialized_modules_r(module_t)
 
+    hint = None
+
+    init_calls = []
+    if module_t.init_function is not None:
+        init_calls = list(module_t.init_function.reachable_internal_functions)
+    seen: OrderedSet = OrderedSet()
+
+    for init_t in init_calls:
+        seen.add(init_t)
+        init_m = init_t.decl_node.module_node._metadata["type"]
+        init_info = all_initialized_modules[init_m]
+        for dep in init_info.dependencies:
+            m = dep.module_t
+            if m.init_function is None:
+                continue
+            if m.init_function not in seen:
+                # TODO: recover source info
+                msg = f"Tried to initialize `{init_info.module_info.alias}`, "
+                msg += f"but it depends on `{dep.alias}`, which has not been "
+                msg += "initialized yet."
+                hint = f"call `{dep.alias}.__init__()` before "
+                hint += f"`{init_info.module_info.alias}.__init__()`."
+                raise InitializerException(msg, hint=hint)
+
     err_list = ExceptionList()
 
     for u, uses in all_used_modules.items():
@@ -61,7 +86,6 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
             msg = f"module `{u}` is used but never initialized!"
 
             # construct a hint if the module is in scope
-            hint = None
             found_module = module_t.find_module_info(u)
             if found_module is not None:
                 # TODO: do something about these constants
