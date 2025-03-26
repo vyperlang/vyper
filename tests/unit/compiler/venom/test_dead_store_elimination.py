@@ -377,3 +377,131 @@ def test_volatile_locations_with_different_sizes():
         [DeadStoreElimination], volatile_locations=[(0xFFFF0000, 32), (0xFFFF1000, 64)]
     )
     checker(pre, post)
+
+
+def test_call_with_memory_and_other_effects():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            
+            ; Store value that is never read (dead store)
+            mstore 0, %val1  ; This should be eliminated
+            
+            ; Store value needed for call
+            mstore 32, %val2  ; This should remain as it's used by call
+            
+            ; Prepare call arguments in memory
+            %gas = 1000
+            %addr = 0x1234567890123456789012345678901234567890
+            %in_offset = 32   ; Points to memory with val2
+            %in_size = 32
+            %out_offset = 64  ; Output will be written here
+            %out_size = 32
+            
+            ; Call has both memory read (32) and write (64) effects,
+            ; as well as other effects (eg. state changes)
+            %success = call %gas, %addr, 0, %in_offset, %in_size, %out_offset, %out_size
+            
+            ; Read the call result from memory
+            %result = mload 64
+            
+            ; Store that is never read (dead), but retained due to return after it
+            mstore 128, %val1
+            
+            ; Return the result from the call
+            return %out_offset, %out_size
+    """
+    
+    post = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            
+            ; Store value that is never read (dead store)
+            nop
+            
+            ; Store value needed for call
+            mstore 32, %val2  ; This should remain as it's used by call
+            
+            ; Prepare call arguments in memory
+            %gas = 1000
+            %addr = 0x1234567890123456789012345678901234567890
+            %in_offset = 32   ; Points to memory with val2
+            %in_size = 32
+            %out_offset = 64  ; Output will be written here
+            %out_size = 32
+            
+            ; Call has both memory read (32) and write (64) effects,
+            ; as well as other effects (eg. state changes)
+            %success = call %gas, %addr, 0, %in_offset, %in_size, %out_offset, %out_size
+            
+            ; Read the call result from memory
+            %result = mload 64
+            
+            ; Store that is never read (dead), but retained due to return after it
+            mstore 128, %val1
+            
+            ; Return the result from the call
+            return %out_offset, %out_size
+    """
+    _check_pre_post(pre, post)
+
+
+def test_call_overwrites_previous_stores():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            
+            ; Store at the location that will be overwritten by call and never read before overwriting
+            mstore 64, %val1  ; This should be eliminated due to call overwriting it before any read
+            
+            ; Store value needed for call
+            mstore 32, %val2  ; This should remain as it's used by call
+            
+            ; Prepare call arguments in memory
+            %gas = 1000
+            %addr = 0x1234567890123456789012345678901234567890
+            %in_offset = 32   ; Points to memory with val2
+            %in_size = 32
+            %out_offset = 64  ; Output will overwrite earlier store
+            %out_size = 32
+            
+            ; Call has both memory read (32) and write (64) effects
+            %success = call %gas, %addr, 0, %in_offset, %in_size, %out_offset, %out_size
+            
+            ; Read the call result from memory (at the location where val1 was stored but got overwritten)
+            %result = mload 64
+            
+            return %result, 32
+    """
+    
+    post = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            
+            ; Store at the location that will be overwritten by call and never read before overwriting
+            nop
+            
+            ; Store value needed for call
+            mstore 32, %val2  ; This should remain as it's used by call
+            
+            ; Prepare call arguments in memory
+            %gas = 1000
+            %addr = 0x1234567890123456789012345678901234567890
+            %in_offset = 32   ; Points to memory with val2
+            %in_size = 32
+            %out_offset = 64  ; Output will overwrite earlier store
+            %out_size = 32
+            
+            ; Call has both memory read (32) and write (64) effects
+            %success = call %gas, %addr, 0, %in_offset, %in_size, %out_offset, %out_size
+            
+            ; Read the call result from memory (at the location where val1 was stored but got overwritten)
+            %result = mload 64
+            
+            return %result, 32
+    """
+    _check_pre_post(pre, post)
