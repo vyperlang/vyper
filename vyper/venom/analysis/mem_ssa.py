@@ -307,8 +307,9 @@ class MemSSA(IRAnalysis):
             if next_def and self.alias.may_alias(def_loc, next_def.loc):
                 return next_def
             mem_use = self.inst_to_use.get(inst)
-            if mem_use and mem_use.reaching_def == access:
-                return None  # Found a use of this specific def before a clobber
+            if mem_use:
+                if self.alias.may_alias(def_loc, mem_use.loc):
+                    return None  # Found a use that reads from our memory location
 
         # Traverse successors
         worklist = list(block.cfg_out)
@@ -330,8 +331,8 @@ class MemSSA(IRAnalysis):
                             if next_def and self.alias.may_alias(def_loc, next_def.loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and mem_use.reaching_def == access:
-                                return None
+                            if mem_use and self.alias.may_alias(def_loc, mem_use.loc):
+                                return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
@@ -339,8 +340,8 @@ class MemSSA(IRAnalysis):
                 if next_def and self.alias.may_alias(def_loc, next_def.loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and mem_use.reaching_def == access:
-                    return None  # Found a use of this specific def before a clobber
+                if mem_use and self.alias.may_alias(def_loc, mem_use.loc):
+                    return None  # Found a use that reads from our memory location
 
             worklist.extend(succ.cfg_out)
 
