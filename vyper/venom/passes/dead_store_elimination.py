@@ -33,8 +33,9 @@ class DeadStoreElimination(IRPass):
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_uses:
                 for mem_use in self.mem_ssa.memory_uses[bb]:
-                    if mem_use.reaching_def and isinstance(mem_use.reaching_def, MemoryDef):
-                        used_defs.add(mem_use.reaching_def)
+                    for mem_def in all_defs:
+                        if self.mem_ssa.alias.may_alias(mem_use.loc, mem_def.loc):
+                            used_defs.add(mem_def)
 
             for succ in bb.cfg_out:
                 if succ in self.mem_ssa.memory_phis:
