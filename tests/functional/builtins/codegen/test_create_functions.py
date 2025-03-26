@@ -863,7 +863,29 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
 
 
 # test that raw_create bubbles up revert data
-def test_bubble_revert_data(get_contract, tx_failed):
+def test_bubble_revert_data_blueprint(get_contract, tx_failed, deploy_blueprint_for):
+    ctor_code = """
+@deploy
+def __init__():
+    raise "bad ctor"
+    """
+
+    f, _ = deploy_blueprint_for(ctor_code)
+
+    deployer_code = """
+@external
+def deploy_from_address(t: address) -> address:
+    return create_from_blueprint(t)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    with tx_failed(exc_text="bad ctor"):
+        deployer.deploy_from_address(f.address)
+
+
+# test that raw_create bubbles up revert data
+def test_bubble_revert_data_raw_create(get_contract, tx_failed):
     to_deploy_code = """
 @deploy
 def __init__():
