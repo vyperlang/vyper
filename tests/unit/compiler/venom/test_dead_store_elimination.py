@@ -93,6 +93,42 @@ def test_basic_not_dead_store():
     """
     _check_pre_post(pre, pre)
 
+def test_basic_not_dead_store_with_return():
+    pre = """
+        _global:
+            %1 = param
+            mstore 0, 1
+            mstore 32, 2
+            %2 = mload 0
+            stop
+    """
+    post = """
+        _global:
+            %1 = param
+            mstore 0, 1
+            nop
+            %2 = mload 0
+            stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_basic_not_dead_store_with_return():
+    pre = """
+        _global:
+            %1 = param
+            mstore 0, 1
+            mstore 32, 2
+            return 0, 32
+    """
+    post = """
+        _global:
+            %1 = param
+            mstore 0, 1
+            nop
+            return 0, 32
+    """
+    _check_pre_post(pre, post)
 
 def test_never_read_store():
     pre = """
