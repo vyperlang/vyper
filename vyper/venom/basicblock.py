@@ -326,10 +326,10 @@ class IRInstruction:
         """
         return self.is_phi or self.is_param
 
-    def get_read_effects(self):
+    def get_read_effects(self) -> effects.Effects:
         return effects.reads.get(self.opcode, effects.EMPTY)
 
-    def get_write_effects(self):
+    def get_write_effects(self) -> effects.Effects:
         return effects.writes.get(self.opcode, effects.EMPTY)
 
     def get_write_memory_location(self) -> MemoryLocation:
@@ -353,6 +353,12 @@ class IRInstruction:
             return FULL_MEMORY_ACCESS
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
+        elif opcode == "call":
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(
+                    offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
+                )
+            return FULL_MEMORY_ACCESS
         return EMPTY_MEMORY_ACCESS
 
     def get_read_memory_location(self) -> MemoryLocation:
@@ -375,6 +381,12 @@ class IRInstruction:
         elif opcode == "dload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "call":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[3], IRLiteral):
+                return MemoryLocation(
+                    offset=self.operands[3].value, size=self.operands[2].value, is_volatile=False
+                )
             return FULL_MEMORY_ACCESS
         elif opcode == "return":
             if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
