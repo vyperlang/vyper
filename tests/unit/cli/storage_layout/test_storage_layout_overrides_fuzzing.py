@@ -22,6 +22,7 @@ from hypothesis import strategies as st
 # TODO use proper generator for storage types
 from tests.functional.builtins.codegen.test_abi_decode_fuzz import vyper_type
 from vyper.compiler import compile_code
+from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.types import HashMapT
 
 ENABLE_TRANSIENT = False
@@ -249,8 +250,7 @@ def test_override_fuzzing(mutation: ContractMutation):
     assert mutation.permutation.layout["storage_layout"] == out2["layout"]["storage_layout"]
 
     if mutation.should_raise:
-        # TODO can we do more precise error checking?
-        with pytest.raises(Exception):
+        with pytest.raises((CompilerPanic, ValueError, StorageLayoutException)):
             compile_code(
                 mutation.permutation.contract.source,
                 storage_layout_override=mutation.final_layout["storage_layout"],
