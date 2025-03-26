@@ -93,7 +93,7 @@ def test_basic_not_dead_store():
     """
     _check_pre_post(pre, pre)
 
-def test_basic_not_dead_store_with_return():
+def test_basic_not_dead_store_with_mload():
     pre = """
         _global:
             %1 = param
