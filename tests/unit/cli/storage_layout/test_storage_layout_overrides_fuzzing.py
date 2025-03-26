@@ -1,4 +1,3 @@
-
 """
 1. generate random storage and transient variable declarations
 2. generate random permutations of the declarations
@@ -9,27 +8,24 @@
 4. check that the original contract from 1) compiles with the layouts of the permutations
 5. further, if a layout has an invalid mutation, the compilation with this layout must fail
 """
-# TODO move this to a proper test directory
+# TODO move this to a better test location
 
 import copy
 import math
 import random
-import string
 from dataclasses import dataclass
 
 import pytest
 from hypothesis import Phase, given, settings
 from hypothesis import strategies as st
 
-from build.lib.vyper.ast.identifiers import RESERVED_KEYWORDS
 # TODO use proper generator for storage types
 from tests.functional.builtins.codegen.test_abi_decode_fuzz import vyper_type
 from vyper.compiler import compile_code
 from vyper.semantics.types import HashMapT
-from vyper.ast.identifiers import RESERVED_KEYWORDS
-
 
 ENABLE_TRANSIENT = False
+
 
 @dataclass
 class ContractParts:
@@ -59,18 +55,14 @@ class MutationResult:
     layout: dict
 
 
-@st.composite
-def generate_var_name(draw):
-    while True:
-        length = draw(st.integers(1, 30))
-        first_char = draw(st.sampled_from(string.ascii_letters + "_"))
-        rest = "".join(
-            draw(st.sampled_from(string.ascii_letters + string.digits + "_")) for _ in range(length - 1)
-        )
-        name = first_char + rest
-        if name not in RESERVED_KEYWORDS:
-            break
-    return name
+VAR_NAME_COUNTER = 0
+
+
+def get_var_name():
+    global VAR_NAME_COUNTER
+    varname = "var" + str(VAR_NAME_COUNTER)
+    VAR_NAME_COUNTER += 1
+    return varname
 
 
 @st.composite
@@ -78,14 +70,9 @@ def generate_contract_parts(draw):
     num_vars = draw(st.integers(1, 50))
     type_definitions = []
     declarations = []
-    used_names = set()
 
     for _ in range(num_vars):
-        while True:
-            name = draw(generate_var_name())
-            if name not in used_names:
-                used_names.add(name)
-                break
+        name = get_var_name()
 
         # TODO verify that we're covering all types
         # think we're missing (atleast) Flags, Interfaces, Decimals
@@ -112,7 +99,6 @@ def validate_storage_layout(layout_dict):
             continue
 
         variables = [info for _, info in layout_dict[section].items()]
-        # variables.sort(key=lambda x: x["slot"])
 
         counter = variables[0]["slot"]
         for info in variables:
@@ -153,9 +139,8 @@ def drop_random_item(draw, layout) -> MutationResult:
     item_name = draw(keys)
     del section[item_name]
 
-    return MutationResult(
-        success=True, layout=result
-    )
+    return MutationResult(success=True, layout=result)
+
 
 @st.composite
 def mutate_slot_address(draw, layout) -> MutationResult:
@@ -175,9 +160,8 @@ def mutate_slot_address(draw, layout) -> MutationResult:
         new_slot = draw(strategy)
     section[item_name]["slot"] = new_slot
 
-    return MutationResult(
-        success=True, layout=result
-    )
+    return MutationResult(success=True, layout=result)
+
 
 @st.composite
 def mutate_slot_size(draw, layout) -> MutationResult:
@@ -196,9 +180,7 @@ def mutate_slot_size(draw, layout) -> MutationResult:
         delta = draw(strategy)
     section[item_name]["n_slots"] = section[item_name]["n_slots"] + delta
 
-    return MutationResult(
-        success=True, layout=result
-    )
+    return MutationResult(success=True, layout=result)
 
 
 @st.composite
@@ -247,9 +229,7 @@ def mutation_strategy(draw) -> ContractMutation:
     should_raise, mutated_layout = draw(mutate_layout(copy.deepcopy(perm.layout)))
 
     return ContractMutation(
-        permutation=perm,
-        should_raise=should_raise,
-        final_layout=mutated_layout,
+        permutation=perm, should_raise=should_raise, final_layout=mutated_layout
     )
 
 
