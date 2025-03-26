@@ -38,7 +38,7 @@ VENOM_GRAMMAR = """
 
     block: LABEL_IDENT ":" "\\n" statement*
 
-    statement: instruction | assignment
+    statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
     expr: instruction | operand
     instruction: OPCODE operands_list?
