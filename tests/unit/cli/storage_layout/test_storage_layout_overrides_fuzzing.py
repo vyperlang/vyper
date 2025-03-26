@@ -151,14 +151,14 @@ def mutate_slot_address(draw, layout) -> MutationResult:
         return MutationResult(False, result)
 
     items = list(section.keys())
-    item_name = draw(st.sampled_from(items[:-1]))
+    item_to_change = draw(st.sampled_from(items[:-1]))
     last_slot = section[items[-1]]["slot"]
     assert last_slot > 0
     strategy = st.integers(0, last_slot)
     new_slot = draw(strategy)
-    while section[item_name]["slot"] == new_slot:
+    while section[item_to_change]["slot"] == new_slot:
         new_slot = draw(strategy)
-    section[item_name]["slot"] = new_slot
+    section[item_to_change]["slot"] = new_slot
 
     return MutationResult(success=True, layout=result)
 
@@ -172,13 +172,13 @@ def mutate_slot_size(draw, layout) -> MutationResult:
         return MutationResult(False, result)
 
     items = list(section.keys())
-    item_name = draw(st.sampled_from(items[:-1]))
+    item_to_change = draw(st.sampled_from(items[:-1]))
     last_slot = section[items[-1]]["slot"]
     strategy = st.integers(-last_slot, last_slot)
     delta = draw(strategy)
     while delta == 0:
         delta = draw(strategy)
-    section[item_name]["n_slots"] = section[item_name]["n_slots"] + delta
+    section[item_to_change]["n_slots"] = section[item_to_change]["n_slots"] + delta
 
     return MutationResult(success=True, layout=result)
 
