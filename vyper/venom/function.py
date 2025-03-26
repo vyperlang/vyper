@@ -17,6 +17,7 @@ class IRParameter:
     func_var: Optional[IRVariable]
     addr_var: Optional[IRVariable]
 
+
 class IRFunction:
     """
     Function that contains basic blocks.
@@ -215,11 +216,11 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
-        
+
         # Copy volatile memory locations
         for mem in self._volatile_memory:
             new.add_volatile_memory(mem.offset, mem.size)
-            
+
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -276,7 +277,7 @@ class IRFunction:
         volatile_mem = MemoryLocation(offset=offset, size=size)
         self._volatile_memory.append(volatile_mem)
         return volatile_mem
-    
+
     def get_all_volatile_memory(self) -> list[MemoryLocation]:
         """
         Return all volatile memory locations.

@@ -1,7 +1,8 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryUse, MemoryLocation
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryLocation, MemoryUse
 from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel
+
 
 def test_basic_clobber():
     pre = """
@@ -290,7 +291,7 @@ def test_simple_def_chain():
 
 def test_may_alias():
     pre = """
-    function _global { 
+    function _global {
         _global:
             stop
     }
@@ -316,18 +317,28 @@ def test_may_alias():
 
     # Test FULL_MEMORY_ACCESS
     full_loc = FULL_MEMORY_ACCESS
-    assert mem_ssa.alias.may_alias(full_loc, loc1), "FULL_MEMORY_ACCESS should alias with any non-empty location"
-    assert not mem_ssa.alias.may_alias(full_loc, EMPTY_MEMORY_ACCESS), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
+    assert mem_ssa.alias.may_alias(
+        full_loc, loc1
+    ), "FULL_MEMORY_ACCESS should alias with any non-empty location"
+    assert not mem_ssa.alias.may_alias(
+        full_loc, EMPTY_MEMORY_ACCESS
+    ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
 
     # Test EMPTY_MEMORY_ACCESS
     empty_loc = EMPTY_MEMORY_ACCESS
-    assert not mem_ssa.alias.may_alias(empty_loc, loc1), "EMPTY_MEMORY_ACCESS should not alias with any location"
-    assert not mem_ssa.alias.may_alias(empty_loc, full_loc), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
+    assert not mem_ssa.alias.may_alias(
+        empty_loc, loc1
+    ), "EMPTY_MEMORY_ACCESS should not alias with any location"
+    assert not mem_ssa.alias.may_alias(
+        empty_loc, full_loc
+    ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
     # Test zero/negative size locations
     zero_size_loc = MemoryLocation(offset=0, size=0)
     assert not mem_ssa.alias.may_alias(zero_size_loc, loc1), "Zero size location should not alias"
-    assert not mem_ssa.alias.may_alias(zero_size_loc, zero_size_loc), "Zero size locations should not alias with each other"
+    assert not mem_ssa.alias.may_alias(
+        zero_size_loc, zero_size_loc
+    ), "Zero size locations should not alias with each other"
 
     # Test partial overlap
     loc5 = MemoryLocation(offset=0, size=64)
@@ -343,5 +354,9 @@ def test_may_alias():
     # Test adjacent but non-overlapping locations
     loc9 = MemoryLocation(offset=0, size=64)
     loc10 = MemoryLocation(offset=64, size=64)
-    assert not mem_ssa.alias.may_alias(loc9, loc10), "Adjacent but non-overlapping locations should not alias"
-    assert not mem_ssa.alias.may_alias(loc10, loc9), "Adjacent but non-overlapping locations should not alias"
+    assert not mem_ssa.alias.may_alias(
+        loc9, loc10
+    ), "Adjacent but non-overlapping locations should not alias"
+    assert not mem_ssa.alias.may_alias(
+        loc10, loc9
+    ), "Adjacent but non-overlapping locations should not alias"

@@ -83,6 +83,7 @@ def test_basic_dead_store():
     """
     _check_pre_post(pre, post)
 
+
 def test_basic_not_dead_store():
     pre = """
         _global:
@@ -91,6 +92,7 @@ def test_basic_not_dead_store():
             stop
     """
     _check_pre_post(pre, pre)
+
 
 def test_never_read_store():
     pre = """
@@ -141,7 +143,7 @@ def test_dead_store_different_locations():
     _check_pre_post(pre, post)
 
 
-def test_dead_store_different_locations():
+def test_dead_store_memory_copy():
     pre = """
         _global:
             %val1 = 42
