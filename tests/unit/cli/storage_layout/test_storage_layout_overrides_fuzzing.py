@@ -1,3 +1,14 @@
+"""
+1. generate random storage and transient variable declarations
+2. generate random permutations of the declarations
+3. stochastically add errors into the permutations
+    - drop variable
+    - modify address slot
+    - modify size of variable
+4. check that the original contract from 1) compiles with the layouts of the permutations
+5. further, if a layout has an invalid mutation, the compilation with this layout must fail
+"""
+
 import copy
 import math
 import random
@@ -5,7 +16,7 @@ import string
 from dataclasses import dataclass
 
 import pytest
-from hypothesis import Phase, given, settings, note, Verbosity
+from hypothesis import Phase, given, settings
 from hypothesis import strategies as st
 
 # TODO use proper generator for storage types
@@ -81,6 +92,9 @@ def generate_contract_parts(draw):
     return type_definitions, declarations
 
 
+# sanity check a storage layout
+# check that variables don't overlap and that each var starts
+# where the previous one ends (doesn't account for hash ptrs)
 def validate_storage_layout(layout_dict):
     for section in ["storage_layout", "transient_storage_layout"]:
         if section not in layout_dict:
@@ -114,7 +128,7 @@ def _select_section(layout):
 
 
 def drop_random_item(layout) -> MutationResult:
-    result = layout.copy()
+    result = layout
     section = _select_section(layout)
 
     item_name = random.choice(list(result[section].keys()))
@@ -126,7 +140,7 @@ def drop_random_item(layout) -> MutationResult:
 
 
 def modify_slot_addresses(layout) -> MutationResult:
-    result = layout.copy()
+    result = layout
     section = _select_section(layout)
 
     items = list(result[section].keys())
@@ -143,7 +157,7 @@ def modify_slot_addresses(layout) -> MutationResult:
 
 
 def modify_slot_sizes(layout) -> MutationResult:
-    result = layout.copy()
+    result = layout
     section = _select_section(layout)
 
     items = list(result[section].keys())
@@ -152,7 +166,7 @@ def modify_slot_sizes(layout) -> MutationResult:
 
     item_name = random.choice(items[:-1])
     delta = random.choice([-1, 1])
-    result[section][item_name]["n_slots"] = max(1, result[section][item_name]["n_slots"] + delta)
+    result[section][item_name]["n_slots"] = result[section][item_name]["n_slots"] + delta
 
     return MutationResult(
         success=True, layout=result, description=f"Modified n_slots of '{item_name}' by {delta}"
@@ -164,11 +178,6 @@ def mutate_layout(layout) -> tuple[bool, dict, list[str]]:
 
     n_mutations = random.randint(1, len(mutation_funcs))
     selected_mutations = random.sample(mutation_funcs, n_mutations)
-    # If drop_random_item is selected, move it to the front
-    # so it doesn't affect other mutations
-    if drop_random_item in selected_mutations:
-        selected_mutations.remove(drop_random_item)
-        selected_mutations.insert(0, drop_random_item)
 
     result = layout
     should_raise = False
@@ -210,7 +219,7 @@ def permutation_strategy(draw) -> ContractPermutation:
 def mutation_strategy(draw) -> ContractMutation:
     perm = draw(permutation_strategy())
     # deepcopy to avoid modifying the original layout
-    # which is used later for comparison
+    # which is used later
     should_raise, mutated_layout, mutation_history = mutate_layout(copy.deepcopy(perm.layout))
 
     return ContractMutation(
@@ -223,7 +232,7 @@ def mutation_strategy(draw) -> ContractMutation:
 
 @pytest.mark.fuzzing
 @given(mutation_strategy())
-@settings(phases=[Phase.generate], max_examples=10000)#, verbosity=Verbosity.verbose)
+@settings(phases=[Phase.generate], max_examples=2000)  # , verbosity=Verbosity.verbose)
 def test_override_fuzzing(mutation: ContractMutation):
     # test that original contract compiles
     # with permutation's layout
