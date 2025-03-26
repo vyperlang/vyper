@@ -80,7 +80,7 @@ class MemoryAliasAnalysis(IRAnalysis):
         start1, end1 = loc1.offset, loc1.offset + loc1.size
         start2, end2 = loc2.offset, loc2.offset + loc2.size
 
-        return (start1 <= start2 < end1) or (start2 <= start1 < end2)
+        return not (end1 <= start2 or end2 <= start1)
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = MemoryLocation(
