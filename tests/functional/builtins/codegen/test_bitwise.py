@@ -5,10 +5,8 @@ from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
 from vyper.utils import unsigned_to_signed
 
 
-@pytest.fixture
-def get_code():
-    def parametrize_code(typ, use_shift=True):
-        code = f"""
+def get_code_for_type(typ, use_shift=True):
+    code = f"""
 @external
 def _bitwise_and(x: {typ}, y: {typ}) -> {typ}:
     return x & y
@@ -21,21 +19,21 @@ def _bitwise_xor(x: {typ}, y: {typ}) -> {typ}:
 @external
 def _bitwise_not(x: {typ}) -> {typ}:
     return ~x
-"""
-        shift_code = f"""
+    """
+
+    shift_code = f"""
 @external
 def _shl(x: {typ}, y: uint256) -> {typ}:
     return x << y
 @external
 def _shr(x: {typ}, y: uint256) -> {typ}:
     return x >> y
-            """
-        if use_shift:
-            return code + shift_code
+    """
+    if use_shift:
+        return code + shift_code
 
-        return code
+    return code
 
-    return parametrize_code
 
 
 BYTESM_TYPES = ["bytes" + str(i + 1) for i in range(32)]
@@ -44,8 +42,8 @@ ALL_TYPES = BYTESM_TYPES + UINT_TYPES
 
 
 @pytest.mark.parametrize("typ", ["uint256", "bytes32"])
-def test_bitwise_opcodes(get_code, typ):
-    code = get_code(typ)
+def test_bitwise_opcodes(typ):
+    code = get_code_for_type(typ)
     opcodes = compile_code(code, output_formats=["opcodes"])["opcodes"]
     assert "SHL" in opcodes
     assert "SHR" in opcodes
@@ -53,7 +51,7 @@ def test_bitwise_opcodes(get_code, typ):
 
 @pytest.mark.parametrize("typ", [typ for typ in ALL_TYPES if typ not in ["uint256", "bytes32"]])
 @pytest.mark.parametrize("shift_op", ["<<", ">>"])
-def test_invalid_shift(get_code, typ, shift_op):
+def test_invalid_shift(typ, shift_op):
     code = f"""
 @external
 def do_shift(x: {typ}, y: uint256) -> {typ}:
@@ -63,8 +61,8 @@ def do_shift(x: {typ}, y: uint256) -> {typ}:
         compile_code(code)
 
 
-def test_test_bitwise(get_contract, get_code):
-    code = get_code("uint256")
+def test_test_bitwise(get_contract ):
+    code = get_code_for_type("uint256")
     c = get_contract(code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
