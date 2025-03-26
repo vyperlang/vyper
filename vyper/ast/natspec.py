@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+# NOTE: this is our only use of asttokens -- consider vendoring in the implementation.
 from asttokens import LineNumbers
 
 from vyper.ast import nodes as vy_ast
