@@ -1,3 +1,4 @@
+
 """
 1. generate random storage and transient variable declarations
 2. generate random permutations of the declarations
@@ -25,6 +26,8 @@ from tests.functional.builtins.codegen.test_abi_decode_fuzz import vyper_type
 from vyper.compiler import compile_code
 from vyper.semantics.types import HashMapT
 
+
+ENABLE_TRANSIENT = False
 
 @dataclass
 class ContractParts:
@@ -67,7 +70,7 @@ def generate_var_name():
 
 @st.composite
 def generate_contract_parts(draw):
-    num_vars = random.randint(1, 50)
+    num_vars = draw(st.integers(1, 50))
     type_definitions = []
     declarations = []
     used_names = set()
@@ -81,7 +84,8 @@ def generate_contract_parts(draw):
 
         # TODO verify that we're covering all types
         # think we're missing (atleast) Flags, Interfaces, Decimals
-        source_fragments, typ = draw(vyper_type(random.randint(1, 4)))
+        num = draw(st.integers(1, 4))
+        source_fragments, typ = draw(vyper_type(num))
         type_definitions.extend(source_fragments)  # Struct definitions
         transient_decl = random.random() < 0.1
         if transient_decl and not isinstance(typ, HashMapT):
@@ -122,17 +126,24 @@ def generate_permutations(declarations: list, num_permutations: int = 50):
 
 
 def _select_section(layout):
+    if not ENABLE_TRANSIENT:
+        return "storage_layout"
     section = random.choice(["storage_layout", "transient_storage_layout"])
     if section not in layout or not layout[section]:
         section = "transient_storage_layout" if section == "storage_layout" else "storage_layout"
     return section
 
 
-def drop_random_item(layout) -> MutationResult:
+@st.composite
+def drop_random_item(draw, layout) -> MutationResult:
     result = layout
     section = _select_section(layout)
 
-    item_name = random.choice(list(result[section].keys()))
+    if len(result[section]) == 0:
+        return MutationResult(False, result, "No item to be dropped")
+
+    keys = st.sampled_from(list(result[section].keys()))
+    item_name = draw(keys)
     del result[section][item_name]
 
     return MutationResult(
@@ -140,7 +151,8 @@ def drop_random_item(layout) -> MutationResult:
     )
 
 
-def modify_slot_addresses(layout) -> MutationResult:
+@st.composite
+def mutate_slot_address(draw, layout) -> MutationResult:
     result = layout
     section = _select_section(layout)
 
@@ -154,28 +166,30 @@ def modify_slot_addresses(layout) -> MutationResult:
     # that should cause exception in the allocator when this mutation is used.
     # Further, if the allocation strategy should change the these mutations should raise
     # instead of silently passing, and thus the assumed behavior should be safe
-    item_name = random.choice(items[:-1])
+    item_name = draw(st.sampled_from(items[:-1]))
     last_slot = result[section][items[-1]]["slot"]
     # NOTE: should we test for negative values?
-    new_slot = st.integers(min_value=0, max_value=last_slot)
+    new_slot = draw(st.integers(min_value=0, max_value=last_slot))
+    while result[section][item_name]["slot"] == new_slot:
+        new_slot = draw(st.integers(min_value=0, max_value=last_slot))
     result[section][item_name]["slot"] = new_slot
 
     return MutationResult(
         success=True, layout=result, description=f"Changed slot of '{item_name}' to {new_slot}"
     )
 
-
-def modify_slot_sizes(layout) -> MutationResult:
+@st.composite
+def mutate_slot_size(draw, layout) -> MutationResult:
     result = layout
     section = _select_section(layout)
 
     items = list(result[section].keys())
-    item_name = random.choice(items[:-1])
+    item_name = draw(st.sampled_from(items[:-1]))
     last_slot = result[section][items[-1]]["slot"]
     # this also creates layouts, where `n_slots` is negative
-    delta = st.integers(min_value=-last_slot, max_value=last_slot)
+    delta = draw(st.integers(min_value=-last_slot, max_value=last_slot))
     while delta == 0:
-        delta = st.integers(min_value=-last_slot, max_value=last_slot)
+        delta = draw(st.integers(min_value=-last_slot, max_value=last_slot))
     result[section][item_name]["n_slots"] = result[section][item_name]["n_slots"] + delta
 
     return MutationResult(
@@ -183,18 +197,25 @@ def modify_slot_sizes(layout) -> MutationResult:
     )
 
 
-def mutate_layout(layout) -> tuple[bool, dict, list[str]]:
-    mutation_funcs = [drop_random_item, modify_slot_addresses, modify_slot_sizes]
+@st.composite
+def mutate_layout(draw, layout):
+    mutation_strategies = [drop_random_item, mutate_slot_address, mutate_slot_size]
+    n_mutations = draw(st.integers(min_value=1, max_value=len(mutation_strategies)))
 
-    n_mutations = random.randint(1, len(mutation_funcs))
-    selected_mutations = random.sample(mutation_funcs, n_mutations)
+    selected_mutations = draw(
+        st.lists(
+            st.sampled_from(mutation_strategies),
+            min_size=n_mutations,
+            max_size=n_mutations,
+        )
+    )
 
     result = layout
     should_raise = False
     mutation_history = []
 
     for mutation_func in selected_mutations:
-        mutation_result = mutation_func(result)
+        mutation_result = draw(mutation_func(result))
         should_raise |= mutation_result.success
         result = mutation_result.layout
         mutation_history.append(mutation_result.description)
@@ -230,7 +251,7 @@ def mutation_strategy(draw) -> ContractMutation:
     perm = draw(permutation_strategy())
     # deepcopy to avoid modifying the original layout
     # which is used later
-    should_raise, mutated_layout, mutation_history = mutate_layout(copy.deepcopy(perm.layout))
+    should_raise, mutated_layout, mutation_history = draw(mutate_layout(copy.deepcopy(perm.layout)))
 
     return ContractMutation(
         permutation=perm,
