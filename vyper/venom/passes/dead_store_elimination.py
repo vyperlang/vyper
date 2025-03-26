@@ -64,23 +64,24 @@ class DeadStoreElimination(IRPass):
                 write_effects = inst.get_write_effects()
                 read_effects = inst.get_read_effects()
                 
-                if write_effects & OTHER_EFFECTS or read_effects & OTHER_EFFECTS:
-                    if mem_def:
-                        live_defs.add(mem_def)
-                    continue
-
+                has_other_effects = write_effects & OTHER_EFFECTS or read_effects & OTHER_EFFECTS
+                
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
                         live_defs.add(mem_use.reaching_def)
 
                 if mem_def and not mem_def.loc.is_volatile:
-                    clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                    if (
-                        mem_def not in live_defs
-                        and clobbered_by
-                        and not clobbered_by.is_live_on_entry
-                    ):
-                        self.dead_stores.add(inst)
+                    if has_other_effects:
+                        # Don't mark as dead if it has other effects
+                        live_defs.add(mem_def)
+                    else:
+                        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
+                        if (
+                            mem_def not in live_defs
+                            and clobbered_by
+                            and not clobbered_by.is_live_on_entry
+                        ):
+                            self.dead_stores.add(inst)
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 if mem_def and mem_def in live_defs and inst in self.dead_stores:
