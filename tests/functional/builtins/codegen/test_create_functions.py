@@ -862,6 +862,29 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
+# test that raw_create bubbles up revert data
+def test_bubble_revert_data(get_contract, tx_failed):
+    to_deploy_code = """
+@deploy
+def __init__():
+    raise "bad ctor"
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    return raw_create(s)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    with tx_failed(exc_text="bad ctor"):
+        deployer.deploy_from_calldata(initcode)
+
+
 # test raw_create with all combinations of value and revert_on_failure kwargs
 # (including not present at all)
 # additionally parametrize whether the constructor reverts or not
