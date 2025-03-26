@@ -360,3 +360,49 @@ def test_may_alias():
     assert not mem_ssa.alias.may_alias(
         loc10, loc9
     ), "Adjacent but non-overlapping locations should not alias"
+
+
+def test_basic_def_use_assignment():
+    pre = """
+    function _global {
+        _global:
+            %1 = param
+            mstore 0, 1
+            mstore 32, 2
+            %2 = mload 0
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instructions
+    bb = fn.get_basic_block("_global")
+    store1 = bb.instructions[1]  # mstore 0, 1
+    store2 = bb.instructions[2]  # mstore 32, 2
+    load = bb.instructions[3]    # %2 = mload 0
+
+    # Check definitions
+    def1 = mem_ssa.get_memory_def(store1)
+    def2 = mem_ssa.get_memory_def(store2)
+    assert def1 is not None
+    assert def2 is not None
+    assert def1.id == 1
+    assert def2.id == 2
+    assert def1.loc.offset == 0
+    assert def2.loc.offset == 32
+
+    # Check use
+    use = mem_ssa.get_memory_use(load)
+    assert use is not None
+    assert use.reaching_def == def1
+    assert use.loc.offset == 0
+
+    # Verify the def chain
+    assert def1.reaching_def == mem_ssa.live_on_entry
+    assert def2.reaching_def == mem_ssa.live_on_entry  # Different memory location
