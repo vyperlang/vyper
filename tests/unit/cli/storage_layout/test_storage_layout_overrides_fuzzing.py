@@ -8,6 +8,7 @@
 4. check that the original contract from 1) compiles with the layouts of the permutations
 5. further, if a layout has an invalid mutation, the compilation with this layout must fail
 """
+# TODO move this to a proper test directory
 
 import copy
 import math
@@ -150,15 +151,17 @@ def modify_slot_addresses(layout) -> MutationResult:
     # NOTE: dictionaries retain the insertion order and the variables are inserted
     # in the order they are declared, and thus modifying the slot of any but the last
     # item s.t. the slot will remain in the original slot range is a valid mutation
-    # that should cause exception in the allocator when this mutation is used
-    # if the allocation strategy should change the these mutations should raise
+    # that should cause exception in the allocator when this mutation is used.
+    # Further, if the allocation strategy should change the these mutations should raise
     # instead of silently passing, and thus the assumed behavior should be safe
     item_name = random.choice(items[:-1])
-    delta = random.choice([-1, 1])
-    result[section][item_name]["slot"] += delta
+    last_slot = result[section][items[-1]]["slot"]
+    # NOTE: should we test for negative values?
+    new_slot = st.integers(min_value=0, max_value=last_slot)
+    result[section][item_name]["slot"] = new_slot
 
     return MutationResult(
-        success=True, layout=result, description=f"Modified slot of '{item_name}' by {delta}"
+        success=True, layout=result, description=f"Changed slot of '{item_name}' to {new_slot}"
     )
 
 
@@ -167,21 +170,17 @@ def modify_slot_sizes(layout) -> MutationResult:
     section = _select_section(layout)
 
     items = list(result[section].keys())
-    if len(items) < 2:
-        return MutationResult(False, result, "Not enough items to modify sizes")
-
     item_name = random.choice(items[:-1])
-    delta = random.choice([-1, 1])
+    last_slot = result[section][items[-1]]["slot"]
+    # this also creates layouts, where `n_slots` is negative
+    delta = st.integers(min_value=-last_slot, max_value=last_slot)
+    while delta == 0:
+        delta = st.integers(min_value=-last_slot, max_value=last_slot)
     result[section][item_name]["n_slots"] = result[section][item_name]["n_slots"] + delta
 
     return MutationResult(
         success=True, layout=result, description=f"Modified n_slots of '{item_name}' by {delta}"
     )
-
-
-# makes it easier to reason about mutations
-def sort_layout_by_slot(layout):
-    pass
 
 
 def mutate_layout(layout) -> tuple[bool, dict, list[str]]:
