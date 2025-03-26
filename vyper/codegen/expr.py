@@ -422,7 +422,7 @@ class Expr:
                 raise TypeCheckFailure("unreachable")
             if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
                 raise TypeCheckFailure("unreachable")
-            op = shr if not left.typ.is_signed else sar
+            op = shr if (is_bytes_m_type(left.typ) or not left.typ.is_signed) else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
         # flags can only do bit ops, not arithmetic.
