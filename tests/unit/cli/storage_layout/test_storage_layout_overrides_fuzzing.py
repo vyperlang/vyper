@@ -21,10 +21,12 @@ import pytest
 from hypothesis import Phase, given, settings
 from hypothesis import strategies as st
 
+from build.lib.vyper.ast.identifiers import RESERVED_KEYWORDS
 # TODO use proper generator for storage types
 from tests.functional.builtins.codegen.test_abi_decode_fuzz import vyper_type
 from vyper.compiler import compile_code
 from vyper.semantics.types import HashMapT
+from vyper.ast.identifiers import RESERVED_KEYWORDS
 
 
 ENABLE_TRANSIENT = False
@@ -57,13 +59,18 @@ class MutationResult:
     layout: dict
 
 
-def generate_var_name():
-    length = random.randint(1, 30)
-    first_char = random.choice(string.ascii_letters + "_")
-    rest = "".join(
-        random.choice(string.ascii_letters + string.digits + "_") for _ in range(length - 1)
-    )
-    return first_char + rest
+@st.composite
+def generate_var_name(draw):
+    while True:
+        length = draw(st.integers(1, 30))
+        first_char = draw(st.sampled_from(string.ascii_letters + "_"))
+        rest = "".join(
+            draw(st.sampled_from(string.ascii_letters + string.digits + "_")) for _ in range(length - 1)
+        )
+        name = first_char + rest
+        if name not in RESERVED_KEYWORDS:
+            break
+    return name
 
 
 @st.composite
@@ -75,7 +82,7 @@ def generate_contract_parts(draw):
 
     for _ in range(num_vars):
         while True:
-            name = generate_var_name()
+            name = draw(generate_var_name())
             if name not in used_names:
                 used_names.add(name)
                 break
@@ -85,8 +92,9 @@ def generate_contract_parts(draw):
         num = draw(st.integers(1, 4))
         source_fragments, typ = draw(vyper_type(num))
         type_definitions.extend(source_fragments)  # Struct definitions
-        transient_decl = random.random() < 0.1
-        if transient_decl and not isinstance(typ, HashMapT):
+        probability = draw(st.floats(0, 1))
+        do_transient_decl = probability <= 0.1
+        if do_transient_decl and not isinstance(typ, HashMapT):
             declarations.append(f"{name}: transient({str(typ)})")
         else:
             declarations.append(f"{name}: {str(typ)}")
@@ -123,10 +131,11 @@ def generate_permutations(declarations: list, num_permutations: int = 50):
     return result
 
 
-def _select_section(layout):
+@st.composite
+def _select_section(draw, layout):
     if not ENABLE_TRANSIENT:
         return layout["storage_layout"]
-    section = random.choice(["storage_layout", "transient_storage_layout"])
+    section = draw(st.sampled_from(["storage_layout", "transient_storage_layout"]))
     if section not in layout or not layout[section]:
         section = "transient_storage_layout" if section == "storage_layout" else "storage_layout"
     return layout[section]
@@ -135,7 +144,7 @@ def _select_section(layout):
 @st.composite
 def drop_random_item(draw, layout) -> MutationResult:
     result = layout
-    section = _select_section(layout)
+    section = draw(_select_section(layout))
 
     if len(section) == 0:
         return MutationResult(False, result)
@@ -151,7 +160,7 @@ def drop_random_item(draw, layout) -> MutationResult:
 @st.composite
 def mutate_slot_address(draw, layout) -> MutationResult:
     result = layout
-    section = _select_section(layout)
+    section = draw(_select_section(layout))
 
     if len(section) < 2:
         return MutationResult(False, result)
@@ -159,6 +168,7 @@ def mutate_slot_address(draw, layout) -> MutationResult:
     items = list(section.keys())
     item_name = draw(st.sampled_from(items[:-1]))
     last_slot = section[items[-1]]["slot"]
+    assert last_slot > 0
     strategy = st.integers(0, last_slot)
     new_slot = draw(strategy)
     while section[item_name]["slot"] == new_slot:
@@ -172,7 +182,10 @@ def mutate_slot_address(draw, layout) -> MutationResult:
 @st.composite
 def mutate_slot_size(draw, layout) -> MutationResult:
     result = layout
-    section = _select_section(layout)
+    section = draw(_select_section(layout))
+
+    if len(section) < 2:
+        return MutationResult(False, result)
 
     items = list(section.keys())
     item_name = draw(st.sampled_from(items[:-1]))
