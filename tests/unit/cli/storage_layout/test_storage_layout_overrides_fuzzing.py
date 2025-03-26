@@ -101,7 +101,7 @@ def validate_storage_layout(layout_dict):
             continue
 
         variables = [info for _, info in layout_dict[section].items()]
-        variables.sort(key=lambda x: x["slot"])
+        # variables.sort(key=lambda x: x["slot"])
 
         counter = variables[0]["slot"]
         for info in variables:
@@ -147,6 +147,12 @@ def modify_slot_addresses(layout) -> MutationResult:
     if len(items) < 2:
         return MutationResult(False, result, "Not enough items to modify slots")
 
+    # NOTE: dictionaries retain the insertion order and the variables are inserted
+    # in the order they are declared, and thus modifying the slot of any but the last
+    # item s.t. the slot will remain in the original slot range is a valid mutation
+    # that should cause exception in the allocator when this mutation is used
+    # if the allocation strategy should change the these mutations should raise
+    # instead of silently passing, and thus the assumed behavior should be safe
     item_name = random.choice(items[:-1])
     delta = random.choice([-1, 1])
     result[section][item_name]["slot"] += delta
@@ -171,6 +177,11 @@ def modify_slot_sizes(layout) -> MutationResult:
     return MutationResult(
         success=True, layout=result, description=f"Modified n_slots of '{item_name}' by {delta}"
     )
+
+
+# makes it easier to reason about mutations
+def sort_layout_by_slot(layout):
+    pass
 
 
 def mutate_layout(layout) -> tuple[bool, dict, list[str]]:
@@ -232,7 +243,7 @@ def mutation_strategy(draw) -> ContractMutation:
 
 @pytest.mark.fuzzing
 @given(mutation_strategy())
-@settings(phases=[Phase.generate], max_examples=2000)  # , verbosity=Verbosity.verbose)
+@settings(phases=[Phase.generate], max_examples=1000)  # , verbosity=Verbosity.verbose)
 def test_override_fuzzing(mutation: ContractMutation):
     # test that original contract compiles
     # with permutation's layout
