@@ -204,7 +204,9 @@ class MemSSA(IRAnalysis):
         use_idx = bb.instructions.index(use.load_inst)
         for inst in reversed(bb.instructions[:use_idx]):
             if inst in self.inst_to_def:
-                return self.inst_to_def[inst]
+                mem_def = self.inst_to_def[inst]
+                if self.alias.may_alias(use.loc, mem_def.loc):
+                    return mem_def
 
         if bb in self.memory_phis:
             return self.memory_phis[bb]
