@@ -97,8 +97,16 @@ class BytesM_T(_PrimT):
             vy_ast.Invert,
             vy_ast.BitXor,
         )
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if self.m_bits != 256:
+                raise InvalidOperation(
+                    f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
+                )
+
         if isinstance(node.op, allowed_ops):
             return
+
         # fallback to parent class error message
         super().validate_numeric_op(node)
 

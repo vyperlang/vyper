@@ -35,7 +35,6 @@ def _shr(x: {typ}, y: uint256) -> {typ}:
     return code
 
 
-
 BYTESM_TYPES = ["bytes" + str(i + 1) for i in range(32)]
 UINT_TYPES = ["uint" + str(i + 8) for i in range(0, 256, 8)]
 ALL_TYPES = BYTESM_TYPES + UINT_TYPES
@@ -61,7 +60,7 @@ def do_shift(x: {typ}, y: uint256) -> {typ}:
         compile_code(code)
 
 
-def test_test_bitwise(get_contract ):
+def test_test_bitwise(get_contract):
     code = get_code_for_type("uint256")
     c = get_contract(code)
     x = 126416208461208640982146408124
