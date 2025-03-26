@@ -862,7 +862,7 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# test that raw_create bubbles up revert data
+# test that create_from_blueprint bubbles up revert data
 def test_bubble_revert_data_blueprint(get_contract, tx_failed, deploy_blueprint_for):
     ctor_code = """
 @deploy
