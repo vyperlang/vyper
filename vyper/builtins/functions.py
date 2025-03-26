@@ -1560,8 +1560,9 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
     if not revert_on_failure:
         return ret
 
-    ret = check_create_operation(ret)
-    return ret
+    with ret.cache_when_complex("addr") as (b1, addr):
+        ret = IRnode.from_list(["seq", check_create_operation(addr), addr])
+        return b1.resolve(ret)
 
 
 # calculate the gas used by create for a given number of bytes
