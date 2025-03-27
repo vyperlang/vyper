@@ -541,3 +541,54 @@ def test_call_overwrites_previous_stores():
             return %result, 32
     """
     _check_pre_post(pre, post)
+
+def test_call_raw_example():
+    pre = """
+    _global:
+        %6 = callvalue
+        %7 = iszero %6
+        assert %7
+        mstore 192, 32
+        %10 = gas
+        mstore 64, 5
+        %13 = add 32, 64
+        mstore 96, 49498989724641338926704336984410030774040424576546389252305716333002172137472  ; def: 3
+        %15 = add 32, 64
+        %18 = add 32, 128
+        %19 = call %10, 4, 0, 96, 5, 160, 7
+        jnz %19, @exit, @rev
+    rev:
+        %a = mload 64
+        jnz %a, @gg, @exit
+    gg:
+        stop
+    exit:
+        calldatacopy 192, 0, 32
+        return 192, 32
+    """
+    post = """
+    _global:
+        %6 = callvalue
+        %7 = iszero %6
+        assert %7
+        mstore 192, 32
+        %10 = gas
+        mstore 64, 5
+        %13 = add 32, 64
+        mstore 96, 49498989724641338926704336984410030774040424576546389252305716333002172137472  ; def: 3
+        %15 = add 32, 64
+        %18 = add 32, 128
+        %19 = call %10, 4, 0, 96, 5, 160, 7
+        jnz %19, @exit, @rev
+    rev:
+        %a = mload 64
+        jnz %a, @gg, @exit
+    gg:
+        stop
+    exit:
+        calldatacopy 192, 0, 32
+        return 192, 32  
+    """
+    _check_pre_post(pre, post)
+    
+
