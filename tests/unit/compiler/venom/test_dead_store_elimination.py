@@ -547,7 +547,7 @@ def test_call_raw_example():
         _global:
             %6 = callvalue
             mstore 192, 32  ; Should not be eliminated as calldatacopy is ambiguous
-            mstore 64, 5    ; Should not be eliminated as calldatacopy is ambiguous
+            mstore 64, 5
             calldatacopy %6, 0, 32
             return 192, 32
     """
@@ -555,7 +555,7 @@ def test_call_raw_example():
         _global:
             %6 = callvalue
             mstore 192, 32
-            mstore 64, 5
+            nop
             calldatacopy %6, 0, 32
             return 192, 32
     """

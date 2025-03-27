@@ -82,6 +82,7 @@ class DeadStoreElimination(IRPass):
                             mem_def not in live_defs
                             and clobbered_by
                             and not clobbered_by.is_live_on_entry
+                            and not clobbered_by.is_volatile
                         ):
                             self.dead_stores.add(inst)
             for inst in bb.instructions:
