@@ -304,7 +304,7 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions[def_idx + 1 :]:
             clobber = None
             next_def = self.inst_to_def.get(inst)
-            if next_def and self._completely_overlaps(def_loc, next_def.loc):
+            if next_def and self._completely_overlaps(next_def.loc, def_loc):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use:
@@ -376,7 +376,7 @@ class MemSSA(IRAnalysis):
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
-                    s += f"\t; def: {def_.id_str} ({def_.reaching_def.id_str if def_.reaching_def else None})"
+                    s += f"\t; def: {def_.id_str} ({def_.reaching_def.id_str if def_.reaching_def else None}) {self.get_clobbering_memory_access(def_)}"
 
         return s
 
