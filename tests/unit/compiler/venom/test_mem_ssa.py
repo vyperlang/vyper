@@ -165,6 +165,55 @@ def test_clobbering_with_multiple_stores():
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
+def test_partially_overlapping_clobber():
+    pre = """
+    function _global {
+        _global:
+            %1 = param
+            mstore 256, 4     ; def: 3 (live_on_entry)
+            mstore 288, 100749677429156240649936398414135991271135082273729118418739261464291009626112
+            mstore 352, 100749677429156240649936398414135991271135082273729118418739261464291009626112
+            mstore 356, %1
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instructions
+    bb = fn.get_basic_block("_global")
+    store1 = bb.instructions[1]
+    store2 = bb.instructions[2]
+    store3 = bb.instructions[3]
+    store4 = bb.instructions[4]
+
+    # Check definitions
+    def1 = mem_ssa.get_memory_def(store1)
+    def2 = mem_ssa.get_memory_def(store2)
+    def3 = mem_ssa.get_memory_def(store3)
+    def4 = mem_ssa.get_memory_def(store4)
+    
+    assert def1 is not None, "Should have a memory definition for store1"
+    assert def2 is not None, "Should have a memory definition for store2"
+    assert def3 is not None, "Should have a memory definition for store3"
+    assert def4 is not None, "Should have a memory definition for store4"
+    
+    # Test clobbering - store4 (mstore 356) should not clobber store3 (mstore 352)
+    clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
+    assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
+       
+    # Verify partial overlap detection
+    assert mem_ssa.alias.may_alias(def3.loc, def4.loc), "Partially overlapping locations should alias"
+    
+    # But despite aliasing, they should not clobber each other completely
+    assert mem_ssa.get_clobbering_memory_access(def3) is None
+    assert mem_ssa.get_clobbering_memory_access(def4) is None
+    
+    
 
 def test_ambiguous_clobber():
     pre = """
