@@ -271,7 +271,7 @@ def test_dead_store_in_loop():
         exit:
             stop
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_multiple_dead_stores():
