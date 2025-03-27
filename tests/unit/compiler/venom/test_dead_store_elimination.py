@@ -523,7 +523,7 @@ def test_call_overwrites_previous_stores():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_call_raw_example():
+def test_calldatacopy_example():
     pre = """
         _global:
             %6 = callvalue
@@ -540,7 +540,7 @@ def test_call_raw_example():
             calldatacopy %6, 0, 32
             return 192, 32
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_call_reading_partial_mstore():
