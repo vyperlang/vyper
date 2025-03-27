@@ -25,8 +25,6 @@ The compilation process includes the following broad phases:
 
 1. In [`vyper.ast`](../ast), the source code is parsed and converted to an
 abstract syntax tree.
-1. The [`GlobalContext`](../codegen/global_context.py) object is generated from the
-Vyper AST, analyzing and organizing the nodes prior to IR generation.
 1. In [`vyper.codegen.module`](../codegen/module.py), the contextualized nodes are
 converted into IR nodes.
 1. In [`vyper.compile_ir`](../ir/compile_ir.py), the IR nodes are converted to
@@ -63,7 +61,7 @@ We use the following naming conventions throughout this module, to aid readabili
 * `source_code` refers to the original source code as string
 * `vyper_module` refers to the top-level `Module` Vyper AST node, created from the
 source code
-* `global_ctx` refers to the `GlobalContext` object
+* `global_ctx` refers to the `ModuleT` object
 * `ir_nodes` refers to the top-level `IRnode`, created from the AST
 * `assembly` refers to a `list` of assembly instructions generated from the IR
 * `bytecode` refers to the final, generated `bytecode` as a `bytes` string.
