@@ -165,14 +165,15 @@ def test_clobbering_with_multiple_stores():
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
+
 def test_partially_overlapping_clobber():
     pre = """
     function _global {
         _global:
             %1 = param
             mstore 256, 4     ; def: 3 (live_on_entry)
-            mstore 288, 100749677429156240649936398414135991271135082273729118418739261464291009626112
-            mstore 352, 100749677429156240649936398414135991271135082273729118418739261464291009626112
+            mstore 288, 1007
+            mstore 352, 1007
             mstore 356, %1
             stop
     }
@@ -196,24 +197,25 @@ def test_partially_overlapping_clobber():
     def2 = mem_ssa.get_memory_def(store2)
     def3 = mem_ssa.get_memory_def(store3)
     def4 = mem_ssa.get_memory_def(store4)
-    
+
     assert def1 is not None, "Should have a memory definition for store1"
     assert def2 is not None, "Should have a memory definition for store2"
     assert def3 is not None, "Should have a memory definition for store3"
     assert def4 is not None, "Should have a memory definition for store4"
-    
+
     # Test clobbering - store4 (mstore 356) should not clobber store3 (mstore 352)
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
-       
+
     # Verify partial overlap detection
-    assert mem_ssa.alias.may_alias(def3.loc, def4.loc), "Partially overlapping locations should alias"
-    
+    assert mem_ssa.alias.may_alias(
+        def3.loc, def4.loc
+    ), "Partially overlapping locations should alias"
+
     # But despite aliasing, they should not clobber each other completely
     assert mem_ssa.get_clobbering_memory_access(def3) is None
     assert mem_ssa.get_clobbering_memory_access(def4) is None
-    
-    
+
 
 def test_ambiguous_clobber():
     pre = """
@@ -243,20 +245,27 @@ def test_ambiguous_clobber():
     def1 = mem_ssa.get_memory_def(store1)
     def2 = mem_ssa.get_memory_def(store2)
     calldatacopy_def = mem_ssa.get_memory_def(calldatacopy)
-    
+
     assert def1 is not None, "Should have a memory definition for store1"
     assert def2 is not None, "Should have a memory definition for store2"
     assert calldatacopy_def is not None, "Should have a memory definition for calldatacopy"
-    
+
     # Test clobbering - calldatacopy should clobber both stores
     clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
-    assert clobberer1 == calldatacopy_def, f"Expected calldatacopy to clobber store1, got {clobberer1}"
-    
+    assert (
+        clobberer1 == calldatacopy_def
+    ), f"Expected calldatacopy to clobber store1, got {clobberer1}"
+
     clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
-    assert clobberer2 == calldatacopy_def, f"Expected calldatacopy to clobber store2, got {clobberer2}"
-    
+    assert (
+        clobberer2 == calldatacopy_def
+    ), f"Expected calldatacopy to clobber store2, got {clobberer2}"
+
     # Verify calldatacopy returns FULL_MEMORY_ACCESS
-    assert calldatacopy_def.loc == FULL_MEMORY_ACCESS, f"Expected FULL_MEMORY_ACCESS for calldatacopy, got {calldatacopy_def.loc}"
+    assert (
+        calldatacopy_def.loc == FULL_MEMORY_ACCESS
+    ), f"Expected FULL_MEMORY_ACCESS for calldatacopy, got {calldatacopy_def.loc}"
+
 
 def test_complex_loop_clobber():
     pre = """
@@ -477,7 +486,7 @@ def test_basic_def_use_assignment():
     bb = fn.get_basic_block("_global")
     store1 = bb.instructions[1]  # mstore 0, 1
     store2 = bb.instructions[2]  # mstore 32, 2
-    load = bb.instructions[3]    # %2 = mload 0
+    load = bb.instructions[3]  # %2 = mload 0
 
     # Check definitions
     def1 = mem_ssa.get_memory_def(store1)

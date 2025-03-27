@@ -7,7 +7,7 @@ from tests.evm_backends.base_env import EvmError
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def _map_nested(f, xs):

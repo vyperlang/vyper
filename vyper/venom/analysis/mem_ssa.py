@@ -3,7 +3,13 @@ from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.basicblock import (
+    EMPTY_MEMORY_ACCESS,
+    FULL_MEMORY_ACCESS,
+    IRBasicBlock,
+    IRInstruction,
+    ir_printer,
+)
 from vyper.venom.effects import Effects
 
 
@@ -349,7 +355,10 @@ class MemSSA(IRAnalysis):
 
         return None
 
-    def _completely_overlaps(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+    def _completely_overlaps(
+        self, loc1: Optional[MemoryLocation], loc2: Optional[MemoryLocation]
+    ) -> bool:
+        assert loc1 is not None and loc2 is not None
         if loc1 == FULL_MEMORY_ACCESS:
             return True
         if loc2 == FULL_MEMORY_ACCESS:
@@ -376,7 +385,9 @@ class MemSSA(IRAnalysis):
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
                 if def_.store_inst == inst:
-                    s += f"\t; def: {def_.id_str} ({def_.reaching_def.id_str if def_.reaching_def else None}) {self.get_clobbering_memory_access(def_)}"
+                    s += f"\t; def: {def_.id_str} "
+                    s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
+                    s += f"{self.get_clobbering_memory_access(def_)}"
 
         return s
 

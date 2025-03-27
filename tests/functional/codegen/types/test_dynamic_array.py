@@ -13,7 +13,6 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     OverflowException,
-    StackTooDeep,
     StateAccessViolation,
     StaticAssertionException,
     TypeMismatch,

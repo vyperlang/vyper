@@ -1,13 +1,15 @@
 from typing import Optional
 
-from vyper.venom.effects import Effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 OTHER_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
+
+
 class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
@@ -60,15 +62,16 @@ class DeadStoreElimination(IRPass):
             for inst in reversed(bb.instructions):
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 mem_use = self.mem_ssa.get_memory_use(inst)
-                
+
                 write_effects = inst.get_write_effects()
                 read_effects = inst.get_read_effects()
-                
+
                 has_other_effects = write_effects & OTHER_EFFECTS or read_effects & OTHER_EFFECTS
-                
+
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
-                        # Only add the reaching definition to live_defs if it aliases with the use location
+                        # Only add the reaching definition to live_defs
+                        # if it aliases with the use location
                         if self.mem_ssa.alias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
                             live_defs.add(mem_use.reaching_def)
 
