@@ -353,7 +353,7 @@ class IRInstruction:
             return FULL_MEMORY_ACCESS
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
-        elif opcode == "call":
+        elif opcode in ("call", "delegatecall", "staticcall"):
             if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
                 return MemoryLocation(
                     offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
@@ -386,7 +386,7 @@ class IRInstruction:
             return EMPTY_MEMORY_ACCESS
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
-        elif opcode == "call":
+        elif opcode in ("call", "delegatecall", "staticcall"):
             if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[3], IRLiteral):
                 return MemoryLocation(
                     offset=self.operands[3].value, size=self.operands[2].value, is_volatile=False
