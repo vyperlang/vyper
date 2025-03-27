@@ -346,6 +346,8 @@ class IRInstruction:
                 return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
         elif opcode == "dloadbytes":
             return FULL_MEMORY_ACCESS

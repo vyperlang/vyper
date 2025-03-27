@@ -3,7 +3,7 @@ from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 
 
@@ -275,7 +275,7 @@ class MemSSA(IRAnalysis):
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
-            if isinstance(current, MemoryDef) and self.alias.may_alias(query_loc, current.loc):
+            if isinstance(current, MemoryDef) and self._completely_overlaps(query_loc, current.loc):
                 return current
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
@@ -303,11 +303,11 @@ class MemSSA(IRAnalysis):
         # Check remaining instructions in the same block
         for inst in block.instructions[def_idx + 1 :]:
             next_def = self.inst_to_def.get(inst)
-            if next_def and self.alias.may_alias(def_loc, next_def.loc):
+            if next_def and self._completely_overlaps(def_loc, next_def.loc):
                 return next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use:
-                if self.alias.may_alias(def_loc, mem_use.loc):
+                if self._completely_overlaps(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
 
         # Traverse successors
@@ -327,24 +327,39 @@ class MemSSA(IRAnalysis):
                         # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
-                            if next_def and self.alias.may_alias(def_loc, next_def.loc):
+                            if next_def and self._completely_overlaps(def_loc, next_def.loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and self.alias.may_alias(def_loc, mem_use.loc):
+                            if mem_use and self._completely_overlaps(def_loc, mem_use.loc):
                                 return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
-                if next_def and self.alias.may_alias(def_loc, next_def.loc):
+                if next_def and self._completely_overlaps(def_loc, next_def.loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and self.alias.may_alias(def_loc, mem_use.loc):
+                if mem_use and self._completely_overlaps(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
 
             worklist.extend(succ.cfg_out)
 
         return None
+
+    def _completely_overlaps(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+        if loc1 == FULL_MEMORY_ACCESS:
+            return True
+        if loc2 == FULL_MEMORY_ACCESS:
+            return loc1 != EMPTY_MEMORY_ACCESS
+        if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
+            return False
+        if loc1.size <= 0 or loc2.size <= 0:
+            return False
+
+        start1, end1 = loc1.offset, loc1.offset + loc1.size
+        start2, end2 = loc2.offset, loc2.offset + loc2.size
+
+        return start1 <= start2 and end1 >= end2
 
     #
     # Printing context methods
