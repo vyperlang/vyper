@@ -400,9 +400,9 @@ def test_basic_def_use_assignment():
     # Check use
     use = mem_ssa.get_memory_use(load)
     assert use is not None
-    assert use.reaching_def == def1
+    assert use.reaching_def == def2
     assert use.loc.offset == 0
 
     # Verify the def chain
     assert def1.reaching_def == mem_ssa.live_on_entry
-    assert def2.reaching_def == mem_ssa.live_on_entry  # Different memory location
+    assert def2.reaching_def == def1

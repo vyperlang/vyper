@@ -220,11 +220,12 @@ class MemSSA(IRAnalysis):
         def_idx = bb.instructions.index(def_inst.store_inst)
         def_loc = def_inst.loc
 
+        # First check for any previous memory def in the same basic block
         for inst in reversed(bb.instructions[:def_idx]):
             if inst in self.inst_to_def:
                 prev_def = self.inst_to_def[inst]
-                if self.alias.may_alias(def_loc, prev_def.loc):
-                    return prev_def
+                # Get most recent memory def, regardless of aliasing
+                return prev_def
 
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
