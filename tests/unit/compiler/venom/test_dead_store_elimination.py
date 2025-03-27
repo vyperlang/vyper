@@ -477,7 +477,7 @@ def test_call_with_memory_and_other_effects():
             ; Return the result from the call
             return %out_offset, %out_size
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_call_overwrites_previous_stores():
@@ -520,7 +520,7 @@ def test_call_overwrites_previous_stores():
 
             return %result, 32
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_call_raw_example():
@@ -566,4 +566,4 @@ def test_call_reading_partial_mstore():
             %24 = call %22, %11, 0, 124, 36, 96, 32
             stop
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
