@@ -363,6 +363,10 @@ class IRInstruction:
             if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
                 return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
+        elif opcode == "returndatacopy":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
         return EMPTY_MEMORY_ACCESS
 
     def get_read_memory_location(self) -> MemoryLocation:

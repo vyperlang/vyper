@@ -546,3 +546,11 @@ def test_call_raw_example():
     _check_pre_post(pre, post)
     
 
+def test_delegatecall_with_zero_ret_size():
+    pre = """
+        _global:
+            %6 = callvalue
+            mstore 192, 32
+            delegatecall 0, 0, 0, 0, 0
+    """
+
