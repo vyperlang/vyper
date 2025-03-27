@@ -166,6 +166,49 @@ def test_clobbering_with_multiple_stores():
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
 
+def test_ambiguous_clobber():
+    pre = """
+    function _global {
+    _global:
+        %6 = callvalue
+        mstore 192, 32
+        mstore 64, 5
+        calldatacopy %6, 0, 32
+        return 192, 32
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instructions
+    bb = fn.get_basic_block("_global")
+    store1 = bb.instructions[1]  # mstore 192, 32
+    store2 = bb.instructions[2]  # mstore 64, 5
+    calldatacopy = bb.instructions[3]  # calldatacopy %6, 0, 32
+
+    # Check definitions
+    def1 = mem_ssa.get_memory_def(store1)
+    def2 = mem_ssa.get_memory_def(store2)
+    calldatacopy_def = mem_ssa.get_memory_def(calldatacopy)
+    
+    assert def1 is not None, "Should have a memory definition for store1"
+    assert def2 is not None, "Should have a memory definition for store2"
+    assert calldatacopy_def is not None, "Should have a memory definition for calldatacopy"
+    
+    # Test clobbering - calldatacopy should clobber both stores
+    clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
+    assert clobberer1 == calldatacopy_def, f"Expected calldatacopy to clobber store1, got {clobberer1}"
+    
+    clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
+    assert clobberer2 == calldatacopy_def, f"Expected calldatacopy to clobber store2, got {clobberer2}"
+    
+    # Verify calldatacopy returns FULL_MEMORY_ACCESS
+    assert calldatacopy_def.loc == FULL_MEMORY_ACCESS, f"Expected FULL_MEMORY_ACCESS for calldatacopy, got {calldatacopy_def.loc}"
+
 def test_complex_loop_clobber():
     pre = """
     function _global {
