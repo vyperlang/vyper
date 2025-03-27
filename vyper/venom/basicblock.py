@@ -404,6 +404,15 @@ class IRInstruction:
                     offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
                 )
             return FULL_MEMORY_ACCESS
+        elif opcode == "create":
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "create2":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[1].value)
+            return FULL_MEMORY_ACCESS
+
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
