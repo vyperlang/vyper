@@ -490,11 +490,9 @@ def test_call_overwrites_previous_stores():
             ; Prepare call arguments in memory
             %gas = 1000
             %addr = 0x1234567890123456789012345678901234567890
-            %in_offset = 32
-            %in_size = 32
-            
+
             ; Call has both memory read (32) and write (64) effects
-            %success = call %gas, %addr, 0, %in_offset, %in_size, 64, 32 ; Output will overwrite earlier store
+            %success = call %gas, %addr, 0, 32, 32, 64, 32 ; Output will overwrite earlier store
             
             ; Read the call result from memory (at the location where val1 was stored but got overwritten)
             %result = mload 64
@@ -513,11 +511,9 @@ def test_call_overwrites_previous_stores():
             ; Prepare call arguments in memory
             %gas = 1000
             %addr = 0x1234567890123456789012345678901234567890
-            %in_offset = 32
-            %in_size = 32
-            
+
             ; Call has both memory read (32) and write (64) effects
-            %success = call %gas, %addr, 0, %in_offset, %in_size, 64, 32
+            %success = call %gas, %addr, 0, 32, 32, 64, 32
             
             ; Read the call result from memory (at the location where val1 was stored but got overwritten)
             %result = mload 64
@@ -546,11 +542,27 @@ def test_call_raw_example():
     _check_pre_post(pre, post)
     
 
-def test_delegatecall_with_zero_ret_size():
+def test_call_reading_partial_mstore():
     pre = """
         _global:
-            %6 = callvalue
-            mstore 192, 32
-            delegatecall 0, 0, 0, 0, 0
+            %11 = calldataload 4
+            mstore 96, 801029432
+            %20 = add 32, 96
+            mstore 128, 601
+            %22 = gas
+            %23 = add 28, 96
+            %24 = call %22, %11, 0, 124, 36, 96, 32
+            stop
     """
-
+    post = """
+        _global:
+            %11 = calldataload 4
+            mstore 96, 801029432
+            %20 = add 32, 96
+            mstore 128, 601
+            %22 = gas
+            %23 = add 28, 96
+            %24 = call %22, %11, 0, 124, 36, 96, 32
+            stop
+    """
+    _check_pre_post(pre, post)

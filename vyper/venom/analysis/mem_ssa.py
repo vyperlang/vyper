@@ -302,13 +302,16 @@ class MemSSA(IRAnalysis):
 
         # Check remaining instructions in the same block
         for inst in block.instructions[def_idx + 1 :]:
+            clobber = None
             next_def = self.inst_to_def.get(inst)
             if next_def and self._completely_overlaps(def_loc, next_def.loc):
-                return next_def
+                clobber = next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use:
-                if self._completely_overlaps(def_loc, mem_use.loc):
+                if self.alias.may_alias(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
+            if clobber:
+                return clobber
 
         # Traverse successors
         worklist = list(block.cfg_out)
