@@ -491,13 +491,9 @@ def test_call_overwrites_previous_stores():
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
 
-            ; Prepare call arguments in memory
-            %gas = 1000
-            %addr = 0x1234567890123456789012345678901234567890
-
             ; Call has both memory read (32) and write (64) effects
             ; Output will overwrite earlier store
-            %success = call %gas, %addr, 0, 32, 32, 64, 32
+            %success = call 1000, 0x12, 0, 32, 32, 64, 32
 
             ; Read the call result from memory (at the
             ; location where val1 was stored but got overwritten)
@@ -515,12 +511,8 @@ def test_call_overwrites_previous_stores():
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
 
-            ; Prepare call arguments in memory
-            %gas = 1000
-            %addr = 0x1234567890123456789012345678901234567890
-
             ; Call has both memory read (32) and write (64) effects
-            %success = call %gas, %addr, 0, 32, 32, 64, 32
+            %success = call 1000, 0x12, 0, 32, 32, 64, 32
 
             ; Read the call result from memory (at the location
             ; where val1 was stored but got overwritten)
