@@ -416,6 +416,14 @@ class IRInstruction:
             if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
                 return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
             return FULL_MEMORY_ACCESS
+        elif opcode.startswith("log"):
+            if isinstance(self.operands[-1], IRLiteral) and isinstance(self.operands[-2], IRLiteral):
+                return MemoryLocation(offset=self.operands[-1].value, size=self.operands[-2].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "revert":
+            if isinstance(self.operands[0], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
