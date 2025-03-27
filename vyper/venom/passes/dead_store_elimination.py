@@ -68,7 +68,9 @@ class DeadStoreElimination(IRPass):
                 
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
-                        live_defs.add(mem_use.reaching_def)
+                        # Only add the reaching definition to live_defs if it aliases with the use location
+                        if self.mem_ssa.alias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
+                            live_defs.add(mem_use.reaching_def)
 
                 if mem_def and not mem_def.loc.is_volatile:
                     if has_other_effects:
