@@ -127,7 +127,7 @@ class DominatorTreeAnalysis(IRAnalysis):
             while dfs_order[bb1] > dfs_order[bb2]:
                 bb2 = self.immediate_dominators[bb2]
         return bb1
-    
+
     def dom_post_order(self) -> list[IRBasicBlock]:
         """
         Compute post-order traversal of the dominator tree.
