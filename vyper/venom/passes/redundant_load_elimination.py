@@ -1,7 +1,7 @@
-from typing import Dict
+from typing import Dict, Union
 
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryUse
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryPhi, MemoryUse
 from vyper.venom.basicblock import IRInstruction, IROperand
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -55,6 +55,7 @@ class RedundantLoadElimination(IRPass):
                 }
 
             if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
+                # Check for redundant loads
                 for prev_use, prev_var in available_loads.items():
                     if (
                         prev_use.loc.completely_overlaps(mem_use.loc)
@@ -91,34 +92,47 @@ class RedundantLoadElimination(IRPass):
 
     def _eliminate_redundant_loads(self):
         for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions[:]:  # Copy list to modify during iteration
+            for inst in bb.instructions.copy():
                 if inst in self.replacements:
                     new_var = self.replacements[inst]
                     del self.mem_ssa.inst_to_use[inst]
                     self.updater.update(inst, "store", [new_var], "[redundant load elimination]")
 
-    def _is_load_available(self, use: MemoryUse, reaching_def: MemoryDef) -> bool:
+    def _is_load_available(self, use: MemoryUse, reaching_def: Union[MemoryDef, MemoryPhi]) -> bool:
         if reaching_def.is_live_on_entry:
             return False
 
         def_loc = reaching_def.loc
-        def_block = reaching_def.store_inst.parent
         use_block = use.load_inst.parent
 
-        if def_block == use_block:
-            def_idx = def_block.instructions.index(reaching_def.store_inst)
-            use_idx = use_block.instructions.index(use.load_inst)
-            for inst in def_block.instructions[def_idx + 1 : use_idx]:
-                mem_def = self.mem_ssa.get_memory_def(inst)
-                if mem_def and self.mem_ssa.alias.may_alias(def_loc, mem_def.loc):
-                    return False
-        else:
-            current = use.reaching_def
-            while current and current != reaching_def and not current.is_live_on_entry:
-                if isinstance(current, MemoryDef) and self.mem_ssa.alias.may_alias(
-                    def_loc, current.loc
-                ):
-                    return False
-                current = current.reaching_def
+        if isinstance(reaching_def, MemoryDef):
+            def_block = reaching_def.store_inst.parent
+            if def_block == use_block:
+                def_idx = def_block.instructions.index(reaching_def.store_inst)
+                use_idx = use_block.instructions.index(use.load_inst)
+                for inst in def_block.instructions[def_idx + 1 : use_idx]:
+                    mem_def = self.mem_ssa.get_memory_def(inst)
+                    if mem_def and self.mem_ssa.alias.may_alias(def_loc, mem_def.loc):
+                        return False
+            else:
+                # Check inter-block path
+                current = use.reaching_def
+                while current and current != reaching_def and not current.is_live_on_entry:
+                    if isinstance(current, MemoryDef) and self.mem_ssa.alias.may_alias(
+                        def_loc, current.loc
+                    ):
+                        return False
+                    current = current.reaching_def
+        elif isinstance(reaching_def, MemoryPhi):
+            phi_block = reaching_def.block
+            if phi_block == use_block:
+                use_idx = use_block.instructions.index(use.load_inst)
+                for inst in use_block.instructions[:use_idx]:
+                    mem_def = self.mem_ssa.get_memory_def(inst)
+                    if mem_def and self.mem_ssa.alias.may_alias(def_loc, mem_def.loc):
+                        return False
+            else:
+                # TODO: Inter-block phi case
+                return False
 
         return True
