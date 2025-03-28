@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch, UnimplementedException
 from vyper.utils import unsigned_to_signed
 
 
@@ -57,6 +57,17 @@ def do_shift(x: {typ}, y: uint256) -> {typ}:
     return x {shift_op} y
     """
     with pytest.raises(InvalidOperation):
+        compile_code(code)
+
+
+@pytest.mark.parametrize("typ", [typ for typ in ALL_TYPES if typ not in ["uint256", "bytes32"]])
+def test_unimplemented_unary_not(typ):
+    code = f"""
+@external
+def do_not(x: {typ}) -> {typ}:
+    return ~x
+    """
+    with pytest.raises(UnimplementedException):
         compile_code(code)
 
 

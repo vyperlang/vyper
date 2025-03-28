@@ -109,3 +109,34 @@ def foo(a: uint256) -> uint256:
     new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value
+
+
+BYTESM_TYPES = ["bytes" + str(i + 1) for i in range(32)]
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+# leaving room for future update of unary ~ and easily enabling the tests
+@pytest.mark.parametrize("typ", [typ for typ in BYTESM_TYPES if typ == "bytes32"])
+@given(value=st.binary(min_size=32, max_size=32))
+def test_bitwise_not_bytes(get_contract, value, typ):
+    source = f"""
+@external
+def foo(a: {typ}) -> {typ}:
+    return ~a
+    """
+    contract = get_contract(source)
+
+    len = int(typ.removeprefix("bytes"))
+
+    trimmed_val = value[:len]
+    hexval = "0x" + trimmed_val.hex()
+
+    vyper_ast = parse_and_fold(f"~{hexval}")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    foo_res = contract.foo(value)
+    folded_res = new_node.value.to_bytes(len, "big")
+
+    assert foo_res == folded_res
