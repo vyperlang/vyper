@@ -507,3 +507,114 @@ def test_basic_def_use_assignment():
     # Verify the def chain
     assert def1.reaching_def == mem_ssa.live_on_entry
     assert def2.reaching_def == def1
+
+
+def test_read_write_memory_clobbering():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42        # Store value at 0
+            mstore 32, 100         # Store value at 32
+            %ret = call 0, 0x1234, 0, 0, 32, 32, 32
+            %loaded = mload 0       # Load from 0
+            %loaded2 = mload 32     # Load from 32
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instructions
+    bb = fn.get_basic_block("entry")
+    store1 = bb.instructions[0]  # mstore 0, %value
+    store2 = bb.instructions[1]  # mstore 32, 100
+    call_inst = bb.instructions[2]  # call instruction
+    load1 = bb.instructions[3]  # mload 0
+    load2 = bb.instructions[4]  # mload 32
+
+    # Check definitions
+    def1 = mem_ssa.get_memory_def(store1)
+    def2 = mem_ssa.get_memory_def(store2)
+    call_def = mem_ssa.get_memory_def(call_inst)
+    call_use = mem_ssa.get_memory_use(call_inst)
+    assert def1 is not None
+    assert def2 is not None
+    assert call_def is not None
+    assert call_use is not None
+
+    # Verify call instruction has both read and write memory areas
+    assert call_def.loc.offset == 32  # Write area
+    assert call_def.loc.size == 32  # Write size
+    assert call_use.loc.offset == 0  # Read area
+    assert call_use.loc.size == 32  # Read size
+
+    use1 = mem_ssa.get_memory_use(load1)
+    use2 = mem_ssa.get_memory_use(load2)
+    assert use1.reaching_def == call_def
+    assert use2.reaching_def == call_def
+
+    clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
+    clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
+    assert clobberer1 is None
+    assert clobberer2 == call_def
+
+
+def test_read_write_memory_clobbering_partial():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42        # Store value at 0
+            mstore 32, 100         # Store value at 32
+            %ret = call 0, 0x1234, 0, 31, 2, 0, 32
+            %loaded = mload 0       # Load from 0
+            %loaded2 = mload 32     # Load from 32
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instructions
+    bb = fn.get_basic_block("entry")
+    store1 = bb.instructions[0]  # mstore 0, %value
+    store2 = bb.instructions[1]  # mstore 32, 100
+    call_inst = bb.instructions[2]  # call instruction
+    load1 = bb.instructions[3]  # mload 0
+    load2 = bb.instructions[4]  # mload 32
+
+    # Check definitions
+    def1 = mem_ssa.get_memory_def(store1)
+    def2 = mem_ssa.get_memory_def(store2)
+    call_def = mem_ssa.get_memory_def(call_inst)
+    call_use = mem_ssa.get_memory_use(call_inst)
+    assert def1 is not None
+    assert def2 is not None
+    assert call_def is not None
+    assert call_use is not None
+
+    # Verify call instruction has both read and write memory areas
+    # Write area
+    assert call_def.loc.offset == 0
+    assert call_def.loc.size == 32
+    # Read area
+    assert call_use.loc.offset == 31
+    assert call_use.loc.size == 2
+
+    clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
+    assert clobberer1 is None
+
+    clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
+    assert clobberer2 is None
+
+    use1 = mem_ssa.get_memory_use(load1)
+    use2 = mem_ssa.get_memory_use(load2)
+    assert use1.reaching_def == call_def
+    assert use2.reaching_def == call_def
