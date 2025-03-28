@@ -1,4 +1,6 @@
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch, UnimplementedException
@@ -69,6 +71,80 @@ def do_not(x: {typ}) -> {typ}:
     """
     with pytest.raises(UnimplementedException):
         compile_code(code)
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+@given(value=st.binary(min_size=32, max_size=32))
+def test_not_operator_bytes(get_contract, value):
+    source = """
+@external
+def foo(a: bytes32) -> bytes32:
+    return ~a
+     """
+    contract = get_contract(source)
+
+    foo_res = contract.foo(value)
+
+    expected = bytes(~b & 0xFF for b in value)
+
+    assert foo_res == expected
+
+
+@st.composite
+def get_bytes(draw, len):
+    return draw(
+        st.tuples(st.binary(min_size=len, max_size=len), st.binary(min_size=len, max_size=len))
+    )
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+@pytest.mark.parametrize("typ", BYTESM_TYPES)
+@pytest.mark.parametrize("op", ["&", "|", "^"])
+def test_bitwise_binary_bytes(get_contract, typ, op):
+    source = f"""
+@external
+def do_op(a: {typ}, b: {typ}) -> {typ}:
+    return a {op} b
+     """
+    contract = get_contract(source)
+    bytes_len = int(typ.removeprefix("bytes"))
+
+    @given(values=get_bytes(bytes_len))
+    @settings(max_examples=50)
+    def _fuzz(values):
+        val1, val2 = values
+        foo_res = contract.foo(val1)
+        if op == "&":
+            expected = bytes(x & y for x, y in zip(val1, val2))
+        elif op == "|":
+            expected = bytes(x ^ y for x, y in zip(val1, val2))
+        else:
+            assert op == "^"
+            expected = bytes(x | y for x, y in zip(val1, val2))
+
+        assert foo_res == expected
+
+    _fuzz()
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+@given(value=st.binary(min_size=32, max_size=32))
+def test_not_operator_bytes(get_contract, value):
+    source = f"""
+@external
+def foo(a: bytes32) -> bytes32:
+    return ~a
+     """
+    contract = get_contract(source)
+
+    foo_res = contract.foo(value)
+
+    expected = bytes(~b & 0xFF for b in value)
+
+    assert foo_res == expected
 
 
 def test_test_bitwise(get_contract):
