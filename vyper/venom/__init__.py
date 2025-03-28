@@ -79,10 +79,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     DeadStoreElimination(ac, fn).run_pass()
     RedundantLoadElimination(ac, fn).run_pass()
 
-    # memssa = ac.request_analysis(MemSSA)
-    # with memssa.print_context():
-    #     print("------------------------")
-    #     print(fn)
+    memssa = ac.request_analysis(MemSSA)
+    with memssa.print_context():
+        print("------------------------")
+        print(fn)
 
     LowerDloadPass(ac, fn).run_pass()
     # NOTE: MakeSSA is after algebraic optimization it currently produces
