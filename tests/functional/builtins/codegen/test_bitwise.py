@@ -99,7 +99,6 @@ def get_bytes(draw, len):
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50)
 @pytest.mark.parametrize("typ", BYTESM_TYPES)
 @pytest.mark.parametrize("op", ["&", "|", "^"])
 def test_bitwise_binary_bytes(get_contract, typ, op):
@@ -115,36 +114,51 @@ def do_op(a: {typ}, b: {typ}) -> {typ}:
     @settings(max_examples=50)
     def _fuzz(values):
         val1, val2 = values
-        foo_res = contract.foo(val1)
+        res = contract.do_op(val1, val2)
         if op == "&":
             expected = bytes(x & y for x, y in zip(val1, val2))
         elif op == "|":
-            expected = bytes(x ^ y for x, y in zip(val1, val2))
+            expected = bytes(x | y for x, y in zip(val1, val2))
         else:
             assert op == "^"
-            expected = bytes(x | y for x, y in zip(val1, val2))
+            expected = bytes(x ^ y for x, y in zip(val1, val2))
 
-        assert foo_res == expected
+        assert res == expected
 
     _fuzz()
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50)
-@given(value=st.binary(min_size=32, max_size=32))
-def test_not_operator_bytes(get_contract, value):
+@pytest.mark.parametrize("op", ["<<", ">>"])
+def test_bitwise_shift_bytes(get_contract, op):
     source = f"""
 @external
-def foo(a: bytes32) -> bytes32:
-    return ~a
-     """
+def do_op(a: bytes32, b: uint256) -> bytes32:
+   return a {op} b
+        """
     contract = get_contract(source)
 
-    foo_res = contract.foo(value)
+    @given(
+        bytes_value=st.binary(min_size=32, max_size=32),
+        shift_by=st.integers(min_value=0, max_value=257),
+    )
+    @settings(max_examples=10000)
+    def _fuzz(bytes_value, shift_by):
+        res = contract.do_op(bytes_value, shift_by)
+        if op == ">>":
+            expected = int.from_bytes(bytes_value, "big")
+            expected = expected >> shift_by
+            expected = expected.to_bytes(32, "big")
+        else:
+            assert op == "<<"
+            expected = int.from_bytes(bytes_value, "big")
+            mask = (1 << 256) - 1
+            expected = (expected << shift_by) & mask
+            expected = expected.to_bytes(32, "big")
 
-    expected = bytes(~b & 0xFF for b in value)
+        assert res == expected
 
-    assert foo_res == expected
+    _fuzz()
 
 
 def test_test_bitwise(get_contract):
@@ -222,8 +236,15 @@ def _shl(x: uint256) -> uint256:
 
 fail_list = [
     (
-        # cannot shift non-uint256/int256 argument
+        # cannot shift by non-uint bits
         """
+def foo(a: bytes32, b: int256) -> bytes32:
+    return a << b
+    """,
+        TypeMismatch,
+    ),
+    (
+        """,
 @external
 def foo(x: uint8, y: uint8) -> uint8:
     return x << y
