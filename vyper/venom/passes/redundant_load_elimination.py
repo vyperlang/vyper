@@ -1,10 +1,8 @@
-from typing import Optional, Dict
+from typing import Dict
 
-from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryUse
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
-from vyper.venom.effects import Effects
+from vyper.venom.basicblock import IRInstruction, IROperand
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -15,9 +13,7 @@ class RedundantLoadElimination(IRPass):
 
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
-        self.replacements: Dict[
-            IRInstruction, IROperand
-        ] = {}
+        self.replacements: Dict[IRInstruction, IROperand] = {}
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
