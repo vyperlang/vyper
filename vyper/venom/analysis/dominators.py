@@ -1,4 +1,5 @@
 from functools import cached_property
+from typing import Iterator
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -127,25 +128,23 @@ class DominatorTreeAnalysis(IRAnalysis):
             while dfs_order[bb1] > dfs_order[bb2]:
                 bb2 = self.immediate_dominators[bb2]
         return bb1
-    
-    def dom_post_order(self) -> list[IRBasicBlock]:
+
+    @property
+    def dom_post_order(self) -> Iterator[IRBasicBlock]:
         """
         Compute post-order traversal of the dominator tree.
         """
         visited = set()
-        ret = []
 
-        def visit(bb: IRBasicBlock):
+        def visit(bb: IRBasicBlock) -> Iterator[IRBasicBlock]:
             if bb in visited:
                 return
             visited.add(bb)
             for dominated_bb in self.dominated.get(bb, OrderedSet()):
-                visit(dominated_bb)
-            ret.append(bb)
+                yield from visit(dominated_bb)
+            yield bb
 
-        visit(self.entry_block)
-
-        return list(ret)
+        return visit(self.entry_block)
 
     @cached_property
     def _dfs_post_walk(self) -> list[IRBasicBlock]:
