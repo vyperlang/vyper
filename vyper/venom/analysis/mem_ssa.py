@@ -3,13 +3,7 @@ from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import (
-    EMPTY_MEMORY_ACCESS,
-    FULL_MEMORY_ACCESS,
-    IRBasicBlock,
-    IRInstruction,
-    ir_printer,
-)
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 
 
@@ -19,7 +13,7 @@ class MemoryAccess:
     def __init__(self, id: int):
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
-        self.loc: Optional[MemoryLocation] = None
+        self.loc: MemoryLocation = EMPTY_MEMORY_ACCESS
 
     @property
     def is_live_on_entry(self) -> bool:
@@ -27,7 +21,7 @@ class MemoryAccess:
 
     @property
     def is_volatile(self) -> bool:
-        return self.loc is not None and self.loc.is_volatile
+        return self.loc.is_volatile
 
     @property
     def id_str(self) -> str:
@@ -260,7 +254,6 @@ class MemSSA(IRAnalysis):
             return None
 
         query_loc = access.loc
-        assert query_loc is not None
         if isinstance(access, MemoryPhi):
             # For a phi, check all incoming paths
             for acc, _ in access.operands:
@@ -281,7 +274,7 @@ class MemSSA(IRAnalysis):
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
-            if isinstance(current, MemoryDef) and self._completely_overlaps(query_loc, current.loc):
+            if isinstance(current, MemoryDef) and query_loc.completely_overlaps(current.loc):
                 return current
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
@@ -310,7 +303,7 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions[def_idx + 1 :]:
             clobber = None
             next_def = self.inst_to_def.get(inst)
-            if next_def and self._completely_overlaps(next_def.loc, def_loc):
+            if next_def and next_def.loc.completely_overlaps(def_loc):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use:
@@ -336,42 +329,24 @@ class MemSSA(IRAnalysis):
                         # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
-                            if next_def and self._completely_overlaps(def_loc, next_def.loc):
+                            if next_def and next_def.loc.completely_overlaps(def_loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and self._completely_overlaps(def_loc, mem_use.loc):
+                            if mem_use and mem_use.loc.completely_overlaps(def_loc):
                                 return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
-                if next_def and self._completely_overlaps(def_loc, next_def.loc):
+                if next_def and next_def.loc.completely_overlaps(def_loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and self._completely_overlaps(def_loc, mem_use.loc):
+                if mem_use and mem_use.loc.completely_overlaps(def_loc):
                     return None  # Found a use that reads from our memory location
 
             worklist.extend(succ.cfg_out)
 
         return None
-
-    def _completely_overlaps(
-        self, loc1: Optional[MemoryLocation], loc2: Optional[MemoryLocation]
-    ) -> bool:
-        assert loc1 is not None and loc2 is not None
-        if loc1 == FULL_MEMORY_ACCESS:
-            return True
-        if loc2 == FULL_MEMORY_ACCESS:
-            return loc1 != EMPTY_MEMORY_ACCESS
-        if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
-            return False
-        if loc1.size <= 0 or loc2.size <= 0:
-            return False
-
-        start1, end1 = loc1.offset, loc1.offset + loc1.size
-        start2, end2 = loc2.offset, loc2.offset + loc2.size
-
-        return start1 <= start2 and end1 >= end2
 
     #
     # Printing context methods
