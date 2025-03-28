@@ -244,7 +244,7 @@ def foo(a: bytes32, b: int256) -> bytes32:
         TypeMismatch,
     ),
     (
-        """,
+        """
 @external
 def foo(x: uint8, y: uint8) -> uint8:
     return x << y
