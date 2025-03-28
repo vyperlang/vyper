@@ -244,6 +244,7 @@ def foo(a: bytes32, b: int256) -> bytes32:
         TypeMismatch,
     ),
     (
+        # cannot shift non-uint256/int256 argument
         """
 @external
 def foo(x: uint8, y: uint8) -> uint8:
