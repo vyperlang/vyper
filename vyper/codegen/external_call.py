@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
+    STORE,
     _freshname,
     add_ofst,
     calculate_type_for_external_return,
@@ -20,7 +21,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import InterfaceT, TupleT
+from vyper.semantics.types import BoolT, InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 
@@ -30,9 +31,10 @@ class _CallKwargs:
     gas: IRnode
     skip_contract_check: bool
     default_return_value: IRnode
+    revert_on_failure: bool
 
 
-def _pack_arguments(fn_type, args, context):
+def _pack_arguments(fn_type, args, call_kwargs, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -44,10 +46,14 @@ def _pack_arguments(fn_type, args, context):
 
     if fn_type.return_type is not None:
         return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+        return_bufsize = return_abi_t.size_bound()
+        # allocate another 32 bytes for the success flag
+        if not call_kwargs.revert_on_failure:
+            return_bufsize += BoolT().memory_bytes_required
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
-        buflen = max(args_abi_t.size_bound(), return_abi_t.size_bound())
+        buflen = max(args_abi_t.size_bound(), return_bufsize)
     else:
         buflen = args_abi_t.size_bound()
 
@@ -94,6 +100,8 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     ret_ofst = buf
     ret_len = max_return_size
+    if not call_kwargs.revert_on_failure:
+        ret_ofst = add_ofst(ret_ofst, BoolT().memory_bytes_required)
 
     encoding = Encoding.ABI
 
@@ -139,6 +147,11 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
             ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
         )
         with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
+            if not call_kwargs.revert_on_failure:
+                # first 32 bytes of the buffer is reserved for the success flag
+                return_buf = add_ofst(return_buf, BoolT().memory_bytes_required)
+                return_buf.typ = wrapped_return_t
+
             unpacker.append(
                 b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
             )
@@ -176,6 +189,7 @@ def _parse_kwargs(call_expr, context):
         gas=unwrap_location(call_kwargs.pop("gas", IRnode("gas"))),
         skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", IRnode(0))),
         default_return_value=call_kwargs.pop("default_return_value", None),
+        revert_on_failure=_bool(call_kwargs.pop("revert_on_failure", IRnode(1))),  # Default to True
     )
 
     if len(call_kwargs) != 0:  # pragma: nocover
@@ -194,6 +208,11 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
+    # Check for revert_on_failure and get return type
+    revert_on_failure = call_kwargs.revert_on_failure
+    return_t = fn_type.return_type
+
+    # Prepare the sequence IR
     ret = ["seq"]
 
     # this is a sanity check to prevent double evaluation of the external call
@@ -201,14 +220,16 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # a duplicate label exception will get thrown during assembly.
     ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
+    # Pack the arguments
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, call_kwargs, context)
+    ret += arg_packer
 
+    # Process the return data unpacker for return types
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
         buf, fn_type, call_kwargs, contract_address, context, call_expr
     )
 
-    ret += arg_packer
-
+    # Check contract existence if no return data expected
     if fn_type.return_type is None and not call_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
@@ -218,25 +239,51 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
         # selfdestructs).
         ret.append(_extcodesize_check(contract_address))
 
+    # Prepare call parameters
     gas = call_kwargs.gas
     value = call_kwargs.value
 
+    # Determine if we need a static call
     use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
     if context.is_constant():
         assert use_staticcall, "typechecker missed this"
 
+    # Create the call operation
     if use_staticcall:
-        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
+        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, ret_ofst, ret_len]
     else:
-        call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
+        call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
 
-    ret.append(check_external_call(call_op))
+    # Handle standard case (revert_on_failure=True)
+    if revert_on_failure:
+        ret.append(check_external_call(call_op))
 
-    return_t = fn_type.return_type
-    if return_t is not None:
-        ret.append(ret_unpacker)
+        if return_t is not None:
+            ret.append(ret_unpacker)
 
-    return IRnode.from_list(ret, typ=return_t, location=MEMORY)
+        return IRnode.from_list(ret, typ=return_t, location=MEMORY)
+
+    bool_ty = BoolT()
+    if return_t is None:
+        ret.append(call_op)
+        return IRnode.from_list(ret, typ=bool_ty)
+
+    # return a tuple of (bool, function return type)
+    tuple_t = TupleT([bool_ty, return_t])
+
+    tuple_buf = context.new_internal_variable(tuple_t)
+
+    call_op = IRnode.from_list(call_op)
+    with call_op.cache_when_complex("success") as (b1, success):
+        s = ["seq"]
+        s.append(["if", success, ret_unpacker])
+        success_buf = buf # unsafe cast
+        s.append(STORE(success_buf, success))
+        ret.append(b1.resolve(s))
+
+    ret.append(ret_ofst)
+
+    return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
 
 def ir_for_external_call(call_expr, context):
