@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
+    STORE,
     _freshname,
     add_ofst,
     calculate_type_for_external_return,
@@ -99,6 +100,8 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     ret_ofst = buf
     ret_len = max_return_size
+    if not call_kwargs.revert_on_failure:
+        ret_ofst = add_ofst(ret_ofst, BoolT().memory_bytes_required)
 
     encoding = Encoding.ABI
 
@@ -147,6 +150,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
             if not call_kwargs.revert_on_failure:
                 # first 32 bytes of the buffer is reserved for the success flag
                 return_buf = add_ofst(return_buf, BoolT().memory_bytes_required)
+                return_buf.typ = wrapped_return_t
 
             unpacker.append(
                 b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
@@ -246,9 +250,9 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     # Create the call operation
     if use_staticcall:
-        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
+        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, ret_ofst, ret_len]
     else:
-        call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
+        call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
 
     # Handle standard case (revert_on_failure=True)
     if revert_on_failure:
@@ -269,10 +273,11 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     tuple_buf = context.new_internal_variable(tuple_t)
 
+    call_op = IRnode.from_list(call_op)
     with call_op.cache_when_complex("success") as (b1, success):
         s = ["seq"]
         s.append(["if", success, ret_unpacker])
-        success_buf = ret_ofst  # unsafe cast
+        success_buf = buf # unsafe cast
         s.append(STORE(success_buf, success))
         ret.append(b1.resolve(s))
 
