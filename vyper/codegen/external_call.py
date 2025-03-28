@@ -33,7 +33,7 @@ class _CallKwargs:
     revert_on_failure: bool
 
 
-def _pack_arguments(fn_type, args, context):
+def _pack_arguments(fn_type, args, call_kwargs, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -45,10 +45,14 @@ def _pack_arguments(fn_type, args, context):
 
     if fn_type.return_type is not None:
         return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+        return_bufsize = return_abi_t.size_bound()
+        # allocate another 32 bytes for the success flag
+        if not call_kwargs.revert_on_failure:
+            return_bufsize += BoolT().memory_bytes_required
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
-        buflen = max(args_abi_t.size_bound(), return_abi_t.size_bound())
+        buflen = max(args_abi_t.size_bound(), return_bufsize)
     else:
         buflen = args_abi_t.size_bound()
 
@@ -140,6 +144,10 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
             ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
         )
         with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
+            if not call_kwargs.revert_on_failure:
+                # first 32 bytes of the buffer is reserved for the success flag
+                return_buf = add_ofst(return_buf, BoolT().memory_bytes_required)
+
             unpacker.append(
                 b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
             )
@@ -209,7 +217,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
     # Pack the arguments
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, call_kwargs, context)
     ret += arg_packer
 
     # Process the return data unpacker for return types
@@ -256,27 +264,19 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
         ret.append(call_op)
         return IRnode.from_list(ret, typ=bool_ty)
 
+    # return a tuple of (bool, function return type)
     tuple_t = TupleT([bool_ty, return_t])
 
-    success_buf = context.new_internal_variable(bool_ty)
     tuple_buf = context.new_internal_variable(tuple_t)
 
-    store_success = IRnode.from_list(["mstore", success_buf, "success"])
-    conditional_unpacker = IRnode.from_list(["if", "success", ret_unpacker, "pass"])
+    with call_op.cache_when_complex("success") as (b1, success):
+        s = ["seq"]
+        s.append(["if", success, ret_unpacker])
+        success_buf = ret_ofst  # unsafe cast
+        s.append(STORE(success_buf, success))
+        ret.append(b1.resolve(s))
 
-    handler = IRnode.from_list(
-        ["with", "success", call_op, ["seq", store_success, conditional_unpacker]]
-    )
-
-    ret.append(handler)
-
-    ret_ofst.typ = return_t
-
-    multi = IRnode.from_list(["multi", success_buf, ret_ofst], typ=tuple_t)
-    res_setter = make_setter(tuple_buf, multi)
-
-    ret.append(res_setter)
-    ret.append(tuple_buf)
+    ret.append(ret_ofst)
 
     return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
