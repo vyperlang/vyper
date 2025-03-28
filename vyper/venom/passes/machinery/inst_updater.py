@@ -20,10 +20,12 @@ class InstUpdater:
 
     def update(
         self, inst: IRInstruction, opcode: str, new_operands: list[IROperand], annotation: str = ""
-    ):
+    ) -> IRInstruction:
         assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
+
+        original_str = str(inst)
 
         old_operands = inst.operands
 
@@ -43,7 +45,9 @@ class InstUpdater:
 
         inst.opcode = opcode
         inst.operands = new_operands
-        inst.annotation = str(inst) + " " + annotation
+        inst.annotation = original_str + " " + annotation
+
+        return inst
 
     def nop(self, inst: IRInstruction, annotation: str = ""):
         inst.annotation = str(inst) + " " + annotation
