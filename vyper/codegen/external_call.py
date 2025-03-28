@@ -264,10 +264,9 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     store_success = IRnode.from_list(["mstore", success_buf, "success"])
     conditional_unpacker = IRnode.from_list(["if", "success", ret_unpacker, "pass"])
 
-    handler = IRnode.from_list(["with", "success", call_op,
-                                ["seq",
-                                 store_success,
-                                 conditional_unpacker]])
+    handler = IRnode.from_list(
+        ["with", "success", call_op, ["seq", store_success, conditional_unpacker]]
+    )
 
     ret.append(handler)
 
@@ -278,7 +277,6 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret.append(res_setter)
     ret.append(tuple_buf)
-
 
     return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
