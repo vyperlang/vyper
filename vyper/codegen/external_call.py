@@ -251,37 +251,36 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
         return IRnode.from_list(ret, typ=return_t, location=MEMORY)
 
-    else:
-        bool_ty = BoolT()
-        if return_t is None:
-            ret.append(call_op)
-            return IRnode.from_list(ret, typ=bool_ty)
+    bool_ty = BoolT()
+    if return_t is None:
+        ret.append(call_op)
+        return IRnode.from_list(ret, typ=bool_ty)
 
-        tuple_t = TupleT([bool_ty, return_t])
+    tuple_t = TupleT([bool_ty, return_t])
 
-        success_buf = context.new_internal_variable(bool_ty)
-        tuple_buf = context.new_internal_variable(tuple_t)
+    success_buf = context.new_internal_variable(bool_ty)
+    tuple_buf = context.new_internal_variable(tuple_t)
 
-        store_success = IRnode.from_list(["mstore", success_buf, "success"])
-        conditional_unpacker = IRnode.from_list(["if", "success", ret_unpacker, "pass"])
+    store_success = IRnode.from_list(["mstore", success_buf, "success"])
+    conditional_unpacker = IRnode.from_list(["if", "success", ret_unpacker, "pass"])
 
-        handler = IRnode.from_list(["with", "success", call_op,
-                                    ["seq",
-                                     store_success,
-                                     conditional_unpacker]])
+    handler = IRnode.from_list(["with", "success", call_op,
+                                ["seq",
+                                 store_success,
+                                 conditional_unpacker]])
 
-        ret.append(handler)
+    ret.append(handler)
 
-        ret_ofst.typ = return_t
+    ret_ofst.typ = return_t
 
-        multi = IRnode.from_list(["multi", success_buf, ret_ofst], typ=tuple_t)
-        res_setter = make_setter(tuple_buf, multi)
+    multi = IRnode.from_list(["multi", success_buf, ret_ofst], typ=tuple_t)
+    res_setter = make_setter(tuple_buf, multi)
 
-        ret.append(res_setter)
-        ret.append(tuple_buf)
+    ret.append(res_setter)
+    ret.append(tuple_buf)
 
 
-        return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
+    return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
 
 def ir_for_external_call(call_expr, context):
