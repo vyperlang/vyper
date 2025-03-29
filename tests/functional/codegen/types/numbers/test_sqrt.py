@@ -4,6 +4,8 @@ import hypothesis
 import pytest
 
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
+from vyper.exceptions import UnimplementedException
 from vyper.utils import SizeLimits
 
 DECIMAL_PLACES = 10
@@ -200,3 +202,17 @@ def foo() -> uint256:
 
     c = get_contract(code)
     assert c.foo() == 1
+
+
+def test_use_old_sqrt_builtin(get_contract):
+    code = """
+from stdlib import math
+
+@external
+def foo() -> decimal:
+    return sqrt(2.0)
+    """
+    with pytest.raises(
+        UnimplementedException, match="`sqrt` builtin was removed, instead import module"
+    ):
+        compile_code(code)

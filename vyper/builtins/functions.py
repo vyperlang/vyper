@@ -51,6 +51,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
+    UnimplementedException,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import Modifiability
@@ -2117,6 +2118,17 @@ class Uint2Str(BuiltinFunctionT):
             return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
 
 
+class Sqrt(BuiltinFunctionT):
+    _id = "sqrt"
+    _inputs = [("d", DecimalT())]
+    _return_type = DecimalT()
+
+    def _try_fold(self, node):
+        message = "`sqrt` builtin was removed, instead import module "
+        message += "`stdlib.math` and use `math.sqrt()`"
+        raise UnimplementedException(message)
+
+
 class ISqrt(BuiltinFunctionT):
     _id = "isqrt"
     _inputs = [("d", UINT256_T)]
@@ -2603,6 +2615,7 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
+    "sqrt": Sqrt(),
     "isqrt": ISqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
