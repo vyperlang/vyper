@@ -109,20 +109,20 @@ class RedundantLoadElimination(IRPass):
                     del self.mem_ssa.inst_to_use[inst]
                     self.updater.update(inst, "store", [new_var], "[redundant load elimination]")
 
-    def _is_load_available(self, use: MemoryUse, reaching_def: Union[MemoryDef, MemoryPhi]) -> bool:
+    def _is_load_available(self, use: MemoryUse, last_memory_write: Union[MemoryDef, MemoryPhi]) -> bool:
         """
         Check if a load is available at a use point.
         """
-        if reaching_def.is_live_on_entry:
+        if last_memory_write.is_live_on_entry:
             return False
 
-        def_loc = reaching_def.loc
+        def_loc = last_memory_write.loc
         use_block = use.load_inst.parent
 
-        if isinstance(reaching_def, MemoryDef):
-            def_block = reaching_def.store_inst.parent
+        if isinstance(last_memory_write, MemoryDef):
+            def_block = last_memory_write.store_inst.parent
             if def_block == use_block:
-                def_idx = def_block.instructions.index(reaching_def.store_inst)
+                def_idx = def_block.instructions.index(last_memory_write.store_inst)
                 use_idx = use_block.instructions.index(use.load_inst)
                 for inst in def_block.instructions[def_idx + 1 : use_idx]:
                     mem_def = self.mem_ssa.get_memory_def(inst)
@@ -131,14 +131,14 @@ class RedundantLoadElimination(IRPass):
             else:
                 # Check inter-block path
                 current = use.reaching_def
-                while current and current != reaching_def and not current.is_live_on_entry:
+                while current and current != last_memory_write and not current.is_live_on_entry:
                     if isinstance(current, MemoryDef) and self.mem_ssa.alias.may_alias(
                         def_loc, current.loc
                     ):
                         return False
                     current = current.reaching_def
-        elif isinstance(reaching_def, MemoryPhi):
-            phi_block = reaching_def.block
+        elif isinstance(last_memory_write, MemoryPhi):
+            phi_block = last_memory_write.block
             if phi_block == use_block:
                 use_idx = use_block.instructions.index(use.load_inst)
                 for inst in use_block.instructions[:use_idx]:
