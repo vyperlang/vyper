@@ -73,23 +73,7 @@ def test_redundant_load_in_branches():
             %loaded3 = mload 0
             stop
     """
-    post = """
-        _global:
-            %cond = 1
-            %val = 42
-            mstore 0, %val
-            jnz %cond, @then, @else
-        then:
-            %loaded1 = mload 0
-            jmp @merge
-        else:
-            %loaded2 = store %loaded1
-            jmp @merge
-        merge:
-            %loaded3 = store %loaded1
-            stop
-    """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, pre)
 
 
 def test_not_redundant_load_with_phi():
@@ -150,3 +134,6 @@ def test_redundant_load_in_loop():
             stop
     """
     _check_pre_post(pre, post)
+
+if __name__ == "__main__":
+    test_redundant_load_in_loop()
