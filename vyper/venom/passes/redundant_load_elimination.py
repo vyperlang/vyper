@@ -138,15 +138,6 @@ class RedundantLoadElimination(IRPass):
                         return False
                     current = current.reaching_def
         elif isinstance(last_memory_write, MemoryPhi):
-            phi_block = last_memory_write.block
-            if phi_block == use_block:
-                use_idx = use_block.instructions.index(use.load_inst)
-                for inst in use_block.instructions[:use_idx]:
-                    mem_def = self.mem_ssa.get_memory_def(inst)
-                    if mem_def and self.mem_ssa.alias.may_alias(def_loc, mem_def.loc):
-                        return False
-            else:
-                # TODO: Inter-block phi case
-                return False
+            return False
 
         return True
