@@ -64,13 +64,13 @@ class RedundantLoadElimination(IRPass):
 
             if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
                 # Check for redundant loads
-                for prev_use, prev_var in available_loads.items():
+                for use, var in available_loads.items():
                     if (
-                        prev_use.loc.completely_overlaps(mem_use.loc)
-                        and not prev_use.is_volatile
-                        and self._is_load_available(mem_use, prev_use.reaching_def)
+                        use.loc.completely_overlaps(mem_use.loc)
+                        and not use.is_volatile
+                        and self._is_load_available(mem_use, use.reaching_def)
                     ):
-                        self.replacements[inst] = prev_var
+                        self.replacements[inst] = var
                         break
                 else:
                     available_loads[mem_use] = inst.output
