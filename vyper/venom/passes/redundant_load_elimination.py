@@ -23,7 +23,7 @@ class RedundantLoadElimination(IRPass):
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
-        rev_post_order = reversed(self.dom.dom_post_order())
+        rev_post_order = reversed(list(self.dom.dom_post_order))
 
         for bb in rev_post_order:
             self._process_block(bb)
