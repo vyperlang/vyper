@@ -84,22 +84,39 @@ class RedundantLoadElimination(IRPass):
         if not bb.cfg_in:  # Entry block
             return {}
 
+        visited = set()
+        worklist = [bb]
         available_loads = {}
-        first_pred = True
 
-        for pred in bb.cfg_in:
-            pred_loads = self.available_loads_per_block.get(pred, {})
-            if first_pred:
-                available_loads = pred_loads.copy()
-                first_pred = False
-            else:
-                available_loads = {
-                    use: var
-                    for use, var in available_loads.items()
-                    if use in pred_loads and pred_loads[use] == var
-                }
+        while worklist:
+            current = worklist.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
 
-        return available_loads
+            # Initialize available loads for this block
+            current_loads = {}
+            first_pred = True
+
+            for pred in current.cfg_in:
+                pred_loads = self.available_loads_per_block.get(pred, {})
+                if first_pred:
+                    current_loads = pred_loads.copy()
+                    first_pred = False
+                else:
+                    current_loads = {
+                        use: var
+                        for use, var in current_loads.items()
+                        if use in pred_loads and pred_loads[use] == var
+                    }
+
+            if current_loads != self.available_loads_per_block.get(current, {}):
+                self.available_loads_per_block[current] = current_loads
+                for succ in current.cfg_out:
+                    if succ not in visited:
+                        worklist.append(succ)
+
+        return self.available_loads_per_block.get(bb, {})
 
     def _eliminate_redundant_loads(self) -> None:
         for bb in self.function.get_basic_blocks():

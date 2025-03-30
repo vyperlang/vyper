@@ -134,6 +134,3 @@ def test_redundant_load_in_loop():
             stop
     """
     _check_pre_post(pre, post)
-
-if __name__ == "__main__":
-    test_redundant_load_in_loop()
