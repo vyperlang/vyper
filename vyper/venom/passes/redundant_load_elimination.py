@@ -1,14 +1,13 @@
-from typing import Dict, Union
+from typing import Dict, Union, List, Optional
 
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryPhi, MemoryUse
-from vyper.venom.basicblock import IRInstruction, IROperand
+from vyper.venom.basicblock import IRInstruction, IROperand, IRBasicBlock
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class RedundantLoadElimination(IRPass):
     """
-    This pass eliminates redundant memory loads using Memory SSA analysis
     This pass eliminates redundant memory loads using Memory SSA analysis.
     
     The optimization works by:
@@ -20,8 +19,10 @@ class RedundantLoadElimination(IRPass):
 
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
+        # Maps instructions to their replacement operands
         self.replacements: Dict[IRInstruction, IROperand] = {}
-        self.available_loads_per_block: Dict[any, Dict[MemoryUse, IROperand]] = {}
+        # Maps basic blocks to their available loads
+        self.available_loads_per_block: Dict[IRBasicBlock, Dict[MemoryUse, IROperand]] = {}
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -37,7 +38,7 @@ class RedundantLoadElimination(IRPass):
 
         self._eliminate_redundant_loads()
 
-    def _process_block(self, bb):
+    def _process_block(self, bb: IRBasicBlock) -> None:
         available_loads = self._compute_available_loads_from_preds(bb)
 
         phi = self.mem_ssa.memory_phis.get(bb)
@@ -76,7 +77,10 @@ class RedundantLoadElimination(IRPass):
 
         self.available_loads_per_block[bb] = available_loads
 
-    def _compute_available_loads_from_preds(self, bb) -> Dict[MemoryUse, IROperand]:
+    def _compute_available_loads_from_preds(self, bb: IRBasicBlock) -> Dict[MemoryUse, IROperand]:
+        """
+        Compute available loads at block entry by merging loads from predecessors.
+        """
         if not bb.cfg_in:  # Entry block
             return {}
 
@@ -97,7 +101,7 @@ class RedundantLoadElimination(IRPass):
 
         return available_loads
 
-    def _eliminate_redundant_loads(self):
+    def _eliminate_redundant_loads(self) -> None:
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions.copy():
                 if inst in self.replacements:
@@ -106,6 +110,9 @@ class RedundantLoadElimination(IRPass):
                     self.updater.update(inst, "store", [new_var], "[redundant load elimination]")
 
     def _is_load_available(self, use: MemoryUse, reaching_def: Union[MemoryDef, MemoryPhi]) -> bool:
+        """
+        Check if a load is available at a use point.
+        """
         if reaching_def.is_live_on_entry:
             return False
 
