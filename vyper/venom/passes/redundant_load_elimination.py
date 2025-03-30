@@ -9,6 +9,13 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 class RedundantLoadElimination(IRPass):
     """
     This pass eliminates redundant memory loads using Memory SSA analysis
+    This pass eliminates redundant memory loads using Memory SSA analysis.
+    
+    The optimization works by:
+    1. Computing available loads at each basic block by merging loads from predecessors
+    2. Tracking memory definitions that may kill available loads
+    3. Identifying redundant loads that can be replaced with previously loaded values
+    4. Ensuring load availability across control flow paths
     """
 
     def __init__(self, analyses_cache, function):
