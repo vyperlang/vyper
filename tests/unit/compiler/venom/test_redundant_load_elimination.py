@@ -91,6 +91,7 @@ def test_redundant_load_after_branches():
     """
     _check_pre_post(pre, post)
 
+
 def test_non_redundant_load_after_branches():
     pre = """
         _global:
@@ -127,6 +128,7 @@ def test_non_redundant_load_after_branches():
             stop
     """
     _check_pre_post(pre, post)
+
 
 def test_non_redundant_load_in_branches():
     pre = """
