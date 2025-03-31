@@ -1,5 +1,3 @@
-# REVIEW: rename this to cse_analysis or common_subexpression_analysis
-
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -25,6 +23,9 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegateca
 # environment this is done because we know that
 # all these instruction should have always
 # the same value in function
+
+# REVIEW: why don't these go in UNINTERESTING_OPCODES? since they only cost
+# 2 gas each.
 IMMUTABLE_ENV_QUERIES = frozenset(["calldatasize", "gaslimit", "address", "codesize"])
 
 # instruction that dont need to be stored in available expression
