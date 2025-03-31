@@ -56,7 +56,79 @@ def test_redundant_load_different_locations():
     _check_pre_post(pre, pre)
 
 
-def test_redundant_load_in_branches():
+def test_redundant_load_after_branches():
+    pre = """
+        _global:
+            %val = 42
+            mstore 0, %val
+            %cond = mload 0
+            jnz %cond, @then, @else
+        then:
+            %loaded1 = mload 0
+            jmp @merge
+        else:
+            %loaded2 = mload 0
+            jmp @merge
+        merge:
+            %loaded3 = mload 0
+            stop
+    """
+    post = """
+        _global:
+            %val = 42
+            mstore 0, %val
+            %cond = mload 0
+            jnz %cond, @then, @else
+        then:
+            %loaded1 = mload 0
+            jmp @merge
+        else:
+            %loaded2 = mload 0
+            jmp @merge
+        merge:
+            %loaded3 = %cond
+            stop
+    """
+    _check_pre_post(pre, post)
+
+def test_non_redundant_load_after_branches():
+    pre = """
+        _global:
+            %val = 42
+            mstore 0, %val
+            %cond = mload 0
+            jnz %cond, @then, @else
+        then:
+            %loaded1 = mload 0
+            jmp @merge
+        else:
+            %loaded2 = mload 0
+            mstore 0, 1
+            jmp @merge
+        merge:
+            %loaded3 = mload 0
+            stop
+    """
+    post = """
+        _global:
+            %val = 42
+            mstore 0, %val
+            %cond = mload 0
+            jnz %cond, @then, @else
+        then:
+            %loaded1 = mload 0
+            jmp @merge
+        else:
+            %loaded2 = mload 0
+            mstore 0, 1
+            jmp @merge
+        merge:
+            %loaded3 = mload 0
+            stop
+    """
+    _check_pre_post(pre, post)
+
+def test_non_redundant_load_in_branches():
     pre = """
         _global:
             %cond = 1
