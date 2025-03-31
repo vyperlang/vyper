@@ -31,15 +31,58 @@ class RedundantLoadElimination(IRPass):
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
-        rev_post_order = reversed(list(self.dom.dom_post_order))
+        # Pre-compute available loads for all blocks
+        self._compute_available_loads()
 
+        rev_post_order = reversed(list(self.dom.dom_post_order))
         for bb in rev_post_order:
             self._process_block(bb)
 
         self._eliminate_redundant_loads()
 
+    def _compute_available_loads(self) -> None:
+        for bb in self.dom.dom_post_order:
+            if not bb.cfg_in:  # Entry block
+                self.available_loads_per_block[bb] = {}
+            else:
+                idom = self.dom.immediate_dominator(bb)
+                if not idom:
+                    self.available_loads_per_block[bb] = {}
+                else:
+                    available_loads = self.available_loads_per_block.get(idom, {}).copy()
+
+                    for pred in bb.cfg_in:
+                        if pred == idom or self.dom.dominates(idom, pred):
+                            continue
+                            
+                        pred_loads = self.available_loads_per_block.get(pred, {})
+                        available_loads = {
+                            use: var
+                            for use, var in available_loads.items()
+                            if use in pred_loads and pred_loads[use] == var
+                        }
+
+                    self.available_loads_per_block[bb] = available_loads
+
+            current_loads = self.available_loads_per_block[bb].copy()
+            for inst in bb.instructions:
+                mem_def = self.mem_ssa.get_memory_def(inst)
+                mem_use = self.mem_ssa.get_memory_use(inst)
+
+                if mem_def:
+                    current_loads = {
+                        use: var
+                        for use, var in current_loads.items()
+                        if not self.mem_ssa.alias.may_alias(use.loc, mem_def.loc)
+                    }
+
+                if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
+                    current_loads[mem_use] = inst.output
+
+            self.available_loads_per_block[bb] = current_loads
+
     def _process_block(self, bb: IRBasicBlock) -> None:
-        available_loads = self._compute_available_loads_from_preds(bb)
+        available_loads = self.available_loads_per_block[bb].copy()
 
         phi = self.mem_ssa.memory_phis.get(bb)
         if phi:
@@ -76,47 +119,6 @@ class RedundantLoadElimination(IRPass):
                     available_loads[mem_use] = inst.output
 
         self.available_loads_per_block[bb] = available_loads
-
-    def _compute_available_loads_from_preds(self, bb: IRBasicBlock) -> Dict[MemoryUse, IROperand]:
-        """
-        Compute available loads at block entry by merging loads from predecessors.
-        """
-        if not bb.cfg_in:  # Entry block
-            return {}
-
-        visited = set()
-        worklist = [bb]
-        available_loads = {}
-
-        while worklist:
-            current = worklist.pop(0)
-            if current in visited:
-                continue
-            visited.add(current)
-
-            # Initialize available loads for this block
-            current_loads = {}
-            first_pred = True
-
-            for pred in current.cfg_in:
-                pred_loads = self.available_loads_per_block.get(pred, {})
-                if first_pred:
-                    current_loads = pred_loads.copy()
-                    first_pred = False
-                else:
-                    current_loads = {
-                        use: var
-                        for use, var in current_loads.items()
-                        if use in pred_loads and pred_loads[use] == var
-                    }
-
-            if current_loads != self.available_loads_per_block.get(current, {}):
-                self.available_loads_per_block[current] = current_loads
-                for succ in current.cfg_out:
-                    if succ not in visited:
-                        worklist.append(succ)
-
-        return self.available_loads_per_block.get(bb, {})
 
     def _eliminate_redundant_loads(self) -> None:
         for bb in self.function.get_basic_blocks():
