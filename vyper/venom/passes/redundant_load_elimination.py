@@ -114,8 +114,14 @@ class RedundantLoadElimination(IRPass):
                 }
 
             if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
+                inst_idx = bb.instructions.index(inst)
                 # Check for redundant loads
                 for use, var in available_loads.items():
+                    if use.load_inst.parent == bb:
+                        use_idx = bb.instructions.index(use.load_inst)
+                        if use_idx > inst_idx:
+                            continue
+
                     if (
                         use != mem_use
                         and use.loc.completely_overlaps(mem_use.loc)
