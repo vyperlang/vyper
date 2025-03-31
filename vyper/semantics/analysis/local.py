@@ -543,13 +543,21 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         else:
             try:
                 iter_type = get_exact_type_from_node(iter_node)
+
+                # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
+                # with generic length.
+                if not isinstance(iter_type, (DArrayT, SArrayT)):
+                    raise InvalidType("Not an iterable type", iter_node)
+
+                if not target_type.compare_type(iter_type.value_type):
+                    raise TypeMismatch(
+                        f"Iterator has a type of {target_type} but "
+                        f"iterable has a type of {iter_type}",
+                        iter_node,
+                    )
+
             except (InvalidType, StructureException):
                 raise InvalidType("Not an iterable type", iter_node)
-
-        # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
-        # with generic length.
-        if not isinstance(iter_type, (DArrayT, SArrayT)):
-            raise InvalidType("Not an iterable type", iter_node)
 
         self.expr_visitor.visit(iter_node, iter_type)
 
