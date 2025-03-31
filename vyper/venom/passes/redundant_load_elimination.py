@@ -41,45 +41,50 @@ class RedundantLoadElimination(IRPass):
         self._eliminate_redundant_loads()
 
     def _compute_available_loads(self) -> None:
-        for bb in self.dom.dom_post_order:
-            if not bb.cfg_in:  # Entry block
-                self.available_loads_per_block[bb] = {}
-            else:
-                idom = self.dom.immediate_dominator(bb)
-                if not idom:
-                    self.available_loads_per_block[bb] = {}
-                else:
-                    available_loads = self.available_loads_per_block.get(idom, {}).copy()
+        for bb in self.function.get_basic_blocks():
+            self.available_loads_per_block[bb] = {}
 
-                    for pred in bb.cfg_in:
-                        if pred == idom or self.dom.dominates(idom, pred):
-                            continue
-                            
-                        pred_loads = self.available_loads_per_block.get(pred, {})
-                        available_loads = {
+        for bb in reversed(list(self.dom.dom_post_order)):
+            preds = bb.cfg_in
+            if not preds:
+                in_loads = {}
+            else:
+                in_loads = {}
+                for pred in preds:
+                    pred_loads = self.available_loads_per_block[pred]
+                    for mem_use, var in pred_loads.items():
+                        if mem_use not in in_loads or self.dom.dominates(pred, bb):
+                            in_loads[mem_use] = (mem_use, var)
+
+            out_loads = {mem_use: var for _, (mem_use, var) in in_loads.items()}
+
+            phi = self.mem_ssa.memory_phis.get(bb)
+            if phi:
+                for op_def, _ in phi.operands:
+                    if isinstance(op_def, MemoryDef):
+                        out_loads = {
                             use: var
-                            for use, var in available_loads.items()
-                            if use in pred_loads and pred_loads[use] == var
+                            for use, var in out_loads.items()
+                            if not self.mem_ssa.alias.may_alias(use.loc, op_def.loc)
                         }
 
-                    self.available_loads_per_block[bb] = available_loads
-
-            current_loads = self.available_loads_per_block[bb].copy()
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 mem_use = self.mem_ssa.get_memory_use(inst)
 
                 if mem_def:
-                    current_loads = {
+                    out_loads = {
                         use: var
-                        for use, var in current_loads.items()
+                        for use, var in out_loads.items()
                         if not self.mem_ssa.alias.may_alias(use.loc, mem_def.loc)
                     }
 
                 if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
-                    current_loads[mem_use] = inst.output
+                    # Only add if this location isn’t already available (first load persists)
+                    if mem_use.loc not in [use.loc for use in out_loads]:
+                        out_loads[mem_use] = inst.output
 
-            self.available_loads_per_block[bb] = current_loads
+            self.available_loads_per_block[bb] = out_loads
 
     def _process_block(self, bb: IRBasicBlock) -> None:
         available_loads = self.available_loads_per_block[bb].copy()

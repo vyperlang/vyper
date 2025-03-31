@@ -29,6 +29,9 @@ class MemoryAccess:
             return "live_on_entry"
         return f"{self.id}"
 
+    def __hash__(self) -> int:
+        return self.id
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.id_str})"
 
@@ -143,6 +146,7 @@ class MemSSA(IRAnalysis):
             # Check for memory reads
             if Effects.MEMORY in inst.get_read_effects():
                 mem_use = MemoryUse(self.next_id, inst)
+                self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
