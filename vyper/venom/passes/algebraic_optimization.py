@@ -363,7 +363,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
 
         after = uses.first()
-        if after.opcode not in ["iszero", "assert"]:
+        if after.opcode not in ("iszero", "assert"):
             return
 
         insert_iszero = after.opcode == "assert"
