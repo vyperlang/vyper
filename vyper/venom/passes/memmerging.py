@@ -398,7 +398,7 @@ class MemMergePass(IRPass):
         _barrier()
 
     # This pass is necessary for trivial cases of
-    # mstore/dload pair merging that contains
+    # dload/mstore merging that contains
     # the varibles which is not allowed in more
     # general passes
     def _merge_mstore_dload(self, bb: IRBasicBlock):
