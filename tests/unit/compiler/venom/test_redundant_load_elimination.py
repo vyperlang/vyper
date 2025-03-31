@@ -64,10 +64,10 @@ def test_redundant_load_after_branches():
             %cond = mload 0
             jnz %cond, @then, @else
         then:
-            %loaded1 = mload 0
+            %loaded1 = mload 32
             jmp @merge
         else:
-            %loaded2 = mload 0
+            %loaded2 = mload 32
             jmp @merge
         merge:
             %loaded3 = mload 0
@@ -80,10 +80,10 @@ def test_redundant_load_after_branches():
             %cond = mload 0
             jnz %cond, @then, @else
         then:
-            %loaded1 = mload 0
+            %loaded1 = mload 32
             jmp @merge
         else:
-            %loaded2 = mload 0
+            %loaded2 = mload 32
             jmp @merge
         merge:
             %loaded3 = %cond
@@ -99,10 +99,10 @@ def test_non_redundant_load_after_branches():
             %cond = mload 0
             jnz %cond, @then, @else
         then:
-            %loaded1 = mload 0
+            %loaded1 = mload 32
             jmp @merge
         else:
-            %loaded2 = mload 0
+            %loaded2 = mload 32
             mstore 0, 1
             jmp @merge
         merge:
@@ -116,10 +116,10 @@ def test_non_redundant_load_after_branches():
             %cond = mload 0
             jnz %cond, @then, @else
         then:
-            %loaded1 = mload 0
+            %loaded1 = mload 32
             jmp @merge
         else:
-            %loaded2 = mload 0
+            %loaded2 = mload 32
             mstore 0, 1
             jmp @merge
         merge:
@@ -199,7 +199,7 @@ def test_redundant_load_in_loop():
             %cond = lt %i, 5
             jnz %cond, @body, @exit
         body:
-            %loaded2 = store %loaded1
+            %loaded2 = %loaded1
             %i = add %i, 1
             jmp @loop
         exit:
