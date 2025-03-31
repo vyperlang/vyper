@@ -49,12 +49,20 @@ class RedundantLoadElimination(IRPass):
             if not preds:
                 in_loads = {}
             else:
-                in_loads = {}
+                use_counts = {}
                 for pred in preds:
                     pred_loads = self.available_loads_per_block[pred]
                     for mem_use, var in pred_loads.items():
-                        if mem_use not in in_loads or self.dom.dominates(pred, bb):
-                            in_loads[mem_use] = (mem_use, var)
+                        if mem_use not in use_counts:
+                            use_counts[mem_use] = (1, pred, var)
+                        else:
+                            count, _, _ = use_counts[mem_use]
+                            use_counts[mem_use] = (count + 1, pred, var)
+
+                in_loads = {}
+                for mem_use, (count, pred, var) in use_counts.items():
+                    if count == 1 and self.dom.dominates(pred, bb):
+                        in_loads[mem_use] = (mem_use, var)
 
             out_loads = {mem_use: var for _, (mem_use, var) in in_loads.items()}
 
@@ -80,7 +88,7 @@ class RedundantLoadElimination(IRPass):
                     }
 
                 if mem_use and inst.opcode == "mload" and not mem_use.is_volatile:
-                    # Only add if this location isn’t already available (first load persists)
+                    # Only add if this location isn't already available (first load persists)
                     if mem_use.loc not in [use.loc for use in out_loads]:
                         out_loads[mem_use] = inst.output
 
@@ -114,7 +122,8 @@ class RedundantLoadElimination(IRPass):
                 # Check for redundant loads
                 for use, var in available_loads.items():
                     if (
-                        use.loc.completely_overlaps(mem_use.loc)
+                        use != mem_use
+                        and use.loc.completely_overlaps(mem_use.loc)
                         and not use.is_volatile
                         and self._is_load_available(mem_use, use.reaching_def)
                     ):
