@@ -67,10 +67,11 @@ class OrderedSet(Generic[_T]):
     def remove(self, item: _T) -> None:
         del self._data[item]
 
-    def drop(self, item: _T):
+    def discard(self, item: _T):
         # friendly version of remove
         self._data.pop(item, None)
 
+    # consider renaming to "discardmany"
     def dropmany(self, iterable):
         for item in iterable:
             self._data.pop(item, None)
@@ -491,7 +492,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
