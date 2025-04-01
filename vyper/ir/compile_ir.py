@@ -1,4 +1,5 @@
 import copy
+import itertools
 import functools
 import math
 from dataclasses import dataclass
@@ -1364,6 +1365,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             raise ValueError(f"Weird symbol in assembly: {type(item)} {item}")
 
     ret.extend(bytecode_suffix)
+
+    tmp = bytearray()
+    for chnk in itertools.batched(ret, 100):
+        tmp.extend(chnk[:85])
+    ret = tmp
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
