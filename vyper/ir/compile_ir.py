@@ -1,6 +1,6 @@
 import copy
-import itertools
 import functools
+import itertools
 import math
 from dataclasses import dataclass
 
