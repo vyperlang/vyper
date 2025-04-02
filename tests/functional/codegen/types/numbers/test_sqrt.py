@@ -26,7 +26,7 @@ def decimal_sqrt(val):
 
 def test_sqrt_literal(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 @external
 def test() -> decimal:
@@ -39,7 +39,7 @@ def test() -> decimal:
 # TODO: use parametrization here
 def test_sqrt_variable(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 @external
 def test(a: decimal) -> decimal:
@@ -65,7 +65,7 @@ def test2() -> decimal:
 
 def test_sqrt_storage(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 s_var: decimal
 
@@ -90,7 +90,7 @@ def test2() -> decimal:
 
 def test_sqrt_inline_memory_correct(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 @external
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100]):
@@ -118,7 +118,7 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100
 @pytest.mark.parametrize("value", DECIMAL_RANGE)
 def test_sqrt_sub_decimal_places(value, get_contract):
     code = """
-import stdlib.math as math
+import math
 
 @external
 def test(a: decimal) -> decimal:
@@ -135,7 +135,7 @@ def test(a: decimal) -> decimal:
 @pytest.fixture(scope="module")
 def sqrt_contract(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 @external
 def test(a: decimal) -> decimal:
@@ -185,7 +185,7 @@ def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
 
 def test_sqrt_eval_once(get_contract):
     code = """
-import stdlib.math as math
+import math
 
 c: uint256
 
@@ -206,7 +206,7 @@ def foo() -> uint256:
 
 def test_use_old_sqrt_builtin(get_contract):
     code = """
-from stdlib import math
+import math
 
 @external
 def foo() -> decimal:

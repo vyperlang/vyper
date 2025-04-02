@@ -4,6 +4,7 @@ from pathlib import Path, PurePath
 from typing import Any, Iterator
 
 import vyper.builtins.interfaces
+import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     ABIInput,
@@ -272,7 +273,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs", "stdlib"]
+BUILTIN_PREFIXES = ["ethereum.ercs", "math"]
 
 
 # TODO: could move this to analysis/common.py or something
@@ -299,16 +300,16 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
     # remap builtins directory --
     # ethereum/ercs => vyper/builtins/interfaces
-    is_erc_interface = module_str.startswith("ethereum.ercs")
+    is_erc = module_str.startswith("ethereum.ercs")
     remapped_module = module_str
-    if is_erc_interface:
+    if is_erc:
         remapped_module = remapped_module.removeprefix("ethereum.ercs")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
     else:
-        remapped_module = vyper.builtins.__package__ + "." + remapped_module
+        remapped_module = vyper.builtins.stdlib.__package__ + "." + remapped_module
 
     path = _import_to_path(level, remapped_module)
-    path = path.with_suffix(".vy") if not is_erc_interface else path.with_suffix(".vyi")
+    path = path.with_suffix(".vy") if not is_erc else path.with_suffix(".vyi")
 
     # builtins are globally the same, so we can safely cache them
     # (it is also *correct* to cache them, so that types defined in builtins
