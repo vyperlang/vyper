@@ -1,5 +1,5 @@
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -8,7 +8,7 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 def prefer_iszero(inst: IRInstruction) -> bool:
     if inst.opcode == "eq":
         return True
-    if inst.opcode in ["gt", "lt"]:
+    if inst.opcode in COMPARATOR_INSTRUCTIONS:
         return any(isinstance(op, IRLiteral) for op in inst.operands)
     return False
 
