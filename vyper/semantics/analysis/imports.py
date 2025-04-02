@@ -283,10 +283,25 @@ def _is_builtin(module_str):
 
 _builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
 
+# builtin import path -> prefix for removal, package, suffix
+BUILTIN_MODULE_RULES = {
+    "ethereum.ercs": ("ethereum.ercs", vyper.builtins.interfaces.__package__, ".vyi"),
+    "math": ("", vyper.builtins.stdlib.__package__, ".vy"),
+}
+
+
+def _get_builtin_prefix(module_str: str):
+    for prefix in BUILTIN_PREFIXES:
+        if module_str.startswith(prefix):
+            return prefix
+    return None
+
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
-    if not _is_builtin(module_str):  # pragma: nocover
+    if not _is_builtin(module_str):
         raise CompilerPanic("unreachable!")
+
+    assert level == 0, "builtin imports are absolute"
 
     builtins_path = vyper.builtins.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
@@ -298,18 +313,15 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
 
-    # remap builtins directory --
-    # ethereum/ercs => vyper/builtins/interfaces
-    is_erc = module_str.startswith("ethereum.ercs")
-    remapped_module = module_str
-    if is_erc:
-        remapped_module = remapped_module.removeprefix("ethereum.ercs")
-        remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
-    else:
-        remapped_module = vyper.builtins.stdlib.__package__ + "." + remapped_module
+    module_prefix = _get_builtin_prefix(module_str)
+    assert module_prefix is not None
+
+    remove_prefix, target_package, suffix = BUILTIN_MODULE_RULES[module_prefix]
+    base_name = module_str.removeprefix(remove_prefix + ".")
+    remapped_module = f"{target_package}.{base_name}"
 
     path = _import_to_path(level, remapped_module)
-    path = path.with_suffix(".vy") if not is_erc else path.with_suffix(".vyi")
+    path = path.with_suffix(suffix)
 
     # builtins are globally the same, so we can safely cache them
     # (it is also *correct* to cache them, so that types defined in builtins
