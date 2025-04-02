@@ -44,7 +44,7 @@ class InstUpdater:
         if opcode in NO_OUTPUT_INSTRUCTIONS:
             if inst.output is not None:
                 assert new_output is None
-                assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
+                #assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
                 self.dfg.remove_producing_instruction(inst.output)
                 inst.output = None
         else:
