@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -245,8 +246,6 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
-        from collections import deque
-
         worklist = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
