@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -58,7 +60,7 @@ class _Expression:
     opcode: str
     # the child is either expression of operand since
     # there are possibilities for cycles
-    operands: list["IROperand | _Expression"]
+    operands: list[IROperand | _Expression]
     ignore_msize: bool
 
     # equality for lattices only based on original instruction
@@ -195,14 +197,14 @@ class _AvailableExpression:
 
         return None
 
-    def copy(self) -> "_AvailableExpression":
+    def copy(self) -> _AvailableExpression:
         res = _AvailableExpression()
         for key, val in self.buckets.items():
             res.buckets[key] = val.copy()
         return res
 
     @staticmethod
-    def intersection(*others: "_AvailableExpression | None"):
+    def intersection(*others: _AvailableExpression | None):
         tmp = list(o for o in others if o is not None)
         if len(tmp) == 0:
             return _AvailableExpression()
