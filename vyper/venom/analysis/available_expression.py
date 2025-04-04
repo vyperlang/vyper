@@ -311,8 +311,6 @@ class CSEAnalysis(IRAnalysis):
                 return op
             if inst.opcode == "store":
                 return self._get_operand(inst.operands[0], available_exprs)
-            if inst in self.inst_to_expr:
-                return self.inst_to_expr[inst]
             return self._get_expression(inst, available_exprs)
         return op
 
@@ -326,6 +324,8 @@ class CSEAnalysis(IRAnalysis):
         return self._get_expression(inst, available_exprs)
 
     def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
+        if inst in self.inst_to_expr:
+            return self.inst_to_expr[inst]
         # create expression
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
