@@ -11,7 +11,6 @@ from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
 from .normalization import NormalizationPass
-from .redundant_load_elimination import RedundantLoadElimination
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
