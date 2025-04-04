@@ -29,6 +29,11 @@ class MemoryAccess:
             return "live_on_entry"
         return f"{self.id}"
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MemoryAccess):
+            return False
+        return self.id == other.id
+
     def __hash__(self) -> int:
         return self.id
 
