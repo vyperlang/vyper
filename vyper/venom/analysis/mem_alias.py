@@ -49,11 +49,11 @@ class MemoryAliasAnalysis(IRAnalysis):
 
         # Check for aliasing with existing locations
         for other_loc in self.alias_sets:
-            if self.may_alias(loc, other_loc):
+            if self._may_alias(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
 
-    def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+    def _may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations alias.
         """
@@ -72,6 +72,25 @@ class MemoryAliasAnalysis(IRAnalysis):
         start2, end2 = loc2.offset, loc2.offset + loc2.size
 
         return not (end1 <= start2 or end2 <= start1)
+    
+    def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+        """
+        Determine if two memory locations may alias.
+        """
+        if loc1.is_volatile or loc2.is_volatile:
+            return self._may_alias(loc1, loc2)
+            
+        if loc1 in self.alias_sets and loc2 in self.alias_sets:
+            return loc2 in self.alias_sets[loc1]
+            
+        result = self._may_alias(loc1, loc2)
+        
+        if loc1 not in self.alias_sets:
+            self._analyze_mem_location(loc1)
+        if loc2 not in self.alias_sets:
+            self._analyze_mem_location(loc2)
+            
+        return result
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = MemoryLocation(offset=loc.offset, size=loc.size, is_volatile=True)
