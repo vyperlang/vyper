@@ -214,7 +214,7 @@ class _AvailableExpression:
             for bucket in buckets:
                 res.buckets[bucket] = OrderedSet.intersection(
                     tmp_res.buckets[bucket], item.buckets[bucket]
-                )  # type: ignore
+                )
         return res
 
 
