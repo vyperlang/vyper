@@ -522,6 +522,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     def _analyse_range_iter(self, iter_node, target_type):
         # iteration via range()
         if iter_node.get("func.id") != "range":
+            # CMC 2025-02-12 I think we can allow this actually
             raise IteratorException("Cannot iterate over the result of a function call", iter_node)
         _validate_range_call(iter_node)
 
@@ -774,6 +775,11 @@ class ExprVisitor(VyperNodeVisitorBase):
                     msg += f"must use the `{should}` keyword."
                     hint = f"try `{should} {node.node_source_code}`"
                     raise CallViolation(msg, hint=hint)
+
+                if func_type.is_fallback:
+                    msg = "`__default__` function cannot be called directly."
+                    msg += " If you mean to call the default function, use `raw_call`"
+                    raise CallViolation(msg)
             else:
                 if not node.is_plain_call:
                     kind = node.kind_str

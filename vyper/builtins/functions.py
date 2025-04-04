@@ -15,12 +15,13 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_buffer_overflow_ir,
+    check_create_operation,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
-    clamp_nonzero,
     copy_bytes,
+    create_memory_copy,
     dummy_node_for_type,
     ensure_eval_once,
     ensure_in_memory,
@@ -76,28 +77,23 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import (
-    BYTES4_T,
-    BYTES32_T,
-    INT128_T,
-    INT256_T,
-    UINT8_T,
-    UINT256_T,
-)
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
+    EIP_3860_LIMIT,
     SHA3_PER_WORD,
     MemoryPositions,
+    SizeLimits,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
     keccak256,
     method_id,
     method_id_int,
-    vyper_warn,
 )
+from vyper.warnings import vyper_warn
 
 from ._convert import convert
 from ._signatures import BuiltinFunctionT, process_inputs
@@ -357,9 +353,8 @@ class Slice(BuiltinFunctionT):
             # copy_bytes works on pointers.
             assert is_bytes32, src
             src = ensure_in_memory(src, context)
-
-        if potential_overlap(src, start) or potential_overlap(src, length):
-            raise CompilerPanic("risky overlap")
+        elif potential_overlap(src, start) or potential_overlap(src, length):
+            src = create_memory_copy(src, context)
 
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
@@ -599,7 +594,7 @@ class Keccak256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
@@ -646,7 +641,7 @@ class Sha256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
@@ -781,7 +776,7 @@ class ECRecover(BuiltinFunctionT):
                 ["mstore", add_ofst(input_buf, 32), args[1]],
                 ["mstore", add_ofst(input_buf, 64), args[2]],
                 ["mstore", add_ofst(input_buf, 96), args[3]],
-                ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
+                ["assert", ["staticcall", "gas", 1, input_buf, 128, output_buf, 32]],
                 ["mload", output_buf],
             ],
             typ=AddressT(),
@@ -867,7 +862,7 @@ class Extract32(BuiltinFunctionT):
         ret_type = kwargs["output_type"]
 
         if potential_overlap(bytez, index):
-            raise CompilerPanic("risky overlap")
+            bytez = create_memory_copy(bytez, context)
 
         def finalize(ret):
             annotation = "extract32"
@@ -969,28 +964,34 @@ class AsWeiValue(BuiltinFunctionT):
 
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
-            if value.typ in (UINT256_T, UINT8_T):
-                sub = [
-                    "with",
-                    "ans",
-                    ["mul", value, denom_divisor],
-                    [
-                        "seq",
-                        [
-                            "assert",
-                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                        ],
-                        "ans",
-                    ],
-                ]
-            elif value.typ == INT128_T:
-                # signed types do not require bounds checks because the
-                # largest possible converted value will not overflow 2**256
-                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            if value.typ in IntegerT.unsigneds():
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    ok = ["or", ["eq", ["div", product, value], denom_divisor], ["iszero", value]]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(irlist)
+            elif value.typ in IntegerT.signeds():
+                product = IRnode.from_list(["mul", value, denom_divisor])
+                with product.cache_when_complex("ans") as (b2, product):
+                    irlist = ["seq"]
+                    positive = ["sge", value, 0]
+                    safemul = [
+                        "or",
+                        ["eq", ["div", product, value], denom_divisor],
+                        ["iszero", value],
+                    ]
+                    ok = ["and", positive, safemul]
+                    irlist.append(["assert", ok])
+                    irlist.append(product)
+                    sub = b2.resolve(irlist)
             elif value.typ == DecimalT():
+                # sanity check (so we don't have to use safemul)
+                assert (SizeLimits.MAXDECIMAL * denom_divisor) < 2**256 - 1
                 sub = [
                     "seq",
-                    ["assert", ["sgt", value, -1]],
+                    ["assert", ["sge", value, 0]],
                     ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
                 ]
             else:
@@ -1559,9 +1560,9 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
     if not revert_on_failure:
         return ret
 
-    ret = clamp_nonzero(ret)
-    ret.set_error_msg(f"{create_op} failed")
-    return ret
+    with ret.cache_when_complex("addr") as (b1, addr):
+        ret = IRnode.from_list(["seq", check_create_operation(addr), addr])
+        return b1.resolve(ret)
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1678,6 +1679,47 @@ class _CreateBase(BuiltinFunctionT):
         return IRnode.from_list(
             ir_builder, typ=AddressT(), annotation=self._id, add_gas_estimate=add_gas_estimate
         )
+
+
+class RawCreate(_CreateBase):
+    _id = "raw_create"
+    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _has_varargs = True
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
+        args = [ensure_in_memory(arg, context) for arg in args]
+        initcode = args[0]
+        ctor_args = args[1:]
+
+        # encode the varargs
+        to_encode = ir_tuple_from_args(ctor_args)
+        type_size_bound = to_encode.typ.abi_type.size_bound()
+        bufsz = initcode.typ.maxlen + type_size_bound
+
+        buf = context.new_internal_variable(get_type_for_exact_size(bufsz))
+
+        ret = ["seq"]
+
+        with scope_multi((initcode, value, salt), ("initcode", "value", "salt")) as (
+            b1,
+            (initcode, value, salt),
+        ):
+            bytecode_len = get_bytearray_length(initcode)
+            with bytecode_len.cache_when_complex("initcode_len") as (b2, bytecode_len):
+                maxlen = initcode.typ.maxlen
+                ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
+
+                argbuf = add_ofst(buf, bytecode_len)
+                argslen = abi_encode(
+                    argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
+                )
+                total_len = add_ofst(bytecode_len, argslen)
+                ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
+
+                return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
 class CreateMinimalProxyTo(_CreateBase):
@@ -2145,6 +2187,9 @@ else:
             break
         y = z
         z = (x / z + z) / 2.0
+
+    if y < z:
+        z = y
             """
 
             x_type = DecimalT()
@@ -2293,19 +2338,12 @@ class Print(BuiltinFunctionT):
 
         else:
             method_id = method_id_int("log(string,bytes)")
+
             schema = args_abi_t.selector_name().encode("utf-8")
-            if len(schema) > 32:
-                raise CompilerPanic(f"print signature too long: {schema}")
-
             schema_t = StringT(len(schema))
-            schema_buf = context.new_internal_variable(schema_t)
-            ret = ["seq"]
-            ret.append(["mstore", schema_buf, len(schema)])
+            schema_buf = Expr._make_bytelike(context, StringT, schema)
 
-            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(
-                ["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))]
-            )
+            ret = ["seq"]
 
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
@@ -2689,6 +2727,7 @@ STMT_DISPATCH_TABLE = {
     "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
+    "raw_create": RawCreate(),
     "raw_log": RawLog(),
     "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),

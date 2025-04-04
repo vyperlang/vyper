@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    CallViolation,
     FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
@@ -411,26 +412,31 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
-def test_builtins_not_found():
+def test_builtins_not_found(make_input_bundle):
     code = """
 from vyper.interfaces import foobar
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
-
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == "vyper.interfaces.foobar"
     assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+    assert "code.vy:" in str(e.value)
 
 
 @pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
-def test_builtins_not_found2(erc):
+def test_builtins_not_found2(erc, make_input_bundle):
     code = f"""
 from ethereum.ercs import {erc}
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+    assert "code.vy:" in str(e.value)
 
 
 def test_interface_body_check(make_input_bundle):
@@ -600,7 +606,6 @@ def bar():
         compiler.compile_code(main, input_bundle=input_bundle)
 
 
-@pytest.mark.xfail
 def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
     lib1 = """
 @external
@@ -618,8 +623,28 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
-    # TODO make the exception more precise once fixed
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(CallViolation):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function_staticcall(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def __default__() -> int128:
+    return 43
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    foo:int128 = 0
+    foo = staticcall lib1.__at__(self).__default__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(CallViolation):
         compiler.compile_code(main, input_bundle=input_bundle)
 
 

@@ -7,7 +7,6 @@ import math
 import operator
 import pickle
 import sys
-import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
@@ -23,7 +22,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnfoldableNode,
     VariableDeclarationException,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.utils import (
@@ -34,6 +32,7 @@ from vyper.utils import (
     quantize,
     sha256sum,
 )
+from vyper.warnings import EnumUsage, vyper_warn
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -133,13 +132,9 @@ def get_node(
 
     node = vy_class(parent=parent, **ast_struct)
 
-    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
     if enum_warn:
-        # TODO: hack to pretty print, logic should be factored out of exception
-        pretty_printed_node = str(VyperException("", node))
-        warnings.warn(
-            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
-            stacklevel=2,
+        vyper_warn(
+            EnumUsage("enum will be deprecated in a future release, use flag instead.", node)
         )
 
     node.validate()
@@ -331,25 +326,9 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
-    def __hash__(self):
-        values = [getattr(self, i, None) for i in VyperNode._public_slots]
-        return hash(tuple(values))
-
     def __deepcopy__(self, memo):
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
-
-    def __eq__(self, other):
-        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
-        # nodes, especially if they come from other modules
-        if not isinstance(other, type(self)):
-            return False
-        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
-            return False
-        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
-            if getattr(self, field_name, None) != getattr(other, field_name, None):
-                return False
-        return True
 
     def __repr__(self):
         cls = type(self)
@@ -889,7 +868,10 @@ class Str(Constant):
 
     def validate(self):
         for c in self.value:
-            if ord(c) >= 256:
+            # in utf-8, bytes in the 128 and up range deviate from latin1 and
+            # can be control bytes, allowing multi-byte characters.
+            # reject them here.
+            if ord(c) >= 128:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
 
 
