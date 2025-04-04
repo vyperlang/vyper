@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cached_property
 
+import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -15,9 +16,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRFunction
-from vyper.venom.effects import EMPTY, Effects
-from vyper.venom.effects import reads as effect_reads
-from vyper.venom.effects import writes as effect_write
+from vyper.venom.effects import Effects
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
 
@@ -175,12 +174,14 @@ class _AvailableExpression:
         self.buckets[expr.opcode].add(expr)
 
     def remove_effect(self, effect: Effects):
-        if effect == EMPTY:
+        if effect == effects.EMPTY:
             return
         to_remove = set()
         for opcode in self.buckets.keys():
-            op_effect = effect_reads.get(opcode, EMPTY) | effect_write.get(opcode, EMPTY)
-            if op_effect & effect != EMPTY:
+            read_effs = effects.reads.get(opcode, effects.EMPTY)
+            write_effs = effects.writes.get(opcode, effects.EMPTY)
+            op_effect = read_effs | write_effs
+            if op_effect & effect != effects.EMPTY:
                 to_remove.add(opcode)
 
         for opcode in to_remove:
@@ -292,7 +293,7 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            if expr.get_writes() & expr.get_reads() == EMPTY:
+            if expr.get_writes() & expr.get_reads() == effects.EMPTY:
                 available_expr.add(expr)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
