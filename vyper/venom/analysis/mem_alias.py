@@ -6,7 +6,6 @@ from vyper.venom.basicblock import (
     EMPTY_MEMORY_ACCESS,
     FULL_MEMORY_ACCESS,
     IRInstruction,
-    IRLiteral,
     MemoryLocation,
 )
 
@@ -45,7 +44,7 @@ class MemoryAliasAnalysis(IRAnalysis):
     def _analyze_mem_location(self, loc: MemoryLocation):
         """Analyze a memory location to determine aliasing"""
         if loc not in self.alias_sets:
-            self.alias_sets[loc] = OrderedSet([loc])
+            self.alias_sets[loc] = OrderedSet([])
 
         # Check for aliasing with existing locations
         for other_loc in self.alias_sets:
@@ -72,24 +71,24 @@ class MemoryAliasAnalysis(IRAnalysis):
         start2, end2 = loc2.offset, loc2.offset + loc2.size
 
         return not (end1 <= start2 or end2 <= start1)
-    
+
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations may alias.
         """
         if loc1.is_volatile or loc2.is_volatile:
             return self._may_alias(loc1, loc2)
-            
+
         if loc1 in self.alias_sets and loc2 in self.alias_sets:
             return loc2 in self.alias_sets[loc1]
-            
+
         result = self._may_alias(loc1, loc2)
-        
+
         if loc1 not in self.alias_sets:
             self._analyze_mem_location(loc1)
         if loc2 not in self.alias_sets:
             self._analyze_mem_location(loc2)
-            
+
         return result
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
