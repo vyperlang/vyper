@@ -26,13 +26,14 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegateca
 # all these instruction should have always
 # the same value in function
 
-# REVIEW: why don't these go in UNINTERESTING_OPCODES? since they only cost
-# 2 gas each.
-IMMUTABLE_ENV_QUERIES = frozenset(["calldatasize", "gaslimit", "address", "codesize"])
 
 # instruction that dont need to be stored in available expression
 UNINTERESTING_OPCODES = frozenset(
     [
+        "calldatasize",
+        "gaslimit",
+        "address",
+        "codesize",
         "store",
         "phi",
         "param",
@@ -68,14 +69,9 @@ class _Expression:
         if not isinstance(other, _Expression):
             return False
 
-        if self.opcode in IMMUTABLE_ENV_QUERIES:
-            return self.opcode == other.opcode
-
         return self.inst == other.inst
 
     def __hash__(self) -> int:
-        if self.opcode in IMMUTABLE_ENV_QUERIES:
-            return hash(self.opcode)
         return hash(self.inst)
 
     # Full equality for expressions based on opcode and operands
@@ -331,9 +327,6 @@ class CSEAnalysis(IRAnalysis):
         return self._get_expression(inst, available_exprs)
 
     def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
-        if inst.opcode in IMMUTABLE_ENV_QUERIES:
-            return _Expression(inst, inst.opcode, [], self.ignore_msize)
-
         # create expression
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
