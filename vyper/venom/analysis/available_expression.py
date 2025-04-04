@@ -319,9 +319,8 @@ class CSEAnalysis(IRAnalysis):
     def get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression | None = None
     ) -> _Expression:
-        available_exprs = available_exprs or self.inst_to_available.get(
-            inst, _AvailableExpression()
-        )
+        if available_exprs is None:
+            available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
 
         assert available_exprs is not None  # help mypy
         return self._get_expression(inst, available_exprs)
