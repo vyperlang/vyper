@@ -10,6 +10,7 @@ Vyper provides a collection of built-in functions available in the global namesp
 Bitwise Operations
 ==================
 
+
 .. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
@@ -29,6 +30,10 @@ Bitwise Operations
 .. note::
 
   This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
+.. note::
+
+    The functions ``bitwise_and``, ``bitwise_or``, ``bitwise_xor`` and ``bitwise_not`` have been deprecated from version 0.3.4., and removed in version 0.4.2. Please use their operator versions instead: ``&``, ``|``, ``^``, ``~``.
 
 
 Chain Interaction
