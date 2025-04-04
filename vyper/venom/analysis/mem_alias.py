@@ -34,15 +34,6 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        # Handle alloca instructions
-        if inst.opcode == "alloca":
-            assert inst.output is not None  # hint
-            size = inst.operands[0].value if isinstance(inst.operands[0], IRLiteral) else 0
-            offset = inst.operands[1].value if isinstance(inst.operands[1], IRLiteral) else 0
-            loc = MemoryLocation(offset=offset, size=size)
-            self.alias_sets[loc] = OrderedSet([loc])
-            return
-
         loc = inst.get_read_memory_location()
         if loc is not None:
             self._analyze_mem_location(loc)
