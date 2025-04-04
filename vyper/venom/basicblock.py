@@ -1,5 +1,7 @@
 import json
 import re
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -103,6 +105,8 @@ COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
+
+ir_printer = ContextVar("ir_printer", default=None)
 
 
 def flip_comparison_opcode(opcode):
@@ -237,6 +241,34 @@ class IRLabel(IROperand):
         return json.dumps(self.value)  # escape it
 
 
+@dataclass(frozen=True)
+class MemoryLocation:
+    """Represents a memory location that can be analyzed for aliasing"""
+
+    offset: int = 0
+    size: int = 0
+    is_volatile: bool = False
+
+    def completely_overlaps(self, other: "MemoryLocation") -> bool:
+        if self == FULL_MEMORY_ACCESS:
+            return True
+        if other == FULL_MEMORY_ACCESS:
+            return self == FULL_MEMORY_ACCESS
+        if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
+            return False
+        if self.size <= 0 or other.size <= 0:
+            return False
+
+        start1, end1 = self.offset, self.offset + self.size
+        start2, end2 = other.offset, other.offset + other.size
+
+        return start1 <= start2 and end1 >= end2
+
+
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_volatile=True)
+EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
+
+
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -309,11 +341,107 @@ class IRInstruction:
         """
         return self.is_phi or self.is_param
 
-    def get_read_effects(self):
+    def get_read_effects(self) -> effects.Effects:
         return effects.reads.get(self.opcode, effects.EMPTY)
 
-    def get_write_effects(self):
+    def get_write_effects(self) -> effects.Effects:
         return effects.writes.get(self.opcode, effects.EMPTY)
+
+    def get_write_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            if isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=32)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "mload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mcopy":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "dload":
+            return FULL_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        elif opcode in ("call", "delegatecall", "staticcall"):
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(
+                    offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
+                )
+            return FULL_MEMORY_ACCESS
+        elif opcode in ("codecopy", "extcodecopy"):
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "returndatacopy":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
+
+    def get_read_memory_location(self) -> MemoryLocation:
+        """Extract memory location info from an instruction"""
+        opcode = self.opcode
+        if opcode == "mstore":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "mload":
+            if isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[0].value, size=32)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "mcopy":
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "calldatacopy":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dloadbytes":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "dload":
+            return EMPTY_MEMORY_ACCESS
+        elif opcode == "invoke":
+            return FULL_MEMORY_ACCESS
+        elif opcode in ("call", "delegatecall", "staticcall"):
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[3], IRLiteral):
+                return MemoryLocation(
+                    offset=self.operands[3].value, size=self.operands[2].value, is_volatile=False
+                )
+            return FULL_MEMORY_ACCESS
+        elif opcode == "return":
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(
+                    offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
+                )
+            return FULL_MEMORY_ACCESS
+        elif opcode == "create":
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "create2":
+            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[2].value, size=self.operands[1].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode in ("sha3", "sha3_64"):
+            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode.startswith("log"):
+            if isinstance(self.operands[-1], IRLiteral) and isinstance(
+                self.operands[-2], IRLiteral
+            ):
+                return MemoryLocation(offset=self.operands[-1].value, size=self.operands[-2].value)
+            return FULL_MEMORY_ACCESS
+        elif opcode == "revert":
+            if isinstance(self.operands[0], IRLiteral) and isinstance(self.operands[1], IRLiteral):
+                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            return FULL_MEMORY_ACCESS
+        return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
         """
@@ -733,12 +861,27 @@ class IRBasicBlock:
         return bb
 
     def __repr__(self) -> str:
-        s = f"{self.label}:  ; IN={[bb.label for bb in self.cfg_in]}"
-        s += f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        for instruction in self.instructions:
-            s += f"  {str(instruction).strip()}\n"
-        if len(self.instructions) > 30:
-            s += f"  ; {self.label}\n"
-        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
-            s += f"  ; ({self.parent.name})\n\n"
+        printer = ir_printer.get()
+
+        s = (
+            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
+        )
+        if printer and hasattr(printer, "_pre_block"):
+            s += printer._pre_block(self)
+        for inst in self.instructions:
+            if printer and hasattr(printer, "_pre_instruction"):
+                s += printer._pre_instruction(inst)
+            s += f"    {str(inst).strip()}"
+            if printer and hasattr(printer, "_post_instruction"):
+                s += printer._post_instruction(inst)
+            s += "\n"
         return s
+
+
+class IRPrinter:
+    def _pre_instruction(self, inst: IRInstruction) -> str:
+        return ""
+
+    def _post_instruction(self, inst: IRInstruction) -> str:
+        return ""
