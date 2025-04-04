@@ -1,5 +1,5 @@
 import contextlib
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
@@ -60,7 +60,7 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
+        self.operands: List[Tuple[MemoryDef, IRBasicBlock]] = []
 
 
 class MemSSA(IRAnalysis):
@@ -82,12 +82,12 @@ class MemSSA(IRAnalysis):
         # Memory SSA specific state
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
         self.live_on_entry = MemoryAccess(0)  # live_on_entry node
-        self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
-        self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
-        self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
-        self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
-        self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
-        self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
+        self.memory_defs: Dict[IRBasicBlock, List[MemoryDef]] = {}
+        self.memory_uses: Dict[IRBasicBlock, List[MemoryUse]] = {}
+        self.memory_phis: Dict[IRBasicBlock, MemoryPhi] = {}
+        self.current_def: Dict[IRBasicBlock, MemoryAccess] = {}
+        self.inst_to_def: Dict[IRInstruction, MemoryDef] = {}
+        self.inst_to_use: Dict[IRInstruction, MemoryUse] = {}
 
     def analyze(self):
         # Request required analyses
@@ -116,14 +116,10 @@ class MemSSA(IRAnalysis):
         return volatile_loc
 
     def get_memory_def(self, inst: IRInstruction) -> Optional[MemoryDef]:
-        if inst in self.inst_to_def:
-            return self.inst_to_def[inst]
-        return None
+        return self.inst_to_def.get(inst)
 
     def get_memory_use(self, inst: IRInstruction) -> Optional[MemoryUse]:
-        if inst in self.inst_to_use:
-            return self.inst_to_use[inst]
-        return None
+        return self.inst_to_use.get(inst)
 
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
@@ -250,7 +246,7 @@ class MemSSA(IRAnalysis):
     def _remove_redundant_phis(self):
         """Remove unnecessary phi nodes"""
         for phi in list(self.memory_phis.values()):
-            if all(op[1] == phi for op in phi.operands):
+            if all(op[0] == phi for op in phi.operands):
                 del self.memory_phis[phi.block]
 
     def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:
@@ -370,7 +366,7 @@ class MemSSA(IRAnalysis):
 
         return s
 
-    def _pre_block(self, bb: IRBasicBlock):
+    def _pre_block(self, bb: IRBasicBlock) -> str:
         s = ""
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
