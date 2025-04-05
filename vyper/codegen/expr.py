@@ -570,7 +570,7 @@ class Expr:
             if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
-                op = self._signed_to_unsigned_comparison_op(op)
+                op = Expr._signed_to_unsigned_comparison_op(op)
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):
@@ -810,7 +810,11 @@ class Expr:
     # Parse an expression that results in a value
     @classmethod
     def parse_value_expr(cls, expr, context):
-        return unwrap_location(cls(expr, context).ir_node)
+        ir_node = cls(expr, context).ir_node
+        # Don't unwrap Bytes or String constants as they're already properly initialized
+        if ir_node.location is not None and isinstance(ir_node.typ, (_BytestringT)):
+            return ir_node
+        return unwrap_location(ir_node)
 
     # Parse an expression that represents a pointer to memory/calldata or storage.
     @classmethod
