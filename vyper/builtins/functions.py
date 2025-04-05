@@ -15,11 +15,11 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_buffer_overflow_ir,
+    check_create_operation,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
-    clamp_nonzero,
     copy_bytes,
     create_memory_copy,
     dummy_node_for_type,
@@ -1292,95 +1292,6 @@ class RawLog(BuiltinFunctionT):
         return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
-class BitwiseAnd(BuiltinFunctionT):
-    _id = "bitwise_and"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-
-    def _try_fold(self, node):
-        vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value & values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["and", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseOr(BuiltinFunctionT):
-    _id = "bitwise_or"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-
-    def _try_fold(self, node):
-        vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value | values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["or", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseXor(BuiltinFunctionT):
-    _id = "bitwise_xor"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-
-    def _try_fold(self, node):
-        vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value ^ values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["xor", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseNot(BuiltinFunctionT):
-    _id = "bitwise_not"
-    _inputs = [("x", UINT256_T)]
-    _return_type = UINT256_T
-
-    def _try_fold(self, node):
-        vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
-
-        validate_call_args(node, 1)
-        value = node.args[0].get_folded_value()
-        if not isinstance(value, vy_ast.Int):
-            raise UnfoldableNode
-
-        value = value.value
-
-        value = (2**256 - 1) - value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["not", args[0]], typ=UINT256_T)
-
-
 class Shift(BuiltinFunctionT):
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
@@ -1542,9 +1453,9 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
     if not revert_on_failure:
         return ret
 
-    ret = clamp_nonzero(ret)
-    ret.set_error_msg(f"{create_op} failed")
-    return ret
+    with ret.cache_when_complex("addr") as (b1, addr):
+        ret = IRnode.from_list(["seq", check_create_operation(addr), addr])
+        return b1.resolve(ret)
 
 
 # calculate the gas used by create for a given number of bytes
@@ -2665,10 +2576,6 @@ DISPATCH_TABLE = {
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
     "blobhash": BlobHash(),
-    "bitwise_and": BitwiseAnd(),
-    "bitwise_or": BitwiseOr(),
-    "bitwise_xor": BitwiseXor(),
-    "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
     "unsafe_add": UnsafeAdd(),
