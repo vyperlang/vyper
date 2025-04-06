@@ -309,7 +309,7 @@ class _ExprAnalyser:
                 # special handling for bytestrings since their
                 # class objects are in the type map, not the type itself
                 # (worth rethinking this design at some point.)
-                if issubclass(t, _BytestringT):
+                if isinstance(t, type) and issubclass(t, _BytestringT):
                     t = t.from_literal(node)
 
                 # any more validation which needs to occur
