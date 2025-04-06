@@ -220,6 +220,7 @@ def _parse_args(argv):
 
     settings = Settings()
 
+    # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
