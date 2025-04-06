@@ -531,7 +531,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         for arg in (*args, *kwargs):
             self.expr_visitor.visit(arg, target_type)
 
-    def _analyse_list_iter(self, iter_node, target_node, target_type):
+    def _analyse_list_iter(self, target_node, iter_node, target_type):
         # iteration over a variable or literal list
         iter_val = iter_node.reduced()
 
@@ -574,7 +574,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # sanity check the postcondition of analyse_range_iter
             assert isinstance(target_type, IntegerT)
         else:
-            iter_var = self._analyse_list_iter(node.iter, node.target.target, target_type)
+            # note: using `node.target` here results in bad source location.
+            iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
