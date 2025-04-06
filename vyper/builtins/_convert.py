@@ -423,9 +423,11 @@ def to_address(expr, arg, out_typ):
 
 
 def _cast_bytestring(expr, arg, out_typ):
-    # ban converting Bytes[20] to Bytes[21]
+    # ban converting Bytes[20] to Bytes[21], since that can be done
+    # by simple assignment.
     if isinstance(arg.typ, out_typ.__class__) and arg.typ.maxlen <= out_typ.maxlen:
         _FAIL(arg.typ, out_typ, expr)
+
     # can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     if isinstance(expr, vy_ast.Constant) and arg.typ.maxlen > out_typ.maxlen:
         _FAIL(arg.typ, out_typ, expr)
@@ -446,6 +448,11 @@ def to_string(expr, arg, out_typ):
 
 @_input_types(StringT, BytesT)
 def to_bytes(expr, arg, out_typ):
+    return _cast_bytestring(expr, arg, out_typ)
+
+
+@_input_types(StringT, BytesT)
+def to_abi_buffer(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 

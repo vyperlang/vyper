@@ -166,6 +166,17 @@ class BytesT(_BytestringT):
         return ABI_Bytes(self.length)
 
 
+class ABIBufferT(_BytestringT):
+    typeclass = "abi buffer"
+
+    _id = "ABIBuffer"
+    _valid_literal = (vy_ast.Bytes, vy_ast.HexBytes)
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Bytes(self.length)
+
+
 class StringT(_BytestringT):
     typeclass = "string"
 

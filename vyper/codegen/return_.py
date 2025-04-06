@@ -3,9 +3,11 @@ from typing import Any, Optional
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
+    bytes_data_ptr,
     calculate_type_for_external_return,
     check_assign,
     dummy_node_for_type,
+    get_bytearray_length,
     get_type_for_exact_size,
     make_setter,
     needs_clamp,
@@ -14,6 +16,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
+from vyper.semantics.types import ABIBufferT
 
 Stmt = Any  # mypy kludge
 
@@ -63,7 +66,8 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
             buf = context.new_internal_variable(context.return_type)
             return_len = get_bytearray_length(buf)
             return_offset = bytes_data_ptr(buf)
-            jump_to_exit += [add_ofst(buf, 32), return_len]  # type: ignore
+            jump_to_exit += [return_offset, return_len]  # type: ignore
+            fill_return_buffer = make_setter(buf, ir_val)
             return finalize(fill_return_buffer)
 
         external_return_type = calculate_type_for_external_return(context.return_type)

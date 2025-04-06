@@ -23,7 +23,7 @@ from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, V
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
-from vyper.semantics.types.bytestrings import BytesT, StringT
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
@@ -309,7 +309,7 @@ class _ExprAnalyser:
                 # special handling for bytestrings since their
                 # class objects are in the type map, not the type itself
                 # (worth rethinking this design at some point.)
-                if t in (BytesT, StringT):
+                if issubclass(t, _BytestringT):
                     t = t.from_literal(node)
 
                 # any more validation which needs to occur
