@@ -103,3 +103,17 @@ def foo() -> bytes32:
     """
     c = get_contract(code)
     assert c.foo() == hashlib.sha256(str_val.encode()).digest()
+
+
+def test_sha256_constant_hexbytes(get_contract, keccak):
+    hexbytes_val = "67363d3d37363d34f03d5260086018f3"
+    code = f"""
+FOO: constant(Bytes[16]) = x"{hexbytes_val}"
+BAR: constant(bytes32) = sha256(FOO)
+@external
+def foo() -> bytes32:
+    x: bytes32 = BAR
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == hashlib.sha256(bytes.fromhex(hexbytes_val)).digest()

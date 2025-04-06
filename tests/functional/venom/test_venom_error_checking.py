@@ -149,3 +149,26 @@ def test_venom_parser_nonexistant_var_loop_incorrect_phi():
 
     assert [err.var.name for err in errors] == ["%var", "%var"]
     assert [err.inst.parent.label.name for err in errors] == ["cond", "after"]
+
+
+def test_venom_parser_unrechable():
+    """ """
+    code = """
+    main:
+        %par = param
+        jmp @after
+    unreachable:
+        sink %par
+    after:
+        sink %par
+    """
+
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
+    assert all(isinstance(err, VarNotDefined) for err in errors)
+
+    assert len(errors) == 1
+
+    assert [err.var.name for err in errors] == ["%par"]
+    assert [err.inst.parent.label.name for err in errors] == ["unreachable"]
