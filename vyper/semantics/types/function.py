@@ -1,4 +1,5 @@
 import re
+from vyper.compiler.settings import get_global_settings
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
@@ -760,6 +761,17 @@ class _ParsedDecorators:
         return StateMutability(self.state_mutability_node.id)
 
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
+        settings = get_global_settings()
+        if settings.nonreentrancy_by_default:
+            if decorator_node.id == "nonreentrant":
+                raise StructureException(
+                    "used @nonreentrant decorator, but `#pragma nonreentrancy` is set"
+                )
+        elif decorator_node.id == "reentrant":
+            raise StructureException(
+                "used @reentrant decorator, but `#pragma nonreentrancy` is not set"
+            )
+
         if self.nonreentrant_node is not None:
             raise StructureException(
                 "nonreentrant decorator is already set", self.nonreentrant_node, decorator_node
@@ -769,14 +781,22 @@ class _ParsedDecorators:
 
     @property
     def nonreentrant(self) -> bool:
-        return self.nonreentrant_node is not None
+        settings = get_global_settings()
+        if settings.nonreentrancy_by_default:
+            return self.nonreentrant_node is None
+        else:
+            return self.nonreentrant_node is not None
 
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     ret = _ParsedDecorators()
 
     for decorator in funcdef.decorator_list:
-        if isinstance(decorator, vy_ast.Call):
+        # order of precedence for error checking
+        if decorator.get("id") in ("nonreentrant", "reentrant"):
+            ret.set_nonreentrant(decorator)
+
+        elif isinstance(decorator, vy_ast.Call):
             msg = "Decorator is not callable"
             hint = None
             if decorator.get("func.id") == "nonreentrant":
@@ -784,9 +804,6 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                 hint += "`@nonreentrant` decorator does not accept any "
                 hint += "arguments since vyper 0.4.0."
             raise StructureException(msg, decorator, hint=hint)
-
-        if decorator.get("id") == "nonreentrant":
-            ret.set_nonreentrant(decorator)
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):
