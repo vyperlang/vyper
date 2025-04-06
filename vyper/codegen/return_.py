@@ -57,6 +57,15 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return finalize(fill_return_buffer)
 
     else:  # return from external function
+        # raw return
+        if isinstance(context.return_type, ABIBufferT):
+            # copy to memory
+            buf = context.new_internal_variable(context.return_type)
+            return_len = get_bytearray_length(buf)
+            return_offset = bytes_data_ptr(buf)
+            jump_to_exit += [add_ofst(buf, 32), return_len]  # type: ignore
+            return finalize(fill_return_buffer)
+
         external_return_type = calculate_type_for_external_return(context.return_type)
         maxlen = external_return_type.abi_type.size_bound()
 
