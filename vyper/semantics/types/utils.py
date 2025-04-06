@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper import ast as vy_ast
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
@@ -176,7 +178,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> Optional[int]:
     """
     Return the literal value for a `Subscript` index.
 
@@ -187,15 +189,18 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     Returns
     -------
-    int
+    Optional[int]
         Literal integer value.
-        In the future, will return `None` if the subscript is an Ellipsis
+        Return `None` if the subscript is an Ellipsis
     """
     # this is imported to improve error messages
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     node = node.reduced()
+
+    if isinstance(node, vy_ast.Ellipsis):
+        return None
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_

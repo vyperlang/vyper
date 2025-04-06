@@ -837,8 +837,8 @@ def _parse_args(
             value = funcdef.args.defaults[i - n_positional_args]
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
-            validate_expected_type(value, type_)
-            keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
+            validate_expected_type(value, expected_type=type_)
+            keyword_args.append(KeywordArg(argname, type_, default_value=value, ast_source=arg))
 
         argnames.add(argname)
 
@@ -900,7 +900,7 @@ class MemberFunctionT(VyperType):
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
         for arg, expected_type in zip(node.args, self.arg_types):
             # CMC 2022-04-01 this should probably be in the validation module
-            validate_expected_type(arg, expected_type)
+            validate_expected_type(arg, expected_type=expected_type)
 
         return self.return_type
 

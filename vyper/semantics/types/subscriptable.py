@@ -115,7 +115,7 @@ class _SequenceT(_SubscriptableT):
         if length >= 2**64:
             vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
-        super().__init__(UINT256_T, value_type)
+        super().__init__(IntegerT.any(), value_type)
         self.length = length
 
     @property
@@ -213,10 +213,17 @@ class SArrayT(_SequenceT):
         value_type = type_from_annotation(node.value)
 
         if not value_type._as_array:
-            raise StructureException(f"arrays of {value_type} are not allowed!")
+            raise StructureException(f"arrays of {value_type} are not allowed!", node.value)
 
-        # note: validates index is a vy_ast.Int.
+        # note: validates index is a vy_ast.Int or vy_ast.Ellipsis.
         length = get_index_value(node.slice)
+        if length is None:
+            # CMC 2024-03-08 would it ever be useful to allow static arrays with
+            # abstract length?
+            raise StructureException(
+                "static arrays cannot be defined with generic length!", node.slice
+            )
+
         return cls(value_type, length)
 
 
