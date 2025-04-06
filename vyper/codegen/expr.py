@@ -187,7 +187,14 @@ class Expr:
             return ret
 
         if varinfo.is_constant:
-            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+            # Get the constant value as an IR node
+            ir_node = Expr(varinfo.decl_node.value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if ir_node.location is not None and not isinstance(ir_node.typ, (_BytestringT)):
+                ir_node = unwrap_location(ir_node)
+                
+            return ir_node
 
         if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
@@ -222,7 +229,13 @@ class Expr:
 
         # x.balance: balance of address x
         if self.expr.attr == "balance":
-            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            # Get the address as an IR node
+            addr = Expr(self.expr.value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if addr.location is not None and not isinstance(addr.typ, (_BytestringT)):
+                addr = unwrap_location(addr)
+                
             if addr.typ == AddressT():
                 if isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
                     seq = ["selfbalance"]
@@ -231,7 +244,13 @@ class Expr:
                 return IRnode.from_list(seq, typ=UINT256_T)
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
-            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            # Get the address as an IR node
+            addr = Expr(self.expr.value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if addr.location is not None and not isinstance(addr.typ, (_BytestringT)):
+                addr = unwrap_location(addr)
+                
             if addr.typ == AddressT():
                 if self.expr.attr == "codesize":
                     if self.expr.get("value.id") == "self":
@@ -245,12 +264,24 @@ class Expr:
                 return IRnode.from_list(eval_code, typ=output_type)
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
-            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            # Get the address as an IR node
+            addr = Expr(self.expr.value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if addr.location is not None and not isinstance(addr.typ, (_BytestringT)):
+                addr = unwrap_location(addr)
+                
             if addr.typ == AddressT():
                 return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
         # x.code: codecopy/extcodecopy of address x
         elif self.expr.attr == "code":
-            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            # Get the address as an IR node
+            addr = Expr(self.expr.value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if addr.location is not None and not isinstance(addr.typ, (_BytestringT)):
+                addr = unwrap_location(addr)
+                
             if addr.typ == AddressT():
                 # These adhoc nodes will be replaced with a valid node in `Slice.build_IR`
                 if addr.value == "address":  # for `self.code`
@@ -314,7 +345,14 @@ class Expr:
         # self.x: global attribute
         if (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+                # Get the constant value as an IR node
+                ir_node = Expr(varinfo.decl_node.value, self.context).ir_node
+                
+                # Only unwrap location if it's not a BytestringT type
+                if ir_node.location is not None and not isinstance(ir_node.typ, (_BytestringT)):
+                    ir_node = unwrap_location(ir_node)
+                    
+                return ir_node
 
             location = data_location_to_address_space(
                 varinfo.location, self.context.is_ctor_context
@@ -357,7 +395,13 @@ class Expr:
                 index = keccak256_helper(index, self.context)
 
         elif is_array_like(sub.typ):
-            index = Expr.parse_value_expr(self.expr.slice, self.context)
+            # Get the index as an IR node
+            index = Expr(self.expr.slice, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if index.location is not None and not isinstance(index.typ, (_BytestringT)):
+                index = unwrap_location(index)
+                
             if read_write_overlap(sub, index):
                 raise CompilerPanic("risky overlap")
 
@@ -376,9 +420,16 @@ class Expr:
         return ir_node
 
     def parse_BinOp(self):
-        left = Expr.parse_value_expr(self.expr.left, self.context)
-        right = Expr.parse_value_expr(self.expr.right, self.context)
-
+        # Get left and right operands as IR nodes
+        left = Expr(self.expr.left, self.context).ir_node
+        right = Expr(self.expr.right, self.context).ir_node
+        
+        # Only unwrap location if they're not BytestringT types
+        if left.location is not None and not isinstance(left.typ, (_BytestringT)):
+            left = unwrap_location(left)
+        if right.location is not None and not isinstance(right.typ, (_BytestringT)):
+            right = unwrap_location(right)
+            
         return Expr.handle_binop(self.expr.op, left, right, self.context)
 
     @classmethod
@@ -518,8 +569,15 @@ class Expr:
             return op
 
     def parse_Compare(self):
-        left = Expr.parse_value_expr(self.expr.left, self.context)
-        right = Expr.parse_value_expr(self.expr.right, self.context)
+        # Get left and right operands as IR nodes
+        left = Expr(self.expr.left, self.context).ir_node
+        right = Expr(self.expr.right, self.context).ir_node
+        
+        # Only unwrap location if they're not BytestringT types
+        if left.location is not None and not isinstance(left.typ, (_BytestringT)):
+            left = unwrap_location(left)
+        if right.location is not None and not isinstance(right.typ, (_BytestringT)):
+            right = unwrap_location(right)
 
         if right.value is None:
             raise TypeCheckFailure("unreachable")
@@ -588,8 +646,13 @@ class Expr:
     def parse_BoolOp(self):
         values = []
         for value in self.expr.values:
-            # Check for boolean operations with non-boolean inputs
-            ir_val = Expr.parse_value_expr(value, self.context)
+            # Get each value as an IR node
+            ir_val = Expr(value, self.context).ir_node
+            
+            # Only unwrap location if it's not a BytestringT type
+            if ir_val.location is not None and not isinstance(ir_val.typ, (_BytestringT)):
+                ir_val = unwrap_location(ir_val)
+                
             assert ir_val.typ == BoolT()
             values.append(ir_val)
 
@@ -633,193 +696,3 @@ class Expr:
         # nesting further at each step
         for val in values[-2::-1]:
             # `x or y` => `if x { then 1 } { else y }`
-            ir_node = ["if", val, 1, ir_node]
-
-        return IRnode.from_list(ir_node, typ=BoolT())
-
-    # Unary operations (only "not" supported)
-    def parse_UnaryOp(self):
-        operand = Expr.parse_value_expr(self.expr.operand, self.context)
-        if isinstance(self.expr.op, vy_ast.Not):
-            if operand.typ._is_prim_word and operand.typ == BoolT():
-                return IRnode.from_list(["iszero", operand], typ=BoolT())
-
-        if isinstance(self.expr.op, vy_ast.Invert):
-            if isinstance(operand.typ, FlagT):
-                n_members = len(operand.typ._flag_members)
-                # use (xor 0b11..1 operand) to flip all the bits in
-                # `operand`. `mask` could be a very large constant and
-                # hurt codesize, but most user flags will likely have few
-                # enough members that the mask will not be large.
-                mask = (2**n_members) - 1
-                return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
-
-            if operand.typ == UINT256_T:
-                return IRnode.from_list(["not", operand], typ=operand.typ)
-
-            # block `~` for all other integer types, since reasoning
-            # about dirty bits is not entirely trivial. maybe revisit
-            # this at a later date.
-            raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
-
-        if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
-            assert operand.typ.is_signed
-            # Clamp on minimum signed integer value as we cannot negate that
-            # value (all other integer values are fine)
-            min_int_val, _ = operand.typ.int_bounds
-            return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
-
-    # Function calls
-    def parse_Call(self):
-        # TODO fix cyclic import
-        from vyper.builtins._signatures import BuiltinFunctionT
-
-        func = self.expr.func
-        func_t = func._metadata["type"]
-
-        if isinstance(func_t, BuiltinFunctionT):
-            return func_t.build_IR(self.expr, self.context)
-
-        # Struct constructor
-        if is_type_t(func_t, StructT):
-            assert not self.is_stmt  # sanity check typechecker
-            return self.handle_struct_literal()
-
-        # Interface constructor. Bar(<address>).
-        if is_type_t(func_t, InterfaceT) or func.get("attr") == "__at__":
-            assert not self.is_stmt  # sanity check typechecker
-
-            # magic: do sanity checks for module.__at__
-            if func.get("attr") == "__at__":
-                assert isinstance(func_t, MemberFunctionT)
-                assert isinstance(func.value._metadata["type"], ModuleT)
-
-            (arg0,) = self.expr.args
-            arg_ir = Expr(arg0, self.context).ir_node
-
-            assert arg_ir.typ == AddressT()
-            arg_ir.typ = self.expr._metadata["type"]
-
-            return arg_ir
-
-        if isinstance(func_t, MemberFunctionT):
-            # TODO consider moving these to builtins or a dedicated file
-            darray = Expr(func.value, self.context).ir_node
-            assert isinstance(darray.typ, DArrayT)
-            args = [Expr(x, self.context).ir_node for x in self.expr.args]
-            if func.attr == "pop":
-                darray = Expr(func.value, self.context).ir_node
-                assert len(self.expr.args) == 0
-                return_item = not self.is_stmt
-                return pop_dyn_array(darray, return_popped_item=return_item)
-            elif func.attr == "append":
-                (arg,) = args
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
-
-                ret = ["seq"]
-                if potential_overlap(darray, arg):
-                    tmp = self.context.new_internal_variable(arg.typ)
-                    ret.append(make_setter(tmp, arg))
-                    arg = tmp
-
-                ret.append(append_dyn_array(darray, arg))
-                return IRnode.from_list(ret)
-
-            raise CompilerPanic("unreachable!")  # pragma: nocover
-
-        assert isinstance(func_t, ContractFunctionT)
-        assert func_t.is_internal or func_t.is_constructor
-
-        return self_call.ir_for_self_call(self.expr, self.context)
-
-    @classmethod
-    def handle_external_call(cls, expr, context):
-        # TODO fix cyclic import
-        from vyper.builtins._signatures import BuiltinFunctionT
-
-        call_node = expr.value
-        assert isinstance(call_node, vy_ast.Call)
-
-        func_t = call_node.func._metadata["type"]
-
-        if isinstance(func_t, BuiltinFunctionT):
-            return func_t.build_IR(call_node, context)
-
-        return external_call.ir_for_external_call(call_node, context)
-
-    def parse_ExtCall(self):
-        return self.handle_external_call(self.expr, self.context)
-
-    def parse_StaticCall(self):
-        return self.handle_external_call(self.expr, self.context)
-
-    def parse_List(self):
-        typ = self.expr._metadata["type"]
-        if len(self.expr.elements) == 0:
-            return IRnode.from_list("~empty", typ=typ)
-
-        multi_ir = [Expr(x, self.context).ir_node for x in self.expr.elements]
-
-        return IRnode.from_list(["multi"] + multi_ir, typ=typ)
-
-    def parse_Tuple(self):
-        tuple_elements = [Expr(x, self.context).ir_node for x in self.expr.elements]
-        typ = TupleT([x.typ for x in tuple_elements])
-        multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
-        return multi_ir
-
-    def parse_IfExp(self):
-        test = Expr.parse_value_expr(self.expr.test, self.context)
-        assert test.typ == BoolT()  # sanity check
-
-        body = Expr(self.expr.body, self.context).ir_node
-        orelse = Expr(self.expr.orelse, self.context).ir_node
-
-        # if they are in the same location, we can skip copying
-        # into memory. also for the case where either body or orelse are
-        # literal `multi` values (ex. for tuple or arrays), copy to
-        # memory (to avoid crashing in make_setter, XXX fixme).
-        if body.location != orelse.location or body.value == "multi":
-            body = ensure_in_memory(body, self.context)
-            orelse = ensure_in_memory(orelse, self.context)
-
-        assert body.location == orelse.location
-        # check this once compare_type has no side effects:
-        # assert body.typ.compare_type(orelse.typ)
-
-        typ = self.expr._metadata["type"]
-        location = body.location
-        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
-
-    def handle_struct_literal(self):
-        expr = self.expr
-        typ = expr._metadata["type"]
-        member_subs = {}
-        for kwarg in expr.keywords:
-            assert kwarg.arg not in member_subs
-
-            sub = Expr(kwarg.value, self.context).ir_node
-            member_subs[kwarg.arg] = sub
-
-        return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
-        )
-
-    # Parse an expression that results in a value
-    @classmethod
-    def parse_value_expr(cls, expr, context):
-        ir_node = cls(expr, context).ir_node
-        # Don't unwrap Bytes or String constants as they're already properly initialized
-        if ir_node.location is not None and isinstance(ir_node.typ, (_BytestringT)):
-            return ir_node
-        return unwrap_location(ir_node)
-
-    # Parse an expression that represents a pointer to memory/calldata or storage.
-    @classmethod
-    def parse_pointer_expr(cls, expr, context):
-        o = cls(expr, context).ir_node
-        if not o.location:
-            raise StructureException("Looking for a variable location, instead got a value", expr)
-        return o
