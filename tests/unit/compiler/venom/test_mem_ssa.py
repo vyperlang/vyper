@@ -1,7 +1,9 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryLocation, MemoryUse
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryLocation, MemoryUse, MemoryPhi, MemoryAccess
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel, IRBasicBlock
+from vyper.venom.effects import Effects
+import pytest
 
 
 def test_basic_clobber():
@@ -618,3 +620,375 @@ def test_read_write_memory_clobbering_partial():
     use2 = mem_ssa.get_memory_use(load2)
     assert use1.reaching_def == call_def
     assert use2.reaching_def == call_def
+
+
+def test_mark_volatile():
+    pre = """
+    function _global {
+        _global:
+            %1 = param
+            mstore 0, %1
+            %2 = mload 0
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    bb = fn.get_basic_block("_global")
+    store = bb.instructions[1]  # mstore 0, %1
+    load = bb.instructions[2]  # %2 = mload 0
+
+    store_loc = mem_ssa.get_memory_def(store).loc
+    load_loc = mem_ssa.get_memory_use(load).loc
+
+    # Mark locations as volatile
+    volatile_store_loc = mem_ssa.alias.mark_volatile(store_loc)
+    volatile_load_loc = mem_ssa.alias.mark_volatile(load_loc)
+
+    assert volatile_store_loc.offset == store_loc.offset
+    assert volatile_store_loc.size == store_loc.size
+    assert volatile_load_loc.offset == load_loc.offset
+    assert volatile_load_loc.size == load_loc.size
+    assert volatile_store_loc.is_volatile
+    assert volatile_load_loc.is_volatile
+    assert mem_ssa.alias.may_alias(volatile_store_loc, store_loc)
+    assert mem_ssa.alias.may_alias(volatile_load_loc, load_loc)
+    assert mem_ssa.alias.may_alias(volatile_store_loc, volatile_load_loc)
+
+
+def test_analyze_instruction_with_no_memory_ops():
+    pre = """
+    function _global {
+        _global:
+            %1 = 42  # Simple assignment with no memory operations
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # Get the block and instruction
+    bb = fn.get_basic_block("_global")
+    assignment_inst = bb.instructions[0]  # %1 = 42
+
+    # Verify that the instruction doesn't have memory operations
+    assert assignment_inst.get_read_memory_location() is EMPTY_MEMORY_ACCESS
+    assert assignment_inst.get_write_memory_location() is EMPTY_MEMORY_ACCESS
+
+    assert mem_ssa.alias.alias_sets is not None
+
+
+def test_phi_node_reaching_def():
+    pre = """
+    function _global {
+        entry:
+            %cond = 1
+            jnz %cond, @block1, @block2
+        block1:
+            mstore 0, 42
+            jmp @merge
+        block2:
+            mstore 0, 24
+            jmp @merge
+        merge:
+            mstore 0, 84
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    block1 = fn.get_basic_block("block1")
+    block2 = fn.get_basic_block("block2")
+    merge_block = fn.get_basic_block("merge")
+
+    def1 = mem_ssa.get_memory_def(block1.instructions[0])  # mstore 0, 42
+    def2 = mem_ssa.get_memory_def(block2.instructions[0])  # mstore 0, 24
+    def3 = mem_ssa.get_memory_def(merge_block.instructions[0])  # mstore 0, 84
+
+    assert merge_block in mem_ssa.memory_phis, "Merge block should have a phi node"
+    phi = mem_ssa.memory_phis[merge_block]
+    
+    assert len(phi.operands) == 2, "Phi node should have 2 operands"
+    assert phi.operands[0][0] == def1, "First operand should be def1"
+    assert phi.operands[1][0] == def2, "Second operand should be def2"
+    assert phi.operands[0][1] == block1, "First operand should be from block1"
+    assert phi.operands[1][1] == block2, "Second operand should be from block2"
+    
+    assert def3.reaching_def == mem_ssa.live_on_entry, "def3's reaching definition should be live_on_entry"
+    
+    # Create a new memory definition with the same location as def3
+    new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
+    mem_ssa.next_id += 1
+    new_def.loc = def3.loc
+    
+    # Manually test the _get_reaching_def_for_def method
+    reaching_def = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
+    assert reaching_def == phi, "The reaching definition should be the phi node"
+
+def test_memory_access_properties():
+    live_access = MemoryAccess(0)
+    assert live_access.is_live_on_entry
+    assert not live_access.is_volatile
+    assert live_access.id_str == "live_on_entry"
+    
+    regular_access = MemoryAccess(1)
+    assert not regular_access.is_live_on_entry
+    assert regular_access.id_str == "1"
+    
+    another_access = MemoryAccess(1)
+    assert regular_access == another_access
+    assert hash(regular_access) == hash(another_access)
+    assert regular_access != live_access
+    assert regular_access != "not_a_memory_access"
+
+def test_mark_location_volatile():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            mstore 32, 24
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    bb = fn.get_basic_block("entry")
+    def1 = mem_ssa.get_memory_def(bb.instructions[0])  # mstore 0, 42
+    def2 = mem_ssa.get_memory_def(bb.instructions[1])  # mstore 32, 24
+
+    # Mark first location as volatile
+    volatile_loc = mem_ssa.mark_location_volatile(def1.loc)
+    assert volatile_loc.is_volatile
+    assert def1.loc.is_volatile
+    assert not def2.loc.is_volatile
+
+def test_remove_redundant_phis():
+    pre = """
+    function _global {
+        entry:
+            %cond = 1
+            jnz %cond, @block1, @block2
+        block1:
+            mstore 0, 42
+            jmp @merge
+        block2:
+            mstore 0, 42  # Same value as block1
+            jmp @merge
+        merge:
+            %val = mload 0
+            jnz %val, @exit1, @exit2
+        exit1:
+            stop
+        exit2:
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    merge_block = fn.get_basic_block("merge")
+    
+    assert merge_block in mem_ssa.memory_phis
+    phi = mem_ssa.memory_phis[merge_block]
+    
+    phi.operands = [(phi, merge_block), (phi, merge_block)]
+    
+    # Remove redundant phis
+    mem_ssa._remove_redundant_phis()
+    assert merge_block not in mem_ssa.memory_phis
+
+def test_print_context():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            %val2 = mload 0
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    # "Test" print context manager to help with coverage failures :(
+    with mem_ssa.print_context():
+        bb = fn.get_basic_block("entry")
+        store_inst = bb.instructions[0]  # mstore instruction
+        load_inst = bb.instructions[1]  # mload instruction
+        
+        post_store = mem_ssa._post_instruction(store_inst)
+        assert "def:" in post_store
+        
+        post_load = mem_ssa._post_instruction(load_inst)
+        assert "use:" in post_load
+        
+        pre_block = mem_ssa._pre_block(bb)
+        assert pre_block == ""  # No phi nodes in entry block
+
+def test_storage_ssa():
+    pre = """
+    function _global {
+        entry:
+            sstore 0, 42
+            %val2 = sload 0
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn, location_type="storage")
+    mem_ssa.analyze()
+
+    bb = fn.get_basic_block("entry")
+    store_inst = bb.instructions[0]  # sstore instruction
+    load_inst = bb.instructions[1]  # sload instruction
+
+    # Verify that the instructions have storage effects
+    assert store_inst.opcode == "sstore"
+    assert load_inst.opcode == "sload"
+    assert Effects.STORAGE in store_inst.get_write_effects()
+    assert Effects.STORAGE in load_inst.get_read_effects()
+
+    store_def = mem_ssa.get_memory_def(store_inst)
+    load_use = mem_ssa.get_memory_use(load_inst)
+    
+    assert store_def is not None
+    assert load_use is not None
+    assert load_use.reaching_def == store_def
+
+def test_clobbering_in_successor_blocks():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            jmp @next
+        next:
+            mstore 0, 24
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    entry_block = fn.get_basic_block("entry")
+    next_block = fn.get_basic_block("next")
+
+    def1 = mem_ssa.get_memory_def(entry_block.instructions[0])  # mstore 0, 42
+    def2 = mem_ssa.get_memory_def(next_block.instructions[0])  # mstore 0, 24
+
+    assert mem_ssa.get_clobbering_memory_access(def1) == def2
+
+def test_clobbering_with_use():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            %x = mload 0
+            mstore 0, 24
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    entry_block = fn.get_basic_block("entry")
+    store1 = entry_block.instructions[0]  # mstore 0, 42
+    load = entry_block.instructions[1]    # mload 0
+    store2 = entry_block.instructions[2]  # mstore 0, 24
+
+    def1 = mem_ssa.get_memory_def(store1)
+    assert mem_ssa.get_clobbering_memory_access(def1) is None
+
+def test_memory_access_str():
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            stop
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+
+    entry_block = fn.get_basic_block("entry")
+    store = entry_block.instructions[0]  # mstore 0, 42
+    mem_def = mem_ssa.get_memory_def(store)
+    assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
+
+def test_print_method():
+    code = """
+    function test_print {
+        entry:
+            mstore 0, 42
+            %cond = 1
+            jnz %cond, @then, @else
+        then:
+            mstore 0, 24
+            jmp @merge
+        else:
+            mstore 0, 3
+            jmp @merge
+        merge:
+            mstore 0, 4
+            stop
+    }
+    """
+    ctx = parse_venom(code)
+    function = ctx.functions[IRLabel("test_print")]
+    analyses_cache = IRAnalysesCache(function)
+    mem_ssa = MemSSA(analyses_cache, function)
+    mem_ssa.analyze()
+
+    with mem_ssa.print_context():
+        output = str(function)
+        assert "phi: 5 <- 4 from @then, 2 from @else" in output
+        assert "def: 1 (live_on_entry) MemoryDef(4)" in output
+        assert "def: 4 (1) MemoryDef(3)" in output
+        assert "def: 2 (1) MemoryDef(3)" in output
+        assert "def: 3 (1) None" in output
