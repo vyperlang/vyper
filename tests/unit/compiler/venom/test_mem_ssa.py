@@ -1,9 +1,8 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryLocation, MemoryUse, MemoryPhi, MemoryAccess
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel, IRBasicBlock
+from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef, MemoryLocation, MemoryUse
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel
 from vyper.venom.effects import Effects
-import pytest
 
 
 def test_basic_clobber():
@@ -724,39 +723,43 @@ def test_phi_node_reaching_def():
 
     assert merge_block in mem_ssa.memory_phis, "Merge block should have a phi node"
     phi = mem_ssa.memory_phis[merge_block]
-    
+
     assert len(phi.operands) == 2, "Phi node should have 2 operands"
     assert phi.operands[0][0] == def1, "First operand should be def1"
     assert phi.operands[1][0] == def2, "Second operand should be def2"
     assert phi.operands[0][1] == block1, "First operand should be from block1"
     assert phi.operands[1][1] == block2, "Second operand should be from block2"
-    
-    assert def3.reaching_def == mem_ssa.live_on_entry, "def3's reaching definition should be live_on_entry"
-    
+
+    assert (
+        def3.reaching_def == mem_ssa.live_on_entry
+    ), "def3's reaching definition should be live_on_entry"
+
     # Create a new memory definition with the same location as def3
     new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
     mem_ssa.next_id += 1
     new_def.loc = def3.loc
-    
+
     # Manually test the _get_reaching_def_for_def method
     reaching_def = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
     assert reaching_def == phi, "The reaching definition should be the phi node"
+
 
 def test_memory_access_properties():
     live_access = MemoryAccess(0)
     assert live_access.is_live_on_entry
     assert not live_access.is_volatile
     assert live_access.id_str == "live_on_entry"
-    
+
     regular_access = MemoryAccess(1)
     assert not regular_access.is_live_on_entry
     assert regular_access.id_str == "1"
-    
+
     another_access = MemoryAccess(1)
     assert regular_access == another_access
     assert hash(regular_access) == hash(another_access)
     assert regular_access != live_access
     assert regular_access != "not_a_memory_access"
+
 
 def test_mark_location_volatile():
     pre = """
@@ -783,6 +786,7 @@ def test_mark_location_volatile():
     assert volatile_loc.is_volatile
     assert def1.loc.is_volatile
     assert not def2.loc.is_volatile
+
 
 def test_remove_redundant_phis():
     pre = """
@@ -813,15 +817,16 @@ def test_remove_redundant_phis():
     mem_ssa.analyze()
 
     merge_block = fn.get_basic_block("merge")
-    
+
     assert merge_block in mem_ssa.memory_phis
     phi = mem_ssa.memory_phis[merge_block]
-    
+
     phi.operands = [(phi, merge_block), (phi, merge_block)]
-    
+
     # Remove redundant phis
     mem_ssa._remove_redundant_phis()
     assert merge_block not in mem_ssa.memory_phis
+
 
 def test_print_context():
     pre = """
@@ -844,15 +849,16 @@ def test_print_context():
         bb = fn.get_basic_block("entry")
         store_inst = bb.instructions[0]  # mstore instruction
         load_inst = bb.instructions[1]  # mload instruction
-        
+
         post_store = mem_ssa._post_instruction(store_inst)
         assert "def:" in post_store
-        
+
         post_load = mem_ssa._post_instruction(load_inst)
         assert "use:" in post_load
-        
+
         pre_block = mem_ssa._pre_block(bb)
         assert pre_block == ""  # No phi nodes in entry block
+
 
 def test_storage_ssa():
     pre = """
@@ -882,10 +888,11 @@ def test_storage_ssa():
 
     store_def = mem_ssa.get_memory_def(store_inst)
     load_use = mem_ssa.get_memory_use(load_inst)
-    
+
     assert store_def is not None
     assert load_use is not None
     assert load_use.reaching_def == store_def
+
 
 def test_clobbering_in_successor_blocks():
     pre = """
@@ -914,6 +921,7 @@ def test_clobbering_in_successor_blocks():
 
     assert mem_ssa.get_clobbering_memory_access(def1) == def2
 
+
 def test_clobbering_with_use():
     pre = """
     function _global {
@@ -934,11 +942,10 @@ def test_clobbering_with_use():
 
     entry_block = fn.get_basic_block("entry")
     store1 = entry_block.instructions[0]  # mstore 0, 42
-    load = entry_block.instructions[1]    # mload 0
-    store2 = entry_block.instructions[2]  # mstore 0, 24
 
     def1 = mem_ssa.get_memory_def(store1)
     assert mem_ssa.get_clobbering_memory_access(def1) is None
+
 
 def test_memory_access_str():
     pre = """
@@ -960,6 +967,7 @@ def test_memory_access_str():
     store = entry_block.instructions[0]  # mstore 0, 42
     mem_def = mem_ssa.get_memory_def(store)
     assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
+
 
 def test_print_method():
     code = """
