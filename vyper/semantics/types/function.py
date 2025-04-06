@@ -1,11 +1,11 @@
 import re
-from vyper.compiler.settings import get_global_settings
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArgumentException,
     CallViolation,
@@ -762,6 +762,7 @@ class _ParsedDecorators:
 
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
         settings = get_global_settings()
+        assert settings is not None
         if settings.nonreentrancy_by_default:
             if decorator_node.id == "nonreentrant":
                 raise StructureException(
@@ -782,6 +783,7 @@ class _ParsedDecorators:
     @property
     def nonreentrant(self) -> bool:
         settings = get_global_settings()
+        assert settings is not None
         if settings.nonreentrancy_by_default:
             return self.nonreentrant_node is None
         else:
