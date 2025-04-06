@@ -170,7 +170,10 @@ class ABIBufferT(_BytestringT):
     typeclass = "abi buffer"
 
     _id = "ABIBuffer"
-    _valid_literal = (vy_ast.Bytes, vy_ast.HexBytes)
+
+    # don't allow literal ABIBuffers, since it creates ambiguity during
+    # type inference. revisit once PR #3765 is merged.
+    #_valid_literal = (vy_ast.Bytes, vy_ast.HexBytes)
 
     @property
     def abi_type(self) -> ABIType:
