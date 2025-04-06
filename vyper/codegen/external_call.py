@@ -271,13 +271,11 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # return a tuple of (bool, function return type)
     tuple_t = TupleT([bool_ty, return_t])
 
-    tuple_buf = context.new_internal_variable(tuple_t)
-
     call_op = IRnode.from_list(call_op)
     with call_op.cache_when_complex("success") as (b1, success):
         s = ["seq"]
         s.append(["if", success, ret_unpacker])
-        success_buf = buf # unsafe cast
+        success_buf = buf  # unsafe cast
         s.append(STORE(success_buf, success))
         ret.append(b1.resolve(s))
 
