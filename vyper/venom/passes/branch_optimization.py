@@ -31,20 +31,23 @@ class BranchOptimizationPass(IRPass):
             fst_liveness = fst.instructions[0].liveness
             snd_liveness = snd.instructions[0].liveness
 
+            # heuristic(!) to decide if we should flip the labels or not
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
 
             cond = term_inst.operands[0]
             prev_inst = self.dfg.get_producing_instruction(cond)
+
+            # heuristic: remove the iszero and swap branches
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
-                self.updater.update(
-                    term_inst, "jnz", [new_cond, term_inst.operands[2], term_inst.operands[1]]
-                )
+                new_labels = term_inst.operands[2], term_inst.operands[1]
+                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
+
+            # heuristic: add an iszero and swap branches
             elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
                 new_cond = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
-                self.updater.update(
-                    term_inst, "jnz", [new_cond, term_inst.operands[2], term_inst.operands[1]]
-                )
+                new_labels = term_inst.operands[2], term_inst.operands[1]
+                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
 
     def run_pass(self):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
