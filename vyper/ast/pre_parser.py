@@ -96,7 +96,7 @@ def _parse_pragma(comment_contents, settings, code, start):
         pragma = pragma.removeprefix("nonreentrancy").strip()
         if pragma not in ("on", "off"):
             raise StructureException("invalid pragma reentrancy (expected on/off)", start)
-        settings.nonreentrancy_by_default = (pragma == "on")
+        settings.nonreentrancy_by_default = pragma == "on"
         return
 
     raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")  # pragma: nocover
