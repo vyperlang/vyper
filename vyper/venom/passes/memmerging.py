@@ -397,33 +397,34 @@ class MemMergePass(IRPass):
 
         _barrier()
 
-    # This pass is necessary for trivial cases of
-    # dload/mstore merging that contains
-    # the varibles which is not allowed in more
-    # general passes
+    # This pass is necessary for trivial cases of dload/mstore merging
+    # where the src and dst pointers are variables, which are not handled
+    # in the other merging passes.
     def _merge_mstore_dload(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            if inst.opcode == "mstore":
-                var, dst_ptr = inst.operands
-                if not isinstance(var, IRVariable):
-                    continue
-                producer = self.dfg.get_producing_instruction(var)
-                if producer is None:
-                    continue
-                if producer.opcode != "dload":
-                    continue
+            if inst.opcode != "mstore":
+                continue
 
-                assert producer.output is not None
-                uses = self.dfg.get_uses(producer.output)
-                if len(uses) != 1:
-                    continue
+            var, dst_ptr = inst.operands
+            if not isinstance(var, IRVariable):
+                continue
+            producer = self.dfg.get_producing_instruction(var)
+            if producer is None:
+                continue
+            if producer.opcode != "dload":
+                continue
 
-                src_ptr = producer.operands[0]
+            assert producer.output is not None
+            uses = self.dfg.get_uses(producer.output)
+            if len(uses) != 1:
+                continue
 
-                inst.opcode = "dloadbytes"
-                inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
+            src_ptr = producer.operands[0]
 
-                producer.make_nop()
+            inst.opcode = "dloadbytes"
+            inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
+
+            producer.make_nop()
 
 
 def _volatile_memory(inst):
