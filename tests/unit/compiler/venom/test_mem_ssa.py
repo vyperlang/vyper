@@ -6,6 +6,36 @@ from vyper.venom.effects import Effects
 import pytest
 
 
+@pytest.fixture
+def dummy_mem_ssa():
+    """Fixture that creates a MemSSA instance from a simple function."""
+    pre = """
+    function _global {
+        entry:
+            stop
+    }
+    """
+    ctx = parse_venom(pre)
+    fn = ctx.functions[IRLabel("_global")]
+    ac = IRAnalysesCache(fn)
+    mem_ssa = MemSSA(ac, fn)
+    mem_ssa.analyze()
+    return mem_ssa, fn, ctx
+
+
+@pytest.fixture
+def mem_ssa_from_code():
+    """Fixture that creates a MemSSA instance from custom code."""
+    def _create_mem_ssa(code):
+        ctx = parse_venom(code)
+        fn = ctx.functions[IRLabel("_global")]
+        ac = IRAnalysesCache(fn)
+        mem_ssa = MemSSA(ac, fn)
+        mem_ssa.analyze()
+        return mem_ssa, fn, ctx
+    return _create_mem_ssa
+
+
 def test_basic_clobber():
     pre = """
     function _global {
@@ -1169,41 +1199,29 @@ def test_get_clobbered_memory_access_with_none():
     assert result is None
 
 
-def test_get_clobbered_memory_access_with_live_on_entry():
-    pre = """
-    function _global {
-        entry:
-            stop
-    }
-    """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
+    mem_ssa, _, _ = dummy_mem_ssa
     
     result = mem_ssa.get_clobbered_memory_access(mem_ssa.live_on_entry)
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_live_on_entry():
+def test_get_clobbering_memory_access_with_live_on_entry(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     result = mem_ssa.get_clobbering_memory_access(mem_ssa.live_on_entry)
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_non_def():
+def test_get_clobbering_memory_access_with_non_def(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1211,11 +1229,7 @@ def test_get_clobbering_memory_access_with_non_def():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     use = mem_ssa.get_memory_use(entry_block.instructions[0])
@@ -1224,7 +1238,8 @@ def test_get_clobbering_memory_access_with_non_def():
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_phi():
+def test_get_clobbering_memory_access_with_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1241,11 +1256,7 @@ def test_get_clobbering_memory_access_with_phi():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     merge_block = fn.get_basic_block("merge")
     phi = mem_ssa.memory_phis[merge_block]
@@ -1254,7 +1265,8 @@ def test_get_clobbering_memory_access_with_phi():
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_use_in_successor():
+def test_get_clobbering_memory_access_with_use_in_successor(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1266,11 +1278,7 @@ def test_get_clobbering_memory_access_with_use_in_successor():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
@@ -1279,7 +1287,8 @@ def test_get_clobbering_memory_access_with_use_in_successor():
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_phi_in_successor():
+def test_get_clobbering_memory_access_with_phi_in_successor(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1290,11 +1299,7 @@ def test_get_clobbering_memory_access_with_phi_in_successor():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
@@ -1305,7 +1310,8 @@ def test_get_clobbering_memory_access_with_phi_in_successor():
     assert int(result.store_inst.operands[0].value) == 84
 
 
-def test_post_instruction_with_no_memory_ops():
+def test_post_instruction_with_no_memory_ops(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1313,11 +1319,7 @@ def test_post_instruction_with_no_memory_ops():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
@@ -1326,7 +1328,8 @@ def test_post_instruction_with_no_memory_ops():
     assert result == ""
 
 
-def test_post_instruction_with_memory_use():
+def test_post_instruction_with_memory_use(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1334,11 +1337,7 @@ def test_post_instruction_with_memory_use():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
@@ -1347,7 +1346,8 @@ def test_post_instruction_with_memory_use():
     assert "use:" in result
 
 
-def test_post_instruction_with_memory_def():
+def test_post_instruction_with_memory_def(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1355,11 +1355,7 @@ def test_post_instruction_with_memory_def():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
@@ -1368,7 +1364,8 @@ def test_post_instruction_with_memory_def():
     assert "def:" in result
 
 
-def test_pre_block_with_phi():
+def test_pre_block_with_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1385,11 +1382,7 @@ def test_pre_block_with_phi():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     merge_block = fn.get_basic_block("merge")
     
@@ -1397,7 +1390,8 @@ def test_pre_block_with_phi():
     assert "phi:" in result
 
 
-def test_pre_block_without_phi():
+def test_pre_block_without_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
     pre = """
     function _global {
         entry:
@@ -1405,11 +1399,7 @@ def test_pre_block_without_phi():
             stop
     }
     """
-    ctx = parse_venom(pre)
-    fn = ctx.functions[IRLabel("_global")]
-    ac = IRAnalysesCache(fn)
-    mem_ssa = MemSSA(ac, fn)
-    mem_ssa.analyze()
+    mem_ssa, fn, _ = create_mem_ssa(pre)
     
     entry_block = fn.get_basic_block("entry")
     
