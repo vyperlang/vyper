@@ -726,6 +726,9 @@ class _ParsedDecorators:
     state_mutability_node: Optional[vy_ast.Name] = None
     nonreentrant_node: Optional[vy_ast.Name] = None
 
+    def __init__(self, funcdef: vy_ast.FunctionDef):
+        self.funcdef = funcdef
+
     def set_visibility(self, decorator_node: vy_ast.Name):
         assert FunctionVisibility.is_valid_value(decorator_node.id), "unreachable"
         if self.visibility_node is not None:
@@ -784,6 +787,11 @@ class _ParsedDecorators:
     def nonreentrant(self) -> bool:
         settings = get_global_settings()
         assert settings is not None
+
+        # default function defaults to reentrant
+        if self.nonreentrant_node is None and self.funcdef.name == "__default__":
+            return False
+
         if settings.nonreentrancy_by_default:
             return self.nonreentrant_node is None
         else:
@@ -791,7 +799,7 @@ class _ParsedDecorators:
 
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
-    ret = _ParsedDecorators()
+    ret = _ParsedDecorators(funcdef)
 
     for decorator in funcdef.decorator_list:
         # order of precedence for error checking
