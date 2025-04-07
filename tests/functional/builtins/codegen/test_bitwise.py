@@ -50,6 +50,19 @@ def test_bitwise_opcodes(typ):
     assert "SHR" in opcodes
 
 
+@pytest.mark.parametrize("typ", ["uint256", "bytes32"])
+@pytest.mark.xfail  # fails due to bad vyper grammar
+def test_not_roundtrip(get_contract, typ):
+    code = f"""
+@external
+def round_trip() -> {typ}:
+        b: {typ} = empty({typ})
+        return ~~b
+    """
+    c = get_contract(code)
+    assert c.round_trip() == (0 if typ == "uint256" else b"\00" * 32)
+
+
 @pytest.mark.parametrize("typ", [typ for typ in ALL_TYPES if typ not in ["uint256", "bytes32"]])
 @pytest.mark.parametrize("shift_op", ["<<", ">>"])
 def test_invalid_shift(typ, shift_op):
