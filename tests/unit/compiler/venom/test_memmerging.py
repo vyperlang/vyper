@@ -1416,7 +1416,7 @@ def test_memzeroing_interleaved():
 def test_merge_mstore_dload():
     """
     Test for merging the mstore/dload pairs which contains
-    variable which would normaly trigger barrier
+    variable which would normally trigger barrier
     """
     pre = """
     _global:
@@ -1441,14 +1441,17 @@ def test_merge_mstore_dload():
 def test_merge_mstore_dload_disallowed():
     """
     Test for merging the mstore/dload pairs which contains
-    variable which would normaly trigger barrier
+    variable which would normally trigger barrier.
+    In this case, because %d is used by `sink`, we don't optimize
+    the dload/mstore sequence into dloadbytes. (We could in the future
+    as a further optimization, it requires insertion of an mload).
     """
     pre = """
     _global:
         %par = param
         %d = dload %par
         mstore 1000, %d
-        return %d
+        sink %d
     """
 
     _check_no_change(pre)
