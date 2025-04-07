@@ -25,7 +25,7 @@ def dummy_mem_ssa():
 
 
 @pytest.fixture
-def mem_ssa_from_code():
+def create_mem_ssa():
     """Fixture that creates a MemSSA instance from custom code."""
 
     def _create_mem_ssa(code, location_type="memory", function_name="_global"):
@@ -39,8 +39,7 @@ def mem_ssa_from_code():
     return _create_mem_ssa
 
 
-def test_basic_clobber(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_basic_clobber(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -65,8 +64,7 @@ def test_basic_clobber(mem_ssa_from_code):
     assert clobbered.store_inst.parent == fn.entry
 
 
-def test_no_clobber_different_locations(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_no_clobber_different_locations(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -84,8 +82,7 @@ def test_no_clobber_different_locations(mem_ssa_from_code):
     assert clobbered.is_live_on_entry  # Should return live_on_entry since no clobber found
 
 
-def test_phi_node_clobber(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_phi_node_clobber(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -125,8 +122,7 @@ def test_phi_node_clobber(mem_ssa_from_code):
     assert block2_def.store_inst.operands[0].value == "%val2"
 
 
-def test_clobbering_with_multiple_stores(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_clobbering_with_multiple_stores(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -179,8 +175,7 @@ def test_clobbering_with_multiple_stores(mem_ssa_from_code):
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
 
-def test_partially_overlapping_clobber(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_partially_overlapping_clobber(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -226,8 +221,7 @@ def test_partially_overlapping_clobber(mem_ssa_from_code):
     assert mem_ssa.get_clobbering_memory_access(def4) is None
 
 
-def test_ambiguous_clobber(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_ambiguous_clobber(create_mem_ssa):
     pre = """
     function _global {
     _global:
@@ -272,8 +266,7 @@ def test_ambiguous_clobber(mem_ssa_from_code):
     ), f"Expected FULL_MEMORY_ACCESS for calldatacopy, got {calldatacopy_def.loc}"
 
 
-def test_complex_loop_clobber(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_complex_loop_clobber(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -354,8 +347,7 @@ def test_complex_loop_clobber(mem_ssa_from_code):
     assert different_loc_store.store_inst.operands[0].value == "%val_a2"
 
 
-def test_simple_def_chain(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_simple_def_chain(create_mem_ssa):
     code = """
     function _global {
         entry:
@@ -447,8 +439,7 @@ def test_may_alias(dummy_mem_ssa):
     ), "Adjacent but non-overlapping locations should not alias"
 
 
-def test_basic_def_use_assignment(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_basic_def_use_assignment(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -489,8 +480,7 @@ def test_basic_def_use_assignment(mem_ssa_from_code):
     assert def2.reaching_def == def1
 
 
-def test_read_write_memory_clobbering(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_read_write_memory_clobbering(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -539,8 +529,7 @@ def test_read_write_memory_clobbering(mem_ssa_from_code):
     assert clobberer2 == call_def
 
 
-def test_read_write_memory_clobbering_partial(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_read_write_memory_clobbering_partial(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -592,8 +581,7 @@ def test_read_write_memory_clobbering_partial(mem_ssa_from_code):
     assert use2.reaching_def == call_def
 
 
-def test_mark_volatile(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_mark_volatile(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -628,8 +616,7 @@ def test_mark_volatile(mem_ssa_from_code):
     assert mem_ssa.alias.may_alias(volatile_store_loc, volatile_load_loc)
 
 
-def test_analyze_instruction_with_no_memory_ops(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -651,8 +638,7 @@ def test_analyze_instruction_with_no_memory_ops(mem_ssa_from_code):
     assert mem_ssa.alias.alias_sets is not None
 
 
-def test_phi_node_reaching_def(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_phi_node_reaching_def(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -720,8 +706,7 @@ def test_memory_access_properties():
     assert regular_access != "not_a_memory_access"
 
 
-def test_mark_location_volatile(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_mark_location_volatile(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -743,8 +728,7 @@ def test_mark_location_volatile(mem_ssa_from_code):
     assert not def2.loc.is_volatile
 
 
-def test_remove_redundant_phis(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_remove_redundant_phis(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -779,8 +763,7 @@ def test_remove_redundant_phis(mem_ssa_from_code):
     assert merge_block not in mem_ssa.memory_phis
 
 
-def test_print_context(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_print_context(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -807,8 +790,7 @@ def test_print_context(mem_ssa_from_code):
         assert pre_block == ""  # No phi nodes in entry block
 
 
-def test_storage_ssa(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_storage_ssa(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -837,8 +819,7 @@ def test_storage_ssa(mem_ssa_from_code):
     assert load_use.reaching_def == store_def
 
 
-def test_clobbering_in_successor_blocks(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_clobbering_in_successor_blocks(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -861,8 +842,7 @@ def test_clobbering_in_successor_blocks(mem_ssa_from_code):
     assert mem_ssa.get_clobbering_memory_access(def1) == def2
 
 
-def test_clobbering_with_use(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_clobbering_with_use(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -882,8 +862,7 @@ def test_clobbering_with_use(mem_ssa_from_code):
     assert mem_ssa.get_clobbering_memory_access(def1) is None
 
 
-def test_memory_access_str(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_memory_access_str(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -900,8 +879,7 @@ def test_memory_access_str(mem_ssa_from_code):
     assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
 
 
-def test_print_method(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_print_method(create_mem_ssa):
     code = """
     function test_print {
         entry:
@@ -930,8 +908,7 @@ def test_print_method(mem_ssa_from_code):
         assert "def: 3 (1) None" in output
 
 
-def test_invalid_location_type(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_invalid_location_type(create_mem_ssa):
     pre = """
     function _global {
         _global:
@@ -948,8 +925,7 @@ def test_invalid_location_type(mem_ssa_from_code):
     assert "storage" in str(excinfo.value)
 
 
-def test_get_in_def_with_no_predecessors(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_in_def_with_no_predecessors(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -963,8 +939,7 @@ def test_get_in_def_with_no_predecessors(mem_ssa_from_code):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_in_def_with_merge_block(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_in_def_with_merge_block(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -985,8 +960,7 @@ def test_get_in_def_with_merge_block(mem_ssa_from_code):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_reaching_def_for_def_with_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1017,8 +991,7 @@ def test_get_reaching_def_for_def_with_phi(mem_ssa_from_code):
     assert result == phi
 
 
-def test_get_reaching_def_for_def_with_no_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1038,8 +1011,7 @@ def test_get_reaching_def_for_def_with_no_phi(mem_ssa_from_code):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_with_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1064,8 +1036,7 @@ def test_get_clobbered_memory_access_with_phi(mem_ssa_from_code):
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_with_none(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbered_memory_access_with_none(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1085,8 +1056,7 @@ def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_live_on_entry(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbering_memory_access_with_live_on_entry(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1099,8 +1069,7 @@ def test_get_clobbering_memory_access_with_live_on_entry(mem_ssa_from_code):
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_non_def(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbering_memory_access_with_non_def(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1117,8 +1086,7 @@ def test_get_clobbering_memory_access_with_non_def(mem_ssa_from_code):
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbering_memory_access_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1144,8 +1112,7 @@ def test_get_clobbering_memory_access_with_phi(mem_ssa_from_code):
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_use_in_successor(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbering_memory_access_with_use_in_successor(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1166,8 +1133,7 @@ def test_get_clobbering_memory_access_with_use_in_successor(mem_ssa_from_code):
     assert result is None
 
 
-def test_get_clobbering_memory_access_with_phi_in_successor(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_get_clobbering_memory_access_with_phi_in_successor(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1189,8 +1155,7 @@ def test_get_clobbering_memory_access_with_phi_in_successor(mem_ssa_from_code):
     assert int(result.store_inst.operands[0].value) == 84
 
 
-def test_post_instruction_with_no_memory_ops(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_post_instruction_with_no_memory_ops(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1207,8 +1172,7 @@ def test_post_instruction_with_no_memory_ops(mem_ssa_from_code):
     assert result == ""
 
 
-def test_post_instruction_with_memory_use(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_post_instruction_with_memory_use(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1225,8 +1189,7 @@ def test_post_instruction_with_memory_use(mem_ssa_from_code):
     assert "use:" in result
 
 
-def test_post_instruction_with_memory_def(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_post_instruction_with_memory_def(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1243,8 +1206,7 @@ def test_post_instruction_with_memory_def(mem_ssa_from_code):
     assert "def:" in result
 
 
-def test_pre_block_with_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_pre_block_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1269,8 +1231,7 @@ def test_pre_block_with_phi(mem_ssa_from_code):
     assert "phi:" in result
 
 
-def test_pre_block_without_phi(mem_ssa_from_code):
-    create_mem_ssa = mem_ssa_from_code
+def test_pre_block_without_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
