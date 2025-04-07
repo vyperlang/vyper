@@ -184,15 +184,17 @@ class IRVariable(IROperand):
 
     def __init__(self, name: str) -> None:
         assert isinstance(name, str)
-        name = name.removeprefix("%")
+        # name = name.removeprefix("%")
+        if not name.startswith("%"):
+            name = f"%{name}"
         super().__init__(name)
 
     def __repr__(self):
-        return f"%{self.value}"
+        return f"{self.value}"
 
     @property
     def plain_name(self) -> str:
-        return self.value
+        return self.name.strip("%")
 
 
 class IRLabel(IROperand):
