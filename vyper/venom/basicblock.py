@@ -184,7 +184,7 @@ class IRVariable(IROperand):
 
     def __init__(self, name: str) -> None:
         assert isinstance(name, str)
-        #name = name.removeprefix("%")
+        # name = name.removeprefix("%")
         if not name.startswith("%"):
             name = f"%{name}"
         super().__init__(name)

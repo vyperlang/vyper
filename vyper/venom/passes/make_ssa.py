@@ -114,7 +114,7 @@ class MakeSSA(IRPass):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, inst #"Phi instruction without output"
+                assert inst.output is not None, inst  # "Phi instruction without output"
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]

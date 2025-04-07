@@ -1,4 +1,7 @@
-from tests.venom_utils import assert_ctx_eq, parse_venom, parse_from_basic_block
+import pytest
+
+from tests.hevm import hevm_check_venom_ctx
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import MakeSSA, Mem2Var, RemoveUnusedVariablesPass
 
@@ -51,6 +54,7 @@ def test_phi_case():
     """
     _check_pre_post(pre, post)
 
+
 def test_multiple_make_ssa_error():
     pre = """
     main:
@@ -91,10 +95,48 @@ def test_multiple_make_ssa_error():
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         MakeSSA(ac, fn).run_pass()
-        #Mem2Var(ac, fn).run_pass()
+        # Mem2Var(ac, fn).run_pass()
         MakeSSA(ac, fn).run_pass()
-        #RemoveUnusedVariablesPass(ac, fn).run_pass()
+        # RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     print(ctx)
 
-    assert_ctx_eq(ctx, parse_from_basic_block(post));
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+@pytest.mark.hevm
+def test_make_ssa_error():
+    code = """
+    main:
+        %cond = param
+        %v = 0
+        jnz %cond, @then, @else
+    then:
+        %v = 1
+        jnz 1, @join, @unreachable
+    unreachable:
+        %v = 100
+        jmp @join
+    else:
+        %v = 2
+        jmp @join
+    join:
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        MakeSSA(ac, fn).run_pass()
+        # Mem2Var(ac, fn).run_pass()
+        MakeSSA(ac, fn).run_pass()
+        # RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    post_ctx = parse_from_basic_block(code)
+    for fn in post_ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        # Mem2Var(ac, fn).run_pass()
+        MakeSSA(ac, fn).run_pass()
+        # RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    hevm_check_venom_ctx(ctx, post_ctx)
