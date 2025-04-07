@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.semantics.data_locations import DataLocation
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
@@ -170,6 +171,12 @@ class ABIBufferT(_BytestringT):
     typeclass = "abi buffer"
 
     _id = "ABIBuffer"
+    _as_array= False 
+    _as_hashmap_key= False
+    _as_tuple_member= False
+
+    # disallow everything but memory
+    _invalid_locations = tuple(s for s in DataLocation if s not in (DataLocation.MEMORY, DataLocation.UNSET))
 
     # don't allow literal ABIBuffers, since it creates ambiguity during
     # type inference. revisit once PR #3765 is merged.
