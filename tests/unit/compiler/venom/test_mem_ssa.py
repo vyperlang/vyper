@@ -1073,3 +1073,211 @@ def test_get_clobbered_memory_access_with_none(mem_ssa_from_code):
     
     result = mem_ssa.get_clobbered_memory_access(None)
     assert result is None
+
+
+def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
+    mem_ssa, _, _ = dummy_mem_ssa
+    
+    result = mem_ssa.get_clobbered_memory_access(mem_ssa.live_on_entry)
+    assert result is None
+
+
+def test_get_clobbering_memory_access_with_live_on_entry(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    result = mem_ssa.get_clobbering_memory_access(mem_ssa.live_on_entry)
+    assert result is None
+
+
+def test_get_clobbering_memory_access_with_non_def(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            %val = mload 0
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    use = mem_ssa.get_memory_use(entry_block.instructions[0])
+    
+    result = mem_ssa.get_clobbering_memory_access(use)
+    assert result is None
+
+
+def test_get_clobbering_memory_access_with_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            %cond = 1
+            jnz %cond, @block1, @block2
+        block1:
+            mstore 0, 42
+            jmp @merge
+        block2:
+            mstore 0, 24
+            jmp @merge
+        merge:
+            %val = mload 0
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    merge_block = fn.get_basic_block("merge")
+    phi = mem_ssa.memory_phis[merge_block]
+    
+    result = mem_ssa.get_clobbering_memory_access(phi)
+    assert result is None
+
+
+def test_get_clobbering_memory_access_with_use_in_successor(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            jmp @next
+        next:
+            %val = mload 0
+            mstore 0, 24
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
+    
+    result = mem_ssa.get_clobbering_memory_access(def_)
+    assert result is None
+
+
+def test_get_clobbering_memory_access_with_phi_in_successor(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            jmp @merge
+        merge:
+            mstore 0, 84
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
+    
+    result = mem_ssa.get_clobbering_memory_access(def_)
+    assert result is not None
+    assert isinstance(result, MemoryDef)
+    assert int(result.store_inst.operands[0].value) == 84
+
+
+def test_post_instruction_with_no_memory_ops(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            %val = 42
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    inst = entry_block.instructions[0]
+    
+    result = mem_ssa._post_instruction(inst)
+    assert result == ""
+
+
+def test_post_instruction_with_memory_use(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            %val = mload 0
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    inst = entry_block.instructions[0]
+    
+    result = mem_ssa._post_instruction(inst)
+    assert "use:" in result
+
+
+def test_post_instruction_with_memory_def(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    inst = entry_block.instructions[0]
+    
+    result = mem_ssa._post_instruction(inst)
+    assert "def:" in result
+
+
+def test_pre_block_with_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            %cond = 1
+            jnz %cond, @block1, @block2
+        block1:
+            mstore 0, 42
+            jmp @merge
+        block2:
+            mstore 0, 24
+            jmp @merge
+        merge:
+            mstore 0, 84
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    merge_block = fn.get_basic_block("merge")
+    
+    result = mem_ssa._pre_block(merge_block)
+    assert "phi:" in result
+
+
+def test_pre_block_without_phi(mem_ssa_from_code):
+    create_mem_ssa = mem_ssa_from_code
+    pre = """
+    function _global {
+        entry:
+            mstore 0, 42
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+    
+    entry_block = fn.get_basic_block("entry")
+    
+    result = mem_ssa._pre_block(entry_block)
+    assert result == ""
