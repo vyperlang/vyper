@@ -94,9 +94,9 @@ def _parse_pragma(comment_contents, settings, code, start):
         if settings.nonreentrancy_by_default is not None:
             raise StructureException("pragma reentrancy specified twice!", start)
         pragma = pragma.removeprefix("nonreentrancy").strip()
-        if pragma not in ("on", "off", "true", "false"):
+        if pragma not in ("on", "off"):
             raise StructureException("invalid pragma reentrancy (expected on/off)", start)
-        settings.nonreentrancy_by_default = pragma in ("on", "true")
+        settings.nonreentrancy_by_default = (pragma == "on")
         return
 
     raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")  # pragma: nocover
