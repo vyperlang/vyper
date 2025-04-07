@@ -1,9 +1,10 @@
+import pytest
+
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef, MemoryLocation, MemoryUse, MemoryPhi
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRLabel, IRBasicBlock
+from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef, MemoryLocation, MemoryUse
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-import pytest
 
 
 @pytest.fixture
@@ -26,6 +27,7 @@ def dummy_mem_ssa():
 @pytest.fixture
 def mem_ssa_from_code():
     """Fixture that creates a MemSSA instance from custom code."""
+
     def _create_mem_ssa(code, location_type="memory", function_name="_global"):
         ctx = parse_venom(code)
         fn = ctx.functions[IRLabel(function_name)]
@@ -33,6 +35,7 @@ def mem_ssa_from_code():
         mem_ssa = MemSSA(ac, fn, location_type=location_type)
         mem_ssa.analyze()
         return mem_ssa, fn, ctx
+
     return _create_mem_ssa
 
 
@@ -937,7 +940,7 @@ def test_invalid_location_type(mem_ssa_from_code):
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
     ac = IRAnalysesCache(fn)
-    
+
     with pytest.raises(ValueError) as excinfo:
         MemSSA(ac, fn, location_type="invalid")
     assert "location_type must be one of:" in str(excinfo.value)
@@ -976,7 +979,7 @@ def test_get_in_def_with_merge_block(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     merge_block = fn.get_basic_block("merge")
     result = mem_ssa._get_in_def(merge_block)
     assert result == mem_ssa.live_on_entry
@@ -1001,15 +1004,15 @@ def test_get_reaching_def_for_def_with_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     merge_block = fn.get_basic_block("merge")
     phi = mem_ssa.memory_phis[merge_block]
-    
+
     # Create a new memory definition with the same location as the phi
     new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
-    
+
     result = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
     assert result == phi
 
@@ -1024,13 +1027,13 @@ def test_get_reaching_def_for_def_with_no_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
-    
+
     new_def = MemoryDef(mem_ssa.next_id, entry_block.instructions[0])
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)
-    
+
     result = mem_ssa._get_reaching_def_for_def(entry_block, new_def)
     assert result == mem_ssa.live_on_entry
 
@@ -1054,10 +1057,10 @@ def test_get_clobbered_memory_access_with_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     merge_block = fn.get_basic_block("merge")
     phi = mem_ssa.memory_phis[merge_block]
-    
+
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
 
 
@@ -1070,14 +1073,14 @@ def test_get_clobbered_memory_access_with_none(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     result = mem_ssa.get_clobbered_memory_access(None)
     assert result is None
 
 
 def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
     mem_ssa, _, _ = dummy_mem_ssa
-    
+
     result = mem_ssa.get_clobbered_memory_access(mem_ssa.live_on_entry)
     assert result is None
 
@@ -1091,7 +1094,7 @@ def test_get_clobbering_memory_access_with_live_on_entry(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     result = mem_ssa.get_clobbering_memory_access(mem_ssa.live_on_entry)
     assert result is None
 
@@ -1106,10 +1109,10 @@ def test_get_clobbering_memory_access_with_non_def(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     use = mem_ssa.get_memory_use(entry_block.instructions[0])
-    
+
     result = mem_ssa.get_clobbering_memory_access(use)
     assert result is None
 
@@ -1133,10 +1136,10 @@ def test_get_clobbering_memory_access_with_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     merge_block = fn.get_basic_block("merge")
     phi = mem_ssa.memory_phis[merge_block]
-    
+
     result = mem_ssa.get_clobbering_memory_access(phi)
     assert result is None
 
@@ -1155,10 +1158,10 @@ def test_get_clobbering_memory_access_with_use_in_successor(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
-    
+
     result = mem_ssa.get_clobbering_memory_access(def_)
     assert result is None
 
@@ -1176,10 +1179,10 @@ def test_get_clobbering_memory_access_with_phi_in_successor(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     def_ = mem_ssa.get_memory_def(entry_block.instructions[0])
-    
+
     result = mem_ssa.get_clobbering_memory_access(def_)
     assert result is not None
     assert isinstance(result, MemoryDef)
@@ -1196,10 +1199,10 @@ def test_post_instruction_with_no_memory_ops(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
-    
+
     result = mem_ssa._post_instruction(inst)
     assert result == ""
 
@@ -1214,10 +1217,10 @@ def test_post_instruction_with_memory_use(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
-    
+
     result = mem_ssa._post_instruction(inst)
     assert "use:" in result
 
@@ -1232,10 +1235,10 @@ def test_post_instruction_with_memory_def(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
     inst = entry_block.instructions[0]
-    
+
     result = mem_ssa._post_instruction(inst)
     assert "def:" in result
 
@@ -1259,9 +1262,9 @@ def test_pre_block_with_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     merge_block = fn.get_basic_block("merge")
-    
+
     result = mem_ssa._pre_block(merge_block)
     assert "phi:" in result
 
@@ -1276,8 +1279,8 @@ def test_pre_block_without_phi(mem_ssa_from_code):
     }
     """
     mem_ssa, fn, _ = create_mem_ssa(pre)
-    
+
     entry_block = fn.get_basic_block("entry")
-    
+
     result = mem_ssa._pre_block(entry_block)
     assert result == ""
