@@ -37,6 +37,58 @@ def __default__():
     with tx_failed():
         contract.protected_function(malicious.address)
 
+def test_reentrant_decorator(get_contract, tx_failed):
+    malicious_code = """
+interface ProtectedContract:
+    def protected_function(callback_address: address): nonpayable
+
+interface UnprotectedContract:
+    def unprotected_function(callback_address: address): nonpayable
+
+@external
+def do_protected_callback():
+    extcall ProtectedContract(msg.sender).protected_function(self)
+
+@external
+def do_unprotected_callback():
+    extcall UnprotectedContract(msg.sender).unprotected_function(self)
+    """
+
+    protected_code = """
+#pragma nonreentrancy on
+
+interface Callbackable:
+    def do_protected_callback(): nonpayable
+    def do_unprotected_callback(): nonpayable
+
+@external
+@reentrant
+def unprotected_function(c: Callbackable) -> uint256:
+    extcall c.do_unprotected_callback()
+    return 1
+
+@external
+def protected_function(c: Callbackable) -> uint256:
+    extcall c.do_protected_callback()
+    return 2
+
+# add a default function so we know the callback didn't fail for any reason
+# besides nonreentrancy
+@external
+def __default__():
+    pass
+    """
+    contract = get_contract(protected_code)
+    malicious = get_contract(malicious_code)
+
+
+    assert contract.unprotected_function(malicious.address) == 1
+    with tx_failed():
+        contract.protected_function(malicious.address)
+
+    zero_address = "0x" + "00" * 20
+    assert contract.unprotected_function(zero_address) == 1
+    assert contract.protected_function(zero_address) == 2
 
 def test_nonreentrant_view_function(get_contract, tx_failed):
     malicious_code = """
