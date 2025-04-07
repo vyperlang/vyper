@@ -227,7 +227,7 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
         return True
     # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
     # dload(src) costs additional 7*3 gas
-    if src.location == DATA and copy_cost <= (7*3 + length_calc_cost):
+    if src.location == DATA and copy_cost <= (7 * 3 + length_calc_cost):
         return True
     return False
 
