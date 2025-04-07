@@ -6,6 +6,7 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 # for these instruction exist optimization that
 # could benefit from iszero
 def prefer_iszero(inst: IRInstruction) -> bool:
+    # TODO: is there something we can do with `xor`?
     if inst.opcode == "eq":
         return True
     if inst.opcode in COMPARATOR_INSTRUCTIONS:

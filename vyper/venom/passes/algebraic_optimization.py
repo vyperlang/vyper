@@ -355,8 +355,8 @@ class AlgebraicOptimizationPass(IRPass):
             self.updater.update(inst, "iszero", [tmp])
             return
 
-        # rewrite comparisons by removing an `iszero`, e.g.
-        # `x > N` -> `x >= (N + 1)`
+        # rewrite comparisons by either inserting or removing an `iszero`,
+        # e.g. `x > N` -> `x >= (N + 1)`
         assert inst.output is not None
         uses = self.dfg.get_uses(inst.output)
         if len(uses) != 1:
@@ -366,14 +366,16 @@ class AlgebraicOptimizationPass(IRPass):
         if after.opcode not in ("iszero", "assert"):
             return
 
-        insert_iszero = after.opcode == "assert"
-
-        if not insert_iszero:
-            # peer down the iszero chain to see if it makes sense
-            # to remove the iszero. (can we simplify this?)
+        if after.opcode == "iszero":
+            # peer down the iszero chain to see if it actually makes sense
+            # to remove the iszero.
             n_uses = self.dfg.get_uses(after.output)
-            # "assert" inserts an iszero in assembly
-            if len(n_uses) != 1 or n_uses.first().opcode == "assert":
+            if len(n_uses) != 1:  # block the optimization
+                return
+            # "assert" inserts an iszero in assembly, so we will have
+            # two iszeros in the asm. this is already optimal, so we don't
+            # apply the iszero insertion
+            if n_uses.first().opcode == "assert":
                 return
 
         val = wrap256(operands[0].value, signed=signed)
@@ -393,11 +395,15 @@ class AlgebraicOptimizationPass(IRPass):
 
         self.updater.update(inst, new_opcode, [IRLiteral(val), operands[1]])
 
+        insert_iszero = after.opcode == "assert"
         if insert_iszero:
+            # next instruction is an assert, so we insert an iszero so
+            # that there will be two iszeros in the assembly.
             assert inst.output is not None, inst
             assert len(after.operands) == 1, after
             var = self.updater.add_before(after, "iszero", [inst.output])
             self.updater.update_operands(after, {after.operands[0]: var})
         else:
+            # remove the iszero!
             assert len(after.operands) == 1, after
             self.updater.update(after, "store", after.operands)
