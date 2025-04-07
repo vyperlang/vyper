@@ -37,13 +37,14 @@ def __default__():
     with tx_failed():
         contract.protected_function(malicious.address)
 
+
 def test_reentrant_decorator(get_contract, tx_failed):
     malicious_code = """
 interface ProtectedContract:
     def protected_function(callback_address: address): nonpayable
 
 interface UnprotectedContract:
-    def unprotected_function(callback_address: address): nonpayable
+    def unprotected_function(callback_address: address, continue_recursion: bool): nonpayable
 
 @external
 def do_protected_callback():
@@ -51,7 +52,7 @@ def do_protected_callback():
 
 @external
 def do_unprotected_callback():
-    extcall UnprotectedContract(msg.sender).unprotected_function(self)
+    extcall UnprotectedContract(msg.sender).unprotected_function(self, False)
     """
 
     protected_code = """
@@ -63,8 +64,9 @@ interface Callbackable:
 
 @external
 @reentrant
-def unprotected_function(c: Callbackable) -> uint256:
-    extcall c.do_unprotected_callback()
+def unprotected_function(c: Callbackable, continue_recursion: bool = True) -> uint256:
+    if continue_recursion:
+        extcall c.do_unprotected_callback()
     return 1
 
 @external
@@ -78,17 +80,22 @@ def protected_function(c: Callbackable) -> uint256:
 def __default__():
     pass
     """
+    benign_code = """
+@external
+def __default__():
+    pass
+    """
     contract = get_contract(protected_code)
     malicious = get_contract(malicious_code)
-
+    benign = get_contract(benign_code)
 
     assert contract.unprotected_function(malicious.address) == 1
     with tx_failed():
         contract.protected_function(malicious.address)
 
-    zero_address = "0x" + "00" * 20
-    assert contract.unprotected_function(zero_address) == 1
-    assert contract.protected_function(zero_address) == 2
+    assert contract.unprotected_function(benign.address) == 1
+    assert contract.protected_function(benign.address) == 2
+
 
 def test_nonreentrant_view_function(get_contract, tx_failed):
     malicious_code = """
