@@ -1,4 +1,5 @@
-from typing import Optional
+from collections import deque
+from typing import Iterable, Optional
 
 from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.basicblock import NO_OUTPUT_INSTRUCTIONS, IRInstruction, IROperand, IRVariable
@@ -61,6 +62,18 @@ class InstUpdater:
     def nop(self, inst: IRInstruction):
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
+
+    def nop_multi(self, to_nop: Iterable[IRInstruction]):
+        q = deque(to_nop)
+        for _ in range(len(q) ** 2):  # bounded `while True`
+            if len(q) == 0:
+                break
+            # NOTE: this doesn't work for dfg cycles.
+            inst = q.popleft()
+            if inst.output and len(self.dfg.get_uses(inst.output)) > 0:
+                q.append(inst)
+                continue
+            self.nop(inst)
 
     def remove(self, inst: IRInstruction):
         self.nop(inst)  # for dfg updates and checks

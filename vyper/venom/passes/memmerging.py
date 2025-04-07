@@ -1,5 +1,4 @@
 from bisect import bisect_left
-from collections import deque
 from dataclasses import dataclass
 
 from vyper.evm.opcodes import version_check
@@ -146,7 +145,7 @@ class MemMergePass(IRPass):
                 assert val is not None  # help mypy
                 self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
 
-            to_nop: deque[IRInstruction] = deque()
+            to_nop: list[IRInstruction] = []
 
             for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
@@ -163,14 +162,7 @@ class MemMergePass(IRPass):
 
                 to_nop.append(inst)
 
-            for _ in range(len(to_nop) ** 2):  # bounded `while True`
-                if len(to_nop) == 0:
-                    break
-                inst = to_nop.popleft()
-                if inst.output and len(self.dfg.get_uses(inst.output)) > 0:
-                    to_nop.append(inst)
-                    continue
-                self.updater.nop(inst)
+            self.updater.nop_multi(to_nop)
 
         # need copy, since `copies` might be the same object as `self._copies`
         for c in copies.copy():
