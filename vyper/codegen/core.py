@@ -197,21 +197,26 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     # =>
     # copy(dst, src, bound)
     # (32 + itemsize*(load(src))) costs 4*3+5 gas
-    length_calc_cost = 6 * (item_size != 1)  # PUSH MUL
+    length_calc_cost = 4 * 3
+    length_calc_cost += 8 * (item_size != 1)  # PUSH MUL
 
     if _opt_codesize():
         # if we are optimizing for codesize, we are ok with a higher
         # gas cost before switching to copy(dst, src, <precise length>).
-        # +15 is based on vibes -- it says we are willing to burn 45 (15*3)
-        # gas at runtime to save these ~9 bytes.
-        length_calc_cost += 15
+        # +45 is based on vibes -- it says we are willing to burn 45
+        # gas (additional 15 words in the copy operation) at runtime to
+        # save these 5-8 bytes (depending on if itemsize is 0 or not)
+        # (DUP<src> MLOAD PUSH1 ITEMSIZE MUL PUSH1 32 ADD)
+        length_calc_cost += 45
 
     src_bound = src.typ.memory_bytes_required
-    if src.location in (CALLDATA, MEMORY) and src_bound <= (5 + length_calc_cost) * 32:
+    # 3 gas per word
+    copy_cost = ceil32(src_bound) * 3 // 32
+    if src.location in (CALLDATA, MEMORY) and copy_cost <= length_calc_cost:
         return True
     # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
     # dload(src) costs additional 7*3 gas
-    if src.location == DATA and src_bound <= (12 + length_calc_cost) * 32:
+    if src.location == DATA and copy_cost <= (7*3 + length_calc_cost):
         return True
     return False
 
