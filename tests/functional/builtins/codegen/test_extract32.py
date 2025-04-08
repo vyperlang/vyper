@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic
 
 
 @pytest.mark.parametrize("location", ["storage", "transient"])
@@ -101,8 +100,6 @@ def foq(inp: Bytes[32]) -> address:
         c.foq(b"crow" * 8)
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_extract32_order_of_eval(get_contract):
     extract32_code = """
 var:DynArray[Bytes[96], 1]
@@ -123,8 +120,6 @@ def foo() -> bytes32:
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_extract32_order_of_eval_extcall(get_contract):
     slice_code = """
 var:DynArray[Bytes[96], 1]

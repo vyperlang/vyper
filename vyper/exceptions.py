@@ -54,6 +54,7 @@ class _BaseVyperException(Exception):
         self.lineno = None
         self.col_offset = None
         self.annotations = None
+        self.resolved_path = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
@@ -127,12 +128,17 @@ class _BaseVyperException(Exception):
             module_node = node.module_node
 
             # TODO: handle cases where module is None or vy_ast.Module
-            if module_node.get("path") not in (None, "<unknown>"):
-                node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
+            if module_node.get("resolved_path") not in (None, "<unknown>"):
+                node_msg = self._format_contract_details(
+                    node_msg, module_node.resolved_path, node.lineno
+                )
 
             fn_node = node.get_ancestor(vy_ast.FunctionDef)
             if fn_node:
                 node_msg = f'{node_msg}function "{fn_node.name}", '
+
+        elif self.resolved_path is not None:
+            node_msg = self._format_contract_details(node_msg, self.resolved_path, node.lineno)
 
         col_offset_str = "" if node.col_offset is None else str(node.col_offset)
         node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
@@ -150,6 +156,11 @@ class _BaseVyperException(Exception):
         if hint is None:
             return msg
         return msg + f"\n  (hint: {self.hint})"
+
+    def _format_contract_details(self, msg, path, lineno):
+        from vyper.utils import safe_relpath
+
+        return f'{msg}contract "{safe_relpath(path)}:{lineno}", '
 
     def __str__(self):
         return self._add_hint(self._str_helper())
@@ -181,15 +192,14 @@ class VyperException(_BaseVyperException):
 
 
 class SyntaxException(VyperException):
-
     """Invalid syntax."""
 
-    def __init__(self, message, source_code, lineno, col_offset):
+    def __init__(self, message, source_code, lineno, col_offset, hint=None):
         item = types.SimpleNamespace()  # TODO: Create an actual object for this
         item.lineno = lineno
         item.col_offset = col_offset
         item.full_source_code = source_code
-        super().__init__(message, item)
+        super().__init__(message, item, hint=hint)
 
 
 class DecimalOverrideException(VyperException):

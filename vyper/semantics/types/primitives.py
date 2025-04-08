@@ -86,6 +86,30 @@ class BytesM_T(_PrimT):
     def all(cls) -> Tuple["BytesM_T", ...]:
         return tuple(cls(m) for m in RANGE_1_32)
 
+    def validate_numeric_op(
+        self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
+    ) -> None:
+        allowed_ops = (
+            vy_ast.LShift,
+            vy_ast.RShift,
+            vy_ast.BitOr,
+            vy_ast.BitAnd,
+            vy_ast.Invert,
+            vy_ast.BitXor,
+        )
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if self.m_bits != 256:
+                raise InvalidOperation(
+                    f"Cannot perform {node.op.description} on non-bytes32 type!", node
+                )
+
+        if isinstance(node.op, allowed_ops):
+            return
+
+        # fallback to parent class error message
+        super().validate_numeric_op(node)
+
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
 
@@ -173,11 +197,11 @@ class NumericT(_PrimT):
             if isinstance(left, vy_ast.Int):
                 if left.value >= 2**value_bits:
                     raise OverflowException(
-                        "Base is too large, calculation will always overflow", left
+                        f"Base is too large for {self}, calculation will always overflow", left
                     )
                 elif left.value < -(2**value_bits):
                     raise OverflowException(
-                        "Base is too small, calculation will always underflow", left
+                        f"Base is too small for {self}, calculation will always underflow", left
                     )
             elif isinstance(right, vy_ast.Int):
                 if right.value < 0:

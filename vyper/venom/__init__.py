@@ -4,21 +4,30 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
-from vyper.venom.passes.branch_optimization import BranchOptimizationPass
-from vyper.venom.passes.dft import DFTPass
-from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.mem2var import Mem2Var
-from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
-from vyper.venom.passes.sccp import SCCP
-from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
-from vyper.venom.passes.store_elimination import StoreElimination
-from vyper.venom.passes.store_expansion import StoreExpansionPass
+from vyper.venom.passes import (
+    SCCP,
+    AlgebraicOptimizationPass,
+    BranchOptimizationPass,
+    DFTPass,
+    FloatAllocas,
+    FunctionInlinerPass,
+    LoadElimination,
+    LowerDloadPass,
+    MakeSSA,
+    Mem2Var,
+    MemMergePass,
+    ReduceLiteralsCodesize,
+    RemoveUnusedVariablesPass,
+    SimplifyCFGPass,
+    StoreElimination,
+    StoreExpansionPass,
+)
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -39,31 +48,78 @@ def generate_assembly_experimental(
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
-    ac = IRAnalysesCache(fn)
+    FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+
     MakeSSA(ac, fn).run_pass()
+    # run algebraic opts before mem2var to reduce some pointer arithmetic
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+
     SimplifyCFGPass(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+    LoadElimination(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+
+    LowerDloadPass(ac, fn).run_pass()
+    # NOTE: MakeSSA is after algebraic optimization it currently produces
+    #       smaller code by adding some redundant phi nodes. This is not a
+    #       problem for us, but we need to be aware of it, and should be
+    #       removed when the dft pass is fixed to produce the smallest code
+    #       without making the code generation more expensive by running
+    #       MakeSSA again.
+    MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
+
+    AlgebraicOptimizationPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     StoreExpansionPass(ac, fn).run_pass()
+
+    if optimize == OptimizationLevel.CODESIZE:
+        ReduceLiteralsCodesize(ac, fn).run_pass()
+
     DFTPass(ac, fn).run_pass()
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
+def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
+
+
+def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    _run_global_passes(ctx, optimize, ir_analyses)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    for fn in ctx.functions.values():
+        _run_passes(fn, optimize, ir_analyses[fn])
+
+
+def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
     # Convert "old" IR to "new" IR
     ctx = ir_node_to_venom(ir)
-    for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
+
+    optimize = settings.optimize
+    assert optimize is not None  # help mypy
+    run_passes_on(ctx, optimize)
 
     return ctx

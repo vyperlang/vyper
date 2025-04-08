@@ -1,3 +1,4 @@
+import copy
 from contextlib import contextmanager
 from random import Random
 from typing import Generator
@@ -7,6 +8,7 @@ import pytest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
+import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
@@ -14,7 +16,8 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler import compile_code
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -40,6 +43,7 @@ def pytest_addoption(parser):
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
     parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
+    parser.addoption("--hevm", action="store_true")
 
     parser.addoption(
         "--evm-version",
@@ -114,6 +118,23 @@ def evm_version(pytestconfig):
     return pytestconfig.getoption("evm_version")
 
 
+# This is a separate flag from just setting `-m hevm`, since it turns out
+# that marker detection is somewhat cumbersome in pytest. To run hevm tests,
+# run `./quicktest.sh -m hevm --hevm`, combining the CLI arguments.
+@pytest.fixture(scope="session", autouse=True)
+def set_hevm(pytestconfig):
+    flag_value = pytestconfig.getoption("hevm")
+    assert isinstance(flag_value, bool)
+    # set a global, this way helper functions can be defined without
+    # reference to pytest fixtures.
+    tests.hevm.HAS_HEVM = flag_value
+
+
+@pytest.fixture(scope="session")
+def hevm(pytestconfig, set_hevm):
+    return tests.hevm.HAS_HEVM
+
+
 @pytest.fixture(scope="session")
 def evm_backend(pytestconfig):
     backend_str = pytestconfig.getoption("evm_backend")
@@ -164,12 +185,6 @@ def make_input_bundle(tmp_path, make_file):
         return FilesystemInputBundle([tmp_path])
 
     return fn
-
-
-# for tests which just need an input bundle, doesn't matter what it is
-@pytest.fixture
-def dummy_input_bundle():
-    return InputBundle([])
 
 
 @pytest.fixture(scope="module")
@@ -225,13 +240,49 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
     return settings
 
 
+_HEVM_MARKER = None
+
+
+# request.node.get_closest_marker does something different if fixture is module-scoped,
+# workaround with a global variable
+@pytest.fixture(autouse=True)
+def hevm_marker(request):
+    global _HEVM_MARKER
+
+    _HEVM_MARKER = request.node.get_closest_marker("hevm")
+
+
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats, compiler_settings):
+def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
     def fn(source_code, *args, **kwargs):
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
+
+        global _HEVM_MARKER
+        if hevm and _HEVM_MARKER is not None:
+            settings1 = copy.copy(compiler_settings)
+            settings1.experimental_codegen = False
+            settings1.optimize = OptimizationLevel.NONE
+            settings2 = copy.copy(compiler_settings)
+            settings2.experimental_codegen = True
+            settings2.optimize = OptimizationLevel.NONE
+
+            bytecode1 = compile_code(
+                source_code,
+                output_formats=("bytecode_runtime",),
+                settings=settings1,
+                input_bundle=kwargs.get("input_bundle"),
+            )["bytecode_runtime"]
+            bytecode2 = compile_code(
+                source_code,
+                output_formats=("bytecode_runtime",),
+                settings=settings2,
+                input_bundle=kwargs.get("input_bundle"),
+            )["bytecode_runtime"]
+            tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
+
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn

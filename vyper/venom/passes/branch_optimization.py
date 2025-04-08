@@ -1,5 +1,17 @@
-from vyper.venom.analysis.dfg import DFGAnalysis
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
+
+# for these instruction exist optimization that
+# could benefit from iszero
+def prefer_iszero(inst: IRInstruction) -> bool:
+    # TODO: is there something we can do with `xor`?
+    if inst.opcode == "eq":
+        return True
+    if inst.opcode in COMPARATOR_INSTRUCTIONS:
+        return any(isinstance(op, IRLiteral) for op in inst.operands)
+    return False
 
 
 class BranchOptimizationPass(IRPass):
@@ -14,17 +26,38 @@ class BranchOptimizationPass(IRPass):
             if term_inst.opcode != "jnz":
                 continue
 
-            prev_inst = self.dfg.get_producing_instruction(term_inst.operands[0])
-            if prev_inst.opcode == "iszero":
-                new_cond = prev_inst.operands[0]
-                term_inst.operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+            fst, snd = bb.cfg_out
 
-                # Since the DFG update is simple we do in place to avoid invalidating the DFG
-                # and having to recompute it (which is expensive(er))
-                self.dfg.remove_use(prev_inst.output, term_inst)
-                self.dfg.add_use(new_cond, term_inst)
+            fst_liveness = fst.instructions[0].liveness
+            snd_liveness = snd.instructions[0].liveness
+
+            # heuristic(!) to decide if we should flip the labels or not
+            cost_a, cost_b = len(fst_liveness), len(snd_liveness)
+
+            cond = term_inst.operands[0]
+            prev_inst = self.dfg.get_producing_instruction(cond)
+
+            # heuristic: remove the iszero and swap branches
+            if cost_a >= cost_b and prev_inst.opcode == "iszero":
+                new_cond = prev_inst.operands[0]
+                new_labels = term_inst.operands[2], term_inst.operands[1]
+                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
+
+            # heuristic: add an iszero and swap branches
+            elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
+                new_cond = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
+                new_labels = term_inst.operands[2], term_inst.operands[1]
+                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
 
     def run_pass(self):
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
+        assert isinstance(self.dfg, DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
+
         self._optimize_branches()
+
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(CFGAnalysis)

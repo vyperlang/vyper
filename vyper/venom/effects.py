@@ -12,6 +12,11 @@ class Effects(Flag):
     BALANCE = auto()
     EXTCODE = auto()
 
+    def __iter__(self):
+        # python3.10 doesn't have an iter implementation. we can
+        # remove this once we drop python3.10 support.
+        return (m for m in self.__class__.__members__.values() if m in self)
+
 
 EMPTY = Effects(0)
 ALL = ~EMPTY
@@ -39,6 +44,7 @@ _writes = {
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
     "log": LOG,
     "dloadbytes": MEMORY,
+    "dload": MEMORY,
     "returndatacopy": MEMORY,
     "calldatacopy": MEMORY,
     "codecopy": MEMORY,
@@ -63,11 +69,14 @@ _reads = {
     "balance": BALANCE,
     "selfbalance": BALANCE,
     "extcodecopy": EXTCODE,
+    "extcodesize": EXTCODE,
+    "extcodehash": EXTCODE,
     "selfdestruct": BALANCE,  # may modify code, but after the transaction
     "log": MEMORY,
     "revert": MEMORY,
     "return": MEMORY,
     "sha3": MEMORY,
+    "sha3_64": MEMORY,
     "msize": MSIZE,
 }
 

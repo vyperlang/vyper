@@ -12,7 +12,9 @@ from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
+from vyper.typing import StorageLayout
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 TRANSLATE_MAP = {
     "abi": "abi",
@@ -206,6 +208,19 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     return ret
 
 
+def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, StorageLayout]:
+    storage_layout_overrides: dict[PurePath, StorageLayout] = {}
+
+    for path, value in input_dict.get("storage_layout_overrides", {}).items():
+        if path not in input_dict["sources"]:
+            raise JSONError(f"unknown target for storage layout override: {path}")
+
+        path = PurePath(path)
+        storage_layout_overrides[path] = value
+
+    return storage_layout_overrides
+
+
 # get unique output formats for each contract, given the input_dict
 # NOTE: would maybe be nice to raise on duplicated output formats
 def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
@@ -253,12 +268,19 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
+    if experimental_codegen is None:
+        experimental_codegen = input_dict["settings"].get("venom")
+    elif input_dict["settings"].get("venom") is not None:
+        raise JSONError("both experimentalCodegen and venom cannot be set")
+
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
-        warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
-            stacklevel=2,
+        vyper_warn(
+            Deprecation(
+                "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            )
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
@@ -266,8 +288,17 @@ def get_settings(input_dict: dict) -> Settings:
     else:
         assert optimize is None
 
+    debug = input_dict["settings"].get("debug", None)
+
+    # TODO: maybe change these to camelCase for consistency
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
+
     return Settings(
-        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+        evm_version=evm_version,
+        optimize=optimize,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
+        enable_decimals=enable_decimals,
     )
 
 
@@ -284,6 +315,7 @@ def compile_from_input_dict(
     integrity = input_dict.get("integrity")
 
     sources = get_inputs(input_dict)
+    storage_layout_overrides = get_storage_layout_overrides(input_dict)
     output_formats = get_output_formats(input_dict)
     compilation_targets = list(output_formats.keys())
     search_paths = get_search_paths(input_dict)
@@ -293,6 +325,7 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
+        storage_layout_override = storage_layout_overrides.get(contract_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id
@@ -302,6 +335,7 @@ def compile_from_input_dict(
                     file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
+                    storage_layout_override=storage_layout_override,
                     integrity_sum=integrity,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
@@ -340,6 +374,9 @@ def format_to_output_dict(compiler_data: dict) -> dict:
         for key in ("abi", "devdoc", "interface", "metadata", "userdoc"):
             if key in data:
                 output_contracts[key] = data[key]
+
+        if "layout" in data:
+            output_contracts["layout"] = data["layout"]
 
         if "method_identifiers" in data:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
