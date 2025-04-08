@@ -425,8 +425,6 @@ class IRnode:
 
     @property
     def is_pointer(self) -> bool:
-        # not used yet but should help refactor/clarify downstream code
-        # eventually
         return self.location is not None
 
     @property  # probably could be cached_property but be paranoid
@@ -517,6 +515,18 @@ class IRnode:
 
         if getattr(self, "is_self_call", False):
             ret |= self.invoked_function_ir.func_ir.contains_risky_call
+
+        return ret
+
+    @cached_property
+    def contains_writeable_call(self):
+        ret = self.value in ("call", "delegatecall", "create", "create2")
+
+        for arg in self.args:
+            ret |= arg.contains_writeable_call
+
+        if getattr(self, "is_self_call", False):
+            ret |= self.invoked_function_ir.func_ir.contains_writeable_call
 
         return ret
 

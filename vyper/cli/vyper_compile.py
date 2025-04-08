@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import functools
+import inspect
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,8 +17,9 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
+from vyper.warnings import warnings_filter
 
-format_options_help = """Format to print, one or more of:
+format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
@@ -97,8 +99,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
@@ -186,6 +186,10 @@ def _parse_args(argv):
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
+    parser.add_argument(
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
+    )
+
     args = parser.parse_args(argv)
 
     if args.traceback_limit is not None:
@@ -216,6 +220,7 @@ def _parse_args(argv):
 
     settings = Settings()
 
+    # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
@@ -247,6 +252,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -290,6 +296,21 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
     return search_paths
 
 
+def _apply_warnings_filter(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        # find "warnings_control" argument
+        ba = inspect.signature(func).bind(*args, **kwargs)
+        ba.apply_defaults()
+
+        warnings_control = ba.arguments["warnings_control"]
+        with warnings_filter(warnings_control):
+            return func(*args, **kwargs)
+
+    return inner
+
+
+@_apply_warnings_filter
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -299,6 +320,7 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)

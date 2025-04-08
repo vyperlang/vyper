@@ -61,7 +61,8 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded, vyper_warn
+from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded
+from vyper.warnings import VyperWarning, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -130,21 +131,22 @@ class Expr:
     # String literals
     def parse_Str(self):
         bytez = self.expr.value.encode("utf-8")
-        return self._make_bytelike(StringT, bytez)
+        return self._make_bytelike(self.context, StringT, bytez)
 
     # Byte literals
     def parse_Bytes(self):
-        return self._make_bytelike(BytesT, self.expr.value)
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
 
     def parse_HexBytes(self):
         # HexBytes already has value as bytes
         assert isinstance(self.expr.value, bytes)
-        return self._make_bytelike(BytesT, self.expr.value)
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
 
-    def _make_bytelike(self, typeclass, bytez):
+    @classmethod
+    def _make_bytelike(cls, context, typeclass, bytez):
         bytez_length = len(bytez)
         btype = typeclass(bytez_length)
-        placeholder = self.context.new_internal_variable(btype)
+        placeholder = context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
@@ -274,13 +276,13 @@ class Expr:
                 if not version_check(begin="paris"):
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
                     warning += "environment! Suggest using block.prevrandao instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
@@ -387,14 +389,14 @@ class Expr:
         is_shift_op = isinstance(op, (vy_ast.LShift, vy_ast.RShift))
 
         if is_shift_op:
-            assert is_numeric_type(left.typ)
+            assert is_numeric_type(left.typ) or is_bytes_m_type(left.typ)
             assert is_numeric_type(right.typ)
         else:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable: {left.typ} != {right.typ}")
-            assert is_numeric_type(left.typ) or is_flag_type(left.typ)
+            assert is_numeric_type(left.typ) or is_flag_type(left.typ) or is_bytes_m_type(left.typ)
 
         out_typ = left.typ
 
@@ -407,16 +409,20 @@ class Expr:
 
         if isinstance(op, vy_ast.LShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                raise TypeCheckFailure("unreachable")
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
                 raise TypeCheckFailure("unreachable")
             return IRnode.from_list(shl(right, left), typ=new_typ)
         if isinstance(op, vy_ast.RShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
                 raise TypeCheckFailure("unreachable")
-            op = shr if not left.typ.is_signed else sar
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
+                raise TypeCheckFailure("unreachable")
+            op = shr if (is_bytes_m_type(left.typ) or not left.typ.is_signed) else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
         # flags can only do bit ops, not arithmetic.
@@ -652,10 +658,10 @@ class Expr:
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
-            if operand.typ == UINT256_T:
+            if operand.typ in (UINT256_T, BYTES32_T):
                 return IRnode.from_list(["not", operand], typ=operand.typ)
 
-            # block `~` for all other integer types, since reasoning
+            # block `~` for all other types, since reasoning
             # about dirty bits is not entirely trivial. maybe revisit
             # this at a later date.
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)

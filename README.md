@@ -13,13 +13,13 @@
 
 # Getting Started
 See [Installing Vyper](http://docs.vyperlang.org/en/latest/installing-vyper.html) to install vyper.
-See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
+See [Tools and Resources](https://docs.vyperlang.org/en/latest/resources.html) for an additional list of framework and tools with vyper support.
 See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
 See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
 See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
-**Note: Vyper is beta software, use with care**
+**Note: Vyper is constantly evolving, use with care and understand the risks associated with smart contract development.**
 
 # Installation
 See the [Vyper documentation](https://docs.vyperlang.org/en/latest/installing-vyper.html)
@@ -53,6 +53,10 @@ make dev-init
 ./quicktest.sh -m "not fuzzing"
 ```
 
+## Testing (with hevm)
+
+Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `./quicktest.sh -m "hevm" --hevm`.
+
 ## Developing (working on the compiler)
 
 A useful script to have in your PATH is something like the following:
@@ -67,7 +71,9 @@ To run a python performance profile (to find compiler perf hotspots):
 PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
-To get a call graph from a python profile, https://stackoverflow.com/a/23164271/ is helpful.
+To get a call graph from a python profile, pip install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
+
+The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
 
 
 # Contributing
