@@ -63,13 +63,8 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    bytes_to_int,
-    is_checksum_encoded,
-    string_to_bytes,
-    vyper_warn,
-)
+from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded
+from vyper.warnings import VyperWarning, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -137,33 +132,32 @@ class Expr:
 
     # String literals
     def parse_Str(self):
-        bytez, bytez_length = string_to_bytes(self.expr.value)
-        typ = StringT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        bytez = self.expr.value.encode("utf-8")
+        return self._make_bytelike(self.context, StringT, bytez)
 
     # Byte literals
     def parse_Bytes(self):
-        return self._parse_bytes()
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
 
     def parse_HexBytes(self):
-        return self._parse_bytes()
+        # HexBytes already has value as bytes
+        assert isinstance(self.expr.value, bytes)
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
 
-    def _parse_bytes(self):
-        bytez = self.expr.value
-        bytez_length = len(self.expr.value)
-        typ = BytesT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
-
-    def _make_bytelike(self, btype, bytez, bytez_length):
-        placeholder = self.context.new_internal_variable(btype)
-        ret = ["seq"]
+    @classmethod
+    def _make_bytelike(cls, context, typeclass, bytez):
         assert isinstance(bytez, bytes)
+        length = len(bytez)
+        btype = typeclass(length)
+
+        placeholder = context.new_internal_variable(btype)
+
+        ret = ["seq"]
         # NOTE: addl opportunities for optimization:
         # - intern repeated bytestrings
         # - instantiate into memory lazily, pass around bytestring
         #   literals in IR
         # -
-        length = len(bytez)
         if length <= 32:
             # in this case, a single mstore is cheaper than
             # codecopy.
@@ -177,9 +171,11 @@ class Expr:
             label = _freshname("bytesdata")
             ret.append(["data", label, bytez])
             ret.append(["codecopy", add_ofst(placeholder, 32), ["symbol", label], length])
+
         # write out the length
         ret.append(["mstore", placeholder, length])
         ret.append(placeholder)
+
         return IRnode.from_list(
             ret, typ=btype, location=MEMORY, annotation=f"Create {btype}: {repr(bytez)}"
         )
@@ -296,13 +292,13 @@ class Expr:
                 if not version_check(begin="paris"):
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
                     warning += "environment! Suggest using block.prevrandao instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
