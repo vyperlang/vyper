@@ -73,6 +73,7 @@ class MakeSSA(IRPass):
         og_var = self.original_vars[var]
         name = og_var.value
         version = self.var_name_stacks[name][-1]
+
         if version == 0:
             return var
 
@@ -114,7 +115,7 @@ class MakeSSA(IRPass):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, inst  # "Phi instruction without output"
+                assert inst.output is not None, inst  # phis should have output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
