@@ -205,8 +205,7 @@ class _AvailableExpression:
 
     def copy(self) -> _AvailableExpression:
         res = _AvailableExpression()
-        for key, val in self.buckets.items():
-            res.buckets[key] = val
+        res.buckets = self.buckets.copy()
         return res
 
     @staticmethod
