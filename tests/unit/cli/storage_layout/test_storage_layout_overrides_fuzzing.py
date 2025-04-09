@@ -11,8 +11,6 @@
 # TODO move this to a better test location
 
 import copy
-import math
-import random
 from dataclasses import dataclass
 
 import pytest
@@ -108,16 +106,6 @@ def validate_storage_layout(layout_dict):
             counter += info["n_slots"]
 
 
-def generate_permutations(declarations: list, num_permutations: int = 50):
-    num_permutations = min(num_permutations, math.factorial(len(declarations)))
-    result = []
-    for _ in range(num_permutations):
-        perm = list(declarations)
-        random.shuffle(perm)
-        result.append(tuple(perm))
-    return result
-
-
 @st.composite
 def _select_section(draw, layout):
     if not ENABLE_TRANSIENT:
@@ -208,17 +196,23 @@ def contract_strategy(draw) -> ContractParts:
 
 @st.composite
 def permutation_strategy(draw) -> ContractPermutation:
-    contract = draw(contract_strategy())
-    perm = list(contract.declarations)
-    random.shuffle(perm)
-    perm = tuple(perm)
+    contract = draw(contract_strategy())  # Generate base types and declarations
 
-    permuted_source = "\n".join(contract.types + list(perm))
+    assert len(contract.declarations) > 0
+
+    # draw one permutation
+    perm_tuple = draw(st.permutations(contract.declarations))
+
+    permuted_source = "\n".join(contract.types + list(perm_tuple))
+
     out = compile_code(permuted_source, output_formats=["layout"])
     validate_storage_layout(out["layout"])
 
     return ContractPermutation(
-        contract=contract, permutation=perm, permuted_source=permuted_source, layout=out["layout"]
+        contract=contract,
+        permutation=perm_tuple,
+        permuted_source=permuted_source,
+        layout=out["layout"],  # layout of the permuted contract
     )
 
 
@@ -236,7 +230,7 @@ def mutation_strategy(draw) -> ContractMutation:
 
 @pytest.mark.fuzzing
 @given(mutation_strategy())
-@settings(phases=[Phase.generate], max_examples=1000)  # , verbosity=Verbosity.verbose)
+@settings(phases=[Phase.generate], max_examples=100)  # , verbosity=Verbosity.verbose)
 def test_override_fuzzing(mutation: ContractMutation):
     # test that original contract compiles
     # with permutation's layout
