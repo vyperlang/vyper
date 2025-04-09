@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
+from vpyer.semantics.types.bytestrings import BytesT
+
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
@@ -96,6 +98,7 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         from_interface: bool = False,
         nonreentrant: bool = False,
+        do_raw_return: bool = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
@@ -107,6 +110,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.do_raw_return = do_raw_return
         self.from_interface = from_interface
 
         # sanity check, nonreentrant used to be Optional[str]
@@ -372,6 +376,7 @@ class ContractFunctionT(VyperType):
             function_visibility,
             decorators.state_mutability,
             from_interface=True,
+            # TODO: nonreentrant on an interface should be disallowed
             nonreentrant=decorators.nonreentrant,
             ast_def=funcdef,
         )
@@ -439,6 +444,12 @@ class ContractFunctionT(VyperType):
                 msg = "`@nonreentrant` decorator disallowed on `__init__`"
                 raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
 
+        if decorators.raw_return and not isinstance(return_type, BytesT):
+            raise StructureException(
+                "@raw_return is only allowed in conjunction with `Bytes[...]` return type!",
+                decorators.raw_return_node,
+            )
+
         return cls(
             funcdef.name,
             positional_args,
@@ -448,6 +459,7 @@ class ContractFunctionT(VyperType):
             decorators.state_mutability,
             from_interface=False,
             nonreentrant=decorators.nonreentrant,
+            do_raw_return=decorators.raw_return,
             ast_def=funcdef,
         )
 
@@ -724,6 +736,7 @@ class _ParsedDecorators:
     visibility_node: Optional[vy_ast.Name] = None
     state_mutability_node: Optional[vy_ast.Name] = None
     nonreentrant_node: Optional[vy_ast.Name] = None
+    raw_return_node: Optional[vy_ast.Name] = None
 
     def set_visibility(self, decorator_node: vy_ast.Name):
         assert FunctionVisibility.is_valid_value(decorator_node.id), "unreachable"
@@ -771,6 +784,18 @@ class _ParsedDecorators:
     def nonreentrant(self) -> bool:
         return self.nonreentrant_node is not None
 
+    def set_raw_return(self, decorator_node: vy_ast.Name):
+        if self.raw_return_node is not None:
+            raise StructureException(
+                "raw_return decorator is already set", self.raw_return_node, decorator_node
+            )
+
+        self.raw_return_node = decorator_node
+
+    @property
+    def raw_return(self) -> bool:
+        return self.raw_return_node is not None
+
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     ret = _ParsedDecorators()
@@ -787,6 +812,9 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
         if decorator.get("id") == "nonreentrant":
             ret.set_nonreentrant(decorator)
+
+        elif decorator.get("id") == "raw_return":
+            ret.set_raw_return(decorator)
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):
