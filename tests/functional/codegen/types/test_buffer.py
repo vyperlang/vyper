@@ -2,7 +2,7 @@ import pytest
 from eth.codecs import abi
 
 from vyper.compiler import compile_code
-from vyper.exceptions import StructureException
+from vyper.exceptions import InstantiationException, StructureException, TypeMismatch
 from vyper.utils import method_id
 
 
@@ -87,5 +87,41 @@ def foo() -> ABIBuffer[128]:
     assert proxy_c.foo() == b"Goodbye"
 
     proxy_c.set_implementation(impl_c3.address)
+    # need low-level call otherwise we fail due to bytes decoding
+    # because ABIBytes is represented as bytes in ABI
     res = env.message_call(proxy_c.address, data=method_id("foo()"))
     assert abi.decode("(uint256[])", res) == ([1, 2],)
+
+
+fail_list = [
+    ("b: ABIBuffer[128]", InstantiationException),
+    (
+        """b: immutable(ABIBuffer[128])
+
+@deploy
+def __init__():
+    helper: Bytes[128] = b''
+    b = convert(helper, ABIBuffer[128])
+    """,
+        InstantiationException,
+    ),
+    (
+        "b: constant(ABIBuffer[128]) = b''",
+        TypeMismatch,
+    ),  # type mismatch for now until we allow buffer literals
+    ("b: transient(ABIBuffer[128])", InstantiationException),
+    ("b: DynArray[ABIBuffer[128], 2]", InstantiationException),
+    (
+        """
+@external
+def foo(b: ABIBuffer[128]):
+    pass
+    """,
+        InstantiationException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_shift_fail(get_contract, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)
