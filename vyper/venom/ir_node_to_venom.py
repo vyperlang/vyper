@@ -196,6 +196,9 @@ def _handle_internal_func(
 ) -> IRFunction:
     global _alloca_table
 
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
+
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     bb = fn.get_basic_block()

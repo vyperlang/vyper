@@ -11,15 +11,21 @@ class InstUpdater:
     def __init__(self, dfg: DFGAnalysis):
         self.dfg = dfg
 
-    def update_operands(self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand]):
+    def update_operands(
+        self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand], annotation: str = ""
+    ):
         old_operands = inst.operands
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
-        self.update(inst, inst.opcode, new_operands)
+        self.update(inst, inst.opcode, new_operands, annotation)
 
-    def update(self, inst: IRInstruction, opcode: str, new_operands: list[IROperand]):
+    def update(
+        self, inst: IRInstruction, opcode: str, new_operands: list[IROperand], annotation: str = ""
+    ) -> IRInstruction:
         assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
+
+        original_str = str(inst)
 
         old_operands = inst.operands
 
@@ -39,9 +45,12 @@ class InstUpdater:
 
         inst.opcode = opcode
         inst.operands = new_operands
+        inst.annotation = original_str + " " + annotation
 
-    def nop(self, inst: IRInstruction):
-        inst.annotation = str(inst)  # copy IRInstruction.make_nop()
+        return inst
+
+    def nop(self, inst: IRInstruction, annotation: str = ""):
+        inst.annotation = str(inst) + " " + annotation
         self.update(inst, "nop", [])
 
     def remove(self, inst: IRInstruction):
