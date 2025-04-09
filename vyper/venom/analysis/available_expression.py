@@ -194,7 +194,10 @@ class _AvailableExpression:
         for expr in to_remove:
             del self.buckets[expr]
 
-    def get_same(self, expr: _Expression) -> IRInstruction | None:
+    def get_source(self, expr: _Expression) -> IRInstruction | None:
+        """
+        Get source instruction of expression if currently available
+        """
         tmp = self.buckets.get(expr)
         if tmp is not None:
             return tmp[0]
@@ -341,7 +344,7 @@ class CSEAnalysis(IRAnalysis):
         expr = self.inst_to_expr.get(inst)
         if expr is None:
             expr = self._get_expression(inst, available_exprs)
-        src = available_exprs.get_same(expr)
+        src = available_exprs.get_source(expr)
         if src is None:
             src = inst
         return (expr, src)
@@ -356,7 +359,7 @@ class CSEAnalysis(IRAnalysis):
         ]
         expr = _Expression(inst.opcode, operands, self.ignore_msize)
 
-        src_inst = available_exprs.get_same(expr)
+        src_inst = available_exprs.get_source(expr)
         if src_inst is not None:
             same_expr = self.inst_to_expr[src_inst]
             if same_expr is not None:
