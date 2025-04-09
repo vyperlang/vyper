@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
-from vpyer.semantics.types.bytestrings import BytesT
-
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
@@ -33,6 +31,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
