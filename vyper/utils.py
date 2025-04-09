@@ -9,9 +9,9 @@ import sys
 import time
 import traceback
 import warnings
-from typing import Generic, List, TypeVar, Union
+from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
+from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
 
@@ -67,10 +67,11 @@ class OrderedSet(Generic[_T]):
     def remove(self, item: _T) -> None:
         del self._data[item]
 
-    def drop(self, item: _T):
+    def discard(self, item: _T):
         # friendly version of remove
         self._data.pop(item, None)
 
+    # consider renaming to "discardmany"
     def dropmany(self, iterable):
         for item in iterable:
             self._data.pop(item, None)
@@ -130,6 +131,20 @@ class OrderedSet(Generic[_T]):
             tmp &= s._data.keys()
 
         return cls(tmp)
+
+
+def uniq(seq: Iterable[_T]) -> Iterator[_T]:
+    """
+    Yield unique items in ``seq`` in original sequence order.
+    """
+    seen: Set[_T] = set()
+
+    for x in seq:
+        if x in seen:
+            continue
+
+        seen.add(x)
+        yield x
 
 
 class StringEnum(enum.Enum):
@@ -237,6 +252,13 @@ def int_to_fourbytes(n: int) -> bytes:
     return n.to_bytes(4, byteorder="big")
 
 
+def wrap256(val: int, signed=False) -> int:
+    ret = val % (2**256)
+    if signed:
+        ret = unsigned_to_signed(ret, 256, strict=True)
+    return ret
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -246,7 +268,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ < 0:
         return int_ + 2**bits
     return int_
@@ -261,7 +283,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     """
     if strict:
         lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
+        assert lo <= int_ <= hi, int_
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2**bits)
     return int_
@@ -287,14 +309,6 @@ def trace(n=5, out=sys.stderr):
     print("END TRACE", file=out)
 
 
-# print a warning
-def vyper_warn(msg, node=None):
-    if node is not None:
-        # use VyperException for its formatting abilities
-        msg = str(VyperException(msg, node))
-    warnings.warn(msg, stacklevel=2)
-
-
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
 def method_id_int(method_sig: str) -> int:
@@ -311,17 +325,6 @@ def round_towards_zero(d: decimal.Decimal) -> int:
     # (but either way keep this util function bc it's easier at a glance
     # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
-
-
-# Converts string to bytes
-def string_to_bytes(str):
-    bytez = b""
-    for c in str:
-        if ord(c) >= 256:
-            raise InvalidLiteral(f"Cannot insert special character {c} into byte array")
-        bytez += bytes([ord(c)])
-    bytez_length = len(bytez)
-    return bytez, bytez_length
 
 
 # Converts a provided hex string to an integer
@@ -492,7 +495,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -532,7 +538,7 @@ def timeit(msg):  # pragma: nocover
     yield
     end_time = time.perf_counter()
     total_time = end_time - start_time
-    print(f"{msg}: Took {total_time:.4f} seconds", file=sys.stderr)
+    print(f"{msg}: Took {total_time:.6f} seconds", file=sys.stderr)
 
 
 _CUMTIMES = None
@@ -541,7 +547,7 @@ _CUMTIMES = None
 def _dump_cumtime():  # pragma: nocover
     global _CUMTIMES
     for msg, total_time in _CUMTIMES.items():
-        print(f"{msg}: Cumulative time {total_time:.4f} seconds", file=sys.stderr)
+        print(f"{msg}: Cumulative time {total_time:.3f} seconds", file=sys.stderr)
 
 
 @contextlib.contextmanager
@@ -686,3 +692,17 @@ def safe_relpath(path):
         # on Windows, if path and curdir are on different drives, an exception
         # can be thrown
         return path
+
+
+def all2(iterator):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
+    """
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

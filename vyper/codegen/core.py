@@ -91,6 +91,17 @@ def check_external_call(call_ir):
     return ["if", ["iszero", call_ir], propagate_revert_ir]
 
 
+# propagate revert message when create operations fail
+# note the code for this is substantially the same as check_external_call,
+# but keep it separate in case the assumptions about CREATE change.
+def check_create_operation(create_ir: IRnode):
+    copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
+    revert = IRnode.from_list(["revert", 0, "returndatasize"], error_msg="create failed")
+
+    propagate_revert_ir = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", create_ir], propagate_revert_ir]
+
+
 # cost per byte of the identity precompile
 def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
@@ -326,7 +337,7 @@ def copy_bytes(dst, src, length, length_bound):
                     copy_op = ["mcopy", dst, src, length]
                     gas_bound = _mcopy_gas_bound(length_bound)
                 else:
-                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    copy_op = ["assert", ["staticcall", "gas", 4, src, length, dst, length]]
                     gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
@@ -560,7 +571,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         return IRnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
-        assert isinstance(key.value, int)
+        assert isinstance(key.value, int), key
         return parent.args[key.value]
 
     ix = unwrap_location(key)
@@ -1120,10 +1131,13 @@ def ensure_in_memory(ir_var, context):
     if ir_var.location == MEMORY:
         return ir_var
 
+    return create_memory_copy(ir_var, context)
+
+
+def create_memory_copy(ir_var, context):
     typ = ir_var.typ
     buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
-
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
 
 

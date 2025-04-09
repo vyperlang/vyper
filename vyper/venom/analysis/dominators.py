@@ -1,4 +1,4 @@
-from functools import cached_property
+from typing import Iterator
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -33,6 +33,8 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominator_frontiers = {}
 
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg_post_walk = list(self.cfg.dfs_post_walk)
+        self.cfg_post_order = {bb: idx for idx, bb in enumerate(self.cfg_post_walk)}
 
         self._compute_dominators()
         self._compute_idoms()
@@ -54,7 +56,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         Compute dominators
         """
-        basic_blocks = list(self.dfs_order.keys())
+        basic_blocks = self.cfg_post_walk
         self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
         self.dominators[self.entry_block] = OrderedSet([self.entry_block])
         changed = True
@@ -80,15 +82,15 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         Compute immediate dominators
         """
-        self.immediate_dominators = {bb: None for bb in self.dfs_order.keys()}
+        self.immediate_dominators = {bb: None for bb in self.cfg_post_walk}
         self.immediate_dominators[self.entry_block] = self.entry_block
-        for bb in self.dfs_walk:
+        for bb in self.cfg_post_walk:
             if bb == self.entry_block:
                 continue
-            doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
+            doms = sorted(self.dominators[bb], key=lambda x: self.cfg_post_order[x])
             self.immediate_dominators[bb] = doms[1]
 
-        self.dominated = {bb: OrderedSet() for bb in self.dfs_walk}
+        self.dominated = {bb: OrderedSet() for bb in self.cfg_post_walk}
         for dom, target in self.immediate_dominators.items():
             self.dominated[target].add(dom)
 
@@ -96,10 +98,10 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         Compute dominance frontier
         """
-        basic_blocks = self.dfs_walk
+        basic_blocks = self.cfg_post_walk
         self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
 
-        for bb in self.dfs_walk:
+        for bb in self.cfg_post_walk:
             if len(bb.cfg_in) > 1:
                 for pred in bb.cfg_in:
                     runner = pred
@@ -120,7 +122,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         """
         Find the nearest common dominator of two basic blocks.
         """
-        dfs_order = self.dfs_order
+        dfs_order = self.cfg_post_order
         while bb1 != bb2:
             while dfs_order[bb1] < dfs_order[bb2]:
                 bb1 = self.immediate_dominators[bb1]
@@ -128,13 +130,22 @@ class DominatorTreeAnalysis(IRAnalysis):
                 bb2 = self.immediate_dominators[bb2]
         return bb1
 
-    @cached_property
-    def dfs_walk(self) -> list[IRBasicBlock]:
-        return list(self.cfg.dfs_walk)
+    @property
+    def dom_post_order(self) -> Iterator[IRBasicBlock]:
+        """
+        Compute post-order traversal of the dominator tree.
+        """
+        visited = set()
 
-    @cached_property
-    def dfs_order(self) -> dict[IRBasicBlock, int]:
-        return {bb: idx for idx, bb in enumerate(self.dfs_walk)}
+        def visit(bb: IRBasicBlock) -> Iterator[IRBasicBlock]:
+            if bb in visited:
+                return
+            visited.add(bb)
+            for dominated_bb in self.dominated.get(bb, OrderedSet()):
+                yield from visit(dominated_bb)
+            yield bb
+
+        return visit(self.entry_block)
 
     def as_graph(self) -> str:
         """
