@@ -55,7 +55,8 @@ UNINTERESTING_OPCODES = frozenset(
 )
 
 
-@dataclass(frozen=True)
+#@dataclass(frozen=True)
+@dataclass
 class _Expression:
     # inst: IRInstruction
     opcode: str
@@ -63,6 +64,7 @@ class _Expression:
     # there are possibilities for cycles
     operands: list[IROperand | _Expression]
     ignore_msize: bool
+    cache_hash: int = None
 
     # equality for lattices only based on original instruction
     def __eq__(self, other) -> bool:
@@ -71,8 +73,9 @@ class _Expression:
         return self.same(other)
 
     def __hash__(self) -> int:
-        tmp_hack = [str(op) for op in self.operands]
-        return hash(self.opcode) ^ hash(str(sorted(tmp_hack)))
+        if self.cache_hash is None:
+            self.cache_hash = hash((self.opcode, tuple(sorted(self.operands, key=lambda x: str(x)))))
+        return self.cache_hash
 
     # Full equality for expressions based on opcode and operands
     def same(self, other) -> bool:
