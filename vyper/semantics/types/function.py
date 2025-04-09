@@ -443,11 +443,16 @@ class ContractFunctionT(VyperType):
                 msg = "`@nonreentrant` decorator disallowed on `__init__`"
                 raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
 
-        if decorators.raw_return and not isinstance(return_type, BytesT):
-            raise StructureException(
-                "@raw_return is only allowed in conjunction with `Bytes[...]` return type!",
-                decorators.raw_return_node,
-            )
+        if decorators.raw_return:
+            if function_visibility != FunctionVisibility.EXTERNAL:
+                raise StructureException(
+                    "@raw_return is only allowed on external functions!", decorators.raw_return_node
+                )
+            if not isinstance(return_type, BytesT):
+                raise StructureException(
+                    "@raw_return is only allowed in conjunction with `Bytes[...]` return type!",
+                    decorators.raw_return_node,
+                )
 
         return cls(
             funcdef.name,
