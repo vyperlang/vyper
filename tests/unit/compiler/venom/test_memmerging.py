@@ -729,6 +729,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %2  ; result of mload(100), partial barrier
         mstore 1032, %4
         mstore 1032, %3  ; BARRIER
+        stop
     """
 
     post = """
@@ -738,6 +739,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %1
         mcopy 1000, 100, 64
         mstore 1032, %3  ; BARRIER
+        stop
     """
     _check_pre_post(pre, post)
 
