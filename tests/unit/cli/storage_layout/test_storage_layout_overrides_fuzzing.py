@@ -18,7 +18,7 @@ from hypothesis import Phase, given, settings
 from hypothesis import strategies as st
 
 # TODO use proper generator for storage types
-from tests.functional.builtins.codegen.test_abi_decode_fuzz import vyper_type
+from tests.fuzzing_strategies import vyper_type
 from vyper.compiler import compile_code
 from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.types import HashMapT
@@ -194,9 +194,11 @@ def contract_strategy(draw) -> ContractParts:
     return ContractParts(types, declarations, source)
 
 
+# TODO it would probably be better to use multiple permutations for the same
+# contract for better throughput
 @st.composite
 def permutation_strategy(draw) -> ContractPermutation:
-    contract = draw(contract_strategy())  # Generate base types and declarations
+    contract = draw(contract_strategy())
 
     assert len(contract.declarations) > 0
 
