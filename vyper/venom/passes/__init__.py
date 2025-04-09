@@ -1,5 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .branch_optimization import BranchOptimizationPass
+from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
@@ -10,6 +11,7 @@ from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
 from .normalization import NormalizationPass
+from .redundant_load_elimination import RedundantLoadElimination
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
