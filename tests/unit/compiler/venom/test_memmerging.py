@@ -203,7 +203,7 @@ def test_memmerging_imposs_unkown_place():
         mstore 1032, %4
         mstore 10, %1  ; BARRIER
         mstore 1064, %5
-        stop
+        return %3  ; block it from being removed by RemoveUnusedVariables
     """
     _check_no_change(pre)
 
