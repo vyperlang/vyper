@@ -1,12 +1,9 @@
 from collections import defaultdict
 
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, uniq
 from vyper.venom import effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, ReachableAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.utils import OrderedSet, uniq
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 
