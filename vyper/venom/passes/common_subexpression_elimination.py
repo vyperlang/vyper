@@ -48,7 +48,9 @@ class CSE(IRPass):
         self.expression_analysis = available_expression_analysis
 
         while True:
+            #print("hello")
             replace_dict = self._find_replaceble()
+            #print(replace_dict)
             if len(replace_dict) == 0:
                 return
 
@@ -64,6 +66,7 @@ class CSE(IRPass):
     # return instruction and to which instruction it could
     # replaced by
     def _find_replaceble(self) -> dict[IRInstruction, IRInstruction]:
+        #print("find start")
         res: dict[IRInstruction, IRInstruction] = dict()
 
         for bb in self.function.get_basic_blocks():
@@ -75,19 +78,20 @@ class CSE(IRPass):
                     or inst.opcode in NONIDEMPOTENT_INSTRUCTIONS
                 ):
                     continue
-                inst_expr = self.expression_analysis.get_expression(inst)
+                expr, src_inst = self.expression_analysis.get_expression(inst)
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
-                if inst_expr.inst != inst and (
-                    inst_expr.depth > 1 or inst.parent == inst_expr.inst.parent
-                ):
-                    res[inst] = inst_expr.inst
+                if src_inst != inst and (expr.depth > 1 or inst.parent == src_inst.parent):
+                    res[inst] = src_inst
 
+        #print("find end")
         return res
 
     def _replace(self, replace_dict: dict[IRInstruction, IRInstruction]):
+        #print("replace start")
         for orig, to in replace_dict.items():
             self._replace_inst(orig, to)
+        #print("replace end")
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
         if orig_inst.output is not None:

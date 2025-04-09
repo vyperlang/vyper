@@ -25,7 +25,7 @@ def _check_no_change(pre: str, hevm: bool = True):
     _check_pre_post(pre, pre, hevm)
 
 
-def test_cse():
+def test_cse_basic():
     pre = """
     main:
         %1 = param

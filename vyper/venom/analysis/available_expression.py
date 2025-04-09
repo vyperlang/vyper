@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import vyper.venom.effects as effects
-from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
+    COMMUTATIVE_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IROperand,
@@ -57,7 +57,7 @@ UNINTERESTING_OPCODES = frozenset(
 
 @dataclass(frozen=True)
 class _Expression:
-    inst: IRInstruction
+    # inst: IRInstruction
     opcode: str
     # the child is either expression of operand since
     # there are possibilities for cycles
@@ -68,11 +68,11 @@ class _Expression:
     def __eq__(self, other) -> bool:
         if not isinstance(other, _Expression):
             return False
-
-        return self.inst == other.inst
+        return self.same(other)
 
     def __hash__(self) -> int:
-        return hash(self.inst)
+        tmp_hack = [str(op) for op in self.operands]
+        return hash(self.opcode) ^ hash(str(sorted(tmp_hack)))
 
     # Full equality for expressions based on opcode and operands
     def same(self, other) -> bool:
@@ -86,7 +86,7 @@ class _Expression:
         for op in self.operands:
             res += repr(op) + " "
         res += "]"
-        res += f" {self.inst.output} {self.inst.parent.label}"
+        # res += f" {self.inst.output} {self.inst.parent.label}"
         return res
 
     @cached_property
@@ -100,19 +100,22 @@ class _Expression:
         return max_depth + 1
 
     def get_reads(self) -> Effects:
-        tmp_reads = self.inst.get_read_effects()
+        tmp_reads = effects.reads.get(self.opcode, effects.EMPTY)
+        # tmp_reads = self.inst.get_read_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
     def get_writes(self) -> Effects:
-        tmp_reads = self.inst.get_write_effects()
+        tmp_reads = effects.writes.get(self.opcode, effects.EMPTY)
+        # tmp_reads = self.inst.get_write_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
     @property
     def is_commutative(self) -> bool:
+        return self.opcode in COMMUTATIVE_INSTRUCTIONS
         return self.inst.is_commutative
 
 
@@ -135,7 +138,11 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
 
     # General case
     for self_op, other_op in zip(a.operands, b.operands):
-        if self_op != other_op:
+        if type(self_op) != type(other_op):
+            return False
+        if isinstance(self_op, IROperand) and self_op != other_op:
+            return False
+        if isinstance(self_op, _Expression) and self_op is not other_op:
             return False
 
     return True
@@ -147,7 +154,7 @@ class _AvailableExpression:
     and provides API for handling them
     """
 
-    buckets: dict[str, OrderedSet[_Expression]]
+    buckets: dict[_Expression, list[IRInstruction]]
 
     def __init__(self):
         self.buckets = dict()
@@ -164,41 +171,36 @@ class _AvailableExpression:
             res += f"\t{key}: {val}\n"
         return res
 
-    def add(self, expr: _Expression):
-        if expr.opcode not in self.buckets:
-            self.buckets[expr.opcode] = OrderedSet()
-
-        self.buckets[expr.opcode].add(expr)
+    def add(self, expr: _Expression, src_inst: IRInstruction):
+        if expr not in self.buckets:
+            self.buckets[expr] = []
+        self.buckets[expr].append(src_inst)
 
     def remove_effect(self, effect: Effects):
+        #breakpoint()
         if effect == effects.EMPTY:
             return
         to_remove = set()
-        for opcode in self.buckets.keys():
-            read_effs = effects.reads.get(opcode, effects.EMPTY)
-            write_effs = effects.writes.get(opcode, effects.EMPTY)
+        for expr in self.buckets.keys():
+            read_effs = expr.get_reads()
+            write_effs = expr.get_writes()
             op_effect = read_effs | write_effs
             if op_effect & effect != effects.EMPTY:
-                to_remove.add(opcode)
+                to_remove.add(expr)
 
-        for opcode in to_remove:
-            del self.buckets[opcode]
+        for expr in to_remove:
+            del self.buckets[expr]
 
-    def get_same(self, expr: _Expression) -> _Expression | None:
-        if expr.opcode not in self.buckets:
-            return None
-        bucket = self.buckets[expr.opcode]
-
-        for e in bucket:
-            if expr.same(e):
-                return e
-
+    def get_same(self, expr: _Expression) -> IRInstruction | None:
+        tmp = self.buckets.get(expr)
+        if tmp is not None:
+            return tmp[0]
         return None
 
     def copy(self) -> _AvailableExpression:
         res = _AvailableExpression()
         for key, val in self.buckets.items():
-            res.buckets[key] = val.copy()
+            res.buckets[key] = val
         return res
 
     @staticmethod
@@ -208,13 +210,14 @@ class _AvailableExpression:
             return _AvailableExpression()
         res = tmp[0].copy()
         for item in tmp[1:]:
-            buckets = res.buckets.keys() & item.buckets.keys()
             tmp_res = res
             res = _AvailableExpression()
-            for bucket in buckets:
-                res.buckets[bucket] = OrderedSet.intersection(
-                    tmp_res.buckets[bucket], item.buckets[bucket]
-                )
+            for expr, inst in item.buckets.items():
+                if expr not in tmp_res.buckets:
+                    continue
+                if tmp_res.buckets[expr] != inst:
+                    continue
+                res.buckets[expr] = inst
         return res
 
 
@@ -242,12 +245,14 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
+        #print("start", self.function.name)
         worklist = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
             bb: IRBasicBlock = worklist.popleft()
             if self._handle_bb(bb):
                 worklist.extend(bb.cfg_out)
+        #print("end", self.function.name)
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -261,6 +266,8 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        #print(bb.label)
+        #breakpoint()
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
             *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
         )
@@ -289,7 +296,7 @@ class CSEAnalysis(IRAnalysis):
                 continue
 
             if expr.get_writes() & expr.get_reads() == effects.EMPTY:
-                available_expr.add(expr)
+                available_expr.add(expr, inst)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
             self.bb_outs[bb] = available_expr
@@ -311,31 +318,47 @@ class CSEAnalysis(IRAnalysis):
                 return op
             if inst.opcode == "store":
                 return self._get_operand(inst.operands[0], available_exprs)
+            if inst in self.inst_to_expr:
+                e = self.inst_to_expr[inst]
+                same_insts = available_exprs.buckets.get(e, [])
+                if inst in same_insts:
+                    return self.inst_to_expr[same_insts[0]]
+                return e
+            assert inst.opcode in UNINTERESTING_OPCODES
             return self._get_expression(inst, available_exprs)
         return op
 
     def get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression | None = None
-    ) -> _Expression:
+    ) -> tuple[_Expression, IRInstruction]:
         if available_exprs is None:
             available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
 
         assert available_exprs is not None  # help mypy
-        return self._get_expression(inst, available_exprs)
+        expr = self.inst_to_expr.get(inst)
+        if expr is None:
+            expr = self._get_expression(inst, available_exprs)
+        src = available_exprs.get_same(expr)
+        if src is None:
+            src = inst
+        return (expr, src)
 
-    def _get_expression(self, inst: IRInstruction, available_exprs: _AvailableExpression):
-        if inst in self.inst_to_expr:
-            return self.inst_to_expr[inst]
+    def _get_expression(
+        self, inst: IRInstruction, available_exprs: _AvailableExpression
+    ) -> _Expression:
+
         # create expression
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
-        expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
+        expr = _Expression(inst.opcode, operands, self.ignore_msize)
 
-        same_expr = available_exprs.get_same(expr)
-        if same_expr is not None:
-            self.inst_to_expr[inst] = same_expr
-            return same_expr
+        src_inst = available_exprs.get_same(expr)
+        if src_inst is not None:
+            same_expr = self.inst_to_expr[src_inst]
+            if same_expr is not None:
+                self.inst_to_expr[inst] = same_expr
+                return same_expr
 
         self.inst_to_expr[inst] = expr
         return expr
