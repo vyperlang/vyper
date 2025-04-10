@@ -1,6 +1,6 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
 
@@ -105,3 +105,4 @@ class SimplifyCFGPass(IRPass):
             raise CompilerPanic("Too many iterations collapsing chained blocks")
 
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
