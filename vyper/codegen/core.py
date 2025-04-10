@@ -213,7 +213,8 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
 
     # NOTE: there is an opportunity for more optimization if this
     # is one in a sequence of copies, since doing copy(dst, src, maxbound)
-    # allows us to fuse copies together, further saving gas.
+    # allows us to fuse copies together, further saving gas (each copy
+    # costs at least 15 gas).
 
     if _opt_codesize():
         # if we are optimizing for codesize, we are ok with a higher
