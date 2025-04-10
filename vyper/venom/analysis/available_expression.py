@@ -75,10 +75,12 @@ class _Expression:
         # bottle neck in some cases so I cached the value
         if self.cache_hash is None:
             # the reason for the sort is that some opcodes could
-            # be commutative and in that case the order of the 
+            # be commutative and in that case the order of the
             # operands would not matter (so this is needed)
             # for correct implementation of hash (x == x => hash(x) == hash(y))
-            self.cache_hash = hash((self.opcode, tuple(sorted(self.operands, key=lambda x: str(x)))))
+            self.cache_hash = hash(
+                (self.opcode, tuple(sorted(self.operands, key=lambda x: str(x))))
+            )
         return self.cache_hash
 
     # Full equality for expressions based on opcode and operands
@@ -141,7 +143,7 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
 
     # General case
     for self_op, other_op in zip(a.operands, b.operands):
-        if type(self_op) != type(other_op):
+        if type(self_op) is not type(other_op):
             return False
         if isinstance(self_op, IROperand) and self_op != other_op:
             return False
@@ -346,7 +348,6 @@ class CSEAnalysis(IRAnalysis):
     def _get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression
     ) -> _Expression:
-
         # create expression
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands

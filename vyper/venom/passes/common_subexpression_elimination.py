@@ -48,17 +48,13 @@ class CSE(IRPass):
         self.expression_analysis = available_expression_analysis
 
         while True:
-            #print("hello")
             replace_dict = self._find_replaceble()
-            #print(replace_dict)
             if len(replace_dict) == 0:
                 return
 
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            # should be ok to be reevaluted
-            # self.expression_analysis.analyze()
             self.expression_analysis = self.analyses_cache.force_analysis(
                 CSEAnalysis
             )  # type: ignore
@@ -66,7 +62,6 @@ class CSE(IRPass):
     # return instruction and to which instruction it could
     # replaced by
     def _find_replaceble(self) -> dict[IRInstruction, IRInstruction]:
-        #print("find start")
         res: dict[IRInstruction, IRInstruction] = dict()
 
         for bb in self.function.get_basic_blocks():
@@ -84,14 +79,11 @@ class CSE(IRPass):
                 if src_inst != inst and (expr.depth > 1 or inst.parent == src_inst.parent):
                     res[inst] = src_inst
 
-        #print("find end")
         return res
 
     def _replace(self, replace_dict: dict[IRInstruction, IRInstruction]):
-        #print("replace start")
         for orig, to in replace_dict.items():
             self._replace_inst(orig, to)
-        #print("replace end")
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
         if orig_inst.output is not None:
