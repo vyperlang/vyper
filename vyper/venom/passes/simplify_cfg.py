@@ -82,40 +82,6 @@ class SimplifyCFGPass(IRPass):
         self.visited = OrderedSet()
         self._collapse_chained_blocks_r(entry)
 
-    def _optimize_empty_basicblocks(self) -> int:
-        """
-        Remove empty basic blocks.
-        """
-        # NOTE CMC 2025-03-12 this function is a no-op!
-
-        fn = self.function
-        worklist = list(fn.get_basic_blocks())
-        i = count = 0
-        while i < len(worklist):
-            bb = worklist[i]
-            i += 1
-
-            if len(bb.instructions) > 0:
-                continue
-
-            next_bb = worklist[i]
-
-            replaced_label = bb.label
-            replacement_label = next_bb.label
-
-            # Try to preserve symbol labels
-            if replaced_label.is_symbol:
-                replaced_label, replacement_label = replacement_label, replaced_label
-                next_bb.label = replacement_label
-
-            self._replace_label(replaced_label, replacement_label)
-
-            fn.remove_basic_block(bb)
-            i -= 1
-            count += 1
-
-        return count
-
     def _replace_label(self, original_label: IRLabel, replacement_label: IRLabel):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -125,14 +91,10 @@ class SimplifyCFGPass(IRPass):
         fn = self.function
         entry = fn.entry
 
-        for _ in range(fn.num_basic_blocks):
-            changes = self._optimize_empty_basicblocks()
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        changes = fn.remove_unreachable_blocks()
+        if changes:
             self.analyses_cache.force_analysis(CFGAnalysis)
-            changes += fn.remove_unreachable_blocks()
-            if changes == 0:
-                break
-        else:
-            raise CompilerPanic("Too many iterations removing empty basic blocks")
 
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
             self._collapse_chained_blocks(entry)

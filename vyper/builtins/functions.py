@@ -15,11 +15,11 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_buffer_overflow_ir,
+    check_create_operation,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
-    clamp_nonzero,
     copy_bytes,
     create_memory_copy,
     dummy_node_for_type,
@@ -82,6 +82,7 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
+    EIP_3860_LIMIT,
     SHA3_PER_WORD,
     MemoryPositions,
     SizeLimits,
@@ -593,7 +594,7 @@ class Keccak256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
@@ -640,7 +641,7 @@ class Sha256(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0].get_folded_value()
-        if isinstance(value, vy_ast.Bytes):
+        if isinstance(value, (vy_ast.Bytes, vy_ast.HexBytes)):
             value = value.value
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
@@ -1186,15 +1187,12 @@ class SelfDestruct(BuiltinFunctionT):
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
     _is_terminus = True
-    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self._warned:
-            vyper_warn(
-                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+        )
 
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
@@ -1294,117 +1292,13 @@ class RawLog(BuiltinFunctionT):
         return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
-class BitwiseAnd(BuiltinFunctionT):
-    _id = "bitwise_and"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value & values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["and", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseOr(BuiltinFunctionT):
-    _id = "bitwise_or"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value | values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["or", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseXor(BuiltinFunctionT):
-    _id = "bitwise_xor"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value ^ values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["xor", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseNot(BuiltinFunctionT):
-    _id = "bitwise_not"
-    _inputs = [("x", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 1)
-        value = node.args[0].get_folded_value()
-        if not isinstance(value, vy_ast.Int):
-            raise UnfoldableNode
-
-        value = value.value
-
-        value = (2**256 - 1) - value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["not", args[0]], typ=UINT256_T)
-
-
 class Shift(BuiltinFunctionT):
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
 
         validate_call_args(node, 2)
         args = [i.get_folded_value() for i in node.args]
@@ -1559,9 +1453,9 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
     if not revert_on_failure:
         return ret
 
-    ret = clamp_nonzero(ret)
-    ret.set_error_msg(f"{create_op} failed")
-    return ret
+    with ret.cache_when_complex("addr") as (b1, addr):
+        ret = IRnode.from_list(["seq", check_create_operation(addr), addr])
+        return b1.resolve(ret)
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1680,6 +1574,47 @@ class _CreateBase(BuiltinFunctionT):
         )
 
 
+class RawCreate(_CreateBase):
+    _id = "raw_create"
+    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _has_varargs = True
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
+        args = [ensure_in_memory(arg, context) for arg in args]
+        initcode = args[0]
+        ctor_args = args[1:]
+
+        # encode the varargs
+        to_encode = ir_tuple_from_args(ctor_args)
+        type_size_bound = to_encode.typ.abi_type.size_bound()
+        bufsz = initcode.typ.maxlen + type_size_bound
+
+        buf = context.new_internal_variable(get_type_for_exact_size(bufsz))
+
+        ret = ["seq"]
+
+        with scope_multi((initcode, value, salt), ("initcode", "value", "salt")) as (
+            b1,
+            (initcode, value, salt),
+        ):
+            bytecode_len = get_bytearray_length(initcode)
+            with bytecode_len.cache_when_complex("initcode_len") as (b2, bytecode_len):
+                maxlen = initcode.typ.maxlen
+                ret.append(copy_bytes(buf, bytes_data_ptr(initcode), bytecode_len, maxlen))
+
+                argbuf = add_ofst(buf, bytecode_len)
+                argslen = abi_encode(
+                    argbuf, to_encode, context, bufsz=type_size_bound, returns_len=True
+                )
+                total_len = add_ofst(bytecode_len, argslen)
+                ret.append(_create_ir(value, buf, total_len, salt, revert_on_failure))
+
+                return b1.resolve(b2.resolve(IRnode.from_list(ret)))
+
+
 class CreateMinimalProxyTo(_CreateBase):
     # create an EIP1167 "minimal proxy" to the target contract
 
@@ -1724,14 +1659,10 @@ class CreateMinimalProxyTo(_CreateBase):
 
 
 class CreateForwarderTo(CreateMinimalProxyTo):
-    _warned = False
-
     def build_IR(self, expr, context):
-        if not self._warned:
-            vyper_warn(
-                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+        )
 
         return super().build_IR(expr, context)
 
@@ -2557,24 +2488,18 @@ class ABIDecode(BuiltinFunctionT):
 
 
 class OldABIEncode(ABIEncode):
-    _warned = False
     _id = "_abi_encode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
 class OldABIDecode(ABIDecode):
-    _warned = False
     _id = "_abi_decode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
@@ -2651,10 +2576,6 @@ DISPATCH_TABLE = {
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
     "blobhash": BlobHash(),
-    "bitwise_and": BitwiseAnd(),
-    "bitwise_or": BitwiseOr(),
-    "bitwise_xor": BitwiseXor(),
-    "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
     "unsafe_add": UnsafeAdd(),
@@ -2685,6 +2606,7 @@ STMT_DISPATCH_TABLE = {
     "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
+    "raw_create": RawCreate(),
     "raw_log": RawLog(),
     "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
