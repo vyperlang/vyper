@@ -1454,4 +1454,12 @@ def test_merge_mstore_dload_disallowed():
         sink %d
     """
 
-    _check_no_change(pre)
+    post = """
+    _global:
+        %par = param
+        dloadbytes 1000, %par, 32
+        %d = mload 1000
+        sink %d
+    """
+
+    _check_pre_post(pre, post)

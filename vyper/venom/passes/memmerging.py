@@ -418,7 +418,6 @@ class MemMergePass(IRPass):
                 continue
             if producer_tmp.opcode != "dload":
                 continue
-            # print(producer, producer_tmp)
             if producer_tmp == producer:
                 assert producer.output is not None
                 uses = self.dfg.get_uses(producer.output)
@@ -426,16 +425,22 @@ class MemMergePass(IRPass):
                 src_ptr = producer.operands[0]
 
                 if len(uses) != 1:
-                    self.updater.add_before(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                    tmp_var = self.updater.add_before(
+                        inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr]
+                    )
+                    # this should not be necessary after the new inst updater
+                    tmp = self.dfg.get_producing_instruction(tmp_var)
+                    assert tmp is not None
+                    tmp.output = None
                     self.updater.update(inst, "mload", [dst_ptr])
                     inst.output = producer.output
                     self.dfg.set_producing_instruction(inst.output, inst)
                 else:
                     self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                    inst.output = None
                 producer.make_nop()
             elif producer_tmp.opcode == "dload":
                 producer = producer_tmp
-                # print(producer)
                 assert producer.output is not None
                 uses = self.dfg.get_uses(producer.output)
 
@@ -443,6 +448,7 @@ class MemMergePass(IRPass):
                 if len(uses) != 1:
                     continue
                 self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                inst.output = None
                 producer.make_nop()
 
 
