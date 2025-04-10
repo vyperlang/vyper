@@ -67,13 +67,17 @@ class InstUpdater:
         q = deque(to_nop)
         for _ in range(len(q) ** 2):  # bounded `while True`
             if len(q) == 0:
-                break
+                return
             # NOTE: this doesn't work for dfg cycles.
             inst = q.popleft()
             if inst.output and len(self.dfg.get_uses(inst.output)) > 0:
                 q.append(inst)
                 continue
             self.nop(inst)
+
+        # this should only happen if we try to delete a dfg cycle, cross
+        # that bridge when we get to it.
+        raise CompilerPanic("infinite loop")  # pragma: nocover
 
     def remove(self, inst: IRInstruction):
         self.nop(inst)  # for dfg updates and checks
