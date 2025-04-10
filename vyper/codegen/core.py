@@ -207,8 +207,8 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     # copy(dst, src, 32 + itemsize*load(src))
     # =>
     # copy(dst, src, bound)
-    # (32 + itemsize*(load(src))) costs 4*3+5 gas
-    length_calc_cost = 4 * 3
+    # (32 + itemsize*(load(src))) costs 4*3 + 8 - 3 gas over just `bound`
+    length_calc_cost = 4 * 3 - 3
     length_calc_cost += 8 * (item_size != 1)  # PUSH MUL
 
     if _opt_codesize():
