@@ -66,7 +66,9 @@ class InstUpdater:
 
     def nop_multi(self, to_nop: Iterable[IRInstruction]):
         q = deque(to_nop)
-        for _ in range(len(q) ** 2):  # bounded `while True`
+
+        bound = (2 + len(q)) ** 2  # set bound to at least 2**2
+        for _ in range(bound):  # bounded `while True`
             if len(q) == 0:
                 return
             # NOTE: this doesn't work for dfg cycles.
