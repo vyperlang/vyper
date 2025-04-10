@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
@@ -23,7 +23,11 @@ class LoadElimination(IRPass):
 
     # should this be renamed to EffectsElimination?
 
+    updater: InstUpdater
+
     def run_pass(self):
+        self.updater = InstUpdater(self.analyses_cache.request_analysis(DFGAnalysis))
+
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
             self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
@@ -32,7 +36,6 @@ class LoadElimination(IRPass):
             self._process_bb(bb, None, "calldataload", None)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
         return op1 == op2
@@ -68,8 +71,7 @@ class LoadElimination(IRPass):
         self._lattice[ptr] = inst.output
 
         if existing_value is not None:
-            inst.opcode = "store"
-            inst.operands = [existing_value]
+            self.updater.store(inst, existing_value)
 
     def _handle_store(self, inst, store_opcode):
         # mstore [val, ptr]
@@ -85,7 +87,7 @@ class LoadElimination(IRPass):
         # we found a redundant store, eliminate it
         existing_val = self._lattice.get(known_ptr)
         if self.equivalent(val, existing_val):
-            inst.make_nop()
+            self.updater.nop(inst)
             return
 
         self._lattice[known_ptr] = val
