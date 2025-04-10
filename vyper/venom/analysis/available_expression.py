@@ -109,14 +109,12 @@ class _Expression:
 
     def get_reads(self) -> Effects:
         tmp_reads = effects.reads.get(self.opcode, effects.EMPTY)
-        # tmp_reads = self.inst.get_read_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
     def get_writes(self) -> Effects:
         tmp_reads = effects.writes.get(self.opcode, effects.EMPTY)
-        # tmp_reads = self.inst.get_write_effects()
         if self.ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
