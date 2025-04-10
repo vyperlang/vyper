@@ -617,7 +617,11 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id", "is_interface")
+    __slots__ = ("path", "resolved_path", "source_id", "is_interface", "settings")
+    """
+    settings: Settings
+        settings result from parsing the compiler pragmas in the file.
+    """
 
     def to_dict(self):
         return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())

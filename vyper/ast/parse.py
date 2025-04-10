@@ -3,31 +3,25 @@ import pickle
 import tokenize
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
 
-def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
-    _settings, ast = parse_to_ast_with_settings(*args, **kwargs)
-    return ast
-
-
-def parse_to_ast_with_settings(
+def parse_to_ast(
     vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
     add_fn_node: Optional[str] = None,
     is_interface: bool = False,
-) -> tuple[Settings, vy_ast.Module]:
+) -> vy_ast.Module:
     try:
-        return _parse_to_ast_with_settings(
+        return _parse_to_ast(
             vyper_source, source_id, module_path, resolved_path, add_fn_node, is_interface
         )
     except SyntaxException as e:
@@ -35,14 +29,14 @@ def parse_to_ast_with_settings(
         raise e
 
 
-def _parse_to_ast_with_settings(
+def _parse_to_ast(
     vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
     add_fn_node: Optional[str] = None,
     is_interface: bool = False,
-) -> tuple[Settings, vy_ast.Module]:
+) -> vy_ast.Module:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
 
@@ -136,7 +130,9 @@ def _parse_to_ast_with_settings(
     assert isinstance(module, vy_ast.Module)  # mypy hint
     module.is_interface = is_interface
 
-    return pre_parser.settings, module
+    module.settings = pre_parser.settings
+
+    return module
 
 
 LINE_INFO_FIELDS = ("lineno", "col_offset", "end_lineno", "end_col_offset")
