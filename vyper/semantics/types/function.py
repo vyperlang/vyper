@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.compiler.settings import get_global_settings
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArgumentException,
     CallViolation,
@@ -763,9 +763,12 @@ class _ParsedDecorators:
             return StateMutability.NONPAYABLE  # default
         return StateMutability(self.state_mutability_node.id)
 
+    def get_file_settings(self) -> Settings:
+        return self.funcdef.module_node.settings
+
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
-        settings = get_global_settings()
-        assert settings is not None
+        settings = self.get_file_settings()
+
         if settings.nonreentrancy_by_default:
             if decorator_node.id == "nonreentrant":
                 raise StructureException(
@@ -785,8 +788,7 @@ class _ParsedDecorators:
 
     @property
     def nonreentrant(self) -> bool:
-        settings = get_global_settings()
-        assert settings is not None
+        settings = self.get_file_settings()
 
         # default function defaults to reentrant
         if self.nonreentrant_node is None and self.funcdef.name == "__default__":
