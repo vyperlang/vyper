@@ -1,6 +1,7 @@
 from collections import deque
 from typing import Iterable, Optional
 
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.basicblock import NO_OUTPUT_INSTRUCTIONS, IRInstruction, IROperand, IRVariable
 
