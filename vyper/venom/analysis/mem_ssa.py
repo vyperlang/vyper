@@ -285,7 +285,7 @@ class MemSSA(IRAnalysis):
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
                     clobbering = self._walk_for_clobbered_access(access, query_loc)
-                    if clobbering:
+                    if clobbering is not None:
                         return clobbering
             current = current.reaching_def
         return None
