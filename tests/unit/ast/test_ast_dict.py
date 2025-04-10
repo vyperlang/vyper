@@ -242,6 +242,7 @@ def foo():
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
         "ast_type": "Module",
+        "settings": {},
         "body": [
             {
                 "alias": None,
@@ -413,6 +414,7 @@ def foo():
     # clearer
     assert lib1_ast == {
         "ast_type": "Module",
+        "settings": {},
         "body": [
             {
                 "ast_type": "StructDef",
