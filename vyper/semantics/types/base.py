@@ -84,7 +84,6 @@ class VyperType:
     _as_hashmap_key: bool = False
     _as_tuple_member: bool = True  # can be a tuple member
 
-
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
 
