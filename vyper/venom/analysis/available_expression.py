@@ -73,7 +73,13 @@ class _Expression:
         return self.same(other)
 
     def __hash__(self) -> int:
+        # Unfortunately the hash has been the performance
+        # bottle neck in some cases so I cached the value
         if self.cache_hash is None:
+            # the reason for the sort is that some opcodes could
+            # be commutative and in that case the order of the 
+            # operands would not matter (so this is needed)
+            # for correct implementation of hash (x == x => hash(x) == hash(y))
             self.cache_hash = hash((self.opcode, tuple(sorted(self.operands, key=lambda x: str(x)))))
         return self.cache_hash
 
@@ -89,7 +95,6 @@ class _Expression:
         for op in self.operands:
             res += repr(op) + " "
         res += "]"
-        # res += f" {self.inst.output} {self.inst.parent.label}"
         return res
 
     @cached_property
@@ -180,7 +185,6 @@ class _AvailableExpression:
         self.buckets[expr].append(src_inst)
 
     def remove_effect(self, effect: Effects):
-        #breakpoint()
         if effect == effects.EMPTY:
             return
         to_remove = set()
@@ -250,14 +254,12 @@ class CSEAnalysis(IRAnalysis):
         self.ignore_msize = not self._contains_msize()
 
     def analyze(self):
-        #print("start", self.function.name)
         worklist = deque()
         worklist.append(self.function.entry)
         while len(worklist) > 0:
             bb: IRBasicBlock = worklist.popleft()
             if self._handle_bb(bb):
                 worklist.extend(bb.cfg_out)
-        #print("end", self.function.name)
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -271,8 +273,6 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        #print(bb.label)
-        #breakpoint()
         available_expr: _AvailableExpression = _AvailableExpression.intersection(
             *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
         )
