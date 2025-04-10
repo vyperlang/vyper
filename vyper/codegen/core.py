@@ -216,13 +216,15 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
         # gas cost before switching to copy(dst, src, <precise length>).
         # +45 is based on vibes -- it says we are willing to burn 45
         # gas (additional 15 words in the copy operation) at runtime to
-        # save these 5-8 bytes (depending on if itemsize is 0 or not)
+        # save these 5-8 bytes (depending on if itemsize is 1 or not)
         # (DUP<src> MLOAD PUSH1 ITEMSIZE MUL PUSH1 32 ADD)
         length_calc_cost += 45
 
     src_bound = src.typ.memory_bytes_required
-    # 3 gas per word
-    copy_cost = ceil32(src_bound) * 3 // 32
+    # 3 gas per word, minus the cost of the length word
+    # (since it is always copied, we don't include it in the marginal
+    # cost difference)
+    copy_cost = ceil32(src_bound - 32) * 3 // 32
     if src.location in (CALLDATA, MEMORY) and copy_cost <= length_calc_cost:
         return True
     # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
