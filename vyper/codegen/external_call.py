@@ -84,6 +84,14 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     if return_t is None:
         return ["pass"], 0, 0
 
+    if isinstance(return_t, ABIBufferT):
+        as_abibuf = copy.copy(buf)
+        as_abibuf.typ = return_t
+        check = ["assert", ["le", "returndatasize", return_t.length]]
+        copy_op = ["returndatacopy", bytes_data_ptr(as_abibuf), 0, "returndatasize"]
+        set_length = STORE(as_abibuf, "returndatasize")
+        return ["seq", check, copy_op, set_length]
+
     wrapped_return_t = calculate_type_for_external_return(return_t)
 
     abi_return_t = wrapped_return_t.abi_type
