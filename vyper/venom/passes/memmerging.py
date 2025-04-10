@@ -105,10 +105,10 @@ class MemMergePass(IRPass):
         self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
+            self._merge_mstore_dload(bb)
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
             self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
-            self._merge_mstore_dload(bb)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -401,30 +401,49 @@ class MemMergePass(IRPass):
     # where the src and dst pointers are variables, which are not handled
     # in the other merging passes.
     def _merge_mstore_dload(self, bb: IRBasicBlock):
-        for inst in bb.instructions:
+        # breakpoint()
+        print(bb)
+        import itertools
+
+        for batched_inst in itertools.pairwise(bb.instructions):
+            (producer, inst) = batched_inst
             if inst.opcode != "mstore":
                 continue
 
             var, dst_ptr = inst.operands
             if not isinstance(var, IRVariable):
                 continue
-            producer = self.dfg.get_producing_instruction(var)
-            if producer is None:
+            producer_tmp = self.dfg.get_producing_instruction(var)
+            if producer_tmp is None:
                 continue
-            if producer.opcode != "dload":
+            if producer_tmp.opcode != "dload":
                 continue
+            # print(producer, producer_tmp)
+            if producer_tmp == producer:
+                assert producer.output is not None
+                uses = self.dfg.get_uses(producer.output)
 
-            assert producer.output is not None
-            uses = self.dfg.get_uses(producer.output)
-            if len(uses) != 1:
-                continue
+                src_ptr = producer.operands[0]
 
-            src_ptr = producer.operands[0]
+                if len(uses) != 1:
+                    self.updater.add_before(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                    self.updater.update(inst, "mload", [dst_ptr])
+                    inst.output = producer.output
+                    self.dfg.set_producing_instruction(inst.output, inst)
+                else:
+                    self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                producer.make_nop()
+            elif producer_tmp.opcode == "dload":
+                producer = producer_tmp
+                # print(producer)
+                assert producer.output is not None
+                uses = self.dfg.get_uses(producer.output)
 
-            inst.opcode = "dloadbytes"
-            inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
-
-            producer.make_nop()
+                src_ptr = producer.operands[0]
+                if len(uses) != 1:
+                    continue
+                self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
+                producer.make_nop()
 
 
 def _volatile_memory(inst):
