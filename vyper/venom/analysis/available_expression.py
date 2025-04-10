@@ -55,16 +55,14 @@ UNINTERESTING_OPCODES = frozenset(
 )
 
 
-#@dataclass(frozen=True)
 @dataclass
 class _Expression:
-    # inst: IRInstruction
     opcode: str
     # the child is either expression of operand since
     # there are possibilities for cycles
     operands: list[IROperand | _Expression]
     ignore_msize: bool
-    cache_hash: int = None
+    cache_hash: int | None = None
 
     # equality for lattices only based on original instruction
     def __eq__(self, other) -> bool:
@@ -122,7 +120,6 @@ class _Expression:
     @property
     def is_commutative(self) -> bool:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
-        return self.inst.is_commutative
 
 
 def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
