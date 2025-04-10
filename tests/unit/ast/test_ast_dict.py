@@ -161,6 +161,7 @@ def test_output_type_info(make_input_bundle, chdir_tmp_path):
     # test type info is output in the ast dict
     # test different, complex types, and test import info is also output
     lib1 = """
+# add a pragma to see if it gets added properly to the module's settings object
 #pragma enable-decimals
 
 struct Foo:
