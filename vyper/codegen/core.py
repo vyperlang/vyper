@@ -211,6 +211,10 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     length_calc_cost = 4 * 3 - 3
     length_calc_cost += 8 * (item_size != 1)  # PUSH MUL
 
+    # NOTE: there is an opportunity for more optimization if this
+    # is one in a sequence of copies, since doing copy(dst, src, maxbound)
+    # allows us to fuse copies together, further saving gas.
+
     if _opt_codesize():
         # if we are optimizing for codesize, we are ok with a higher
         # gas cost before switching to copy(dst, src, <precise length>).
