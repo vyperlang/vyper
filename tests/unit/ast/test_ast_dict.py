@@ -161,6 +161,8 @@ def test_output_type_info(make_input_bundle, chdir_tmp_path):
     # test type info is output in the ast dict
     # test different, complex types, and test import info is also output
     lib1 = """
+#pragma enable-decimals
+
 struct Foo:
     x: uint256
 
@@ -414,7 +416,7 @@ def foo():
     # clearer
     assert lib1_ast == {
         "ast_type": "Module",
-        "settings": {},
+        "settings": {"enable_decimals": True},
         "body": [
             {
                 "ast_type": "StructDef",
