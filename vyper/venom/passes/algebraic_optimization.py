@@ -284,6 +284,7 @@ class AlgebraicOptimizationPass(IRPass):
             # (saves codesize, not gas)
             if lit_eq(operands[0], -1):
                 var = self.updater.add_before(inst, "not", [operands[1]])
+                assert var is not None  # help mypy
                 self.updater.update(inst, "iszero", [var])
                 return
 
@@ -291,6 +292,7 @@ class AlgebraicOptimizationPass(IRPass):
                 # (eq x y) has the same truthyness as (iszero (xor x y))
                 tmp = self.updater.add_before(inst, "xor", [operands[0], operands[1]])
 
+                assert tmp is not None  # help mypy
                 self.updater.update(inst, "iszero", [tmp])
                 return
 
