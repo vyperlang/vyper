@@ -157,7 +157,7 @@ class MemSSA(IRAnalysis):
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
 
-                mem_def.reaching_def = self._get_reaching_def_for_def(block, mem_def)
+                mem_def.reaching_def = self._get_reaching_def_for_def(mem_def)
 
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
@@ -221,8 +221,13 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
-    def _get_reaching_def_for_def(self, bb: IRBasicBlock, def_inst: MemoryDef) -> MemoryAccess:
-        """Get the reaching definition for a memory definition"""
+    def _get_reaching_def_for_def(self, def_inst: MemoryDef) -> MemoryAccess:
+        """Get the reaching definition for a memory definition.
+        
+        This method finds the most recent memory definition that reaches the given memory
+        definition.
+        """
+        bb = def_inst.store_inst.parent
         def_idx = bb.instructions.index(def_inst.store_inst)
         def_loc = def_inst.loc
 

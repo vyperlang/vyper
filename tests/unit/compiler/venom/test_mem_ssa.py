@@ -685,7 +685,7 @@ def test_phi_node_reaching_def(create_mem_ssa):
     new_def.loc = def3.loc
 
     # Manually test the _get_reaching_def_for_def method
-    reaching_def = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
+    reaching_def = mem_ssa._get_reaching_def_for_def(new_def)
     assert reaching_def == phi, "The reaching definition should be the phi node"
 
 
@@ -987,7 +987,7 @@ def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
 
-    result = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
+    result = mem_ssa._get_reaching_def_for_def(new_def)
     assert result == phi
 
 
@@ -1007,7 +1007,7 @@ def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)
 
-    result = mem_ssa._get_reaching_def_for_def(entry_block, new_def)
+    result = mem_ssa._get_reaching_def_for_def(new_def)
     assert result == mem_ssa.live_on_entry
 
 
