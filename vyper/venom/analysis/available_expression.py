@@ -78,9 +78,7 @@ class _Expression:
             # be commutative and in that case the order of the
             # operands would not matter (so this is needed)
             # for correct implementation of hash (x == x => hash(x) == hash(y))
-            self.cache_hash = hash(
-                (self.opcode, tuple(sorted(self.operands, key=str)))
-            )
+            self.cache_hash = hash((self.opcode, tuple(sorted(self.operands, key=str))))
         return self.cache_hash
 
     # Full equality for expressions based on opcode and operands
