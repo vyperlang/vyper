@@ -212,10 +212,11 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
 
-        if len(bb.cfg_in) > 0:
+        if bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
-            idom = self.dom.immediate_dominators[bb]
-            return self._get_in_def(idom) if idom else self.live_on_entry
+            idom = self.dom.immediate_dominators.get(bb)
+            if idom is not None:
+                return self._get_in_def(idom)
 
         return self.live_on_entry
 
