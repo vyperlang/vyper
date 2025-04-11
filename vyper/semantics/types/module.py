@@ -288,6 +288,9 @@ class ModuleT(VyperType):
     typeclass = "module"
 
     _attribute_in_annotation = True
+    _as_array = False
+    _as_hashmap_key = False
+    _as_tuple_member = False
     _invalid_locations = (
         DataLocation.STORAGE,
         DataLocation.CALLDATA,

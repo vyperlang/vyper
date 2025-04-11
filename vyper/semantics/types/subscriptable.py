@@ -330,6 +330,9 @@ class TupleT(VyperType):
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
+        for mt in member_types:
+            if not mt._as_tuple_member:
+                raise StructureException(f"not a valid tuple member: {mt}")
         self.member_types = member_types
         self.key_type = UINT256_T  # API Compatibility
 
