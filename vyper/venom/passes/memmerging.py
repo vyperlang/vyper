@@ -408,7 +408,6 @@ class MemMergePass(IRPass):
     # in the other merging passes.
     def _merge_mstore_dload(self, bb: IRBasicBlock):
         # breakpoint()
-        print(bb)
         import itertools
 
         for batched_inst in itertools.pairwise(bb.instructions):
