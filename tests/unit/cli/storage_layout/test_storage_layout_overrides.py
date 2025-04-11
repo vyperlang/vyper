@@ -68,7 +68,6 @@ def public_foo2():
 
 
 @internal
-@nonreentrant
 def _bar():
     pass
 

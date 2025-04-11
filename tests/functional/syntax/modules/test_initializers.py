@@ -1306,50 +1306,23 @@ def nonreentrant_library_bundle(make_input_bundle):
     # test simple case
     lib1 = """
 # lib1.vy
-@internal
-@nonreentrant
-def bar():
-    pass
-
-# lib1.vy
 @external
 @nonreentrant
 def ext_bar():
     pass
     """
-    # test case with recursion
+    # test case with exports
     lib2 = """
-@internal
-def bar():
-    self.baz()
-
-@external
-def ext_bar():
-    self.baz()
-
-@nonreentrant
-@internal
-def baz():
-    return
-    """
-    # test case with nested recursion
-    lib3 = """
 import lib1
 uses: lib1
 
-@internal
-def bar():
-    lib1.bar()
-
-@external
-def ext_bar():
-    lib1.bar()
+exports: lib1.ext_bar
     """
 
-    return make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+    return make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
 
-@pytest.mark.parametrize("lib", ("lib1", "lib2", "lib3"))
+@pytest.mark.parametrize("lib", ("lib1", "lib2"))
 def test_nonreentrant_exports(nonreentrant_library_bundle, lib):
     main = f"""
 import {lib}
@@ -1366,24 +1339,6 @@ def foo():
     hint = f"add `uses: {lib}` or `initializes: {lib}` as a top-level statement to your contract"
     assert e.value._hint == hint
     assert e.value.annotations[0].lineno == 4
-
-
-@pytest.mark.parametrize("lib", ("lib1", "lib2", "lib3"))
-def test_internal_nonreentrant_import(nonreentrant_library_bundle, lib):
-    main = f"""
-import {lib}
-
-@external
-def foo():
-    {lib}.bar()  # line 6
-    """
-    with pytest.raises(ImmutableViolation) as e:
-        compile_code(main, input_bundle=nonreentrant_library_bundle)
-    assert e.value._message == f"Cannot access `{lib}` state!" + NONREENTRANT_NOTE
-
-    hint = f"add `uses: {lib}` or `initializes: {lib}` as a top-level statement to your contract"
-    assert e.value._hint == hint
-    assert e.value.annotations[0].lineno == 6
 
 
 def test_global_initialize_missed_import_hint(make_input_bundle, chdir_tmp_path):
