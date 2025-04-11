@@ -31,7 +31,6 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.semantics.types import (
-    ReturnBufferT,
     AddressT,
     BoolT,
     BytesM_T,
@@ -39,6 +38,7 @@ from vyper.semantics.types import (
     DecimalT,
     FlagT,
     IntegerT,
+    ReturnBufferT,
     StringT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT

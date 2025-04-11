@@ -17,6 +17,7 @@ def foo(x: Bytes[100]) -> ReturnBuffer[100]:
     moo_result = c.foo(abi.encode("(bytes)", (b"cow",)))
     assert moo_result == b"cow"
 
+
 def test_buffer_in_interface(get_contract, tx_failed):
     caller_code = """
 interface Foo:
@@ -27,7 +28,7 @@ def foo(target: Foo) -> ReturnBuffer[100]:
     return staticcall target.foo()
     """
 
-    return_data = abi.encode("(bytes)", (b"cow", )).hex()
+    return_data = abi.encode("(bytes)", (b"cow",)).hex()
     target_code = f"""
 @external
 def foo() -> ReturnBuffer[100]:

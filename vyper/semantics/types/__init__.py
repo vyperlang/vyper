@@ -1,6 +1,6 @@
 from . import primitives, subscriptable, user
 from .base import TYPE_T, VOID_TYPE, KwargSettings, VyperType, is_type_t, map_void
-from .bytestrings import ReturnBufferT, BytesT, StringT, _BytestringT
+from .bytestrings import BytesT, ReturnBufferT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT

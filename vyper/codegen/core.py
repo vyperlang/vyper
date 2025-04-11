@@ -15,7 +15,6 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
-    ReturnBufferT,
     AddressT,
     BoolT,
     BytesM_T,
@@ -25,6 +24,7 @@ from vyper.semantics.types import (
     HashMapT,
     IntegerT,
     InterfaceT,
+    ReturnBufferT,
     StructT,
     TupleT,
     _BytestringT,

@@ -4,12 +4,12 @@ from dataclasses import dataclass
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
+    STORE,
     _freshname,
     add_ofst,
-    STORE,
+    bytes_data_ptr,
     calculate_type_for_external_return,
     check_assign,
-    bytes_data_ptr,
     check_external_call,
     dummy_node_for_type,
     eval_once_check,
@@ -22,7 +22,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import InterfaceT, TupleT, ReturnBufferT
+from vyper.semantics.types import InterfaceT, ReturnBufferT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 
