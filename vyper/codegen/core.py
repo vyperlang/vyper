@@ -24,6 +24,7 @@ from vyper.semantics.types import (
     HashMapT,
     IntegerT,
     InterfaceT,
+    ReturnBufferT,
     StructT,
     TupleT,
     _BytestringT,
@@ -719,6 +720,10 @@ def needs_external_call_wrap(typ):
     # In general `-> X` gets returned as (X,)
     # including structs. MyStruct is returned as abi-encoded (MyStruct,).
     # (Sorry this is so confusing. I didn't make these rules.)
+
+    # special case for ReturnBuffer, which lives outside the abi:
+    if isinstance(typ, ReturnBufferT):
+        return False
 
     return not (isinstance(typ, TupleT) and typ.length > 1)
 
