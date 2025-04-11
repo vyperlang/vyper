@@ -122,6 +122,8 @@ def foo(b: ABIBuffer[128]):
 ]
 
 
+# TODO: move these to syntax tests
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_shift_fail(get_contract, bad_code, exc, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), exc)
+def test_abibuffer_fail(bad_code, exc):
+    with pytest.raises(exc):
+        compile_code(bad_code)
