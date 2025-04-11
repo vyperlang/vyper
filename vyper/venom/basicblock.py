@@ -351,18 +351,21 @@ class IRInstruction:
         """Extract memory location info from an instruction"""
         opcode = self.opcode
         if opcode == "mstore":
-            if isinstance(self.operands[1], IRLiteral):
-                return MemoryLocation(offset=self.operands[1].value, size=32)
+            dst = self.operands[1]
+            if isinstance(dst, IRLiteral):
+                return MemoryLocation(offset=dst.value, size=32)
             return FULL_MEMORY_ACCESS
         elif opcode == "mload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mcopy":
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            size, _, dst = self.operands
+            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=dst.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            size, _, dst = self.operands
+            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=dst.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "dloadbytes":
             return FULL_MEMORY_ACCESS
@@ -371,18 +374,21 @@ class IRInstruction:
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
-            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+            size, dst = self.operands[:2]
+            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
                 return MemoryLocation(
-                    offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
+                    offset=dst.value, size=size.value, is_volatile=False
                 )
             return FULL_MEMORY_ACCESS
         elif opcode in ("codecopy", "extcodecopy"):
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            size, _, dst = self.operands[:3]
+            if isinstance(size, IRLiteral) and isinstance(dst, IRLiteral):
+                return MemoryLocation(offset=dst.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "returndatacopy":
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[2].value, size=self.operands[0].value)
+            size, _, dst = self.operands
+            if isinstance(size, IRLiteral) and isinstance(dst, IRLiteral):
+                return MemoryLocation(offset=dst.value, size=size.value)
             return FULL_MEMORY_ACCESS
         return EMPTY_MEMORY_ACCESS
 
@@ -396,8 +402,9 @@ class IRInstruction:
                 return MemoryLocation(offset=self.operands[0].value, size=32)
             return FULL_MEMORY_ACCESS
         elif opcode == "mcopy":
-            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            size, src = self.operands[:2]
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "calldatacopy":
             return EMPTY_MEMORY_ACCESS
@@ -408,38 +415,43 @@ class IRInstruction:
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[3], IRLiteral):
+            size, dst = self.operands[2:4]
+            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
                 return MemoryLocation(
-                    offset=self.operands[3].value, size=self.operands[2].value, is_volatile=False
+                    offset=dst.value, size=size.value, is_volatile=False
                 )
             return FULL_MEMORY_ACCESS
         elif opcode == "return":
-            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
+            size, src = self.operands
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
                 return MemoryLocation(
-                    offset=self.operands[1].value, size=self.operands[0].value, is_volatile=False
+                    offset=src.value, size=size.value, is_volatile=False
                 )
             return FULL_MEMORY_ACCESS
         elif opcode == "create":
-            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            size, src = self.operands[:2]
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "create2":
-            if isinstance(self.operands[2], IRLiteral) and isinstance(self.operands[1], IRLiteral):
-                return MemoryLocation(offset=self.operands[2].value, size=self.operands[1].value)
+            size, src = self.operands[1:3]
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode in ("sha3", "sha3_64"):
-            if isinstance(self.operands[1], IRLiteral) and isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            size, src = self.operands[:2]
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode.startswith("log"):
-            if isinstance(self.operands[-1], IRLiteral) and isinstance(
-                self.operands[-2], IRLiteral
-            ):
-                return MemoryLocation(offset=self.operands[-1].value, size=self.operands[-2].value)
+            size, src = self.operands[-2:]
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "revert":
-            if isinstance(self.operands[0], IRLiteral) and isinstance(self.operands[1], IRLiteral):
-                return MemoryLocation(offset=self.operands[1].value, size=self.operands[0].value)
+            size, src = self.operands
+            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         return EMPTY_MEMORY_ACCESS
 
