@@ -212,7 +212,7 @@ def test_partially_overlapping_clobber(create_mem_ssa):
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
     # Verify partial overlap detection
-    assert mem_ssa.alias.may_alias(
+    assert mem_ssa.memalias.may_alias(
         def3.loc, def4.loc
     ), "Partially overlapping locations should alias"
 
@@ -385,56 +385,56 @@ def test_may_alias(dummy_mem_ssa):
     # Test non-overlapping memory locations
     loc1 = MemoryLocation(offset=0, size=32)
     loc2 = MemoryLocation(offset=32, size=32)
-    assert not mem_ssa.alias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
+    assert not mem_ssa.memalias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
 
     # Test overlapping memory locations
     loc3 = MemoryLocation(offset=0, size=16)
     loc4 = MemoryLocation(offset=8, size=8)
-    assert mem_ssa.alias.may_alias(loc3, loc4), "Overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
     # Test FULL_MEMORY_ACCESS
     full_loc = FULL_MEMORY_ACCESS
-    assert mem_ssa.alias.may_alias(
+    assert mem_ssa.memalias.may_alias(
         full_loc, loc1
     ), "FULL_MEMORY_ACCESS should alias with any non-empty location"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         full_loc, EMPTY_MEMORY_ACCESS
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
 
     # Test EMPTY_MEMORY_ACCESS
     empty_loc = EMPTY_MEMORY_ACCESS
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         empty_loc, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with any location"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         empty_loc, full_loc
     ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
     # Test zero/negative size locations
     zero_size_loc = MemoryLocation(offset=0, size=0)
-    assert not mem_ssa.alias.may_alias(zero_size_loc, loc1), "Zero size location should not alias"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(zero_size_loc, loc1), "Zero size location should not alias"
+    assert not mem_ssa.memalias.may_alias(
         zero_size_loc, zero_size_loc
     ), "Zero size locations should not alias with each other"
 
     # Test partial overlap
     loc5 = MemoryLocation(offset=0, size=64)
     loc6 = MemoryLocation(offset=32, size=32)
-    assert mem_ssa.alias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
-    assert mem_ssa.alias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
 
     # Test exact same location
     loc7 = MemoryLocation(offset=0, size=64)
     loc8 = MemoryLocation(offset=0, size=64)
-    assert mem_ssa.alias.may_alias(loc7, loc8), "Identical locations should alias"
+    assert mem_ssa.memalias.may_alias(loc7, loc8), "Identical locations should alias"
 
     # Test adjacent but non-overlapping locations
     loc9 = MemoryLocation(offset=0, size=64)
     loc10 = MemoryLocation(offset=64, size=64)
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         loc9, loc10
     ), "Adjacent but non-overlapping locations should not alias"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         loc10, loc9
     ), "Adjacent but non-overlapping locations should not alias"
 
@@ -602,8 +602,8 @@ def test_mark_volatile(create_mem_ssa):
     load_loc = mem_ssa.get_memory_use(load).loc
 
     # Mark locations as volatile
-    volatile_store_loc = mem_ssa.alias.mark_volatile(store_loc)
-    volatile_load_loc = mem_ssa.alias.mark_volatile(load_loc)
+    volatile_store_loc = mem_ssa.memalias.mark_volatile(store_loc)
+    volatile_load_loc = mem_ssa.memalias.mark_volatile(load_loc)
 
     assert volatile_store_loc.offset == store_loc.offset
     assert volatile_store_loc.size == store_loc.size
@@ -611,9 +611,9 @@ def test_mark_volatile(create_mem_ssa):
     assert volatile_load_loc.size == load_loc.size
     assert volatile_store_loc.is_volatile
     assert volatile_load_loc.is_volatile
-    assert mem_ssa.alias.may_alias(volatile_store_loc, store_loc)
-    assert mem_ssa.alias.may_alias(volatile_load_loc, load_loc)
-    assert mem_ssa.alias.may_alias(volatile_store_loc, volatile_load_loc)
+    assert mem_ssa.memalias.may_alias(volatile_store_loc, store_loc)
+    assert mem_ssa.memalias.may_alias(volatile_load_loc, load_loc)
+    assert mem_ssa.memalias.may_alias(volatile_store_loc, volatile_load_loc)
 
 
 def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
@@ -635,7 +635,7 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assert assignment_inst.get_read_memory_location() is EMPTY_MEMORY_ACCESS
     assert assignment_inst.get_write_memory_location() is EMPTY_MEMORY_ACCESS
 
-    assert mem_ssa.alias.alias_sets is not None
+    assert mem_ssa.memalias.alias_sets is not None
 
 
 def test_phi_node_reaching_def(create_mem_ssa):
