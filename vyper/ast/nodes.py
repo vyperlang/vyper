@@ -10,7 +10,7 @@ import sys
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
-from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
+from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS, Settings
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -228,6 +228,7 @@ class VyperNode:
     _public_slots = [i for i in __slots__ if not i.startswith("_")]
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
+    _special_decoders: dict = {}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         # this function is performance-sensitive
@@ -262,7 +263,9 @@ class VyperNode:
                 field_name = self._translated_fields[field_name]
 
             if field_name in self.get_fields():
-                if isinstance(value, list):
+                if field_name in self._special_decoders:
+                    value = self._special_decoders[field_name](value)
+                elif isinstance(value, list):
                     value = [_to_node(i, self) for i in value]
                 else:
                     value = _to_node(value, self)
@@ -275,7 +278,8 @@ class VyperNode:
                     kwargs,
                 )
 
-        # add to children of parent last to ensure an accurate hash is generated
+        # add to children of parent last so that child traversal order
+        # matches ast order
         if parent is not None:
             parent._children.append(self)
 
@@ -443,6 +447,8 @@ class VyperNode:
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
+            elif isinstance(value, Settings):
+                ast_dict[key] = value.as_dict()
             else:
                 ast_dict[key] = _to_dict(value)
 
@@ -617,7 +623,12 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id", "is_interface")
+    __slots__ = ("path", "resolved_path", "source_id", "is_interface", "settings")
+    """
+    settings: Settings
+        settings result from parsing the compiler pragmas in the file.
+    """
+    _special_decoders = {"settings": Settings.from_dict}
 
     def to_dict(self):
         return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())

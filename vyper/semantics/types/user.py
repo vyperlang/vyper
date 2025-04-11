@@ -337,6 +337,10 @@ class StructT(_UserType):
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)
 
+        for mt in members.values():
+            if not mt._as_tuple_member:
+                raise StructureException(f"not a valid struct member: {mt}")
+
         self._id = _id
 
         self.ast_def = ast_def
