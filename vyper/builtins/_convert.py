@@ -31,7 +31,7 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.semantics.types import (
-    ABIBufferT,
+    ReturnBufferT,
     AddressT,
     BoolT,
     BytesM_T,
@@ -496,7 +496,7 @@ def convert(expr, context):
             ret = to_bytes(arg_ast, arg, out_typ)
         elif isinstance(out_typ, StringT):
             ret = to_string(arg_ast, arg, out_typ)
-        elif isinstance(out_typ, ABIBufferT):
+        elif isinstance(out_typ, ReturnBufferT):
             ret = to_abi_buffer(arg_ast, arg, out_typ)
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)

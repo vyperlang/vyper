@@ -16,7 +16,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import ABIBufferT
+from vyper.semantics.types import ReturnBufferT
 
 Stmt = Any  # mypy kludge
 
@@ -61,7 +61,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
     else:  # return from external function
         # raw return
-        if isinstance(context.return_type, ABIBufferT):
+        if isinstance(context.return_type, ReturnBufferT):
             # copy to memory
             buf = context.new_internal_variable(context.return_type)
             return_len = get_bytearray_length(buf)

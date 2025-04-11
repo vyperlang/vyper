@@ -167,10 +167,10 @@ class BytesT(_BytestringT):
         return ABI_Bytes(self.length)
 
 
-class ABIBufferT(_BytestringT):
+class ReturnBufferT(_BytestringT):
     typeclass = "abi buffer"
 
-    _id = "ABIBuffer"
+    _id = "ReturnBuffer"
     _as_array = False
     _as_hashmap_key = False
     _as_tuple_member = False
@@ -180,7 +180,7 @@ class ABIBufferT(_BytestringT):
         s for s in DataLocation if s not in (DataLocation.MEMORY, DataLocation.UNSET)
     )
 
-    # don't allow literal ABIBuffers, since it creates ambiguity during
+    # don't allow literal ReturnBuffers, since it creates ambiguity during
     # type inference. revisit once PR #3765 is merged.
     # _valid_literal = (vy_ast.Bytes, vy_ast.HexBytes)
 

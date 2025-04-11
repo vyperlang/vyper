@@ -84,7 +84,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     if return_t is None:
         return ["pass"], 0, 0
 
-    if isinstance(return_t, ABIBufferT):
+    if isinstance(return_t, ReturnBufferT):
         as_abibuf = copy.copy(buf)
         as_abibuf.typ = return_t
         check = ["assert", ["le", "returndatasize", return_t.length]]

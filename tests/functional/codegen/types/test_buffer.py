@@ -9,8 +9,8 @@ from vyper.utils import method_id
 def test_buffer(get_contract, tx_failed):
     test_bytes = """
 @external
-def foo(x: Bytes[100]) -> ABIBuffer[100]:
-    return convert(x, ABIBuffer[100])
+def foo(x: Bytes[100]) -> ReturnBuffer[100]:
+    return convert(x, ReturnBuffer[100])
     """
 
     c = get_contract(test_bytes)
@@ -21,8 +21,8 @@ def foo(x: Bytes[100]) -> ABIBuffer[100]:
 def test_buffer_str_convert(get_contract):
     test_bytes = """
 @external
-def foo(x: Bytes[100]) -> ABIBuffer[100]:
-    return convert(convert(x, String[100]), ABIBuffer[100])
+def foo(x: Bytes[100]) -> ReturnBuffer[100]:
+    return convert(convert(x, String[100]), ReturnBuffer[100])
     """
 
     c = get_contract(test_bytes)
@@ -34,7 +34,7 @@ def test_buffer_no_subscriptable(get_contract, tx_failed):
     code = """
 @external
 def foo(x: Bytes[128]) -> bytes8:
-    return convert(x, ABIBuffer[128])[0]
+    return convert(x, ReturnBuffer[128])[0]
     """
 
     with pytest.raises(StructureException, match="Not an indexable type"):
@@ -69,9 +69,9 @@ def set_implementation(target: address):
     self.target = target
 
 @external
-def foo() -> ABIBuffer[128]:
+def foo() -> ReturnBuffer[128]:
     data: Bytes[128] = raw_call(self.target, msg.data, is_delegate_call=True, max_outsize=128)
-    return convert(data, ABIBuffer[128])
+    return convert(data, ReturnBuffer[128])
     """
 
     impl_c1 = get_contract(impl1)
@@ -94,27 +94,27 @@ def foo() -> ABIBuffer[128]:
 
 
 fail_list = [
-    ("b: ABIBuffer[128]", InstantiationException),
+    ("b: ReturnBuffer[128]", InstantiationException),
     (
-        """b: immutable(ABIBuffer[128])
+        """b: immutable(ReturnBuffer[128])
 
 @deploy
 def __init__():
     helper: Bytes[128] = b''
-    b = convert(helper, ABIBuffer[128])
+    b = convert(helper, ReturnBuffer[128])
     """,
         InstantiationException,
     ),
     (
-        "b: constant(ABIBuffer[128]) = b''",
+        "b: constant(ReturnBuffer[128]) = b''",
         TypeMismatch,
     ),  # type mismatch for now until we allow buffer literals
-    ("b: transient(ABIBuffer[128])", InstantiationException),
-    ("b: DynArray[ABIBuffer[128], 2]", InstantiationException),
+    ("b: transient(ReturnBuffer[128])", InstantiationException),
+    ("b: DynArray[ReturnBuffer[128], 2]", InstantiationException),
     (
         """
 @external
-def foo(b: ABIBuffer[128]):
+def foo(b: ReturnBuffer[128]):
     pass
     """,
         InstantiationException,

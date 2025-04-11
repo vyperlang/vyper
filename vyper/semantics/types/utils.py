@@ -112,7 +112,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     if isinstance(node, vy_ast.Subscript):
         # ex. HashMap, DynArray, Bytes, static arrays
-        if node.value.get("id") in ("HashMap", "Bytes", "String", "ABIBuffer", "DynArray"):
+        if node.value.get("id") in ("HashMap", "Bytes", "String", "ReturnBuffer", "DynArray"):
             assert isinstance(node.value, vy_ast.Name)  # mypy hint
             type_ctor = namespace[node.value.id]
         else:
