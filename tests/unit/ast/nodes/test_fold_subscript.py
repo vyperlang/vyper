@@ -46,3 +46,24 @@ def foo(array: int128[10]) -> int128:
     """
     with pytest.raises(ArrayIndexException):
         compile_code(source)
+
+
+failing_list = [
+    "MAX: constant(DynArray[uint256, 10]) = [1, 2, 3]",
+    "MAX: constant(uint256[3]) = [1, 2, 3]"
+    "MAX: constant((uint256, uint256, uint256)) = (1, 2, 3)",
+]
+
+
+@pytest.mark.parametrize("decl", failing_list)
+def test_oob_index2(decl):
+    source = f"""
+{decl} 
+a: constant(uint256) = MAX[3]
+
+@external
+def foo() -> uint256:
+    return a
+    """
+    with pytest.raises(ArrayIndexException):
+        compile_code(source)
