@@ -2405,6 +2405,7 @@ class ABIEncode(BuiltinFunctionT):
 
 class ABIDecode(BuiltinFunctionT):
     _id = "abi_decode"
+    # TODO: allow ReturnBuffer here
     _inputs = [("data", BytesT.any()), ("output_type", TYPE_T.any())]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 

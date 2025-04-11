@@ -6,8 +6,10 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     _freshname,
     add_ofst,
+    STORE,
     calculate_type_for_external_return,
     check_assign,
+    bytes_data_ptr,
     check_external_call,
     dummy_node_for_type,
     eval_once_check,
@@ -20,7 +22,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import InterfaceT, TupleT
+from vyper.semantics.types import InterfaceT, TupleT, ReturnBufferT
 from vyper.semantics.types.function import StateMutability
 
 
@@ -90,7 +92,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         check = ["assert", ["le", "returndatasize", return_t.length]]
         copy_op = ["returndatacopy", bytes_data_ptr(as_abibuf), 0, "returndatasize"]
         set_length = STORE(as_abibuf, "returndatasize")
-        return ["seq", check, copy_op, set_length]
+        return ["seq", check, copy_op, set_length, as_abibuf], None, return_t.length
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 

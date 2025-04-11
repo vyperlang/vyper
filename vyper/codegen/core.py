@@ -15,6 +15,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
+    ReturnBufferT,
     AddressT,
     BoolT,
     BytesM_T,
@@ -719,6 +720,10 @@ def needs_external_call_wrap(typ):
     # In general `-> X` gets returned as (X,)
     # including structs. MyStruct is returned as abi-encoded (MyStruct,).
     # (Sorry this is so confusing. I didn't make these rules.)
+
+    # special case for ReturnBuffer, which lives outside the abi:
+    if isinstance(typ, ReturnBufferT):
+        return False
 
     return not (isinstance(typ, TupleT) and typ.length > 1)
 
