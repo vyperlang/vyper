@@ -21,6 +21,14 @@ class MemoryAccess:
 
     @property
     def is_volatile(self) -> bool:
+        """
+        Indicates whether this memory access is volatile.
+        
+        A volatile memory access means the memory location can be accessed
+        or modified in ways that might not be tracked by the SSA analysis.
+        This is used to handle memory locations that might be accessed
+        through other function calls or other side effects.
+        """
         return self.loc.is_volatile
 
     @property
@@ -343,10 +351,10 @@ class MemSSA(IRAnalysis):
             if next_def and next_def.loc.completely_overlaps(def_loc):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
-            if mem_use:
+            if mem_use is not None:
                 if self.memalias.may_alias(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
-            if clobber:
+            if clobber is not None:
                 return clobber
 
         # Traverse successors
