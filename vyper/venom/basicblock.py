@@ -249,7 +249,7 @@ class MemoryLocation:
     size: int = 0
     is_volatile: bool = False
 
-    def completely_overlaps(self, other: "MemoryLocation") -> bool:
+    def completely_contains(self, other: "MemoryLocation") -> bool:
         if self == FULL_MEMORY_ACCESS:
             return True
         if other == FULL_MEMORY_ACCESS:

@@ -319,7 +319,7 @@ class MemSSA(IRAnalysis):
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
-            if isinstance(current, MemoryDef) and query_loc.completely_overlaps(current.loc):
+            if isinstance(current, MemoryDef) and query_loc.completely_contains(current.loc):
                 return current
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
@@ -348,7 +348,7 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions[def_idx + 1 :]:
             clobber = None
             next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.completely_overlaps(def_loc):
+            if next_def and next_def.loc.completely_contains(def_loc):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use is not None:
@@ -374,19 +374,19 @@ class MemSSA(IRAnalysis):
                         # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
-                            if next_def and next_def.loc.completely_overlaps(def_loc):
+                            if next_def and next_def.loc.completely_contains(def_loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and mem_use.loc.completely_overlaps(def_loc):
+                            if mem_use and mem_use.loc.completely_contains(def_loc):
                                 return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.completely_overlaps(def_loc):
+                if next_def and next_def.loc.completely_contains(def_loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and mem_use.loc.completely_overlaps(def_loc):
+                if mem_use and mem_use.loc.completely_contains(def_loc):
                     return None  # Found a use that reads from our memory location
 
             worklist.extend(succ.cfg_out)
