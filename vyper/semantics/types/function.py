@@ -435,9 +435,10 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
-            if decorators.nonreentrant:
-                msg = "`@nonreentrant` decorator disallowed on `__init__`"
-                raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
+
+        if function_visibility != FunctionVisibility.EXTERNAL and decorators.nonreentrant:
+            msg = f"`@nonreentrant` decorator disallowed on {function_visibility} functions!"
+            raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
 
         return cls(
             funcdef.name,
