@@ -1464,6 +1464,7 @@ def test_merge_mstore_dload_more_uses():
 
     _check_pre_post(pre, post)
 
+
 def test_merge_mstore_dload_disallowed():
     """
     Test for merging the mstore/dload pairs which contains
