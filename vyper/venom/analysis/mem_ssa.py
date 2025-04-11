@@ -191,7 +191,21 @@ class MemSSA(IRAnalysis):
                     use.reaching_def = self._get_reaching_def(bb, use)
 
     def _get_in_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
-        """Get the cfg in memorydefinition for a block"""
+        """
+        Get the memory def (or phi) that reaches the beginning of a basic block.
+
+        This method determines which memory definition is "live"
+        at the entry point of a block by:
+
+            1. First checking if the block has a phi node (which
+               combines definitions from multiple paths)
+            2. If not, checking if the block itself contains any
+               memory definitions and returning the last one
+            3. If not, recursively checking the immediate
+               dominator block
+            4. If there's no dominator, returning the
+               live-on-entry definition (initial state)
+        """
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
@@ -206,7 +220,15 @@ class MemSSA(IRAnalysis):
         return self.live_on_entry
 
     def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
-        """Get the reaching definition for a memory use"""
+        """
+        Finds the memory definition that reaches a specific memory use.
+
+        This method searches for the most recent memory definition that affects
+        the given memory use by first looking backwards in the same basic block.
+        If none is found, it checks for phi nodes in the block or returns the
+        "in def" from the immediate dominator block. If there is no immediate
+        dominator, it returns the live-on-entry definition.
+        """
         use_idx = bb.instructions.index(use.load_inst)
         for inst in reversed(bb.instructions[:use_idx]):
             if inst in self.inst_to_def:
@@ -222,10 +244,13 @@ class MemSSA(IRAnalysis):
         return self.live_on_entry
 
     def _get_reaching_def_for_def(self, def_inst: MemoryDef) -> MemoryAccess:
-        """Get the reaching definition for a memory definition.
-        
-        This method finds the most recent memory definition that reaches the given memory
-        definition.
+        """
+        Finds which memory definition influences the current memory definition.
+
+        This method looks for the previous memory operation that affects the given
+        memory definition. It first checks the same block for earlier writes, then
+        looks at phi nodes (which represent merged memory states), and finally checks
+        dominator blocks. If nothing is found, it returns the initial memory state.
         """
         bb = def_inst.store_inst.parent
         def_idx = bb.instructions.index(def_inst.store_inst)
