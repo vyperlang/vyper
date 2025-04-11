@@ -376,9 +376,7 @@ class IRInstruction:
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[:2]
             if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(
-                    offset=dst.value, size=size.value, is_volatile=False
-                )
+                return MemoryLocation(offset=dst.value, size=size.value, is_volatile=False)
             return FULL_MEMORY_ACCESS
         elif opcode in ("codecopy", "extcodecopy"):
             size, _, dst = self.operands[:3]
@@ -417,16 +415,12 @@ class IRInstruction:
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[2:4]
             if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(
-                    offset=dst.value, size=size.value, is_volatile=False
-                )
+                return MemoryLocation(offset=dst.value, size=size.value, is_volatile=False)
             return FULL_MEMORY_ACCESS
         elif opcode == "return":
             size, src = self.operands
             if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(
-                    offset=src.value, size=size.value, is_volatile=False
-                )
+                return MemoryLocation(offset=src.value, size=size.value, is_volatile=False)
             return FULL_MEMORY_ACCESS
         elif opcode == "create":
             size, src = self.operands[:2]
