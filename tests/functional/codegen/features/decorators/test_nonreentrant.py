@@ -38,6 +38,65 @@ def __default__():
         contract.protected_function(malicious.address)
 
 
+def test_reentrant_decorator(get_contract, tx_failed):
+    malicious_code = """
+interface ProtectedContract:
+    def protected_function(callback_address: address): nonpayable
+
+interface UnprotectedContract:
+    def unprotected_function(callback_address: address, continue_recursion: bool): nonpayable
+
+@external
+def do_protected_callback():
+    extcall ProtectedContract(msg.sender).protected_function(self)
+
+@external
+def do_unprotected_callback():
+    extcall UnprotectedContract(msg.sender).unprotected_function(self, False)
+    """
+
+    protected_code = """
+#pragma nonreentrancy on
+
+interface Callbackable:
+    def do_protected_callback(): nonpayable
+    def do_unprotected_callback(): nonpayable
+
+@external
+@reentrant
+def unprotected_function(c: Callbackable, continue_recursion: bool = True) -> uint256:
+    if continue_recursion:
+        extcall c.do_unprotected_callback()
+    return 1
+
+@external
+def protected_function(c: Callbackable) -> uint256:
+    extcall c.do_protected_callback()
+    return 2
+
+# add a default function so we know the callback didn't fail for any reason
+# besides nonreentrancy
+@external
+def __default__():
+    pass
+    """
+    benign_code = """
+@external
+def __default__():
+    pass
+    """
+    contract = get_contract(protected_code)
+    malicious = get_contract(malicious_code)
+    benign = get_contract(benign_code)
+
+    assert contract.unprotected_function(malicious.address) == 1
+    with tx_failed():
+        contract.protected_function(malicious.address)
+
+    assert contract.unprotected_function(benign.address) == 1
+    assert contract.protected_function(benign.address) == 2
+
+
 def test_nonreentrant_view_function(get_contract, tx_failed):
     malicious_code = """
 interface ProtectedContract:
@@ -191,6 +250,21 @@ def __default__():
 
     with tx_failed():
         contract.protected_function3("zzz value", True)
+
+def test_nonreentrant_internal(get_contract):
+    code = """
+# pragma nonreentrancy on
+
+def foo():
+    u: uint256 = 1
+
+@external
+def bar():
+    self.foo()
+    """
+    c = get_contract(code)
+
+    c.bar()
 
 
 def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
