@@ -79,7 +79,7 @@ class _Expression:
             # operands would not matter (so this is needed)
             # for correct implementation of hash (x == x => hash(x) == hash(y))
             self.cache_hash = hash(
-                (self.opcode, tuple(sorted(self.operands, key=lambda x: str(x))))
+                (self.opcode, tuple(sorted(self.operands, key=str)))
             )
         return self.cache_hash
 
