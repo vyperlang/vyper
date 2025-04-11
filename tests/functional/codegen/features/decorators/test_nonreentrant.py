@@ -251,6 +251,21 @@ def __default__():
     with tx_failed():
         contract.protected_function3("zzz value", True)
 
+def test_nonreentrant_internal(get_contract):
+    code = """
+# pragma nonreentrancy on
+
+def foo():
+    u: uint256 = 1
+
+@external
+def bar():
+    self.foo()
+    """
+    c = get_contract(code)
+
+    c.bar()
+
 
 def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
     calling_contract_code = """
