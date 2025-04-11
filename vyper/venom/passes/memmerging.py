@@ -423,11 +423,10 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 var, dst_ptr = inst.operands
                 if not isinstance(var, IRVariable):
-                    continue
-                producer = self.dfg.get_producing_instruction(var)
-                if producer is None:
                     remove_dloads(inst.operands)
                     continue
+                producer = self.dfg.get_producing_instruction(var)
+                assert producer is not None
                 if producer.opcode != "dload":
                     remove_dloads(inst.operands)
                     continue
@@ -442,6 +441,7 @@ class MemMergePass(IRPass):
                     continue
 
                 if producer.output not in dloads:
+                    remove_dloads(inst.operands)
                     continue
                 self.updater.add_before(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
                 self.updater.update(inst, "mload", [dst_ptr], new_output=producer.output)
