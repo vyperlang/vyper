@@ -249,6 +249,7 @@ class MemoryLocation:
     size: int = 0
     is_volatile: bool = False
 
+    # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: "MemoryLocation") -> bool:
         if self == FULL_MEMORY_ACCESS:
             return True
