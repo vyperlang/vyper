@@ -94,12 +94,24 @@ class MemSSA(IRAnalysis):
 
         # Memory SSA specific state
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
-        self.live_on_entry = MemoryAccess(0)  # live_on_entry node
+
+        # live_on_entry node
+        self.live_on_entry = MemoryAccess(0)
+
+        # The following are the data structures that store the Memory SSA 
+        # separately from the main IR data structures.
+
+        # Maps basic blocks to their memory definitions (stores)
         self.memory_defs: Dict[IRBasicBlock, List[MemoryDef]] = {}
+        # Maps basic blocks to their memory uses (loads)
         self.memory_uses: Dict[IRBasicBlock, List[MemoryUse]] = {}
+        # Maps basic blocks to their memory phi nodes (for merging memory states)
         self.memory_phis: Dict[IRBasicBlock, MemoryPhi] = {}
+        # Tracks the current memory state at each basic block
         self.current_def: Dict[IRBasicBlock, MemoryAccess] = {}
+        # Maps store instructions to their corresponding MemoryDef objects
         self.inst_to_def: Dict[IRInstruction, MemoryDef] = {}
+        # Maps load instructions to their corresponding MemoryUse objects
         self.inst_to_use: Dict[IRInstruction, MemoryUse] = {}
 
     def analyze(self):
