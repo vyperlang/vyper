@@ -412,7 +412,9 @@ def test_may_alias(dummy_mem_ssa):
 
     # Test zero/negative size locations
     zero_size_loc = MemoryLocation(offset=0, size=0)
-    assert not mem_ssa.memalias.may_alias(zero_size_loc, loc1), "Zero size location should not alias"
+    assert not mem_ssa.memalias.may_alias(
+        zero_size_loc, loc1
+    ), "Zero size location should not alias"
     assert not mem_ssa.memalias.may_alias(
         zero_size_loc, zero_size_loc
     ), "Zero size locations should not alias with each other"

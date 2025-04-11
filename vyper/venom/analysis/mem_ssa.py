@@ -23,7 +23,7 @@ class MemoryAccess:
     def is_volatile(self) -> bool:
         """
         Indicates whether this memory access is volatile.
-        
+
         A volatile memory access means the memory location can be accessed
         or modified in ways that might not be tracked by the SSA analysis.
         This is used to handle memory locations that might be accessed
@@ -98,7 +98,7 @@ class MemSSA(IRAnalysis):
         # live_on_entry node
         self.live_on_entry = MemoryAccess(0)
 
-        # The following are the data structures that store the Memory SSA 
+        # The following are the data structures that store the Memory SSA
         # separately from the main IR data structures.
 
         # Maps basic blocks to their memory definitions (stores)
