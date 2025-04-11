@@ -98,7 +98,7 @@ class MemSSA(IRAnalysis):
         # Request required analyses
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
+        self.memalias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -107,11 +107,11 @@ class MemSSA(IRAnalysis):
         self._remove_redundant_phis()
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = self.alias.mark_volatile(loc)
+        volatile_loc = self.memalias.mark_volatile(loc)
 
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
-                if self.alias.may_alias(mem_def.loc, loc):
+                if self.memalias.may_alias(mem_def.loc, loc):
                     assert mem_def.loc is not None
                     new_loc = MemoryLocation(
                         offset=mem_def.loc.offset, size=mem_def.loc.size, is_volatile=True
@@ -266,7 +266,7 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_phis:
             phi = self.memory_phis[bb]
             for op, _ in phi.operands:
-                if isinstance(op, MemoryDef) and self.alias.may_alias(def_loc, op.loc):
+                if isinstance(op, MemoryDef) and self.memalias.may_alias(def_loc, op.loc):
                     return phi
 
         if bb.cfg_in:
@@ -274,7 +274,7 @@ class MemSSA(IRAnalysis):
             if idom:
                 in_def = self._get_in_def(idom)
                 # Only use the in_def if it might alias with our definition
-                if isinstance(in_def, MemoryDef) and self.alias.may_alias(def_loc, in_def.loc):
+                if isinstance(in_def, MemoryDef) and self.memalias.may_alias(def_loc, in_def.loc):
                     return in_def
 
         return self.live_on_entry
@@ -343,7 +343,7 @@ class MemSSA(IRAnalysis):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
             if mem_use:
-                if self.alias.may_alias(def_loc, mem_use.loc):
+                if self.memalias.may_alias(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
             if clobber:
                 return clobber
