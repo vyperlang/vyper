@@ -18,7 +18,10 @@ def has_hevm():
 
 def _prep_hevm_venom(venom_source_code, verbose=False):
     ctx = parse_from_basic_block(venom_source_code)
+    return _prep_hevm_venom_ctx(ctx)
 
+
+def _prep_hevm_venom_ctx(ctx, verbose=False):
     num_calldataloads = 0
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
@@ -79,6 +82,21 @@ def hevm_check_venom(pre, post, verbose=False):
         print("OPTIMIZED:", post)
     bytecode1 = _prep_hevm_venom(pre, verbose=verbose)
     bytecode2 = _prep_hevm_venom(post, verbose=verbose)
+
+    hevm_check_bytecode(bytecode1, bytecode2, verbose=verbose)
+
+
+def hevm_check_venom_ctx(pre, post, verbose=False):
+    if not has_hevm():
+        return
+
+    # perform hevm equivalence check
+    if verbose:
+        print("HEVM COMPARE.")
+        print("BEFORE:", pre)
+        print("OPTIMIZED:", post)
+    bytecode1 = _prep_hevm_venom_ctx(pre, verbose=verbose)
+    bytecode2 = _prep_hevm_venom_ctx(post, verbose=verbose)
 
     hevm_check_bytecode(bytecode1, bytecode2, verbose=verbose)
 

@@ -24,7 +24,7 @@ class MakeSSA(IRPass):
         self._add_phi_nodes()
 
         self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
-        self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
+        self.var_name_stacks = {var.value: [0] for var in self.defs.keys()}
         self._rename_vars(fn.entry)
         self._remove_degenerate_phis(fn.entry)
 
@@ -71,9 +71,16 @@ class MakeSSA(IRPass):
         basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
 
     def latest_version_of(self, var: IRVariable) -> IRVariable:
-        name = var.name
+        og_var = self.original_vars[var]
+        name = og_var.value
         version = self.var_name_stacks[name][-1]
-        return var.with_version(version)
+
+        if version == 0:
+            return var
+
+        ret = IRVariable(f"{og_var.name}:{version}")
+        self.original_vars[ret] = var
+        return ret
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         """
@@ -96,20 +103,20 @@ class MakeSSA(IRPass):
                 inst.operands = new_ops
 
             if inst.output is not None:
-                v_name = inst.output.name
+                v_name = self.original_vars[inst.output].value
                 i = self.var_name_counters[v_name]
 
                 self.var_name_stacks[v_name].append(i)
-                self.var_name_counters[v_name] = i + 1
+                self.var_name_counters[v_name] += 1
 
                 inst.output = self.latest_version_of(inst.output)
-                outs.append(inst.output.name)
+                outs.append(inst.output)
 
         for bb in basic_block.cfg_out:
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, "Phi instruction without output"
+                assert inst.output is not None, inst  # phis should have output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
@@ -121,9 +128,10 @@ class MakeSSA(IRPass):
             self._rename_vars(bb)
 
         # Post-action
-        for op_name in outs:
+        for var in outs:
             # NOTE: each pop corresponds to an append in the pre-action above
-            self.var_name_stacks[op_name].pop()
+            og_name = self.original_vars[var].name
+            self.var_name_stacks[og_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
         for inst in entry.instructions.copy():
@@ -153,9 +161,11 @@ class MakeSSA(IRPass):
         Compute the definition points of variables in the function.
         """
         self.defs = {}
+        self.original_vars = {}
         for bb in self.dom.dom_post_order:
             assignments = bb.get_assignments()
             for var in assignments:
                 if var not in self.defs:
                     self.defs[var] = OrderedSet()
                 self.defs[var].add(bb)
+                self.original_vars[var] = var
