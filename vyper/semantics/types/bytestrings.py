@@ -174,6 +174,7 @@ class ReturnBufferT(_BytestringT):
     _as_array = False
     _as_hashmap_key = False
     _as_tuple_member = False
+    _as_darray = False
 
     # disallow everything but memory
     _invalid_locations = tuple(

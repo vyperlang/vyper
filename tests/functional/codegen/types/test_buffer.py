@@ -132,7 +132,7 @@ def __init__():
         TypeMismatch,
     ),  # type mismatch for now until we allow buffer literals
     ("b: transient(ReturnBuffer[128])", InstantiationException),
-    ("b: DynArray[ReturnBuffer[128], 2]", InstantiationException),
+    ("b: DynArray[ReturnBuffer[128], 2]", StructureException),
     (
         """
 @external
