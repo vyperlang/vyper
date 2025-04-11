@@ -770,7 +770,8 @@ class _ParsedDecorators:
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
         settings = self.get_file_settings()
 
-        if settings.nonreentrancy_by_default:
+        is_default = self.funcdef.name == "__default__"
+        if not is_default and settings.nonreentrancy_by_default:
             raise StructureException(
                 "used @nonreentrant decorator, but `#pragma nonreentrancy` is set"
             )
