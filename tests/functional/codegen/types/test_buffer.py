@@ -1,9 +1,19 @@
+from typing import Any
+
 import pytest
 from eth.codecs import abi
 
 from vyper.compiler import compile_code
 from vyper.exceptions import InstantiationException, StructureException, TypeMismatch
-from vyper.utils import method_id
+
+
+# call, but don't abi decode the output
+def _call_no_decode(contract_method: Any, *args, **kwargs) -> bytes:
+    contract = contract_method.contract
+    calldata = contract_method.prepare_calldata(*args, **kwargs)
+    output = contract.env.message_call(contract.address, data=calldata)
+
+    return output
 
 
 def test_buffer(get_contract, tx_failed):
@@ -14,8 +24,9 @@ def foo(x: Bytes[100]) -> ReturnBuffer[100]:
     """
 
     c = get_contract(test_bytes)
-    moo_result = c.foo(abi.encode("(bytes)", (b"cow",)))
-    assert moo_result == b"cow"
+    return_data = b"cow"
+    moo_result = _call_no_decode(c.foo, return_data)
+    assert moo_result == return_data
 
 
 def test_buffer_in_interface(get_contract, tx_failed):
@@ -28,16 +39,16 @@ def foo(target: Foo) -> ReturnBuffer[100]:
     return staticcall target.foo()
     """
 
-    return_data = abi.encode("(bytes)", (b"cow",)).hex()
+    return_data = abi.encode("(bytes)", (b"cow",))
     target_code = f"""
 @external
 def foo() -> ReturnBuffer[100]:
-    return convert(x"{return_data}", ReturnBuffer[100])
+    return convert(x"{return_data.hex()}", ReturnBuffer[100])
     """
     caller = get_contract(caller_code)
     target = get_contract(target_code)
 
-    assert caller.foo(target.address) == b"cow"
+    assert _call_no_decode(caller.foo, target.address) == return_data
 
 
 def test_buffer_str_convert(get_contract):
@@ -48,7 +59,7 @@ def foo(x: Bytes[100]) -> ReturnBuffer[100]:
     """
 
     c = get_contract(test_bytes)
-    moo_result = c.foo(abi.encode("(bytes)", (b"cow",)))
+    moo_result = _call_no_decode(c.foo, b"cow")
     assert moo_result == b"cow"
 
 
@@ -63,7 +74,7 @@ def foo(x: Bytes[128]) -> bytes8:
         compile_code(code)
 
 
-def test_proxy_raw_return(env, get_contract):
+def test_proxy_raw_return(get_contract):
     impl1 = """
 @external
 def foo() -> String[32]:
@@ -103,15 +114,15 @@ def foo() -> ReturnBuffer[128]:
     proxy_c = get_contract(proxy)
 
     proxy_c.set_implementation(impl_c1.address)
-    assert proxy_c.foo() == b"Hello"
+    res = _call_no_decode(proxy_c.foo)
+    assert abi.decode("(bytes)", res) == (b"Hello",)
 
     proxy_c.set_implementation(impl_c2.address)
-    assert proxy_c.foo() == b"Goodbye"
+    res = _call_no_decode(proxy_c.foo)
+    assert abi.decode("(string)", res) == ("Goodbye",)
 
     proxy_c.set_implementation(impl_c3.address)
-    # need low-level call otherwise we fail due to bytes decoding
-    # because ABIBytes is represented as bytes in ABI
-    res = env.message_call(proxy_c.address, data=method_id("foo()"))
+    res = _call_no_decode(proxy_c.foo)
     assert abi.decode("(uint256[])", res) == ([1, 2],)
 
 
