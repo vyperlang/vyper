@@ -1,6 +1,7 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException
+from vyper.compiler import compile_code
+from vyper.exceptions import CallViolation, FunctionDeclarationException
 
 # TODO test functions in this module across all evm versions
 # once we have cancun support.
@@ -295,3 +296,73 @@ def __init__():
 """
     with pytest.raises(FunctionDeclarationException):
         get_contract(code)
+
+
+successive_nonreentrant = [
+    # external nonreentrant calls private nonreentrant
+    (
+        """
+@external
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+@nonreentrant
+def bar() -> uint256:
+    return 1
+    """,
+        "Cannot call `bar` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+    ),
+    # external nonreentrant calls private which calls private nonreentrant
+    (
+        """
+@external
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+""",
+        "Cannot call `baz` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+    ),
+    # private nonreentrant calls private nonreentrant
+    (
+        """
+@nonreentrant
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+    """,
+        "Cannot call `baz` since it is `@nonreentrant` and reachable from `bar`, which is also marked `@nonreentrant`",
+    ),
+    # private nonreentrant calls private which call private nonreentrant
+    (
+        """
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+   """,
+        "Cannot call `baz` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+    ),
+]
+
+
+@pytest.mark.parametrize("failing_code, message", successive_nonreentrant)
+def test_call_nonreentrant_from_nonreentrant(get_contract, failing_code, message):
+    with pytest.raises(CallViolation, match=message):
+        compile_code(failing_code)
