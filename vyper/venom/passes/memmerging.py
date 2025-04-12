@@ -108,6 +108,7 @@ class MemMergePass(IRPass):
             self._handle_bb_memzero(bb)
             self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
             self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
+            self._merge_mstore_dload(bb)
 
             if version_check(begin="cancun"):
                 # mcopy is available
@@ -142,7 +143,10 @@ class MemMergePass(IRPass):
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
                 val = self.updater.add_before(inst, load_opcode, [IRLiteral(copy.src)])
+                assert val is not None  # help mypy
                 self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
+
+            to_nop: list[IRInstruction] = []
 
             for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
@@ -157,7 +161,9 @@ class MemMergePass(IRPass):
                     if not all(use in copy.insts for use in uses):
                         continue
 
-                self.updater.nop(inst)
+                to_nop.append(inst)
+
+            self.updater.nop_multi(to_nop)
 
         # need copy, since `copies` might be the same object as `self._copies`
         for c in copies.copy():
@@ -345,6 +351,7 @@ class MemMergePass(IRPass):
                 self.updater.update(inst, "mstore", new_ops)
             else:
                 calldatasize = self.updater.add_before(inst, "calldatasize", [])
+                assert calldatasize is not None  # help mypy
                 new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
                 self.updater.update(inst, "calldatacopy", new_ops)
 
@@ -395,6 +402,35 @@ class MemMergePass(IRPass):
                 continue
 
         _barrier()
+
+    # This pass is necessary for trivial cases of dload/mstore merging
+    # where the src and dst pointers are variables, which are not handled
+    # in the other merging passes.
+    def _merge_mstore_dload(self, bb: IRBasicBlock):
+        for inst in bb.instructions:
+            if inst.opcode != "mstore":
+                continue
+
+            var, dst_ptr = inst.operands
+            if not isinstance(var, IRVariable):
+                continue
+            producer = self.dfg.get_producing_instruction(var)
+            if producer is None:
+                continue
+            if producer.opcode != "dload":
+                continue
+
+            assert producer.output is not None
+            uses = self.dfg.get_uses(producer.output)
+            if len(uses) != 1:
+                continue
+
+            src_ptr = producer.operands[0]
+
+            inst.opcode = "dloadbytes"
+            inst.operands = [IRLiteral(32), src_ptr, dst_ptr]
+
+            producer.make_nop()
 
 
 def _volatile_memory(inst):

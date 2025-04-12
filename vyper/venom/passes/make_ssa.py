@@ -1,5 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -29,6 +29,7 @@ class MakeSSA(IRPass):
         self._remove_degenerate_phis(fn.entry)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _add_phi_nodes(self):
         """
