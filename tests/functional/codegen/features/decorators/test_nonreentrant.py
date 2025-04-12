@@ -253,6 +253,7 @@ def __default__():
     with tx_failed():
         contract.protected_function3("zzz value", True)
 
+
 def test_nonreentrant_internal(get_contract):
     code = """
 # pragma nonreentrancy on

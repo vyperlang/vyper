@@ -373,7 +373,7 @@ class ContractFunctionT(VyperType):
             function_visibility,
             decorators.state_mutability,
             from_interface=True,
-            nonreentrant=decorators.nonreentrant,
+            nonreentrant=False,
             ast_def=funcdef,
         )
 
@@ -440,6 +440,23 @@ class ContractFunctionT(VyperType):
                 msg = "`@nonreentrant` decorator disallowed on `__init__`"
                 raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
 
+        # compute nonreentrancy
+        settings = funcdef.module_node.settings
+        nonreentrant: bool
+        is_default = funcdef.name == "__default__"
+        is_internal = function_visibility == FunctionVisibility.INTERNAL
+        if (
+            (is_default or is_internal)
+            and decorators.nonreentrant_node is None
+            and decorators.reentrant_node is None
+        ):
+            # no nonreentrancy
+            nonreentrant = False
+        elif settings.nonreentrancy_by_default:
+            nonreentrant = decorators.reentrant_node is None
+        else:
+            nonreentrant = decorators.nonreentrant_node is not None
+
         return cls(
             funcdef.name,
             positional_args,
@@ -448,7 +465,7 @@ class ContractFunctionT(VyperType):
             function_visibility,
             decorators.state_mutability,
             from_interface=False,
-            nonreentrant=decorators.nonreentrant,
+            nonreentrant=nonreentrant,
             ast_def=funcdef,
         )
 
@@ -796,22 +813,6 @@ class _ParsedDecorators:
             )
 
         self.reentrant_node = decorator_node
-
-    @property
-    def nonreentrant(self) -> bool:
-        settings = self.get_file_settings()
-
-        is_default = self.funcdef.name == "__default__"
-
-        if is_default and self.nonreentrant_node is None and self.reentrant_node is None:
-            # special case for default function -- it always defaults to
-            # reentrant, no matter the nonreentrancy_by_default mode.
-            return False
-
-        if settings.nonreentrancy_by_default:
-            return self.reentrant_node is None
-        else:
-            return self.nonreentrant_node is not None
 
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
