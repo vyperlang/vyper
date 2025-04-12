@@ -809,9 +809,9 @@ class _ParsedDecorators:
             return False
 
         if settings.nonreentrancy_by_default:
-            return self.nonreentrant_node is None
+            return self.reentrant_node is None
         else:
-            return self.reentrant_node is not None
+            return self.nonreentrant_node is not None
 
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:

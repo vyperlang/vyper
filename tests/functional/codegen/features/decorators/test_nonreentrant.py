@@ -80,11 +80,13 @@ def protected_function(c: Callbackable) -> uint256:
 def __default__():
     pass
     """
+
     benign_code = """
 @external
 def __default__():
     pass
     """
+
     contract = get_contract(protected_code)
     malicious = get_contract(malicious_code)
     benign = get_contract(benign_code)
