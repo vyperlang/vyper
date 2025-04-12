@@ -15,7 +15,6 @@ from vyper.compiler.input_bundle import (
     PathLike,
 )
 from vyper.exceptions import (
-    CompilerPanic,
     DuplicateImport,
     ImportCycle,
     ModuleNotFound,
@@ -272,34 +271,30 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
     return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
-# can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs", "math"]
-
-
-# TODO: could move this to analysis/common.py or something
-def _is_builtin(module_str):
-    return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
-
-
 _builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
 
-# builtin import path -> prefix for removal, package, suffix
+# builtin import path -> (prefix for removal, package, suffix)
 BUILTIN_MODULE_RULES = {
     "ethereum.ercs": ("ethereum.ercs", vyper.builtins.interfaces.__package__, ".vyi"),
     "math": ("", vyper.builtins.stdlib.__package__, ".vy"),
 }
 
 
+# TODO: could move this to analysis/common.py or something
 def _get_builtin_prefix(module_str: str):
-    for prefix in BUILTIN_PREFIXES:
+    for prefix in BUILTIN_MODULE_RULES.keys():
         if module_str.startswith(prefix):
             return prefix
     return None
 
 
+def _is_builtin(module_str):
+    return _get_builtin_prefix(module_str) is None
+
+
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
-    if not _is_builtin(module_str):
-        raise CompilerPanic("unreachable!")
+    module_prefix = _get_builtin_prefix(module_str)
+    assert module_prefix is not None, "unreachable"
 
     assert level == 0, "builtin imports are absolute"
 
@@ -312,9 +307,6 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
     search_path = Path(builtins_path).parent.parent
     # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
-
-    module_prefix = _get_builtin_prefix(module_str)
-    assert module_prefix is not None
 
     remove_prefix, target_package, suffix = BUILTIN_MODULE_RULES[module_prefix]
     base_name = module_str.removeprefix(remove_prefix + ".")
