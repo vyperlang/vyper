@@ -2123,10 +2123,10 @@ class Sqrt(BuiltinFunctionT):
     _inputs = [("d", DecimalT())]
     _return_type = DecimalT()
 
-    def _try_fold(self, node):
-        message = "`sqrt` builtin was removed, instead import module "
-        message += "`stdlib.math` and use `math.sqrt()`"
-        raise UnimplementedException(message)
+    def fetch_call_return(self, node):
+        message = "The `sqrt` builtin was removed. Instead import module "
+        message += "`math` and use `math.sqrt()`"
+        raise UnimplementedException(message, node)
 
 
 class ISqrt(BuiltinFunctionT):
