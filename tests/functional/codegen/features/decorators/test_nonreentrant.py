@@ -311,7 +311,8 @@ def foo() -> uint256:
 def bar() -> uint256:
     return 1
     """,
-        "Cannot call `bar` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+        "Cannot call `bar` since it is `@nonreentrant`"
+        " and reachable from `foo`, which is also marked `@nonreentrant`",
     ),
     # external nonreentrant calls private which calls private nonreentrant
     (
@@ -328,7 +329,8 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
 """,
-        "Cannot call `baz` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+        "Cannot call `baz` since it is `@nonreentrant`"
+        " and reachable from `foo`, which is also marked `@nonreentrant`",
     ),
     # private nonreentrant calls private nonreentrant
     (
@@ -341,7 +343,8 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
     """,
-        "Cannot call `baz` since it is `@nonreentrant` and reachable from `bar`, which is also marked `@nonreentrant`",
+        "Cannot call `baz` since it is `@nonreentrant`"
+        " and reachable from `bar`, which is also marked `@nonreentrant`",
     ),
     # private nonreentrant calls private which call private nonreentrant
     (
@@ -357,7 +360,8 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
    """,
-        "Cannot call `baz` since it is `@nonreentrant` and reachable from `foo`, which is also marked `@nonreentrant`",
+        "Cannot call `baz` since it is `@nonreentrant`"
+        " and reachable from `foo`, which is also marked `@nonreentrant`",
     ),
 ]
 
@@ -366,3 +370,42 @@ def baz() -> uint256:
 def test_call_nonreentrant_from_nonreentrant(get_contract, failing_code, message):
     with pytest.raises(CallViolation, match=message):
         compile_code(failing_code)
+
+
+def test_call_nonreentrant_lib_from_nonreentrant(get_contract, make_input_bundle):
+    lib1 = """
+@nonreentrant
+def foo():
+    pass
+        """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+def foo():
+    lib1.foo()
+        """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+initializes: lib2[lib1:=lib1]
+
+@nonreentrant
+@external
+def foo():
+    lib2.foo()
+        """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    with pytest.raises(CallViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    msg = (
+        "Cannot call `foo` since it is `@nonreentrant`"
+        " and reachable from `foo`, which is also marked `@nonreentrant`"
+    )
+    assert e.value._message == msg
