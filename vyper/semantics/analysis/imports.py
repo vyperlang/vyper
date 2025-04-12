@@ -289,7 +289,7 @@ def _get_builtin_prefix(module_str: str):
 
 
 def _is_builtin(module_str):
-    return _get_builtin_prefix(module_str) is None
+    return _get_builtin_prefix(module_str) is not None
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
