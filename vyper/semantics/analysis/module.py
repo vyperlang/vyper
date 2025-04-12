@@ -117,6 +117,16 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
         # compute reachable set and validate the call graph
         _compute_reachable_set(fn_t)
 
+        if fn_t.nonreentrant:
+            for g in fn_t.reachable_internal_functions:
+                if g.nonreentrant:
+                    # TODO: improve the error message by displaying the exact
+                    # path through the call graph
+                    msg = f"Cannot call `{g.name}` since it is"
+                    msg += f" `@nonreentrant` and reachable from `{fn_t.name}`"
+                    msg += ", which is also marked `@nonreentrant`"
+                    raise CallViolation(msg, func, g.ast_def)
+
 
 # compute reachable set and validate the call graph (detect cycles)
 def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
