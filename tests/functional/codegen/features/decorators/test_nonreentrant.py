@@ -375,7 +375,7 @@ def test_call_nonreentrant_from_nonreentrant(get_contract, failing_code, message
 def test_call_nonreentrant_lib_from_nonreentrant(get_contract, make_input_bundle):
     lib1 = """
 @nonreentrant
-def foo():
+def baz():
     pass
         """
     lib2 = """
@@ -385,8 +385,8 @@ uses: lib1
 
 counter: uint256
 
-def foo():
-    lib1.foo()
+def bar():
+    lib1.baz()
         """
     main = """
 import lib1
@@ -398,14 +398,14 @@ initializes: lib2[lib1:=lib1]
 @nonreentrant
 @external
 def foo():
-    lib2.foo()
+    lib2.bar()
         """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     with pytest.raises(CallViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
     msg = (
-        "Cannot call `foo` since it is `@nonreentrant`"
+        "Cannot call `baz` since it is `@nonreentrant`"
         " and reachable from `foo`, which is also marked `@nonreentrant`"
     )
     assert e.value._message == msg
