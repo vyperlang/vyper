@@ -7,6 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalys
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -134,13 +135,21 @@ class FunctionInlinerPass(IRGlobalPass):
                     # not valid venom code, but it will get removed in store elimination
                     # (or unused variable elimination)
                     inst.opcode = "store"
-                    val = call_site.operands[-param_idx - 1]
+                    ops = call_site.operands[1:] + [call_site.operands[0]]
+                    val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]
                 elif inst.opcode == "ret":
+                    if len(inst.operands) > 1:
+                        # sanity check (should remove once new callconv stabilizes)
+                        assert ENABLE_NEW_CALL_CONV
+                        ret_value = inst.operands[0]
+                        bb.insert_instruction(
+                            IRInstruction("store", [ret_value], call_site.output), -1
+                        )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
