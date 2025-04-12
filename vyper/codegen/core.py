@@ -233,11 +233,12 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     if src.location in (CALLDATA, MEMORY) and copy_cost <= length_calc_cost:
         return True
     # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
-    # dload(src) costs additional 19-25 gas depending on if `src` is a literal
+    # dload(src) costs additional 14-20 gas depending on if `src` is a literal
     # or not.
-    # (dload(src) expands to codecopy(0, add(CODE_END, src), 32); mload(0)).
-    # for simplicity, skip the 19 case.
-    if src.location == DATA and copy_cost <= (25 + length_calc_cost):
+    # (dload(src) expands to `codecopy(0, add(CODE_END, src), 32); mload(0)`,
+    # and we have already accounted for an `mload(ptr)`).
+    # for simplicity, skip the 14 case.
+    if src.location == DATA and copy_cost <= (20 + length_calc_cost):
         return True
     return False
 
