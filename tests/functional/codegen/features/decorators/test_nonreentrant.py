@@ -690,13 +690,6 @@ def foo(end: bool):
 
     for fun in funs:
         if (
-            call_target == "foo"
-            and lib1_pragma_state == "on"
-            and lib2_pragma_state == "on"
-            and main_pragma_state == "off"
-        ):
-            pass
-        if (
             fun_to_reentrancy[fun] == "on"
             and fun_to_reentrancy[call_target_to_fun[call_target]] == "on"
         ):
