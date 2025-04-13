@@ -661,10 +661,6 @@ def foobar():
 
     code = """
 import foo as Foo
-
-@external
-def foobar():
-    pass
 """
 
     with pytest.raises(Exception):
