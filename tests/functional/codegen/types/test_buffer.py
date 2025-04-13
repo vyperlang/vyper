@@ -99,6 +99,7 @@ def sanity_check() -> ReturnBuffer[128]:
     assert abi.decode("(bytes)", res) == (payload,)
 
     # revert due to returndatasize being too big
+    # 32B head, 32B length, 32 bytes payload, 32 right-padded bytes payload
     with pytest.raises(ExecutionReverted):
         _call_no_decode(c.bar)
 
