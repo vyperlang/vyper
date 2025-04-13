@@ -669,3 +669,26 @@ def foobar():
 
     with pytest.raises(Exception):
         compiler.compile_code(code, input_bundle=input_bundle)
+
+
+def test_reentrant_decorator_blocked_in_vyi(make_input_bundle):
+    ifoo_code = """
+@external
+@reentrant
+def withdraw(
+    assets: uint256,
+    receiver: address = msg.sender,
+    owner: address = msg.sender,
+) -> uint256:
+    ...
+
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+"""
+
+    with pytest.raises(FunctionDeclarationException):
+        compiler.compile_code(code, input_bundle=input_bundle)
