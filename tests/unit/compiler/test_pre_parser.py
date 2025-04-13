@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import SyntaxException
+from vyper.exceptions import StructureException, SyntaxException
 
 
 def test_semicolon_prohibited(get_contract):
@@ -154,6 +154,14 @@ def test():
     pass
     """
     assert_compile_failed(lambda: get_contract(code))
+
+
+def test_invalid_reentrancy_pragma():
+    code = """
+# pragma nonreentrancy oof
+    """
+    with pytest.raises(StructureException):
+        compile_code(code)
 
 
 def test_unbalanced_parens(assert_compile_failed, get_contract):
