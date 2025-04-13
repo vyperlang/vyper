@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 from eth.codecs import abi
 
+from tests.evm_backends.base_env import ExecutionReverted
 from vyper.compiler import compile_code
 from vyper.exceptions import InstantiationException, StructureException, TypeMismatch
 
@@ -61,6 +62,46 @@ def foo(x: Bytes[100]) -> ReturnBuffer[100]:
     c = get_contract(test_bytes)
     moo_result = _call_no_decode(c.foo, b"cow")
     assert moo_result == b"cow"
+
+
+def test_buffer_returndatasize_check(get_contract):
+    test_bytes = """
+interface Foo:
+    def payload() -> ReturnBuffer[127]: view
+
+interface FooSanity:
+    def payload() -> ReturnBuffer[128]: view
+
+payload: public(Bytes[33])
+
+@external
+def set_payload(b: Bytes[33]):
+    self.payload =  b
+
+@external
+def bar() -> ReturnBuffer[127]:
+    return staticcall Foo(self).payload()
+
+@external
+def sanity_check() -> ReturnBuffer[128]:
+    b: ReturnBuffer[128] = staticcall FooSanity(self).payload()
+    return b
+    """
+
+    c = get_contract(test_bytes)
+    payload = b"a" * 33
+    c.set_payload(payload)
+    assert c.payload() == payload
+
+    res = _call_no_decode(c.sanity_check)
+
+    assert len(res) == 128
+    assert abi.decode("(bytes)", res) == (payload,)
+
+    # revert due to returndatasize being too big
+    # 32B head, 32B length, 32 bytes payload, 32 right-padded bytes payload
+    with pytest.raises(ExecutionReverted):
+        _call_no_decode(c.bar)
 
 
 def test_buffer_no_subscriptable(get_contract, tx_failed):
