@@ -67,7 +67,7 @@ def foo(x: Bytes[100]) -> ReturnBuffer[100]:
 def test_buffer_returndatasize_check(get_contract):
     test_bytes = """
 interface Foo:
-    def payload() -> ReturnBuffer[64]: view
+    def payload() -> ReturnBuffer[127]: view
 
 interface FooSanity:
     def payload() -> ReturnBuffer[128]: view
@@ -77,8 +77,6 @@ payload: public(Bytes[33])
 @external
 def set_payload(b: Bytes[33]):
     self.payload =  b
-    assert len(self.payload) == 33
-    #self.payload =  b''
 
 @external
 def bar() -> ReturnBuffer[127]:
