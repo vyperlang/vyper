@@ -665,4 +665,3 @@ import foo as Foo
 
     with pytest.raises(Exception):
         compiler.compile_code(code, input_bundle=input_bundle)
-
