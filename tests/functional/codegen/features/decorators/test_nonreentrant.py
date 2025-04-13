@@ -270,6 +270,25 @@ def bar():
     c.bar()
 
 
+def test_nonreentrant_internal2(get_contract, tx_failed):
+    code = """
+# pragma nonreentrancy on
+
+@nonreentrant
+def foo():
+    u: uint256 = 1
+
+@external
+@reentrant
+def bar():
+    self.foo()
+    """
+    c = get_contract(code)
+
+    with tx_failed():
+        c.bar()
+
+
 def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
     calling_contract_code = """
 @external
