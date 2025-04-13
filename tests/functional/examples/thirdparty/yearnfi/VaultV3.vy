@@ -267,7 +267,7 @@ def _transfer(sender: address, receiver: address, amount: uint256):
     assert self.balance_of[sender] >= amount, "insufficient funds"
     self.balance_of[sender] -= amount
     self.balance_of[receiver] += amount
-    log Transfer(sender, receiver, amount)
+    log Transfer(sender=sender, receiver=receiver, value=amount)
 
 @internal
 def _transfer_from(sender: address, receiver: address, amount: uint256) -> bool:
@@ -278,19 +278,19 @@ def _transfer_from(sender: address, receiver: address, amount: uint256) -> bool:
 @internal
 def _approve(owner: address, spender: address, amount: uint256) -> bool:
     self.allowance[owner][spender] = amount
-    log Approval(owner, spender, amount)
+    log Approval(owner=owner, spender=spender, value=amount)
     return True
 
 @internal
 def _increase_allowance(owner: address, spender: address, amount: uint256) -> bool:
     self.allowance[owner][spender] += amount
-    log Approval(owner, spender, self.allowance[owner][spender])
+    log Approval(owner=owner, spender=spender, value=self.allowance[owner][spender])
     return True
 
 @internal
 def _decrease_allowance(owner: address, spender: address, amount: uint256) -> bool:
     self.allowance[owner][spender] -= amount
-    log Approval(owner, spender, self.allowance[owner][spender])
+    log Approval(owner=owner, spender=spender, value=self.allowance[owner][spender])
     return True
 
 @internal
@@ -317,14 +317,14 @@ def _permit(owner: address, spender: address, amount: uint256, deadline: uint256
     assert ecrecover(digest, convert(v, uint256), convert(r, uint256), convert(s, uint256)) == owner, "invalid signature"
     self.allowance[owner][spender] = amount
     self.nonces[owner] = nonce + 1
-    log Approval(owner, spender, amount)
+    log Approval(owner=owner, spender=spender, value=amount)
     return True
 
 @internal
 def _burn_shares(shares: uint256, owner: address):
     self.balance_of[owner] -= shares
     self.total_supply -= shares
-    log Transfer(owner, empty(address), shares)
+    log Transfer(sender=owner, receiver=empty(address), value=shares)
 
 @view
 @internal
@@ -470,7 +470,7 @@ def _issue_shares(shares: uint256, recipient: address):
     self.balance_of[recipient] += shares
     self.total_supply += shares
 
-    log Transfer(empty(address), recipient, shares)
+    log Transfer(sender=empty(address), receiver=recipient, value=shares)
 
 @internal
 def _issue_shares_for_amount(amount: uint256, recipient: address) -> uint256:
@@ -548,7 +548,7 @@ def _deposit(sender: address, recipient: address, assets: uint256) -> uint256:
     shares: uint256 = self._issue_shares_for_amount(assets, recipient)
     assert shares > 0, "cannot mint zero"
 
-    log Deposit(sender, recipient, assets, shares)
+    log Deposit(sender=sender, owner=recipient, assets=assets, shares=shares)
 
     return shares
 
@@ -652,7 +652,11 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
                     # Update strategies storage
                     self.strategies[strategy].current_debt = new_debt
                     # Log the debt update
-                    log DebtUpdated(strategy, current_debt, new_debt)
+                    log DebtUpdated(
+                        strategy=strategy,
+                        current_debt=current_debt,
+                        new_debt=new_debt
+                    )
 
             # Adjust based on the max withdraw of the strategy
             assets_to_withdraw = min(assets_to_withdraw, max_withdraw)
@@ -682,7 +686,11 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
             # Update strategies storage
             self.strategies[strategy].current_debt = new_debt
             # Log the debt update
-            log DebtUpdated(strategy, current_debt, new_debt)
+            log DebtUpdated(
+                strategy=strategy,
+                current_debt=current_debt,
+                new_debt=new_debt
+            )
 
             # NOTE: the user will receive less tokens (the rest were lost)
             # break if we have enough total idle to serve initial request 
@@ -705,7 +713,13 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
     self.total_idle = curr_total_idle - requested_assets
     self.erc20_safe_transfer(ASSET.address, receiver, requested_assets)
 
-    log Withdraw(sender, receiver, owner, requested_assets, shares)
+    log Withdraw(
+        sender=sender,
+        receiver=receiver,
+        owner=owner,
+        assets=requested_assets,
+        shares=shares
+    )
     return requested_assets
 
 ## STRATEGY MANAGEMENT ##
@@ -728,7 +742,10 @@ def _add_strategy(new_strategy: address):
         # tell the queue_manager we have a new strategy
         extcall IQueueManager(queue_manager).new_strategy(new_strategy)
 
-    log StrategyChanged(new_strategy, StrategyChangeType.ADDED)
+    log StrategyChanged(
+        strategy=new_strategy,
+        change_type=StrategyChangeType.ADDED
+    )
 
 @internal
 def _revoke_strategy(strategy: address, force: bool=False):
@@ -739,7 +756,15 @@ def _revoke_strategy(strategy: address, force: bool=False):
         assert force, "strategy has debt"
         loss = self.strategies[strategy].current_debt
         self.total_debt -= loss
-        log StrategyReported(strategy, 0, loss, 0, 0, 0, 0)
+        log StrategyReported(
+            strategy=strategy,
+            gain=0,
+            loss=loss,
+            current_debt=0,
+            protocol_fees=0,
+            total_fees=0,
+            total_refunds=0
+        )
 
     # NOTE: strategy params are set to 0 (WARNING: it can be readded)
     self.strategies[strategy] = StrategyParams(
@@ -755,7 +780,10 @@ def _revoke_strategy(strategy: address, force: bool=False):
         # tell the queue_manager we removed a strategy
         extcall IQueueManager(queue_manager).remove_strategy(strategy)
 
-    log StrategyChanged(strategy, StrategyChangeType.REVOKED)
+    log StrategyChanged(
+        strategy=strategy,
+        change_type=StrategyChangeType.REVOKED
+    )
 
 # DEBT MANAGEMENT #
 @internal
@@ -858,7 +886,11 @@ def _update_debt(strategy: address, target_debt: uint256) -> uint256:
     # commit memory to storage
     self.strategies[strategy].current_debt = new_debt
 
-    log DebtUpdated(strategy, current_debt, new_debt)
+    log DebtUpdated(
+        strategy=strategy,
+        current_debt=current_debt,
+        new_debt=new_debt
+    )
     return new_debt
 
 @internal
@@ -1011,14 +1043,15 @@ def _process_report(strategy: address) -> (uint256, uint256):
 
     # We have to recalculate the fees paid for cases with an overall loss
     log StrategyReported(
-        strategy,
-        gain,
-        loss,
-        self.strategies[strategy].current_debt,
-        self._convert_to_assets(protocol_fees_shares, Rounding.ROUND_DOWN),
-        self._convert_to_assets(protocol_fees_shares + accountant_fees_shares, Rounding.ROUND_DOWN),
-        total_refunds
+        strategy=strategy,
+        gain=gain,
+        loss=loss,
+        current_debt=self.strategies[strategy].current_debt,
+        protocol_fees=self._convert_to_assets(protocol_fees_shares, Rounding.ROUND_DOWN),
+        total_fees=self._convert_to_assets(protocol_fees_shares + accountant_fees_shares, Rounding.ROUND_DOWN),
+        total_refunds=total_refunds
     )
+
     return (gain, loss)
 
 
@@ -1031,7 +1064,7 @@ def set_accountant(new_accountant: address):
     """
     self._enforce_role(msg.sender, Roles.ACCOUNTANT_MANAGER)
     self.accountant = new_accountant
-    log UpdateAccountant(new_accountant)
+    log UpdateAccountant(accountant=new_accountant)
 
 @external
 def set_queue_manager(new_queue_manager: address):
@@ -1041,7 +1074,7 @@ def set_queue_manager(new_queue_manager: address):
     """
     self._enforce_role(msg.sender, Roles.QUEUE_MANAGER)
     self.queue_manager = new_queue_manager
-    log UpdateQueueManager(new_queue_manager)
+    log UpdateQueueManager(queue_manager=new_queue_manager)
 
 @external
 def set_deposit_limit(deposit_limit: uint256):
@@ -1053,7 +1086,7 @@ def set_deposit_limit(deposit_limit: uint256):
     assert self.shutdown == False # Dev: shutdown
     self._enforce_role(msg.sender, Roles.DEPOSIT_LIMIT_MANAGER)
     self.deposit_limit = deposit_limit
-    log UpdateDepositLimit(deposit_limit)
+    log UpdateDepositLimit(deposit_limit=deposit_limit)
 
 @external
 def set_minimum_total_idle(minimum_total_idle: uint256):
@@ -1063,7 +1096,7 @@ def set_minimum_total_idle(minimum_total_idle: uint256):
     """
     self._enforce_role(msg.sender, Roles.MINIMUM_IDLE_MANAGER)
     self.minimum_total_idle = minimum_total_idle
-    log UpdateMinimumTotalIdle(minimum_total_idle)
+    log UpdateMinimumTotalIdle(minimum_total_idle=minimum_total_idle)
 
 @external
 def set_profit_max_unlock_time(new_profit_max_unlock_time: uint256):
@@ -1083,7 +1116,7 @@ def set_profit_max_unlock_time(new_profit_max_unlock_time: uint256):
     assert new_profit_max_unlock_time <= 31_556_952, "profit unlock time too long"
 
     self.profit_max_unlock_time = new_profit_max_unlock_time
-    log UpdateProfitMaxUnlockTime(new_profit_max_unlock_time)
+    log UpdateProfitMaxUnlockTime(profit_max_unlock_time=new_profit_max_unlock_time)
 
 # ROLE MANAGEMENT #
 @internal
@@ -1099,7 +1132,7 @@ def set_role(account: address, role: Roles):
     """
     assert msg.sender == self.role_manager
     self.roles[account] = role
-    log RoleSet(account, role)
+    log RoleSet(account=account, role=role)
 
 @external
 def set_open_role(role: Roles):
@@ -1109,7 +1142,7 @@ def set_open_role(role: Roles):
     """
     assert msg.sender == self.role_manager
     self.open_roles[role] = True
-    log RoleStatusChanged(role, RoleStatusChange.OPENED)
+    log RoleStatusChanged(role=role, status=RoleStatusChange.OPENED)
 
 @external
 def close_open_role(role: Roles):
@@ -1119,7 +1152,7 @@ def close_open_role(role: Roles):
     """
     assert msg.sender == self.role_manager
     self.open_roles[role] = False
-    log RoleStatusChanged(role, RoleStatusChange.CLOSED)
+    log RoleStatusChanged(role=role, status=RoleStatusChange.CLOSED)
     
 @external
 def transfer_role_manager(role_manager: address):
@@ -1138,7 +1171,7 @@ def accept_role_manager():
     assert msg.sender == self.future_role_manager
     self.role_manager = msg.sender
     self.future_role_manager = empty(address)
-    log UpdateRoleManager(msg.sender)
+    log UpdateRoleManager(role_manager=msg.sender)
 
 # VAULT STATUS VIEWS
 @view
@@ -1202,7 +1235,7 @@ def sweep(token: address) -> (uint256):
         amount = staticcall IERC20(token).balanceOf(self)
     assert amount != 0, "no dust"
     self.erc20_safe_transfer(token, msg.sender, amount)
-    log Sweep(token, amount)
+    log Sweep(token=token, amount=amount)
     return amount
 
 ## STRATEGY MANAGEMENT ##
@@ -1248,7 +1281,11 @@ def update_max_debt_for_strategy(strategy: address, new_max_debt: uint256):
     self._enforce_role(msg.sender, Roles.MAX_DEBT_MANAGER)
     assert self.strategies[strategy].activation != 0, "inactive strategy"
     self.strategies[strategy].max_debt = new_max_debt
-    log UpdatedMaxDebtForStrategy(msg.sender, strategy, new_max_debt)
+    log UpdatedMaxDebtForStrategy(
+        sender=msg.sender,
+        strategy=strategy,
+        new_debt=new_max_debt
+    )
 
 @external
 @nonreentrant
@@ -1276,7 +1313,7 @@ def shutdown_vault():
 
     # Set deposit limit to 0.
     self.deposit_limit = 0
-    log UpdateDepositLimit(0)
+    log UpdateDepositLimit(deposit_limit=0)
 
     self.roles[msg.sender] = self.roles[msg.sender] | Roles.DEBT_MANAGER
     log Shutdown()

@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    CallViolation,
     FunctionDeclarationException,
     InterfaceViolation,
     InvalidReference,
@@ -605,7 +606,6 @@ def bar():
         compiler.compile_code(main, input_bundle=input_bundle)
 
 
-@pytest.mark.xfail
 def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
     lib1 = """
 @external
@@ -623,6 +623,26 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
-    # TODO make the exception more precise once fixed
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(CallViolation):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function_staticcall(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def __default__() -> int128:
+    return 43
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    foo:int128 = 0
+    foo = staticcall lib1.__at__(self).__default__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(CallViolation):
         compiler.compile_code(main, input_bundle=input_bundle)
