@@ -334,6 +334,9 @@ class ContractFunctionT(VyperType):
                 "`@nonreentrant` not allowed in interfaces", decorators.nonreentrant_node
             )
 
+        # guaranteed by parse_decorators and disallowing nonreentrant pragma
+        assert decorators.reentrant_node is None  # sanity check
+
         # it's redundant to specify visibility in vyi - always should be external
         function_visibility = decorators.visibility
         if function_visibility is None:
