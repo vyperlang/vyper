@@ -646,3 +646,26 @@ def bar():
 
     with pytest.raises(CallViolation):
         compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_nonreentrant_pragma_blocked_in_vyi(make_input_bundle):
+    ifoo_code = """
+# pragma nonreentrancy on
+
+@external
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+@external
+def foobar():
+    pass
+"""
+
+    with pytest.raises(Exception):
+        compiler.compile_code(code, input_bundle=input_bundle)
