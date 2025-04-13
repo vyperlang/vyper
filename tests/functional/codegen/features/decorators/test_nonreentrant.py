@@ -270,6 +270,8 @@ def bar():
     c.bar()
 
 
+# external function is reentrant so it shouldn't
+# lock and the call to foo should pass
 def test_nonreentrant_internal2(get_contract, tx_failed):
     code = """
 # pragma nonreentrancy on
@@ -285,8 +287,71 @@ def bar():
     """
     c = get_contract(code)
 
+    c.bar()
+
+
+# nonreentrant pragma is off, external function
+# shouldn't lock the lock
+def test_nonreentrant_internal3(get_contract):
+    code = """
+# pragma nonreentrancy off
+
+@nonreentrant
+def foo():
+    u: uint256 = 1
+
+@external
+def bar():
+    self.foo()
+    """
+    c = get_contract(code)
+    c.bar()
+
+
+# external function is reentrant so it shouldn't
+# lock, the internal is nonreentrant, so upon
+# reentrancy the call should fail
+# the bool is added to ensure we don't fail on infinite
+# recursion
+def test_nonreentrant_internal4(get_contract, tx_failed):
+    code = """
+# pragma nonreentrancy on
+
+interface Self:
+    def bar(end: bool): nonpayable
+
+@nonreentrant
+def foo(end: bool):
+    if not end:
+        extcall Self(self).bar(True)
+        
+@external
+@reentrant
+def bar(end: bool):
+    self.foo(end)
+    """
+    c = get_contract(code)
+
     with tx_failed():
-        c.bar()
+        c.bar(False)
+
+
+# nonreentant pragma is off, external function
+# should be reentrant
+def test_function_is_reentrant(get_contract):
+    code = """
+# pragma nonreentrancy off
+
+interface Self:
+    def bar(end: bool): nonpayable
+
+@external
+def bar(end: bool):
+    if not end:
+        extcall Self(self).bar(True)
+    """
+    c = get_contract(code)
+    c.bar(False)
 
 
 def test_nonreentrant_decorator_for_default(env, get_contract, tx_failed):
