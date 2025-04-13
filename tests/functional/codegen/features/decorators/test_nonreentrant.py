@@ -324,7 +324,7 @@ interface Self:
 def foo(end: bool):
     if not end:
         extcall Self(self).bar(True)
-        
+
 @external
 @reentrant
 def bar(end: bool):
@@ -456,3 +456,102 @@ def __init__():
 """
     with pytest.raises(FunctionDeclarationException):
         get_contract(code)
+
+
+# foo in main module has reentrancy on, bar in lib1 has reentrancy off
+# call bar from foo via extcall and ensure it passes
+@pytest.mark.parametrize("pragma_string", ["", "# pragma nonreentrancy off"])
+def test_multi_module_nonreentrant_pragma(make_input_bundle, get_contract, pragma_string):
+    lib1 = f"""
+{pragma_string}
+
+@external
+def bar():
+    pass
+
+    """
+    main = """
+# pragma nonreentrancy on
+
+import lib1
+
+interface Self:
+    def bar(): nonpayable
+
+exports: lib1.bar
+
+@external
+def foo():
+    extcall Self(self).bar()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    c = get_contract(main, input_bundle=input_bundle)
+
+    c.foo()
+
+
+# foo in main module has reentrancy on, bar in lib1 has reentrancy on
+# call bar from foo via extcall and ensure it fail
+def test_multi_module_nonreentrant_pragma2(make_input_bundle, get_contract, tx_failed):
+    lib1 = """
+# pragma nonreentrancy on
+
+@external
+def bar():
+    pass
+
+    """
+    main = """
+# pragma nonreentrancy on
+
+import lib1
+
+interface Self:
+    def bar(): nonpayable
+
+initializes: lib1
+exports: lib1.bar
+
+@external
+def foo():
+    extcall Self(self).bar()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    c = get_contract(main, input_bundle=input_bundle)
+
+    with tx_failed():
+        c.foo()
+
+
+# foo in main module has reentrancy on, bar in lib1 off because
+# that's the default for internal functions
+# call bar from foo via extcall and ensure it succeeds
+def test_multi_module_nonreentrant_pragma3(make_input_bundle, get_contract, tx_failed):
+    lib1 = """
+# pragma nonreentrancy on
+
+def bar():
+    pass
+
+    """
+    main = """
+# pragma nonreentrancy on
+
+import lib1
+
+interface Self:
+    def bar(): nonpayable
+
+initializes: lib1
+
+@external
+def foo():
+    lib1.bar()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    c = get_contract(main, input_bundle=input_bundle)
+
+    c.foo()
