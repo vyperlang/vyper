@@ -298,6 +298,12 @@ def __init__():
         get_contract(code)
 
 
+def _error_template(target, caller):
+    msg = f"Cannot call `{target}` since it is `@nonreentrant` and reachable"
+    msg += f" from `{caller}`, which is also marked `@nonreentrant`"
+    return msg
+
+
 successive_nonreentrant = [
     # external nonreentrant calls private nonreentrant
     (
@@ -311,8 +317,7 @@ def foo() -> uint256:
 def bar() -> uint256:
     return 1
     """,
-        "Cannot call `bar` since it is `@nonreentrant`"
-        " and reachable from `foo`, which is also marked `@nonreentrant`",
+        _error_template("bar", "foo"),
     ),
     # external nonreentrant calls private which calls private nonreentrant
     (
@@ -329,8 +334,7 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
 """,
-        "Cannot call `baz` since it is `@nonreentrant`"
-        " and reachable from `foo`, which is also marked `@nonreentrant`",
+        _error_template("baz", "foo"),
     ),
     # private nonreentrant calls private nonreentrant
     (
@@ -343,8 +347,7 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
     """,
-        "Cannot call `baz` since it is `@nonreentrant`"
-        " and reachable from `bar`, which is also marked `@nonreentrant`",
+        _error_template("baz", "bar"),
     ),
     # private nonreentrant calls private which call private nonreentrant
     (
@@ -360,8 +363,7 @@ def bar() -> uint256:
 def baz() -> uint256:
     return 1
    """,
-        "Cannot call `baz` since it is `@nonreentrant`"
-        " and reachable from `foo`, which is also marked `@nonreentrant`",
+        _error_template("baz", "foo"),
     ),
 ]
 
@@ -404,8 +406,5 @@ def foo():
     with pytest.raises(CallViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    msg = (
-        "Cannot call `baz` since it is `@nonreentrant`"
-        " and reachable from `foo`, which is also marked `@nonreentrant`"
-    )
+    msg = _error_template("baz", "foo")
     assert e.value._message == msg
