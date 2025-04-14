@@ -614,7 +614,7 @@ exports: lib1.bar
 @pytest.mark.parametrize("lib2_pragma_state", ["on", "off"])
 @pytest.mark.parametrize("main_pragma_state", ["on", "off"])
 @pytest.mark.parametrize("call_target", ["foo", "bar", "baz"])
-def test_multi_module_nonreentrant_pragma4(
+def test_multi_module_nonreentrant_pragma5(
     make_input_bundle,
     get_contract,
     tx_failed,

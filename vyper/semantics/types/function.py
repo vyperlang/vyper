@@ -793,8 +793,6 @@ class _ParsedDecorators:
         return self.funcdef.module_node.settings
 
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
-        settings = self.get_file_settings()
-
         if self.nonreentrant_node is not None:
             raise StructureException(
                 "nonreentrant decorator is already set", self.nonreentrant_node, decorator_node
