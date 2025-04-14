@@ -448,15 +448,20 @@ class ContractFunctionT(VyperType):
         nonreentrant: bool
         is_default = funcdef.name == "__default__"
         is_internal = function_visibility == FunctionVisibility.INTERNAL
-        if (
-            (is_default or is_internal)
-            and decorators.nonreentrant_node is None
-            and decorators.reentrant_node is None
-        ):
-            # no nonreentrancy
-            nonreentrant = False
-        elif settings.nonreentrancy_by_default:
-            nonreentrant = decorators.reentrant_node is None
+
+        if settings.nonreentrancy_by_default:
+            if is_default or is_internal:
+                # default, internal functions default to reentrant even if
+                # the pragma is set
+                nonreentrant = decorators.nonreentrant_node is not None
+            else:
+                # validation -- cannot use `@nonreentrant` on external
+                # functions if nonreentrant pragma is set
+                if decorators.nonreentrant_node is not None:
+                    raise StructureException(
+                        "used @nonreentrant decorator, but `#pragma nonreentrancy` is set"
+                    )
+                nonreentrant = decorators.reentrant_node is None
         else:
             nonreentrant = decorators.nonreentrant_node is not None
 
@@ -789,12 +794,6 @@ class _ParsedDecorators:
 
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
         settings = self.get_file_settings()
-
-        is_default = self.funcdef.name == "__default__"
-        if not is_default and settings.nonreentrancy_by_default:
-            raise StructureException(
-                "used @nonreentrant decorator, but `#pragma nonreentrancy` is set"
-            )
 
         if self.nonreentrant_node is not None:
             raise StructureException(
