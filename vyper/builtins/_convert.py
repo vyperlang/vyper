@@ -447,13 +447,13 @@ def to_string(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT, BytesT)
+@_input_types(StringT, BytesT, ReturnBufferT)
 def to_bytes(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT, BytesT)
-def to_abi_buffer(expr, arg, out_typ):
+@_input_types(StringT, BytesT, ReturnBufferT)
+def to_return_buffer(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
