@@ -1,6 +1,7 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException
+from vyper.compiler import compile_code
+from vyper.exceptions import CallViolation, FunctionDeclarationException
 
 # TODO test functions in this module across all evm versions
 # once we have cancun support.
@@ -295,3 +296,115 @@ def __init__():
 """
     with pytest.raises(FunctionDeclarationException):
         get_contract(code)
+
+
+def _error_template(target, caller):
+    msg = f"Cannot call `{target}` since it is `@nonreentrant` and reachable"
+    msg += f" from `{caller}`, which is also marked `@nonreentrant`"
+    return msg
+
+
+successive_nonreentrant = [
+    # external nonreentrant calls private nonreentrant
+    (
+        """
+@external
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+@nonreentrant
+def bar() -> uint256:
+    return 1
+    """,
+        _error_template("bar", "foo"),
+    ),
+    # external nonreentrant calls private which calls private nonreentrant
+    (
+        """
+@external
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+""",
+        _error_template("baz", "foo"),
+    ),
+    # private nonreentrant calls private nonreentrant
+    (
+        """
+@nonreentrant
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+    """,
+        _error_template("baz", "bar"),
+    ),
+    # private nonreentrant calls private which call private nonreentrant
+    (
+        """
+@nonreentrant
+def foo() -> uint256:
+    return self.bar()
+
+def bar() -> uint256:
+    return self.baz()
+
+@nonreentrant
+def baz() -> uint256:
+    return 1
+   """,
+        _error_template("baz", "foo"),
+    ),
+]
+
+
+@pytest.mark.parametrize("failing_code, message", successive_nonreentrant)
+def test_call_nonreentrant_from_nonreentrant(get_contract, failing_code, message):
+    with pytest.raises(CallViolation, match=message):
+        compile_code(failing_code)
+
+
+def test_call_nonreentrant_lib_from_nonreentrant(get_contract, make_input_bundle):
+    lib1 = """
+@nonreentrant
+def baz():
+    pass
+        """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+def bar():
+    lib1.baz()
+        """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+initializes: lib2[lib1:=lib1]
+
+@nonreentrant
+@external
+def foo():
+    lib2.bar()
+        """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    with pytest.raises(CallViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    msg = _error_template("baz", "foo")
+    assert e.value._message == msg
