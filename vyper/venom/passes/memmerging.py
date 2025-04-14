@@ -407,9 +407,11 @@ class MemMergePass(IRPass):
     # where the src and dst pointers are variables, which are not handled
     # in the other merging passes.
     def _merge_mstore_dload(self, bb: IRBasicBlock):
+        # dloads that could be optimized with more uses
+        # (they are not used before the mstore)
         dloads: set[IRVariable] = set()
 
-        def remove_dloads(ops: list[IROperand]):
+        def remove_used_dloads(ops: list[IROperand]):
             for op in ops:
                 if isinstance(op, IRVariable) and op in dloads:
                     dloads.remove(op)
@@ -417,38 +419,41 @@ class MemMergePass(IRPass):
         for inst in bb.instructions:
             if inst.opcode == "dload":
                 assert inst.output is not None
-                remove_dloads(inst.operands)
+                remove_used_dloads(inst.operands)
                 dloads.add(inst.output)
                 continue
             elif inst.opcode == "mstore":
                 var, dst_ptr = inst.operands
                 if not isinstance(var, IRVariable):
-                    remove_dloads(inst.operands)
+                    remove_used_dloads(inst.operands)
                     continue
                 producer = self.dfg.get_producing_instruction(var)
                 assert producer is not None
                 if producer.opcode != "dload":
-                    remove_dloads(inst.operands)
+                    remove_used_dloads(inst.operands)
                     continue
 
                 assert producer.output is not None
                 uses = self.dfg.get_uses(producer.output)
                 src_ptr = producer.operands[0]
+                # simple case of the merge
                 if len(uses) == 1:
                     self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
                     producer.make_nop()
-                    remove_dloads(inst.operands)
+                    remove_used_dloads(inst.operands)
                     continue
 
+                # cannot merge with more uses
+                # (use has occured before hand)
                 if producer.output not in dloads:
-                    remove_dloads(inst.operands)
+                    remove_used_dloads(inst.operands)
                     continue
                 self.updater.add_before(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
                 self.updater.update(inst, "mload", [dst_ptr], new_output=producer.output)
                 producer.make_nop()
-                remove_dloads(inst.operands)
+                remove_used_dloads(inst.operands)
             else:
-                remove_dloads(inst.operands)
+                remove_used_dloads(inst.operands)
 
 
 def _volatile_memory(inst):
