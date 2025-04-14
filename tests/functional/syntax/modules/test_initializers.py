@@ -1441,7 +1441,6 @@ exports: lib1.bar
         compile_code(main, input_bundle=input_bundle)
 
     assert e.value._message.startswith("Cannot access `lib1` state!")
-    assert (
-        e.value._hint
-        == "add `uses: lib1` or `initializes: lib1` as a top-level statement to your contract"
-    )
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a"
+    expected_hint += " top-level statement to your contract"
+    assert e.value._hint == expected_hint
