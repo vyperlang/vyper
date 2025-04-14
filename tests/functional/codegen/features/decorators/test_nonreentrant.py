@@ -460,6 +460,22 @@ def __init__():
     with pytest.raises(FunctionDeclarationException):
         get_contract(code)
 
+# the pragma shouldn't have an effect on the __init__
+# function and thus `foo` should be callable
+def test_nonreentrant_pragma_with_init(get_contract):
+    code = """
+# pragma nonreentrancy on
+
+@deploy
+def __init__():
+    self.foo()
+
+@nonreentrant
+def foo():
+    pass
+"""
+    _ = get_contract(code)
+
 
 # function can't be marked nonreentrant
 # while the nonreentrant pragma is on
