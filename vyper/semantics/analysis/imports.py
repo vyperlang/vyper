@@ -159,7 +159,7 @@ class ImportAnalyzer:
     def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
-        if level == 0 and _is_builtin(module_str):
+        if _is_builtin(level, module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
@@ -288,8 +288,8 @@ def _get_builtin_prefix(module_str: str):
     return None
 
 
-def _is_builtin(module_str):
-    return _get_builtin_prefix(module_str) is not None
+def _is_builtin(level, module_str):
+    return level == 0 and _get_builtin_prefix(module_str) is not None
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
