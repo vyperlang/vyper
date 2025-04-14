@@ -336,7 +336,7 @@ def bar(end: bool):
         c.bar(False)
 
 
-# nonreentant pragma is off, external function
+# nonreentrant pragma is off, external function
 # should be reentrant
 def test_function_is_reentrant(get_contract):
     code = """
