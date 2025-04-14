@@ -663,5 +663,5 @@ def foobar():
 import foo as Foo
 """
 
-    with pytest.raises(Exception):
+    with pytest.raises(StructureException):
         compiler.compile_code(code, input_bundle=input_bundle)
