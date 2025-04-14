@@ -1,6 +1,7 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException, StructureException
+from vyper.compiler import compile_code
+from vyper.exceptions import CallViolation, FunctionDeclarationException, StructureException
 
 # TODO test functions in this module across all evm versions
 # once we have cancun support.
@@ -697,6 +698,7 @@ def foo(end: bool):
                 fun(False)
         else:
             fun(False)
+
 
 def _error_template(target, caller):
     msg = f"Cannot call `{target}` since it is `@nonreentrant` and reachable"
