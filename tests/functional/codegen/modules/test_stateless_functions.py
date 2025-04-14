@@ -1,8 +1,8 @@
 import hypothesis.strategies as st
-from tests.utils import working_directory
 import pytest
 from hypothesis import given, settings
 
+from tests.utils import working_directory
 from vyper import compiler
 from vyper.exceptions import (
     CallViolation,

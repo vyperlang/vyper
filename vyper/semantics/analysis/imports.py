@@ -1,7 +1,7 @@
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 import vyper.builtins.interfaces
 import vyper.builtins.stdlib
@@ -281,14 +281,14 @@ BUILTIN_MODULE_RULES = {
 
 
 # TODO: could move this to analysis/common.py or something
-def _get_builtin_prefix(module_str: str):
+def _get_builtin_prefix(module_str: str) -> Optional[str]:
     for prefix in BUILTIN_MODULE_RULES.keys():
         if module_str.startswith(prefix):
             return prefix
     return None
 
 
-def _is_builtin(level, module_str):
+def _is_builtin(level: int, module_str: str) -> bool:
     return level == 0 and _get_builtin_prefix(module_str) is not None
 
 
