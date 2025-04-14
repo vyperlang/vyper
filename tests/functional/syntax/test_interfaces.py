@@ -10,6 +10,7 @@ from vyper.exceptions import (
     InvalidType,
     ModuleNotFound,
     NamespaceCollision,
+    PragmaException,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -663,5 +664,5 @@ def foobar():
 import foo as Foo
 """
 
-    with pytest.raises(StructureException):
+    with pytest.raises(PragmaException):
         compiler.compile_code(code, input_bundle=input_bundle)
