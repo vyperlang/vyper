@@ -1,4 +1,5 @@
 import hypothesis.strategies as st
+from tests.utils import working_directory
 import pytest
 from hypothesis import given, settings
 
@@ -32,6 +33,29 @@ def bar() -> uint256:
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.bar() == env.block_number
+
+
+def test_builtin_shadowing(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+@internal
+def add(x: uint256, y: uint256) -> uint256:
+    return x + y
+    """
+    main = """
+# relative import of a module with same name as stdlib `math`
+from . import math
+
+@external
+def bar(x: uint256, y: uint256) -> uint256:
+    return math.add(x, y)
+    """
+    input_bundle = make_input_bundle({"math.vy": library_source})
+
+    # chdir so that `math.vy` is accessible via relative path
+    with working_directory(tmp_path):
+        c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar(1, 2) == 1 + 2
 
 
 # is this the best place for this?
