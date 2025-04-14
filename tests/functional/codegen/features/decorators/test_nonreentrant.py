@@ -1,3 +1,5 @@
+import contextlib
+
 import pytest
 
 from vyper.compiler import compile_code
@@ -687,16 +689,19 @@ def foo(end: bool):
         c.baz: lib2_pragma_state,
     }
 
-    call_target_to_fun = {"foo": c.foo, "bar": c.bar, "baz": c.baz}
+    fn_lookup = {"foo": c.foo, "bar": c.bar, "baz": c.baz}
+    target_fun = fn_lookup[call_target]
 
     for fun in funs:
-        if (
-            fun_to_reentrancy[fun] == "on"
-            and fun_to_reentrancy[call_target_to_fun[call_target]] == "on"
-        ):
-            with tx_failed():
-                fun(False)
+        both_nonreentrant = fun_to_reentrancy[fun] == fun_to_reentrancy[target_fun] == "on"
+
+        if both_nonreentrant:
+            ctx = tx_failed
         else:
+            # pass
+            ctx = contextlib.nullcontext
+
+        with ctx():
             fun(False)
 
 
