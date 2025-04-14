@@ -164,6 +164,14 @@ def test_invalid_reentrancy_pragma():
         compile_code(code)
 
 
+def test_invalid_reentrancy_pragma2():
+    code = """
+# pragma nonreentrancyon
+    """
+    with pytest.raises(PragmaException):
+        compile_code(code)
+
+
 def test_unbalanced_parens(assert_compile_failed, get_contract):
     code = """
 @external

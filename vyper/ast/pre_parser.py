@@ -79,18 +79,19 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         settings.evm_version = evm_version
         return
 
-    if pragma.startswith("experimental-codegen") or pragma.startswith("venom"):
+    if pragma in ("experimental-codegen", "venom"):
         if settings.experimental_codegen is not None:
             raise PragmaException("pragma experimental-codegen/venom specified twice!", *location)
         settings.experimental_codegen = True
         return
-    if pragma.startswith("enable-decimals"):
+
+    if pragma == "enable-decimals":
         if settings.enable_decimals is not None:
             raise PragmaException("pragma enable_decimals specified twice!", *location)
         settings.enable_decimals = True
         return
 
-    if pragma.startswith("nonreentrancy"):
+    if pragma.startswith("nonreentrancy "):
         if is_interface:
             raise PragmaException("pragma nonreentrancy not allowed in interface files!", *location)
 
