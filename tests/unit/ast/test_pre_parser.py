@@ -6,7 +6,7 @@ from vyper import compile_code
 from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import StructureException, VersionException, PragmaException
+from vyper.exceptions import PragmaException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
 COMPILER_VERSION = "0.1.1"
