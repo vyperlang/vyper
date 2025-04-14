@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import StructureException, SyntaxException
+from vyper.exceptions import PragmaException, SyntaxException
 
 
 def test_semicolon_prohibited(get_contract):
@@ -160,7 +160,7 @@ def test_invalid_reentrancy_pragma():
     code = """
 # pragma nonreentrancy oof
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(PragmaException):
         compile_code(code)
 
 
