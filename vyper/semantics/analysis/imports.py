@@ -4,6 +4,7 @@ from pathlib import Path, PurePath
 from typing import Any, Iterator
 
 import vyper.builtins.interfaces
+import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     ABIInput,
@@ -14,11 +15,11 @@ from vyper.compiler.input_bundle import (
     PathLike,
 )
 from vyper.exceptions import (
-    CompilerPanic,
     DuplicateImport,
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import safe_relpath, sha256sum
@@ -58,8 +59,7 @@ class _ImportGraph:
 
     def pop_path(self, expected: vy_ast.Module) -> None:
         popped = self._path.pop()
-        if expected != popped:
-            raise CompilerPanic("unreachable")
+        assert expected is popped, "unreachable"
         self._imports.pop()
 
     @contextlib.contextmanager
@@ -77,16 +77,16 @@ class ImportAnalyzer:
         self.graph = graph
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: set[int] = set()
+        self.seen: set[vy_ast.Module] = set()
 
-        self.integrity_sum = None
+        self._integrity_sum = None
 
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
     def resolve_imports(self, module_ast: vy_ast.Module):
         self._resolve_imports_r(module_ast)
-        self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
+        self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -102,15 +102,17 @@ class ImportAnalyzer:
         return sha256sum("".join(acc))
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
-        if id(module_ast) in self.seen:
+        if module_ast in self.seen:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
-                if isinstance(node, vy_ast.Import):
-                    self._handle_Import(node)
-                elif isinstance(node, vy_ast.ImportFrom):
-                    self._handle_ImportFrom(node)
-        self.seen.add(id(module_ast))
+                with tag_exceptions(node):
+                    if isinstance(node, vy_ast.Import):
+                        self._handle_Import(node)
+                    elif isinstance(node, vy_ast.ImportFrom):
+                        self._handle_ImportFrom(node)
+
+        self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
         # import x.y[name] as y[alias]
@@ -269,40 +271,49 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
     return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
-# can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs"]
+_builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
+
+# builtin import path -> (prefix for removal, package, suffix)
+BUILTIN_MODULE_RULES = {
+    "ethereum.ercs": ("ethereum.ercs", vyper.builtins.interfaces.__package__, ".vyi"),
+    "math": ("", vyper.builtins.stdlib.__package__, ".vy"),
+}
 
 
 # TODO: could move this to analysis/common.py or something
+def _get_builtin_prefix(module_str: str):
+    for prefix in BUILTIN_MODULE_RULES.keys():
+        if module_str.startswith(prefix):
+            return prefix
+    return None
+
+
 def _is_builtin(module_str):
-    return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
-
-
-_builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
+    return _get_builtin_prefix(module_str) is not None
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
-    if not _is_builtin(module_str):  # pragma: nocover
-        raise CompilerPanic("unreachable!")
+    module_prefix = _get_builtin_prefix(module_str)
+    assert module_prefix is not None, "unreachable"
 
-    builtins_path = vyper.builtins.interfaces.__path__[0]
+    assert level == 0, "builtin imports are absolute"
+
+    builtins_path = vyper.builtins.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
     # conversion, so we must use the `os` module).
     builtins_path = safe_relpath(builtins_path)
 
-    search_path = Path(builtins_path).parent.parent.parent
+    search_path = Path(builtins_path).parent.parent
     # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
 
-    # remap builtins directory --
-    # ethereum/ercs => vyper/builtins/interfaces
-    remapped_module = module_str
-    if remapped_module.startswith("ethereum.ercs"):
-        remapped_module = remapped_module.removeprefix("ethereum.ercs")
-        remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
+    remove_prefix, target_package, suffix = BUILTIN_MODULE_RULES[module_prefix]
+    base_name = module_str.removeprefix(remove_prefix + ".")
+    remapped_module = f"{target_package}.{base_name}"
 
-    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
+    path = _import_to_path(level, remapped_module)
+    path = path.with_suffix(suffix)
 
     # builtins are globally the same, so we can safely cache them
     # (it is also *correct* to cache them, so that types defined in builtins
@@ -324,12 +335,12 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
             hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
         raise ModuleNotFound(module_str, hint=hint) from e
 
-    interface_ast = _parse_ast(file)
+    builtin_ast = _parse_ast(file)
 
     # no recursion needed since builtins don't have any imports
 
-    _builtins_cache[path] = file, interface_ast
-    return file, interface_ast
+    _builtins_cache[path] = file, builtin_ast
+    return file, builtin_ast
 
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):

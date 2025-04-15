@@ -6,6 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
@@ -746,3 +747,378 @@ def test(target: address) -> address:
     c.test(c.address, value=2)
     test1 = c.address
     assert env.get_code(test1) == bytecode
+
+
+def test_raw_create(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy_from_literal() -> address:
+    return raw_create({initcode})
+
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    return raw_create(s)
+
+@external
+def deploy_from_memory() -> address:
+    s: Bytes[1024] = {initcode}
+    return raw_create(s)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy_from_literal()
+    assert env.get_code(res) == runtime
+
+    res = deployer.deploy_from_memory()
+    assert env.get_code(res) == runtime
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime
+
+
+def test_raw_create_double_eval(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+
+
+@deploy
+def __init__(x: uint256):
+    self.foo = x
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+interface Foo:
+    def foo() -> uint256: view
+
+a: DynArray[uint256, 10]
+counter: public(uint256)
+
+@deploy
+def __init__():
+    self.a.append(1)
+    self.a.append(2)
+
+def get_index() -> uint256:
+    self.counter += 1
+    return 0
+
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    res: address =  raw_create(s, self.a[self.get_index()])
+    assert staticcall Foo(res).foo() == 1
+    return res
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime
+
+    assert deployer.counter() == 1
+
+
+def test_raw_create_salt(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address:
+    return raw_create(s, arg, salt=salt)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+
+    assert env.get_code(res) == runtime
+
+
+# test that create_from_blueprint bubbles up revert data
+def test_bubble_revert_data_blueprint(get_contract, tx_failed, deploy_blueprint_for):
+    ctor_code = """
+@deploy
+def __init__():
+    raise "bad ctor"
+    """
+
+    f, _ = deploy_blueprint_for(ctor_code)
+
+    deployer_code = """
+@external
+def deploy_from_address(t: address) -> address:
+    return create_from_blueprint(t)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    with tx_failed(exc_text="bad ctor"):
+        deployer.deploy_from_address(f.address)
+
+
+# test that raw_create bubbles up revert data
+def test_bubble_revert_data_raw_create(get_contract, tx_failed):
+    to_deploy_code = """
+@deploy
+def __init__():
+    raise "bad ctor"
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[1024]) -> address:
+    return raw_create(s)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    with tx_failed(exc_text="bad ctor"):
+        deployer.deploy_from_calldata(initcode)
+
+
+# test raw_create with all combinations of value and revert_on_failure kwargs
+# (including not present at all)
+# additionally parametrize whether the constructor reverts or not
+@pytest.mark.parametrize("constructor_reverts", [True, False])
+@pytest.mark.parametrize("use_value", [True, False])
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
+def test_raw_create_revert_value_kws(
+    get_contract, env, tx_failed, constructor_reverts, revert_on_failure, use_value
+):
+    value = 1
+    value_assert = f"assert msg.value == {value}" if use_value else ""
+    to_deploy_code = f"""
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(constructor_reverts: bool):
+    assert not constructor_reverts
+    {value_assert}
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    value_kw = f", value={value}" if use_value else ""
+    revert_kw = f", revert_on_failure={revert_on_failure}" if revert_on_failure is not None else ""
+    deployer_code = f"""
+@external
+def deploy() -> address:
+    return raw_create({initcode},{constructor_reverts}{revert_kw}{value_kw})
+    """
+
+    deployer = get_contract(deployer_code)
+    env.set_balance(deployer.address, value)
+
+    expect_revert = constructor_reverts and revert_on_failure in (True, None)
+
+    if expect_revert:
+        with tx_failed():
+            deployer.deploy()
+    else:
+        res = deployer.deploy()
+        if constructor_reverts:
+            assert res == ZERO_ADDRESS
+            assert env.get_code(res) == b""
+        else:
+            assert env.get_code(res) == runtime
+
+
+# test that raw_create correctly interfaces with the abi encoder
+# and can handle dynamic arguments
+def test_raw_create_dynamic_arg(get_contract, env):
+    array = [1, 2, 3]
+
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(a: DynArray[uint256, 10]):
+    for i: uint256 in range(1, 4):
+        assert a[i - 1] == i
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = f"""
+@external
+def deploy() -> address:
+    a: DynArray[uint256, 10] = {array}
+    return raw_create({initcode}, a)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy()
+
+    assert env.get_code(res) == runtime
+
+
+@pytest.mark.parametrize("arg", [12, 257, 2**256 - 1])
+@pytest.mark.parametrize("length_offset", [-32, -1, 0, 1, 32])
+def test_raw_create_change_initcode_size(
+    get_contract, deploy_blueprint_for, env, arg, length_offset
+):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+
+"""
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    dummy_bytes = b"\x02" * (len(initcode) + length_offset)
+
+    deployer_code = f"""
+x:DynArray[Bytes[1024],1]
+
+@internal
+def change_initcode_length(v: Bytes[1024]) -> uint256:
+    self.x.pop()
+    self.x.append({dummy_bytes})
+    return {arg}
+
+@external
+def deploy(s: Bytes[1024]) -> address:
+    self.x.append(s)
+    contract: address = raw_create(self.x[0], self.change_initcode_length(s))
+    return contract
+"""
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy(initcode)
+    assert env.get_code(res) == runtime
+
+    _, FooContract = deploy_blueprint_for(to_deploy_code)
+    res = FooContract(res)
+
+    assert res.foo() == arg
+
+
+# salt=self.change_code(salt) changes the value at the ptr self.c
+# this test checks that the previous evaluation of self.c (the initcode argument) is not
+# overwritten by the new value
+def test_raw_create_change_value_at_ptr(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+c: Bytes[1024]
+
+def change_code(salt: bytes32) -> bytes32:
+    self.c = b""
+    return salt
+
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address:
+    self.c = s
+    return raw_create(self.c, arg, salt=self.change_code(salt))
+    """
+
+    deployer = get_contract(deployer_code)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+    assert env.get_code(res) == runtime
+
+
+# evaluation of the value kwarg changes the value of the salt kwarg
+# value kwarg comes after the salt kwarg in the source code
+@pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
+def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+@payable
+def __init__(arg: uint256):
+    self.foo = arg
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+c: Bytes[1024]
+salt: bytes32
+
+def change_salt(value_: uint256) -> uint256:
+    self.salt = convert(0x01, bytes32)
+    return value_
+
+@external
+def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: uint256) -> address:
+    self.salt = salt
+    return raw_create(s, arg, salt=self.salt, value=self.change_salt(value_))
+    """
+
+    deployer = get_contract(deployer_code)
+    value = 42
+    env.set_balance(deployer.address, value)
+
+    salt = keccak(b"vyper")
+    arg = 42
+    res = deployer.deploy_from_calldata(initcode, arg, salt, value)
+
+    initcode = initcode + abi.encode("(uint256)", (arg,))
+
+    assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
+    assert env.get_code(res) == runtime
+    assert env.get_balance(res) == value

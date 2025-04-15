@@ -72,4 +72,5 @@ class IRAnalysesCache:
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
+
         return self.request_analysis(analysis_cls, *args, **kwargs)

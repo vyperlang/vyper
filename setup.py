@@ -98,8 +98,7 @@ setup(
         "importlib-metadata",
         "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
-    tests_require=extras_require["test"],
+    setup_requires=["setuptools_scm>=7.1.0,<8.0.0"],
     extras_require=extras_require,
     entry_points={
         "console_scripts": [

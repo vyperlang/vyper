@@ -1,6 +1,7 @@
 import copy
 import json
 
+from tests.ast_utils import deepequals
 from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
@@ -138,7 +139,7 @@ def test() -> int128:
     new_dict = json.loads(out_json)
     new_ast = dict_to_ast(new_dict)
 
-    assert new_ast == original_ast
+    assert deepequals(new_ast, original_ast)
 
 
 # strip source annotations like lineno, we don't care for inspecting
@@ -160,6 +161,9 @@ def test_output_type_info(make_input_bundle, chdir_tmp_path):
     # test type info is output in the ast dict
     # test different, complex types, and test import info is also output
     lib1 = """
+# add a pragma to see if it gets added properly to the module's settings object
+#pragma enable-decimals
+
 struct Foo:
     x: uint256
 
@@ -241,6 +245,7 @@ def foo():
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
         "ast_type": "Module",
+        "settings": {},
         "body": [
             {
                 "alias": None,
@@ -412,6 +417,7 @@ def foo():
     # clearer
     assert lib1_ast == {
         "ast_type": "Module",
+        "settings": {"enable_decimals": True},
         "body": [
             {
                 "ast_type": "StructDef",

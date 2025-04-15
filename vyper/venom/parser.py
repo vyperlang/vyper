@@ -47,7 +47,7 @@ VENOM_GRAMMAR = """
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: SIGNED_INT
+    CONST: SIGNED_INT | "0x" HEXDIGIT+
     OPCODE: CNAME
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -88,15 +88,6 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
-def _ensure_terminated(bb):
-    # Since "revert" is not considered terminal explicitly check for it to ensure basic
-    # blocks are terminating
-    if not bb.is_terminated:
-        if any(inst.opcode == "revert" for inst in bb.instructions):
-            bb.append_instruction("stop")
-        # TODO: raise error if still not terminated.
-
-
 def _unescape(s: str):
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
@@ -124,6 +115,8 @@ class VenomTransformer(Transformer):
         funcs = children
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
+            if ctx.entry_function is None:
+                ctx.entry_function = fn
             fn._basic_block_dict.clear()
 
             for block_name, instructions in blocks:
@@ -133,8 +126,6 @@ class VenomTransformer(Transformer):
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
-
-                _ensure_terminated(bb)
 
             _set_last_var(fn)
         _set_last_label(ctx)
@@ -176,7 +167,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, (IRLiteral, IRVariable)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
@@ -198,7 +189,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -222,6 +213,8 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
+        if str(val).startswith("0x"):
+            return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
     def CNAME(self, val) -> str:
