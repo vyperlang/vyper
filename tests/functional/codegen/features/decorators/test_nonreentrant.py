@@ -878,3 +878,53 @@ def __default__():
     c = get_contract(code)
     c.foo()
     assert c.counter() == 0
+
+@pytest.mark.parametrize("mutability", ["@view", "@pure"])
+def test_nonreentrant_pragma_view_and_pure(env, get_contract, mutability):
+    code = f"""
+# pragma nonreentrancy on
+
+interface Self:
+    def bar() -> uint256: view
+
+@external
+{mutability}
+def bar() -> uint256:
+    return 42
+
+@external
+@view
+def foo() -> uint256:
+    return staticcall Self(self).bar()
+    """
+    c = get_contract(code)
+    assert c.foo() == 42
+
+
+@pytest.mark.parametrize("mutability", ["@view", "@pure"])
+def test_nonreentrant_pragma_view2(env, tx_failed, get_contract, mutability):
+    code = f"""
+# pragma nonreentrancy on
+
+interface Self:
+    def bar() -> uint256: pure
+
+@external
+{mutability}
+def bar() -> uint256:
+    return 42
+
+@external
+def foo() -> uint256:
+    return staticcall Self(self).bar()
+    """
+    c = get_contract(code)
+
+    if mutability == "@view":
+        ctx = tx_failed
+    else:
+        ctx = contextlib.nullcontext
+
+    with ctx():
+        c.foo()
+
