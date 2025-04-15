@@ -89,10 +89,9 @@ class _Expression:
         if self.opcode == "store":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
-        res = self.opcode + " [ "
-        for op in self.operands:
-            res += repr(op) + " "
-        res += "]"
+        res = self.opcode + "("
+        res += ",".join(repr(op) for op in self.opernads)
+        res += ")"
         return res
 
     @cached_property
