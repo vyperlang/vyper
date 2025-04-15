@@ -192,6 +192,9 @@ def _allocate_with_overrides_r(
     # Search through function definitions to find non-reentrant functions
     funcdefs = vyper_module.get_children(vy_ast.FunctionDef)
     for vardecl in vyper_module.get_children(vy_ast.VariableDecl):
+        if not vardecl.is_public:
+            # no getter
+            continue
         funcdefs.append(vardecl._expanded_getter)
 
     for node in funcdefs:
@@ -277,7 +280,11 @@ def _set_nonreentrant_keys(vyper_module, allocators):
     var_decls = vyper_module.get_children(vy_ast.VariableDecl)
     funcdefs = vyper_module.get_children(vy_ast.FunctionDef)
 
-    funcdefs.extend(var._expanded_getter for var in var_decls)
+    for var in var_decls:
+        if not var.is_public:
+            # no getter
+            continue
+        funcdefs.append(var._expanded_getter)
 
     for node in funcdefs:
         type_ = node._metadata["func_type"]
