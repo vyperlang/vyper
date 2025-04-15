@@ -90,7 +90,7 @@ class _Expression:
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + "("
-        res += ",".join(repr(op) for op in self.opernads)
+        res += ",".join(repr(op) for op in self.operands)
         res += ")"
         return res
 
