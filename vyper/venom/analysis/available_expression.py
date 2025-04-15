@@ -207,18 +207,17 @@ class _AvailableExpression:
         return res
 
     @staticmethod
-    def intersection(*others: _AvailableExpression | None):
-        tmp = list(o for o in others if o is not None)
-        if len(tmp) == 0:
+    def lattice_meet(lattices: list[_AvailableExpression]):
+        if len(lattices) == 0:
             return _AvailableExpression()
-        res = tmp[0].copy()
-        for item in tmp[1:]:
-            tmp_res = res
+        res = lattices[0].copy()
+        for item in lattices[1:]:
+            tmp = res
             res = _AvailableExpression()
             for expr, inst in item.buckets.items():
-                if expr not in tmp_res.buckets:
+                if expr not in tmp.buckets:
                     continue
-                if tmp_res.buckets[expr] != inst:
+                if tmp.buckets[expr] != inst:
                     continue
                 res.buckets[expr] = inst
         return res
@@ -267,8 +266,8 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_expr: _AvailableExpression = _AvailableExpression.intersection(
-            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
+        available_expr = _AvailableExpression.lattice_meet(
+            [self.bb_outs.get(pred, _AvailableExpression()) for pred in bb.cfg_in]
         )
 
         if bb in self.bb_ins and self.bb_ins[bb] == available_expr:
