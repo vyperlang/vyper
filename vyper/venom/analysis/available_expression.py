@@ -297,10 +297,8 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            if (
-                expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
-                == effects.EMPTY
-            ):
+            expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
+            if expr_effects == effects.EMPTY:
                 available_expr.add(expr, inst)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
@@ -314,24 +312,24 @@ class CSEAnalysis(IRAnalysis):
     def _get_operand(
         self, op: IROperand, available_exprs: _AvailableExpression
     ) -> IROperand | _Expression:
-        if isinstance(op, IRVariable):
-            inst = self.dfg.get_producing_instruction(op)
-            assert inst is not None, op
-            # the phi condition is here because it is only way to
-            # create dataflow loop
-            if inst.opcode == "phi":
-                return op
-            if inst.opcode == "store":
-                return self._get_operand(inst.operands[0], available_exprs)
-            if inst in self.inst_to_expr:
-                e = self.inst_to_expr[inst]
-                same_insts = available_exprs.buckets.get(e, [])
-                if inst in same_insts:
-                    return self.inst_to_expr[same_insts[0]]
-                return e
-            assert inst.opcode in UNINTERESTING_OPCODES
-            return self._get_expression(inst, available_exprs)
-        return op
+        if not isinstance(op, IRVariable):
+            return op
+        inst = self.dfg.get_producing_instruction(op)
+        assert inst is not None, op
+        # the phi condition is here because it is only way to
+        # create dataflow loop
+        if inst.opcode == "phi":
+            return op
+        if inst.opcode == "store":
+            return self._get_operand(inst.operands[0], available_exprs)
+        if inst in self.inst_to_expr:
+            e = self.inst_to_expr[inst]
+            same_insts = available_exprs.buckets.get(e, [])
+            if inst in same_insts:
+                return self.inst_to_expr[same_insts[0]]
+            return e
+        assert inst.opcode in UNINTERESTING_OPCODES
+        return self._get_expression(inst, available_exprs)
 
     def get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression | None = None
