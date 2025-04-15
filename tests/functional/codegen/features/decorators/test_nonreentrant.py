@@ -983,6 +983,7 @@ def __init__():
 bar: public(uint256)
 
 @external
+@nonreentrant
 def foo() -> uint256:
     return staticcall Self(self).bar()
 """
