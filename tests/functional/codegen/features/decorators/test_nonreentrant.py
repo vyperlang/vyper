@@ -929,7 +929,7 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("public_var", ["reentrant(public(uint256))", "public(uint256)"])
-def test_nonreentrant_getter(env, tx_failed, get_contract, public_var):
+def test_nonreentrant_getter(tx_failed, get_contract, public_var):
     code = f"""
 # pragma nonreentrancy on
 
@@ -955,7 +955,8 @@ def foo() -> uint256:
             c.foo()
 
 
-def test_nonreentrant_getter_pragma_off(env, tx_failed, get_contract):
+# TODO: maybe belongs in syntax tests
+def test_nonreentrant_getter_pragma_off():
     code = """
 # pragma nonreentrancy off
 
@@ -964,12 +965,12 @@ bar: reentrant(public(uint256))
 """
     msg = "reentrant() is not allowed without `pragma nonreentrancy on"
     with pytest.raises(StructureException) as e:
-        get_contract(code)
+        compile_code(code)
 
     assert e.value.message.startswith(msg)
 
 
-def test_nonreentrant_getter_pragma_off2(env, tx_failed, get_contract):
+def test_nonreentrant_getter_pragma_off2(get_contract):
     code = """
 # pragma nonreentrancy off
 
