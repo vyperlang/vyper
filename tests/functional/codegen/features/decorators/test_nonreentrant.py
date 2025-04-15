@@ -1,6 +1,4 @@
 import contextlib
-from eth.codecs import abi
-from vyper.utils import method_id
 
 import pytest
 
@@ -836,7 +834,7 @@ def foo():
     assert e.value._message == msg
 
 
-def test_nonreentrant_pragma_nonreentrant_default(get_contract):
+def test_nonreentrant_pragma_reentrant_default(get_contract):
     code = """
 # pragma nonreentrancy on
 
@@ -878,6 +876,7 @@ def __default__():
     c = get_contract(code)
     c.foo()
     assert c.counter() == 0
+
 
 @pytest.mark.parametrize("mutability", ["@view", "@pure"])
 def test_nonreentrant_pragma_view_and_pure(env, get_contract, mutability):
@@ -927,4 +926,3 @@ def foo() -> uint256:
 
     with ctx():
         c.foo()
-

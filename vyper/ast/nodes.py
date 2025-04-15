@@ -1439,7 +1439,9 @@ class VariableDecl(VyperNode):
             raise VariableDeclarationException("Constant must be declared with a value", self)
 
         if self.is_reentrant and not self.is_public:
-            raise VariableDeclarationException("Only public variables can be marked `reentrant`!", self)
+            raise VariableDeclarationException(
+                "Only public variables can be marked `reentrant`!", self
+            )
 
         if not self.is_constant and self.value is not None:
             raise VariableDeclarationException(
