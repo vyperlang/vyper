@@ -448,7 +448,7 @@ class ContractFunctionT(VyperType):
         nonreentrant: bool
         is_default = funcdef.name == "__default__"
         is_external = function_visibility == FunctionVisibility.EXTERNAL
-        is_pure = state_mutability == StateMutability.PURE
+        is_pure = decorators.state_mutability == StateMutability.PURE
 
         if is_pure:
             nonreentrant = False
