@@ -1,4 +1,6 @@
 import contextlib
+from eth.codecs import abi
+from vyper.utils import method_id
 
 import pytest
 
@@ -832,3 +834,47 @@ def foo():
 
     msg = _error_template("baz", "foo")
     assert e.value._message == msg
+
+
+def test_nonreentrant_pragma_nonreentrant_default(get_contract):
+    code = """
+# pragma nonreentrancy on
+
+counter: public(uint256)
+
+@external
+def foo():
+    success: bool = raw_call(self, b"", revert_on_failure=False)
+    assert success
+    assert self.counter == 1
+
+@external
+# reentrant by default
+def __default__():
+    self.counter += 1
+    """
+    c = get_contract(code)
+    c.foo()
+    assert c.counter() == 0
+
+
+def test_nonreentrant_pragma_nonreentrant_default(get_contract):
+    code = """
+# pragma nonreentrancy on
+
+counter: public(uint256)
+
+@external
+def foo():
+    success: bool = raw_call(self, b"", revert_on_failure=False)
+    assert not success
+    assert self.counter == 0
+
+@nonreentrant
+@external
+def __default__():
+    self.counter += 1
+    """
+    c = get_contract(code)
+    c.foo()
+    assert c.counter() == 0
