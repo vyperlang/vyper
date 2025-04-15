@@ -597,6 +597,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.target, vy_ast.Name)
         name = node.target.id
 
+        if not self.ast.settings.nonreentrancy_by_default and node.is_reentrant:
+            raise StructureException("reentrant() is not allowed without `pragma nonreentrancy on`", node)
+
         # TODO: move this check to local analysis
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
