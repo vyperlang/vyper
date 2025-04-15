@@ -61,7 +61,6 @@ class _Expression:
     # the child is either expression of operand since
     # there are possibilities for cycles
     operands: list[IROperand | _Expression]
-    ignore_msize: bool
     cache_hash: int | None = None
 
     # equality for lattices only based on original instruction
@@ -104,15 +103,15 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
-    def get_reads(self) -> Effects:
+    def get_reads(self, ignore_msize) -> Effects:
         tmp_reads = effects.reads.get(self.opcode, effects.EMPTY)
-        if self.ignore_msize:
+        if ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
-    def get_writes(self) -> Effects:
+    def get_writes(self, ignore_msize) -> Effects:
         tmp_reads = effects.writes.get(self.opcode, effects.EMPTY)
-        if self.ignore_msize:
+        if ignore_msize:
             tmp_reads &= ~Effects.MSIZE
         return tmp_reads
 
@@ -178,13 +177,13 @@ class _AvailableExpression:
             self.buckets[expr] = []
         self.buckets[expr].append(src_inst)
 
-    def remove_effect(self, effect: Effects):
+    def remove_effect(self, effect: Effects, ignore_msize):
         if effect == effects.EMPTY:
             return
         to_remove = set()
         for expr in self.buckets.keys():
-            read_effs = expr.get_reads()
-            write_effs = expr.get_writes()
+            read_effs = expr.get_reads(ignore_msize)
+            write_effs = expr.get_writes(ignore_msize)
             op_effect = read_effs | write_effs
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
@@ -289,8 +288,8 @@ class CSEAnalysis(IRAnalysis):
                 self.inst_to_available[inst] = available_expr.copy()
 
             expr = self._get_expression(inst, available_expr)
-            write_effects = expr.get_writes()
-            available_expr.remove_effect(write_effects)
+            write_effects = expr.get_writes(self.ignore_msize)
+            available_expr.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instruction effect other instructions
             # but since it cannot be substituted it does not have
@@ -298,7 +297,10 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            if expr.get_writes() & expr.get_reads() == effects.EMPTY:
+            if (
+                expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
+                == effects.EMPTY
+            ):
                 available_expr.add(expr, inst)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
@@ -358,7 +360,7 @@ class CSEAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
-        expr = _Expression(inst.opcode, operands, self.ignore_msize)
+        expr = _Expression(inst.opcode, operands)
 
         src_inst = available_exprs.get_source(expr)
         if src_inst is not None:
