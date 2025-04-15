@@ -218,13 +218,13 @@ class _AvailableExpression:
             for expr, insts in item.buckets.items():
                 if expr not in tmp.buckets:
                     continue
-                new_inst = []
+                new_insts = []
                 for i in tmp.buckets[expr]:
                     if i in insts:
-                        new_inst.append(i)
-                if len(new_inst) == 0:
+                        new_insts.append(i)
+                if len(new_insts) == 0:
                     continue
-                res.buckets[expr] = new_inst
+                res.buckets[expr] = new_insts
         return res
 
 
