@@ -203,7 +203,8 @@ class _AvailableExpression:
 
     def copy(self) -> _AvailableExpression:
         res = _AvailableExpression()
-        res.buckets = self.buckets.copy()
+        for k, v in self.buckets.items():
+            res.buckets[k] = v.copy()
         return res
 
     @staticmethod
@@ -214,12 +215,16 @@ class _AvailableExpression:
         for item in lattices[1:]:
             tmp = res
             res = _AvailableExpression()
-            for expr, inst in item.buckets.items():
+            for expr, insts in item.buckets.items():
                 if expr not in tmp.buckets:
                     continue
-                if tmp.buckets[expr] != inst:
+                new_inst = []
+                for i in tmp.buckets[expr]:
+                    if i in insts:
+                        new_inst.append(i)
+                if len(new_inst) == 0:
                     continue
-                res.buckets[expr] = inst
+                res.buckets[expr] = new_inst
         return res
 
 
@@ -340,6 +345,11 @@ class CSEAnalysis(IRAnalysis):
         if src is None:
             src = inst
         return (expr, src)
+
+    def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:
+        available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
+        res = available_exprs.buckets[expr]
+        return [i for i in res if i != inst and i.parent == inst.parent]
 
     def _get_expression(
         self, inst: IRInstruction, available_exprs: _AvailableExpression

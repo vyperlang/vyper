@@ -76,8 +76,12 @@ class CSE(IRPass):
                 expr, src_inst = self.expression_analysis.get_expression(inst)
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
-                if src_inst != inst and (expr.depth > 1 or inst.parent == src_inst.parent):
-                    res[inst] = src_inst
+                if src_inst != inst:
+                    if expr.depth > 1:
+                        res[inst] = src_inst
+                    from_same_bb = self.expression_analysis.get_from_same_bb(inst, expr)
+                    if len(from_same_bb) > 0:
+                        res[inst] = from_same_bb[0]
 
         return res
 

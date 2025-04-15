@@ -534,3 +534,41 @@ def test_cse_allowed_deep_self_conflict():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_cse_small_expressions():
+    pre = """
+    main:
+        %par = param
+        %1 = add 1, 2
+        jnz %par, @then, @else
+    then:
+        %2 = add 1, 2
+        %3 = add 1, 2
+        jmp @join
+    else:
+        %4 = add 1, 2
+        jmp @join
+    join:
+        %5 = add 1, 2
+        sink %4
+    """
+
+    post = """
+    main:
+        %par = param
+        %1 = add 1, 2
+        jnz %par, @then, @else
+    then:
+        %2 = add 1, 2
+        %3 = %2
+        jmp @join
+    else:
+        %4 = add 1, 2
+        jmp @join
+    join:
+        %5 = add 1, 2
+        sink %4
+    """
+
+    _check_pre_post(pre, post)
