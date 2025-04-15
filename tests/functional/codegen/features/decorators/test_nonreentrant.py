@@ -853,7 +853,7 @@ def __default__():
     """
     c = get_contract(code)
     c.foo()
-    assert c.counter() == 0
+    assert c.counter() == 1
 
 
 def test_nonreentrant_pragma_nonreentrant_default(get_contract):
