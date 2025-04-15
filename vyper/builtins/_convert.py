@@ -497,7 +497,7 @@ def convert(expr, context):
         elif isinstance(out_typ, StringT):
             ret = to_string(arg_ast, arg, out_typ)
         elif isinstance(out_typ, ReturnBufferT):
-            ret = to_abi_buffer(arg_ast, arg, out_typ)
+            ret = to_return_buffer(arg_ast, arg, out_typ)
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
