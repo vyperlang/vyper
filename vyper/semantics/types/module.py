@@ -469,19 +469,19 @@ class ModuleT(VyperType):
                 return s
         return None
 
-    @property
+    @cached_property
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
 
-    @property
+    @cached_property
     def uses_decls(self):
         return self._module.get_children(vy_ast.UsesDecl)
 
-    @property
+    @cached_property
     def initializes_decls(self):
         return self._module.get_children(vy_ast.InitializesDecl)
 
-    @property
+    @cached_property
     def exports_decls(self):
         return self._module.get_children(vy_ast.ExportsDecl)
 
@@ -494,7 +494,7 @@ class ModuleT(VyperType):
                 ret.append(used_module)
         return ret
 
-    @property
+    @cached_property
     def initialized_modules(self):
         # modules which are initialized to
         ret = []
@@ -584,3 +584,24 @@ class ModuleT(VyperType):
     @cached_property
     def interface(self):
         return InterfaceT.from_ModuleT(self)
+
+    @cached_property
+    def is_initializable(self):
+        """
+        Determine whether ModuleT can be initialised by examining its top-level
+        declarations. A module has state if it contains storage variables,
+        transient variables, or immutables, or if it includes a "initializes"
+        declaration, or any nonreentrancy locks.
+        """
+        if len(self.initializes_decls) > 0 or len(self.uses_decls) > 0:
+            return True
+        if any(not v.is_constant for v in self.variable_decls):
+            return True
+        if self.init_function is not None:
+            return True
+
+        for fn_t in self.functions.values():
+            if fn_t.nonreentrant:
+                return True
+
+        return False
