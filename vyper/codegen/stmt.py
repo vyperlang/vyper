@@ -19,7 +19,6 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -56,12 +55,10 @@ class Stmt:
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
-        alloced = self.context.new_variable(varname, ltyp)
+        lhs = self.context.new_variable(varname, ltyp)
 
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node
-
-        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
         return make_setter(lhs, rhs)
 
@@ -76,7 +73,6 @@ class Stmt:
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.
             tmp = self.context.new_internal_variable(src.typ)
-            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
             ret.append(make_setter(tmp, src))
             src = tmp
 
@@ -97,7 +93,13 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
+        if len(self.stmt.value.keywords) > 0:
+            # keyword arguments
+            to_compile = [arg.value for arg in self.stmt.value.keywords]
+        else:
+            # positional arguments
+            to_compile = self.stmt.value.args
+        args = [Expr(arg, self.context).ir_node for arg in to_compile]
 
         topic_ir = []
         data_ir = []
@@ -247,9 +249,7 @@ class Stmt:
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id
-        loop_var = IRnode.from_list(
-            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
-        )
+        loop_var = self.context.new_variable(varname, target_type)
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
@@ -257,30 +257,27 @@ class Stmt:
 
         ret = ["seq"]
 
-        # list literal, force it to memory first
-        if isinstance(self.stmt.iter, vy_ast.List):
-            tmp_list = IRnode.from_list(
-                self.context.new_internal_variable(iter_list.typ),
-                typ=iter_list.typ,
-                location=MEMORY,
-            )
+        # if it's a list literal, force it to memory first
+        if not iter_list.is_pointer:
+            tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
-        # set up the loop variable
-        e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
+        with iter_list.cache_when_complex("list_iter") as (b1, iter_list):
+            # set up the loop variable
+            e = get_element_ptr(iter_list, i, array_bounds_check=False)
+            body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
-        repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayT):
-            array_len = get_dyn_array_count(iter_list)
-        else:
-            array_len = repeat_bound
+            repeat_bound = iter_list.typ.count
+            if isinstance(iter_list.typ, DArrayT):
+                array_len = get_dyn_array_count(iter_list)
+            else:
+                array_len = repeat_bound
 
-        ret.append(["repeat", i, 0, array_len, repeat_bound, body])
+            ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
-        del self.context.forvars[varname]
-        return IRnode.from_list(ret)
+            del self.context.forvars[varname]
+            return b1.resolve(IRnode.from_list(ret))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -291,6 +288,15 @@ class Stmt:
             # make_setter references lhs<->rhs as in parse_Assign -
             # single word load/stores are atomic.
             raise TypeCheckFailure("unreachable")
+
+        for var in target.referenced_variables:
+            if var.typ._is_prim_word:
+                continue
+            # oob - GHSA-4w26-8p97-f4jp
+            if var in right.variable_writes or (
+                var.is_state_variable() and right.contains_writeable_call
+            ):
+                raise CodegenPanic("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
             left = IRnode.from_list(LOAD(target), typ=target.typ)

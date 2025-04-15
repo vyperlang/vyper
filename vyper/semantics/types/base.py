@@ -50,6 +50,10 @@ class VyperType:
         The name of the type.
     _as_array: bool, optional
         If `True`, this type can be used as the base member for an array.
+    _as_hashmap_key: bool, optional
+        If `True`, this type can be used as a hashmap key
+    _as_tuple_member: bool, optional
+        If `True`, this type can be used as a tuple member
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
     _invalid_locations : Tuple
@@ -78,6 +82,7 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
+    _as_tuple_member: bool = True  # can be a tuple member
 
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
@@ -114,7 +119,12 @@ class VyperType:
         )
 
     def __lt__(self, other):
+        # CMC 2024-10-20 what is this for?
         return self.abi_type.selector_name() < other.abi_type.selector_name()
+
+    def __repr__(self):
+        # TODO: add `pretty()` to the VyperType API?
+        return self._id
 
     # return a dict suitable for serializing in the AST
     def to_dict(self):
@@ -362,10 +372,7 @@ class VyperType:
             raise StructureException(f"{self} instance does not have members", node)
 
         hint = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'.", node, hint=hint)
-
-    def __repr__(self):
-        return self._id
+        raise UnknownAttribute(f"{repr(self)} has no member '{key}'.", node, hint=hint)
 
 
 class KwargSettings:

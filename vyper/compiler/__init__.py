@@ -46,6 +46,13 @@ OUTPUT_FORMATS = {
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
 
+INTERFACE_OUTPUT_FORMATS = [
+    "ast_dict",
+    "annotated_ast_dict",
+    "interface",
+    "external_interface",
+    "abi",
+]
 
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
@@ -99,13 +106,6 @@ def compile_from_file_input(
     """
     settings = settings or get_global_settings() or Settings()
 
-    if output_formats is None:
-        output_formats = ("bytecode",)
-
-    # make IR output the same between runs
-    # TODO: move this to CompilerData.__init__()
-    codegen.reset_names()
-
     compiler_data = CompilerData(
         file_input,
         input_bundle,
@@ -116,17 +116,36 @@ def compile_from_file_input(
         no_bytecode_metadata=no_bytecode_metadata,
     )
 
+    return outputs_from_compiler_data(compiler_data, output_formats, exc_handler)
+
+
+def outputs_from_compiler_data(
+    compiler_data: CompilerData,
+    output_formats: Optional[OutputFormats] = None,
+    exc_handler: Optional[Callable] = None,
+):
+    if output_formats is None:
+        output_formats = ("bytecode",)
+
     ret = {}
+
     with anchor_settings(compiler_data.settings):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
+
+            is_vyi = compiler_data.file_input.resolved_path.suffix == ".vyi"
+            if is_vyi and output_format not in INTERFACE_OUTPUT_FORMATS:
+                raise ValueError(
+                    f"Unsupported format for compiling interface: {repr(output_format)}"
+                )
+
             try:
                 formatter = OUTPUT_FORMATS[output_format]
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(str(file_input.path), exc)
+                    exc_handler(str(compiler_data.file_input.path), exc)
                 else:
                     raise exc
 

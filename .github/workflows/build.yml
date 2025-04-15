@@ -21,7 +21,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os:
+          # the binary will not work for users with an older libc than what
+          # is available on the ubuntu that the binary was built with.
+          # therefore, use the oldest available ubuntu.
+          - ubuntu-22.04
+          - macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +35,10 @@ jobs:
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+
+      # debug
+      - name: Git shorthash
+        run: git rev-parse --short HEAD
 
       - name: Python
         uses: actions/setup-python@v5
@@ -45,8 +54,9 @@ jobs:
 
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: vyper-${{ runner.os }}
           path: dist/vyper.*
 
   windows-build:
@@ -59,6 +69,10 @@ jobs:
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+
+      # debug
+      - name: Git shorthash
+        run: git rev-parse --short HEAD
 
       - name: Python
         uses: actions/setup-python@v5
@@ -73,8 +87,9 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: vyper-${{ runner.os }}
           path: dist/vyper.*
 
   publish-release-assets:
@@ -84,14 +99,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          merge-multiple: true
 
       - name: Upload assets
-        # fun - artifacts are downloaded into "artifact/".
-        # TODO: this needs to be tested when upgrading to upload-artifact v4
-        working-directory: artifacts/artifact
+        working-directory: artifacts
         run: |
           set -Eeuxo pipefail
           for BIN_NAME in $(ls)

@@ -269,13 +269,65 @@ def foo():
         compile_code(code)
 
 
-def test_invalid_div():
-    code = """
+div_code_with_hint = [
+    (
+        """
 @external
 def foo():
     a: uint256 = 5 / 9
-    """
+    """,
+        "did you mean `5 // 9`?",
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = 10
+    a /= (3 + 10) // (2 + 3)
+    """,
+        "did you mean `a //= (3 + 10) // (2 + 3)`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / c
+    """,
+        "did you mean `(a + b) // c`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / (a + c)
+    """,
+        "did you mean `(a + b) // (a + c)`?",
+    ),
+    (
+        """
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + (c + b)) / (a + c)
+    """,
+        "did you mean `(a + (c + b)) // (a + c)`?",
+    ),
+    (
+        """
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo(a: uint256, b:uint256, c: uint256) -> uint256:
+    return (a + b) / staticcall Foo(self).foo()
+    """,
+        "did you mean `(a + b) // staticcall Foo(self).foo()`?",
+    ),
+]
+
+
+@pytest.mark.parametrize("code, expected_hint", div_code_with_hint)
+def test_invalid_div(code, expected_hint):
     with pytest.raises(InvalidOperation) as e:
         compile_code(code)
 
-    assert e.value._hint == "did you mean `5 // 9`?"
+    assert e.value._hint == expected_hint

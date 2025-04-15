@@ -899,13 +899,15 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-def test_constant_external_contract_call_cannot_change_state():
-    c = """
+@pytest.mark.parametrize("modifying", ("payable", "nonpayable"))
+@pytest.mark.parametrize("constant", ("pure", "view"))
+def test_constant_external_contract_call_cannot_change_state(modifying, constant):
+    c = f"""
 interface Foo:
-    def set_lucky(_lucky: int128) -> int128: nonpayable
+    def set_lucky(_lucky: int128) -> int128: {modifying}
 
 @external
-@view
+@{constant}
 def set_lucky_stmt(arg1: address, arg2: int128):
     extcall Foo(arg1).set_lucky(arg2)
     """
@@ -913,11 +915,11 @@ def set_lucky_stmt(arg1: address, arg2: int128):
     with pytest.raises(StateAccessViolation):
         compile_code(c)
 
-    c2 = """
+    c2 = f"""
 interface Foo:
-    def set_lucky(_lucky: int128) -> int128: nonpayable
+    def set_lucky(_lucky: int128) -> int128: {modifying}
 @external
-@view
+@{constant}
 def set_lucky_expr(arg1: address, arg2: int128) -> int128:
     return extcall Foo(arg1).set_lucky(arg2)
     """
@@ -1441,11 +1443,17 @@ def get_lucky(gas_amount: uint256) -> int128:
         c2.get_lucky(50)  # too little gas.
 
 
-def test_skip_contract_check(get_contract):
+def test_skip_contract_check(get_contract, tx_failed):
     contract_2 = """
 @external
 @view
 def bar():
+    pass
+
+# include fallback for sanity, make sure we don't get trivially rejected in
+# selector table
+@external
+def __default__():
     pass
     """
     contract_1 = """
@@ -1454,9 +1462,10 @@ interface Bar:
     def baz(): nonpayable
 
 @external
-def call_bar(addr: address):
-    # would fail if returndatasize check were on
-    x: uint256 = staticcall Bar(addr).bar(skip_contract_check=True)
+def call_bar(addr: address) -> uint256:
+    # fails during abi decoding
+    return staticcall Bar(addr).bar(skip_contract_check=True)
+
 @external
 def call_baz():
     # some address with no code
@@ -1466,7 +1475,10 @@ def call_baz():
     """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
-    c1.call_bar(c2.address)
+
+    with tx_failed():
+        c1.call_bar(c2.address)
+
     c1.call_baz()
 
 
@@ -2582,3 +2594,38 @@ def boo():
     c = get_contract(code)
 
     assert c.foo() == [1, 2, 3, 4]
+
+
+def test_make_setter_staticcall(get_contract):
+    # variant of GH #3503
+    code = """
+interface A:
+   def boo() -> uint256 : view
+interface B:
+   def boo() -> uint256 : nonpayable
+
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, staticcall A(self).boo(), 4]
+    return self.a  # bug returns [1, 2, 1, 4]
+
+@external
+def bar() -> DynArray[uint256, 10]:
+    self.a = [3, 0, 0]
+    self.a = [1, 2, extcall B(self).boo(), 4]
+    return self.a  # returns [1, 2, 3, 4]
+
+
+@external
+@view
+# @nonpayable
+def boo() -> uint256:
+    return self.a[0]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+    assert c.bar() == [1, 2, 3, 4]

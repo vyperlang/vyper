@@ -159,7 +159,7 @@ class BytesT(_BytestringT):
     typeclass = "bytes"
 
     _id = "Bytes"
-    _valid_literal = (vy_ast.Bytes,)
+    _valid_literal = (vy_ast.Bytes, vy_ast.HexBytes)
 
     @property
     def abi_type(self) -> ABIType:

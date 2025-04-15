@@ -15,12 +15,28 @@ class Constancy(enum.Enum):
     Constant = 1
 
 
+_alloca_id = 0
+
+
+def _generate_alloca_id():
+    # note: this gets reset between compiler runs by codegen.core.reset_names
+    global _alloca_id
+
+    _alloca_id += 1
+    return _alloca_id
+
+
 @dataclass(frozen=True)
 class Alloca:
     name: str
     offset: int
     typ: VyperType
     size: int
+
+    _id: int
+
+    # special metadata for calloca. hint for venom to tie calloca to call site.
+    _callsite: Optional[str] = None
 
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
@@ -233,7 +249,9 @@ class Context:
                 pos = f"$palloca_{ofst}_{size}"
             else:
                 pos = f"$alloca_{ofst}_{size}"
-            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size)
+
+            alloca_id = _generate_alloca_id()
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size, _id=alloca_id)
 
         var = VariableRecord(
             name=name,

@@ -48,7 +48,16 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
 .. note::
-    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function (this includes interface functions) excludes optional arguments when their default values are used in the function call.
+
+    .. code-block:: vyper
+
+        from ethereum.ercs import IERC4626
+
+        @external
+        def foo(x: IERC4626):
+            extcall x.withdraw(0, self, self)   # keccak256("withdraw(uint256,address,address)")[:4] = 0xb460af94
+            extcall x.withdraw(0)               # keccak256("withdraw(uint256)")[:4] = 0x2e1a7d4d
 
 .. _structure-functions-internal:
 
@@ -74,6 +83,14 @@ Or for internal functions which are defined in :ref:`imported modules <modules>`
     @external
     def calculate(amount: uint256) -> uint256:
         return calculator_library._times_two(amount)
+
+Marking an internal function as ``payable`` specifies that the function can interact with ``msg.value``. A ``nonpayable`` internal function can be called from an external ``payable`` function, but it cannot access ``msg.value``.
+
+.. code-block:: vyper
+
+    @payable
+    def _foo() -> uint256:
+        return msg.value % 2
 
 .. note::
    As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
@@ -110,7 +127,7 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
     * ``@pure``: does not read from the contract state or any environment variables.
     * ``@view``: may read from the contract state, but does not alter it.
     * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
-    * ``@payable``: may read from and write to the contract state, and can receive Ether.
+    * ``@payable``: may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
 
 .. code-block:: vyper
 
@@ -131,6 +148,9 @@ Functions default to ``nonpayable`` when no mutability decorator is used.
 Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable``) functions. Any external calls are made using the special ``STATICCALL`` opcode, which prevents state changes at the EVM level.
 
 Functions marked with ``@pure`` cannot call non-``pure`` functions.
+
+.. note::
+    The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
 
 Re-entrancy Locks
 -----------------

@@ -1,7 +1,9 @@
+from pathlib import Path
+
 import pytest
 
 from vyper import compile_code
-from vyper.ast.pre_parser import pre_parse, validate_version_pragma
+from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException, VersionException
@@ -54,6 +56,24 @@ def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
         validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
+
+
+def test_invalid_version_contains_file(mock_version):
+    mock_version(COMPILER_VERSION)
+    with pytest.raises(VersionException, match=r'contract "mock\.vy:\d+"'):
+        compile_code("# pragma version ^0.3.10", resolved_path=Path("mock.vy"))
+
+
+def test_imported_invalid_version_contains_correct_file(
+    mock_version, make_input_bundle, chdir_tmp_path
+):
+    code_a = "# pragma version ^0.3.10"
+    code_b = "import A"
+    input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
+    mock_version(COMPILER_VERSION)
+
+    with pytest.raises(VersionException, match=r'contract "A\.vy:\d+"'):
+        compile_code(code_b, input_bundle=input_bundle)
 
 
 prerelease_valid_versions = [
@@ -174,9 +194,10 @@ pragma_examples = [
 @pytest.mark.parametrize("code, pre_parse_settings, compiler_data_settings", pragma_examples)
 def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_version):
     mock_version("0.3.10")
-    settings, _, _, _ = pre_parse(code)
+    pre_parser = PreParser()
+    pre_parser.parse(code)
 
-    assert settings == pre_parse_settings
+    assert pre_parser.settings == pre_parse_settings
 
     compiler_data = CompilerData(code)
 
@@ -189,6 +210,26 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
     compiler_data_settings.experimental_codegen = False
 
     assert compiler_data.settings == compiler_data_settings
+
+
+pragma_venom = [
+    """
+    #pragma venom
+    """,
+    """
+    #pragma experimental-codegen
+    """,
+]
+
+
+@pytest.mark.parametrize("code", pragma_venom)
+def test_parse_venom_pragma(code):
+    pre_parser = PreParser()
+    pre_parser.parse(code)
+    assert pre_parser.settings.experimental_codegen is True
+
+    compiler_data = CompilerData(code)
+    assert compiler_data.settings.experimental_codegen is True
 
 
 invalid_pragmas = [
@@ -218,13 +259,22 @@ invalid_pragmas = [
 # pragma evm-version cancun
 # pragma evm-version shanghai
     """,
+    # duplicate setting of venom
+    """
+    #pragma venom
+    #pragma experimental-codegen
+    """,
+    """
+    #pragma venom
+    #pragma venom
+    """,
 ]
 
 
 @pytest.mark.parametrize("code", invalid_pragmas)
 def test_invalid_pragma(code):
     with pytest.raises(StructureException):
-        pre_parse(code)
+        PreParser().parse(code)
 
 
 def test_version_exception_in_import(make_input_bundle):

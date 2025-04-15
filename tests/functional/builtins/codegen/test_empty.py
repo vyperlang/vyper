@@ -672,11 +672,11 @@ event MyLog:
 @external
 def foo():
     log MyLog(
-        b'hellohellohellohellohellohellohellohellohello',
-        empty(int128[2][3]),
-        314159,
-        b'helphelphelphelphelphelphelphelphelphelphelp',
-        empty(uint256[3])
+        arg1=b'hellohellohellohellohellohellohellohellohello',
+        arg2=empty(int128[2][3]),
+        arg3=314159,
+        arg4=b'helphelphelphelphelphelphelphelphelphelphelp',
+        arg5=empty(uint256[3])
     )
     """
 

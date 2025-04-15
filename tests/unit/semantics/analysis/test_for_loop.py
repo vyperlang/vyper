@@ -5,7 +5,7 @@ from vyper.exceptions import ArgumentException, ImmutableViolation, StructureExc
 from vyper.semantics.analysis import analyze_module
 
 
-def test_modify_iterator_function_outside_loop(dummy_input_bundle):
+def test_modify_iterator_function_outside_loop():
     code = """
 
 a: uint256[3]
@@ -21,10 +21,10 @@ def bar():
         pass
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module)
 
 
-def test_pass_memory_var_to_other_function(dummy_input_bundle):
+def test_pass_memory_var_to_other_function():
     code = """
 
 @internal
@@ -41,10 +41,10 @@ def bar():
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module)
 
 
-def test_modify_iterator(dummy_input_bundle):
+def test_modify_iterator():
     code = """
 
 a: uint256[3]
@@ -56,10 +56,10 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
 
-def test_bad_keywords(dummy_input_bundle):
+def test_bad_keywords():
     code = """
 
 @internal
@@ -70,10 +70,10 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArgumentException):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
 
-def test_bad_bound(dummy_input_bundle):
+def test_bad_bound():
     code = """
 
 @internal
@@ -84,10 +84,10 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
 
-def test_modify_iterator_function_call(dummy_input_bundle):
+def test_modify_iterator_function_call():
     code = """
 
 a: uint256[3]
@@ -103,10 +103,10 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
 
-def test_modify_iterator_recursive_function_call(dummy_input_bundle):
+def test_modify_iterator_recursive_function_call():
     code = """
 
 a: uint256[3]
@@ -126,10 +126,10 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
 
-def test_modify_iterator_recursive_function_call_topsort(dummy_input_bundle):
+def test_modify_iterator_recursive_function_call_topsort():
     # test the analysis works no matter the order of functions
     code = """
 a: uint256[3]
@@ -149,12 +149,12 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
 
-def test_modify_iterator_through_struct(dummy_input_bundle):
+def test_modify_iterator_through_struct():
     # GH issue 3429
     code = """
 struct A:
@@ -170,12 +170,12 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
 
-def test_modify_iterator_complex_expr(dummy_input_bundle):
+def test_modify_iterator_complex_expr():
     # GH issue 3429
     # avoid false positive!
     code = """
@@ -189,10 +189,10 @@ def foo():
         self.b[self.a[1]] = i
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module)
 
 
-def test_modify_iterator_siblings(dummy_input_bundle):
+def test_modify_iterator_siblings():
     # test we can modify siblings in an access tree
     code = """
 struct Foo:
@@ -207,10 +207,10 @@ def foo():
         self.f.b += i
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module)
 
 
-def test_modify_subscript_barrier(dummy_input_bundle):
+def test_modify_subscript_barrier():
     # test that Subscript nodes are a barrier for analysis
     code = """
 struct Foo:
@@ -229,7 +229,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `b`"
 
@@ -269,7 +269,7 @@ def foo():
 
 
 @pytest.mark.parametrize("code", iterator_inference_codes)
-def test_iterator_type_inference_checker(code, dummy_input_bundle):
+def test_iterator_type_inference_checker(code):
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        analyze_module(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module)

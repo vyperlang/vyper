@@ -201,7 +201,7 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
     # Add NFT
     self._addTokenTo(_to, _tokenId)
     # Log the transfer
-    log IERC721.Transfer(_from, _to, _tokenId)
+    log IERC721.Transfer(sender=_from, receiver=_to, token_id=_tokenId)
 
 
 ### TRANSFER FUNCTIONS ###
@@ -275,7 +275,7 @@ def approve(_approved: address, _tokenId: uint256):
     assert (senderIsOwner or senderIsApprovedForAll)
     # Set the approval
     self.idToApprovals[_tokenId] = _approved
-    log IERC721.Approval(owner, _approved, _tokenId)
+    log IERC721.Approval(owner=owner, approved=_approved, token_id=_tokenId)
 
 
 @external
@@ -291,7 +291,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
     # Throws if `_operator` is the `msg.sender`
     assert _operator != msg.sender
     self.ownerToOperators[msg.sender][_operator] = _approved
-    log IERC721.ApprovalForAll(msg.sender, _operator, _approved)
+    log IERC721.ApprovalForAll(owner=msg.sender, operator=_operator, approved=_approved)
 
 
 ### MINT & BURN FUNCTIONS ###
@@ -313,7 +313,7 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     assert _to != empty(address)
     # Add NFT. Throws if `_tokenId` is owned by someone
     self._addTokenTo(_to, _tokenId)
-    log IERC721.Transfer(empty(address), _to, _tokenId)
+    log IERC721.Transfer(sender=empty(address), receiver=_to, token_id=_tokenId)
     return True
 
 
@@ -333,7 +333,7 @@ def burn(_tokenId: uint256):
     assert owner != empty(address)
     self._clearApproval(owner, _tokenId)
     self._removeTokenFrom(owner, _tokenId)
-    log IERC721.Transfer(owner, empty(address), _tokenId)
+    log IERC721.Transfer(sender=owner, receiver=empty(address), token_id=_tokenId)
 
 
 @view

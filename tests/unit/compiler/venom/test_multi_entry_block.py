@@ -1,8 +1,7 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRBasicBlock, IRLabel
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes import NormalizationPass
 
 
 def test_multi_entry_block_1():
