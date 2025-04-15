@@ -926,3 +926,66 @@ def foo() -> uint256:
 
     with ctx():
         c.foo()
+
+
+@pytest.mark.parametrize("public_var", ["reentrant(public(uint256))", "public(uint256)"])
+def test_nonreentrant_getter(env, tx_failed, get_contract, public_var):
+    code = f"""
+# pragma nonreentrancy on
+
+interface Self:
+    def bar() -> uint256: view
+
+@deploy
+def __init__():
+    self.bar = 42
+
+bar: {public_var}
+
+@external
+def foo() -> uint256:
+    return staticcall Self(self).bar()
+    """
+    c = get_contract(code)
+
+    if public_var.startswith("reentrant"):
+        assert c.foo() == 42
+    else:
+        with tx_failed():
+            c.foo()
+
+
+def test_nonreentrant_getter_pragma_off(env, tx_failed, get_contract):
+    code = """
+# pragma nonreentrancy off
+
+bar: reentrant(public(uint256))
+
+"""
+    msg = "reentrant() is not allowed without `pragma nonreentrancy on"
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message.startswith(msg)
+
+
+def test_nonreentrant_getter_pragma_off2(env, tx_failed, get_contract):
+    code = """
+# pragma nonreentrancy off
+
+interface Self:
+    def bar() -> uint256: view
+
+@deploy
+def __init__():
+    self.bar = 42
+
+bar: public(uint256)
+
+@external
+def foo() -> uint256:
+    return staticcall Self(self).bar()
+"""
+    c = get_contract(code)
+
+    assert c.foo() == 42
