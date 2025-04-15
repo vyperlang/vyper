@@ -446,14 +446,14 @@ class ContractFunctionT(VyperType):
         # compute nonreentrancy
         settings = funcdef.module_node.settings
         nonreentrant: bool
-        is_default = funcdef.name == "__default__"
         is_external = function_visibility == FunctionVisibility.EXTERNAL
         is_pure = decorators.state_mutability == StateMutability.PURE
 
         if is_pure:
+            # pure functions are always nonreentrant
             nonreentrant = False
         elif settings.nonreentrancy_by_default:
-            if is_default or not is_external:
+            if not is_external:
                 # default, internal functions default to reentrant even if
                 # the pragma is set
                 nonreentrant = decorators.nonreentrant_node is not None

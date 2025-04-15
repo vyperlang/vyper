@@ -847,7 +847,8 @@ def foo():
     assert self.counter == 1
 
 @external
-# reentrant by default
+# nonreentrant by default
+@reentrant
 def __default__():
     self.counter += 1
     """
@@ -868,7 +869,7 @@ def foo():
     assert not success
     assert self.counter == 0
 
-@nonreentrant
+#nonreentrant by default
 @external
 def __default__():
     self.counter += 1
