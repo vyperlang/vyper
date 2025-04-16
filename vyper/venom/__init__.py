@@ -5,6 +5,7 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -55,6 +56,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()

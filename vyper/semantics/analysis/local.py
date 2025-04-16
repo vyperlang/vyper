@@ -531,7 +531,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         for arg in (*args, *kwargs):
             self.expr_visitor.visit(arg, target_type)
 
-    def _analyse_list_iter(self, iter_node, target_type):
+    def _analyse_list_iter(self, target_node, iter_node, target_type):
         # iteration over a variable or literal list
         iter_val = iter_node.reduced()
 
@@ -543,6 +543,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         else:
             try:
                 iter_type = get_exact_type_from_node(iter_node)
+
             except (InvalidType, StructureException):
                 raise InvalidType("Not an iterable type", iter_node)
 
@@ -550,6 +551,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
+
+        if not target_type.compare_type(iter_type.value_type):
+            raise TypeMismatch(f"Expected type of {iter_type.value_type}", target_node)
 
         self.expr_visitor.visit(iter_node, iter_type)
 
@@ -570,7 +574,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # sanity check the postcondition of analyse_range_iter
             assert isinstance(target_type, IntegerT)
         else:
-            iter_var = self._analyse_list_iter(node.iter, target_type)
+            # note: using `node.target` here results in bad source location.
+            iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
@@ -775,6 +780,11 @@ class ExprVisitor(VyperNodeVisitorBase):
                     msg += f"must use the `{should}` keyword."
                     hint = f"try `{should} {node.node_source_code}`"
                     raise CallViolation(msg, hint=hint)
+
+                if func_type.is_fallback:
+                    msg = "`__default__` function cannot be called directly."
+                    msg += " If you mean to call the default function, use `raw_call`"
+                    raise CallViolation(msg)
             else:
                 if not node.is_plain_call:
                     kind = node.kind_str
@@ -834,7 +844,10 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # builtin functions
+            # builtin functions and interfaces
+            if self.function_analyzer and hasattr(func_type, "mutability"):
+                self._check_call_mutability(func_type.mutability)  # type: ignore
+
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)

@@ -161,7 +161,7 @@ def test_cont_jump_case():
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
     assert sccp.lattice[IRVariable("%5")].value == 106
-    assert sccp.lattice.get(IRVariable("%6")) == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%6")] == LatticeEnum.TOP  # never visited
 
 
 def test_cont_phi_case():
@@ -199,9 +199,7 @@ def test_cont_phi_case():
         jmp @join
     join:
         %5 = %5:1
-        # TODO: this should be converted to `sink 106` by sccp, but is not.
-        # to investigate.
-        sink %5
+        sink 106
     """
 
     passes = _check_pre_post(pre, post)
@@ -212,9 +210,9 @@ def test_cont_phi_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)] == LatticeEnum.BOTTOM
-    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5:1")].value == 106
+    assert sccp.lattice[IRVariable("%5:2")] == LatticeEnum.TOP  # never visited
+    assert sccp.lattice[IRVariable("%5")].value == 106
 
 
 def test_cont_phi_const_case():
@@ -253,9 +251,7 @@ def test_cont_phi_const_case():
         jmp @join
     join:
         %5 = %5:1
-        # TODO: this should be converted to `sink 106` by sccp, but is not.
-        # to investigate.
-        sink %5
+        sink 106
     """
 
     passes = _check_pre_post(pre, post)
@@ -266,10 +262,11 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    # dependent on cfg traversal order
-    assert sccp.lattice[IRVariable("%5", version=1)].value == 106
-    assert sccp.lattice[IRVariable("%5", version=2)].value == 97
-    assert sccp.lattice[IRVariable("%5")] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%5:1")].value == 106
+    assert sccp.lattice[IRVariable("%5")].value == 106
+
+    # never visited
+    assert sccp.lattice[IRVariable("%5:2")] == LatticeEnum.TOP
 
 
 def test_phi_reduction_without_basic_block_removal():

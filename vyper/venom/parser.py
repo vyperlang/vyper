@@ -47,7 +47,7 @@ VENOM_GRAMMAR = """
 
     operand: VAR_IDENT | CONST | LABEL
 
-    CONST: SIGNED_INT
+    CONST: SIGNED_INT | "0x" HEXDIGIT+
     OPCODE: CNAME
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -86,15 +86,6 @@ def _set_last_label(ctx: IRContext):
             label_head, *_ = label.split("_", maxsplit=1)
             if label_head.isdigit():
                 ctx.last_label = max(int(label_head), ctx.last_label)
-
-
-def _ensure_terminated(bb):
-    # Since "revert" is not considered terminal explicitly check for it to ensure basic
-    # blocks are terminating
-    if not bb.is_terminated:
-        if any(inst.opcode == "revert" for inst in bb.instructions):
-            bb.append_instruction("stop")
-        # TODO: raise error if still not terminated.
 
 
 def _unescape(s: str):
@@ -136,8 +127,6 @@ class VenomTransformer(Transformer):
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
 
-                _ensure_terminated(bb)
-
             _set_last_var(fn)
         _set_last_label(ctx)
 
@@ -178,7 +167,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, (IRLiteral, IRVariable)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
@@ -200,7 +189,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -224,6 +213,8 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
+        if str(val).startswith("0x"):
+            return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
     def CNAME(self, val) -> str:

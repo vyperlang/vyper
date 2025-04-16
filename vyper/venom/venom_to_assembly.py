@@ -369,8 +369,9 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode in ("alloca", "palloca"):
-            assert len(inst.operands) == 3, f"alloca/palloca must have 3 operands, got {inst}"
+
+        elif opcode in ("alloca", "palloca", "calloca"):
+            assert len(inst.operands) == 3, inst
             offset, _size, _id = inst.operands
             operands = [offset]
 
@@ -472,7 +473,7 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode in ("alloca", "palloca"):
+        elif opcode in ("alloca", "palloca", "calloca"):
             pass
         elif opcode == "param":
             pass
