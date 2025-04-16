@@ -55,7 +55,7 @@ class OutputBundle:
     @cached_property
     def compiler_inputs(self) -> dict[str, CompilerInput]:
         inputs: list[CompilerInput] = [
-            t.compiler_input for t in self._imports if not t.from_builtin
+            t.compiler_input for t in self._imports if not t.compiler_input.from_builtin
         ]
         inputs.append(self.compiler_data.file_input)
 
