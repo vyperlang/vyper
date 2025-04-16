@@ -8,6 +8,7 @@ from vyper.exceptions import (
     CallViolation,
     DuplicateImport,
     ImportCycle,
+    ModuleNotFound,
     StructureException,
     TypeMismatch,
 )
@@ -52,6 +53,41 @@ def bar(x: uint256, y: uint256) -> uint256:
     input_bundle = make_input_bundle({"math.vy": library_source})
 
     # chdir so that `math.vy` is accessible via relative path
+    with working_directory(tmp_path):
+        c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar(1, 2) == 1 + 2
+
+
+# math is a builtin module, can't import module test
+def test_builtin_shadowing2(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+    """
+    main = """
+from math import test
+    """
+    input_bundle = make_input_bundle({"math/test.vy": library_source})
+
+    with working_directory(tmp_path):
+        with pytest.raises(ModuleNotFound):
+            get_contract(main, input_bundle=input_bundle)
+
+
+def test_builtin_shadowing3(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+@internal
+def add(x: uint256, y: uint256) -> uint256:
+    return x + y
+    """
+    main = """
+from .math import test
+
+@external
+def bar(x: uint256, y: uint256) -> uint256:
+    return test.add(x, y)
+    """
+    input_bundle = make_input_bundle({"math/test.vy": library_source})
+
     with working_directory(tmp_path):
         c = get_contract(main, input_bundle=input_bundle)
 
