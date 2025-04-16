@@ -155,33 +155,33 @@ class _AvailableExpression:
     and provides API for handling them
     """
 
-    buckets: dict[_Expression, list[IRInstruction]]
+    exprs: dict[_Expression, list[IRInstruction]]
 
     def __init__(self):
-        self.buckets = dict()
+        self.exprs = dict()
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, _AvailableExpression):
             return False
 
-        return self.buckets == other.buckets
+        return self.exprs == other.exprs
 
     def __repr__(self) -> str:
         res = "available expr\n"
-        for key, val in self.buckets.items():
+        for key, val in self.exprs.items():
             res += f"\t{key}: {val}\n"
         return res
 
     def add(self, expr: _Expression, src_inst: IRInstruction):
-        if expr not in self.buckets:
-            self.buckets[expr] = []
-        self.buckets[expr].append(src_inst)
+        if expr not in self.exprs:
+            self.exprs[expr] = []
+        self.exprs[expr].append(src_inst)
 
     def remove_effect(self, effect: Effects, ignore_msize):
         if effect == effects.EMPTY:
             return
         to_remove = set()
-        for expr in self.buckets.keys():
+        for expr in self.exprs.keys():
             read_effs = expr.get_reads(ignore_msize)
             write_effs = expr.get_writes(ignore_msize)
             op_effect = read_effs | write_effs
@@ -189,13 +189,13 @@ class _AvailableExpression:
                 to_remove.add(expr)
 
         for expr in to_remove:
-            del self.buckets[expr]
+            del self.exprs[expr]
 
     def get_source(self, expr: _Expression) -> IRInstruction | None:
         """
         Get source instruction of expression if currently available
         """
-        tmp = self.buckets.get(expr)
+        tmp = self.exprs.get(expr)
         if tmp is not None:
             # arbitrarily choose the first instruction
             return tmp[0]
@@ -203,8 +203,8 @@ class _AvailableExpression:
 
     def copy(self) -> _AvailableExpression:
         res = _AvailableExpression()
-        for k, v in self.buckets.items():
-            res.buckets[k] = v.copy()
+        for k, v in self.exprs.items():
+            res.exprs[k] = v.copy()
         return res
 
     @staticmethod
@@ -215,16 +215,16 @@ class _AvailableExpression:
         for item in lattices[1:]:
             tmp = res
             res = _AvailableExpression()
-            for expr, insts in item.buckets.items():
-                if expr not in tmp.buckets:
+            for expr, insts in item.exprs.items():
+                if expr not in tmp.exprs:
                     continue
                 new_insts = []
-                for i in tmp.buckets[expr]:
+                for i in tmp.exprs[expr]:
                     if i in insts:
                         new_insts.append(i)
                 if len(new_insts) == 0:
                     continue
-                res.buckets[expr] = new_insts
+                res.exprs[expr] = new_insts
         return res
 
 
@@ -325,7 +325,7 @@ class CSEAnalysis(IRAnalysis):
             return self._get_operand(inst.operands[0], available_exprs)
         if inst in self.inst_to_expr:
             e = self.inst_to_expr[inst]
-            same_insts = available_exprs.buckets.get(e, [])
+            same_insts = available_exprs.exprs.get(e, [])
             if inst in same_insts:
                 return self.inst_to_expr[same_insts[0]]
             return e
@@ -349,7 +349,7 @@ class CSEAnalysis(IRAnalysis):
 
     def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:
         available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
-        res = available_exprs.buckets[expr]
+        res = available_exprs.exprs[expr]
         return [i for i in res if i != inst and i.parent == inst.parent]
 
     def _get_expression(
