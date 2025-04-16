@@ -37,7 +37,7 @@ static_leaf_ctors = [t for t in leaf_ctors if t._is_prim_word]
 dynamic_leaf_ctors = [BytesT, StringT]
 
 
-def create_id_generator():
+def _create_id_generator():
     counter = 0
 
     def get_next_id():
@@ -48,7 +48,7 @@ def create_id_generator():
     return get_next_id
 
 
-get_next_id = create_id_generator()
+get_next_id = _create_id_generator()
 
 
 @st.composite
@@ -212,7 +212,7 @@ def _mutate(draw, payload: bytes, max_mutations=MAX_MUTATIONS):
 
     # add, edit, delete, word, splice, flip
     possible_actions = "adwww"
-    actions = draw(st.lists(st.sampled_from(possible_actions), max_size=MAX_MUTATIONS))
+    actions = draw(st.lists(st.sampled_from(possible_actions), max_size=max_mutations))
 
     for action in actions:
         if len(ret) == 0:
@@ -270,9 +270,22 @@ def _mutate(draw, payload: bytes, max_mutations=MAX_MUTATIONS):
 
 
 @st.composite
-def payload_from(draw, typ: VyperType):
+def _abi_payload_from(draw, typ: VyperType):
     data = draw(data_for_type(typ))
     schema = typ.abi_type.selector_name()
     payload = abi.encode(schema, data)
 
-    return draw(_mutate(payload))
+    return payload
+
+@st.composite
+def payload_from(draw, typ: VyperType):
+    abi_payload = draw(_abi_payload_from(typ))
+
+    return abi_payload
+
+@st.composite
+def mutated_payload_from(draw, typ: VyperType):
+    abi_payload = draw(_abi_payload_from(typ))
+    mutated_payload = draw(_mutate(abi_payload))
+
+    return mutated_payload
