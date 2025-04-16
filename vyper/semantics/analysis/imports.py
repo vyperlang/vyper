@@ -1,5 +1,6 @@
 import contextlib
-from dataclasses import dataclass, field
+import dataclasses as dc
+from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
@@ -7,6 +8,7 @@ import vyper.builtins.interfaces
 import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
+    BUILTIN,
     ABIInput,
     CompilerInput,
     FileInput,
@@ -35,11 +37,11 @@ segregate the I/O portion of semantic analysis into its own pass.
 @dataclass
 class _ImportGraph:
     # the current path in the import graph traversal
-    _path: list[vy_ast.Module] = field(default_factory=list)
+    _path: list[vy_ast.Module] = dc.field(default_factory=list)
 
     # stack of dicts, each item in the stack is a dict keeping
     # track of imports in the current module
-    _imports: list[dict] = field(default_factory=list)
+    _imports: list[dict] = dc.field(default_factory=list)
 
     @property
     def imported_modules(self):
@@ -324,6 +326,8 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
     try:
         file = input_bundle.load_file(path)
+        # set source_id to builtin sentinel value
+        file = dc.replace(file, source_id=BUILTIN)
         assert isinstance(file, FileInput)  # mypy hint
     except FileNotFoundError as e:
         hint = None
