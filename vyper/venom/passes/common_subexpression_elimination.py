@@ -1,42 +1,18 @@
-from vyper.venom.analysis.available_expression import CSEAnalysis
+from vyper.venom.analysis.available_expression import (
+    NONIDEMPOTENT_INSTRUCTIONS,
+    UNINTERESTING_OPCODES,
+    CSEAnalysis,
+)
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
-# instruction that are not usefull to be
-# substituted
-UNINTERESTING_OPCODES = frozenset(
-    [
-        "store",
-        "param",
-        "offset",
-        "phi",
-        "nop",
-        "calldatasize",
-        "returndatasize",
-        "gas",
-        "gaslimit",
-        "gasprice",
-        "gaslimit",
-        "address",
-        "origin",
-        "codesize",
-        "caller",
-        "callvalue",
-        "coinbase",
-        "timestamp",
-        "number",
-        "prevrandao",
-        "chainid",
-        "basefee",
-        "blobbasefee",
-        "pc",
-        "msize",
-    ]
-)
-# intruction that cannot be substituted (without further analysis)
-NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
+# instruction that are not useful to be # substituted
+NO_SUBSTITUTE_OPCODES = UNINTERESTING_OPCODES | frozenset(["offset"])
+
+
+SMALL_EXPRESSION = 1
 
 
 class CSE(IRPass):
@@ -66,20 +42,25 @@ class CSE(IRPass):
             for inst in bb.instructions:
                 # skip instruction that for sure
                 # wont be substituted
-                if (
-                    inst.opcode in UNINTERESTING_OPCODES
-                    or inst.opcode in NONIDEMPOTENT_INSTRUCTIONS
-                ):
+                if inst.opcode in UNINTERESTING_OPCODES:
                     continue
-                expr, src_inst = self.expression_analysis.get_expression(inst)
-                # heuristic to not replace small expressions
+                if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
+                    continue
+                expr, replace_inst = self.expression_analysis.get_expression(inst)
+                if replace_inst == inst:
+                    # no replacement
+                    continue
+
+                # heuristic to not replace small expressions across
                 # basic block bounderies (it can create better codesize)
-                if src_inst != inst:
-                    if expr.depth > 1:
-                        res[inst] = src_inst
+                if expr.depth > SMALL_EXPRESSION:
+                    res[inst] = replace_inst
+                else:
                     from_same_bb = self.expression_analysis.get_from_same_bb(inst, expr)
                     if len(from_same_bb) > 0:
-                        res[inst] = from_same_bb[0]
+                        # arbitrarily pick a replacement instruction
+                        replace_inst = from_same_bb[0]
+                        res[inst] = replace_inst
 
         return res
 
