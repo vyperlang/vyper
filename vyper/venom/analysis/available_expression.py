@@ -197,6 +197,7 @@ class _AvailableExpression:
         """
         tmp = self.buckets.get(expr)
         if tmp is not None:
+            # arbitrarily choose the first instruction
             return tmp[0]
         return None
 
