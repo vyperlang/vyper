@@ -55,9 +55,7 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            self.expression_analysis = self.analyses_cache.force_analysis(
-                CSEAnalysis
-            )  # type: ignore
+            self.expression_analysis = self.analyses_cache.force_analysis(CSEAnalysis)
 
     # return instruction and to which instruction it could
     # replaced by
