@@ -551,7 +551,7 @@ def test_cse_small_expressions():
         jmp @join
     join:
         %5 = add 1, 2
-        sink %4
+        sink %5
     """
 
     post = """
@@ -568,7 +568,7 @@ def test_cse_small_expressions():
         jmp @join
     join:
         %5 = add 1, 2
-        sink %4
+        sink %5
     """
 
     _check_pre_post(pre, post)
