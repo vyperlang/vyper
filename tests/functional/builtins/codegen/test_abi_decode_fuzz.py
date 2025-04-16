@@ -22,7 +22,7 @@ from .abi_decode import DecodeError, spec_decode
 pytestmark = pytest.mark.fuzzing
 
 MAX_MUTATIONS = 33
-PARALLELISM = 1
+PARALLELISM = 1  # increase on fuzzer box
 
 _settings = dict(
     report_multiple_bugs=False,
@@ -115,9 +115,6 @@ def payload_copier(get_contract_from_ir):
     return get_contract_from_ir(["deploy", 0, ir, 0])
 
 
-PARALLELISM = 1  # increase on fuzzer box
-
-
 # NOTE: this is a heavy test. 100 types * 100 payloads per type can take
 # 3-4minutes on a regular CPU core.
 @pytest.mark.parametrize("_n", list(range(PARALLELISM)))
@@ -177,7 +174,7 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
     hp.note(code)
     c = get_contract(code)
 
-    @hp.given(data=vfz.payload_from(wrapped_type))
+    @hp.given(data=vfz.mutated_payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)
     def _fuzz(data):
         hp.note(f"type: {typ}")
@@ -249,7 +246,7 @@ def run(xs: Bytes[{buffer_bound}]) -> {type_str}:
         if env.contract_size_limit_error in str(e):
             hp.assume(False)
 
-    @hp.given(data=vfz.payload_from(typ))
+    @hp.given(data=vfz.mutated_payload_from(typ))
     @hp.settings(max_examples=100, **_settings)
     def _fuzz(data):
         hp.note(code)

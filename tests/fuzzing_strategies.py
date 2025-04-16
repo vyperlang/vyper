@@ -277,11 +277,13 @@ def _abi_payload_from(draw, typ: VyperType):
 
     return payload
 
+
 @st.composite
 def payload_from(draw, typ: VyperType):
     abi_payload = draw(_abi_payload_from(typ))
 
     return abi_payload
+
 
 @st.composite
 def mutated_payload_from(draw, typ: VyperType):
