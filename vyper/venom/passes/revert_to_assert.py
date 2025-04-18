@@ -26,6 +26,7 @@ class RevertToAssert(IRPass):
                 self._rewrite_jnz(pred, bb)
 
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _rewrite_jnz(self, pred, revert_bb):
         term = pred.instructions[-1]
