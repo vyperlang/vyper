@@ -271,26 +271,30 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_expr = _AvailableExpression.lattice_meet(
+        available_exprs = _AvailableExpression.lattice_meet(
             [self.bb_outs.get(pred, _AvailableExpression()) for pred in bb.cfg_in]
         )
 
-        if bb in self.bb_ins and self.bb_ins[bb] == available_expr:
+        if bb in self.bb_ins and self.bb_ins[bb] == available_exprs:
             return False
 
-        self.bb_ins[bb] = available_expr.copy()
+        self.bb_ins[bb] = available_exprs.copy()
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
+            if inst.opcode in ("store", "phi") or inst.opcode in BB_TERMINATORS:
                 continue
 
-            if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
-                self.inst_to_available[inst] = available_expr.copy()
+            if inst not in self.inst_to_available or available_exprs != self.inst_to_available[inst]:
+                self.inst_to_available[inst] = available_exprs.copy()
 
-            expr = self._get_expression(inst, available_expr)
+            expr = self._mk_expr(inst, available_exprs)
+            expr = self._get_instance(expr, available_exprs)
+
+            self._update_expr(inst, expr)
+
             write_effects = expr.get_writes(self.ignore_msize)
-            available_expr.remove_effect(write_effects, self.ignore_msize)
+            available_exprs.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instruction effect other instructions
             # but since it cannot be substituted it does not have
@@ -300,10 +304,10 @@ class CSEAnalysis(IRAnalysis):
 
             expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
             if expr_effects == effects.EMPTY:
-                available_expr.add(expr, inst)
+                available_exprs.add(expr, inst)
 
-        if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
-            self.bb_outs[bb] = available_expr
+        if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
+            self.bb_outs[bb] = available_exprs
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
@@ -330,21 +334,21 @@ class CSEAnalysis(IRAnalysis):
                 return self.inst_to_expr[same_insts[0]]
             return e
         assert inst.opcode in UNINTERESTING_OPCODES
-        return self._get_expression(inst, available_exprs)
+        expr = self._mk_expr(inst, available_exprs)
+        return self._get_instance(expr, available_exprs)
 
     def get_expression(
-        self, inst: IRInstruction, available_exprs: _AvailableExpression | None = None
-    ) -> tuple[_Expression, IRInstruction]:
-        if available_exprs is None:
-            available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
+        self, inst: IRInstruction 
+    ) -> tuple[_Expression, IRInstruction] | None:
+        available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
 
         assert available_exprs is not None  # help mypy
         expr = self.inst_to_expr.get(inst)
         if expr is None:
-            expr = self._get_expression(inst, available_exprs)
+            return None
         src = available_exprs.get_source(expr)
         if src is None:
-            src = inst
+            return None
         return (expr, src)
 
     def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:
@@ -352,21 +356,25 @@ class CSEAnalysis(IRAnalysis):
         res = available_exprs.exprs[expr]
         return [i for i in res if i != inst and i.parent == inst.parent]
 
-    def _get_expression(
-        self, inst: IRInstruction, available_exprs: _AvailableExpression
-    ) -> _Expression:
-        # create expression
+    def _mk_expr(self, inst:IRInstruction, available_exprs: _AvailableExpression) -> _Expression:
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
         expr = _Expression(inst.opcode, operands)
 
+        return expr
+
+    def _get_instance(self, expr: _Expression, available_exprs: _AvailableExpression) -> _Expression:
+        """
+        Check if the expression is not all ready in available expressions
+        is so then return that instance
+        """
         src_inst = available_exprs.get_source(expr)
         if src_inst is not None:
             same_expr = self.inst_to_expr[src_inst]
-            if same_expr is not None:
-                self.inst_to_expr[inst] = same_expr
-                return same_expr
+            return same_expr
 
-        self.inst_to_expr[inst] = expr
         return expr
+
+    def _update_expr(self, inst: IRInstruction, expr: _Expression):
+        self.inst_to_expr[inst] = expr

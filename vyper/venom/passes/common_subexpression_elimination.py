@@ -46,7 +46,10 @@ class CSE(IRPass):
                     continue
                 if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                     continue
-                expr, replace_inst = self.expression_analysis.get_expression(inst)
+                state = self.expression_analysis.get_expression(inst)
+                if state is None:
+                    continue
+                expr, replace_inst = state
                 if replace_inst == inst:
                     # no replacement
                     continue
