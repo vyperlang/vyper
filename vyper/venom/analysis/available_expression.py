@@ -19,7 +19,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import Effects
 
-NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke"])
+NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke", "param"])
 
 # instructions that queries info about current
 # environment this is done because we know that
@@ -134,11 +134,13 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
 
     # Early return special case for commutative instructions
     if a.is_commutative:
-        if same(a.operands[0], b.operands[1]) and same(a.operands[1], b.operands[0]):
+        if same_ops(a.operands, list(reversed(b.operands))):
             return True
 
-    # General case
-    for self_op, other_op in zip(a.operands, b.operands):
+    return same_ops(a.operands, b.operands)
+
+def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expression]) -> bool:
+    for self_op, other_op in zip(a_ops, b_ops):
         if type(self_op) is not type(other_op):
             return False
         if isinstance(self_op, IROperand) and self_op != other_op:
@@ -147,6 +149,7 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
             return False
 
     return True
+
 
 
 class _AvailableExpression:

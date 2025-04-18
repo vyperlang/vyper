@@ -572,3 +572,15 @@ def test_cse_small_expressions():
     """
 
     _check_pre_post(pre, post)
+
+def test_cse_different_params():
+    pre = """
+    main:
+        %p1 = param
+        %p2 = param
+        %a1 = add %p1, %p2
+        %a2 = add %p2, %p2
+        sink %a1, %a2
+    """
+
+    _check_no_change(pre)
