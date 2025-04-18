@@ -170,6 +170,7 @@ def get_nonreentrant_lock(func_t):
         return [check_notset], [["seq"]]
 
     else:
+        assert func_t.mutability >= StateMutability.NONPAYABLE  # sanity
         pre = ["seq", check_notset, [STORE, nkey, temp_value]]
         post = [STORE, nkey, final_value]
         return [pre], [post]

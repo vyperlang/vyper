@@ -1379,6 +1379,7 @@ class VariableDecl(VyperNode):
         "is_public",
         "is_immutable",
         "is_transient",
+        "is_reentrant",
         "_expanded_getter",
     )
 
@@ -1389,6 +1390,7 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
         self.is_transient = False
+        self.is_reentrant = False
         self._expanded_getter = None
 
         def _check_args(annotation, call_name):
@@ -1401,9 +1403,14 @@ class VariableDecl(VyperNode):
         # `foo: public(constant(uint256))`
         # pretend we were parsing actual Vyper AST. annotation would be
         # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
-        if self.annotation.get("func.id") == "public":
-            _check_args(self.annotation, "public")
-            self.is_public = True
+
+        # unwrap reentrant and public. they can be in any order
+        for _ in range(2):
+            func_id = self.annotation.get("func.id")
+            if func_id not in ("public", "reentrant"):
+                break
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
@@ -1430,6 +1437,11 @@ class VariableDecl(VyperNode):
     def validate(self):
         if self.is_constant and self.value is None:
             raise VariableDeclarationException("Constant must be declared with a value", self)
+
+        if self.is_reentrant and not self.is_public:
+            raise VariableDeclarationException(
+                "Only public variables can be marked `reentrant`!", self
+            )
 
         if not self.is_constant and self.value is not None:
             raise VariableDeclarationException(

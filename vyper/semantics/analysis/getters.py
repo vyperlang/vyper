@@ -63,12 +63,17 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # after iterating the input types, the remaining annotation node is our return type
         return_annotation = copy.copy(annotation)
 
+        decorators = [vy_ast.Name(id="external"), vy_ast.Name(id="view")]
+        settings = node.module_node.settings
+        if settings.nonreentrancy_by_default and node.is_reentrant:
+            decorators.append(vy_ast.Name(id="reentrant"))
+
         # join everything together as a new `FunctionDef` node
         expanded = vy_ast.FunctionDef(
             name=funcname,
             args=vy_ast.arguments(args=input_nodes, defaults=[]),
             body=[vy_ast.Return(value=return_expr)],
-            decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
+            decorator_list=decorators,
             returns=return_annotation,
         )
 

@@ -63,6 +63,7 @@ a: int128
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
+        "is_reentrant": False,
         "is_transient": False,
         "lineno": 2,
         "node_id": 1,
@@ -543,6 +544,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 56,
                 "target": {
@@ -565,6 +567,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 61,
                 "target": {
@@ -604,6 +607,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 69,
                 "target": {
@@ -631,6 +635,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 81,
                 "target": {
@@ -668,6 +673,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 86,
                 "target": {
@@ -700,6 +706,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 99,
                 "target": {
@@ -749,6 +756,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 107,
                 "target": {

@@ -152,8 +152,8 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 .. note::
     The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
 
-Re-entrancy Locks
------------------
+Nonreentrancy Locks
+-------------------
 
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
@@ -182,6 +182,40 @@ You can view where the nonreentrant key is physically laid out in storage by usi
 
 .. note::
    Prior to 0.4.0, nonreentrancy keys took a "key" argument for fine-grained nonreentrancy control. As of 0.4.0, only a global nonreentrancy lock is available.
+
+The nonreentrant pragma
+-----------------------
+
+Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all functions in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
+
+When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. Here is an example:
+
+.. code-block:: vyper
+    # pragma nonreentrancy on
+
+    @external
+    def make_a_call(addr: address):
+        # this function is protected from re-entrancy
+        ...
+
+    @external
+    @reentrant
+    def callback(addr: address):
+        # this function is allowed to be reentered into
+        ...
+
+    @external
+    def __default__():
+        # the default function is reentrant by default, even when
+        # the nonreentrancy pragma is set
+        ...
+
+The default is ``#pragma nonreentrancy off``, which can be used to signal specifically that nonreentrancy protection is off in this file.
+
+Note that the ``__default__`` function maintains the same default as when ``# pragma nonreentrancy off`` is set, which is that it is reentrant. To enable nonreentrancy on the ``__default__`` function, you must opt into it with the ``@nonreentrant`` decorator, with the caveat as mentioned in the previous section that this will probably lead to unintended behavior.
+
+.. note::
+   The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
 
 The ``__default__`` Function
 ----------------------------

@@ -254,11 +254,13 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
         # use the resolved path given to us by the InputBundle
         pass
 
+    is_interface = file.resolved_path.suffix == ".vyi"
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=module_path.as_posix(),
         resolved_path=file.resolved_path.as_posix(),
+        is_interface=is_interface,
     )
     return ret
 

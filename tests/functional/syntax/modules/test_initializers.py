@@ -1418,3 +1418,29 @@ initializes: lib1
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "module `lib3.vy` is used but never initialized!"
     assert e.value._hint is None
+
+
+# import has nonreentrancy pragma on and an external function
+# and thus must be initialized
+def test_import_has_nonreentrancy_pragma(make_input_bundle, get_contract, tx_failed):
+    lib1 = """
+# pragma nonreentrancy on
+
+@external
+def bar():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.bar
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message.startswith("Cannot access `lib1` state!")
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a"
+    expected_hint += " top-level statement to your contract"
+    assert e.value._hint == expected_hint

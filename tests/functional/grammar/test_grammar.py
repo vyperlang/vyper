@@ -102,7 +102,7 @@ def has_no_docstrings(c):
     max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
 )
 def test_grammar_bruteforce(code):
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code + "\n")
     tree = parse_to_ast(pre_parser.reformatted_code)
     assert isinstance(tree, Module)
