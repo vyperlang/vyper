@@ -46,10 +46,12 @@ class BaseEnv:
 
     DEFAULT_CHAIN_ID = 1
 
-    def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
+    def __init__(self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
+
+        self.exporter = exporter
 
     def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
         """Deploy a contract with the given ABI and bytecode."""

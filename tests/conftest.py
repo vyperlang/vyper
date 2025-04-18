@@ -1,4 +1,5 @@
 import copy
+from _pytest.fixtures import FixtureRequest
 from contextlib import contextmanager
 from random import Random
 from typing import Generator
@@ -201,13 +202,21 @@ def account_keys():
 
 
 @pytest.fixture(scope="module")
-def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
+def exporter(request):
+    if pytestconfig.getoption("export"):
+        return TestExporter(request.module)
+    return None
+
+
+@pytest.fixture(scope="module")
+def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) -> BaseEnv:
     return evm_backend(
         gas_limit=gas_limit,
         tracing=tracing,
         block_number=1,
         evm_version=evm_version,
         account_keys=account_keys,
+        exporter=exporter,
     )
 
 
@@ -384,6 +393,10 @@ def pytest_runtest_call(item) -> Generator:
             item.add_marker(
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
+
+    request = item._request
+    exporter = request.getfixturevalue("exporter")
+    exporter.set_current_item(item)
 
     # Isolate tests by reverting the state of the environment after each test
     env = item.funcargs.get("env")

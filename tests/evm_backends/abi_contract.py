@@ -204,7 +204,7 @@ class ABIFunction:
         if sender is None:
             sender = self.contract.env.deployer
 
-        computation = self.contract.env.message_call(
+        call_args = dict(
             to=self.contract.address,
             sender=sender,
             data=self.prepare_calldata(*args, **kwargs),
@@ -213,6 +213,10 @@ class ABIFunction:
             gas_price=gas_price,
             is_modifying=self.is_mutable,
         )
+        computation = self.contract.env.message_call(**call_args)
+
+        if self.env.exporter is not None:
+            self.env.exporter.trace_call(output=computation, **call_args)
 
         match self.contract.marshal_to_python(computation, self.return_type):
             case ():
