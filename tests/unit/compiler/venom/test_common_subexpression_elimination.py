@@ -573,6 +573,7 @@ def test_cse_small_expressions():
 
     _check_pre_post(pre, post)
 
+
 def test_cse_different_params():
     pre = """
     main:

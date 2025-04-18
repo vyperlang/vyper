@@ -19,7 +19,9 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import Effects
 
-NONIDEMPOTENT_INSTRUCTIONS = frozenset(["log", "call", "staticcall", "delegatecall", "invoke", "param"])
+NONIDEMPOTENT_INSTRUCTIONS = frozenset(
+    ["log", "call", "staticcall", "delegatecall", "invoke", "param"]
+)
 
 # instructions that queries info about current
 # environment this is done because we know that
@@ -139,6 +141,7 @@ def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
 
     return same_ops(a.operands, b.operands)
 
+
 def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expression]) -> bool:
     for self_op, other_op in zip(a_ops, b_ops):
         if type(self_op) is not type(other_op):
@@ -149,7 +152,6 @@ def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expr
             return False
 
     return True
-
 
 
 class _AvailableExpression:
@@ -288,7 +290,10 @@ class CSEAnalysis(IRAnalysis):
             if inst.opcode in ("store", "phi") or inst.opcode in BB_TERMINATORS:
                 continue
 
-            if inst not in self.inst_to_available or available_exprs != self.inst_to_available[inst]:
+            if (
+                inst not in self.inst_to_available
+                or available_exprs != self.inst_to_available[inst]
+            ):
                 self.inst_to_available[inst] = available_exprs.copy()
 
             expr = self._mk_expr(inst, available_exprs)
@@ -340,9 +345,7 @@ class CSEAnalysis(IRAnalysis):
         expr = self._mk_expr(inst, available_exprs)
         return self._get_instance(expr, available_exprs)
 
-    def get_expression(
-        self, inst: IRInstruction 
-    ) -> tuple[_Expression, IRInstruction] | None:
+    def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
         available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
 
         assert available_exprs is not None  # help mypy
@@ -359,7 +362,7 @@ class CSEAnalysis(IRAnalysis):
         res = available_exprs.exprs[expr]
         return [i for i in res if i != inst and i.parent == inst.parent]
 
-    def _mk_expr(self, inst:IRInstruction, available_exprs: _AvailableExpression) -> _Expression:
+    def _mk_expr(self, inst: IRInstruction, available_exprs: _AvailableExpression) -> _Expression:
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
@@ -367,7 +370,9 @@ class CSEAnalysis(IRAnalysis):
 
         return expr
 
-    def _get_instance(self, expr: _Expression, available_exprs: _AvailableExpression) -> _Expression:
+    def _get_instance(
+        self, expr: _Expression, available_exprs: _AvailableExpression
+    ) -> _Expression:
         """
         Check if the expression is not all ready in available expressions
         is so then return that instance
