@@ -12,10 +12,13 @@ if _commit_hash_file.exists():
 else:
     __commit__ = "unknown"
 
+__version__: str
 try:
     __version__ = _version(__name__)
 except PackageNotFoundError:
-    from vyper.version import version as __version__  # type: ignore[no-redef]
+    from vyper.version import version
+
+    __version__ = version
 
 # pep440 version with commit hash
 __long_version__ = f"{__version__}+commit.{__commit__}"
