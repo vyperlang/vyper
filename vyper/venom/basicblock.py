@@ -537,6 +537,8 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
+        if self.opcode in ("ret", "param"):
+            return 0
         if self.opcode == "store":
             return 1
         return 2
