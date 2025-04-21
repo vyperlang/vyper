@@ -6,6 +6,8 @@ try:
     from importlib.metadata import PackageNotFoundError  # type: ignore
     from importlib.metadata import version as _version  # type: ignore
 except ModuleNotFoundError:
+    # TODO: which versions are these backported for? can we remove
+    # the backport?
     from importlib_metadata import PackageNotFoundError  # type: ignore
     from importlib_metadata import version as _version  # type: ignore
 
