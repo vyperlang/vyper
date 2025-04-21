@@ -137,6 +137,21 @@ class Context:
 
         self.settings = get_global_settings()
 
+        self._return_buffer = self._allocate_return_buffer()
+
+    def _allocate_return_buffer(self):
+        from vyper.codegen.core import calculate_type_for_external_return, get_type_for_exact_size
+
+        if self.return_type is None:
+            return None
+        return_t = calculate_type_for_external_return(self.return_type)
+        maxlen = return_t.abi_type.size_bound()
+        buf = self.new_internal_variable(get_type_for_exact_size(maxlen))
+        return buf
+
+    def get_return_buffer(self):
+        return self._return_buffer
+
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
 

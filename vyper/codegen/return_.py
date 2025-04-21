@@ -6,7 +6,6 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
     dummy_node_for_type,
-    get_type_for_exact_size,
     make_setter,
     needs_clamp,
     wrap_value_for_external_return,
@@ -71,7 +70,10 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
             and not needs_clamp(ir_val.typ, ir_val.encoding)
         )
 
-        if can_skip_encode:
+        if can_skip_encode and not (
+            context.settings.experimental_codegen
+            and context.return_type.memory_bytes_required == 32
+        ):
             assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
             jump_to_exit += [ir_val, maxlen]  # type: ignore
             return finalize(["pass"])
@@ -80,7 +82,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
         # general case: abi_encode the data to a newly allocated buffer
         # and return the buffer
-        return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
+        return_buffer_ofst = context.get_return_buffer()
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
