@@ -355,6 +355,7 @@ class CSEAnalysis(IRAnalysis):
         src = available_exprs.get_source(expr)
         if src is None:
             return None
+        assert src != inst
         return (expr, src)
 
     def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:

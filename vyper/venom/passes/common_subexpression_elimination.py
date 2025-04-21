@@ -50,9 +50,6 @@ class CSE(IRPass):
                 if state is None:
                     continue
                 expr, replace_inst = state
-                if replace_inst == inst:
-                    # no replacement
-                    continue
 
                 # heuristic to not replace small expressions across
                 # basic block bounderies (it can create better codesize)
