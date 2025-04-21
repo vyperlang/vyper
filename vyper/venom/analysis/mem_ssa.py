@@ -438,4 +438,4 @@ class MemSSA(IRAnalysis):
         try:
             yield
         finally:
-        ir_printer.set(None)
+            ir_printer.set(None)
