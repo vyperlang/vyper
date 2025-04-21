@@ -256,8 +256,7 @@ class MemoryLocation:
             return self == FULL_MEMORY_ACCESS
         if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
             return False
-        if self.size <= 0 or other.size <= 0:
-            return False
+        assert self.size > 0 and other.size > 0
 
         start1, end1 = self.offset, self.offset + self.size
         start2, end2 = other.offset, other.offset + other.size
