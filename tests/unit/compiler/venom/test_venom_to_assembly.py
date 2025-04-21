@@ -1,5 +1,6 @@
-from vyper.venom.venom_to_assembly import VenomCompiler
 from vyper.venom.parser import parse_venom
+from vyper.venom.venom_to_assembly import VenomCompiler
+
 
 def test_dead_params():
     code = """
@@ -14,6 +15,7 @@ def test_dead_params():
 
     asm = VenomCompiler([ctx]).generate_evm()
     assert asm == ["SWAP1", "POP", "JUMP"]
+
 
 def test_optimistic_swap_params():
     code = """
