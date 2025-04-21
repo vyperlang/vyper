@@ -1,9 +1,8 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 from pathlib import Path as _Path
 
 from vyper.compiler import compile_code, compile_from_file_input
-
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _version
 
 _commit_hash_file = _Path(__file__).parent.joinpath("vyper_git_commithash.txt")
 
@@ -16,7 +15,7 @@ else:
 try:
     __version__ = _version(__name__)
 except PackageNotFoundError:
-    from vyper.version import version as __version__
+    from vyper.version import version as __version__  # type: ignore[no-redef]
 
 # pep440 version with commit hash
 __long_version__ = f"{__version__}+commit.{__commit__}"
