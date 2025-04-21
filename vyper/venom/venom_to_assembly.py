@@ -136,7 +136,6 @@ def _as_asm_symbol(label: IRLabel) -> str:
 class VenomCompiler:
     ctxs: list[IRContext]
     label_counter = 0
-    visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness_analysis: LivenessAnalysis
     dfg: DFGAnalysis
@@ -144,11 +143,9 @@ class VenomCompiler:
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
         self.label_counter = 0
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
 
     def generate_evm(self, no_optimize: bool = False) -> list[str]:
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
