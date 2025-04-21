@@ -84,7 +84,18 @@ class _Expression:
 
     # Full equality for expressions based on opcode and operands
     def same(self, other) -> bool:
-        return same(self, other)
+        if self is other:
+            return True
+
+        if self.opcode != other.opcode:
+            return False
+
+        # Early return special case for commutative instructions
+        if self.is_commutative:
+            if same_ops(self.operands, list(reversed(other.operands))):
+                return True
+
+        return same_ops(self.operands, other.operands)
 
     def __repr__(self) -> str:
         if self.opcode == "store":
@@ -120,26 +131,6 @@ class _Expression:
     @property
     def is_commutative(self) -> bool:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
-
-
-def same(a: IROperand | _Expression, b: IROperand | _Expression) -> bool:
-    if isinstance(a, IROperand) and isinstance(b, IROperand):
-        return a.value == b.value
-    if not isinstance(a, _Expression) or not isinstance(b, _Expression):
-        return False
-
-    if a is b:
-        return True
-
-    if a.opcode != b.opcode:
-        return False
-
-    # Early return special case for commutative instructions
-    if a.is_commutative:
-        if same_ops(a.operands, list(reversed(b.operands))):
-            return True
-
-    return same_ops(a.operands, b.operands)
 
 
 def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expression]) -> bool:
