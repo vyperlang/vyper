@@ -326,15 +326,13 @@ class CSEAnalysis(IRAnalysis):
             return op
         if inst.opcode == "store":
             return self._get_operand(inst.operands[0], available_exprs)
-        if inst in self.inst_to_expr:
-            e = self.inst_to_expr[inst]
-            same_insts = available_exprs.exprs.get(e, [])
-            if inst in same_insts:
-                return self.inst_to_expr[same_insts[0]]
-            return e
-        assert inst.opcode in UNINTERESTING_OPCODES
-        expr = self._mk_expr(inst, available_exprs)
-        return self._get_instance(expr, available_exprs)
+
+        assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
+        e = self.inst_to_expr[inst]
+        same_insts = available_exprs.exprs.get(e, [])
+        if inst in same_insts:
+            return self.inst_to_expr[same_insts[0]]
+        return e
 
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
         available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
