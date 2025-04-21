@@ -31,7 +31,11 @@ class DFGAnalysis(IRAnalysis):
         return self._dfg_outputs.get(op)
 
     def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):
+        # should this check if inst.output is already in dfg_outputs?
         self._dfg_outputs[op] = inst
+
+    def remove_producing_instruction(self, op: IRVariable):
+        del self._dfg_outputs[op]
 
     def add_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.setdefault(op, OrderedSet())

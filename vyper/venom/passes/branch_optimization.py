@@ -40,19 +40,20 @@ class BranchOptimizationPass(IRPass):
             # heuristic: remove the iszero and swap branches
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
                 new_cond = prev_inst.operands[0]
-                new_labels = term_inst.operands[2], term_inst.operands[1]
-                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
+                new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                self.updater.update(term_inst, term_inst.opcode, new_operands)
 
             # heuristic: add an iszero and swap branches
             elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
                 new_cond = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
-                new_labels = term_inst.operands[2], term_inst.operands[1]
-                self.updater.update(term_inst, "jnz", [new_cond, *new_labels])
+                new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
+                self.updater.update(term_inst, term_inst.opcode, new_operands)
 
     def run_pass(self):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
 
         assert isinstance(self.dfg, DFGAnalysis)
         self.updater = InstUpdater(self.dfg)

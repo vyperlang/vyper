@@ -75,7 +75,9 @@ class CFGAnalysis(IRAnalysis):
             bb.cfg_out = OrderedSet()
             bb.out_vars = OrderedSet()
 
+        # just to be on the safe side, but this is probably not needed.
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self._dfs = None
