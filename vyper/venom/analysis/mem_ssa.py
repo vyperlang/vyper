@@ -435,5 +435,7 @@ class MemSSA(IRAnalysis):
     @contextlib.contextmanager
     def print_context(self):
         ir_printer.set(self)
-        yield
+        try:
+            yield
+        finally:
         ir_printer.set(None)
