@@ -285,6 +285,7 @@ class VenomCompiler:
         last_param = None
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
+                # note: always well defined if the bb is terminated
                 next_liveness = inst.liveness
                 break
 
@@ -292,9 +293,6 @@ class VenomCompiler:
 
             assert inst.output is not None  # help mypy
             stack.push(inst.output)
-        else:
-            # case when the function only has param instructions
-            next_liveness = fn.entry.out_vars
 
         # no params (only applies for global entry function)
         if last_param is None:
