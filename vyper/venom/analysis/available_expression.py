@@ -129,16 +129,16 @@ class _Expression:
         return max_depth + 1
 
     def get_reads(self, ignore_msize) -> Effects:
-        tmp_reads = effects.reads.get(self.opcode, effects.EMPTY)
+        ret = effects.reads.get(self.opcode, effects.EMPTY)
         if ignore_msize:
-            tmp_reads &= ~Effects.MSIZE
-        return tmp_reads
+            ret &= ~Effects.MSIZE
+        return ret
 
     def get_writes(self, ignore_msize) -> Effects:
-        tmp_reads = effects.writes.get(self.opcode, effects.EMPTY)
+        ret = effects.writes.get(self.opcode, effects.EMPTY)
         if ignore_msize:
-            tmp_reads &= ~Effects.MSIZE
-        return tmp_reads
+            ret &= ~Effects.MSIZE
+        return ret
 
     @property
     def is_commutative(self) -> bool:
