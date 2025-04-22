@@ -21,10 +21,13 @@ from vyper.venom.effects import Effects
 
 SYS_EFFECTS = effects.LOG | effects.BALANCE | effects.EXTCODE
 
-_nonidempotent_insts = ["param", "invoke"]
+_nonidempotent_insts = []
 for opcode, eff in effects.writes.items():
     if eff & SYS_EFFECTS != effects.EMPTY:
         _nonidempotent_insts.append(opcode)
+# staticcall doesn't have external effects, but it is not idempotent since
+# it can depend on gas
+_nonidempotent_insts.append("staticcall")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
