@@ -290,7 +290,9 @@ class CSEAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode in ("store", "phi") or inst.opcode in BB_TERMINATORS:
+            if inst.is_pseudo or inst.is_bb_terminator:
+                continue
+            if inst.opcode in UNINTERESTING_INSTRUCTIONS:
                 continue
 
             if (
