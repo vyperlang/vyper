@@ -302,6 +302,7 @@ class CSEAnalysis(IRAnalysis):
                 self.inst_to_available[inst] = available_exprs.copy()
 
             expr = self._mk_expr(inst, available_exprs)
+            # get an existing instance if it is available
             expr = self._get_available_expression(expr, available_exprs)
 
             self._update_expr(inst, expr)
@@ -353,7 +354,7 @@ class CSEAnalysis(IRAnalysis):
         src = available_exprs.get_source_instruction(expr)
         if src is None:
             return None
-        assert src != inst
+        assert src != inst  # unreachable state
         return (expr, src)
 
     def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:
