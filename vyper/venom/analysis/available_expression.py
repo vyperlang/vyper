@@ -291,9 +291,7 @@ class CSEAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            if inst.is_pseudo or inst.is_bb_terminator:
-                continue
-            if inst.opcode in UNINTERESTING_INSTRUCTIONS:
+            if inst.opcode == "store" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
 
             if (
