@@ -237,7 +237,7 @@ class _AvailableExpressions:
         return res
 
 
-class CSEAnalysis(IRAnalysis):
+class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     inst_to_available: dict[IRInstruction, _AvailableExpressions]

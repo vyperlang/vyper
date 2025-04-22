@@ -1,7 +1,7 @@
 from vyper.venom.analysis.available_expression import (
     NONIDEMPOTENT_INSTRUCTIONS,
     UNINTERESTING_OPCODES,
-    CSEAnalysis,
+    AvailableExpressionAnalysis,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -16,11 +16,11 @@ SMALL_EXPRESSION = 1
 
 
 class CSE(IRPass):
-    expression_analysis: CSEAnalysis
+    expression_analysis: AvailableExpressionAnalysis
 
     def run_pass(self):
-        available_expression_analysis = self.analyses_cache.request_analysis(CSEAnalysis)
-        assert isinstance(available_expression_analysis, CSEAnalysis)
+        available_expression_analysis = self.analyses_cache.request_analysis(AvailableExpressionAnalysis)
+        assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
         self.expression_analysis = available_expression_analysis
 
         while True:
@@ -31,7 +31,7 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-            self.expression_analysis = self.analyses_cache.force_analysis(CSEAnalysis)
+            self.expression_analysis = self.analyses_cache.force_analysis(AvailableExpressionAnalysis)
 
     # return instruction and to which instruction it could
     # replaced by
