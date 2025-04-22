@@ -145,7 +145,7 @@ def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expr
     return True
 
 
-class _AvailableExpression:
+class _AvailableExpressions:
     """
     Class that holds available expression
     and provides API for handling them
@@ -157,7 +157,7 @@ class _AvailableExpression:
         self.exprs = dict()
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, _AvailableExpression):
+        if not isinstance(other, _AvailableExpressions):
             return False
 
         return self.exprs == other.exprs
@@ -187,7 +187,7 @@ class _AvailableExpression:
         for expr in to_remove:
             del self.exprs[expr]
 
-    def get_source(self, expr: _Expression) -> IRInstruction | None:
+    def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
         Get source instruction of expression if currently available
         """
@@ -197,20 +197,20 @@ class _AvailableExpression:
             return tmp[0]
         return None
 
-    def copy(self) -> _AvailableExpression:
-        res = _AvailableExpression()
+    def copy(self) -> _AvailableExpressions:
+        res = _AvailableExpressions()
         for k, v in self.exprs.items():
             res.exprs[k] = v.copy()
         return res
 
     @staticmethod
-    def lattice_meet(lattices: list[_AvailableExpression]):
+    def lattice_meet(lattices: list[_AvailableExpressions]):
         if len(lattices) == 0:
-            return _AvailableExpression()
+            return _AvailableExpressions()
         res = lattices[0].copy()
         for item in lattices[1:]:
             tmp = res
-            res = _AvailableExpression()
+            res = _AvailableExpressions()
             for expr, insts in item.exprs.items():
                 if expr not in tmp.exprs:
                     continue
@@ -227,9 +227,9 @@ class _AvailableExpression:
 class CSEAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
-    inst_to_available: dict[IRInstruction, _AvailableExpression]
-    bb_ins: dict[IRBasicBlock, _AvailableExpression]
-    bb_outs: dict[IRBasicBlock, _AvailableExpression]
+    inst_to_available: dict[IRInstruction, _AvailableExpressions]
+    bb_ins: dict[IRBasicBlock, _AvailableExpressions]
+    bb_outs: dict[IRBasicBlock, _AvailableExpressions]
 
     ignore_msize: bool
 
@@ -267,8 +267,8 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_exprs = _AvailableExpression.lattice_meet(
-            [self.bb_outs.get(pred, _AvailableExpression()) for pred in bb.cfg_in]
+        available_exprs = _AvailableExpressions.lattice_meet(
+            [self.bb_outs.get(pred, _AvailableExpressions()) for pred in bb.cfg_in]
         )
 
         if bb in self.bb_ins and self.bb_ins[bb] == available_exprs:
@@ -288,7 +288,7 @@ class CSEAnalysis(IRAnalysis):
                 self.inst_to_available[inst] = available_exprs.copy()
 
             expr = self._mk_expr(inst, available_exprs)
-            expr = self._get_instance(expr, available_exprs)
+            expr = self._get_available_expression(expr, available_exprs)
 
             self._update_expr(inst, expr)
 
@@ -314,7 +314,7 @@ class CSEAnalysis(IRAnalysis):
         return change
 
     def _get_operand(
-        self, op: IROperand, available_exprs: _AvailableExpression
+        self, op: IROperand, available_exprs: _AvailableExpressions
     ) -> IROperand | _Expression:
         if not isinstance(op, IRVariable):
             return op
@@ -332,23 +332,23 @@ class CSEAnalysis(IRAnalysis):
         return e
 
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
-        available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
+        available_exprs = self.inst_to_available.get(inst, _AvailableExpressions())
 
         expr = self.inst_to_expr.get(inst)
         if expr is None:
             return None
-        src = available_exprs.get_source(expr)
+        src = available_exprs.get_source_instruction(expr)
         if src is None:
             return None
         assert src != inst
         return (expr, src)
 
     def get_from_same_bb(self, inst: IRInstruction, expr: _Expression) -> list[IRInstruction]:
-        available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
+        available_exprs = self.inst_to_available.get(inst, _AvailableExpressions())
         res = available_exprs.exprs[expr]
         return [i for i in res if i != inst and i.parent == inst.parent]
 
-    def _mk_expr(self, inst: IRInstruction, available_exprs: _AvailableExpression) -> _Expression:
+    def _mk_expr(self, inst: IRInstruction, available_exprs: _AvailableExpressions) -> _Expression:
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
@@ -356,14 +356,14 @@ class CSEAnalysis(IRAnalysis):
 
         return expr
 
-    def _get_instance(
-        self, expr: _Expression, available_exprs: _AvailableExpression
+    def _get_available_expression(
+        self, expr: _Expression, available_exprs: _AvailableExpressions
     ) -> _Expression:
         """
-        Check if the expression is not all ready in available expressions
+        Check if the expression is already in available expressions
         is so then return that instance
         """
-        src_inst = available_exprs.get_source(expr)
+        src_inst = available_exprs.get_source_instruction(expr)
         if src_inst is not None:
             same_expr = self.inst_to_expr[src_inst]
             return same_expr
