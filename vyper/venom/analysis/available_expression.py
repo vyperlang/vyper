@@ -146,6 +146,7 @@ class _Expression:
 
 
 def same_ops(a_ops: list[IROperand | _Expression], b_ops: list[IROperand | _Expression]) -> bool:
+    assert len(a_ops) == len(b_ops)
     for self_op, other_op in zip(a_ops, b_ops):
         if type(self_op) is not type(other_op):
             return False
