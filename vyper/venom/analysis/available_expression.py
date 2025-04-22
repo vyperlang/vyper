@@ -301,7 +301,8 @@ class CSEAnalysis(IRAnalysis):
                 self.inst_to_available[inst] = available_exprs.copy()
 
             expr = self._mk_expr(inst, available_exprs)
-            # get an existing instance if it is available
+            # get an existing instance if it is available,
+            # this makes `same()` faster.
             expr = self._get_available_expression(expr, available_exprs)
 
             self._update_expr(inst, expr)
@@ -309,9 +310,9 @@ class CSEAnalysis(IRAnalysis):
             write_effects = expr.get_writes(self.ignore_msize)
             available_exprs.remove_effect(write_effects, self.ignore_msize)
 
-            # nonidempotent instruction effect other instructions
-            # but since it cannot be substituted it does not have
-            # to be added to available exprs
+            # nonidempotent instructions affect other instructions,
+            # but since it cannot be substituted it should not be
+            # added to available exprs
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
