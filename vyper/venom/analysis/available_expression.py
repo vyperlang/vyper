@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, lru_cache
 
 import immutables
 
@@ -35,6 +35,33 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 # sanity
 for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
     assert opcode in NONIDEMPOTENT_INSTRUCTIONS
+
+
+# flag bitwise operations are somehow a perf bottleneck, cache them
+@lru_cache
+def _get_read_effects(opcode, ignore_msize):
+    ret = effects.reads.get(opcode, effects.EMPTY)
+    if ignore_msize:
+        ret &= ~Effects.MSIZE
+    return ret
+
+
+@lru_cache
+def _get_write_effects(opcode, ignore_msize):
+    ret = effects.writes.get(opcode, effects.EMPTY)
+    if ignore_msize:
+        ret &= ~Effects.MSIZE
+    return ret
+
+
+@lru_cache
+def _get_overlap_effects(opcode, ignore_msize):
+    return _get_read_effects(opcode, ignore_msize) & _get_write_effects(opcode, ignore_msize)
+
+
+@lru_cache
+def _get_effects(opcode, ignore_msize):
+    return _get_read_effects(opcode, ignore_msize) | _get_write_effects(opcode, ignore_msize)
 
 
 @dataclass
@@ -96,18 +123,6 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
-    def get_reads(self, ignore_msize) -> Effects:
-        ret = effects.reads.get(self.opcode, effects.EMPTY)
-        if ignore_msize:
-            ret &= ~Effects.MSIZE
-        return ret
-
-    def get_writes(self, ignore_msize) -> Effects:
-        ret = effects.writes.get(self.opcode, effects.EMPTY)
-        if ignore_msize:
-            ret &= ~Effects.MSIZE
-        return ret
-
     @property
     def is_commutative(self) -> bool:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
@@ -163,9 +178,7 @@ class _AvailableExpressions:
             return
         to_remove = set()
         for expr in self.exprs.keys():
-            read_effs = expr.get_reads(ignore_msize)
-            write_effs = expr.get_writes(ignore_msize)
-            op_effect = read_effs | write_effs
+            op_effect = _get_effects(expr.opcode, ignore_msize)
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
@@ -289,7 +302,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = expr.get_writes(self.ignore_msize)
+            write_effects = _get_write_effects(expr.opcode, self.ignore_msize)
             available_exprs.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instructions affect other instructions,
@@ -298,7 +311,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
+            expr_effects = _get_overlap_effects(expr.opcode, self.ignore_msize)
             if expr_effects == effects.EMPTY:
                 available_exprs.add(expr, inst)
 
