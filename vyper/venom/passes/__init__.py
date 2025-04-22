@@ -12,6 +12,7 @@ from .mem2var import Mem2Var
 from .memmerging import MemMergePass
 from .normalization import NormalizationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
+from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
