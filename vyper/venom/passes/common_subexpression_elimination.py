@@ -1,6 +1,5 @@
 from vyper.venom.analysis.available_expression import (
     NONIDEMPOTENT_INSTRUCTIONS,
-    UNINTERESTING_OPCODES,
     AvailableExpressionAnalysis,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -8,6 +7,32 @@ from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
+# instruction that dont need to be stored in available expression
+UNINTERESTING_OPCODES = frozenset(
+    [
+        "calldatasize",
+        "gaslimit",
+        "address",
+        "codesize",
+        "store",
+        "phi",
+        "param",
+        "nop",
+        "returndatasize",
+        "gas",
+        "gasprice",
+        "origin",
+        "coinbase",
+        "timestamp",
+        "number",
+        "prevrandao",
+        "chainid",
+        "basefee",
+        "blobbasefee",
+        "pc",
+        "msize",
+    ]
+)
 # instruction that are not useful to be # substituted
 NO_SUBSTITUTE_OPCODES = UNINTERESTING_OPCODES | frozenset(["offset"])
 
@@ -42,7 +67,7 @@ class CSE(IRPass):
             for inst in bb.instructions:
                 # skip instruction that for sure
                 # wont be substituted
-                if inst.opcode in UNINTERESTING_OPCODES:
+                if inst.opcode in NO_SUBSTITUTE_OPCODES:
                     continue
                 if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                     continue

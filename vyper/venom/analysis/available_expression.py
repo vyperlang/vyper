@@ -9,7 +9,6 @@ from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import (
-    BB_TERMINATORS,
     COMMUTATIVE_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
@@ -34,39 +33,6 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 # sanity
 for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
     assert opcode in NONIDEMPOTENT_INSTRUCTIONS
-
-# instructions that queries info about current
-# environment this is done because we know that
-# all these instruction should have always
-# the same value in function
-
-
-# instruction that dont need to be stored in available expression
-UNINTERESTING_OPCODES = frozenset(
-    [
-        "calldatasize",
-        "gaslimit",
-        "address",
-        "codesize",
-        "store",
-        "phi",
-        "param",
-        "nop",
-        "returndatasize",
-        "gas",
-        "gasprice",
-        "origin",
-        "coinbase",
-        "timestamp",
-        "number",
-        "prevrandao",
-        "chainid",
-        "basefee",
-        "blobbasefee",
-        "pc",
-        "msize",
-    ]
-)
 
 
 @dataclass
@@ -341,6 +307,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             return op
         if inst.opcode == "store":
             return self._get_operand(inst.operands[0], available_exprs)
+        if inst.opcode == "param":
+            return op
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
         return self.inst_to_expr[inst]
