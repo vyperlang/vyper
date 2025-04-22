@@ -190,8 +190,7 @@ class _AvailableExpressions:
 
     def copy(self) -> _AvailableExpressions:
         res = _AvailableExpressions()
-        for k, v in self.exprs.items():
-            res.exprs[k] = v.copy()
+        res.exprs = self.exprs.copy()
         return res
 
     @staticmethod
