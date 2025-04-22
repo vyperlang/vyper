@@ -209,6 +209,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
     keeping track of effects and invalidated expressions.
     (https://en.wikipedia.org/wiki/Available_expression)
     """
+
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     inst_to_available: dict[IRInstruction, _AvailableExpressions]
