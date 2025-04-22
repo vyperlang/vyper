@@ -4,6 +4,8 @@ from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
 
+import immutables
+
 import vyper.venom.effects as effects
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -130,10 +132,10 @@ class _AvailableExpressions:
     and provides API for handling them
     """
 
-    exprs: dict[_Expression, list[IRInstruction]]
+    exprs: immutables.Map[_Expression, list[IRInstruction]]
 
     def __init__(self):
-        self.exprs = dict()
+        self.exprs = immutables.Map()
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, _AvailableExpressions):
@@ -148,9 +150,13 @@ class _AvailableExpressions:
         return res
 
     def add(self, expr: _Expression, src_inst: IRInstruction):
-        if expr not in self.exprs:
-            self.exprs[expr] = []
-        self.exprs[expr].append(src_inst)
+        with self.exprs.mutate() as mt:
+            if expr not in mt:
+                mt[expr] = []
+            else:
+                mt[expr] = mt[expr].copy()
+            mt[expr].append(src_inst)
+            self.exprs = mt.finish()
 
     def remove_effect(self, effect: Effects, ignore_msize):
         if effect == effects.EMPTY:
@@ -163,8 +169,10 @@ class _AvailableExpressions:
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
-        for expr in to_remove:
-            del self.exprs[expr]
+        with self.exprs.mutate() as mt:
+            for expr in to_remove:
+                del mt[expr]
+            self.exprs = mt.finish()
 
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
@@ -178,8 +186,7 @@ class _AvailableExpressions:
 
     def copy(self) -> _AvailableExpressions:
         res = _AvailableExpressions()
-        for k, v in self.exprs.items():
-            res.exprs[k] = v.copy()
+        res.exprs = self.exprs
         return res
 
     @staticmethod
@@ -187,9 +194,11 @@ class _AvailableExpressions:
         if len(lattices) == 0:
             return _AvailableExpressions()
         res = lattices[0].copy()
+        # compute intersection
         for item in lattices[1:]:
             tmp = res
             res = _AvailableExpressions()
+            mt = res.exprs.mutate()
             for expr, insts in item.exprs.items():
                 if expr not in tmp.exprs:
                     continue
@@ -199,7 +208,8 @@ class _AvailableExpressions:
                         new_insts.append(i)
                 if len(new_insts) == 0:
                     continue
-                res.exprs[expr] = new_insts
+                mt[expr] = new_insts
+            res.exprs = mt.finish()
         return res
 
 
