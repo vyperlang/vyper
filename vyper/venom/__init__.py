@@ -24,6 +24,7 @@ from vyper.venom.passes import (
     MemMergePass,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
+    RevertToAssert,
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
@@ -70,6 +71,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     LoadElimination(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
+    RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
