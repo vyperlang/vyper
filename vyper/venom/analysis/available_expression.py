@@ -19,9 +19,18 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRFunction
 from vyper.venom.effects import Effects
 
-NONIDEMPOTENT_INSTRUCTIONS = frozenset(
-    ["log", "call", "staticcall", "delegatecall", "invoke", "param"]
-)
+SYS_EFFECTS = effects.LOG | effects.BALANCE | effects.EXTCODE
+
+_nonidempotent_insts = ["param", "invoke"]
+for opcode, eff in effects.writes.items():
+    if eff & SYS_EFFECTS != effects.EMPTY:
+        _nonidempotent_insts.append(opcode)
+
+NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
+
+# sanity
+for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
+    assert opcode in NONIDEMPOTENT_INSTRUCTIONS
 
 # instructions that queries info about current
 # environment this is done because we know that
