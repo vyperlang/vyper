@@ -329,9 +329,6 @@ class CSEAnalysis(IRAnalysis):
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
         e = self.inst_to_expr[inst]
-        same_insts = available_exprs.exprs.get(e, [])
-        if inst in same_insts:
-            return self.inst_to_expr[same_insts[0]]
         return e
 
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
