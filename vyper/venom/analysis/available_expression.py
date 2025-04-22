@@ -147,14 +147,21 @@ class _AvailableExpressions:
             res += f"\t{key}: {val}\n"
         return res
 
-    def add(self, expr: _Expression, src_inst: IRInstruction):
+    def add(self, expr: _Expression, src_inst: IRInstruction) -> _AvailableExpressions:
+        tmp = self
         if expr not in self.exprs:
-            self.exprs[expr] = []
-        self.exprs[expr].append(src_inst)
+            tmp = self.copy()
+            tmp.exprs[expr] = []
 
-    def remove_effect(self, effect: Effects, ignore_msize):
+        if all(inst.parent != src_inst.parent for inst in tmp.exprs[expr]):
+            tmp.exprs[expr] = tmp.exprs[expr].copy()
+            tmp.exprs[expr].append(src_inst)
+
+        return tmp
+
+    def remove_effect(self, effect: Effects, ignore_msize) -> _AvailableExpressions:
         if effect == effects.EMPTY:
-            return
+            return self
         to_remove = set()
         for expr in self.exprs.keys():
             read_effs = expr.get_reads(ignore_msize)
@@ -163,8 +170,13 @@ class _AvailableExpressions:
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
+        if len(to_remove) == 0:
+            return self
+
+        tmp = self.copy()
         for expr in to_remove:
-            del self.exprs[expr]
+            del tmp.exprs[expr]
+        return tmp
 
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
@@ -270,7 +282,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 inst not in self.inst_to_available
                 or available_exprs != self.inst_to_available[inst]
             ):
-                self.inst_to_available[inst] = available_exprs.copy()
+                self.inst_to_available[inst] = available_exprs  # .copy()
 
             expr = self._mk_expr(inst, available_exprs)
             # get an existing instance if it is available,
@@ -280,7 +292,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             self._update_expr(inst, expr)
 
             write_effects = expr.get_writes(self.ignore_msize)
-            available_exprs.remove_effect(write_effects, self.ignore_msize)
+            available_exprs = available_exprs.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
@@ -290,7 +302,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
             if expr_effects == effects.EMPTY:
-                available_exprs.add(expr, inst)
+                available_exprs = available_exprs.add(expr, inst)
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
             self.bb_outs[bb] = available_exprs
