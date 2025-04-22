@@ -334,7 +334,6 @@ class CSEAnalysis(IRAnalysis):
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
         available_exprs = self.inst_to_available.get(inst, _AvailableExpression())
 
-        assert available_exprs is not None  # help mypy
         expr = self.inst_to_expr.get(inst)
         if expr is None:
             return None
