@@ -328,8 +328,7 @@ class CSEAnalysis(IRAnalysis):
             return self._get_operand(inst.operands[0], available_exprs)
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
-        e = self.inst_to_expr[inst]
-        return e
+        return self.inst_to_expr[inst]
 
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:
         available_exprs = self.inst_to_available.get(inst, _AvailableExpressions())
