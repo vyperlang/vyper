@@ -222,7 +222,7 @@ class MemSSA(IRAnalysis):
 
     def _get_out_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         """
-        Get the memory def (or phi) that reaches the beginning of a basic block.
+        Get the memory def (or phi) that exits a basic block.
 
         This method determines which memory definition is "live"
         at the entry point of a block by:
@@ -286,6 +286,7 @@ class MemSSA(IRAnalysis):
                 del self.memory_phis[phi.block]
 
     def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:
+        # REVIEW: API -- is it necessary to accept None access?
         if access is None or access.is_live_on_entry:
             return None
 
@@ -318,12 +319,15 @@ class MemSSA(IRAnalysis):
 
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
-        Return the memory access that clobbers (overwrites) this access, if any.
-        Returns None if no clobbering access is found before a use of this access's value.
+        Return the memory access that clobbers (overwrites) this access,
+        if any. Returns None if no clobbering access is found before a use
+        of this access's value.
         """
         if access.is_live_on_entry:
             return None
 
+        # REVIEW: API -- maybe assert isinstance(access, MemoryDef) -- should
+        # be an error to call it with a different kind of MemoryAccess
         if not isinstance(access, MemoryDef):
             return None  # Only defs can be clobbered by subsequent stores
 
