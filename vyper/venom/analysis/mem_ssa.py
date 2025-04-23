@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses as dc
 from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
@@ -104,7 +105,6 @@ class MemSSA(IRAnalysis):
         # live_on_entry node
         self.live_on_entry = MemoryAccess(0)
 
-
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
 
@@ -136,11 +136,7 @@ class MemSSA(IRAnalysis):
             for mem_def in self.memory_defs[bb]:
                 if self.memalias.may_alias(mem_def.loc, loc):
                     assert mem_def.loc is not None
-                    # TODO: use dataclasses.replace
-                    new_loc = MemoryLocation(
-                        offset=mem_def.loc.offset, size=mem_def.loc.size, is_volatile=True
-                    )
-                    mem_def.loc = new_loc
+                    mem_def.loc = dc.replace(mem_def.loc, is_volatile=True)
 
         return volatile_loc
 
@@ -255,7 +251,7 @@ class MemSSA(IRAnalysis):
         dominator, it returns the live-on-entry definition.
         """
         assert not isinstance(mem_access, MemoryPhi), "Only MemoryDef or MemoryUse is supported"
-        
+
         bb = mem_access.inst.parent
         use_idx = bb.instructions.index(mem_access.inst)
         for inst in reversed(bb.instructions[:use_idx]):
