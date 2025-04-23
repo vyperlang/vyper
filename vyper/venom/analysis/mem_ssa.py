@@ -307,8 +307,8 @@ class MemSSA(IRAnalysis):
     def _remove_redundant_phis(self):
         """Remove unnecessary phi nodes"""
         for phi in list(self.memory_phis.values()):
-            # REVIEW: op[0].id == phi.id
-            if all(op[0] == phi for op in phi.operands):
+            op0 = phi.operands[0]
+            if all(op[0] == op0[0] for op in phi.operands[1:]):
                 del self.memory_phis[phi.block]
 
     def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:

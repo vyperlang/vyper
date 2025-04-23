@@ -758,7 +758,7 @@ def test_remove_redundant_phis(create_mem_ssa):
     assert merge_block in mem_ssa.memory_phis
     phi = mem_ssa.memory_phis[merge_block]
 
-    phi.operands = [(phi, merge_block), (phi, merge_block)]
+    phi.operands = [phi.operands[0], phi.operands[0]]
 
     # Remove redundant phis
     mem_ssa._remove_redundant_phis()
