@@ -162,6 +162,7 @@ class _AvailableExpressions:
             res += f"\t{key}: {val}\n"
         return res
 
+    # copy-on-write -- returns a new AvailableExpressions if changed
     def add(self, expr: _Expression, src_inst: IRInstruction) -> _AvailableExpressions:
         tmp = self
         if expr not in self.exprs:
