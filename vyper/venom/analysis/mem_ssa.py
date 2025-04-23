@@ -211,7 +211,7 @@ class MemSSA(IRAnalysis):
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
                 for use in uses:
-                    use.reaching_def = self._get_reaching_def(bb, use)
+                    use.reaching_def = self._get_reaching_def(use)
 
     def _get_out_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         """
@@ -243,11 +243,9 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
-    # REVIEW: maybe get_reaching_def_for_use, and remove the bb arg to match
-    # the signature for get_reaching_def_for_def
-    def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
+    def _get_reaching_def(self, use: MemoryUse) -> Optional[MemoryAccess]:
         """
-        Finds the memory definition that reaches a specific memory use.
+        Finds the memory definition that for a specific memory use.
 
         This method searches for the most recent memory definition that affects
         the given memory use by first looking backwards in the same basic block.
@@ -255,6 +253,7 @@ class MemSSA(IRAnalysis):
         "in def" from the immediate dominator block. If there is no immediate
         dominator, it returns the live-on-entry definition.
         """
+        bb = use.load_inst.parent
         use_idx = bb.instructions.index(use.load_inst)
         for inst in reversed(bb.instructions[:use_idx]):
             if inst in self.inst_to_def:
