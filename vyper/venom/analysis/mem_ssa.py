@@ -15,11 +15,14 @@ class MemoryAccess:
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
         self.loc: MemoryLocation = EMPTY_MEMORY_ACCESS
-        self.inst: Optional[IRInstruction] = None
 
     @property
     def is_live_on_entry(self) -> bool:
         return self.id == 0
+
+    @property
+    def inst(self) -> IRInstruction:
+        raise NotImplementedError(f"{type(self)} does not have an inst!")
 
     @property
     def is_volatile(self) -> bool:
@@ -56,8 +59,12 @@ class MemoryDef(MemoryAccess):
 
     def __init__(self, id: int, store_inst: IRInstruction):
         super().__init__(id)
-        self.inst = store_inst
+        self.store_inst = store_inst
         self.loc = store_inst.get_write_memory_location()
+
+    @property
+    def inst(self):
+        return self.store_inst
 
 
 class MemoryUse(MemoryAccess):
@@ -65,8 +72,12 @@ class MemoryUse(MemoryAccess):
 
     def __init__(self, id: int, load_inst: IRInstruction):
         super().__init__(id)
-        self.inst = load_inst
+        self.load_inst = load_inst
         self.loc = load_inst.get_read_memory_location()
+
+    @property
+    def inst(self):
+        return self.load_inst
 
 
 class MemoryPhi(MemoryAccess):
@@ -250,6 +261,7 @@ class MemSSA(IRAnalysis):
         "in def" from the immediate dominator block. If there is no immediate
         dominator, it returns the live-on-entry definition.
         """
+        # MemoryPhi does not have inst
         assert not isinstance(mem_access, MemoryPhi), "Only MemoryDef or MemoryUse is supported"
 
         bb = mem_access.inst.parent
@@ -317,8 +329,8 @@ class MemSSA(IRAnalysis):
             return None  # Only defs can be clobbered by subsequent stores
 
         def_loc = access.loc
-        block = access.inst.parent
-        def_idx = block.instructions.index(access.inst)
+        block = access.store_inst.parent
+        def_idx = block.instructions.index(access.store_inst)
 
         # Check remaining instructions in the same block
         for inst in block.instructions[def_idx + 1 :]:
