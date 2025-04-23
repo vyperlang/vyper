@@ -1,5 +1,5 @@
 import contextlib
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
@@ -73,7 +73,7 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: List[Tuple[MemoryDef, IRBasicBlock]] = []
+        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
 
 class MemSSA(IRAnalysis):
@@ -98,27 +98,23 @@ class MemSSA(IRAnalysis):
         self.load_op = "mload" if location_type == "memory" else "sload"
         self.store_op = "mstore" if location_type == "memory" else "sstore"
 
-        # Memory SSA specific state
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
         # live_on_entry node
         self.live_on_entry = MemoryAccess(0)
 
-        # The following are the data structures that store the Memory SSA
-        # separately from the main IR data structures.
 
-        # Maps basic blocks to their memory definitions (stores)
-        self.memory_defs: Dict[IRBasicBlock, List[MemoryDef]] = {}
-        # Maps basic blocks to their memory uses (loads)
-        self.memory_uses: Dict[IRBasicBlock, List[MemoryUse]] = {}
-        # Maps basic blocks to their memory phi nodes (for merging memory states)
-        self.memory_phis: Dict[IRBasicBlock, MemoryPhi] = {}
-        # Tracks the current memory state at each basic block
-        self.current_def: Dict[IRBasicBlock, MemoryAccess] = {}
-        # Maps store instructions to their corresponding MemoryDef objects
-        self.inst_to_def: Dict[IRInstruction, MemoryDef] = {}
-        # Maps load instructions to their corresponding MemoryUse objects
-        self.inst_to_use: Dict[IRInstruction, MemoryUse] = {}
+        self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
+        self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
+
+        # merge memory states
+        self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
+
+        # the current memory state at each basic block
+        self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
+
+        self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
+        self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
     def analyze(self):
         # Request required analyses
@@ -311,6 +307,7 @@ class MemSSA(IRAnalysis):
     def _remove_redundant_phis(self):
         """Remove unnecessary phi nodes"""
         for phi in list(self.memory_phis.values()):
+            # REVIEW: op[0].id == phi.id
             if all(op[0] == phi for op in phi.operands):
                 del self.memory_phis[phi.block]
 
