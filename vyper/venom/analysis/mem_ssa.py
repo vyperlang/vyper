@@ -305,7 +305,7 @@ class MemSSA(IRAnalysis):
         return self.live_on_entry
 
     def _remove_redundant_phis(self):
-        """Remove unnecessary phi nodes"""
+        """Remove phi nodes whose arguments are all the same"""
         for phi in list(self.memory_phis.values()):
             op0 = phi.operands[0]
             if all(op[0] == op0[0] for op in phi.operands[1:]):
