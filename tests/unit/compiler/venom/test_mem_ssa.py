@@ -60,8 +60,8 @@ def test_basic_clobber(create_mem_ssa):
     assert not clobbered.is_live_on_entry
     # Verify it's the store instruction in the entry block
     assert clobbered.loc.offset == 0
-    assert clobbered.store_inst.operands[0].value == "%val"
-    assert clobbered.store_inst.parent == fn.entry
+    assert clobbered.inst.operands[0].value == "%val"
+    assert clobbered.inst.parent == fn.entry
 
 
 def test_no_clobber_different_locations(create_mem_ssa):
@@ -118,8 +118,8 @@ def test_phi_node_clobber(create_mem_ssa):
     block2 = fn.get_basic_block("block2")
     block1_def = mem_ssa.memory_defs[block1][0]
     block2_def = mem_ssa.memory_defs[block2][0]
-    assert block1_def.store_inst.operands[0].value == "%val1"
-    assert block2_def.store_inst.operands[0].value == "%val2"
+    assert block1_def.inst.operands[0].value == "%val1"
+    assert block2_def.inst.operands[0].value == "%val2"
 
 
 def test_clobbering_with_multiple_stores(create_mem_ssa):
@@ -164,12 +164,12 @@ def test_clobbering_with_multiple_stores(create_mem_ssa):
     clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
     assert clobberer1 == def3, f"Expected def3 to clobber def1, got {clobberer1}"
     assert clobberer1.loc.offset == 0
-    assert clobberer1.store_inst.operands[0].value == "%val3"
+    assert clobberer1.inst.operands[0].value == "%val3"
 
     clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
     assert clobberer2 == def3, f"Expected def3 to clobber def2, got {clobberer2}"
     assert clobberer2.loc.offset == 0
-    assert clobberer2.store_inst.operands[0].value == "%val3"
+    assert clobberer2.inst.operands[0].value == "%val3"
 
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
@@ -326,9 +326,9 @@ def test_complex_loop_clobber(create_mem_ssa):
     path_b_def = mem_ssa.memory_defs[path_b_block][0]
 
     assert nested_a1_def.loc.offset == 0
-    assert nested_a1_def.store_inst.operands[0].value == "%val_a1"
+    assert nested_a1_def.inst.operands[0].value == "%val_a1"
     assert path_b_def.loc.offset == 0
-    assert path_b_def.store_inst.operands[0].value == "%val_b"
+    assert path_b_def.inst.operands[0].value == "%val_b"
 
     # Test the final load in exit block
     exit_block = fn.get_basic_block("exit")
@@ -344,7 +344,7 @@ def test_complex_loop_clobber(create_mem_ssa):
     nested_a2_block = fn.get_basic_block("nested_a2")
     different_loc_store = mem_ssa.memory_defs[nested_a2_block][0]
     assert different_loc_store.loc.offset == 32
-    assert different_loc_store.store_inst.operands[0].value == "%val_a2"
+    assert different_loc_store.inst.operands[0].value == "%val_a2"
 
 
 def test_simple_def_chain(create_mem_ssa):
@@ -686,8 +686,8 @@ def test_phi_node_reaching_def(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = def3.loc
 
-    # Manually test the _get_reaching_def_for_def method
-    reaching_def = mem_ssa._get_reaching_def_for_def(new_def)
+    # Manually test the _get_reaching_def method
+    reaching_def = mem_ssa._get_reaching_def(new_def)
     assert reaching_def == phi, "The reaching definition should be the phi node"
 
 
@@ -962,7 +962,7 @@ def test_get_in_def_with_merge_block(create_mem_ssa):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
+def test_get_reaching_def_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -989,11 +989,11 @@ def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
 
-    result = mem_ssa._get_reaching_def_for_def(new_def)
+    result = mem_ssa._get_reaching_def(new_def)
     assert result == phi
 
 
-def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
+def test_get_reaching_def_with_no_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1009,7 +1009,7 @@ def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)
 
-    result = mem_ssa._get_reaching_def_for_def(new_def)
+    result = mem_ssa._get_reaching_def(new_def)
     assert result == mem_ssa.live_on_entry
 
 
@@ -1154,7 +1154,7 @@ def test_get_clobbering_memory_access_with_phi_in_successor(create_mem_ssa):
     result = mem_ssa.get_clobbering_memory_access(def_)
     assert result is not None
     assert isinstance(result, MemoryDef)
-    assert int(result.store_inst.operands[0].value) == 84
+    assert int(result.inst.operands[0].value) == 84
 
 
 def test_post_instruction_with_no_memory_ops(create_mem_ssa):

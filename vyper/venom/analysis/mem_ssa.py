@@ -14,6 +14,7 @@ class MemoryAccess:
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
         self.loc: MemoryLocation = EMPTY_MEMORY_ACCESS
+        self.inst: Optional[IRInstruction] = None
 
     @property
     def is_live_on_entry(self) -> bool:
@@ -54,7 +55,7 @@ class MemoryDef(MemoryAccess):
 
     def __init__(self, id: int, store_inst: IRInstruction):
         super().__init__(id)
-        self.store_inst = store_inst
+        self.inst = store_inst
         self.loc = store_inst.get_write_memory_location()
 
 
@@ -63,7 +64,7 @@ class MemoryUse(MemoryAccess):
 
     def __init__(self, id: int, load_inst: IRInstruction):
         super().__init__(id)
-        self.load_inst = load_inst
+        self.inst = load_inst
         self.loc = load_inst.get_read_memory_location()
 
 
@@ -179,7 +180,7 @@ class MemSSA(IRAnalysis):
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
 
-                mem_def.reaching_def = self._get_reaching_def_for_def(mem_def)
+                mem_def.reaching_def = self._get_reaching_def(mem_def)
 
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
@@ -210,7 +211,7 @@ class MemSSA(IRAnalysis):
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
                 for use in uses:
-                    use.reaching_def = self._get_reaching_def(bb, use)
+                    use.reaching_def = self._get_reaching_def(use)
 
     def _get_in_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         """
@@ -242,19 +243,20 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
-    # REVIEW: maybe get_reaching_def_for_use, and remove the bb arg to match
-    # the signature for get_reaching_def_for_def
-    def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
+    def _get_reaching_def(self, mem_access: MemoryAccess) -> Optional[MemoryAccess]:
         """
-        Finds the memory definition that reaches a specific memory use.
+        Finds the memory definition that reaches a specific memory def or use.
 
         This method searches for the most recent memory definition that affects
-        the given memory use by first looking backwards in the same basic block.
+        the given memory def or use by first looking backwards in the same basic block.
         If none is found, it checks for phi nodes in the block or returns the
         "in def" from the immediate dominator block. If there is no immediate
         dominator, it returns the live-on-entry definition.
         """
-        use_idx = bb.instructions.index(use.load_inst)
+        assert not isinstance(mem_access, MemoryPhi), "Only MemoryDef or MemoryUse is supported"
+        
+        bb = mem_access.inst.parent
+        use_idx = bb.instructions.index(mem_access.inst)
         for inst in reversed(bb.instructions[:use_idx]):
             if inst in self.inst_to_def:
                 return self.inst_to_def[inst]
@@ -265,42 +267,6 @@ class MemSSA(IRAnalysis):
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
             return self._get_in_def(idom) if idom else self.live_on_entry
-
-        return self.live_on_entry
-
-    def _get_reaching_def_for_def(self, def_inst: MemoryDef) -> MemoryAccess:
-        """
-        Finds which memory definition influences the current memory definition.
-
-        This method looks for the previous memory operation that affects the given
-        memory definition. It first checks the same block for earlier writes, then
-        looks at phi nodes (which represent merged memory states), and finally checks
-        dominator blocks. If nothing is found, it returns the initial memory state.
-        """
-        bb = def_inst.store_inst.parent
-        def_idx = bb.instructions.index(def_inst.store_inst)
-        def_loc = def_inst.loc
-
-        # First check for any previous memory def in the same basic block
-        for inst in reversed(bb.instructions[:def_idx]):
-            if inst in self.inst_to_def:
-                prev_def = self.inst_to_def[inst]
-                # Get most recent memory def, regardless of aliasing
-                return prev_def
-
-        if bb in self.memory_phis:
-            phi = self.memory_phis[bb]
-            for op, _ in phi.operands:
-                if isinstance(op, MemoryDef) and self.memalias.may_alias(def_loc, op.loc):
-                    return phi
-
-        if bb.cfg_in:
-            idom = self.dom.immediate_dominators.get(bb)
-            if idom:
-                in_def = self._get_in_def(idom)
-                # Only use the in_def if it might alias with our definition
-                if isinstance(in_def, MemoryDef) and self.memalias.may_alias(def_loc, in_def.loc):
-                    return in_def
 
         return self.live_on_entry
 
@@ -358,8 +324,8 @@ class MemSSA(IRAnalysis):
             return None  # Only defs can be clobbered by subsequent stores
 
         def_loc = access.loc
-        block = access.store_inst.parent
-        def_idx = block.instructions.index(access.store_inst)
+        block = access.inst.parent
+        def_idx = block.instructions.index(access.inst)
 
         # Check remaining instructions in the same block
         for inst in block.instructions[def_idx + 1 :]:
@@ -417,11 +383,11 @@ class MemSSA(IRAnalysis):
         s = ""
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
-                if use.load_inst == inst:
+                if use.inst == inst:
                     s += f"\t; use: {use.reaching_def.id_str if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
-                if def_.store_inst == inst:
+                if def_.inst == inst:
                     s += f"\t; def: {def_.id_str} "
                     s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
                     s += f"{self.get_clobbering_memory_access(def_)}"
