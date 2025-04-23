@@ -146,7 +146,6 @@ class MemSSA(IRAnalysis):
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
                 if self.memalias.may_alias(mem_def.loc, loc):
-                    assert mem_def.loc is not None
                     mem_def.loc = dc.replace(mem_def.loc, is_volatile=True)
 
         return volatile_loc
