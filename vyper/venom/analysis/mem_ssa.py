@@ -290,14 +290,10 @@ class MemSSA(IRAnalysis):
                 if clobbering and not clobbering.is_live_on_entry:
                     # Phi itself if any path has a clobber
                     return access
-            result = self.live_on_entry
-        else:
-            result = (
-                self._walk_for_clobbered_access(access.reaching_def, query_loc)
-                or self.live_on_entry
-            )
+            return self.live_on_entry
 
-        return result
+        clobber = self._walk_for_clobbered_access(access.reaching_def, query_loc)
+        return clobber or self.live_on_entry
 
     def _walk_for_clobbered_access(
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
