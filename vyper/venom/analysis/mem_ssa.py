@@ -230,11 +230,11 @@ class MemSSA(IRAnalysis):
             4. If there's no dominator, returning the
                live-on-entry definition (initial state)
         """
-        if bb in self.memory_defs and self.memory_defs[bb]:
-            return self.memory_defs[bb][-1]
-
         if bb in self.memory_phis:
             return self.memory_phis[bb]
+
+        if bb in self.memory_defs and self.memory_defs[bb]:
+            return self.memory_defs[bb][-1]
 
         if bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
