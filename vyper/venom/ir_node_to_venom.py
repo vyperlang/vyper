@@ -173,7 +173,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     returns_word = _returns_word(func_t)
 
-
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
 
@@ -189,7 +188,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    stack_args: list[IROperand] = [IRLabel(target_label)]
+    stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
     if return_buf is not None:
         if not ENABLE_NEW_CALL_CONV or not returns_word:
