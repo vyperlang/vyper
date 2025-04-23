@@ -135,6 +135,7 @@ class MemSSA(IRAnalysis):
             for mem_def in self.memory_defs[bb]:
                 if self.memalias.may_alias(mem_def.loc, loc):
                     assert mem_def.loc is not None
+                    # TODO: use dataclasses.replace
                     new_loc = MemoryLocation(
                         offset=mem_def.loc.offset, size=mem_def.loc.size, is_volatile=True
                     )
@@ -196,7 +197,7 @@ class MemSSA(IRAnalysis):
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
                     for pred in frontier.cfg_in:
-                        reaching_def = self._get_in_def(pred)
+                        reaching_def = self._get_out_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
                     self.next_id += 1
@@ -212,7 +213,7 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(bb, use)
 
-    def _get_in_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+    def _get_out_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         """
         Get the memory def (or phi) that reaches the beginning of a basic block.
 
@@ -228,17 +229,17 @@ class MemSSA(IRAnalysis):
             4. If there's no dominator, returning the
                live-on-entry definition (initial state)
         """
-        if bb in self.memory_phis:
-            return self.memory_phis[bb]
-
         if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
+
+        if bb in self.memory_phis:
+            return self.memory_phis[bb]
 
         if bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators.get(bb)
             if idom is not None:
-                return self._get_in_def(idom)
+                return self._get_out_def(idom)
 
         return self.live_on_entry
 
@@ -264,7 +265,7 @@ class MemSSA(IRAnalysis):
 
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
-            return self._get_in_def(idom) if idom else self.live_on_entry
+            return self._get_out_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
 
@@ -297,10 +298,10 @@ class MemSSA(IRAnalysis):
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
             if idom:
-                in_def = self._get_in_def(idom)
-                # Only use the in_def if it might alias with our definition
-                if isinstance(in_def, MemoryDef) and self.memalias.may_alias(def_loc, in_def.loc):
-                    return in_def
+                out_def = self._get_out_def(idom)
+                # Only use the out_def if it might alias with our definition
+                if isinstance(out_def, MemoryDef) and self.memalias.may_alias(def_loc, out_def.loc):
+                    return out_def
 
         return self.live_on_entry
 
