@@ -847,6 +847,38 @@ def foo():
     """,
         UnknownType,
     ),
+    # Mismatch between iterator and iterable types: struct
+    (
+        """
+struct Tx1:
+    x: uint256
+    y: address
+
+struct Tx2:
+    x: uint256
+    y: address
+
+@external
+def test():
+    txs: Tx1[20] = empty(Tx1[20])
+
+    for txx: Tx2 in txs:  # should be `txx: Tx1`
+        pass
+    """,
+        TypeMismatch,
+    ),
+    # Mismatch between iterator and iterable types: primitive
+    (
+        """
+@external
+def test():
+    txs: uint256[20] = empty(uint256[20])
+
+    for txx: uint248 in txs:
+        pass
+    """,
+        TypeMismatch,
+    ),
 ]
 
 BAD_CODE = [code if isinstance(code, tuple) else (code, StructureException) for code in BAD_CODE]

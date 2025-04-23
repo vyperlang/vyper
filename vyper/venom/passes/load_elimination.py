@@ -36,7 +36,6 @@ class LoadElimination(IRPass):
             self._process_bb(bb, None, "calldataload", None)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def equivalent(self, op1, op2):
         return op1 == op2
@@ -72,8 +71,7 @@ class LoadElimination(IRPass):
         self._lattice[ptr] = inst.output
 
         if existing_value is not None:
-            inst.opcode = "store"
-            inst.operands = [existing_value]
+            self.updater.store(inst, existing_value)
 
     def _handle_store(self, inst, store_opcode):
         # mstore [val, ptr]

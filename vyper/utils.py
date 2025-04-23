@@ -11,6 +11,8 @@ import traceback
 import warnings
 from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
+from Crypto.Hash import keccak
+
 from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
@@ -217,14 +219,8 @@ class DecimalContextOverride(decimal.Context):
 decimal.setcontext(DecimalContextOverride(prec=78))
 
 
-try:
-    from Crypto.Hash import keccak  # type: ignore
-
-    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
-except ImportError:
-    import sha3 as _sha3
-
-    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+def keccak256(x):
+    return keccak.new(digest_bits=256, data=x).digest()
 
 
 @functools.lru_cache(maxsize=512)
@@ -492,7 +488,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6

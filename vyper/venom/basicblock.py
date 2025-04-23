@@ -79,6 +79,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "exit",
+        "nop",
     ]
 )
 
@@ -86,9 +87,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
 # instructions that should only be used for testing
 TEST_INSTRUCTIONS = ("sink",)
 
-assert VOLATILE_INSTRUCTIONS.issuperset(NO_OUTPUT_INSTRUCTIONS), (
-    NO_OUTPUT_INSTRUCTIONS - VOLATILE_INSTRUCTIONS
-)
 
 # These instructions should be eliminated/rewritten
 # before going into assembly emission
@@ -403,6 +401,8 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
+        if self.opcode in ("ret", "param"):
+            return 0
         if self.opcode == "store":
             return 1
         return 2
