@@ -246,6 +246,8 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
+    # REVIEW: maybe get_reaching_def_for_use, and remove the bb arg to match
+    # the signature for get_reaching_def_for_def
     def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
         """
         Finds the memory definition that reaches a specific memory use.
