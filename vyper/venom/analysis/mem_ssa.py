@@ -78,8 +78,14 @@ class MemoryPhi(MemoryAccess):
 
 class MemSSA(IRAnalysis):
     """
-    This pass converts memory/storage operations into Memory SSA form,
-    tracking memory definitions and uses explicitly.
+    This analysis converts memory/storage operations into Memory SSA form.
+    The analysis is based on LLVM's https://llvm.org/docs/MemorySSA.html.
+    Notably, the LLVM design does not partition memory into ranges.
+    Rather, it keeps track of memory _states_ (each write increments a
+    generation counter), and provides "walk" methods to track memory
+    clobbers. This counterintuitively results in a simpler design
+    and, according to LLVM, better performance.
+    See https://llvm.org/docs/MemorySSA.html#design-tradeoffs.
     """
 
     VALID_LOCATION_TYPES = {"memory", "storage"}
