@@ -169,6 +169,9 @@ class _AvailableExpressions:
             tmp = self.copy()
             tmp.exprs[expr] = []
 
+        # We only need to remember at most one source for expression
+        # per basic block (the substitution only need either first over all or
+        # first in basic block)
         if all(inst.parent != src_inst.parent for inst in tmp.exprs[expr]):
             tmp.exprs[expr] = tmp.exprs[expr].copy()
             tmp.exprs[expr].append(src_inst)
