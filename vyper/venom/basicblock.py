@@ -245,6 +245,8 @@ class MemoryLocation:
 
     offset: int = 0
     size: int = 0
+    # Locations that should be considered volatile. Example usages of this would
+    # be locations that are accessed outside of the current function.
     is_volatile: bool = False
 
     # similar code to memmerging._Interval, but different data structure
