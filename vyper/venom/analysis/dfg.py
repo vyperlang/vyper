@@ -103,5 +103,8 @@ class DFGAnalysis(IRAnalysis):
     def invalidate(self):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
+        del self._dfg_inputs
+        del self._dfg_outputs
+
     def __repr__(self) -> str:
         return self.as_graph()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import re
 from contextvars import ContextVar
@@ -198,7 +200,7 @@ class IRVariable(IROperand):
             value = f"{name}:{version}"
         super().__init__(value)
 
-    def with_version(self, version: int) -> "IRVariable":
+    def with_version(self, version: int) -> IRVariable:
         if version == self.version:
             # IRVariable ctor is a hotspot, try to avoid calling it
             # if possible
@@ -282,9 +284,7 @@ class IRInstruction:
     opcode: str
     operands: list[IROperand]
     output: Optional[IRVariable]
-    # set of live variables at this instruction
-    liveness: OrderedSet[IRVariable]
-    parent: "IRBasicBlock"
+    parent: IRBasicBlock
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -300,7 +300,6 @@ class IRInstruction:
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
-        self.liveness = OrderedSet()
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
@@ -553,7 +552,7 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
-    def copy(self) -> "IRInstruction":
+    def copy(self) -> IRInstruction:
         ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
@@ -627,12 +626,10 @@ class IRBasicBlock:
     """
 
     label: IRLabel
-    parent: "IRFunction"
+    parent: IRFunction
     instructions: list[IRInstruction]
 
-    out_vars: Any  # type kludge, remove me
-
-    def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
+    def __init__(self, label: IRLabel, parent: IRFunction) -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
@@ -808,14 +805,7 @@ class IRBasicBlock:
             return False
         return self.instructions[-1].is_bb_terminator
 
-    @property
-    def liveness_in_vars(self) -> OrderedSet[IRVariable]:
-        for inst in self.instructions:
-            if inst.opcode != "phi":
-                return inst.liveness
-        return OrderedSet()
-
-    def copy(self) -> "IRBasicBlock":
+    def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = [inst.copy() for inst in self.instructions]
         for inst in bb.instructions:

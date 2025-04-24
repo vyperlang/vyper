@@ -86,7 +86,7 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
+        self.operands: list[tuple[MemoryAccess, IRBasicBlock]] = []
 
 
 # Type alias for either a memory definition or use
@@ -134,7 +134,7 @@ class MemSSA(IRAnalysis):
 
     def analyze(self):
         # Request required analyses
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.memalias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
 

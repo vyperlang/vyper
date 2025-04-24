@@ -28,8 +28,8 @@ class BranchOptimizationPass(IRPass):
 
             fst, snd = self.cfg.cfg_out(bb)
 
-            fst_liveness = fst.instructions[0].liveness
-            snd_liveness = snd.instructions[0].liveness
+            fst_liveness = self.liveness.liveness_at(fst.instructions[0])
+            snd_liveness = self.liveness.liveness_at(snd.instructions[0])
 
             # heuristic(!) to decide if we should flip the labels or not
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
