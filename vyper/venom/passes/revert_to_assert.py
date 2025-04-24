@@ -1,4 +1,4 @@
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
@@ -26,6 +26,7 @@ class RevertToAssert(IRPass):
                 self._rewrite_jnz(pred, bb)
 
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _rewrite_jnz(self, pred, revert_bb):
         term = pred.instructions[-1]
