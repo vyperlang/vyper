@@ -84,7 +84,7 @@ class LivenessAnalysis(IRAnalysis):
 
     def live_vars_at(self, inst: IRInstruction) -> OrderedSet[IRVariable]:
         """
-        Get the variables that are live at a given instruction
+        Get the variables that are live at (right before) a given instruction
         """
         return self.inst_to_liveness[inst]
 
