@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cached_property
 
 import vyper.venom.effects as effects
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
@@ -33,33 +33,6 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 # sanity
 for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
     assert opcode in NONIDEMPOTENT_INSTRUCTIONS
-
-
-# flag bitwise operations are somehow a perf bottleneck, cache them
-@lru_cache
-def _get_read_effects(opcode, ignore_msize):
-    ret = effects.reads.get(opcode, effects.EMPTY)
-    if ignore_msize:
-        ret &= ~Effects.MSIZE
-    return ret
-
-
-@lru_cache
-def _get_write_effects(opcode, ignore_msize):
-    ret = effects.writes.get(opcode, effects.EMPTY)
-    if ignore_msize:
-        ret &= ~Effects.MSIZE
-    return ret
-
-
-@lru_cache
-def _get_overlap_effects(opcode, ignore_msize):
-    return _get_read_effects(opcode, ignore_msize) & _get_write_effects(opcode, ignore_msize)
-
-
-@lru_cache
-def _get_effects(opcode, ignore_msize):
-    return _get_read_effects(opcode, ignore_msize) | _get_write_effects(opcode, ignore_msize)
 
 
 @dataclass
@@ -121,6 +94,18 @@ class _Expression:
                     max_depth = d
         return max_depth + 1
 
+    def get_reads(self, ignore_msize) -> Effects:
+        ret = effects.reads.get(self.opcode, effects.EMPTY)
+        if ignore_msize:
+            ret &= ~Effects.MSIZE
+        return ret
+
+    def get_writes(self, ignore_msize) -> Effects:
+        ret = effects.writes.get(self.opcode, effects.EMPTY)
+        if ignore_msize:
+            ret &= ~Effects.MSIZE
+        return ret
+
     @property
     def is_commutative(self) -> bool:
         return self.opcode in COMMUTATIVE_INSTRUCTIONS
@@ -162,38 +147,24 @@ class _AvailableExpressions:
             res += f"\t{key}: {val}\n"
         return res
 
-    # copy-on-write -- returns a new AvailableExpressions if changed
-    def add(self, expr: _Expression, src_inst: IRInstruction) -> _AvailableExpressions:
-        tmp = self
+    def add(self, expr: _Expression, src_inst: IRInstruction):
         if expr not in self.exprs:
-            tmp = self.copy()
-            tmp.exprs[expr] = []
+            self.exprs[expr] = []
+        self.exprs[expr].append(src_inst)
 
-        # We only need to remember at most one source for expression
-        # per basic block (the substitution only need either first over all or
-        # first in basic block)
-        if all(inst.parent != src_inst.parent for inst in tmp.exprs[expr]):
-            tmp.exprs[expr] = tmp.exprs[expr].copy()
-            tmp.exprs[expr].append(src_inst)
-
-        return tmp
-
-    def remove_effect(self, effect: Effects, ignore_msize) -> _AvailableExpressions:
+    def remove_effect(self, effect: Effects, ignore_msize):
         if effect == effects.EMPTY:
-            return self
+            return
         to_remove = set()
         for expr in self.exprs.keys():
-            op_effect = _get_effects(expr.opcode, ignore_msize)
+            read_effs = expr.get_reads(ignore_msize)
+            write_effs = expr.get_writes(ignore_msize)
+            op_effect = read_effs | write_effs
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
-        if len(to_remove) == 0:
-            return self
-
-        tmp = self.copy()
         for expr in to_remove:
-            del tmp.exprs[expr]
-        return tmp
+            del self.exprs[expr]
 
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
@@ -207,7 +178,8 @@ class _AvailableExpressions:
 
     def copy(self) -> _AvailableExpressions:
         res = _AvailableExpressions()
-        res.exprs = self.exprs.copy()
+        for k, v in self.exprs.items():
+            res.exprs[k] = v.copy()
         return res
 
     @staticmethod
@@ -298,7 +270,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 inst not in self.inst_to_available
                 or available_exprs != self.inst_to_available[inst]
             ):
-                self.inst_to_available[inst] = available_exprs  # .copy()
+                self.inst_to_available[inst] = available_exprs.copy()
 
             expr = self._mk_expr(inst, available_exprs)
             # get an existing instance if it is available,
@@ -307,8 +279,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = _get_write_effects(expr.opcode, self.ignore_msize)
-            available_exprs = available_exprs.remove_effect(write_effects, self.ignore_msize)
+            write_effects = expr.get_writes(self.ignore_msize)
+            available_exprs.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
@@ -316,9 +288,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = _get_overlap_effects(expr.opcode, self.ignore_msize)
+            expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
             if expr_effects == effects.EMPTY:
-                available_exprs = available_exprs.add(expr, inst)
+                available_exprs.add(expr, inst)
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
             self.bb_outs[bb] = available_exprs
