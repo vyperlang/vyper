@@ -37,7 +37,7 @@ class DeadStoreElimination(IRPass):
             if bb in self.mem_ssa.memory_uses:
                 for mem_use in self.mem_ssa.memory_uses[bb]:
                     for mem_def in all_defs:
-                        if self.mem_ssa.alias.may_alias(mem_use.loc, mem_def.loc):
+                        if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
                             used_defs.add(mem_def)
 
             for succ in bb.cfg_out:
@@ -72,7 +72,7 @@ class DeadStoreElimination(IRPass):
                     if isinstance(mem_use.reaching_def, MemoryDef):
                         # Only add the reaching definition to live_defs
                         # if it aliases with the use location
-                        if self.mem_ssa.alias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
+                        if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
                             live_defs.add(mem_use.reaching_def)
 
                 if mem_def and not mem_def.loc.is_volatile:
@@ -100,7 +100,7 @@ class DeadStoreElimination(IRPass):
             return self.mem_ssa.memory_phis[bb]
         if bb.cfg_in:
             idom = self.mem_ssa.dom.immediate_dominators.get(bb)
-            return self.mem_ssa._get_in_def(idom) if idom else self.mem_ssa.live_on_entry
+            return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
         return self.mem_ssa.live_on_entry
 
     def _remove_dead_stores(self):

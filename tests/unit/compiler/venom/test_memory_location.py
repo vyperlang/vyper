@@ -10,18 +10,18 @@ def test_completely_overlaps():
     loc5 = MemoryLocation(offset=16, size=32)  # Partially overlaps loc1
     loc6 = MemoryLocation(offset=32, size=32)  # Adjacent to loc1
 
-    assert loc1.completely_overlaps(loc1)
-    assert loc1.completely_overlaps(loc2)
-    assert loc3.completely_overlaps(loc1)
-    assert not loc1.completely_overlaps(loc3)
-    assert loc1.completely_overlaps(loc4)
-    assert not loc4.completely_overlaps(loc1)
-    assert not loc1.completely_overlaps(loc5)
-    assert not loc5.completely_overlaps(loc1)
-    assert not loc1.completely_overlaps(loc6)
+    assert loc1.completely_contains(loc1)
+    assert loc1.completely_contains(loc2)
+    assert loc3.completely_contains(loc1)
+    assert not loc1.completely_contains(loc3)
+    assert loc1.completely_contains(loc4)
+    assert not loc4.completely_contains(loc1)
+    assert not loc1.completely_contains(loc5)
+    assert not loc5.completely_contains(loc1)
+    assert not loc1.completely_contains(loc6)
 
     # Test with EMPTY and FULL memory access
-    assert not EMPTY_MEMORY_ACCESS.completely_overlaps(loc1)
-    assert not loc1.completely_overlaps(EMPTY_MEMORY_ACCESS)
-    assert FULL_MEMORY_ACCESS.completely_overlaps(loc1)
-    assert not loc1.completely_overlaps(FULL_MEMORY_ACCESS)
+    assert not EMPTY_MEMORY_ACCESS.completely_contains(loc1)
+    assert not loc1.completely_contains(EMPTY_MEMORY_ACCESS)
+    assert FULL_MEMORY_ACCESS.completely_contains(loc1)
+    assert not loc1.completely_contains(FULL_MEMORY_ACCESS)
