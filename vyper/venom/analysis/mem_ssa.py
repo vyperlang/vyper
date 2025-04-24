@@ -229,7 +229,7 @@ class MemSSA(IRAnalysis):
         Get the memory def (or phi) that exits a basic block.
 
         This method determines which memory definition is "live"
-        at the entry point of a block by:
+        at the exit point of a block by:
 
             1. First checking if the block itself contains any
                memory definitions and returning the last one
@@ -242,9 +242,11 @@ class MemSSA(IRAnalysis):
         """
         if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
-        elif bb in self.memory_phis:
+
+        if bb in self.memory_phis:
             return self.memory_phis[bb]
-        elif bb != self.dom.entry_block:
+
+        if bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators.get(bb)
             if idom is not None:
