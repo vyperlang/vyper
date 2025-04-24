@@ -343,6 +343,9 @@ class MemSSA(IRAnalysis):
             next_def = self.inst_to_def.get(inst)
             if next_def and next_def.loc.completely_contains(def_loc):
                 clobber = next_def
+
+            # for instructions that both read and write from memory,
+            # check the read first
             mem_use = self.inst_to_use.get(inst)
             if mem_use is not None:
                 if self.memalias.may_alias(def_loc, mem_use.loc):
