@@ -811,10 +811,6 @@ class _ParsedDecorators:
             raise StructureException(
                 "used @reentrant decorator, but `#pragma nonreentrancy` is not set"
             )
-        if self.reentrant_node is not None:
-            raise StructureException(
-                "reentrant decorator is already set", self.reentrant_node, decorator_node
-            )
 
         self.reentrant_node = decorator_node
 
