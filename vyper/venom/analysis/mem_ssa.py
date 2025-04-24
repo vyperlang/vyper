@@ -88,6 +88,8 @@ class MemoryPhi(MemoryAccess):
         self.block = block
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
+# Type alias for either a memory definition or use
+MemoryDefOrUse = MemoryDef | MemoryUse
 
 class MemSSA(IRAnalysis):
     """
@@ -248,7 +250,7 @@ class MemSSA(IRAnalysis):
 
         return self.live_on_entry
 
-    def _get_reaching_def(self, mem_access: MemoryAccess) -> Optional[MemoryAccess]:
+    def _get_reaching_def(self, mem_access: MemoryDefOrUse) -> Optional[MemoryAccess]:
         """
         Finds the memory definition that reaches a specific memory def or use.
 
@@ -258,8 +260,7 @@ class MemSSA(IRAnalysis):
         "in def" from the immediate dominator block. If there is no immediate
         dominator, it returns the live-on-entry definition.
         """
-        # MemoryPhi does not have inst
-        assert not isinstance(mem_access, MemoryPhi), "Only MemoryDef or MemoryUse is supported"
+        assert isinstance(mem_access, MemoryDefOrUse), "Only MemoryDef or MemoryUse is supported"
 
         bb = mem_access.inst.parent
         use_idx = bb.instructions.index(mem_access.inst)
