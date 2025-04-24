@@ -328,8 +328,6 @@ class MemSSA(IRAnalysis):
         if access.is_live_on_entry:
             return None
 
-        # REVIEW: API -- maybe assert isinstance(access, MemoryDef) -- should
-        # be an error to call it with a different kind of MemoryAccess
         if not isinstance(access, MemoryDef):
             return None  # Only defs can be clobbered by subsequent stores
 
