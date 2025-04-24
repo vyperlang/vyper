@@ -44,7 +44,7 @@ class MemoryAliasAnalysis(IRAnalysis):
     def _analyze_mem_location(self, loc: MemoryLocation):
         """Analyze a memory location to determine aliasing"""
         if loc not in self.alias_sets:
-            self.alias_sets[loc] = OrderedSet([])
+            self.alias_sets[loc] = OrderedSet()
 
         # Check for aliasing with existing locations
         for other_loc in self.alias_sets:

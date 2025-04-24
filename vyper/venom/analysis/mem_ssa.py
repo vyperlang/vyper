@@ -1,5 +1,6 @@
 import contextlib
-from typing import Dict, List, Optional, Tuple
+import dataclasses as dc
+from typing import Optional
 
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
@@ -20,7 +21,19 @@ class MemoryAccess:
         return self.id == 0
 
     @property
+    def inst(self) -> IRInstruction:
+        raise NotImplementedError(f"{type(self)} does not have an inst!")
+
+    @property
     def is_volatile(self) -> bool:
+        """
+        Indicates whether this memory access is volatile.
+
+        A volatile memory access means the memory location can be accessed
+        or modified in ways that might not be tracked by the SSA analysis.
+        This is used to handle memory locations that might be accessed
+        through other function calls or other side effects.
+        """
         return self.loc.is_volatile
 
     @property
@@ -49,6 +62,10 @@ class MemoryDef(MemoryAccess):
         self.store_inst = store_inst
         self.loc = store_inst.get_write_memory_location()
 
+    @property
+    def inst(self):
+        return self.store_inst
+
 
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
@@ -58,6 +75,10 @@ class MemoryUse(MemoryAccess):
         self.load_inst = load_inst
         self.loc = load_inst.get_read_memory_location()
 
+    @property
+    def inst(self):
+        return self.load_inst
+
 
 class MemoryPhi(MemoryAccess):
     """Represents a phi node for memory states"""
@@ -65,13 +86,23 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: List[Tuple[MemoryDef, IRBasicBlock]] = []
+        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
+
+
+# Type alias for either a memory definition or use
+MemoryDefOrUse = MemoryDef | MemoryUse
 
 
 class MemSSA(IRAnalysis):
     """
-    This pass converts memory/storage operations into Memory SSA form,
-    tracking memory definitions and uses explicitly.
+    This analysis converts memory/storage operations into Memory SSA form.
+    The analysis is based on LLVM's https://llvm.org/docs/MemorySSA.html.
+    Notably, the LLVM design does not partition memory into ranges.
+    Rather, it keeps track of memory _states_ (each write increments a
+    generation counter), and provides "walk" methods to track memory
+    clobbers. This counterintuitively results in a simpler design
+    and, according to LLVM, better performance.
+    See https://llvm.org/docs/MemorySSA.html#design-tradeoffs.
     """
 
     VALID_LOCATION_TYPES = {"memory", "storage"}
@@ -84,21 +115,28 @@ class MemSSA(IRAnalysis):
         self.load_op = "mload" if location_type == "memory" else "sload"
         self.store_op = "mstore" if location_type == "memory" else "sstore"
 
-        # Memory SSA specific state
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
-        self.live_on_entry = MemoryAccess(0)  # live_on_entry node
-        self.memory_defs: Dict[IRBasicBlock, List[MemoryDef]] = {}
-        self.memory_uses: Dict[IRBasicBlock, List[MemoryUse]] = {}
-        self.memory_phis: Dict[IRBasicBlock, MemoryPhi] = {}
-        self.current_def: Dict[IRBasicBlock, MemoryAccess] = {}
-        self.inst_to_def: Dict[IRInstruction, MemoryDef] = {}
-        self.inst_to_use: Dict[IRInstruction, MemoryUse] = {}
+
+        # live_on_entry node
+        self.live_on_entry = MemoryAccess(0)
+
+        self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
+        self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
+
+        # merge memory states
+        self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
+
+        # the current memory state at each basic block
+        self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
+
+        self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
+        self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
     def analyze(self):
         # Request required analyses
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
+        self.memalias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -107,16 +145,12 @@ class MemSSA(IRAnalysis):
         self._remove_redundant_phis()
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = self.alias.mark_volatile(loc)
+        volatile_loc = self.memalias.mark_volatile(loc)
 
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
-                if self.alias.may_alias(mem_def.loc, loc):
-                    assert mem_def.loc is not None
-                    new_loc = MemoryLocation(
-                        offset=mem_def.loc.offset, size=mem_def.loc.size, is_volatile=True
-                    )
-                    mem_def.loc = new_loc
+                if self.memalias.may_alias(mem_def.loc, loc):
+                    mem_def.loc = dc.replace(mem_def.loc, is_volatile=True)
 
         return volatile_loc
 
@@ -157,7 +191,7 @@ class MemSSA(IRAnalysis):
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
 
-                mem_def.reaching_def = self._get_reaching_def_for_def(block, mem_def)
+                mem_def.reaching_def = self._get_reaching_def(mem_def)
 
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.current_def[block] = mem_def
@@ -174,7 +208,7 @@ class MemSSA(IRAnalysis):
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
                     for pred in frontier.cfg_in:
-                        reaching_def = self._get_in_def(pred)
+                        reaching_def = self._get_exit_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
                     self.next_id += 1
@@ -188,26 +222,52 @@ class MemSSA(IRAnalysis):
             if bb in self.memory_uses:
                 uses = self.memory_uses[bb]
                 for use in uses:
-                    use.reaching_def = self._get_reaching_def(bb, use)
+                    use.reaching_def = self._get_reaching_def(use)
 
-    def _get_in_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
-        """Get the cfg in memorydefinition for a block"""
-        if bb in self.memory_phis:
-            return self.memory_phis[bb]
+    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+        """
+        Get the memory def (or phi) that exits a basic block.
 
+        This method determines which memory definition is "live"
+        at the entry point of a block by:
+
+            1. First checking if the block itself contains any
+               memory definitions and returning the last one
+            2. If not, checking if the block has a phi node (which
+               combines definitions from multiple paths)
+            3. If not, recursively checking the immediate
+               dominator block
+            4. If there's no dominator, returning the
+               live-on-entry definition (initial state)
+        """
         if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
-
-        if bb.cfg_in:
+        elif bb in self.memory_phis:
+            return self.memory_phis[bb]
+        elif bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
-            idom = self.dom.immediate_dominators[bb]
-            return self._get_in_def(idom) if idom else self.live_on_entry
+            idom = self.dom.immediate_dominators.get(bb)
+            if idom is not None:
+                return self._get_exit_def(idom)
 
         return self.live_on_entry
 
-    def _get_reaching_def(self, bb: IRBasicBlock, use: MemoryUse) -> Optional[MemoryAccess]:
-        """Get the reaching definition for a memory use"""
-        use_idx = bb.instructions.index(use.load_inst)
+    def _get_reaching_def(self, mem_access: MemoryDefOrUse) -> Optional[MemoryAccess]:
+        """
+        Finds the memory definition that reaches a specific memory def or use.
+
+        This method searches for the most recent memory definition that affects
+        the given memory def or use by first looking backwards in the same basic block.
+        If none is found, it checks for phi nodes in the block or returns the
+        "in def" from the immediate dominator block. If there is no immediate
+        dominator, it returns the live-on-entry definition.
+        """
+        assert isinstance(mem_access, MemoryDef) or isinstance(
+            mem_access, MemoryUse
+        ), "Only MemoryDef or MemoryUse is supported"
+
+        bb = mem_access.inst.parent
+        use_idx = bb.instructions.index(mem_access.inst)
         for inst in reversed(bb.instructions[:use_idx]):
             if inst in self.inst_to_def:
                 return self.inst_to_def[inst]
@@ -217,46 +277,19 @@ class MemSSA(IRAnalysis):
 
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
-            return self._get_in_def(idom) if idom else self.live_on_entry
-
-        return self.live_on_entry
-
-    def _get_reaching_def_for_def(self, bb: IRBasicBlock, def_inst: MemoryDef) -> MemoryAccess:
-        """Get the reaching definition for a memory definition"""
-        def_idx = bb.instructions.index(def_inst.store_inst)
-        def_loc = def_inst.loc
-
-        # First check for any previous memory def in the same basic block
-        for inst in reversed(bb.instructions[:def_idx]):
-            if inst in self.inst_to_def:
-                prev_def = self.inst_to_def[inst]
-                # Get most recent memory def, regardless of aliasing
-                return prev_def
-
-        if bb in self.memory_phis:
-            phi = self.memory_phis[bb]
-            for op, _ in phi.operands:
-                if isinstance(op, MemoryDef) and self.alias.may_alias(def_loc, op.loc):
-                    return phi
-
-        if bb.cfg_in:
-            idom = self.dom.immediate_dominators.get(bb)
-            if idom:
-                in_def = self._get_in_def(idom)
-                # Only use the in_def if it might alias with our definition
-                if isinstance(in_def, MemoryDef) and self.alias.may_alias(def_loc, in_def.loc):
-                    return in_def
+            return self._get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
 
     def _remove_redundant_phis(self):
-        """Remove unnecessary phi nodes"""
+        """Remove phi nodes whose arguments are all the same"""
         for phi in list(self.memory_phis.values()):
-            if all(op[0] == phi for op in phi.operands):
+            op0 = phi.operands[0]
+            if all(op[0] == op0[0] for op in phi.operands[1:]):
                 del self.memory_phis[phi.block]
 
-    def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:
-        if access is None or access.is_live_on_entry:
+    def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+        if access.is_live_on_entry:
             return None
 
         query_loc = access.loc
@@ -267,33 +300,30 @@ class MemSSA(IRAnalysis):
                 if clobbering and not clobbering.is_live_on_entry:
                     # Phi itself if any path has a clobber
                     return access
-            result = self.live_on_entry
-        else:
-            result = (
-                self._walk_for_clobbered_access(access.reaching_def, query_loc)
-                or self.live_on_entry
-            )
+            return self.live_on_entry
 
-        return result
+        clobber = self._walk_for_clobbered_access(access.reaching_def, query_loc)
+        return clobber or self.live_on_entry
 
     def _walk_for_clobbered_access(
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
-            if isinstance(current, MemoryDef) and query_loc.completely_overlaps(current.loc):
+            if isinstance(current, MemoryDef) and query_loc.completely_contains(current.loc):
                 return current
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
                     clobbering = self._walk_for_clobbered_access(access, query_loc)
-                    if clobbering:
+                    if clobbering is not None:
                         return clobbering
             current = current.reaching_def
         return None
 
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
-        Return the memory access that clobbers (overwrites) this access, if any.
-        Returns None if no clobbering access is found before a use of this access's value.
+        Return the memory access that clobbers (overwrites) this access,
+        if any. Returns None if no clobbering access is found before a use
+        of this access's value.
         """
         if access.is_live_on_entry:
             return None
@@ -309,13 +339,13 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions[def_idx + 1 :]:
             clobber = None
             next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.completely_overlaps(def_loc):
+            if next_def and next_def.loc.completely_contains(def_loc):
                 clobber = next_def
             mem_use = self.inst_to_use.get(inst)
-            if mem_use:
-                if self.alias.may_alias(def_loc, mem_use.loc):
+            if mem_use is not None:
+                if self.memalias.may_alias(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
-            if clobber:
+            if clobber is not None:
                 return clobber
 
         # Traverse successors
@@ -335,19 +365,19 @@ class MemSSA(IRAnalysis):
                         # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
-                            if next_def and next_def.loc.completely_overlaps(def_loc):
+                            if next_def and next_def.loc.completely_contains(def_loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and mem_use.loc.completely_overlaps(def_loc):
+                            if mem_use and mem_use.loc.completely_contains(def_loc):
                                 return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.completely_overlaps(def_loc):
+                if next_def and next_def.loc.completely_contains(def_loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and mem_use.loc.completely_overlaps(def_loc):
+                if mem_use and mem_use.loc.completely_contains(def_loc):
                     return None  # Found a use that reads from our memory location
 
             worklist.extend(succ.cfg_out)
@@ -361,11 +391,11 @@ class MemSSA(IRAnalysis):
         s = ""
         if inst.parent in self.memory_uses:
             for use in self.memory_uses[inst.parent]:
-                if use.load_inst == inst:
+                if use.inst == inst:
                     s += f"\t; use: {use.reaching_def.id_str if use.reaching_def else None}"
         if inst.parent in self.memory_defs:
             for def_ in self.memory_defs[inst.parent]:
-                if def_.store_inst == inst:
+                if def_.inst == inst:
                     s += f"\t; def: {def_.id_str} "
                     s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
                     s += f"{self.get_clobbering_memory_access(def_)}"
@@ -384,5 +414,7 @@ class MemSSA(IRAnalysis):
     @contextlib.contextmanager
     def print_context(self):
         ir_printer.set(self)
-        yield
-        ir_printer.set(None)
+        try:
+            yield
+        finally:
+            ir_printer.set(None)

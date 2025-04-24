@@ -60,8 +60,8 @@ def test_basic_clobber(create_mem_ssa):
     assert not clobbered.is_live_on_entry
     # Verify it's the store instruction in the entry block
     assert clobbered.loc.offset == 0
-    assert clobbered.store_inst.operands[0].value == "%val"
-    assert clobbered.store_inst.parent == fn.entry
+    assert clobbered.inst.operands[0].value == "%val"
+    assert clobbered.inst.parent == fn.entry
 
 
 def test_no_clobber_different_locations(create_mem_ssa):
@@ -118,8 +118,8 @@ def test_phi_node_clobber(create_mem_ssa):
     block2 = fn.get_basic_block("block2")
     block1_def = mem_ssa.memory_defs[block1][0]
     block2_def = mem_ssa.memory_defs[block2][0]
-    assert block1_def.store_inst.operands[0].value == "%val1"
-    assert block2_def.store_inst.operands[0].value == "%val2"
+    assert block1_def.inst.operands[0].value == "%val1"
+    assert block2_def.inst.operands[0].value == "%val2"
 
 
 def test_clobbering_with_multiple_stores(create_mem_ssa):
@@ -164,12 +164,12 @@ def test_clobbering_with_multiple_stores(create_mem_ssa):
     clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
     assert clobberer1 == def3, f"Expected def3 to clobber def1, got {clobberer1}"
     assert clobberer1.loc.offset == 0
-    assert clobberer1.store_inst.operands[0].value == "%val3"
+    assert clobberer1.inst.operands[0].value == "%val3"
 
     clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
     assert clobberer2 == def3, f"Expected def3 to clobber def2, got {clobberer2}"
     assert clobberer2.loc.offset == 0
-    assert clobberer2.store_inst.operands[0].value == "%val3"
+    assert clobberer2.inst.operands[0].value == "%val3"
 
     clobberer3 = mem_ssa.get_clobbering_memory_access(def3)
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
@@ -212,7 +212,7 @@ def test_partially_overlapping_clobber(create_mem_ssa):
     assert clobberer3 is None, f"Expected None for def3, got {clobberer3}"
 
     # Verify partial overlap detection
-    assert mem_ssa.alias.may_alias(
+    assert mem_ssa.memalias.may_alias(
         def3.loc, def4.loc
     ), "Partially overlapping locations should alias"
 
@@ -326,9 +326,9 @@ def test_complex_loop_clobber(create_mem_ssa):
     path_b_def = mem_ssa.memory_defs[path_b_block][0]
 
     assert nested_a1_def.loc.offset == 0
-    assert nested_a1_def.store_inst.operands[0].value == "%val_a1"
+    assert nested_a1_def.inst.operands[0].value == "%val_a1"
     assert path_b_def.loc.offset == 0
-    assert path_b_def.store_inst.operands[0].value == "%val_b"
+    assert path_b_def.inst.operands[0].value == "%val_b"
 
     # Test the final load in exit block
     exit_block = fn.get_basic_block("exit")
@@ -344,7 +344,7 @@ def test_complex_loop_clobber(create_mem_ssa):
     nested_a2_block = fn.get_basic_block("nested_a2")
     different_loc_store = mem_ssa.memory_defs[nested_a2_block][0]
     assert different_loc_store.loc.offset == 32
-    assert different_loc_store.store_inst.operands[0].value == "%val_a2"
+    assert different_loc_store.inst.operands[0].value == "%val_a2"
 
 
 def test_simple_def_chain(create_mem_ssa):
@@ -385,56 +385,58 @@ def test_may_alias(dummy_mem_ssa):
     # Test non-overlapping memory locations
     loc1 = MemoryLocation(offset=0, size=32)
     loc2 = MemoryLocation(offset=32, size=32)
-    assert not mem_ssa.alias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
+    assert not mem_ssa.memalias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
 
     # Test overlapping memory locations
     loc3 = MemoryLocation(offset=0, size=16)
     loc4 = MemoryLocation(offset=8, size=8)
-    assert mem_ssa.alias.may_alias(loc3, loc4), "Overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
     # Test FULL_MEMORY_ACCESS
     full_loc = FULL_MEMORY_ACCESS
-    assert mem_ssa.alias.may_alias(
+    assert mem_ssa.memalias.may_alias(
         full_loc, loc1
     ), "FULL_MEMORY_ACCESS should alias with any non-empty location"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         full_loc, EMPTY_MEMORY_ACCESS
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
 
     # Test EMPTY_MEMORY_ACCESS
     empty_loc = EMPTY_MEMORY_ACCESS
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         empty_loc, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with any location"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         empty_loc, full_loc
     ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
     # Test zero/negative size locations
     zero_size_loc = MemoryLocation(offset=0, size=0)
-    assert not mem_ssa.alias.may_alias(zero_size_loc, loc1), "Zero size location should not alias"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
+        zero_size_loc, loc1
+    ), "Zero size location should not alias"
+    assert not mem_ssa.memalias.may_alias(
         zero_size_loc, zero_size_loc
     ), "Zero size locations should not alias with each other"
 
     # Test partial overlap
     loc5 = MemoryLocation(offset=0, size=64)
     loc6 = MemoryLocation(offset=32, size=32)
-    assert mem_ssa.alias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
-    assert mem_ssa.alias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
+    assert mem_ssa.memalias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
 
     # Test exact same location
     loc7 = MemoryLocation(offset=0, size=64)
     loc8 = MemoryLocation(offset=0, size=64)
-    assert mem_ssa.alias.may_alias(loc7, loc8), "Identical locations should alias"
+    assert mem_ssa.memalias.may_alias(loc7, loc8), "Identical locations should alias"
 
     # Test adjacent but non-overlapping locations
     loc9 = MemoryLocation(offset=0, size=64)
     loc10 = MemoryLocation(offset=64, size=64)
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         loc9, loc10
     ), "Adjacent but non-overlapping locations should not alias"
-    assert not mem_ssa.alias.may_alias(
+    assert not mem_ssa.memalias.may_alias(
         loc10, loc9
     ), "Adjacent but non-overlapping locations should not alias"
 
@@ -602,8 +604,8 @@ def test_mark_volatile(create_mem_ssa):
     load_loc = mem_ssa.get_memory_use(load).loc
 
     # Mark locations as volatile
-    volatile_store_loc = mem_ssa.alias.mark_volatile(store_loc)
-    volatile_load_loc = mem_ssa.alias.mark_volatile(load_loc)
+    volatile_store_loc = mem_ssa.memalias.mark_volatile(store_loc)
+    volatile_load_loc = mem_ssa.memalias.mark_volatile(load_loc)
 
     assert volatile_store_loc.offset == store_loc.offset
     assert volatile_store_loc.size == store_loc.size
@@ -611,9 +613,9 @@ def test_mark_volatile(create_mem_ssa):
     assert volatile_load_loc.size == load_loc.size
     assert volatile_store_loc.is_volatile
     assert volatile_load_loc.is_volatile
-    assert mem_ssa.alias.may_alias(volatile_store_loc, store_loc)
-    assert mem_ssa.alias.may_alias(volatile_load_loc, load_loc)
-    assert mem_ssa.alias.may_alias(volatile_store_loc, volatile_load_loc)
+    assert mem_ssa.memalias.may_alias(volatile_store_loc, store_loc)
+    assert mem_ssa.memalias.may_alias(volatile_load_loc, load_loc)
+    assert mem_ssa.memalias.may_alias(volatile_store_loc, volatile_load_loc)
 
 
 def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
@@ -635,7 +637,7 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assert assignment_inst.get_read_memory_location() is EMPTY_MEMORY_ACCESS
     assert assignment_inst.get_write_memory_location() is EMPTY_MEMORY_ACCESS
 
-    assert mem_ssa.alias.alias_sets is not None
+    assert mem_ssa.memalias.alias_sets is not None
 
 
 def test_phi_node_reaching_def(create_mem_ssa):
@@ -684,8 +686,8 @@ def test_phi_node_reaching_def(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = def3.loc
 
-    # Manually test the _get_reaching_def_for_def method
-    reaching_def = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
+    # Manually test the _get_reaching_def method
+    reaching_def = mem_ssa._get_reaching_def(new_def)
     assert reaching_def == phi, "The reaching definition should be the phi node"
 
 
@@ -756,7 +758,7 @@ def test_remove_redundant_phis(create_mem_ssa):
     assert merge_block in mem_ssa.memory_phis
     phi = mem_ssa.memory_phis[merge_block]
 
-    phi.operands = [(phi, merge_block), (phi, merge_block)]
+    phi.operands = [phi.operands[0], phi.operands[0]]
 
     # Remove redundant phis
     mem_ssa._remove_redundant_phis()
@@ -935,7 +937,7 @@ def test_get_in_def_with_no_predecessors(create_mem_ssa):
     mem_ssa, fn, _ = create_mem_ssa(pre)
 
     block = IRBasicBlock(IRLabel("_global"), fn)
-    result = mem_ssa._get_in_def(block)
+    result = mem_ssa._get_exit_def(block)
     assert result == mem_ssa.live_on_entry
 
 
@@ -956,11 +958,11 @@ def test_get_in_def_with_merge_block(create_mem_ssa):
     mem_ssa, fn, _ = create_mem_ssa(pre)
 
     merge_block = fn.get_basic_block("merge")
-    result = mem_ssa._get_in_def(merge_block)
+    result = mem_ssa._get_exit_def(merge_block)
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
+def test_get_reaching_def_with_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -987,11 +989,11 @@ def test_get_reaching_def_for_def_with_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
 
-    result = mem_ssa._get_reaching_def_for_def(merge_block, new_def)
+    result = mem_ssa._get_reaching_def(new_def)
     assert result == phi
 
 
-def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
+def test_get_reaching_def_with_no_phi(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1007,7 +1009,7 @@ def test_get_reaching_def_for_def_with_no_phi(create_mem_ssa):
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)
 
-    result = mem_ssa._get_reaching_def_for_def(entry_block, new_def)
+    result = mem_ssa._get_reaching_def(new_def)
     assert result == mem_ssa.live_on_entry
 
 
@@ -1034,19 +1036,6 @@ def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
     phi = mem_ssa.memory_phis[merge_block]
 
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
-
-
-def test_get_clobbered_memory_access_with_none(create_mem_ssa):
-    pre = """
-    function _global {
-        entry:
-            stop
-    }
-    """
-    mem_ssa, fn, _ = create_mem_ssa(pre)
-
-    result = mem_ssa.get_clobbered_memory_access(None)
-    assert result is None
 
 
 def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
@@ -1152,7 +1141,7 @@ def test_get_clobbering_memory_access_with_phi_in_successor(create_mem_ssa):
     result = mem_ssa.get_clobbering_memory_access(def_)
     assert result is not None
     assert isinstance(result, MemoryDef)
-    assert int(result.store_inst.operands[0].value) == 84
+    assert int(result.inst.operands[0].value) == 84
 
 
 def test_post_instruction_with_no_memory_ops(create_mem_ssa):
