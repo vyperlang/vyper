@@ -240,7 +240,7 @@ class MemSSA(IRAnalysis):
             4. If there's no dominator, returning the
                live-on-entry definition (initial state)
         """
-        if bb in self.memory_defs and self.memory_defs[bb]:
+        if bb in self.memory_defs and len(self.memory_defs[bb]) > 0:
             return self.memory_defs[bb][-1]
 
         if bb in self.memory_phis:
