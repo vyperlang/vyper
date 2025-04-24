@@ -64,8 +64,7 @@ class MemoryAliasAnalysis(IRAnalysis):
         if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
             return False
 
-        if loc1.size <= 0 or loc2.size <= 0:
-            return False
+        assert loc1.size > 0 and loc2.size > 0
 
         start1, end1 = loc1.offset, loc1.offset + loc1.size
         start2, end2 = loc2.offset, loc2.offset + loc2.size
