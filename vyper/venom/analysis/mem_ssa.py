@@ -197,7 +197,7 @@ class MemSSA(IRAnalysis):
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
 
-    def _insert_phi_nodes(self):
+    def _insert_phi_nodes(self) -> None:
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
 
@@ -207,7 +207,7 @@ class MemSSA(IRAnalysis):
                 if frontier not in self.memory_phis:
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
-                    for pred in frontier.cfg_in:
+                    for pred in self.cfg.cfg_in(frontier):
                         reaching_def = self._get_exit_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
@@ -277,7 +277,7 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
-        if bb.cfg_in:
+        if self.cfg.cfg_in(bb):
             idom = self.dom.immediate_dominators.get(bb)
             return self._get_exit_def(idom) if idom else self.live_on_entry
 
