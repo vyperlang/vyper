@@ -1038,19 +1038,6 @@ def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_with_none(create_mem_ssa):
-    pre = """
-    function _global {
-        entry:
-            stop
-    }
-    """
-    mem_ssa, fn, _ = create_mem_ssa(pre)
-
-    result = mem_ssa.get_clobbered_memory_access(None)
-    assert result is None
-
-
 def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
     mem_ssa, _, _ = dummy_mem_ssa
 

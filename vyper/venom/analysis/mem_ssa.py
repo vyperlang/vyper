@@ -88,8 +88,10 @@ class MemoryPhi(MemoryAccess):
         self.block = block
         self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
 
+
 # Type alias for either a memory definition or use
 MemoryDefOrUse = MemoryDef | MemoryUse
+
 
 class MemSSA(IRAnalysis):
     """
@@ -260,7 +262,9 @@ class MemSSA(IRAnalysis):
         "in def" from the immediate dominator block. If there is no immediate
         dominator, it returns the live-on-entry definition.
         """
-        assert isinstance(mem_access, MemoryDefOrUse), "Only MemoryDef or MemoryUse is supported"
+        assert isinstance(mem_access, MemoryDef) or isinstance(
+            mem_access, MemoryUse
+        ), "Only MemoryDef or MemoryUse is supported"
 
         bb = mem_access.inst.parent
         use_idx = bb.instructions.index(mem_access.inst)
@@ -284,9 +288,8 @@ class MemSSA(IRAnalysis):
             if all(op[0] == op0[0] for op in phi.operands[1:]):
                 del self.memory_phis[phi.block]
 
-    def get_clobbered_memory_access(self, access: Optional[MemoryAccess]) -> Optional[MemoryAccess]:
-        # REVIEW: API -- is it necessary to accept None access?
-        if access is None or access.is_live_on_entry:
+    def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+        if access.is_live_on_entry:
             return None
 
         query_loc = access.loc
