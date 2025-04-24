@@ -141,7 +141,7 @@ class RedundantLoadElimination(IRPass):
                 if inst in self.replacements:
                     new_var = self.replacements[inst]
                     del self.mem_ssa.inst_to_use[inst]
-                    self.updater.update(inst, "store", [new_var], "[redundant load elimination]")
+                    self.updater.update(inst, "store", [new_var], annotation="[redundant load elimination]")
 
     def _is_load_available(
         self, use: MemoryUse, last_memory_write: Union[MemoryDef, MemoryPhi]
