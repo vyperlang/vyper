@@ -1,10 +1,12 @@
 import pytest
 from eth_utils import to_wei
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, OverflowException
-from vyper.semantics.types import DecimalT
+from vyper.semantics.types import DecimalT, IntegerT
 from vyper.utils import quantize, round_towards_zero
 
 wei_denoms = {
@@ -101,6 +103,54 @@ def foo(a: {data_type}) -> uint256:
 
     c = get_contract(code)
     assert c.foo(0) == 0
+
+
+@pytest.mark.parametrize("data_type", list(IntegerT.all()) + [DecimalT()])
+@pytest.mark.parametrize("denom", wei_denoms.keys())
+@pytest.mark.fuzzing
+def test_general_fuzzing(get_contract, tx_failed, denom, data_type):
+    # Create a strategy for the current data type
+    min_value, max_value = data_type.ast_bounds
+    if data_type == DecimalT():
+        x_strategy = st.decimals(
+            min_value=min_value,
+            max_value=max_value,
+            allow_nan=False,
+            places=10,
+            allow_infinity=False,
+        )
+    else:
+        x_strategy = st.integers(min_value=min_value, max_value=max_value)
+
+    @given(x=x_strategy)
+    @settings(max_examples=5)
+    def inner_test(x):
+        code = f"""
+@external
+def foo(a: {data_type}) -> uint256:
+    return as_wei_value(a, "{denom}")
+        """
+        x_int = x
+        if data_type == DecimalT():
+            # DecimalT should be converted to int before passing to the contract
+            x_int = decimal_to_int(x)
+
+        c = get_contract(code)
+        if x < 0:
+            # Negative values should revert
+            with tx_failed():
+                c.foo(x_int)
+            return
+        try:
+            to_wei(x, denom)
+        except ValueError:
+            # If the value is too large, it should revert
+            with tx_failed():
+                c.foo(x_int)
+            return
+        assert c.foo(x_int) == to_wei(x, denom)
+
+    inner_test()
 
 
 def test_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
