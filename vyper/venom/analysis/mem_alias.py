@@ -1,3 +1,4 @@
+import dataclasses as dc
 from typing import Optional
 
 from vyper.utils import OrderedSet
@@ -91,7 +92,7 @@ class MemoryAliasAnalysis(IRAnalysis):
         return result
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = MemoryLocation(offset=loc.offset, size=loc.size, is_volatile=True)
+        volatile_loc = dc.replace(loc, is_volatile=True)
 
         if loc in self.alias_sets:
             self.alias_sets[volatile_loc] = OrderedSet([volatile_loc])
