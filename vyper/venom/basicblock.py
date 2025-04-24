@@ -809,13 +809,6 @@ class IRBasicBlock:
         return self.instructions[-1].is_bb_terminator
 
     @property
-    def is_terminal(self) -> bool:
-        """
-        Check if the basic block is terminal.
-        """
-        return len(self.cfg_out) == 0
-
-    @property
     def liveness_in_vars(self) -> OrderedSet[IRVariable]:
         for inst in self.instructions:
             if inst.opcode != "phi":

@@ -92,14 +92,6 @@ class IRFunction:
     def code_size_cost(self) -> int:
         return sum(bb.code_size_cost for bb in self.get_basic_blocks())
 
-    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
-        """
-        Get basic blocks that are terminal.
-        """
-        for bb in self.get_basic_blocks():
-            if bb.is_terminal:
-                yield bb
-
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
