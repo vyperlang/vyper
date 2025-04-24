@@ -293,7 +293,7 @@ class MemSSA(IRAnalysis):
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
         Get the memory access that gets clobbered by the provided access.
-        Returns None for reached the live-on-entry node.
+        Returns None if we reached the live-on-entry node.
         This can be thought of as the inverse query for `get_clobbering_memory_access`.
         For example:
         ```
