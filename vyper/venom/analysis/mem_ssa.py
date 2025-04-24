@@ -291,6 +291,11 @@ class MemSSA(IRAnalysis):
                 del self.memory_phis[phi.block]
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+        """
+        Get the memory access that gets clobbered by the provided access.
+        Returns None if the access is not clobbered and we reached the
+        live-on-entry node.
+        """
         if access.is_live_on_entry:
             return None
 
@@ -343,6 +348,9 @@ class MemSSA(IRAnalysis):
             next_def = self.inst_to_def.get(inst)
             if next_def and next_def.loc.completely_contains(def_loc):
                 clobber = next_def
+
+            # for instructions that both read and write from memory,
+            # check the read first
             mem_use = self.inst_to_use.get(inst)
             if mem_use is not None:
                 if self.memalias.may_alias(def_loc, mem_use.loc):
