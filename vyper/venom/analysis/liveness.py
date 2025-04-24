@@ -12,10 +12,10 @@ class LivenessAnalysis(IRAnalysis):
     """
 
     def analyze(self):
-        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self._reset_liveness()
 
-        worklist = deque(cfg.dfs_post_walk)
+        worklist = deque(self.cfg.dfs_post_walk)
 
         while len(worklist) > 0:
             changed = False
@@ -26,7 +26,7 @@ class LivenessAnalysis(IRAnalysis):
             # recompute liveness for basic blocks pointing into
             # this basic block
             if changed:
-                worklist.extend(bb.cfg_in)
+                worklist.extend(self.cfg.cfg_in(bb))
 
     def _reset_liveness(self) -> None:
         for bb in self.function.get_basic_blocks():
@@ -62,7 +62,7 @@ class LivenessAnalysis(IRAnalysis):
         """
         out_vars = bb.out_vars.copy()
         bb.out_vars = OrderedSet()
-        for out_bb in bb.cfg_out:
+        for out_bb in self.cfg.cfg_out(bb):
             target_vars = self.input_vars_from(bb, out_bb)
             bb.out_vars.update(target_vars)
         return out_vars != bb.out_vars

@@ -125,57 +125,6 @@ class IRFunction:
                         continue
                     inst.operands[i] = varmap[op]
 
-    def remove_unreachable_blocks(self) -> int:
-        # Remove unreachable basic blocks
-        # pre: requires CFG analysis!
-        # NOTE: should this be a pass?
-
-        removed = set()
-
-        for bb in self.get_basic_blocks():
-            if not bb.is_reachable:
-                removed.add(bb)
-
-        for bb in removed:
-            self.remove_basic_block(bb)
-
-        # Remove phi instructions that reference removed basic blocks
-        for bb in self.get_basic_blocks():
-            for in_bb in list(bb.cfg_in):
-                if in_bb not in removed:
-                    continue
-
-                bb.remove_cfg_in(in_bb)
-
-            # TODO: only run this if cfg_in changed
-            bb.fix_phi_instructions()
-
-        return len(removed)
-
-    @property
-    def normalized(self) -> bool:
-        """
-        Check if function is normalized. A function is normalized if in the
-        CFG, no basic block simultaneously has multiple inputs and outputs.
-        That is, a basic block can be jumped to *from* multiple blocks, or it
-        can jump *to* multiple blocks, but it cannot simultaneously do both.
-        Having a normalized CFG makes calculation of stack layout easier when
-        emitting assembly.
-        """
-        for bb in self.get_basic_blocks():
-            # Ignore if there are no multiple predecessors
-            if len(bb.cfg_in) <= 1:
-                continue
-
-            # Check if there is a branching jump at the end
-            # of one of the predecessors
-            for in_bb in bb.cfg_in:
-                if len(in_bb.cfg_out) > 1:
-                    return False
-
-        # The function is normalized
-        return True
-
     def push_source(self, ir):
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)

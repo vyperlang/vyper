@@ -629,12 +629,6 @@ class IRBasicBlock:
     label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
-    # basic blocks which can jump to this basic block
-    cfg_in: OrderedSet["IRBasicBlock"]
-    # basic blocks which this basic block can jump to
-    cfg_out: OrderedSet["IRBasicBlock"]
-    # stack items which this basic block produces
-    out_vars: OrderedSet[IRVariable]
 
     is_reachable: bool = False
 
@@ -643,27 +637,18 @@ class IRBasicBlock:
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.cfg_in = OrderedSet()
-        self.cfg_out = OrderedSet()
-        self.out_vars = OrderedSet()
-        self.is_reachable = False
 
-    def add_cfg_in(self, bb: "IRBasicBlock") -> None:
-        self.cfg_in.add(bb)
+    @property
+    def out_bbs(self):
+        assert self.is_terminated
+        term = self.last_instruction
+        out_labels = term.get_label_operands()
+        fn = self.parent
+        return [fn.get_basic_block(label.name) for label in out_labels]
 
-    def remove_cfg_in(self, bb: "IRBasicBlock") -> None:
-        assert bb in self.cfg_in
-        self.cfg_in.remove(bb)
-
-    def add_cfg_out(self, bb: "IRBasicBlock") -> None:
-        # malformed: jnz condition label1 label1
-        # (we could handle but it makes a lot of code easier
-        # if we have this assumption)
-        self.cfg_out.add(bb)
-
-    def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
-        assert bb in self.cfg_out
-        self.cfg_out.remove(bb)
+    @property
+    def last_instruction(self):
+        return self.instructions[-1]
 
     def append_instruction(
         self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None
@@ -789,30 +774,6 @@ class IRBasicBlock:
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
-
-    def fix_phi_instructions(self):
-        cfg_in_labels = tuple(bb.label for bb in self.cfg_in)
-
-        needs_sort = False
-        for inst in self.instructions:
-            if inst.opcode != "phi":
-                continue
-
-            labels = inst.get_label_operands()
-            for label in labels:
-                if label not in cfg_in_labels:
-                    needs_sort = True
-                    inst.remove_phi_operand(label)
-
-            op_len = len(inst.operands)
-            if op_len == 2:
-                inst.opcode = "store"
-                inst.operands = [inst.operands[1]]
-            elif op_len == 0:
-                inst.make_nop()
-
-        if needs_sort:
-            self.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
     def get_assignments(self):
         """

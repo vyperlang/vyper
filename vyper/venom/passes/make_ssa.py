@@ -15,7 +15,7 @@ class MakeSSA(IRPass):
     def run_pass(self):
         fn = self.function
 
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
         # Request liveness analysis so the `liveness_in_vars` field is valid
@@ -61,7 +61,7 @@ class MakeSSA(IRPass):
             return
 
         args: list[IROperand] = []
-        for bb in basic_block.cfg_in:
+        for bb in self.cfg.cfg_in(basic_block):
             if bb == basic_block:
                 continue
 
@@ -105,7 +105,7 @@ class MakeSSA(IRPass):
                 inst.output = self.latest_version_of(inst.output)
                 outs.append(inst.output.name)
 
-        for bb in basic_block.cfg_out:
+        for bb in self.cfg.cfg_out(basic_block):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue

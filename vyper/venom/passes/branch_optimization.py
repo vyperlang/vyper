@@ -26,7 +26,7 @@ class BranchOptimizationPass(IRPass):
             if term_inst.opcode != "jnz":
                 continue
 
-            fst, snd = bb.cfg_out
+            fst, snd = self.cfg.cfg_out(bb)
 
             fst_liveness = fst.instructions[0].liveness
             snd_liveness = snd.instructions[0].liveness
