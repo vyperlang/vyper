@@ -308,7 +308,7 @@ class VenomCompiler:
 
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
-                next_liveness = self.liveness.liveness_at(all_insts[i + 1])
+                next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
             else:
                 next_liveness = self.liveness.out_vars(basicblock)
 
