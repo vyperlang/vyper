@@ -204,7 +204,7 @@ class MemSSA(IRAnalysis):
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
                     for pred in frontier.cfg_in:
-                        reaching_def = self._get_out_def(pred)
+                        reaching_def = self._get_exit_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
                     self.next_id += 1
@@ -220,33 +220,31 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(use)
 
-    def _get_out_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         """
         Get the memory def (or phi) that exits a basic block.
 
         This method determines which memory definition is "live"
         at the entry point of a block by:
 
-            1. First checking if the block has a phi node (which
-               combines definitions from multiple paths)
-            2. If not, checking if the block itself contains any
+            1. First checking if the block itself contains any
                memory definitions and returning the last one
+            2. If not, checking if the block has a phi node (which
+               combines definitions from multiple paths)
             3. If not, recursively checking the immediate
                dominator block
             4. If there's no dominator, returning the
                live-on-entry definition (initial state)
         """
-        if bb in self.memory_phis:
-            return self.memory_phis[bb]
-
         if bb in self.memory_defs and self.memory_defs[bb]:
             return self.memory_defs[bb][-1]
-
-        if bb != self.dom.entry_block:
+        elif bb in self.memory_phis:
+            return self.memory_phis[bb]
+        elif bb != self.dom.entry_block:
             # Get reaching def from immediate dominator
             idom = self.dom.immediate_dominators.get(bb)
             if idom is not None:
-                return self._get_out_def(idom)
+                return self._get_exit_def(idom)
 
         return self.live_on_entry
 
@@ -274,7 +272,7 @@ class MemSSA(IRAnalysis):
 
         if bb.cfg_in:
             idom = self.dom.immediate_dominators.get(bb)
-            return self._get_out_def(idom) if idom else self.live_on_entry
+            return self._get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
 
