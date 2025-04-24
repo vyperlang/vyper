@@ -1,9 +1,9 @@
-from typing import Iterator
+from typing import Iterator, MutableMapping
 from weakref import WeakKeyDictionary
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
-from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock
+from vyper.venom.basicblock import IRBasicBlock
 
 
 class CFGAnalysis(IRAnalysis):
@@ -12,9 +12,9 @@ class CFGAnalysis(IRAnalysis):
     """
 
     _dfs: OrderedSet[IRBasicBlock]
-    _cfg_in: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    _cfg_out: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    _reachable: dict[IRBasicBlock, bool]
+    _cfg_in: MutableMapping[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    _cfg_out: MutableMapping[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    _reachable: MutableMapping[IRBasicBlock, bool]
 
     def analyze(self) -> None:
         fn = self.function
@@ -104,7 +104,7 @@ class CFGAnalysis(IRAnalysis):
 
             yield bb
 
-            for out_bb in bb.cfg_out:
+            for out_bb in self._cfg_out[bb]:
                 yield from _visit_dfs_pre_r(out_bb)
 
         yield from _visit_dfs_pre_r(self.function.entry)

@@ -181,7 +181,7 @@ class IRFunction:
         ret.append(f'subgraph "{self.name}" {{')
 
         for bb in self.get_basic_blocks():
-            for out_bb in bb.cfg_out:
+            for out_bb in bb.out_bbs:
                 ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
 
         for bb in self.get_basic_blocks():

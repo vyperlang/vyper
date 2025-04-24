@@ -366,7 +366,7 @@ class MemSSA(IRAnalysis):
                 return clobber
 
         # Traverse successors
-        worklist = list(block.cfg_out)
+        worklist = list(self.cfg.cfg_out(block))
         visited = {block}
         while worklist:
             succ = worklist.pop()
@@ -397,7 +397,7 @@ class MemSSA(IRAnalysis):
                 if mem_use and mem_use.loc.completely_contains(def_loc):
                     return None  # Found a use that reads from our memory location
 
-            worklist.extend(succ.cfg_out)
+            worklist.extend(self.cfg.cfg_out(succ))
 
         return None
 

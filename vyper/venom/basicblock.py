@@ -630,7 +630,7 @@ class IRBasicBlock:
     parent: "IRFunction"
     instructions: list[IRInstruction]
 
-    is_reachable: bool = False
+    out_vars: Any  # type kludge, remove me
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -825,10 +825,7 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = (
-            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        )
+        s = f"{repr(self.label)}:" f" OUT={[bb.label for bb in self.out_bbs]} => {self.out_vars}\n"
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:
