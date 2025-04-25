@@ -15,7 +15,9 @@ class InstUpdater:
     def __init__(self, dfg: DFGAnalysis):
         self.dfg = dfg
 
-    def update_operands(self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand], annotation: str = ""):
+    def update_operands(
+        self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand], annotation: str = ""
+    ):
         old_operands = inst.operands
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands, annotation=annotation)

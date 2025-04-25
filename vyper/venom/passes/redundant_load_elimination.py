@@ -124,7 +124,7 @@ class RedundantLoadElimination(IRPass):
 
                     if (
                         use != mem_use
-                        and use.loc.completely_overlaps(mem_use.loc)
+                        and use.loc.completely_contains(mem_use.loc)
                         and not use.is_volatile
                         and self._is_load_available(mem_use, use.reaching_def)  # type: ignore
                     ):
@@ -141,7 +141,9 @@ class RedundantLoadElimination(IRPass):
                 if inst in self.replacements:
                     new_var = self.replacements[inst]
                     del self.mem_ssa.inst_to_use[inst]
-                    self.updater.update(inst, "store", [new_var], annotation="[redundant load elimination]")
+                    self.updater.update(
+                        inst, "store", [new_var], annotation="[redundant load elimination]"
+                    )
 
     def _is_load_available(
         self, use: MemoryUse, last_memory_write: Union[MemoryDef, MemoryPhi]
