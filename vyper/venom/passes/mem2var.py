@@ -71,11 +71,10 @@ class Mem2Var(IRPass):
         # some value given to us by the calling convention
         fn = self.function
         if ENABLE_NEW_CALL_CONV:
-            assert fn.get_param_by_id(alloca_id.value) is not None
-
-        # TODO: maybe better to not touch the palloca instruction,
-        # and instead "add_after" the palloca instruction.
-        self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+            param = fn.get_param_by_id(alloca_id.value)
+            self.updater.update(palloca_inst, "store", [param.func_var], new_output=var)
+        else:
+            self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
