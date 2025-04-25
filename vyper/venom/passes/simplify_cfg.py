@@ -7,6 +7,7 @@ from vyper.venom.passes.base_pass import IRPass
 
 class SimplifyCFGPass(IRPass):
     visited: OrderedSet
+    cfg: CFGAnalysis
 
     def _merge_blocks(self, a: IRBasicBlock, b: IRBasicBlock):
         a.instructions.pop()  # pop terminating instruction

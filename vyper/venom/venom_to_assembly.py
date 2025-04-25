@@ -140,6 +140,7 @@ class VenomCompiler:
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
 
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs

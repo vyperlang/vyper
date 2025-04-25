@@ -12,6 +12,7 @@ class VarDefinition(IRAnalysis):
 
     defined_vars: dict[IRInstruction, OrderedSet[IRVariable]]
     defined_vars_bb: dict[IRBasicBlock, OrderedSet[IRVariable]]
+    cfg: CFGAnalysis
 
     def analyze(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore

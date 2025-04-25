@@ -51,6 +51,7 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -65,7 +66,7 @@ class SCCP(IRPass):
     def run_pass(self):
         self.fn = self.function
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore 
         self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)

@@ -19,6 +19,10 @@ class BranchOptimizationPass(IRPass):
     This pass optimizes branches inverting jnz instructions where appropriate
     """
 
+    cfg: CFGAnalysis
+    liveness: LivenessAnalysis
+    dfg: DFGAnalysis
+
     def _optimize_branches(self) -> None:
         fn = self.function
         for bb in fn.get_basic_blocks():
@@ -50,9 +54,9 @@ class BranchOptimizationPass(IRPass):
                 self.updater.update(term_inst, term_inst.opcode, new_operands)
 
     def run_pass(self):
-        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis) # type: ignore
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis) # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis) # type: ignore
         self.updater = InstUpdater(self.dfg)
 
         assert isinstance(self.dfg, DFGAnalysis)

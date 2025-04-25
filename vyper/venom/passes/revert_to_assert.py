@@ -8,6 +8,9 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class RevertToAssert(IRPass):
+
+    cfg: CFGAnalysis
+
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         fn = self.function

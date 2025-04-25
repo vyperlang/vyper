@@ -135,8 +135,8 @@ class MemSSA(IRAnalysis):
     def analyze(self):
         # Request required analyses
         self.cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.memalias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
+        self.dom: DominatorTreeAnalysis = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.memalias: MemoryAliasAnalysis = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
