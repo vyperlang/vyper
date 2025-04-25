@@ -249,25 +249,25 @@ def _handle_internal_func(
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
     if ENABLE_NEW_CALL_CONV:
-        index = 0
+        stack_index = 0
         if func_t.return_type is not None and not _returns_word(func_t):
-            index += 1
+            stack_index += 1
         for arg in func_t.arguments:
             var = context.lookup_var(arg.name)
             if not _is_word_type(var.typ):
                 continue
             venom_arg = IRParameter(
-                var.name,
-                index,
-                var.alloca.offset,
-                var.alloca.size,
-                var.alloca._id,
-                None,
-                None,
-                None,
+                name=var.name,
+                index=stack_index,
+                offset=var.alloca.offset,
+                size=var.alloca.size,
+                id_=var.alloca._id,
+                call_site_var=None,
+                func_var=None,
+                addr_var=None,
             )
             fn.args.append(venom_arg)
-            index += 1
+            stack_index += 1
 
     bb = fn.get_basic_block()
 
