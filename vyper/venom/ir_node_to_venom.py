@@ -283,7 +283,6 @@ def _handle_internal_func(
             param = bb.append_instruction("param")
             bb.instructions[-1].annotation = arg.name
             assert param is not None  # help mypy
-            symbols[arg.name] = param  # necessary?
 
             venom_arg = IRParameter(
                 name=var.name,
