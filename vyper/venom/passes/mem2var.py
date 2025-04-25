@@ -74,6 +74,8 @@ class Mem2Var(IRPass):
             # it comes as a stack parameter. this (reifying with param based
             # on alloca_id) is a bit kludgey, but we will live.
             param = fn.get_param_by_id(alloca_id.value)
+            assert param is not None  # help mypy
+            assert param.func_var is not None  # help mypy
             self.updater.update(palloca_inst, "store", [param.func_var], new_output=var)
         else:
             # otherwise, it comes from memory, convert to an mload.
