@@ -248,27 +248,6 @@ def _handle_internal_func(
 
     fn = fn.ctx.create_function(ir.args[0].args[0].value)
 
-    if ENABLE_NEW_CALL_CONV:
-        stack_index = 0
-        if func_t.return_type is not None and not _returns_word(func_t):
-            stack_index += 1
-        for arg in func_t.arguments:
-            var = context.lookup_var(arg.name)
-            if not _is_word_type(var.typ):
-                continue
-            venom_arg = IRParameter(
-                name=var.name,
-                index=stack_index,
-                offset=var.alloca.offset,
-                size=var.alloca.size,
-                id_=var.alloca._id,
-                call_site_var=None,
-                func_var=None,
-                addr_var=None,
-            )
-            fn.args.append(venom_arg)
-            stack_index += 1
-
     bb = fn.get_basic_block()
 
     _saved_alloca_table = _alloca_table
@@ -293,20 +272,39 @@ def _handle_internal_func(
         symbols["return_buffer"] = buf
 
     if ENABLE_NEW_CALL_CONV:
-        for arg in fn.args:
-            ret = bb.append_instruction("param")
+        stack_index = 0
+        if func_t.return_type is not None and not _returns_word(func_t):
+            stack_index += 1
+        for arg in func_t.arguments:
+            var = context.lookup_var(arg.name)
+            if not _is_word_type(var.typ):
+                continue
+
+            param = bb.append_instruction("param")
             bb.instructions[-1].annotation = arg.name
-            assert ret is not None  # help mypy
-            symbols[arg.name] = ret
-            arg.func_var = ret
+            assert param is not None  # help mypy
+            symbols[arg.name] = param  # necessary?
+
+            venom_arg = IRParameter(
+                name=var.name,
+                index=stack_index,
+                offset=var.alloca.offset,
+                size=var.alloca.size,
+                id_=var.alloca._id,
+                call_site_var=None,
+                func_var=param,
+                addr_var=None,
+            )
+            fn.args.append(venom_arg)
+            stack_index += 1
 
     # return address
     return_pc = bb.append_instruction("param")
     assert return_pc is not None  # help mypy
     symbols["return_pc"] = return_pc
-
     bb.instructions[-1].annotation = "return_pc"
 
+    # convert the body of the function
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
     _alloca_table = _saved_alloca_table

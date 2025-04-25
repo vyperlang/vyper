@@ -7,16 +7,16 @@ from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
 
-@dataclass
+@dataclass(frozen=True)
 class IRParameter:
     name: str
     index: int  # needed?
-    offset: int
+    offset: int  # needed?
     size: int  # needed?
     id_: int
     call_site_var: Optional[IRVariable]  # needed?
     func_var: Optional[IRVariable]
-    addr_var: Optional[IRVariable]
+    addr_var: Optional[IRVariable]  # needed?
 
 
 class IRFunction:
