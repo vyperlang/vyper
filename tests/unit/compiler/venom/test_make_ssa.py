@@ -3,7 +3,7 @@ import pytest
 from tests.hevm import hevm_check_venom_ctx
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import MakeSSA, Mem2Var, RemoveUnusedVariablesPass
+from vyper.venom.passes import MakeSSA
 
 
 def _check_pre_post(pre, post):
