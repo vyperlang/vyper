@@ -449,8 +449,11 @@ class MemMergePass(IRPass):
                 continue
 
             self.updater.add_before(mstore, "dloadbytes", [IRLiteral(32), src, dst])
-            self.updater.update(mstore, "mload", [dst], new_output=dload.output)
             self.updater.nop(dload, ignore_uses=True)
+            self.updater.update(mstore, "mload", [dst], new_output=var)
+
+            # sanity check that we have correctly updated the dfg in-place
+            assert self.dfg.get_uses(mstore.output) is uses
 
 
 def _volatile_memory(inst):

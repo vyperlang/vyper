@@ -62,6 +62,8 @@ class InstUpdater:
 
     def nop(self, inst: IRInstruction, ignore_uses=False):
         if ignore_uses:
+            # preemptively set the output to None so that `update()`
+            # doesn't complain
             inst.output = None
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
