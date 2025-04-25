@@ -114,9 +114,12 @@ class SimplifyCFGPass(IRPass):
         needs_sort = False
         for inst in bb.instructions:
             if inst.opcode != "phi":
+                # perf todo: break
                 continue
 
-            labels = inst.get_label_operands()
+            # note: make a copy of the iterator, since it can be
+            # modified inside the loop
+            labels = list(inst.get_label_operands())
             for label in labels:
                 if label not in cfg_in_labels:
                     needs_sort = True
