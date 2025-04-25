@@ -777,13 +777,7 @@ class _ParsedDecorators:
 
     def set_state_mutability(self, decorator_node: vy_ast.Name):
         assert StateMutability.is_valid_value(decorator_node.id), "unreachable"
-        if self.state_mutability_node is not None:
-            raise FunctionDeclarationException(
-                f"Mutability is already set to: {self.state_mutability}",
-                self.state_mutability_node,
-                decorator_node,
-                hint="only one state mutability decorator is allowed per function",
-            )
+        self._check_none(self.state_mutability_node, decorator_node)
         self.state_mutability_node = decorator_node
 
     @property
@@ -795,24 +789,27 @@ class _ParsedDecorators:
     def get_file_settings(self) -> Settings:
         return self.funcdef.module_node.settings
 
+    def _check_none(self, node_a, node_b):
+        if node_a is not None:
+            name_a = node_a.id
+            name_b = node_b.id
+            raise StructureException(f"tried to set {name_b}, but {name_a} is already set", node_a, node_b)
+
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
-        if self.nonreentrant_node is not None:
-            raise StructureException(
-                "nonreentrant decorator is already set", self.nonreentrant_node, decorator_node
-            )
+        self._check_none(self.nonreentrant_node, decorator_node)
+        self._check_none(self.reentrant_node, decorator_node)
 
         self.nonreentrant_node = decorator_node
 
     def set_reentrant(self, decorator_node: vy_ast.Name):
+        self._check_none(self.nonreentrant_node, decorator_node)
+        self._check_none(self.reentrant_node, decorator_node)
+
         settings = self.get_file_settings()
 
         if not settings.nonreentrancy_by_default:
             raise StructureException(
                 "used @reentrant decorator, but `#pragma nonreentrancy` is not set"
-            )
-        if self.reentrant_node is not None:
-            raise StructureException(
-                "reentrant decorator is already set", self.reentrant_node, decorator_node
             )
 
         self.reentrant_node = decorator_node
