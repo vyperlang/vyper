@@ -47,13 +47,13 @@ jobs:
           cache: "pip"
 
       - name: Generate Binary
-        run: >-
-          pip install
-            --no-binary pycryptodome
-            --no-binary cbor2
-            --no-binary immutables
-            . &&
-          pip install pyinstaller &&
+        run: |
+          pip install \
+            --no-binary pycryptodome \
+            --no-binary cbor2 \
+            --no-binary immutables \
+            . && \
+          pip install pyinstaller && \
           make freeze
 
 
