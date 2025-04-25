@@ -21,7 +21,9 @@ def get_example_vy_filenames():
 
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-def test_round_trip_examples(vy_filename, debug, optimize, experimental_codegen, compiler_settings, request):
+def test_round_trip_examples(
+    vy_filename, debug, optimize, experimental_codegen, compiler_settings, request
+):
     """
     Check all examples round trip
     """
@@ -54,7 +56,9 @@ vyper_sources = [
 
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)
-def test_round_trip_sources(vyper_source, debug, optimize, experimental_codegen, compiler_settings, request):
+def test_round_trip_sources(
+    vyper_source, debug, optimize, experimental_codegen, compiler_settings, request
+):
     """
     Test vyper_sources round trip
     """
