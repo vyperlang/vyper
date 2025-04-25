@@ -15,7 +15,7 @@ class IRParameter:
     size: int  # needed?
     id_: int
     call_site_var: Optional[IRVariable]  # needed?
-    func_var: Optional[IRVariable]
+    func_var: IRVariable
     addr_var: Optional[IRVariable]  # needed?
 
 

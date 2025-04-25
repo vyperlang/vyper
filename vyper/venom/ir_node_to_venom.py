@@ -648,6 +648,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     param = fn.get_param_by_id(alloca._id)
+                    assert param is not None
                     bb.append_instruction("mstore", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
