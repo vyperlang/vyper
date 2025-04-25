@@ -11,11 +11,13 @@ class LivenessAnalysis(IRAnalysis):
     Compute liveness information for each instruction in the function.
     """
 
+    cfg: CFGAnalysis
+
     _out_vars: dict[IRBasicBlock, OrderedSet[IRVariable]]
     inst_to_liveness: dict[IRInstruction, OrderedSet[IRVariable]]
 
     def analyze(self):
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis) # type: ignore
 
         self._out_vars = {}
         self.inst_to_liveness = {}

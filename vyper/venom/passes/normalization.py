@@ -11,6 +11,8 @@ class NormalizationPass(IRPass):
     each basic block has at most one conditional predecessor.
     """
 
+    cfg: CFGAnalysis
+
     changes = 0
 
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
