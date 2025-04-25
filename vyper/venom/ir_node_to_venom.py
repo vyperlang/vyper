@@ -665,6 +665,8 @@ def _convert_ir_bb(fn, ir, symbols):
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 else:
+                    # if we use alloca, mstores might get removed. convert
+                    # to raw pointer until memory analysis is more sound.
                     ptr = IRLiteral(alloca.offset)
 
                 _alloca_table[alloca._id] = ptr
