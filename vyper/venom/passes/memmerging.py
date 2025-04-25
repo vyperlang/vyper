@@ -411,11 +411,11 @@ class MemMergePass(IRPass):
             if inst.opcode != "dload":
                 continue
 
-            producer = inst
-            src = producer.operands[0]
+            dload = inst
+            src = dload.operands[0]
 
-            assert producer.output is not None
-            uses = self.dfg.get_uses(producer.output)
+            assert dload.output is not None
+            uses = self.dfg.get_uses(dload.output)
             if len(uses) == 1:
                 store = uses.first()
                 if store.opcode != "mstore":
@@ -423,14 +423,14 @@ class MemMergePass(IRPass):
                 _, dst = store.operands
                 # merge simple
                 self.updater.update(store, "dloadbytes", [IRLiteral(32), src, dst])
-                self.updater.nop(producer)
+                self.updater.nop(dload)
                 continue
 
             # we can only merge when the store is the first instruction
             # that uses dload. If we would not restrain ourself to basic
             # block we would have to check if the store dominates all of
             # the other uses
-            uses_bb = self.dfg.get_uses_in_bb(producer.output, producer.parent)
+            uses_bb = self.dfg.get_uses_in_bb(dload.output, dload.parent)
             if len(uses_bb) == 0:
                 continue
 
@@ -445,12 +445,12 @@ class MemMergePass(IRPass):
 
             var, dst = store.operands
 
-            if var != producer.output:
+            if var != dload.output:
                 continue
 
             self.updater.add_before(store, "dloadbytes", [IRLiteral(32), src, dst])
-            self.updater.update(store, "mload", [dst], new_output=producer.output)
-            self.updater.nop(producer, ignore_uses=True)
+            self.updater.update(store, "mload", [dst], new_output=dload.output)
+            self.updater.nop(dload, ignore_uses=True)
 
 
 def _volatile_memory(inst):
