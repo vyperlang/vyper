@@ -417,18 +417,18 @@ class MemMergePass(IRPass):
             assert dload.output is not None
             uses = self.dfg.get_uses(dload.output)
             if len(uses) == 1:
-                store = uses.first()
-                if store.opcode != "mstore":
+                mstore = uses.first()
+                if mstore.opcode != "mstore":
                     continue
-                _, dst = store.operands
+                _, dst = mstore.operands
                 # merge simple
-                self.updater.update(store, "dloadbytes", [IRLiteral(32), src, dst])
+                self.updater.update(mstore, "dloadbytes", [IRLiteral(32), src, dst])
                 self.updater.nop(dload)
                 continue
 
-            # we can only merge when the store is the first instruction
+            # we can only merge when the mstore is the first instruction
             # that uses dload. If we would not restrain ourself to basic
-            # block we would have to check if the store dominates all of
+            # block we would have to check if the mstore dominates all of
             # the other uses
             uses_bb = self.dfg.get_uses_in_bb(dload.output, dload.parent)
             if len(uses_bb) == 0:
@@ -436,20 +436,20 @@ class MemMergePass(IRPass):
 
             # relies on order !
             # if this invariant would be broken
-            # it must be stored on handled differently
+            # it must be handled differently
             first: IRInstruction = uses_bb[0]
             if first.opcode != "mstore":
                 continue
 
-            store = first
+            mstore = first
 
-            var, dst = store.operands
+            var, dst = mstore.operands
 
             if var != dload.output:
                 continue
 
-            self.updater.add_before(store, "dloadbytes", [IRLiteral(32), src, dst])
-            self.updater.update(store, "mload", [dst], new_output=dload.output)
+            self.updater.add_before(mstore, "dloadbytes", [IRLiteral(32), src, dst])
+            self.updater.update(mstore, "mload", [dst], new_output=dload.output)
             self.updater.nop(dload, ignore_uses=True)
 
 
