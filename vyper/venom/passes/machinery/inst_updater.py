@@ -60,7 +60,9 @@ class InstUpdater:
         inst.opcode = opcode
         inst.operands = new_operands
 
-    def nop(self, inst: IRInstruction):
+    def nop(self, inst: IRInstruction, ignore_uses=False):
+        if ignore_uses:
+            inst.output = None
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
 

@@ -423,7 +423,7 @@ class MemMergePass(IRPass):
                 _, dst = store.operands
                 # merge simple
                 self.updater.update(store, "dloadbytes", [IRLiteral(32), src, dst])
-                producer.make_nop()
+                self.updater.nop(producer)
                 continue
 
             # we can only merge when the store is the first instruction
@@ -450,7 +450,7 @@ class MemMergePass(IRPass):
 
             self.updater.add_before(store, "dloadbytes", [IRLiteral(32), src, dst])
             self.updater.update(store, "mload", [dst], new_output=producer.output)
-            producer.make_nop()
+            self.updater.nop(producer, ignore_uses=True)
 
 
 def _volatile_memory(inst):
