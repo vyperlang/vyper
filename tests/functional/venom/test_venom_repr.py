@@ -21,10 +21,13 @@ def get_example_vy_filenames():
 
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-def test_round_trip_examples(vy_filename, debug, optimize, compiler_settings, request):
+def test_round_trip_examples(vy_filename, debug, optimize, experimental_codegen, compiler_settings, request):
     """
     Check all examples round trip
     """
+    if not experimental_codegen:
+        pytest.skip("only applicable for venom")
+
     path = f"examples/{vy_filename}"
     with open(path) as f:
         vyper_source = f.read()
@@ -51,10 +54,13 @@ vyper_sources = [
 
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)
-def test_round_trip_sources(vyper_source, debug, optimize, compiler_settings, request):
+def test_round_trip_sources(vyper_source, debug, optimize, experimental_codegen, compiler_settings, request):
     """
     Test vyper_sources round trip
     """
+    if not experimental_codegen:
+        pytest.skip("only applicable for venom")
+
     vyper_source = textwrap.dedent(vyper_source)
 
     if debug and optimize == OptimizationLevel.CODESIZE:
