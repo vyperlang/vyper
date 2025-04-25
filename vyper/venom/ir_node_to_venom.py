@@ -131,8 +131,6 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     _convert_ir_bb(fn, ir, {})
 
-    ctx.chain_basic_blocks()
-
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
@@ -191,7 +189,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    stack_args: list[IROperand] = [IRLabel(target_label)]
+    stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
     if return_buf is not None:
         if not ENABLE_NEW_CALL_CONV or not returns_word:
@@ -509,14 +507,15 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
-        args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
-        var_list = args
-        # TODO: only append return args if the function is external
-        _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
         if bb.is_terminated:
             bb = IRBasicBlock(ctx.get_next_label("exit_to"), fn)
             fn.append_basic_block(bb)
+
+        args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
+        var_list = args
+        # TODO: only append return args if the function is external
+        _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
 
         label = IRLabel(ir.args[0].value)
@@ -650,9 +649,7 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction(
-                    "palloca", alloca.offset, alloca.size, alloca._id
-                )
+                ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     param = fn.get_param_by_id(alloca._id)

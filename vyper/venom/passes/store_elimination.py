@@ -16,7 +16,9 @@ class StoreElimination(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
-        for var, inst in self.dfg.outputs.items():
+        assert isinstance(self.dfg, DFGAnalysis)
+
+        for var, inst in self.dfg.outputs.copy().items():
             if inst.opcode != "store":
                 continue
             self._process_store(inst, var, inst.operands[0])

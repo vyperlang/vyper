@@ -4,6 +4,7 @@ from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class Mem2Var(IRPass):
@@ -17,15 +18,15 @@ class Mem2Var(IRPass):
     def run_pass(self):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(dfg)
 
         self.var_name_count = 0
-        for var, inst in dfg.outputs.items():
+        for var, inst in dfg.outputs.copy().items():
             if inst.opcode == "alloca":
                 self._process_alloca_var(dfg, inst, var)
             elif inst.opcode == "palloca":
                 self._process_palloca_var(dfg, inst, var)
 
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _mk_varname(self, varname: str, alloca_id: int):
@@ -47,20 +48,13 @@ class Mem2Var(IRPass):
         alloca_id = alloca_inst.operands[2]
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
-        for inst in uses:
+        for inst in uses.copy():
             if inst.opcode == "mstore":
-                inst.opcode = "store"
-                inst.output = var
-                inst.operands = [inst.operands[0]]
+                self.updater.store(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                inst.opcode = "store"
-                inst.operands = [var]
+                self.updater.store(inst, var)
             elif inst.opcode == "return":
-                bb = inst.parent
-                idx = len(bb.instructions) - 1
-                assert inst == bb.instructions[idx]  # sanity
-                new_inst = IRInstruction("mstore", [var, inst.operands[1]])
-                bb.insert_instruction(new_inst, idx)
+                self.updater.add_before(inst, "mstore", [var, inst.operands[1]])
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
@@ -80,11 +74,12 @@ class Mem2Var(IRPass):
         if ENABLE_NEW_CALL_CONV:
             assert fn.get_param_by_id(alloca_id.value) is not None
 
-        for inst in uses:
+        # TODO: maybe better to not touch the palloca instruction,
+        # and instead "add_after" the palloca instruction.
+        self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+
+        for inst in uses.copy():
             if inst.opcode == "mstore":
-                inst.opcode = "store"
-                inst.output = var
-                inst.operands = [inst.operands[0]]
+                self.updater.store(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                inst.opcode = "store"
-                inst.operands = [var]
+                self.updater.store(inst, var)
