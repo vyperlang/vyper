@@ -407,53 +407,50 @@ class MemMergePass(IRPass):
     # where the src and dst pointers are variables, which are not handled
     # in the other merging passes.
     def _merge_mstore_dload(self, bb: IRBasicBlock):
-        # dloads that could be optimized with more uses
-        # (they are not used before the mstore)
-        dloads: set[IRVariable] = set()
-
-        def remove_used_dloads(ops: list[IROperand]):
-            for op in ops:
-                if isinstance(op, IRVariable) and op in dloads:
-                    dloads.remove(op)
-
         for inst in bb.instructions:
-            if inst.opcode == "dload":
-                assert inst.output is not None
-                remove_used_dloads(inst.operands)
-                dloads.add(inst.output)
+            if inst.opcode != "dload":
                 continue
-            elif inst.opcode == "mstore":
-                var, dst_ptr = inst.operands
-                if not isinstance(var, IRVariable):
-                    remove_used_dloads(inst.operands)
-                    continue
-                producer = self.dfg.get_producing_instruction(var)
-                assert producer is not None
-                if producer.opcode != "dload":
-                    remove_used_dloads(inst.operands)
-                    continue
 
-                assert producer.output is not None
-                uses = self.dfg.get_uses(producer.output)
-                src_ptr = producer.operands[0]
-                # simple case of the merge
-                if len(uses) == 1:
-                    self.updater.update(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
-                    producer.make_nop()
-                    remove_used_dloads(inst.operands)
-                    continue
+            producer = inst
+            src = producer.operands[0]
 
-                # cannot merge with more uses
-                # (use has occured before hand)
-                if producer.output not in dloads:
-                    remove_used_dloads(inst.operands)
+            assert producer.output is not None
+            uses = self.dfg.get_uses(producer.output)
+            if len(uses) == 1:
+                store = uses.first()
+                if store.opcode != "mstore":
                     continue
-                self.updater.add_before(inst, "dloadbytes", [IRLiteral(32), src_ptr, dst_ptr])
-                self.updater.update(inst, "mload", [dst_ptr], new_output=producer.output)
+                _, dst = store.operands
+                # merge simple
+                self.updater.update(store, "dloadbytes", [IRLiteral(32), src, dst])
                 producer.make_nop()
-                remove_used_dloads(inst.operands)
-            else:
-                remove_used_dloads(inst.operands)
+                continue
+
+            # we can only merge when the store is the first instruction
+            # that uses dload. If we would not restrain ourself to basic
+            # block we would have to check if the store dominates all of
+            # the other uses
+            uses = self.dfg.get_uses_in_bb(producer.output, producer.parent)
+            if len(uses) == 0:
+                continue
+
+            # relies on order !
+            # if this invariant would be broken
+            # it must be stored on handled differently
+            first: IRInstruction = uses[0]
+            if first.opcode != "mstore":
+                continue
+
+            store = first
+
+            var, dst = store.operands
+
+            if var != producer.output:
+                continue
+
+            self.updater.add_before(store, "dloadbytes", [IRLiteral(32), src, dst])
+            self.updater.update(store, "mload", [dst], new_output=producer.output)
+            producer.make_nop()
 
 
 def _volatile_memory(inst):
