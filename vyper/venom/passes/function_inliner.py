@@ -95,6 +95,43 @@ class FunctionInlinerPass(IRGlobalPass):
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
+        caller_funcs = set([call_site.parent.parent for call_site in call_sites])
+        # match callocas to pallocas
+        for fn in caller_funcs:
+            callocas = {}
+            found = set()
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode in ("alloca", "calloca"):
+                        _, _, alloca_id = inst.operands
+                        if alloca_id in callocas:
+                            # assert inst.opcode == "calloca"
+                            # this can happen when we have a->b->c and a->c,
+                            # and both b and c get inlined.
+                            inst.opcode = "store"
+                            inst.operands = [callocas[alloca_id].output]
+                        else:
+                            callocas[alloca_id] = inst
+
+                    if inst.opcode == "palloca":
+                        _, _, alloca_id = inst.operands
+                        if alloca_id not in callocas:
+                            # this is our own palloca, not one that got
+                            # inlined
+                            continue
+                        inst.opcode = "store"
+                        inst.operands = [callocas[alloca_id].output]
+                        found.add(alloca_id)
+
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode != "calloca":
+                        continue
+                    _, _, alloca_id = inst.operands
+                    if alloca_id in found:
+                        # demote to alloca so that mem2var will work
+                        inst.opcode = "alloca"
+
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
@@ -130,10 +167,7 @@ class FunctionInlinerPass(IRGlobalPass):
             param_idx = 0
             for inst in bb.instructions:
                 if inst.opcode == "param":
-                    # NOTE: one of these params is the return pc. technically assigning
-                    # a variable to a label (e.g. %1 = @label) as we are doing here is
-                    # not valid venom code, but it will get removed in store elimination
-                    # (or unused variable elimination)
+                    # NOTE: one of these params is the return pc.
                     inst.opcode = "store"
                     # handle return pc specially - it's at top of stack.
                     ops = call_site.operands[1:] + [call_site.operands[0]]
@@ -141,7 +175,8 @@ class FunctionInlinerPass(IRGlobalPass):
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
-                    inst.opcode = "alloca"
+                    # will be handled at the toplevel `inline_function`
+                    pass
                 elif inst.opcode == "ret":
                     if len(inst.operands) > 1:
                         # sanity check (should remove once new callconv stabilizes)
