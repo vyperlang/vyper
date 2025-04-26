@@ -539,7 +539,7 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode == "store":
+        if self.opcode in ("store", "palloca", "alloca", "calloca"):
             return 1
         return 2
 
