@@ -38,8 +38,8 @@ class IRFunction:
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
 
-    def __init__(self, name: IRLabel, ctx: IRContext):
-        self.ctx = ctx
+    def __init__(self, name: IRLabel, ctx: IRContext = None):
+        self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
         self._basic_block_dict = {}
