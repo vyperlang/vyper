@@ -62,6 +62,7 @@ def refund():
     c.refund()
     assert env.get_balance(owner) == val // 2
     assert env.get_balance(recipient) == val // 2
+    assert env.get_balance(c.address) == 0
 
     check_selfdestruct_warning(w)
 
