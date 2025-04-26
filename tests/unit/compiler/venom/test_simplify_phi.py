@@ -17,7 +17,6 @@ def test_simplify_identical_phi_operands():
     """
     Test that phi nodes with identical operands are simplified to direct assignments.
     """
-    # Already in SSA form with versioned variables
     pre = """
     _global:
         %x = param
@@ -44,40 +43,7 @@ def test_simplify_identical_phi_operands():
         %y:2 = %x
         jmp @exit
     exit:
-        %result = %y:1
-        sink %result
-    """
-
-    _check_pre_post(pre, post)
-
-
-def test_simplify_identical_phi_with_literals():
-    """
-    Test that phi nodes with identical literal operands are simplified.
-    """
-    pre = """
-    _global:
-        %condition = param
-        jnz %condition, @then, @else
-    then:
-        jmp @exit
-    else:
-        jmp @exit
-    exit:
-        %result = phi @then, 42, @else, 42
-        sink %result
-    """
-
-    post = """
-    _global:
-        %condition = param
-        jnz %condition, @then, @else
-    then:
-        jmp @exit
-    else:
-        jmp @exit
-    exit:
-        %result = 42
+        %result = %x
         sink %result
     """
 

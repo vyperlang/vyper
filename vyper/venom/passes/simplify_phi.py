@@ -53,10 +53,12 @@ class SimplifyPhiPass(IRPass):
         var = vals[0]
         while True:
             inst = self.dfg.get_producing_instruction(var)
-            if inst is None or inst.opcode != "store":
+            if inst is None:
                 return None  # failure
             if all(self.dom.dominates(inst.parent, bb) for bb in blocks):
                 return var
+            if inst.opcode != "store":
+                return None
             var = inst.operands[0]  # type: ignore
 
 
