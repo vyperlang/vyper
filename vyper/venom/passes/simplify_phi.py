@@ -34,6 +34,9 @@ class SimplifyPhiPass(IRPass):
                 if self._handle_phi(inst):
                     changed = True
 
+            if changed:
+                bb.ensure_well_formed()
+
         if changed:
             # Invalidate dependent analyses
             cache = self.analyses_cache

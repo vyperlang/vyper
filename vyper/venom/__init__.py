@@ -60,11 +60,13 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SimplifyCFGPass(ac, fn).run_pass()
 
     MakeSSA(ac, fn).run_pass()
+    SimplifyPhiPass(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
+    SimplifyPhiPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -85,9 +87,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     #       removed when the dft pass is fixed to produce the smallest code
     #       without making the code generation more expensive by running
     #       MakeSSA again.
-    MakeSSA(ac, fn).run_pass()
+    #MakeSSA(ac, fn).run_pass()
     # Simplify phi nodes with identical operands
-    SimplifyPhiPass(ac, fn).run_pass()
     # Add SimplifyCFG right after SimplifyPhiPass to clean up control flow
     SimplifyCFGPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
