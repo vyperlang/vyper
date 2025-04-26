@@ -437,23 +437,21 @@ class MemMergePass(IRPass):
             # relies on order of bb.get_uses!
             # if this invariant would be broken
             # it must be handled differently
-            first: IRInstruction = uses_bb.first()
-            if first.opcode != "mstore":
+            use: IRInstruction = uses_bb.first()
+            if use.opcode != "mstore":
                 continue
 
-            mstore = first
-
-            var, dst = mstore.operands
+            var, dst = use.operands
 
             if var != dload.output:
                 continue
 
-            self.updater.add_before(mstore, "dloadbytes", [IRLiteral(32), src, dst])
+            self.updater.add_before(use, "dloadbytes", [IRLiteral(32), src, dst])
             self.updater.nop(dload, ignore_uses=True)
-            self.updater.update(mstore, "mload", [dst], new_output=var)
+            self.updater.update(use, "mload", [dst], new_output=var)
 
             # sanity check that we have correctly updated the dfg in-place
-            assert self.dfg.get_uses(mstore.output) is uses
+            assert self.dfg.get_uses(use.output) is uses
 
 
 def _volatile_memory(inst):
