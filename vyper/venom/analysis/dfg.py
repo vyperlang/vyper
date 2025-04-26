@@ -27,7 +27,9 @@ class DFGAnalysis(IRAnalysis):
         return [inst for inst in self.get_uses(op) if inst.parent == bb]
 
     # the instruction which produces this variable.
-    def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
+    def get_producing_instruction(self, op: IROperand) -> Optional[IRInstruction]:
+        if not isinstance(op, IRVariable):
+            return None
         return self._dfg_outputs.get(op)
 
     def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):

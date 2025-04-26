@@ -33,7 +33,8 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominated = {}
         self.dominator_frontiers = {}
 
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis) # type: ignore
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
         self.cfg_post_walk = list(self.cfg.dfs_post_walk)
         self.cfg_post_order = {bb: idx for idx, bb in enumerate(self.cfg_post_walk)}
 

@@ -65,8 +65,8 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore 
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)

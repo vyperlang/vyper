@@ -15,7 +15,7 @@ class VarDefinition(IRAnalysis):
     cfg: CFGAnalysis
 
     def analyze(self):
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)  # type: ignore
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         all_variables = OrderedSet()
         for bb in self.function.get_basic_blocks():

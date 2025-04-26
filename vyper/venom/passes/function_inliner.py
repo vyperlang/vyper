@@ -175,7 +175,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
     def _clone_function(self, func: IRFunction, prefix: str) -> IRFunction:
         new_func_label = IRLabel(f"{prefix}{func.name.value}")
-        clone = IRFunction(new_func_label)
+        clone = IRFunction(new_func_label, ctx=func.ctx)
         # clear the bb that is added by default
         # consider using func.copy() intead?
         clone._basic_block_dict.clear()

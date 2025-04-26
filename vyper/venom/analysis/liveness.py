@@ -17,7 +17,7 @@ class LivenessAnalysis(IRAnalysis):
     inst_to_liveness: dict[IRInstruction, OrderedSet[IRVariable]]
 
     def analyze(self):
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis) # type: ignore
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         self._out_vars = {}
         self.inst_to_liveness = {}

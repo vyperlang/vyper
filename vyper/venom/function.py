@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import textwrap
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+
+if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
 
 
 @dataclass
@@ -24,7 +29,7 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    ctx: "IRContext"  # type: ignore # noqa: F821
+    ctx: IRContext
     args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
@@ -33,7 +38,7 @@ class IRFunction:
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
 
-    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
+    def __init__(self, name: IRLabel, ctx: IRContext):
         self.ctx = ctx
         self.name = name
         self.args = []

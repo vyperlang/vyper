@@ -11,7 +11,7 @@ class MakeSSA(IRPass):
 
     dom: DominatorTreeAnalysis
     cfg: CFGAnalysis
-    liveness:  LivenessAnalysis
+    liveness: LivenessAnalysis
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def run_pass(self):
