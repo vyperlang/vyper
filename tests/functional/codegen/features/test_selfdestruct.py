@@ -23,6 +23,7 @@ def refund():
     assert env.get_balance(owner) == 0
     assert env.get_balance(c.address) == val
     c.refund()
+    assert env.get_balance(c.address) == 0
     assert env.get_balance(owner) == val
 
     check_selfdestruct_warning(w)
