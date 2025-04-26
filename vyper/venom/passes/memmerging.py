@@ -430,7 +430,7 @@ class MemMergePass(IRPass):
             # that uses dload. If we would not restrain ourself to basic
             # block we would have to check if the mstore dominates all of
             # the other uses
-            uses_bb = dload.parent.get_uses()[dload.output]
+            uses_bb = dload.parent.get_uses().get(dload.output, OrderedSet())
             if len(uses_bb) == 0:
                 continue
 
