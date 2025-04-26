@@ -793,7 +793,9 @@ class _ParsedDecorators:
         if node_a is not None:
             name_a = node_a.id
             name_b = node_b.id
-            raise StructureException(f"tried to set {name_b}, but {name_a} is already set", node_a, node_b)
+            raise StructureException(
+                f"tried to set {name_b}, but {name_a} is already set", node_a, node_b
+            )
 
     def set_nonreentrant(self, decorator_node: vy_ast.Name):
         self._check_none(self.nonreentrant_node, decorator_node)
