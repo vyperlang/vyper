@@ -21,7 +21,7 @@ class SimplifyPhiPass(IRPass):
         """
         # Request the DFG analysis to determine variable equivalence
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.doms = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
 
         changed = False
@@ -69,8 +69,8 @@ class SimplifyPhiPass(IRPass):
         value = value_sources[0]
         source_inst = self.dfg.get_producing_instruction(value)
         assert source_inst is not None  # help mypy
-        # it's not defined in all cfg_in blocks
-        if inst.parent not in self.doms.dominated[source_inst.parent]:
+        if not self.dom.dominates(source_inst.parent, inst.parent):
+            # it's not defined in all cfg_in blocks, invalid replacement
             return False
 
         self.updater.store(inst, value)
