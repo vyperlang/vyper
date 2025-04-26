@@ -116,6 +116,12 @@ _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
+_scratch_alloca_id = 2**32
+def get_scratch_alloca_id() -> int:
+    global _scratch_alloca_id
+    _scratch_alloca_id += 1
+    return _scratch_alloca_id
+
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
@@ -263,7 +269,7 @@ def _handle_internal_func(
             # buffer size of 32 bytes.
             # TODO: we don't need to use scratch space once the legacy optimizer
             # is disabled.
-            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(2**32))
+            buf = bb.append_instruction("alloca", 0, 32, get_scratch_alloca_id())
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
