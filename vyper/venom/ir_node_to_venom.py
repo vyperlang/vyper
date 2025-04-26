@@ -125,8 +125,6 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
 
     _convert_ir_bb(fn, ir, {})
 
-    ctx.chain_basic_blocks()
-
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
@@ -418,14 +416,15 @@ def _convert_ir_bb(fn, ir, symbols):
         code = ir.args[2]
         _convert_ir_bb(fn, code, symbols)
     elif ir.value == "exit_to":
-        args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
-        var_list = args
-        # TODO: only append return args if the function is external
-        _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
         if bb.is_terminated:
             bb = IRBasicBlock(ctx.get_next_label("exit_to"), fn)
             fn.append_basic_block(bb)
+
+        args = _convert_ir_bb_list(fn, ir.args[1:], symbols)
+        var_list = args
+        # TODO: only append return args if the function is external
+        _append_return_args(fn, *var_list)
         bb = fn.get_basic_block()
 
         label = IRLabel(ir.args[0].value)
