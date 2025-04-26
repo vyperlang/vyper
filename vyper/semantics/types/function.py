@@ -793,7 +793,7 @@ class _ParsedDecorators:
         if node_a is not None:
             name_a = node_a.id
             name_b = node_b.id
-            raise StructureException(
+            raise FunctionDeclarationException(
                 f"tried to set {name_b}, but {name_a} is already set", node_a, node_b
             )
 
