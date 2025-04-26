@@ -430,14 +430,14 @@ class MemMergePass(IRPass):
             # that uses dload. If we would not restrain ourself to basic
             # block we would have to check if the mstore dominates all of
             # the other uses
-            uses_bb = self.dfg.get_uses_in_bb(dload.output, dload.parent)
+            uses_bb = dload.parent.get_uses()[dload.output]
             if len(uses_bb) == 0:
                 continue
 
-            # relies on order !
+            # relies on order of bb.get_uses!
             # if this invariant would be broken
             # it must be handled differently
-            first: IRInstruction = uses_bb[0]
+            first: IRInstruction = uses_bb.first()
             if first.opcode != "mstore":
                 continue
 
