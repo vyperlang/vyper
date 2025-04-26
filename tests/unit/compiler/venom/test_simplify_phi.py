@@ -50,7 +50,7 @@ def test_simplify_identical_phi_operands():
     _check_pre_post(pre, post)
 
 
-def test_dont_simplify_different_phi_operands():
+def test_no_simplify_different_phi_operands():
     """
     Test that phi nodes with different operands are not simplified.
     """
@@ -58,7 +58,7 @@ def test_dont_simplify_different_phi_operands():
     _global:
         %x = param
         %y = param
-        jnz 1, @then, @else
+        jnz %x, @then, @else
     then:
         %z:1 = %x
         jmp @exit
@@ -71,3 +71,46 @@ def test_dont_simplify_different_phi_operands():
     """
 
     _check_no_change(pre)
+
+
+def test_simplify_with_closest_dominating_var():
+    """
+    Test that phi nodes are simplified to the closest dominating var
+    """
+    pre = """
+    main:
+        %x = param
+        %y = param
+        jmp @next
+    next:
+        %z = %x
+        jnz %y, @then, @else
+    then:
+        %z:1 = %z
+        jmp @exit
+    else:
+        %z:2 = %z
+        jmp @exit
+    exit:
+        %result = phi @then, %z:1, @else, %z:2
+        sink %result
+    """
+    post = """
+    main:
+        %x = param
+        %y = param
+        jmp @next
+    next:
+        %z = %x
+        jnz %y, @then, @else
+    then:
+        %z:1 = %z
+        jmp @exit
+    else:
+        %z:2 = %z
+        jmp @exit
+    exit:
+        %result = %z
+        sink %result
+    """
+    _check_pre_post(pre, post)
