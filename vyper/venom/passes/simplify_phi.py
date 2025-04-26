@@ -1,5 +1,6 @@
+from typing import Optional
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, VarDefinition,DominatorTreeAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRInstruction,IRVariable
 from vyper.venom.passes.base_pass import IRPass, InstUpdater
 
 
@@ -42,6 +43,20 @@ class SimplifyPhiPass(IRPass):
 
         return changed
 
+    def find_common_dominating_var(self, vals: list[IRVariable])->Optional[IRVariable]:
+        source_insts = [self.dfg.get_producing_instruction(val) for val in vals]
+        blocks = [inst.parent for inst in source_insts]
+
+        var = vals[0]
+        while True:
+            inst = self.dfg.get_producing_instruction(var)
+            if inst is None or inst.opcode != "store":
+                return None  # failure
+            if all(self.dom.dominates(inst.parent, bb) for bb in blocks):
+                return var
+            var = inst.operands[0]  # type: ignore
+
+
     def _handle_phi(self, inst: IRInstruction) -> bool:
         """
         Check if a phi has identical operands and simplify it if so.
@@ -66,11 +81,8 @@ class SimplifyPhiPass(IRPass):
             return False
 
         # the value to replace
-        value = value_sources[0]
-        source_inst = self.dfg.get_producing_instruction(value)
-        assert source_inst is not None  # help mypy
-        if not self.dom.dominates(source_inst.parent, inst.parent):
-            # it's not defined in all cfg_in blocks, invalid replacement
+        value = self.find_common_dominating_var(values)
+        if value is None:
             return False
 
         self.updater.store(inst, value)
