@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
@@ -21,7 +21,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -136,7 +136,6 @@ def _as_asm_symbol(label: IRLabel) -> str:
 class VenomCompiler:
     ctxs: list[IRContext]
     label_counter = 0
-    visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
     dfg: DFGAnalysis
@@ -145,11 +144,9 @@ class VenomCompiler:
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
         self.label_counter = 0
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
 
     def generate_evm(self, no_optimize: bool = False) -> list[str]:
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
@@ -285,6 +282,47 @@ class VenomCompiler:
             assert op not in seen, (op, seen)
             seen.add(op)
 
+    def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
+        last_param = None
+        for inst in fn.entry.instructions:
+            if inst.opcode != "param":
+                # note: always well defined if the bb is terminated
+                next_liveness = inst.liveness
+                break
+
+            last_param = inst
+
+            assert inst.output is not None  # help mypy
+            stack.push(inst.output)
+
+        # no params (only applies for global entry function)
+        if last_param is None:
+            return
+
+        to_pop: list[IRVariable] = []
+        for var in stack._stack:
+            if var not in next_liveness:
+                assert isinstance(var, IRVariable)  # help mypy
+                to_pop.append(var)
+
+        self.popmany(asm, to_pop, stack)
+
+        self._optimistic_swap(asm, last_param, next_liveness, stack)
+
+    def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
+        to_pop = list(to_pop)
+        # small heuristic: pop from shallowest first.
+        to_pop.sort(key=lambda var: -stack.get_depth(var))
+
+        # NOTE: we could get more fancy and try to optimize the swap
+        # operations here, there is probably some more room for optimization.
+        for var in to_pop:
+            depth = stack.get_depth(var)
+
+            if depth != 0:
+                self.swap(asm, stack, depth)
+            self.pop(asm, stack)
+
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
@@ -302,10 +340,14 @@ class VenomCompiler:
         asm.append(_as_asm_symbol(basicblock.label))
         asm.append("JUMPDEST")
 
+        fn = basicblock.parent
+        if basicblock == fn.entry:
+            self._prepare_stack_for_function(asm, fn, stack)
+
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
+        all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
@@ -344,18 +386,7 @@ class VenomCompiler:
         # bb it jumps into).
         layout = self.liveness.out_vars(in_bb)
         to_pop = list(layout.difference(inputs))
-
-        # small heuristic: pop from shallowest first.
-        to_pop.sort(key=lambda var: -stack.get_depth(var))
-
-        # NOTE: we could get more fancy and try to optimize the swap
-        # operations here, there is probably some more room for optimization.
-        for var in to_pop:
-            depth = stack.get_depth(var)
-
-            if depth != 0:
-                self.swap(asm, stack, depth)
-            self.pop(asm, stack)
+        self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
@@ -576,23 +607,26 @@ class VenomCompiler:
             if inst.output not in next_liveness:
                 self.pop(assembly, stack)
             else:
-                # heuristic: peek at next_liveness to find the next scheduled
-                # item, and optimistically swap with it
-                if DEBUG_SHOW_COST:
-                    stack0 = stack.copy()
-
-                next_scheduled = next_liveness.last()
-                cost = 0
-                if not self.dfg.are_equivalent(inst.output, next_scheduled):
-                    cost = self.swap_op(assembly, stack, next_scheduled)
-
-                if DEBUG_SHOW_COST and cost != 0:
-                    print("ENTER", inst, file=sys.stderr)
-                    print("  HAVE", stack0, file=sys.stderr)
-                    print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
-                    print("  NEW_STACK", stack, file=sys.stderr)
+                self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
+
+    def _optimistic_swap(self, assembly, inst, next_liveness, stack):
+        # heuristic: peek at next_liveness to find the next scheduled
+        # item, and optimistically swap with it
+        if DEBUG_SHOW_COST:
+            stack0 = stack.copy()
+
+        next_scheduled = next_liveness.last()
+        cost = 0
+        if not self.dfg.are_equivalent(inst.output, next_scheduled):
+            cost = self.swap_op(assembly, stack, next_scheduled)
+
+        if DEBUG_SHOW_COST and cost != 0:
+            print("ENTER", inst, file=sys.stderr)
+            print("  HAVE", stack0, file=sys.stderr)
+            print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
+            print("  NEW_STACK", stack, file=sys.stderr)
 
     def pop(self, assembly, stack, num=1):
         stack.pop(num)
