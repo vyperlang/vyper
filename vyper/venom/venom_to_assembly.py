@@ -287,7 +287,7 @@ class VenomCompiler:
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
-                next_liveness = inst.liveness
+                next_liveness = self.live_vars_at(inst)
                 break
 
             last_param = inst
