@@ -10,16 +10,17 @@ class MakeSSA(IRPass):
     """
 
     dom: DominatorTreeAnalysis
+    cfg: CFGAnalysis
+    liveness: LivenessAnalysis
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def run_pass(self):
         fn = self.function
 
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
-        # Request liveness analysis so the `liveness_in_vars` field is valid
-        self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self._add_phi_nodes()
 
@@ -57,11 +58,11 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        if var not in basic_block.liveness_in_vars:
+        if var not in self.liveness.liveness_in_vars(basic_block):
             return
 
         args: list[IROperand] = []
-        for bb in basic_block.cfg_in:
+        for bb in self.cfg.cfg_in(basic_block):
             if bb == basic_block:
                 continue
 
@@ -112,7 +113,7 @@ class MakeSSA(IRPass):
                 inst.output = self.latest_version_of(inst.output)
                 outs.append(inst.output)
 
-        for bb in basic_block.cfg_out:
+        for bb in self.cfg.cfg_out(basic_block):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue

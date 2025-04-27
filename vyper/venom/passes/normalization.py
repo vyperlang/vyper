@@ -11,14 +11,16 @@ class NormalizationPass(IRPass):
     each basic block has at most one conditional predecessor.
     """
 
+    cfg: CFGAnalysis
+
     changes = 0
 
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
         # Iterate over the predecessors to this basic block
-        for in_bb in list(bb.cfg_in):
-            assert bb in in_bb.cfg_out
+        for in_bb in list(self.cfg.cfg_in(bb)):
+            assert bb in self.cfg.cfg_out(in_bb)
             # Handle branching in the predecessor bb
-            if len(in_bb.cfg_out) > 1:
+            if len(self.cfg.cfg_out(in_bb)) > 1:
                 self._insert_split_basicblock(bb, in_bb)
                 self.changes += 1
                 break
@@ -56,17 +58,16 @@ class NormalizationPass(IRPass):
         fn = self.function
         self.changes = 0
 
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         # Split blocks that need splitting
         for bb in list(fn.get_basic_blocks()):
-            if len(bb.cfg_in) > 1:
+            if len(self.cfg.cfg_in(bb)) > 1:
                 self._split_basic_block(bb)
 
         # If we made changes, recalculate the cfg
         if self.changes > 0:
-            self.analyses_cache.force_analysis(CFGAnalysis)
-            fn.remove_unreachable_blocks()
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
 
         return self.changes
 

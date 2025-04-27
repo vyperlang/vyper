@@ -212,6 +212,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
     inst_to_available: dict[IRInstruction, _AvailableExpressions]
     bb_ins: dict[IRBasicBlock, _AvailableExpressions]
     bb_outs: dict[IRBasicBlock, _AvailableExpressions]
@@ -220,10 +221,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.analyses_cache.request_analysis(CFGAnalysis)
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        assert isinstance(dfg, DFGAnalysis)
-        self.dfg = dfg
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
@@ -238,7 +237,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         while len(worklist) > 0:
             bb: IRBasicBlock = worklist.popleft()
             if self._handle_bb(bb):
-                worklist.extend(bb.cfg_out)
+                worklist.extend(self.cfg.cfg_out(bb))
 
     # msize effect should be only necessery
     # to be handled when there is a possibility
@@ -252,8 +251,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        preds = self.cfg.cfg_in(bb)
         available_exprs = _AvailableExpressions.lattice_meet(
-            [self.bb_outs.get(pred, _AvailableExpressions()) for pred in bb.cfg_in]
+            [self.bb_outs.get(pred, _AvailableExpressions()) for pred in preds]
         )
 
         if bb in self.bb_ins and self.bb_ins[bb] == available_exprs:

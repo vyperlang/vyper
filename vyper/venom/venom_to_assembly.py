@@ -137,8 +137,9 @@ class VenomCompiler:
     ctxs: list[IRContext]
     label_counter = 0
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
-    liveness_analysis: LivenessAnalysis
+    liveness: LivenessAnalysis
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
 
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
@@ -157,11 +158,11 @@ class VenomCompiler:
                 ac = IRAnalysesCache(fn)
 
                 NormalizationPass(ac, fn).run_pass()
-                self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
+                self.liveness = ac.request_analysis(LivenessAnalysis)
                 self.dfg = ac.request_analysis(DFGAnalysis)
-                ac.request_analysis(CFGAnalysis)
+                self.cfg = ac.request_analysis(CFGAnalysis)
 
-                assert fn.normalized, "Non-normalized CFG!"
+                assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
@@ -286,7 +287,7 @@ class VenomCompiler:
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
-                next_liveness = inst.liveness
+                next_liveness = self.liveness.live_vars_at(inst)
                 break
 
             last_param = inst
@@ -343,15 +344,16 @@ class VenomCompiler:
         if basicblock == fn.entry:
             self._prepare_stack_for_function(asm, fn, stack)
 
-        if len(basicblock.cfg_in) == 1:
+        if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
         all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for i, inst in enumerate(all_insts):
-            next_liveness = (
-                all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
-            )
+            if i + 1 < len(all_insts):
+                next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
+            else:
+                next_liveness = self.liveness.out_vars(basicblock)
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
@@ -361,7 +363,7 @@ class VenomCompiler:
 
         ref.extend(asm)
 
-        for bb in basicblock.cfg_out:
+        for bb in self.cfg.cfg_out(basicblock):
             self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb
@@ -371,18 +373,18 @@ class VenomCompiler:
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
         # the input block is a splitter block, like jnz or djmp
-        assert len(basicblock.cfg_in) == 1
-        in_bb = basicblock.cfg_in.first()
-        assert len(in_bb.cfg_out) > 1
+        assert len(in_bbs := self.cfg.cfg_in(basicblock)) == 1
+        in_bb = in_bbs.first()
+        assert len(self.cfg.cfg_out(in_bb)) > 1
 
         # inputs is the input variables we need from in_bb
-        inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
+        inputs = self.liveness.input_vars_from(in_bb, basicblock)
 
         # layout is the output stack layout for in_bb (which works
         # for all possible cfg_outs from the in_bb, in_bb is responsible
         # for making sure its output stack layout works no matter which
         # bb it jumps into).
-        layout = in_bb.out_vars
+        layout = self.liveness.out_vars(in_bb)
         to_pop = list(layout.difference(inputs))
         self.popmany(asm, to_pop, stack)
 
@@ -462,14 +464,13 @@ class VenomCompiler:
             # we only need to reorder stack before join points, which after
             # cfg normalization, join points can only be led into by
             # jmp instructions.
-            assert isinstance(inst.parent.cfg_out, OrderedSet)
-            assert len(inst.parent.cfg_out) == 1
-            next_bb = inst.parent.cfg_out.first()
+            assert len(self.cfg.cfg_out(inst.parent)) == 1
+            next_bb = self.cfg.cfg_out(inst.parent).first()
 
             # guaranteed by cfg normalization+simplification
-            assert len(next_bb.cfg_in) > 1
+            assert len(self.cfg.cfg_in(next_bb)) > 1
 
-            target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
+            target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
             # NOTE: in general the stack can contain multiple copies of
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))

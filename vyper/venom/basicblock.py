@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import re
 from contextvars import ContextVar
@@ -191,9 +193,6 @@ class IRVariable(IROperand):
             name = f"%{name}"
         super().__init__(name)
 
-    def __repr__(self):
-        return f"{self.value}"
-
     @property
     def plain_name(self) -> str:
         return self.name.strip("%")
@@ -267,9 +266,7 @@ class IRInstruction:
     opcode: str
     operands: list[IROperand]
     output: Optional[IRVariable]
-    # set of live variables at this instruction
-    liveness: OrderedSet[IRVariable]
-    parent: "IRBasicBlock"
+    parent: IRBasicBlock
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
@@ -285,7 +282,6 @@ class IRInstruction:
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
-        self.liveness = OrderedSet()
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
@@ -538,7 +534,7 @@ class IRInstruction:
                 return inst.ast_source
         return self.parent.parent.ast_source
 
-    def copy(self) -> "IRInstruction":
+    def copy(self) -> IRInstruction:
         ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
@@ -612,43 +608,26 @@ class IRBasicBlock:
     """
 
     label: IRLabel
-    parent: "IRFunction"
+    parent: IRFunction
     instructions: list[IRInstruction]
-    # basic blocks which can jump to this basic block
-    cfg_in: OrderedSet["IRBasicBlock"]
-    # basic blocks which this basic block can jump to
-    cfg_out: OrderedSet["IRBasicBlock"]
-    # stack items which this basic block produces
-    out_vars: OrderedSet[IRVariable]
 
-    is_reachable: bool = False
-
-    def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
+    def __init__(self, label: IRLabel, parent: IRFunction) -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.cfg_in = OrderedSet()
-        self.cfg_out = OrderedSet()
-        self.out_vars = OrderedSet()
-        self.is_reachable = False
 
-    def add_cfg_in(self, bb: "IRBasicBlock") -> None:
-        self.cfg_in.add(bb)
+    @property
+    def out_bbs(self):
+        assert self.is_terminated
+        term = self.last_instruction
+        out_labels = term.get_label_operands()
+        fn = self.parent
+        return [fn.get_basic_block(label.name) for label in out_labels]
 
-    def remove_cfg_in(self, bb: "IRBasicBlock") -> None:
-        assert bb in self.cfg_in
-        self.cfg_in.remove(bb)
-
-    def add_cfg_out(self, bb: "IRBasicBlock") -> None:
-        # malformed: jnz condition label1 label1
-        # (we could handle but it makes a lot of code easier
-        # if we have this assumption)
-        self.cfg_out.add(bb)
-
-    def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
-        assert bb in self.cfg_out
-        self.cfg_out.remove(bb)
+    @property
+    def last_instruction(self):
+        return self.instructions[-1]
 
     def append_instruction(
         self,
@@ -780,30 +759,6 @@ class IRBasicBlock:
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
 
-    def fix_phi_instructions(self):
-        cfg_in_labels = tuple(bb.label for bb in self.cfg_in)
-
-        needs_sort = False
-        for inst in self.instructions:
-            if inst.opcode != "phi":
-                continue
-
-            labels = inst.get_label_operands()
-            for label in labels:
-                if label not in cfg_in_labels:
-                    needs_sort = True
-                    inst.remove_phi_operand(label)
-
-            op_len = len(inst.operands)
-            if op_len == 2:
-                inst.opcode = "store"
-                inst.operands = [inst.operands[1]]
-            elif op_len == 0:
-                inst.make_nop()
-
-        if needs_sort:
-            self.instructions.sort(key=lambda inst: inst.opcode != "phi")
-
     def get_assignments(self):
         """
         Get all assignments in basic block.
@@ -837,21 +792,7 @@ class IRBasicBlock:
             return False
         return self.instructions[-1].is_bb_terminator
 
-    @property
-    def is_terminal(self) -> bool:
-        """
-        Check if the basic block is terminal.
-        """
-        return len(self.cfg_out) == 0
-
-    @property
-    def liveness_in_vars(self) -> OrderedSet[IRVariable]:
-        for inst in self.instructions:
-            if inst.opcode != "phi":
-                return inst.liveness
-        return OrderedSet()
-
-    def copy(self) -> "IRBasicBlock":
+    def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = [inst.copy() for inst in self.instructions]
         for inst in bb.instructions:
@@ -861,10 +802,7 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = (
-            f"{repr(self.label)}: ; IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
-        )
+        s = f"{repr(self.label)}:  ; OUT={[bb.label for bb in self.out_bbs]}\n"
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:
