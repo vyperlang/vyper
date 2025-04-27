@@ -173,7 +173,7 @@ class IRLiteral(IROperand):
     value: int
 
     def __init__(self, value: int) -> None:
-        assert isinstance(value, int), "value must be an int"
+        assert isinstance(value, int), value
         super().__init__(value)
 
 
@@ -183,31 +183,16 @@ class IRVariable(IROperand):
     """
 
     _name: str
-    version: Optional[int]
 
-    def __init__(self, name: str, version: int = 0) -> None:
+    def __init__(self, name: str) -> None:
         assert isinstance(name, str)
-        # TODO: allow version to be None
-        assert isinstance(version, int)
+        # name = name.removeprefix("%")
         if not name.startswith("%"):
             name = f"%{name}"
-        self._name = name
-        self.version = version
-        value = name
-        if version > 0:
-            value = f"{name}:{version}"
-        super().__init__(value)
+        super().__init__(name)
 
-    def with_version(self, version: int) -> "IRVariable":
-        if version == self.version:
-            # IRVariable ctor is a hotspot, try to avoid calling it
-            # if possible
-            return self
-        return self.__class__(self.name, version)
-
-    @property
-    def name(self) -> str:
-        return self._name
+    def __repr__(self):
+        return f"{self.value}"
 
     @property
     def plain_name(self) -> str:
@@ -666,7 +651,11 @@ class IRBasicBlock:
         self.cfg_out.remove(bb)
 
     def append_instruction(
-        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None
+        self,
+        opcode: str,
+        *args: Union[IROperand, int],
+        ret: Optional[IRVariable] = None,
+        annotation: str = None,
     ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
@@ -685,6 +674,7 @@ class IRBasicBlock:
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
+        inst.annotation = annotation
         self.instructions.append(inst)
         return ret
 
