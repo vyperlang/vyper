@@ -54,6 +54,14 @@ class MemoryAccess:
         return f"{self.__class__.__name__}({self.id_str})"
 
 
+class LiveOnEntry(MemoryAccess):
+    """
+    For type checking purposes
+    """
+
+    pass
+
+
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
@@ -86,11 +94,12 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: list[tuple[MemoryAccess, IRBasicBlock]] = []
+        self.operands: list[tuple[MemoryPhiOperand, IRBasicBlock]] = []
 
 
-# Type alias for either a memory definition or use
+# Type aliases for signatures in this module
 MemoryDefOrUse = MemoryDef | MemoryUse
+MemoryPhiOperand = MemoryDef | MemoryPhi | LiveOnEntry
 
 
 class MemSSA(IRAnalysis):
@@ -118,7 +127,7 @@ class MemSSA(IRAnalysis):
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
         # live_on_entry node
-        self.live_on_entry = MemoryAccess(0)
+        self.live_on_entry = LiveOnEntry(0)
 
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
@@ -228,7 +237,7 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(use)
 
-    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryPhiOperand]:
         """
         Get the memory def (or phi) that exits a basic block.
 
