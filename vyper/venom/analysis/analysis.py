@@ -47,7 +47,9 @@ class IRAnalysesCache:
         self.analyses_cache = {}
         self.function = function
 
-    def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
+    # python3.12:
+    #   def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
+    def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
