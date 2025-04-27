@@ -13,7 +13,7 @@ class FloatAllocas(IRPass):
 
     def run_pass(self):
         entry_bb = self.function.entry
-        assert entry_bb.is_terminated
+        assert entry_bb.is_terminated, entry_bb
         tmp = entry_bb.instructions.pop()
 
         for bb in self.function.get_basic_blocks():

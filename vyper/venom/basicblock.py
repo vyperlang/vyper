@@ -173,7 +173,7 @@ class IRLiteral(IROperand):
     value: int
 
     def __init__(self, value: int) -> None:
-        assert isinstance(value, int), "value must be an int"
+        assert isinstance(value, int), value
         super().__init__(value)
 
 
@@ -651,7 +651,11 @@ class IRBasicBlock:
         self.cfg_out.remove(bb)
 
     def append_instruction(
-        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None
+        self,
+        opcode: str,
+        *args: Union[IROperand, int],
+        ret: Optional[IRVariable] = None,
+        annotation: str = None,
     ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
@@ -670,6 +674,7 @@ class IRBasicBlock:
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
+        inst.annotation = annotation
         self.instructions.append(inst)
         return ret
 
