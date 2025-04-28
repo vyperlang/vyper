@@ -1473,8 +1473,8 @@ def test_merge_mstore_dload_more_uses():
     _global:
         %par = param
         dloadbytes 1000, %par, 32
-        %d = mload 1000
-        sink %d
+        %1 = mload 1000
+        sink %1
     """
 
     _check_pre_post(pre, post)
