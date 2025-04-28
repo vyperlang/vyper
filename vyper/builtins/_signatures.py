@@ -50,6 +50,7 @@ def process_inputs(wrapped_fn):
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
         subs = []
+
         for arg in node.args:
             arg_ir = process_arg(arg, arg._metadata["type"], context)
             # TODO annotate arg_ir with argname from self._inputs?
@@ -138,10 +139,17 @@ class BuiltinFunctionT(VyperType):
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return self._modifiability <= modifiability
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: Optional[VyperType] = None
+    ) -> Optional[VyperType]:
         self._validate_arg_types(node)
 
-        return self._return_type
+        ret = self._return_type
+
+        if expected_type is not None and not expected_type.compare_type(ret):  # type: ignore
+            raise TypeMismatch(f"{self._id}() returns {ret}, but expected {expected_type}", node)
+
+        return ret
 
     def infer_arg_types(self, node: vy_ast.Call, expected_return_typ=None) -> list[VyperType]:
         self._validate_arg_types(node)
@@ -153,6 +161,7 @@ class BuiltinFunctionT(VyperType):
         if len(varargs) > 0:
             assert self._has_varargs
         ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+
         return ret
 
     def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:

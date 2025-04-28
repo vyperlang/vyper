@@ -508,7 +508,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = map_void(fn_type.fetch_call_return(call_node))
+        return_value = map_void(fn_type.get_return_type(call_node))
         if (
             return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
@@ -609,7 +609,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability} functions", node
             )
-        t = map_void(f.fetch_call_return(node.value))
+        t = map_void(f.get_return_type(node.value))
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this
         node._metadata["type"] = f.typedef
@@ -620,18 +620,19 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self._validate_revert_reason(node.exc)
 
     def visit_Return(self, node):
-        values = node.value
-        if values is None:
-            if self.func.return_type:
+        return_value = node.value
+        if return_value is None:
+            if self.func.return_type is not None:
                 raise FunctionDeclarationException("Return statement is missing a value", node)
             return
         elif self.func.return_type is None:
             raise FunctionDeclarationException("Function should not return any values", node)
 
-        if isinstance(values, vy_ast.Tuple):
-            values = values.elements
+        if isinstance(return_value, vy_ast.Tuple):
+            values = return_value.elements
             if not isinstance(self.func.return_type, TupleT):
                 raise FunctionDeclarationException("Function only returns a single value", node)
+
             if self.func.return_type.length != len(values):
                 raise FunctionDeclarationException(
                     f"Incorrect number of return values: "
