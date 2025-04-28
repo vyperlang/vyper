@@ -45,6 +45,12 @@ class DFTPass(IRPass):
 
         entry_instructions_list = list(entry_instructions)
 
+        import random
+        if len(entry_instructions_list) > 1:
+            last_element = entry_instructions_list.pop()
+            # entry_instructions_list.reverse()
+            entry_instructions_list.append(last_element)
+        
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
             self._process_instruction_r(self.instructions, inst)
@@ -105,15 +111,29 @@ class DFTPass(IRPass):
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
 
+            for effect in read_effects:
+                # Read depends on last write to the same effect
+                if effect in last_write_effects and last_write_effects[effect] != inst:
+                    self.eda[inst].add(last_write_effects[effect])
+
+            for effect in write_effects:
+                # Write depends on last read to the same effect
+                if effect in last_read_effects and last_read_effects[effect] != inst:
+                    self.eda[inst].add(last_read_effects[effect])
+
+                # Write depends on last write to the same effect
+                if effect in last_write_effects and last_write_effects[effect] != inst:
+                    self.eda[inst].add(last_write_effects[effect])
+
+            # Update the last read/write effect trackers
+            for read_effect in read_effects:
+                last_read_effects[read_effect] = inst
             for write_effect in write_effects:
-                if write_effect in last_read_effects:
-                    self.eda[inst].add(last_read_effects[write_effect])
                 last_write_effects[write_effect] = inst
 
-            for read_effect in read_effects:
-                if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
-                    self.eda[inst].add(last_write_effects[read_effect])
-                last_read_effects[read_effect] = inst
+        # DEBUG ASSERTS: Check for cyclic effect dependencies
+        for inst, deps in self.eda.items():
+            assert inst not in deps, f"Cyclic effect dependency detected for {inst}"
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
