@@ -11,6 +11,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
+    CSE,
     SCCP,
     AlgebraicOptimizationPass,
     BranchOptimizationPass,
@@ -24,6 +25,7 @@ from vyper.venom.passes import (
     MemMergePass,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
+    RevertToAssert,
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
@@ -70,23 +72,23 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     LoadElimination(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
+    RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
 
     LowerDloadPass(ac, fn).run_pass()
-    # NOTE: MakeSSA is after algebraic optimization it currently produces
-    #       smaller code by adding some redundant phi nodes. This is not a
-    #       problem for us, but we need to be aware of it, and should be
-    #       removed when the dft pass is fixed to produce the smallest code
-    #       without making the code generation more expensive by running
-    #       MakeSSA again.
-    MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    StoreElimination(ac, fn).run_pass()
+    CSE(ac, fn).run_pass()
+    StoreElimination(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:

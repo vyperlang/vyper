@@ -33,7 +33,7 @@ class AlgebraicOptimizationPass(IRPass):
     updater: InstUpdater
 
     def run_pass(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
