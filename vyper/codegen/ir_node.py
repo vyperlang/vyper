@@ -139,6 +139,9 @@ class IRnode:
     func_ir: Any
     common_ir: Any
 
+    _id: int
+    _next_id: int = -1
+
     def __init__(
         self,
         value: Union[str, int],
@@ -153,6 +156,7 @@ class IRnode:
         encoding: Encoding = Encoding.VYPER,
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
+        _id: int = None,
     ):
         if args is None:
             args = []
@@ -174,6 +178,12 @@ class IRnode:
         self.passthrough_metadata = passthrough_metadata or {}
         self.func_ir = None
         self.common_ir = None
+
+        self._id = _id  # type: ignore[assignment]
+        self.ensure_id()
+
+        # helpful for debugging:
+        # self._origin = traceback.extract_stack()
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -358,6 +368,15 @@ class IRnode:
         ret.args = [copy.deepcopy(arg) for arg in ret.args]
         return ret
 
+    @classmethod
+    def generate_id(cls):
+        cls._next_id += 1
+        return cls._next_id
+
+    def ensure_id(self):
+        if self._id is None:
+            self._id = self.generate_id()
+
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
     def gas(self):
@@ -535,6 +554,8 @@ class IRnode:
             return hex(self.value)
         if not isinstance(self.value, str):
             return str(self.value)
+        # useful for debugging
+        # return f"{self._id}:{self.value}"
         return self.value
 
     @staticmethod
@@ -605,11 +626,13 @@ class IRnode:
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
+        _id=None,
     ) -> "IRnode":
         if isinstance(typ, str):  # pragma: nocover
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
+            assert _id is None
             # note: this modify-and-returnclause is a little weird since
             # the input gets modified. CC 20191121.
             if typ is not None:
@@ -638,6 +661,7 @@ class IRnode:
                 error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
+                _id=_id,
             )
         else:
             return cls(
@@ -653,4 +677,5 @@ class IRnode:
                 error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
+                _id=_id,
             )
