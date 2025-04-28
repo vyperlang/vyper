@@ -42,6 +42,25 @@ def __init__():
     """,
         FunctionDeclarationException,
     ),
+    (
+        # nonreentrant on an internal function
+        """
+@nonreentrant
+def foo():
+    pass
+    """,
+        FunctionDeclarationException,
+    ),
+    (
+        # nonreentrant on an internal function
+        """
+@internal
+@nonreentrant
+def foo():
+    pass
+    """,
+        FunctionDeclarationException,
+    ),
 ]
 
 

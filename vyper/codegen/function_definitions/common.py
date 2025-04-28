@@ -150,6 +150,8 @@ def get_nonreentrant_lock(func_t):
     if not func_t.nonreentrant:
         return ["pass"], ["pass"]
 
+    assert func_t.is_external
+
     nkey = func_t.reentrancy_key_position.position
 
     LOAD, STORE = "sload", "sstore"

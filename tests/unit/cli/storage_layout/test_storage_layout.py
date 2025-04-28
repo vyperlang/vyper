@@ -18,9 +18,6 @@ def public_foo1():
 def public_foo2():
     pass
 
-
-@internal
-@nonreentrant
 def _bar():
     pass
 
