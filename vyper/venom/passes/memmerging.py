@@ -418,7 +418,7 @@ class MemMergePass(IRPass):
             assert dload.output is not None
             uses = self.dfg.get_uses(dload.output)
             if len(uses) == 1:
-                mstore = uses.first()
+                mstore: IRInstruction = uses.first()
                 if mstore.opcode != "mstore":
                     continue
                 _, dst = mstore.operands
@@ -438,7 +438,7 @@ class MemMergePass(IRPass):
             # relies on order of bb.get_uses!
             # if this invariant would be broken
             # it must be handled differently
-            mstore: IRInstruction = uses_bb.first()
+            mstore = uses_bb.first()
             if mstore.opcode != "mstore":
                 continue
 
