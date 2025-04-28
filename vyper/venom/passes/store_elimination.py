@@ -33,11 +33,11 @@ class StoreElimination(IRPass):
         Process store instruction. If the variable is only used by a load instruction,
         forward the variable to the load instruction.
         """
-        if False and any([inst.opcode == "phi" for inst in self.dfg.get_uses(new_var)]):
+        if any([inst.opcode == "phi" for inst in self.dfg.get_uses(new_var)]):
             return
 
         uses = self.dfg.get_uses(var)
-        if False and any([inst.opcode == "phi" for inst in uses]):
+        if any([inst.opcode == "phi" for inst in uses]):
             return
         for use_inst in uses.copy():
             self.updater.update_operands(use_inst, {var: new_var})
@@ -51,18 +51,32 @@ class StoreElimination(IRPass):
             self.updater.store(inst, inputs.pop())
             return
 
-        translate_dict: dict = dict()
+        srcs: set[IRInstruction] = set()
+        for op in inputs:
+            src = self.dfg.get_producing_instruction(op)
+            assert src is not None 
+            srcs.add(src)
 
-        for label, var in inst.phi_operands:
-            src = self.dfg.get_producing_instruction(var)
-            bb = self.function.get_basic_block(label.name)
-            # assert src is not None
-            # if src is not None and src.parent == bb:
-            # continue
 
-            new_var = self.updater.add_before(bb.instructions[-1], "store", [var])
+        while any(i.opcode == "store" and isinstance(i.operands[0], IRVariable) for i in srcs):
+            print(srcs)
+            for src in list(srcs):
+                if src.opcode != "store":
+                    continue
+                if not isinstance(src.operands[0], IRVariable):
+                    continue
 
-            assert var not in translate_dict, (inst, var, translate_dict)
-            translate_dict[var] = new_var
+                next_var = src.operands[0]
+                srcs.remove(src)
 
-        self.updater.update_operands(inst, translate_dict)
+                next_src = self.dfg.get_producing_instruction(next_var)
+                assert next_src is not None
+
+                srcs.add(next_src)
+
+        if len(srcs) == 1:
+            self.updater.store(inst, srcs.pop().output)
+            return
+
+
+

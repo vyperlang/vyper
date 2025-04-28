@@ -504,7 +504,7 @@ class IRInstruction:
             label = self.operands[i]
             var = self.operands[i + 1]
             assert isinstance(label, IRLabel), f"not a label: {label} (at `{self}`)"
-            # assert isinstance(var, IRVariable), f"not a variable: {var} (at `{self}`)"
+            assert isinstance(var, IRVariable), f"not a variable: {var} (at `{self}`)"
             yield label, var
 
     def remove_phi_operand(self, label: IRLabel) -> None:
