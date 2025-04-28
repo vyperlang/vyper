@@ -46,11 +46,12 @@ class DFTPass(IRPass):
         entry_instructions_list = list(entry_instructions)
 
         import random
+
         if len(entry_instructions_list) > 1:
             last_element = entry_instructions_list.pop()
             # entry_instructions_list.reverse()
             entry_instructions_list.append(last_element)
-        
+
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
             self._process_instruction_r(self.instructions, inst)
