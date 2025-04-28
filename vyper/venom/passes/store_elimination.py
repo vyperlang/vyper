@@ -54,12 +54,10 @@ class StoreElimination(IRPass):
         srcs: set[IRInstruction] = set()
         for op in inputs:
             src = self.dfg.get_producing_instruction(op)
-            assert src is not None 
+            assert src is not None
             srcs.add(src)
 
-
         while any(i.opcode == "store" and isinstance(i.operands[0], IRVariable) for i in srcs):
-            print(srcs)
             for src in list(srcs):
                 if src.opcode != "store":
                     continue
@@ -75,8 +73,7 @@ class StoreElimination(IRPass):
                 srcs.add(next_src)
 
         if len(srcs) == 1:
-            self.updater.store(inst, srcs.pop().output)
+            new_var = srcs.pop().output
+            assert new_var is not None
+            self.updater.store(inst, new_var)
             return
-
-
-
