@@ -14,7 +14,7 @@ class ReachableAnalysis(IRAnalysis):
     reachable: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     def analyze(self) -> None:
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.reachable = defaultdict(OrderedSet)
 
         self._compute_reachable_r(self.function.entry)
@@ -23,9 +23,12 @@ class ReachableAnalysis(IRAnalysis):
         if bb in self.reachable:
             return
 
-        s = bb.cfg_out.copy()
+        s = self.cfg.cfg_out(bb).copy()
         self.reachable[bb] = s
 
-        for out_bb in bb.cfg_out:
+        for out_bb in self.cfg.cfg_out(bb):
             self._compute_reachable_r(out_bb)
             s.update(self.reachable[out_bb])
+
+    def invalidate(self):
+        del self.reachable
