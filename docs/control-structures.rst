@@ -191,6 +191,7 @@ Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it
 When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` modifier. Here is an example:
 
 .. code-block:: vyper
+
     # pragma nonreentrancy on
 
     x: public(uint256)  # this is protected from view-only reentrancy
