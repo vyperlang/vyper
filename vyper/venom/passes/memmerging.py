@@ -2,6 +2,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 
 from vyper.evm.opcodes import version_check
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
@@ -448,8 +449,11 @@ class MemMergePass(IRPass):
 
             self.updater.add_before(use, "dloadbytes", [IRLiteral(32), src, dst])
             self.updater.nop(dload, ignore_uses=True)
+
+            assert isinstance(var, IRVariable)  # help mypy
             self.updater.update(use, "mload", [dst], new_output=var)
 
+            assert use.output is not None  # help mypy
             # sanity check that we have correctly updated the dfg in-place
             assert self.dfg.get_uses(use.output) is uses
 
