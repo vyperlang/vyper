@@ -20,6 +20,15 @@ class InstUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands)
 
+    def update_uses(self, old_inst: IRInstruction, new_inst: IRInstruction):
+        assert old_inst.output is not None
+        assert new_inst.output is not None
+        old_var = old_inst.output
+        new_var = new_inst.output
+
+        for use in self.dfg.get_uses(old_var).copy():
+            self.update_operands(use, {old_var: new_var})
+
     def update(
         self,
         inst: IRInstruction,

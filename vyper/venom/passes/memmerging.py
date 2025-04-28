@@ -454,8 +454,9 @@ class MemMergePass(IRPass):
             new_var = bb.parent.get_next_variable()
             self.updater.update(use, "mload", [dst], new_output=new_var)
 
-            for u in self.dfg.get_uses(dload.output).copy():
-                self.updater.update_operands(u, {dload.output: new_var})
+            mload = use
+
+            self.updater.update_uses(dload, mload)
 
             self.updater.nop(dload)
 
