@@ -216,13 +216,13 @@ The default is ``#pragma nonreentrancy off``, which can be used to signal specif
 
 Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned in the previous section apply here, since the ``__default__()`` function will be nonreentrant by default with the pragma on.
 
-Internal functions are unlocked by default but can use ``@nonreentrant`` decorator. External ``view`` functions are protected by default, checking the lock upon entry but only reading its state. External ``pure`` functions do not interact with the lock.
+With the pragma on, internal functions remain unlocked by default but can still use the ``@nonreentrant`` decorator. External ``view`` functions are protected by default (as before, checking the lock upon entry but only reading its state). External ``pure`` functions do not interact with the lock.
 
 .. note::
-   All the protected functions share the same lock.
+   All the protected functions share the same, global lock.
 
 .. note::
-    Vyper disallows calling a ``nonreentrant`` function from another ``nonreentrant`` function due to their shared global lock. This measure prevents a revert caused by the attempted re-acquisition of the lock.
+    Vyper disallows calling a ``nonreentrant`` function from another ``nonreentrant`` function, since the compiler implements nonreentrancy as a global lock which is acquired at function entry.
 
 .. note::
    The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
