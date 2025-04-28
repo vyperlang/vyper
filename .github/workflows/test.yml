@@ -1,6 +1,9 @@
 name: Run test suite
 
-on: [push, pull_request]
+on:
+  - push
+  - pull_request
+  - merge_group
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
