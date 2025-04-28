@@ -60,7 +60,7 @@ from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
-    validate_expected_type,
+    infer_type,
 )
 from vyper.semantics.types import (
     TYPE_T,
@@ -204,12 +204,14 @@ class Convert(BuiltinFunctionT):
         target_type = type_from_annotation(node.args[1])
         value_types = get_possible_types_from_node(node.args[0])
 
-        # For `convert` of integer literals, we need to match type inference rules in
-        # convert.py codegen routines.
+        # For `convert` of integer literals, we need to match type inference
+        # rules in convert.py codegen routines.
         # TODO: This can probably be removed once constant folding for `convert` is implemented
         if len(value_types) > 1 and all(isinstance(v, IntegerT) for v in value_types):
-            # Get the smallest (and unsigned if available) type for non-integer target types
-            # (note this is different from the ordering returned by `get_possible_types_from_node`)
+            # Get the smallest (and unsigned if available) type for
+            # non-integer target types
+            # (note this is different from the ordering returned by
+            # `get_possible_types_from_node`)
             if not isinstance(target_type, IntegerT):
                 value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
@@ -220,7 +222,10 @@ class Convert(BuiltinFunctionT):
 
         # block conversions between same type
         if target_type.compare_type(value_type):
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+            raise InvalidType(
+                f"Value and target type are both `{target_type}`",
+                hint="try removing the call to `convert()`",
+            )
 
         return [value_type, TYPE_T(target_type)]
 
@@ -293,11 +298,6 @@ class Slice(BuiltinFunctionT):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
         arg = node.args[0]
@@ -326,19 +326,13 @@ class Slice(BuiltinFunctionT):
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
-        # we know the length statically
+        return_cls = arg_type.__class__
         if length_literal is not None:
-            return_type.set_length(length_literal)
+            return_type = return_cls(length_literal)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = return_cls(arg_type.length)
 
         return return_type
-
-    def infer_arg_types(self, node, expected_return_typ=None):
-        self._validate_arg_types(node)
-        # return a concrete type for `b`
-        b_type = get_possible_types_from_node(node.args[0]).pop()
-        return [b_type, self._inputs[1][1], self._inputs[2][1]]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -494,12 +488,8 @@ class Concat(BuiltinFunctionT):
         for arg_t in arg_types:
             length += arg_t.length
 
-        if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-        return_type.set_length(length)
-        return return_type
+        return_type_cls = arg_types[0].__class__
+        return return_type_cls(length)
 
     def infer_arg_types(self, node, expected_return_typ=None):
         if len(node.args) < 2:
@@ -511,8 +501,7 @@ class Concat(BuiltinFunctionT):
         ret = []
         prev_typeclass = None
         for arg in node.args:
-            validate_expected_type(arg, (BytesT.any(), StringT.any(), BytesM_T.any()))
-            arg_t = get_possible_types_from_node(arg).pop()
+            arg_t = infer_type(arg, (BytesT.any(), StringT.any(), BytesM_T.any()))
             current_typeclass = "String" if isinstance(arg_t, StringT) else "Bytes"
             if prev_typeclass and current_typeclass != prev_typeclass:
                 raise TypeMismatch(
@@ -851,7 +840,7 @@ class Extract32(BuiltinFunctionT):
                     "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
             output_typedef = TYPE_T(output_type)
-            node.keywords[0].value._metadata["type"] = output_typedef
+            # node.keywords[0].value._metadata["type"] = output_typedef
         else:
             output_typedef = TYPE_T(BYTES32_T)
 
@@ -1041,8 +1030,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -2243,9 +2231,8 @@ class ABIEncode(BuiltinFunctionT):
         ret = {}
         for kwarg in node.keywords:
             kwarg_name = kwarg.arg
-            validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
+            typ = infer_type(kwarg.value, self._kwargs[kwarg_name].typ)
 
-            typ = get_exact_type_from_node(kwarg.value)
             if kwarg_name == "method_id" and isinstance(typ, BytesT):
                 if typ.length != 4:
                     raise InvalidLiteral("method_id must be exactly 4 bytes!", kwarg.value)
@@ -2280,9 +2267,7 @@ class ABIEncode(BuiltinFunctionT):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):

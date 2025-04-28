@@ -35,8 +35,8 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    infer_type,
     uses_state,
-    validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
@@ -368,17 +368,19 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
+            return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
+        try:
+            self.expr_visitor.visit(msg_node, StringT.any())
+        except TypeMismatch as e:
+            # improve the error message
+            msg = "reason must be a string or the special `UNREACHABLE` value"
+            raise TypeMismatch(msg, msg_node) from e
 
     def visit_Assert(self, node):
         if node.msg:
@@ -547,7 +549,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             except (InvalidType, StructureException):
                 raise InvalidType("Not an iterable type", iter_node)
 
-        # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
+        # CMC 2024-02-09 TODO: use infer_type once we have DArrays
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
@@ -659,15 +661,13 @@ class ExprVisitor(VyperNodeVisitorBase):
         return "module"
 
     def visit(self, node, typ):
-        if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
-            validate_expected_type(node, typ)
+        if isinstance(typ, TYPE_T):
+            node._metadata["type"] = typ
+        else:
+            # note: infer_type caches the resolved type on node._metadata["type"]
+            typ = infer_type(node, expected_type=typ)
 
-        # recurse and typecheck in case we are being fed the wrong type for
-        # some reason.
         super().visit(node, typ)
-
-        # annotate
-        node._metadata["type"] = typ
 
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info
@@ -932,11 +932,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        if isinstance(base_type, HashMapT):
-            index_type = base_type.key_type
-        else:
-            # Arrays allow most int types as index: Take the least specific
-            index_type = get_possible_types_from_node(node.slice).pop()
+        index_type = infer_type(node.slice, base_type.key_type)
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
@@ -946,7 +942,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        # these guarantees should be provided by validate_expected_type
+        # these guarantees should be provided by infer_type
         assert isinstance(typ, TupleT)
         assert len(node.elements) == len(typ.member_types)
 
