@@ -329,10 +329,7 @@ def hex_to_int(inp):
 
 # Converts bytes to an integer
 def bytes_to_int(bytez):
-    o = 0
-    for b in bytez:
-        o = o * 256 + b
-    return o
+    return int.from_bytes(bytez, "big")
 
 
 def is_checksum_encoded(addr):
