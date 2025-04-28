@@ -5,4 +5,6 @@ from .dominators import DominatorTreeAnalysis
 from .fcg import FCGAnalysis
 from .liveness import LivenessAnalysis
 from .reachable import ReachableAnalysis
+from .mem_alias import MemoryAliasAnalysis
+from .mem_ssa import MemSSA
 from .var_definition import VarDefinition

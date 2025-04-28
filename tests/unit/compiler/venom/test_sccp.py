@@ -150,6 +150,9 @@ def test_cont_jump_case():
     then:
         %5 = add 10, 96
         sink 106
+    else:  # unreachable
+        %6 = add %1, 96
+        sink %6
     """
 
     passes = _check_pre_post(pre, post)
@@ -197,8 +200,11 @@ def test_cont_phi_case():
     then:
         %5:1 = add 10, 96
         jmp @join
+    else:  # unreachable
+        %5:2 = add %1, 96
+        jmp @join
     join:
-        %5 = %5:1
+        %5 = phi @then, %5:1, @else, %5:2
         sink 106
     """
 
@@ -249,8 +255,11 @@ def test_cont_phi_const_case():
     then:
         %5:1 = add 10, 96
         jmp @join
+    else:  # unreachable
+        %5:2 = add 1, 96
+        jmp @join
     join:
-        %5 = %5:1
+        %5 = phi @then, %5:1, @else, %5:2
         sink 106
     """
 
@@ -293,7 +302,7 @@ def test_phi_reduction_without_basic_block_removal():
         %2 = 2
         jmp @join
     join:
-        %3 = %2
+        %3 = phi @main, %1, @then, %2
         sink 2
     """
 

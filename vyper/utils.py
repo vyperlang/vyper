@@ -11,6 +11,8 @@ import traceback
 import warnings
 from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
+from Crypto.Hash import keccak
+
 from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
@@ -220,14 +222,8 @@ class DecimalContextOverride(decimal.Context):
 decimal.setcontext(DecimalContextOverride(prec=78))
 
 
-try:
-    from Crypto.Hash import keccak  # type: ignore
-
-    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
-except ImportError:
-    import sha3 as _sha3
-
-    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+def keccak256(x):
+    return keccak.new(digest_bits=256, data=x).digest()
 
 
 @functools.lru_cache(maxsize=512)
