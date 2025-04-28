@@ -438,26 +438,24 @@ class MemMergePass(IRPass):
             # relies on order of bb.get_uses!
             # if this invariant would be broken
             # it must be handled differently
-            use: IRInstruction = uses_bb.first()
-            if use.opcode != "mstore":
+            mstore: IRInstruction = uses_bb.first()
+            if mstore.opcode != "mstore":
                 continue
 
-            var, dst = use.operands
+            var, dst = mstore.operands
 
             if var != dload.output:
                 continue
 
-            self.updater.add_before(use, "dloadbytes", [IRLiteral(32), src, dst])
-
             assert isinstance(var, IRVariable)  # help mypy
-
             new_var = bb.parent.get_next_variable()
-            self.updater.update(use, "mload", [dst], new_output=new_var)
 
-            mload = use
+            self.updater.add_before(mstore, "dloadbytes", [IRLiteral(32), src, dst])
+            self.updater.update(mstore, "mload", [dst], new_output=new_var)
 
-            self.updater.update_uses(dload, mload)
+            mload = mstore  # clarity
 
+            self.updater.move_uses(dload.output, mload)
             self.updater.nop(dload)
 
 
