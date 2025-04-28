@@ -165,11 +165,11 @@ The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function
         # this function is protected from re-entrancy
         ...
 
-You can put the ``@nonreentrant`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
-
 Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
+
+You can put the ``@nonreentrant`` decorator on a ``__default__`` function, but keep in mind that this will result in the contract rejecting ETH payments from callbacks.
 
 You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overridden, the compiler will allocate it at slot ``0``.
 
@@ -186,12 +186,15 @@ You can view where the nonreentrant key is physically laid out in storage by usi
 The nonreentrant pragma
 -----------------------
 
-Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all functions in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
+Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all functions and public getters in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
 
-When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. Here is an example:
+When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` modifier. Here is an example:
 
 .. code-block:: vyper
     # pragma nonreentrancy on
+
+    x: public(uint256)  # this has view-only reentrancy turned on
+    y: public(reentrant(uint256))  # this does not have view-only reentrancy
 
     @external
     def make_a_call(addr: address):
@@ -206,13 +209,12 @@ When the pragma is on, to re-enable reentrancy for a specific function, add the 
 
     @external
     def __default__():
-        # the default function is reentrant by default, even when
-        # the nonreentrancy pragma is set
+        # this function is nonreentrant!
         ...
 
 The default is ``#pragma nonreentrancy off``, which can be used to signal specifically that nonreentrancy protection is off in this file.
 
-Note that the ``__default__`` function maintains the same default as when ``# pragma nonreentrancy off`` is set, which is that it is reentrant. To enable nonreentrancy on the ``__default__`` function, you must opt into it with the ``@nonreentrant`` decorator, with the caveat as mentioned in the previous section that this will probably lead to unintended behavior.
+Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned in the previous section apply here, since the ``__default__()`` function will be nonreentrant by default with the pragma on.
 
 .. note::
    The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
