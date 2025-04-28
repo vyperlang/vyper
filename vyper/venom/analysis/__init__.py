@@ -6,4 +6,5 @@ from .fcg import FCGAnalysis
 from .liveness import LivenessAnalysis
 from .mem_alias import MemoryAliasAnalysis
 from .mem_ssa import MemSSA
+from .reachable import ReachableAnalysis
 from .var_definition import VarDefinition
