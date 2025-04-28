@@ -202,6 +202,14 @@ class SyntaxException(VyperException):
         super().__init__(message, item, hint=hint)
 
 
+class PragmaException(SyntaxException):
+    """Invalid pragma"""
+
+
+class VersionException(SyntaxException):
+    """Version string is malformed or incompatible with this compiler version."""
+
+
 class DecimalOverrideException(VyperException):
     """The Vyper compiler uses specific Decimal settings which
     if overridden could lead to incorrect behavior.
@@ -218,10 +226,6 @@ class StructureException(VyperException):
 
 class InstantiationException(StructureException):
     """Variable or expression cannot be instantiated"""
-
-
-class VersionException(SyntaxException):
-    """Version string is malformed or incompatible with this compiler version."""
 
 
 class VariableDeclarationException(VyperException):
