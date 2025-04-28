@@ -101,7 +101,7 @@ class MemMergePass(IRPass):
     _loads: dict[IRVariable, int]
 
     def run_pass(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
