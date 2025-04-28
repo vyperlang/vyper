@@ -42,11 +42,11 @@ class DominatorTreeAnalysis(IRAnalysis):
         self._compute_idoms()
         self._compute_df()
 
-    def dominates(self, bb1, bb2):
+    def dominates(self, dom, sub):
         """
-        Check if bb1 dominates bb2.
+        Check if `dom` dominates `sub`.
         """
-        return bb2 in self.dominators[bb1]
+        return dom in self.dominators[sub]
 
     def immediate_dominator(self, bb):
         """
