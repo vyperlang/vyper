@@ -45,12 +45,12 @@ class DFTPass(IRPass):
 
         entry_instructions_list = list(entry_instructions)
 
-        import random
+        # import random
 
-        if len(entry_instructions_list) > 1:
-            last_element = entry_instructions_list.pop()
-            # entry_instructions_list.reverse()
-            entry_instructions_list.append(last_element)
+        # if len(entry_instructions_list) > 1:
+        #     last_element = entry_instructions_list.pop()
+        #     # entry_instructions_list.reverse()
+        #     entry_instructions_list.append(last_element)
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
@@ -131,10 +131,6 @@ class DFTPass(IRPass):
                 last_read_effects[read_effect] = inst
             for write_effect in write_effects:
                 last_write_effects[write_effect] = inst
-
-        # DEBUG ASSERTS: Check for cyclic effect dependencies
-        for inst, deps in self.eda.items():
-            assert inst not in deps, f"Cyclic effect dependency detected for {inst}"
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
