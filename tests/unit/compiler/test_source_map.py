@@ -99,7 +99,7 @@ def test_pos_map_offsets():
             )
 
 
-def test_error_map():
+def test_error_map(experimental_codegen):
     code = """
 foo: uint256
 
@@ -109,7 +109,12 @@ def update_foo():
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "safeadd" in error_map.values()
-    assert "fallback function" in error_map.values()
+
+    if experimental_codegen:
+        # fallback function gets turned into an assertion
+        pass
+    else:
+        assert "fallback function" in error_map.values()
 
 
 def test_error_map_with_user_error():

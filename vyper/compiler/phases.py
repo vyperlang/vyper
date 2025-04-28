@@ -114,16 +114,22 @@ class CompilerData:
         return self.file_input.path
 
     @cached_property
-    def _generate_ast(self):
+    def vyper_module(self):
         is_vyi = self.contract_path.suffix == ".vyi"
 
-        settings, ast = vy_ast.parse_to_ast_with_settings(
+        ast = vy_ast.parse_to_ast(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
             is_interface=is_vyi,
         )
+
+        return ast
+
+    @cached_property
+    def settings(self):
+        settings = self.vyper_module.settings
 
         if self.original_settings:
             og_settings = self.original_settings
@@ -140,17 +146,7 @@ class CompilerData:
         if settings.experimental_codegen is None:
             settings.experimental_codegen = False
 
-        return settings, ast
-
-    @cached_property
-    def settings(self):
-        settings, _ = self._generate_ast
         return settings
-
-    @cached_property
-    def vyper_module(self):
-        _, ast = self._generate_ast
-        return ast
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
         if self.storage_layout_override is not None:
