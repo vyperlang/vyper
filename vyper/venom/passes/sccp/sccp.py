@@ -51,6 +51,7 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
@@ -64,15 +65,14 @@ class SCCP(IRPass):
 
     def run_pass(self):
         self.fn = self.function
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
         if self.cfg_dirty:
-            self.analyses_cache.force_analysis(CFGAnalysis)
-            self.fn.remove_unreachable_blocks()
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -188,7 +188,7 @@ class SCCP(IRPass):
 
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
-                for out_bb in inst.parent.cfg_out:
+                for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
                 assert isinstance(lat, IRLiteral)  # sanity

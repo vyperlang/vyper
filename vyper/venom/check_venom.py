@@ -61,7 +61,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
         return errors
 
     ac = IRAnalysesCache(fn)
-    var_def: VarDefinition = ac.request_analysis(VarDefinition)  # type: ignore
+    var_def: VarDefinition = ac.request_analysis(VarDefinition)
     for bb in fn.get_basic_blocks():
         e = _handle_var_definition(fn, bb, var_def)
         errors.extend(e)

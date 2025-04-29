@@ -28,7 +28,7 @@ def foo() -> int128:
 
 
 def get_contract_info(source_code):
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface=False)
     pre_parser.parse(source_code)
     py_ast = python_ast.parse(pre_parser.reformatted_code)
 
