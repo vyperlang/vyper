@@ -27,6 +27,9 @@ class StoreElimination(IRPass):
                 continue
             self._process_store(inst, var, inst.operands[0])
 
+        for bb in self.function.get_basic_blocks():
+            bb.ensure_well_formed()
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_store(self, inst, var: IRVariable, new_var: IRVariable):
