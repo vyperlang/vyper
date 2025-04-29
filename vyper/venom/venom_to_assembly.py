@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
@@ -12,6 +12,7 @@ from vyper.ir.compile_ir import (
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
+    PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
@@ -20,7 +21,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -47,6 +48,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "number",
         "extcodesize",
         "extcodehash",
+        "codecopy",
         "extcodecopy",
         "returndatasize",
         "returndatacopy",
@@ -134,19 +136,17 @@ def _as_asm_symbol(label: IRLabel) -> str:
 class VenomCompiler:
     ctxs: list[IRContext]
     label_counter = 0
-    visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
-    liveness_analysis: LivenessAnalysis
+    liveness: LivenessAnalysis
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
 
     def __init__(self, ctxs: list[IRContext]):
         self.ctxs = ctxs
         self.label_counter = 0
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
 
     def generate_evm(self, no_optimize: bool = False) -> list[str]:
-        self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
@@ -158,11 +158,11 @@ class VenomCompiler:
                 ac = IRAnalysesCache(fn)
 
                 NormalizationPass(ac, fn).run_pass()
-                self.liveness_analysis = ac.request_analysis(LivenessAnalysis)
+                self.liveness = ac.request_analysis(LivenessAnalysis)
                 self.dfg = ac.request_analysis(DFGAnalysis)
-                ac.request_analysis(CFGAnalysis)
+                self.cfg = ac.request_analysis(CFGAnalysis)
 
-                assert fn.normalized, "Non-normalized CFG!"
+                assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
@@ -282,6 +282,47 @@ class VenomCompiler:
             assert op not in seen, (op, seen)
             seen.add(op)
 
+    def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
+        last_param = None
+        for inst in fn.entry.instructions:
+            if inst.opcode != "param":
+                # note: always well defined if the bb is terminated
+                next_liveness = self.liveness.live_vars_at(inst)
+                break
+
+            last_param = inst
+
+            assert inst.output is not None  # help mypy
+            stack.push(inst.output)
+
+        # no params (only applies for global entry function)
+        if last_param is None:
+            return
+
+        to_pop: list[IRVariable] = []
+        for var in stack._stack:
+            if var not in next_liveness:
+                assert isinstance(var, IRVariable)  # help mypy
+                to_pop.append(var)
+
+        self.popmany(asm, to_pop, stack)
+
+        self._optimistic_swap(asm, last_param, next_liveness, stack)
+
+    def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
+        to_pop = list(to_pop)
+        # small heuristic: pop from shallowest first.
+        to_pop.sort(key=lambda var: -stack.get_depth(var))
+
+        # NOTE: we could get more fancy and try to optimize the swap
+        # operations here, there is probably some more room for optimization.
+        for var in to_pop:
+            depth = stack.get_depth(var)
+
+            if depth != 0:
+                self.swap(asm, stack, depth)
+            self.pop(asm, stack)
+
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
@@ -299,15 +340,20 @@ class VenomCompiler:
         asm.append(_as_asm_symbol(basicblock.label))
         asm.append("JUMPDEST")
 
-        if len(basicblock.cfg_in) == 1:
+        fn = basicblock.parent
+        if basicblock == fn.entry:
+            self._prepare_stack_for_function(asm, fn, stack)
+
+        if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        all_insts = sorted(basicblock.instructions, key=lambda x: x.opcode != "param")
+        all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for i, inst in enumerate(all_insts):
-            next_liveness = (
-                all_insts[i + 1].liveness if i + 1 < len(all_insts) else basicblock.out_vars
-            )
+            if i + 1 < len(all_insts):
+                next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
+            else:
+                next_liveness = self.liveness.out_vars(basicblock)
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
@@ -317,7 +363,7 @@ class VenomCompiler:
 
         ref.extend(asm)
 
-        for bb in basicblock.cfg_out:
+        for bb in self.cfg.cfg_out(basicblock):
             self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
 
     # pop values from stack at entry to bb
@@ -327,31 +373,20 @@ class VenomCompiler:
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
         # the input block is a splitter block, like jnz or djmp
-        assert len(basicblock.cfg_in) == 1
-        in_bb = basicblock.cfg_in.first()
-        assert len(in_bb.cfg_out) > 1
+        assert len(in_bbs := self.cfg.cfg_in(basicblock)) == 1
+        in_bb = in_bbs.first()
+        assert len(self.cfg.cfg_out(in_bb)) > 1
 
         # inputs is the input variables we need from in_bb
-        inputs = self.liveness_analysis.input_vars_from(in_bb, basicblock)
+        inputs = self.liveness.input_vars_from(in_bb, basicblock)
 
         # layout is the output stack layout for in_bb (which works
         # for all possible cfg_outs from the in_bb, in_bb is responsible
         # for making sure its output stack layout works no matter which
         # bb it jumps into).
-        layout = in_bb.out_vars
+        layout = self.liveness.out_vars(in_bb)
         to_pop = list(layout.difference(inputs))
-
-        # small heuristic: pop from shallowest first.
-        to_pop.sort(key=lambda var: -stack.get_depth(var))
-
-        # NOTE: we could get more fancy and try to optimize the swap
-        # operations here, there is probably some more room for optimization.
-        for var in to_pop:
-            depth = stack.get_depth(var)
-
-            if depth != 0:
-                self.swap(asm, stack, depth)
-            self.pop(asm, stack)
+        self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
@@ -367,8 +402,9 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-        elif opcode in ("alloca", "palloca"):
-            assert len(inst.operands) == 3, f"alloca/palloca must have 3 operands, got {inst}"
+
+        elif opcode in ("alloca", "palloca", "calloca"):
+            assert len(inst.operands) == 3, inst
             offset, _size, _id = inst.operands
             operands = [offset]
 
@@ -428,14 +464,13 @@ class VenomCompiler:
             # we only need to reorder stack before join points, which after
             # cfg normalization, join points can only be led into by
             # jmp instructions.
-            assert isinstance(inst.parent.cfg_out, OrderedSet)
-            assert len(inst.parent.cfg_out) == 1
-            next_bb = inst.parent.cfg_out.first()
+            assert len(self.cfg.cfg_out(inst.parent)) == 1
+            next_bb = self.cfg.cfg_out(inst.parent).first()
 
             # guaranteed by cfg normalization+simplification
-            assert len(next_bb.cfg_in) > 1
+            assert len(self.cfg.cfg_in(next_bb)) > 1
 
-            target_stack = self.liveness_analysis.input_vars_from(inst.parent, next_bb)
+            target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
             # NOTE: in general the stack can contain multiple copies of
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
@@ -470,14 +505,12 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode in ("alloca", "palloca"):
+        elif opcode in ("alloca", "palloca", "calloca"):
             pass
         elif opcode == "param":
             pass
         elif opcode == "store":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
-            assembly.append("CODECOPY")
         elif opcode == "dbname":
             pass
         elif opcode == "jnz":
@@ -562,7 +595,9 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
-        elif opcode in TEST_INSTRUCTIONS:
+        elif opcode in PSEUDO_INSTRUCTION:  # pragma: nocover
+            raise CompilerPanic(f"Bad instruction: {opcode}")
+        elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
         else:
             raise Exception(f"Unknown opcode: {opcode}")
@@ -572,23 +607,26 @@ class VenomCompiler:
             if inst.output not in next_liveness:
                 self.pop(assembly, stack)
             else:
-                # heuristic: peek at next_liveness to find the next scheduled
-                # item, and optimistically swap with it
-                if DEBUG_SHOW_COST:
-                    stack0 = stack.copy()
-
-                next_scheduled = next_liveness.last()
-                cost = 0
-                if not self.dfg.are_equivalent(inst.output, next_scheduled):
-                    cost = self.swap_op(assembly, stack, next_scheduled)
-
-                if DEBUG_SHOW_COST and cost != 0:
-                    print("ENTER", inst, file=sys.stderr)
-                    print("  HAVE", stack0, file=sys.stderr)
-                    print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
-                    print("  NEW_STACK", stack, file=sys.stderr)
+                self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
+
+    def _optimistic_swap(self, assembly, inst, next_liveness, stack):
+        # heuristic: peek at next_liveness to find the next scheduled
+        # item, and optimistically swap with it
+        if DEBUG_SHOW_COST:
+            stack0 = stack.copy()
+
+        next_scheduled = next_liveness.last()
+        cost = 0
+        if not self.dfg.are_equivalent(inst.output, next_scheduled):
+            cost = self.swap_op(assembly, stack, next_scheduled)
+
+        if DEBUG_SHOW_COST and cost != 0:
+            print("ENTER", inst, file=sys.stderr)
+            print("  HAVE", stack0, file=sys.stderr)
+            print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
+            print("  NEW_STACK", stack, file=sys.stderr)
 
     def pop(self, assembly, stack, num=1):
         stack.pop(num)

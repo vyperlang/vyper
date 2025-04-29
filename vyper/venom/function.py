@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import textwrap
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+
+if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
 
 
 @dataclass
@@ -23,7 +29,7 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    ctx: "IRContext"  # type: ignore # noqa: F821
+    ctx: IRContext
     args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
@@ -32,8 +38,8 @@ class IRFunction:
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
 
-    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
-        self.ctx = ctx
+    def __init__(self, name: IRLabel, ctx: IRContext = None):
+        self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
         self._basic_block_dict = {}
@@ -91,14 +97,6 @@ class IRFunction:
     def code_size_cost(self) -> int:
         return sum(bb.code_size_cost for bb in self.get_basic_blocks())
 
-    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
-        """
-        Get basic blocks that are terminal.
-        """
-        for bb in self.get_basic_blocks():
-            if bb.is_terminal:
-                yield bb
-
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
@@ -106,56 +104,23 @@ class IRFunction:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def remove_unreachable_blocks(self) -> int:
-        # Remove unreachable basic blocks
-        # pre: requires CFG analysis!
-        # NOTE: should this be a pass?
-
-        removed = set()
-
-        for bb in self.get_basic_blocks():
-            if not bb.is_reachable:
-                removed.add(bb)
-
-        for bb in removed:
-            self.remove_basic_block(bb)
-
-        # Remove phi instructions that reference removed basic blocks
-        for bb in self.get_basic_blocks():
-            for in_bb in list(bb.cfg_in):
-                if in_bb not in removed:
-                    continue
-
-                bb.remove_cfg_in(in_bb)
-
-            # TODO: only run this if cfg_in changed
-            bb.fix_phi_instructions()
-
-        return len(removed)
-
-    @property
-    def normalized(self) -> bool:
+    def freshen_varnames(self) -> None:
         """
-        Check if function is normalized. A function is normalized if in the
-        CFG, no basic block simultaneously has multiple inputs and outputs.
-        That is, a basic block can be jumped to *from* multiple blocks, or it
-        can jump *to* multiple blocks, but it cannot simultaneously do both.
-        Having a normalized CFG makes calculation of stack layout easier when
-        emitting assembly.
+        Reset `self.last_variable`, and regenerate all variable names.
+        Helpful for debugging.
+        So fresh, so clean!
         """
+        self.last_variable = 0
+        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
-            # Ignore if there are no multiple predecessors
-            if len(bb.cfg_in) <= 1:
-                continue
+            for inst in bb.instructions:
+                if inst.output:
+                    inst.output = varmap[inst.output]
 
-            # Check if there is a branching jump at the end
-            # of one of the predecessors
-            for in_bb in bb.cfg_in:
-                if len(in_bb.cfg_out) > 1:
-                    return False
-
-        # The function is normalized
-        return True
+                for i, op in enumerate(inst.operands):
+                    if not isinstance(op, IRVariable):
+                        continue
+                    inst.operands[i] = varmap[op]
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
@@ -190,28 +155,6 @@ class IRFunction:
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
-    def chain_basic_blocks(self) -> None:
-        """
-        Chain basic blocks together. If a basic block is not terminated, jump to the next one.
-        Otherwise, append a stop instruction. This is necessary for the IR to be valid, and is
-        done after the IR is generated.
-        """
-        bbs = list(self.get_basic_blocks())
-        for i, bb in enumerate(bbs):
-            if bb.is_terminated:
-                continue
-
-            if i < len(bbs) - 1:
-                # TODO: revisit this. When contructor calls internal functions
-                # they are linked to the last ctor block. Should separate them
-                # before this so we don't have to handle this here
-                if bbs[i + 1].label.value.startswith("internal"):
-                    bb.append_instruction("stop")
-                else:
-                    bb.append_instruction("jmp", bbs[i + 1].label)
-            else:
-                bb.append_instruction("stop")
-
     def copy(self):
         new = IRFunction(self.name)
         for bb in self.get_basic_blocks():
@@ -243,7 +186,7 @@ class IRFunction:
         ret.append(f'subgraph "{self.name}" {{')
 
         for bb in self.get_basic_blocks():
-            for out_bb in bb.cfg_out:
+            for out_bb in bb.out_bbs:
                 ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
 
         for bb in self.get_basic_blocks():

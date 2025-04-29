@@ -1,8 +1,6 @@
 import pytest
 
-from tests.hevm import hevm_check_venom
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
-from vyper.venom.analysis import IRAnalysesCache
+from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
 
 """
@@ -11,21 +9,7 @@ Test abstract binop+unop optimizations in algebraic optimizations pass
 
 pytestmark = pytest.mark.hevm
 
-
-def _sccp_algebraic_runner(pre, post, hevm=True):
-    ctx = parse_from_basic_block(pre)
-
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        StoreElimination(ac, fn).run_pass()
-        AlgebraicOptimizationPass(ac, fn).run_pass()
-        StoreElimination(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
-
-    if not hevm:
-        return
-    hevm_check_venom(pre, post)
+_check_pre_post = PrePostChecker([StoreElimination, AlgebraicOptimizationPass, StoreElimination])
 
 
 def test_sccp_algebraic_opt_sub_xor():
@@ -44,7 +28,7 @@ def test_sccp_algebraic_opt_sub_xor():
         sink 0, 0
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_zero_sub_add_xor():
@@ -68,7 +52,7 @@ def test_sccp_algebraic_opt_zero_sub_add_xor():
         sink %par, %par, %par, %4, %par, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_sub_xor_max():
@@ -95,7 +79,7 @@ def test_sccp_algebraic_opt_sub_xor_max():
     """
 
     # hevm chokes on this example.
-    _sccp_algebraic_runner(pre, post, hevm=False)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_shift():
@@ -115,7 +99,7 @@ def test_sccp_algebraic_opt_shift():
         sink %par, %par, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("opcode", ("mul", "and", "div", "sdiv", "mod", "smod"))
@@ -134,7 +118,7 @@ def test_mul_by_zero(opcode):
         sink 0, 0
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_multi_neutral_elem():
@@ -159,7 +143,7 @@ def test_sccp_algebraic_opt_multi_neutral_elem():
         sink %par, %par, %2_1, %par, %3_1, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_mod_zero():
@@ -177,7 +161,7 @@ def test_sccp_algebraic_opt_mod_zero():
         sink 0, 0
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_and_max():
@@ -197,7 +181,7 @@ def test_sccp_algebraic_opt_and_max():
         sink %par, %par
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 # test powers of 2 from n==2 to n==255.
@@ -230,7 +214,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts(n):
         sink %1, %2, %3, %4, %5, %6
     """
 
-    _sccp_algebraic_runner(pre, post, hevm=False)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_exp():
@@ -253,7 +237,7 @@ def test_sccp_algebraic_opt_exp():
     """
 
     # can set hevm=True after https://github.com/ethereum/hevm/pull/638 is merged
-    _sccp_algebraic_runner(pre, post, hevm=False)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_algebraic_opt_compare_self():
@@ -274,7 +258,7 @@ def test_sccp_algebraic_opt_compare_self():
         sink 0, 0, 0, 0
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_or():
@@ -296,7 +280,7 @@ def test_sccp_algebraic_opt_or():
         sink %par, {max_uint256}, %par, {max_uint256}
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_eq():
@@ -326,7 +310,7 @@ def test_sccp_algebraic_opt_eq():
         %4 = iszero %7
         sink %1, %2, %3, %4, 1
     """
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_boolean_or():
@@ -353,7 +337,7 @@ def test_sccp_algebraic_opt_boolean_or():
         sink %2, %4
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_sccp_algebraic_opt_boolean_eq():
@@ -378,7 +362,7 @@ def test_sccp_algebraic_opt_boolean_eq():
         sink %2
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_compare_never():
@@ -405,7 +389,7 @@ def test_compare_never():
         sink 0, 0, 0, 0
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_comparison_zero():
@@ -428,7 +412,7 @@ def test_comparison_zero():
         sink %1, %2
     """
 
-    _sccp_algebraic_runner(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_comparison_almost_never():
@@ -475,8 +459,8 @@ def test_comparison_almost_never():
         sink %1, %2, %3, %4
     """
 
-    _sccp_algebraic_runner(pre1, post)
-    _sccp_algebraic_runner(pre2, post)
+    _check_pre_post(pre1, post)
+    _check_pre_post(pre2, post)
 
 
 def test_comparison_almost_always():
@@ -536,8 +520,8 @@ def test_comparison_almost_always():
         sink %1
     """
 
-    _sccp_algebraic_runner(pre1, post)
-    _sccp_algebraic_runner(pre2, post)
+    _check_pre_post(pre1, post)
+    _check_pre_post(pre2, post)
 
 
 @pytest.mark.parametrize("val", (100, 2, 3, -100))
@@ -588,5 +572,5 @@ def test_comparison_ge_le(val):
         sink %1, %3, %5, %7
     """
 
-    _sccp_algebraic_runner(pre1, post)
-    _sccp_algebraic_runner(pre2, post)
+    _check_pre_post(pre1, post)
+    _check_pre_post(pre2, post)
