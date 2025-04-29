@@ -8,8 +8,10 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class RevertToAssert(IRPass):
+    cfg: CFGAnalysis
+
     def run_pass(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         fn = self.function
 
         for bb in fn.get_basic_blocks():
@@ -19,7 +21,7 @@ class RevertToAssert(IRPass):
             if term.opcode != "revert" or any(op != IRLiteral(0) for op in term.operands):
                 continue
 
-            for pred in bb.cfg_in:
+            for pred in self.cfg.cfg_in(bb):
                 if pred.instructions[-1].opcode != "jnz":
                     continue
 

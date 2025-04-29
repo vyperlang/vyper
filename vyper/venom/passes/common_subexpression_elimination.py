@@ -44,11 +44,7 @@ class CSE(IRPass):
     expression_analysis: AvailableExpressionAnalysis
 
     def run_pass(self):
-        available_expression_analysis = self.analyses_cache.request_analysis(
-            AvailableExpressionAnalysis
-        )
-        assert isinstance(available_expression_analysis, AvailableExpressionAnalysis)
-        self.expression_analysis = available_expression_analysis
+        self.expression_analysis = self.analyses_cache.request_analysis(AvailableExpressionAnalysis)
 
         while True:
             replace_dict = self._find_replaceble()
