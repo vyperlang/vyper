@@ -45,6 +45,10 @@ class DFTPass(IRPass):
 
         entry_instructions_list = list(entry_instructions)
 
+        print("entry_instructions_list", len(entry_instructions_list))
+        if len(entry_instructions_list) > 17:
+            print(bb)
+
         # import random
 
         # if len(entry_instructions_list) > 1:
