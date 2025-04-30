@@ -4,23 +4,26 @@ from vyper.compiler import compile_code
 from vyper.exceptions import SyntaxException
 
 
-def test_duplicate_public_annotation():
-    code = """
-a: public(public(uint256))
+@pytest.mark.parametrize("annotation", ("public", "reentrant"))
+def test_duplicate_getter_annotation(annotation):
+    code = f"""
+a: {annotation}({annotation}(uint256))
     """
 
     with pytest.raises(SyntaxException) as e:
         compile_code(code)
 
-    assert e.value.message == "Used variable annotation `public` multiple times"
+    assert e.value.message == f"Used variable annotation `{annotation}` multiple times"
 
 
-def test_duplicate_reentrant_annotation():
-    code = """
-a: reentrant(reentrant(uint256))
+@pytest.mark.parametrize("annotation", ("constant", "transient", "immutable"))
+def test_duplicate_location_annotation(annotation):
+    code = f"""
+a: {annotation}({annotation}(uint256))
     """
 
     with pytest.raises(SyntaxException) as e:
         compile_code(code)
 
-    assert e.value.message == "Used variable annotation `reentrant` multiple times"
+    # TODO: improve this error message
+    assert e.value.message == "Invalid scope for variable declaration"
