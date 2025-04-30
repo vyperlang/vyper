@@ -561,7 +561,8 @@ def foo():
 
 
 # there's no reason to protect immutable and constant variable
-# getters, they should be reentrant
+# getters, they should be reentrant.
+# this test also tests the behavior inside of a submodule
 def test_pragma_with_immutables_and_constants(make_input_bundle, get_contract, tx_failed):
     lib1 = """
 # pragma nonreentrancy on
