@@ -29,6 +29,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
+    PhiEliminationPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -67,6 +68,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     LoadElimination(ac, fn).run_pass()
@@ -85,8 +87,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
