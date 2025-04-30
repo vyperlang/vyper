@@ -152,8 +152,8 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 .. note::
     The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
 
-Re-entrancy Locks
------------------
+Nonreentrancy Locks
+-------------------
 
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
@@ -165,11 +165,11 @@ The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function
         # this function is protected from re-entrancy
         ...
 
-You can put the ``@nonreentrant`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
-
 Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
+
+You can put the ``@nonreentrant`` decorator on a ``__default__`` function, but keep in mind that this will result in the contract rejecting ETH payments from callbacks.
 
 You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overridden, the compiler will allocate it at slot ``0``.
 
@@ -182,6 +182,52 @@ You can view where the nonreentrant key is physically laid out in storage by usi
 
 .. note::
    Prior to 0.4.0, nonreentrancy keys took a "key" argument for fine-grained nonreentrancy control. As of 0.4.0, only a global nonreentrancy lock is available.
+
+The nonreentrant pragma
+-----------------------
+
+Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all external functions and public getters in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
+
+When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` modifier. Here is an example:
+
+.. code-block:: vyper
+
+    # pragma nonreentrancy on
+
+    x: public(uint256)  # this is protected from view-only reentrancy
+    y: public(reentrant(uint256))  # this is not not protected from view-only reentrancy
+
+    @external
+    def make_a_call(addr: address):
+        # this function is protected from re-entrancy
+        ...
+
+    @external
+    @reentrant
+    def callback(addr: address):
+        # this function is allowed to be reentered into
+        ...
+
+    @external
+    def __default__():
+        # this function is nonreentrant!
+        ...
+
+The default is ``#pragma nonreentrancy off``, which can be used to signal specifically that nonreentrancy protection is off in this file.
+
+Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned in the previous section apply here, since the ``__default__()`` function will be nonreentrant by default with the pragma on.
+
+With the pragma on, internal functions remain unlocked by default but can still use the ``@nonreentrant`` decorator. External ``view`` functions are protected by default (as before, checking the lock upon entry but only reading its state). External ``pure`` functions do not interact with the lock.
+
+.. note::
+   All the protected functions share the same, global lock.
+
+.. note::
+    Vyper disallows calling a ``nonreentrant`` function from another ``nonreentrant`` function, since the compiler implements nonreentrancy as a global lock which is acquired at function entry.
+
+.. note::
+   The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
+
 
 The ``__default__`` Function
 ----------------------------
