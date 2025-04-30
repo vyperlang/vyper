@@ -451,4 +451,5 @@ a: public(uint256)
             "$.nonreentrant_key": {"type": "nonreentrant lock", "n_slots": 1, "slot": 20},
         }
 
+    # note: compile_code checks roundtrip of the override
     compile_code(code, storage_layout_override=override)
