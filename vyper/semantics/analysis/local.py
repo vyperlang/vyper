@@ -849,7 +849,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 from vyper.builtins.functions import RawCall
 
                 # opposed to other funs, raw_call's mutability depends on its arguments
-                if self.function_analyzer and isinstance(func_type, RawCall):
+                if isinstance(func_type, RawCall):
                     mutability = self.get_raw_call_mutability(node)
                 else:
                     mutability = func_type.mutability
