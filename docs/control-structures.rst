@@ -219,7 +219,7 @@ Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned
 
 With the pragma on, internal functions remain unlocked by default but can still use the ``@nonreentrant`` decorator. External ``view`` functions are protected by default (as before, checking the lock upon entry but only reading its state). External ``pure`` functions do not interact with the lock.
 
-Internal functions, ``__init__`` function and getters for ``constants`` and ``immutables`` can be marked ``reentrant``. Reentrant behavior is the default for these structure anyway, and this feature can be used to explicitly highlight the fact.
+Internal functions, ``__init__`` function and getters for ``constants`` and ``immutables`` can be marked ``reentrant``. Reentrant behavior is the default for these structures anyway, and this feature can be used to explicitly highlight the fact.
 
 .. note::
    All the protected functions share the same, global lock.
