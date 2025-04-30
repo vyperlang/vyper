@@ -644,6 +644,23 @@ def foo(_addr: address):
     """,
         TypeMismatch,
     ),
+    (
+        """
+@pure
+def foo(a: address):
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True or False)
+    """,
+        StateAccessViolation,
+    ),
+    (
+        """
+@pure
+@external
+def foo(a: address):
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True)
+    """,
+        StateAccessViolation,
+    ),
 ]
 
 

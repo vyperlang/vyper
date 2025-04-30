@@ -846,7 +846,14 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # builtin functions and interfaces
             if self.function_analyzer and hasattr(func_type, "mutability"):
-                self._check_call_mutability(func_type.mutability)  # type: ignore
+                from vyper.builtins.functions import RawCall
+
+                # opposed to other funs, raw_call's mutability depends on its arguments
+                if self.function_analyzer and isinstance(func_type, RawCall):
+                    mutability = self.get_raw_call_mutability(node)
+                else:
+                    mutability = func_type.mutability
+                self._check_call_mutability(mutability)  # type: ignore
 
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
@@ -856,6 +863,17 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
         self.visit(node.func, func_type)
+
+    def get_raw_call_mutability(self, node: vy_ast.Call):
+        kw = {k.arg: k.value for k in node.keywords}
+
+        is_static = kw.get("is_static_call", None)
+        is_static = is_static.get_folded_value() if is_static else False
+
+        if is_static:
+            return StateMutability.VIEW
+
+        return StateMutability.NONPAYABLE
 
     def visit_Compare(self, node: vy_ast.Compare, typ: VyperType) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
