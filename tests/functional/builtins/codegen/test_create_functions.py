@@ -1151,6 +1151,10 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
     assert env.get_balance(res) == value
 
 
+# test vararg and kwarg order of evaluation
+# test fails because `value` gets evaluated
+# before the 1st vararg which doesn't follow
+# source code order
 @pytest.mark.xfail(raises=AssertionError)
 def test_raw_create_eval_order(get_contract):
     code = """
