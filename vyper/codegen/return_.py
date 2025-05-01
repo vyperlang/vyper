@@ -63,10 +63,13 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         if context.func_t.do_raw_return:
             # copy to memory
             buf = context.new_internal_variable(context.return_type)
+
+            fill_return_buffer = make_setter(buf, ir_val)
+
             return_len = get_bytearray_length(buf)
             return_offset = bytes_data_ptr(buf)
             jump_to_exit += [return_offset, return_len]  # type: ignore
-            fill_return_buffer = make_setter(buf, ir_val)
+
             return finalize(fill_return_buffer)
 
         external_return_type = calculate_type_for_external_return(context.return_type)
