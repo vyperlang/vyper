@@ -14,17 +14,22 @@ class PhiEliminationPass(IRPass):
 
 
     def _process_phi(self, inst: IRInstruction):
+        labels = [label for label, _ in inst.phi_operands]
         inputs = set(var for _, var in inst.phi_operands)
 
         if len(inputs) == 1:
+            #print(inst)
             self.updater.store(inst, inputs.pop())
             return
 
         srcs: set[IRInstruction] = set()
+        orig_srcs: set[IRInstruction] = srcs.copy()
         for op in inputs:
             src = self.dfg.get_producing_instruction(op)
             assert src is not None
             srcs.add(src)
+
+        orig_srcs: set[IRInstruction] = srcs.copy()
 
         while any(i.opcode == "store" and isinstance(i.operands[0], IRVariable) for i in srcs):
             for src in list(srcs):
@@ -43,6 +48,14 @@ class PhiEliminationPass(IRPass):
 
         if len(srcs) == 1:
             new_var = srcs.pop().output
+            #print(inst)
             assert new_var is not None
-            self.updater.store(inst, new_var)
+            for s in orig_srcs:
+                pass
+                #print(bef)
+                self.updater.add_before(s, "volstore", [new_var])
+                #print(bef)
+            self.updater.update(inst, "poke", [new_var])
+            #self.updater.store(inst, new_var)
+            #print(inst)
             return

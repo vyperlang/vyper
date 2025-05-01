@@ -68,7 +68,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     LoadElimination(ac, fn).run_pass()
@@ -90,7 +89,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
-    PhiEliminationPass(ac, fn).run_pass()
     StoreElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()

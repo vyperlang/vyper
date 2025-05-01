@@ -447,6 +447,33 @@ class VenomCompiler:
                 stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
+        if opcode == "poke":
+            ret = inst.get_outputs()[0]
+            var = list(inst.get_input_variables())[0]
+            depth = stack.get_depth(var)
+            # collapse the arguments to the phi node in the stack.
+            # example, for `%56 = %label1 %13 %label2 %14`, we will
+            # find an instance of %13 *or* %14 in the stack and replace it with %56.
+            to_be_replaced = stack.peek(depth)
+            if to_be_replaced in next_liveness:
+                # this branch seems unreachable (maybe due to make_ssa)
+                # %13/%14 is still live(!), so we make a copy of it
+                self.dup(assembly, stack, depth)
+                stack.poke(0, ret)
+            else:
+                stack.poke(depth, ret)
+            return apply_line_numbers(inst, assembly)
+
+        if opcode == "volstore":
+            var = inst.operands[0]
+            assert isinstance(var, IRVariable)
+            depth = stack.get_depth(var)
+            # collapse the arguments to the phi node in the stack.
+            # example, for `%56 = %label1 %13 %label2 %14`, we will
+            # find an instance of %13 *or* %14 in the stack and replace it with %56.
+            self.swap(assembly, stack, depth)
+            return apply_line_numbers(inst, assembly)
+
         if opcode == "offset":
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
@@ -510,6 +537,10 @@ class VenomCompiler:
         elif opcode == "param":
             pass
         elif opcode == "store":
+            pass
+        elif opcode == "volstore":
+            pass
+        elif opcode == "poke":
             pass
         elif opcode == "dbname":
             pass

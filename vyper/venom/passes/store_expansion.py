@@ -20,7 +20,7 @@ class StoreExpansionPass(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("store", "offset", "phi", "param"):
+            if inst.opcode in ("store", "offset", "phi", "param", "volstore", "poke"):
                 i += 1
                 continue
 

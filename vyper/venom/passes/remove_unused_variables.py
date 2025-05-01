@@ -76,7 +76,7 @@ class RemoveUnusedVariablesPass(IRPass):
     def _process_instruction(self, inst):
         if inst.output is None:
             return
-        if inst.is_volatile or inst.is_bb_terminator:
+        if inst.is_volatile or inst.is_bb_terminator or inst.opcode == "volstore":
             return
 
         bb = inst.parent
