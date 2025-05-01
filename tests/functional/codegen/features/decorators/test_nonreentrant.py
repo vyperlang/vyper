@@ -560,6 +560,52 @@ def foo():
         c.foo()
 
 
+# there's no reason to protect immutable and constant variable
+# getters, they should be reentrant.
+# this test also tests the behavior inside of a submodule
+def test_pragma_with_immutables_and_constants(make_input_bundle, get_contract, tx_failed):
+    lib1 = """
+# pragma nonreentrancy on
+
+a: public(constant(uint256)) = 333
+b: public(immutable(uint256))
+
+@deploy
+def __init__():
+    b = 666
+
+    """
+    main = """
+# pragma nonreentrancy on
+
+import lib1
+initializes: lib1
+
+interface Self:
+    def a() -> uint256: nonpayable
+    def b() -> uint256: nonpayable
+
+exports: lib1.a
+exports: lib1.b
+
+@deploy
+def __init__():
+    lib1.__init__()
+
+@external
+def foo():
+    res: uint256 = extcall Self(self).a()
+    assert res == 333
+    res = extcall Self(self).b()
+    assert res == 666
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    c = get_contract(main, input_bundle=input_bundle)
+
+    c.foo()
+
+
 # foo in main module has reentrancy on, bar in lib1 off because
 # that's the default for internal functions
 # call bar from foo via extcall and ensure it succeeds
