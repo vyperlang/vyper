@@ -1,5 +1,5 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -41,4 +41,3 @@ class StoreElimination(IRPass):
             self.updater.update_operands(use_inst, {var: new_var})
 
         self.updater.remove(inst)
-

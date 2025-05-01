@@ -23,13 +23,13 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    PhiEliminationPass,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
-    PhiEliminationPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 

@@ -465,8 +465,8 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         if opcode == "volstore":
+            assert isinstance(inst.operands[0], IRVariable)
             var = inst.operands[0]
-            assert isinstance(var, IRVariable)
             depth = stack.get_depth(var)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will

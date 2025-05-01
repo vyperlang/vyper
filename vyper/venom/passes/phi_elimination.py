@@ -1,6 +1,7 @@
-from vyper.venom.passes.base_pass import InstUpdater, IRPass
-from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
 
 class PhiEliminationPass(IRPass):
     def run_pass(self):
@@ -12,18 +13,18 @@ class PhiEliminationPass(IRPass):
                 continue
             self._process_phi(inst)
 
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _process_phi(self, inst: IRInstruction):
-        labels = [label for label, _ in inst.phi_operands]
         inputs = set(var for _, var in inst.phi_operands)
 
         if len(inputs) == 1:
-            #print(inst)
+            # print(inst)
             self.updater.store(inst, inputs.pop())
             return
 
         srcs: set[IRInstruction] = set()
-        orig_srcs: set[IRInstruction] = srcs.copy()
         for op in inputs:
             src = self.dfg.get_producing_instruction(op)
             assert src is not None
@@ -48,19 +49,20 @@ class PhiEliminationPass(IRPass):
 
         if len(srcs) == 1:
             new_var = srcs.pop().output
-            #print(inst)
+            # print(inst)
             assert new_var is not None
             for s in orig_srcs:
-                #print(bef)
+                # print(bef)
                 tmp = s
                 while tmp.output != new_var:
                     self.updater.add_before(tmp, "volstore", [new_var])
                     assert tmp.opcode == "store"
+                    assert isinstance(tmp.operands[0], IRVariable)
                     next_var = tmp.operands[0]
                     tmp = self.dfg.get_producing_instruction(next_var)
                     assert tmp is not None
-                #print(bef)
+                # print(bef)
             self.updater.update(inst, "poke", [new_var])
-            #self.updater.store(inst, new_var)
-            #print(inst)
+            # self.updater.store(inst, new_var)
+            # print(inst)
             return
