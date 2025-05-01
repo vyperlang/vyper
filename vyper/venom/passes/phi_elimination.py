@@ -51,9 +51,14 @@ class PhiEliminationPass(IRPass):
             #print(inst)
             assert new_var is not None
             for s in orig_srcs:
-                pass
                 #print(bef)
-                self.updater.add_before(s, "volstore", [new_var])
+                tmp = s
+                while tmp.output != new_var:
+                    self.updater.add_before(tmp, "volstore", [new_var])
+                    assert tmp.opcode == "store"
+                    next_var = tmp.operands[0]
+                    tmp = self.dfg.get_producing_instruction(next_var)
+                    assert tmp is not None
                 #print(bef)
             self.updater.update(inst, "poke", [new_var])
             #self.updater.store(inst, new_var)
