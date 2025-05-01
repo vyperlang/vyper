@@ -170,6 +170,27 @@ def hoo(x: bytes32, y: bytes32) -> Bytes[64]:
     print("Passed second concat tests")
 
 
+def test_concat_zero_length_side_effects(get_contract):
+    code = """
+counter: public(uint256)
+
+@external
+def test() -> Bytes[256]:
+    a: Bytes[256] = concat(b"" if self.sideeffect() else b"", b"aaaa")
+    return a
+
+def sideeffect() -> bool:
+    self.counter += 1
+    return True
+    """
+
+    c = get_contract(code)
+
+    assert c.counter() == 0
+    assert c.test() == b"aaaa"
+    assert c.counter() == 1
+
+
 def test_small_output(get_contract):
     code = """
 @external
