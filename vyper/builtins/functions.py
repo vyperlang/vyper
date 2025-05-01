@@ -1602,10 +1602,8 @@ class RawCreate(_CreateBase):
         initcode = args[0]
         ctor_args = args[1:]
 
-        for other in ctor_args + [value, salt]:
-            if potential_overlap(initcode, other):
-                initcode = create_memory_copy(initcode, context)
-                break
+        if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            initcode = create_memory_copy(initcode, context)
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
