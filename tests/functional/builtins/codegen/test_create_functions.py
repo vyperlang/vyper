@@ -1162,9 +1162,10 @@ a: public(uint256)
 
 @deploy
 def __init__():
-    initcode: Bytes[100] = b'a'
-    res: address = raw_create(initcode , self.test1(), value=self
-    .test2(), revert_on_failure=False)
+    initcode: Bytes[100] = b"a"
+    res: address = raw_create(
+        initcode, self.test1(), value=self.test2(), revert_on_failure=False
+    )
 
 @internal
 def test1() -> uint256:
