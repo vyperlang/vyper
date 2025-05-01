@@ -795,7 +795,6 @@ foo: public(uint256)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
-    # provide more data than
     deployer_code = """
 @external
 def deploy_from_calldata(s: Bytes[49152]) -> address:
