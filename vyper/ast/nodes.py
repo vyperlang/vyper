@@ -1405,13 +1405,19 @@ class VariableDecl(VyperNode):
         # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
 
         # unwrap reentrant and public. they can be in any order
+        seen = []
         for _ in range(2):
             func_id = self.annotation.get("func.id")
+            if func_id in seen:
+                _raise_syntax_exc(
+                    f"Used variable annotation `{func_id}` multiple times", self.annotation
+                )
             if func_id not in ("public", "reentrant"):
                 break
             _check_args(self.annotation, func_id)
             setattr(self, f"is_{func_id}", True)
             # unwrap one layer
+            seen.append(func_id)
             self.annotation = self.annotation.args[0]
 
         func_id = self.annotation.get("func.id")
