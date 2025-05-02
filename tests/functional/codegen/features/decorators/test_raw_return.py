@@ -1,5 +1,8 @@
+import pytest
 from eth.codecs import abi
 
+from vyper.compiler import compile_code
+from vyper.exceptions import StructureException
 from vyper.utils import method_id
 
 
@@ -76,3 +79,90 @@ def foo() -> Bytes[128]:
     # because ABIBytes is represented as bytes in ABI
     res = env.message_call(proxy_c.address, data=method_id("foo()"))
     assert abi.decode("(uint256[])", res) == ([1, 2],)
+
+
+def test_raw_return_zero_bytes(get_contract, env, tx_failed):
+    code = """
+@raw_return
+@external
+def test() -> Bytes[1]:
+    return b''
+
+interface Self:
+    def test() -> Bytes[1]: nonpayable
+
+@external
+def self_call_with_decode() -> Bytes[1]:
+    return extcall Self(self).test()
+
+@external
+def self_call_no_decode() -> Bytes[1]:
+    return raw_call(self, method_id("test()"), max_outsize=1)
+
+@external
+@raw_return
+def self_call_no_decode2() -> Bytes[1]:
+    return raw_call(self, method_id("test()"), max_outsize=1)
+    """
+    c = get_contract(code)
+    res = env.message_call(c.address, data=method_id("test()"))
+    assert res == b""
+
+    with tx_failed():
+        _ = c.self_call_with_decode()
+
+    res = c.self_call_no_decode()
+    assert res == b""
+
+    res = env.message_call(c.address, data=method_id("self_call_no_decode2()"))
+    assert res == b""
+
+
+fail_list = [
+    (
+        # can't put @raw_return on internal functions
+        """
+@raw_return
+def test() -> Bytes[32]:
+    return b''
+""",
+        StructureException,
+    ),
+    (
+        # can't put @raw_return twice
+        """
+@raw_return
+@raw_return
+@external
+def test() -> Bytes[32]:
+    return b''
+""",
+        StructureException,
+    ),
+    (
+        """
+# can't put @raw_return on ctor
+@raw_return
+@deploy
+def __init__():
+    pass
+        """,
+        StructureException,
+    ),
+    (
+        # can't return non Bytes type
+        """
+@raw_return
+@external
+def test() -> uint256:
+    return 666
+        """,
+        StructureException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code", fail_list)
+def test_interfaces_fail(bad_code):
+    with pytest.raises(bad_code[1]):
+        compile_code(bad_code[0])
