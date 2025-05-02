@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import functools
 import math
@@ -43,20 +45,45 @@ def PUSH_N(x, n):
     assert x == 0
     return [f"PUSH{len(o)}"] + o
 
+def JUMP(label: Label):
+    return [PUSHLABEL(label), "JUMP"]
 
-_next_symbol = 0
+def JUMPI(label: Label):
+    return [PUSHLABEL(label), "JUMPI"]
 
+class Label:
+    _next_symbol: int = 0
+
+    def __init__(self, label: str):
+        self.label =  label
+
+    def __repr__(self):
+        return f"LABEL {self.label}"
+
+    def __eq__(self, other):
+        if not isinstance(other, Label):
+            return False
+        return self.label == other.label
+
+    def __hash__(self):
+        return hash(self.label)
+
+class PUSHLABEL:
+
+    def __init__(self, label: Label):
+        self.label = label
+
+    def __str__(self):
+        return f"PUSHLABEL {self.label.label}"
 
 def mksymbol(name=""):
-    global _next_symbol
-    _next_symbol += 1
+    Label._next_symbol += 1
 
-    return f"_sym_{name}{_next_symbol}"
+    return Label(f"{name}{Label._next_symbol}")
 
 
 def reset_symbols():
-    global _next_symbol
-    _next_symbol = 0
+    Label._next_symbol = 0
 
 
 def mkdebug(pc_debugger, ast_source):
@@ -66,7 +93,7 @@ def mkdebug(pc_debugger, ast_source):
 
 
 def is_symbol(i):
-    return isinstance(i, str) and i.startswith("_sym_")
+    return isinstance(i, Label)
 
 
 # basically something like a symbol which gets resolved
@@ -152,7 +179,7 @@ def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    return [_revert_label, "JUMPI"]
+    return JUMPI(revert_label)
 
 
 def _add_postambles(asm_ops):
@@ -160,7 +187,7 @@ def _add_postambles(asm_ops):
 
     global _revert_label
 
-    _revert_string = [_revert_label, "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+    _revert_string = [_revert_label, *PUSH(0), "DUP1", "REVERT"]
 
     if _revert_label in asm_ops:
         # shared failure block
@@ -359,9 +386,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol("join")
-        o.extend(["ISZERO", end_symbol, "JUMPI"])
+        o.extend(["ISZERO", *JUMPI(end_symbol)])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol, "JUMPDEST"])
+        o.extend([end_symbol])
         return o
     # If statements (3 arguments, ie. if x: y, else: z)
     elif code.value == "if" and len(code.args) == 3:
@@ -369,11 +396,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         mid_symbol = mksymbol("else")
         end_symbol = mksymbol("join")
-        o.extend(["ISZERO", mid_symbol, "JUMPI"])
+        o.extend(["ISZERO", *JUMPI(mid_symbol)])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol, "JUMP", mid_symbol, "JUMPDEST"])
+        o.extend([*JUMPI(end_symbol), mid_symbol])
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol, "JUMPDEST"])
+        o.extend([end_symbol])
         return o
 
     # repeat(counter_location, start, rounds, rounds_bound, body)
@@ -425,7 +452,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
             # stack: i, rounds
             # if (0 == rounds) { goto end_dest; }
-            o.extend(["DUP1", "ISZERO", exit_dest, "JUMPI"])
+            o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
 
         # stack: start, rounds
         if start.value != 0:
@@ -439,7 +466,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         withargs[i_name.value] = height + 1
 
         # stack: exit_i, i
-        o.extend([entry_dest, "JUMPDEST"])
+        o.extend([entry_dest])
         o.extend(
             _compile_to_assembly(
                 body, withargs, existing_labels, (exit_dest, continue_dest, height + 2), height + 2
@@ -453,12 +480,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         # stack: exit_i, i
         # increment i:
-        o.extend([continue_dest, "JUMPDEST", "PUSH1", 1, "ADD"])
+        o.extend([continue_dest, "PUSH1", 1, "ADD"])
 
         # stack: exit_i, i+1 (new_i)
         # if (exit_i != new_i) { goto entry_dest }
-        o.extend(["DUP2", "DUP2", "XOR", entry_dest, "JUMPI"])
-        o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
+        o.extend(["DUP2", "DUP2", "XOR", *JUMPI(entry_dest)])
+        o.extend([exit_dest, "POP", "POP"])
 
         return o
 
@@ -467,7 +494,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if not break_dest:
             raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
-        return [continue_dest, "JUMP"]
+        return [*JUMP(continue_dest)]
     # Break from inside a for loop
     elif code.value == "break":
         if not break_dest:
@@ -477,7 +504,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         n_local_vars = height - break_height
         # clean up any stack items declared in the loop body
         cleanup_local_vars = ["POP"] * n_local_vars
-        return cleanup_local_vars + [dest, "JUMP"]
+        return cleanup_local_vars + [*JUMP(dest)]
     # Break from inside one or more for loops prior to a return statement inside the loop
     elif code.value == "cleanup_repeat":
         if not break_dest:
@@ -524,10 +551,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
 
         # COPY the code to memory for deploy
-        o.extend(["_sym_subcode_size", runtime_begin, "_mem_deploy_start", "CODECOPY"])
+        o.extend([PUSHLABEL(Label("subcode_size")), runtime_begin, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_OFST", "_sym_subcode_size", immutables_len])  # stack: len
+        o.extend(["_OFST", Label("subcode_size"), immutables_len])  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
@@ -560,7 +587,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         end_symbol = mksymbol("reachable")
-        o.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
+        o.extend([*JUMPI(end_symbol), "INVALID", end_symbol])
         return o
     # Assert (if false, exit)
     elif code.value == "assert":
@@ -704,7 +731,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["_sym_" + code.args[0].value, "JUMP"])
+        o.extend([*JUMP(Label(code.args[0].value))])
         return o
     elif code.value == "djump":
         o = []
@@ -715,7 +742,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return o
     # push a literal symbol
     elif code.value == "symbol":
-        return ["_sym_" + code.args[0].value]
+        return [PUSHLABEL(Label(code.args[0].value))]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = code.args[0].value
@@ -751,7 +778,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # label params to be consumed implicitly
         pop_scoped_vars = []
 
-        return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+        return [Label(label_name)] + body_asm + pop_scoped_vars
 
     elif code.value == "unique_symbol":
         symbol = code.args[0].value
@@ -819,9 +846,8 @@ def _prune_unreachable_code(assembly):
             # find the next jumpdest or sublist
             for j in range(i + 1, len(assembly)):
                 next_is_jumpdest = (
-                    j < len(assembly) - 1
+                    j < len(assembly)
                     and is_symbol(assembly[j])
-                    and assembly[j + 1] == "JUMPDEST"
                 )
                 next_is_list = isinstance(assembly[j], list)
                 if next_is_jumpdest or next_is_list:
@@ -839,17 +865,17 @@ def _prune_unreachable_code(assembly):
 
 
 def _prune_inefficient_jumps(assembly):
-    # prune sequences `_sym_x JUMP _sym_x JUMPDEST` to `_sym_x JUMPDEST`
+    # prune sequences `PUSHLABEL x JUMP LABEL x` to `LABEL x`
     changed = False
     i = 0
     while i < len(assembly) - 4:
         if (
-            is_symbol(assembly[i])
+            isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMP"
-            and assembly[i] == assembly[i + 2]
-            and assembly[i + 3] == "JUMPDEST"
+            and is_symbol(assembly[i+2])
+            and assembly[i + 2] == assembly[i].label
         ):
-            # delete _sym_x JUMP
+            # delete PUSHLABEL x JUMP
             changed = True
             del assembly[i : i + 2]
         else:
@@ -859,8 +885,9 @@ def _prune_inefficient_jumps(assembly):
 
 
 def _optimize_inefficient_jumps(assembly):
-    # optimize sequences `_sym_common JUMPI _sym_x JUMP _sym_common JUMPDEST`
-    # to `ISZERO _sym_x JUMPI _sym_common JUMPDEST`
+    # optimize sequences
+    # `PUSHLABEL common JUMPI PUSHLABEL x JUMP LABEL common`
+    # to `ISZERO PUSHLABEL x JUMPI LABEL common`
     changed = False
     i = 0
     while i < len(assembly) - 6:
@@ -1250,26 +1277,25 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         # update pc
         if is_symbol(item):
-            if is_symbol_map_indicator(assembly[i + 1]):
-                # Don't increment pc as the symbol itself doesn't go into code
-                if item in symbol_map:
-                    raise CompilerPanic(f"duplicate jumpdest {item}")
+            if item in symbol_map:
+                raise CompilerPanic(f"duplicate {item}")
+            # Don't increment pc as the symbol itself doesn't go into code
+            symbol_map[item] = pc
 
-                symbol_map[item] = pc
-            else:
-                pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
+        if isinstance(item, PUSHLABEL):
+            pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
             # PUSH<n> item
             pc += mem_ofst_size + 1
         elif is_ofst(item):
-            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1])
+            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1]), assembly[i + 1]
             assert isinstance(assembly[i + 2], int)
             # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             # we are in initcode
-            symbol_map[item[0].label] = pc
+            symbol_map[Label(item[0].label)] = pc
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
@@ -1282,7 +1308,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                     data_section_lengths.append(_length_of_data(t))
 
         elif isinstance(item, list) and isinstance(item[0], DataHeader):
-            symbol_map[item[0].label] = pc
+            symbol_map[Label(item[0].label)] = pc
             pc += _length_of_data(item)
         else:
             pc += 1
@@ -1306,11 +1332,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
     pc += len(bytecode_suffix)
 
-    symbol_map["_sym_code_end"] = pc
+    symbol_map[Label("code_end")] = pc
     symbol_map["_mem_deploy_start"] = runtime_code_start
     symbol_map["_mem_deploy_end"] = runtime_code_end
     if runtime_code is not None:
-        symbol_map["_sym_subcode_size"] = len(runtime_code)
+        symbol_map[Label("subcode_size")] = len(runtime_code)
 
     # TODO refactor into two functions, create symbol_map and assemble
 
@@ -1327,11 +1353,14 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         if item in ("DEBUG",):
             continue  # skippable opcodes
 
-        elif is_symbol(item):
+        elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
-            if not is_symbol_map_indicator(assembly[i + 1]):
-                bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=SYMBOL_SIZE))
-                ret.extend(bytecode)
+            label = item.label
+            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
+            ret.extend(bytecode)
+
+        elif isinstance(item, Label):
+            ret.append(get_opcodes()["JUMPDEST"][0])
 
         elif is_mem_sym(item):
             bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
