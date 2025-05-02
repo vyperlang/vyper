@@ -70,8 +70,9 @@ def _parse_to_ast(
     """
     if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
+
     try:
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
