@@ -203,7 +203,7 @@ def test_memmerging_imposs_unkown_place():
         mstore 1032, %4
         mstore 10, %1  ; BARRIER
         mstore 1064, %5
-        stop
+        return %3  ; block it from being removed by RemoveUnusedVariables
     """
     _check_no_change(pre)
 
@@ -729,6 +729,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %2  ; result of mload(100), partial barrier
         mstore 1032, %4
         mstore 1032, %3  ; BARRIER
+        stop
     """
 
     post = """
@@ -738,6 +739,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %1
         mcopy 1000, 100, 64
         mstore 1032, %3  ; BARRIER
+        stop
     """
     _check_pre_post(pre, post)
 
@@ -1453,7 +1455,7 @@ def test_merge_mstore_dload():
     _check_pre_post(pre, post)
 
 
-def test_merge_mstore_dload_disallowed():
+def test_merge_mstore_dload_more_uses():
     """
     Test for merging the mstore/dload pairs which contains
     variable which would normally trigger barrier.
@@ -1467,6 +1469,37 @@ def test_merge_mstore_dload_disallowed():
         %d = dload %par
         mstore 1000, %d
         sink %d
+    """
+
+    post = """
+    _global:
+        %par = param
+        dloadbytes 1000, %par, 32
+        %1 = mload 1000
+        sink %1
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_merge_mstore_dload_disallowed():
+    """
+    Test for merging the mstore/dload pairs which contains
+    variable which would normally trigger barrier.
+    In this case, because %d is used by `sink`, we don't optimize
+    the dload/mstore sequence into dloadbytes. (We could in the future
+    as a further optimization, it requires insertion of an mload).
+    """
+    pre = """
+    _global:
+        %par = param
+        %d1 = dload %par
+        mstore %d1, 1000
+        mstore 1000, %d1
+        %d2 = dload %par
+        mstore %d2, %par
+        mstore 1000, %d2
+        sink %d1, %d2
     """
 
     _check_no_change(pre)
