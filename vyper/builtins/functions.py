@@ -1603,6 +1603,8 @@ class RawCreate(_CreateBase):
         ctor_args = args[1:]
 
         if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            # value or salt could be expressions which trample the initcode buffer
+            # cf. test_raw_create_memory_overlap
             initcode = create_memory_copy(initcode, context)
 
         # encode the varargs
