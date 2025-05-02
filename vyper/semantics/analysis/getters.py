@@ -65,8 +65,11 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         decorators = [vy_ast.Name(id="external"), vy_ast.Name(id="view")]
         settings = node.module_node.settings
-        if settings.nonreentrancy_by_default and node.is_reentrant:
-            decorators.append(vy_ast.Name(id="reentrant"))
+        if settings.nonreentrancy_by_default:
+            # immutable and constant variables can't change, and thus
+            # can't lead to read-only-reentrancy
+            if node.is_reentrant or node.is_constant or node.is_immutable:
+                decorators.append(vy_ast.Name(id="reentrant"))
 
         # join everything together as a new `FunctionDef` node
         expanded = vy_ast.FunctionDef(
