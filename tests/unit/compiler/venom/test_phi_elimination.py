@@ -1,5 +1,9 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import PhiEliminationPass
+
+pytestmark = pytest.mark.hevm
 
 _check_pre_post = PrePostChecker([PhiEliminationPass])
 
@@ -78,14 +82,17 @@ def test_phi_elim_loop_inner_phi():
     pre = """
     main:
         %1 = param
+        %rand = param
         %2 = %1
         jmp @condition
     condition:
         %3 = phi @main, %1, @body, %6
+        %cond = iszero %3
         jnz %cond, @exit, @body
     body:
         %4 = %2
         %another_cond = calldataload 200
+        jnz %rand, @then, @else
     then:
         %6:1 = %4
         jmp @join
@@ -94,7 +101,6 @@ def test_phi_elim_loop_inner_phi():
         jmp @join
     join:
         %6 = phi @then, %6:1, @else, %6:2
-        %cond = calldataload 100
         jnz %another_cond, @condition, @exit
     exit:
         %5 = phi @condition, %3, @body, %4
@@ -104,14 +110,17 @@ def test_phi_elim_loop_inner_phi():
     post = """
     main:
         %1 = param
+        %rand = param
         %2 = %1
         jmp @condition
     condition:
         %3 = %1
+        %cond = iszero %3
         jnz %cond, @exit, @body
     body:
         %4 = %2
         %another_cond = calldataload 200
+        jnz %rand, @then, @else
     then:
         %6:1 = %4
         jmp @join
@@ -120,7 +129,6 @@ def test_phi_elim_loop_inner_phi():
         jmp @join
     join:
         %6 = %1
-        %cond = calldataload 100
         jnz %another_cond, @condition, @exit
     exit:
         %5 = %1
