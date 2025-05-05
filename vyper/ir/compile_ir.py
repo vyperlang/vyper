@@ -285,7 +285,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     def _data_ofst_of(sym, ofst, height_):
         # e.g. _OFST Label foo 32
-        assert is_symbol(sym) or is_mem_sym(sym)
+        assert is_symbol(sym) or is_mem_sym(sym), sym
         if isinstance(ofst.value, int):
             # resolve at compile time using magic _OFST op
             return ["_OFST", sym, ofst.value]
