@@ -199,4 +199,3 @@ def test_phi_elim_cannot_remove():
     """
 
     _check_pre_post(pre, pre, hevm=False)
-    assert False

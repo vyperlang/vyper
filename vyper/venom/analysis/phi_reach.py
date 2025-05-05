@@ -13,12 +13,8 @@ class PhiReachingAnalysis(IRAnalysis):
 
         while True:
             change = False
-            for bb in self.function.get_basic_blocks():
-                for inst in bb.instructions:
-                    if inst.opcode != "phi":
-                        continue
-
-                    change |= self._step(inst)
+            for inst in self.phi_to_origins.keys():
+                change |= self._step(inst)
             if not change:
                 break
 
