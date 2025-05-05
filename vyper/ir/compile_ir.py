@@ -258,8 +258,8 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
 
     _relocate_segments(res)
 
-    if optimize != OptimizationLevel.NONE:
-        optimize_assembly(res)
+    # if optimize != OptimizationLevel.NONE:
+    #     optimize_assembly(res)
     return res
 
 
@@ -272,7 +272,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
     def _data_ofst_of(sym, ofst, height_):
-        # e.g. _OFST _sym_foo 32
+        # e.g. _OFST Label foo 32
         assert is_symbol(sym) or is_mem_sym(sym)
         if isinstance(ofst.value, int):
             # resolve at compile time using magic _OFST op
@@ -336,7 +336,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
         o.extend(PUSH(32))
-        o.extend(_data_ofst_of("_sym_code_end", loc, height + 1))
+        o.extend(_data_ofst_of("code_end", loc, height + 1))
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
         return o
@@ -350,7 +350,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_sym_code_end", src, height + 1))
+        o.extend(_data_ofst_of("code_end", src, height + 1))
         o.extend(_compile_to_assembly(dst, withargs, existing_labels, break_dest, height + 2))
         o.extend(["CODECOPY"])
         return o
@@ -707,7 +707,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
     elif code.value == "data":
-        data_node = [DataHeader(Label("_sym_" + code.args[0].value))]
+        data_node = [DataHeader(Label(code.args[0].value))]
 
         for c in code.args[1:]:
             if isinstance(c.value, int):
@@ -998,7 +998,7 @@ def _merge_iszero(assembly):
 # this helper function tells us if we want to add the previous instruction
 # to the symbol map.
 def is_symbol_map_indicator(asm_node):
-    return asm_node == "JUMPDEST"
+    return isinstance(asm_node, Label)
 
 
 def _prune_unused_jumpdests(assembly):
