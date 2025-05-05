@@ -348,7 +348,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
         o.extend(PUSH(32))
-        o.extend(_data_ofst_of("code_end", loc, height + 1))
+        o.extend(_data_ofst_of(Label("code_end"), loc, height + 1))
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
         return o
@@ -362,7 +362,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("code_end", src, height + 1))
+        o.extend(_data_ofst_of(Label("code_end"), src, height + 1))
         o.extend(_compile_to_assembly(dst, withargs, existing_labels, break_dest, height + 2))
         o.extend(["CODECOPY"])
         return o
@@ -729,9 +729,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 data_node.append(c.value)
             elif isinstance(c, IRnode):
                 assert c.value == "symbol"
-                data_node.extend(
-                    _compile_to_assembly(c, withargs, existing_labels, break_dest, height)
-                )
+                assert len(c.args) == 1
+                assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
+                data_node.append(Label(c.args[0].value))
             else:
                 raise ValueError(f"Invalid data: {type(c)} {c}")
 
@@ -749,7 +749,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # "djump" compiles to a raw EVM jump instruction
         jump_target = code.args[0]
-        o.extend(_compile_to_assembly(Label(jump_target), withargs, existing_labels, break_dest, height))
+        o.extend(
+            _compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height)
+        )
         o.append("JUMP")
         return o
     # push a literal symbol
@@ -857,10 +859,7 @@ def _prune_unreachable_code(assembly):
         if assembly[i] in _TERMINAL_OPS:
             # find the next jumpdest or sublist
             for j in range(i + 1, len(assembly)):
-                next_is_jumpdest = (
-                    j < len(assembly)
-                    and is_symbol(assembly[j])
-                )
+                next_is_jumpdest = j < len(assembly) and is_symbol(assembly[j])
                 next_is_list = isinstance(assembly[j], list)
                 if next_is_jumpdest or next_is_list:
                     break
@@ -884,7 +883,7 @@ def _prune_inefficient_jumps(assembly):
         if (
             isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMP"
-            and is_symbol(assembly[i+2])
+            and is_symbol(assembly[i + 2])
             and assembly[i + 2] == assembly[i].label
         ):
             # delete PUSHLABEL x JUMP
@@ -1175,7 +1174,7 @@ class DataHeader:
     label: Label
 
     def __repr__(self):
-        return f"DATA {self.label}"
+        return f"DATA {self.label.label}"
 
 
 def _relocate_segments(assembly):
@@ -1320,7 +1319,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                     data_section_lengths.append(_length_of_data(t))
 
         elif isinstance(item, list) and isinstance(item[0], DataHeader):
-            symbol_map[Label(item[0].label)] = pc
+            symbol_map[item[0].label] = pc
             pc += _length_of_data(item)
         else:
             pc += 1
