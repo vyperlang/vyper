@@ -16,6 +16,10 @@ class PhiEliminationPass(IRPass):
                 continue
             self._process_phi(inst)
 
+
+        for bb in self.function.get_basic_blocks():
+            bb.ensure_well_formed()
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
