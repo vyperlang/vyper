@@ -1,4 +1,5 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .common_subexpression_elimination import CSE
 from .dft import DFTPass
@@ -16,5 +17,4 @@ from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
-from .store_elimination import StoreElimination
-from .store_expansion import StoreExpansionPass
+from .single_use_expansion import SingleUseExpansion

@@ -5,7 +5,7 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import LowerDloadPass, SimplifyCFGPass, StoreExpansionPass, VenomCompiler
+from vyper.venom import LowerDloadPass, SimplifyCFGPass, SingleUseExpansion, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 
@@ -64,7 +64,7 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
 
         # requirements for venom_to_assembly
         LowerDloadPass(ac, fn).run_pass()
-        StoreExpansionPass(ac, fn).run_pass()
+        SingleUseExpansion(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx])
     asm = compiler.generate_evm(no_optimize=False)
