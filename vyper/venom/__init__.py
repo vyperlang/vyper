@@ -14,6 +14,7 @@ from vyper.venom.passes import (
     CSE,
     SCCP,
     AlgebraicOptimizationPass,
+    AssignElimination,
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
@@ -27,7 +28,6 @@ from vyper.venom.passes import (
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
-    StoreElimination,
     StoreExpansionPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -61,17 +61,17 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     LoadElimination(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -85,9 +85,9 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
 
