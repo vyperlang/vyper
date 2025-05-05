@@ -941,23 +941,23 @@ def _merge_jumpdests(assembly):
     # or some nested if statements.)
     changed = False
     i = 0
-    while i < len(assembly) - 3:
+    while i < len(assembly) - 2:
         #if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
         if is_symbol(assembly[i]):
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 2]):
+            if is_symbol(assembly[i + 1]):
                 # LABEL x LABEL y
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
-                new_symbol = assembly[i + 2]
+                new_symbol = assembly[i + 1]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
                         if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
                             assembly[j].label = new_symbol
                             changed = True
-            elif isinstance(assembly[i + 2], PUSHLABEL) and assembly[i + 3] == "JUMP":
+            elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
                 # LABEL x PUSHLABEL y JUMP
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
-                new_symbol = assembly[i + 2].label
+                new_symbol = assembly[i + 1].label
                 for j in range(len(assembly)):
                     if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
                         assembly[j].label = new_symbol
