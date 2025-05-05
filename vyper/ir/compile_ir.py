@@ -572,7 +572,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
 
         # COPY the code to memory for deploy
-        o.extend([PUSHLABEL(Label("subcode_size")), runtime_begin, "_mem_deploy_start", "CODECOPY"])
+        o.extend([PUSHLABEL(Label("subcode_size")), PUSHLABEL(runtime_begin), "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
         o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))
@@ -1170,7 +1170,7 @@ def _length_of_data(assembly):
 
 @dataclass
 class RuntimeHeader:
-    label: str
+    label: Label
     ctor_mem_size: int
     immutables_len: int
 
@@ -1315,7 +1315,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             pc -= 1
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             # we are in initcode
-            symbol_map[Label(item[0].label)] = pc
+            symbol_map[item[0].label] = pc
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
