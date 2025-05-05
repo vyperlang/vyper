@@ -419,7 +419,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         end_symbol = mksymbol("join")
         o.extend(["ISZERO", *JUMPI(mid_symbol)])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([*JUMPI(end_symbol), mid_symbol])
+        o.extend([*JUMP(end_symbol), mid_symbol])
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol])
         return o
