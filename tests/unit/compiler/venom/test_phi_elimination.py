@@ -176,3 +176,27 @@ def test_phi_elim_loop_inner_phi_simple():
     """
 
     _check_pre_post(pre, post)
+
+def test_phi_elim_cannot_remove():
+    pre = """
+    main:
+        %p = param
+        %rand = param
+    cond:
+        %1 = phi @main, %p, @body, %3
+        %cond = iszero %1
+        jnz %cond, @body, @join
+    body:
+        jnz %rand, @then, @join
+    then:
+        %2 = 2
+        jmp @join
+    join:
+        %3 = phi @body, %1, @then, %2
+        jmp @cond
+    exit:
+        sink %p
+    """
+
+    _check_pre_post(pre, pre, hevm=False)
+    assert False
