@@ -1273,8 +1273,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
-            if is_symbol(last) and last.startswith("_sym_internal"):
-                if last.endswith("cleanup"):
+            if is_symbol(last) and last.label.startswith("internal"):
+                if last.label.endswith("cleanup"):
                     # exit an internal function
                     line_number_map["pc_jump_map"][pc] = "o"
                 else:
