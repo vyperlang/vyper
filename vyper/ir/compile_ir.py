@@ -45,17 +45,20 @@ def PUSH_N(x, n):
     assert x == 0
     return [f"PUSH{len(o)}"] + o
 
+
 def JUMP(label: Label):
     return [PUSHLABEL(label), "JUMP"]
 
+
 def JUMPI(label: Label):
     return [PUSHLABEL(label), "JUMPI"]
+
 
 class Label:
     _next_symbol: int = 0
 
     def __init__(self, label: str):
-        self.label =  label
+        self.label = label
 
     def __repr__(self):
         return f"LABEL {self.label}"
@@ -68,13 +71,22 @@ class Label:
     def __hash__(self):
         return hash(self.label)
 
-class PUSHLABEL:
 
+class PUSHLABEL:
     def __init__(self, label: Label):
         self.label = label
 
     def __str__(self):
         return f"PUSHLABEL {self.label.label}"
+
+    def __eq__(self, other):
+        if not isinstance(other, PUSHLABEL):
+            return False
+        return self.label == other.label
+
+    def __hash__(self):
+        return hash(self.label)
+
 
 def mksymbol(name=""):
     Label._next_symbol += 1
@@ -189,7 +201,7 @@ def _add_postambles(asm_ops):
 
     _revert_string = [_revert_label, *PUSH(0), "DUP1", "REVERT"]
 
-    if _revert_label in asm_ops:
+    if PUSHLABEL(_revert_label) in asm_ops:
         # shared failure block
         to_append.extend(_revert_string)
 
