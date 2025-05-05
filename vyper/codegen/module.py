@@ -12,6 +12,7 @@ from vyper.codegen.function_definitions import (
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
+from vyper.ir.compile_ir import Label
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
 
@@ -310,10 +311,10 @@ def _selector_section_sparse(external_functions, module_t):
         for i in range(n_buckets):
             if i in buckets:
                 bucket_label = f"selector_bucket_{i}"
-                jump_targets.append(bucket_label)
+                jump_targets.append(Label(bucket_label))
             else:
                 # empty bucket
-                jump_targets.append("fallback")
+                jump_targets.append(Label("fallback"))
 
         jumptable_data = ["data", "selector_buckets"]
         jumptable_data.extend(["symbol", label] for label in jump_targets)

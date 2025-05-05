@@ -5,6 +5,7 @@ from vyper.ir.compile_ir import (
     PUSH,
     DataHeader,
     Instruction,
+    Label,
     RuntimeHeader,
     mksymbol,
     optimize_assembly,
@@ -167,7 +168,7 @@ class VenomCompiler:
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             # TODO make this property on IRFunction
-            asm.extend(["_sym__ctor_exit", "JUMPDEST"])
+            asm.extend([Label("_sym__ctor_exit"), "JUMPDEST"])
             if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
                 asm.extend(
                     ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
@@ -192,7 +193,7 @@ class VenomCompiler:
                 for item in data_section.data_items:
                     data = item.data
                     if isinstance(data, IRLabel):
-                        asm_data_section.append(_as_asm_symbol(data))
+                        asm_data_section.append(Label(_as_asm_symbol(data)))
                     else:
                         assert isinstance(data, bytes)
                         asm_data_section.append(data)
@@ -337,7 +338,7 @@ class VenomCompiler:
         asm = []
 
         # assembly entry point into the block
-        asm.append(_as_asm_symbol(basicblock.label))
+        asm.append(Label(_as_asm_symbol(basicblock.label)))
         asm.append("JUMPDEST")
 
         fn = basicblock.parent

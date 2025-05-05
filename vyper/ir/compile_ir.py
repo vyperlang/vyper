@@ -179,7 +179,7 @@ def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    return JUMPI(revert_label)
+    return JUMPI(_revert_label)
 
 
 def _add_postambles(asm_ops):
@@ -707,7 +707,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
     elif code.value == "data":
-        data_node = [DataHeader("_sym_" + code.args[0].value)]
+        data_node = [DataHeader(Label("_sym_" + code.args[0].value))]
 
         for c in code.args[1:]:
             if isinstance(c.value, int):
@@ -1160,7 +1160,7 @@ class RuntimeHeader:
 
 @dataclass
 class DataHeader:
-    label: str
+    label: Label
 
     def __repr__(self):
         return f"DATA {self.label}"
