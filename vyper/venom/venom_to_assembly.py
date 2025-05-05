@@ -132,7 +132,7 @@ def _ofst(label: str | Label, value: int) -> list[Any]:
         pushlabel = label  # _mem_foo is still magic
     else:
         pushlabel = PUSHLABEL(label)
-    return [*PUSH(value), label, "ADD"]
+    return [pushlabel, *PUSH(value), "ADD"]
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -585,7 +585,7 @@ class VenomCompiler:
             assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
             end_symbol = mksymbol("reachable")
-            assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
+            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "iload":
             addr = inst.operands[0]
             if isinstance(addr, IRLiteral):
