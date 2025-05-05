@@ -12,7 +12,7 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.ir.optimizer import COMMUTATIVE_OPS
-from vyper.utils import MemoryPositions
+from vyper.utils import MemoryPositions, OrderedSet
 from vyper.version import version_tuple
 
 PUSH_OFFSET = 0x5F
@@ -270,8 +270,8 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
 
     _relocate_segments(res)
 
-    # if optimize != OptimizationLevel.NONE:
-    #     optimize_assembly(res)
+    if optimize != OptimizationLevel.NONE:
+        optimize_assembly(res)
     return res
 
 
@@ -1013,22 +1013,14 @@ def _merge_iszero(assembly):
     return changed
 
 
-# a symbol _sym_x in assembly can either mean to push _sym_x to the stack,
-# or it can precede a location in code which we want to add to symbol map.
-# this helper function tells us if we want to add the previous instruction
-# to the symbol map.
-def is_symbol_map_indicator(asm_node):
-    return isinstance(asm_node, Label)
-
-
 def _prune_unused_jumpdests(assembly):
     changed = False
 
-    used_jumpdests = set()
+    used_jumpdests = OrderedSet()
 
     # find all used jumpdests
     for i in range(len(assembly) - 1):
-        if is_symbol(assembly[i]) and not is_symbol_map_indicator(assembly[i + 1]):
+        if is_symbol(assembly[i]) and assembly[i + 1] != "JUMPDEST":
             used_jumpdests.add(assembly[i])
 
     for item in assembly:
@@ -1082,7 +1074,7 @@ def _stack_peephole_opts(assembly):
         ):
             changed = True
             del assembly[i : i + 2]
-        if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:
+        if assembly[i] == "SWAP1" and str(assembly[i + 1]).lower() in COMMUTATIVE_OPS:
             changed = True
             del assembly[i]
         if assembly[i] == "DUP1" and assembly[i + 1] == "SWAP1":
