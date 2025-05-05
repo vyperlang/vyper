@@ -55,7 +55,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
 
 NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
-        "volstore",
         "mstore",
         "sstore",
         "istore",

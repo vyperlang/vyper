@@ -97,6 +97,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
+    print(fn)
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
