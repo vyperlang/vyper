@@ -286,6 +286,15 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     def _data_ofst_of(sym, ofst, height_):
         # e.g. _OFST Label foo 32
         assert is_symbol(sym) or is_mem_sym(sym), sym
+
+        # simple way -- reintroduce compile-time resolution later
+        ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        if is_symbol(sym):
+            return ofst + [PUSHLABEL(sym), "ADD"]
+        else:
+            # magic for mem syms
+            return ofst + [sym, "ADD"]
+
         if isinstance(ofst.value, int):
             # resolve at compile time using magic _OFST op
             return ["_OFST", sym, ofst.value]
@@ -566,7 +575,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend([PUSHLABEL(Label("subcode_size")), runtime_begin, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_OFST", Label("subcode_size"), immutables_len])  # stack: len
+        o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
