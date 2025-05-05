@@ -58,6 +58,7 @@ class Label:
     _next_symbol: int = 0
 
     def __init__(self, label: str):
+        assert isinstance(label, str)
         self.label = label
 
     def __repr__(self):
@@ -74,9 +75,10 @@ class Label:
 
 class PUSHLABEL:
     def __init__(self, label: Label):
+        assert isinstance(label, Label)
         self.label = label
 
-    def __str__(self):
+    def __repr__(self):
         return f"PUSHLABEL {self.label.label}"
 
     def __eq__(self, other):
@@ -955,7 +957,7 @@ def _merge_jumpdests(assembly):
             elif isinstance(assembly[i + 2], PUSHLABEL) and assembly[i + 3] == "JUMP":
                 # LABEL x PUSHLABEL y JUMP
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
-                new_symbol = assembly[i + 2]
+                new_symbol = assembly[i + 2].label
                 for j in range(len(assembly)):
                     if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
                         assembly[j].label = new_symbol
