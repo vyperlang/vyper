@@ -357,6 +357,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
         o.extend(PUSH(32))
+
         o.extend(_data_ofst_of(Label("code_end"), loc, height + 1))
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
@@ -888,7 +889,7 @@ def _prune_inefficient_jumps(assembly):
     # prune sequences `PUSHLABEL x JUMP LABEL x` to `LABEL x`
     changed = False
     i = 0
-    while i < len(assembly) - 4:
+    while i < len(assembly) - 2:
         if (
             isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMP"
@@ -910,14 +911,14 @@ def _optimize_inefficient_jumps(assembly):
     # to `ISZERO PUSHLABEL x JUMPI LABEL common`
     changed = False
     i = 0
-    while i < len(assembly) - 6:
+    while i < len(assembly) - 4:
         if (
-            is_symbol(assembly[i])
+            isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMPI"
-            and is_symbol(assembly[i + 2])
+            and isinstance(assembly[i + 2], PUSHLABEL)
             and assembly[i + 3] == "JUMP"
-            and assembly[i] == assembly[i + 4]
-            and assembly[i + 5] == "JUMPDEST"
+            and isinstance(assembly[i + 4], Label)
+            and assembly[i].label == assembly[i + 4]
         ):
             changed = True
             assembly[i] = "ISZERO"
@@ -939,26 +940,25 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 3:
-        if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+        #if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+        if is_symbol(assembly[i]):
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
-                # _sym_x JUMPDEST _sym_y JUMPDEST
-                # replace all instances of _sym_x with _sym_y
-                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+            if is_symbol(assembly[i + 2]):
+                # LABEL x LABEL y
+                # replace all instances of PUSHLABEL x with PUSHLABEL y
                 new_symbol = assembly[i + 2]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
-                        if assembly[j] == current_symbol and i != j:
-                            assembly[j] = new_symbol
+                        if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
+                            assembly[j].label = new_symbol
                             changed = True
-            elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
-                # _sym_x JUMPDEST _sym_y JUMP
-                # replace all instances of _sym_x with _sym_y
-                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+            elif isinstance(assembly[i + 2], PUSHLABEL) and assembly[i + 3] == "JUMP":
+                # LABEL x PUSHLABEL y JUMP
+                # replace all instances of PUSHLABEL x with PUSHLABEL y
                 new_symbol = assembly[i + 2]
                 for j in range(len(assembly)):
-                    if assembly[j] == current_symbol and i != j:
-                        assembly[j] = new_symbol
+                    if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
+                        assembly[j].label = new_symbol
                         changed = True
 
         i += 1
@@ -1002,7 +1002,7 @@ def _merge_iszero(assembly):
         # but it could also just be a no-op before JUMPI.
         if (
             assembly[i : i + 2] == ["ISZERO", "ISZERO"]
-            and is_symbol(assembly[i + 2])
+            and isinstance(assembly[i + 2], PUSHLABEL)
             and assembly[i + 3] == "JUMPI"
         ):
             changed = True
@@ -1019,9 +1019,9 @@ def _prune_unused_jumpdests(assembly):
     used_jumpdests = OrderedSet()
 
     # find all used jumpdests
-    for i in range(len(assembly) - 1):
-        if is_symbol(assembly[i]) and assembly[i + 1] != "JUMPDEST":
-            used_jumpdests.add(assembly[i])
+    for i in range(len(assembly)):
+        if isinstance(assembly[i], PUSHLABEL):
+            used_jumpdests.add(assembly[i].label)
 
     for item in assembly:
         if isinstance(item, list) and isinstance(item[0], DataHeader):
@@ -1033,10 +1033,10 @@ def _prune_unused_jumpdests(assembly):
 
     # delete jumpdests that aren't used
     i = 0
-    while i < len(assembly) - 2:
+    while i < len(assembly):
         if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
             changed = True
-            del assembly[i : i + 2]
+            del assembly[i]
         else:
             i += 1
 
@@ -1274,7 +1274,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
-            if is_symbol(last) and last.label.startswith("internal"):
+            if isinstance(last, PUSHLABEL) and last.label.startswith("internal"):
                 if last.label.endswith("cleanup"):
                     # exit an internal function
                     line_number_map["pc_jump_map"][pc] = "o"
