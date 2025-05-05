@@ -5,11 +5,16 @@ from vyper.venom.passes.base_pass import IRPass
 
 class SingleUseExpansion(IRPass):
     """
-    This pass extracts literals and variables so that they can be
-    reordered by the DFT pass. It creates an invariant which is that
-    each variable is used at most once (by any opcode besides a simple
-    assignment), which is helpful for DFT, and *required* by
-    venom_to_assembly.py.
+    This pass transforms venom IR to "single use" form. It extracts literals
+    and variables so that they can be reordered by the DFT pass. It creates
+    two invariants:
+    - each variable is used at most once (by any opcode besides a simple
+      assignment)
+    - operands to all instructions (besides assignment instructions) must
+      be variables.
+
+    these two properties are helpful for DFT and venom_to_assembly.py, and
+    in fact the first invariant is *required* by venom_to_assembly.py.
 
     This pass is in some sense the "inverse" of AssignElimination.
     """
