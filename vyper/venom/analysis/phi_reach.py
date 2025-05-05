@@ -27,9 +27,9 @@ class PhiReachingAnalysis(IRAnalysis):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                self._basic_reach(inst)
+                self._starting_reach(inst)
 
-    def _basic_reach(self, inst: IRInstruction):
+    def _starting_reach(self, inst: IRInstruction):
         assert inst.opcode == "phi"
         inputs = set(var for _, var in inst.phi_operands)
 
@@ -39,7 +39,8 @@ class PhiReachingAnalysis(IRAnalysis):
             assert src is not None
             srcs.add(src)
 
-        # this should not be necessary bu just for now
+        # could this be achieved with store elim?
+        # pass through the assigns
         while any(i.opcode == "store" and isinstance(i.operands[0], IRVariable) for i in srcs):
             for src in list(srcs):
                 if src.opcode != "store":
@@ -65,9 +66,9 @@ class PhiReachingAnalysis(IRAnalysis):
         for src in srcs:
             if src.opcode != "phi":
                 continue
-            src_srcs = self.phi_to_origins.get(src)
-            assert src_srcs is not None
+            next_srcs = self.phi_to_origins.get(src)
+            assert next_srcs is not None
             self.phi_to_origins[inst].remove(src)
-            self.phi_to_origins[inst] = self.phi_to_origins[inst].union(src_srcs)
+            self.phi_to_origins[inst] = self.phi_to_origins[inst].union(next_srcs)
 
         return srcs != self.phi_to_origins[inst]
