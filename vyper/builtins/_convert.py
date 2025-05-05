@@ -219,7 +219,7 @@ def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
-    elif isinstance(expr, vy_ast.Bytes):
+    elif isinstance(expr, (vy_ast.Bytes, vy_ast.HexBytes)):
         val = int.from_bytes(expr.value, "big")
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
@@ -252,7 +252,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
     val = int(val)
 
     # apply sign extension, if expected
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
