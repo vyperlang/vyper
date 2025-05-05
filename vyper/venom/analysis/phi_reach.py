@@ -1,6 +1,6 @@
+from vyper.venom.analysis import DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
-from vyper.venom.analysis import IRAnalysis
-from vyper.venom.analysis import DFGAnalysis
+
 
 class PhiReachingAnalysis(IRAnalysis):
     dfg: DFGAnalysis
@@ -20,7 +20,7 @@ class PhiReachingAnalysis(IRAnalysis):
 
                     change |= self._step(inst)
             if not change:
-                break 
+                break
 
     def _compute_start(self):
         for bb in self.function.get_basic_blocks():
@@ -69,7 +69,5 @@ class PhiReachingAnalysis(IRAnalysis):
             assert src_srcs is not None
             self.phi_to_origins[inst].remove(src)
             self.phi_to_origins[inst] = self.phi_to_origins[inst].union(src_srcs)
-        
+
         return srcs != self.phi_to_origins[inst]
-
-
