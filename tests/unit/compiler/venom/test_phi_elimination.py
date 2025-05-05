@@ -137,6 +137,7 @@ def test_phi_elim_loop_inner_phi():
 
     _check_pre_post(pre, post)
 
+
 def test_phi_elim_loop_inner_phi_simple():
     pre = """
     main:
