@@ -981,3 +981,119 @@ def test_weird_interface_name():
         "external_interface"
     ]
     assert "interface _:" in out
+
+
+def test_interface_with_imported_structures(make_input_bundle):
+    # test the output contains imported structures and identifies them correctly
+    a = """
+import b
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+import c
+
+struct Bar:
+    val:uint256
+        """
+    c = """
+struct Baz:
+    val:uint256
+        """
+    input_bundle = make_input_bundle({"a.vy": a, "b.vy": b, "c.vy": c})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+
+    assert "# Structs" in out
+    assert "Foo:" in out
+    assert "b Bar:" in out
+    assert "b.c Baz:" in out
+
+
+def test_interface_with_doubly_imported_structure(make_input_bundle):
+    # test the output contains each of the structures just once,
+    # even if there are multiple paths to it
+    a = """
+import b
+import c
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+import d
+
+struct Bar:
+    val:uint256
+        """
+    c = """
+import d
+struct Baz:
+    val:uint256
+        """
+    d = """
+struct Boo:
+    val:uint256
+        """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vy": b, "c.vy": c, "d.vy": d})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+
+    assert "# Structs" in out
+    assert "Foo:" in out
+    assert "b Bar:" in out
+    assert "c Baz" in out
+    assert out.count("Boo") == 1
+
+
+def test_interface_with_imported_struct_via_interface(make_input_bundle):
+    a = """
+import b
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+struct Bar:
+    val:uint256
+
+        """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vyi": b})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+    assert "# Structs" in out
+    assert "Foo:" in out
+    assert "b Bar:" in out
+
+
+def test_interface_with_imported_structs_via_interface(make_input_bundle):
+    a = """
+import b
+import c
+
+struct Foo:
+    val:uint256
+        """
+    b = """
+struct Bar:
+    val:uint256
+        """
+    c = """
+struct Baz:
+    val:uint256
+            """
+
+    input_bundle = make_input_bundle({"a.vy": a, "b.vyi": b, "c.vy": c})
+    out = compile_code(
+        a, input_bundle=input_bundle, contract_path="a.vy", output_formats=["interface"]
+    )["interface"]
+    assert "# Structs" in out
+    assert "Foo:" in out
+    assert "b Bar:" in out
+    assert "c Baz:" in out
