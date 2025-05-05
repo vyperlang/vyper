@@ -3,10 +3,15 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 
-class StoreExpansionPass(IRPass):
+class SingleUseExpansion(IRPass):
     """
     This pass extracts literals and variables so that they can be
-    reordered by the DFT pass
+    reordered by the DFT pass. It creates an invariant which is that
+    each variable is used at most once (by any opcode besides a simple
+    assignment), which is helpful for DFT, and *required* by
+    venom_to_assembly.py.
+
+    This pass is in some sense the "inverse" of AssignElimination.
     """
 
     def run_pass(self):

@@ -28,7 +28,7 @@ from vyper.venom.passes import (
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
-    StoreExpansionPass,
+    SingleUseExpansion,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -89,7 +89,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     CSE(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    StoreExpansionPass(ac, fn).run_pass()
+    SingleUseExpansion(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
         ReduceLiteralsCodesize(ac, fn).run_pass()
