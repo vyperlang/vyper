@@ -737,7 +737,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # "djump" compiles to a raw EVM jump instruction
         jump_target = code.args[0]
-        o.extend(_compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height))
+        o.extend(_compile_to_assembly(Label(jump_target), withargs, existing_labels, break_dest, height))
         o.append("JUMP")
         return o
     # push a literal symbol
