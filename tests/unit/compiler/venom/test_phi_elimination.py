@@ -136,3 +136,42 @@ def test_phi_elim_loop_inner_phi():
     """
 
     _check_pre_post(pre, post)
+
+def test_phi_elim_loop_inner_phi_simple():
+    pre = """
+    main:
+        %p = param
+        jmp @loop_start
+    loop_start:
+        %1 = phi @main, %p, @loop_join, %4
+        jnz %1, @then, @else
+    then:
+        %2 = %1
+        jmp @loop_join
+    else:
+        %3 = %1
+        jmp @loop_join
+    loop_join:
+        %4 = phi @then, %2, @else, %3
+        jmp @loop_start
+    """
+
+    post = """
+    main:
+        %p = param
+        jmp @loop_start
+    loop_start:
+        %1 = %p
+        jnz %1, @then, @else
+    then:
+        %2 = %1
+        jmp @loop_join
+    else:
+        %3 = %1
+        jmp @loop_join
+    loop_join:
+        %4 = %p
+        jmp @loop_start
+    """
+
+    _check_pre_post(pre, post)
