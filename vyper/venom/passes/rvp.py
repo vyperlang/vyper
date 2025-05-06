@@ -18,27 +18,6 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, eval_arith
 
-
-class LatticeEnum(Enum):
-    TOP = 1
-    BOTTOM = 2
-
-
-@dataclass
-class SSAWorkListItem:
-    inst: IRInstruction
-
-
-@dataclass
-class FlowWorkItem:
-    start: IRBasicBlock
-    end: IRBasicBlock
-
-
-WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
-Lattice = dict[IRVariable, LatticeItem]
-
 _inf = float('inf')
 
 @dataclass
@@ -61,6 +40,24 @@ class Interval:
         return f"[{self.min}, {self.max}]"
 
 
+class LatticeEnum(Enum):
+    TOP = 1
+
+LatticeItem = Union[LatticeEnum, Interval]
+Lattice = dict[IRVariable, LatticeItem]
+
+@dataclass
+class SSAWorkListItem:
+    inst: IRInstruction
+
+
+@dataclass
+class FlowWorkItem:
+    start: IRBasicBlock
+    end: IRBasicBlock
+
+
+WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
 class RangeValuePropagationPass(IRPass):
     """
     This class implements the Sparse Conditional Constant Propagation
@@ -342,6 +339,12 @@ class RangeValuePropagationPass(IRPass):
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if x == LatticeEnum.TOP:
         return y
-    if y == LatticeEnum.TOP or x == y:
+    if y == LatticeEnum.TOP:
         return x
-    return LatticeEnum.BOTTOM
+    if isinstance(x, Interval) and isinstance(y, Interval):
+        min_val = max(x.min, y.min)
+        max_val = min(x.max, y.max)
+        if min_val <= max_val:
+            return Interval(min_val, max_val)
+        return Interval(-_inf, _inf)
+    raise CompilerPanic("Invalid lattice items for meet")
