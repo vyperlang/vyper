@@ -17,7 +17,7 @@ class PhiReachingAnalysis(IRAnalysis):
                 self._handle_phi(inst)
 
         for src_insts in self.phi_to_origins.values():
-            # sanity check (it could be triggered if we would get invalid venom)
+            # sanity check (it could be triggered if we get invalid venom)
             assert all(src.opcode != "phi" for src in src_insts)
 
     def _handle_phi(self, inst: IRInstruction):
@@ -30,6 +30,8 @@ class PhiReachingAnalysis(IRAnalysis):
     ) -> set[IRInstruction]:
         if inst.opcode == "phi":
             if inst in visited:
+                # phi is the only place where we can get dfg cycles.
+                # break the recursion.
                 return self.phi_to_origins[inst].copy()
             visited.add(inst)
 
@@ -41,6 +43,7 @@ class PhiReachingAnalysis(IRAnalysis):
             return self.phi_to_origins[inst]
 
         if inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
+            # traverse store chain
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
