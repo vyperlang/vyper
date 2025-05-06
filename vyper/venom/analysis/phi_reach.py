@@ -16,6 +16,10 @@ class PhiReachingAnalysis(IRAnalysis):
                     break
                 self._handle_phi(inst)
 
+        for src_insts in self.phi_to_origins.values():
+            # sanity check (it could be triggered if we would get invalid venom)
+            assert all(src.opcode != "phi" for src in src_insts)
+
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
         visited: set[IRInstruction] = set()
