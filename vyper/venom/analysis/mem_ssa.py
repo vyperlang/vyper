@@ -54,6 +54,14 @@ class MemoryAccess:
         return f"{self.__class__.__name__}({self.id_str})"
 
 
+class LiveOnEntry(MemoryAccess):
+    """
+    For type checking purposes
+    """
+
+    pass
+
+
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
@@ -86,11 +94,12 @@ class MemoryPhi(MemoryAccess):
     def __init__(self, id: int, block: IRBasicBlock):
         super().__init__(id)
         self.block = block
-        self.operands: list[tuple[MemoryDef, IRBasicBlock]] = []
+        self.operands: list[tuple[MemoryPhiOperand, IRBasicBlock]] = []
 
 
-# Type alias for either a memory definition or use
+# Type aliases for signatures in this module
 MemoryDefOrUse = MemoryDef | MemoryUse
+MemoryPhiOperand = MemoryDef | MemoryPhi | LiveOnEntry
 
 
 class MemSSA(IRAnalysis):
@@ -118,7 +127,7 @@ class MemSSA(IRAnalysis):
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
         # live_on_entry node
-        self.live_on_entry = MemoryAccess(0)
+        self.live_on_entry = LiveOnEntry(0)
 
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
@@ -134,9 +143,13 @@ class MemSSA(IRAnalysis):
 
     def analyze(self):
         # Request required analyses
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.memalias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
+        self.cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dom: DominatorTreeAnalysis = self.analyses_cache.request_analysis(
+            DominatorTreeAnalysis
+        )
+        self.memalias: MemoryAliasAnalysis = self.analyses_cache.request_analysis(
+            MemoryAliasAnalysis
+        )
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -197,7 +210,7 @@ class MemSSA(IRAnalysis):
                 self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
 
-    def _insert_phi_nodes(self):
+    def _insert_phi_nodes(self) -> None:
         """Insert phi nodes at appropriate points in the CFG"""
         worklist = list(self.memory_defs.keys())
 
@@ -207,7 +220,7 @@ class MemSSA(IRAnalysis):
                 if frontier not in self.memory_phis:
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
-                    for pred in frontier.cfg_in:
+                    for pred in self.cfg.cfg_in(frontier):
                         reaching_def = self._get_exit_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
@@ -224,7 +237,7 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(use)
 
-    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryPhiOperand]:
         """
         Get the memory def (or phi) that exits a basic block.
 
@@ -277,7 +290,7 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
-        if bb.cfg_in:
+        if self.cfg.cfg_in(bb):
             idom = self.dom.immediate_dominators.get(bb)
             return self._get_exit_def(idom) if idom else self.live_on_entry
 
@@ -366,7 +379,7 @@ class MemSSA(IRAnalysis):
                 return clobber
 
         # Traverse successors
-        worklist = list(block.cfg_out)
+        worklist = list(self.cfg.cfg_out(block))
         visited = {block}
         while worklist:
             succ = worklist.pop()
@@ -397,7 +410,7 @@ class MemSSA(IRAnalysis):
                 if mem_use and mem_use.loc.completely_contains(def_loc):
                     return None  # Found a use that reads from our memory location
 
-            worklist.extend(succ.cfg_out)
+            worklist.extend(self.cfg.cfg_out(succ))
 
         return None
 

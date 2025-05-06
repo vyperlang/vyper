@@ -252,7 +252,9 @@ def _handle_internal_func(
     func_t = _current_func_t
     context = _current_context
 
-    fn = fn.ctx.create_function(ir.args[0].args[0].value)
+    funcname = ir.args[0].args[0].value
+    assert isinstance(funcname, str)
+    fn = fn.ctx.create_function(funcname)
 
     bb = fn.get_basic_block()
 

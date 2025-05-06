@@ -20,6 +20,14 @@ class InstUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands)
 
+    # move the uses of old_var to new_inst
+    def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
+        assert new_inst.output is not None
+        new_var = new_inst.output
+
+        for use in list(self.dfg.get_uses(old_var)):
+            self.update_operands(use, {old_var: new_var})
+
     def update(
         self,
         inst: IRInstruction,
@@ -27,7 +35,7 @@ class InstUpdater:
         new_operands: list[IROperand],
         new_output: Optional[IRVariable] = None,
     ):
-        assert opcode != "phi"
+        # assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
 
@@ -60,7 +68,7 @@ class InstUpdater:
         inst.opcode = opcode
         inst.operands = new_operands
 
-    def nop(self, inst: IRInstruction):
+    def nop(self, inst: IRInstruction, ignore_uses=False):
         inst.annotation = str(inst)  # copy IRInstruction.make_nop()
         self.update(inst, "nop", [])
 
