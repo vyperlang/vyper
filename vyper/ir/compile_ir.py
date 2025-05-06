@@ -1381,7 +1381,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             ret.extend(bytecode)
 
         elif is_ofst(item):
-            # _OFST _sym_foo 32
+            # _OFST (LABEL foo) 32
+            # _OFST _mem_foo 32
             ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
             n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else SYMBOL_SIZE
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
