@@ -9,60 +9,34 @@ class PhiReachingAnalysis(IRAnalysis):
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.phi_to_origins = dict()
-        self._compute_start()
 
-        while True:
-            change = False
-            for inst in self.phi_to_origins.keys():
-                change |= self._step(inst)
-            if not change:
-                break
-
-        for phi, possible_origins in self.phi_to_origins.items():
-            # sanity check
-            assert not any(inst.opcode == "phi" for inst in possible_origins)
-
-    def _compute_start(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode != "phi":
-                    continue
-                self._starting_reach(inst)
+                    break
+                self._handle_phi(inst)
 
-    # TOOD: maybe we want to add this as a util method to DFGAnalysis
-    def _get_store_root(self, inst: IRInstruction) -> IRInstruction:
-        # pass through the assigns so we
-        # have only canonical source for
-        # operands (not done via store elimination
-        # since that stops at phis
-        while inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
-            next_var = inst.operands[0]
-            next_inst = self.dfg.get_producing_instruction(next_var)
+    def _handle_phi(self, inst: IRInstruction):
+        visited = set()
+        self._handle_inst_r(inst, visited)
+
+    def _handle_inst_r(self, inst: IRInstruction, visited: set[IRInstruction]) -> set[IRInstruction]:
+        if inst.opcode == "phi":
+            if inst in visited:
+                return self.phi_to_origins[inst].copy()
+            visited.add(inst)
+
+            for _, var in inst.phi_operands:
+                next_inst = self.dfg.get_producing_instruction(var)
+                assert next_inst is not None, (inst, var)
+                self.phi_to_origins.setdefault(inst, set())
+                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst, visited)
+            return self.phi_to_origins[inst]
+
+        if inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
+            var = inst.operands[0]
+            next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
-            inst = next_inst
-        return inst
+            return self._handle_inst_r(next_inst, visited)
 
-    def _starting_reach(self, inst: IRInstruction):
-        assert inst.opcode == "phi"
-        inputs = set(var for _, var in inst.phi_operands)
-
-        srcs: set[IRInstruction] = set()
-        for op in inputs:
-            src = self.dfg.get_producing_instruction(op)
-            assert src is not None
-            srcs.add(self._get_store_root(src))
-
-        self.phi_to_origins[inst] = srcs
-
-    def _step(self, inst: IRInstruction) -> bool:
-        srcs = self.phi_to_origins[inst]
-        srcs = srcs.copy()
-
-        for src in srcs:
-            if src.opcode != "phi":
-                continue
-            next_srcs = self.phi_to_origins[src]
-            self.phi_to_origins[inst].remove(src)
-            self.phi_to_origins[inst] |= next_srcs
-
-        return srcs != self.phi_to_origins[inst]
+        return set([inst])

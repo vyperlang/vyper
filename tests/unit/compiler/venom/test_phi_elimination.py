@@ -200,3 +200,37 @@ def test_phi_elim_cannot_remove():
     """
 
     _check_pre_post(pre, pre, hevm=False)
+
+def test_phi_elim_direct_loop():
+    pre1 = """
+    main:
+        %p = param
+        jmp @loop
+    loop:
+        %1 = phi @main, %p, @loop, %2
+        %2 = %1
+        jmp @loop
+    """
+
+    pre2 = """
+    main:
+        %p = param
+        jmp @loop
+    loop:
+        %1 = phi @main, %p, @loop, %2
+        %2 = %1
+        jmp @loop
+    """
+
+    post = """
+    main:
+        %p = param
+        jmp @loop
+    loop:
+        %1 = %p
+        %2 = %1
+        jmp @loop
+    """
+
+    _check_pre_post(pre1, post)
+    _check_pre_post(pre2, post)
