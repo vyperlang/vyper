@@ -9,6 +9,7 @@ class PhiReachingAnalysis(IRAnalysis):
     cycles) to find the original instructions which end up being
     inputs to phis.
     """
+
     dfg: DFGAnalysis
     phi_to_origins: dict[IRInstruction, set[IRInstruction]]
 
