@@ -186,7 +186,7 @@ You can view where the nonreentrant key is physically laid out in storage by usi
 The nonreentrant pragma
 -----------------------
 
-Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all external functions and public getters in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
+Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all external functions and public getters (except for ``constants`` and ``immutables``) in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
 
 When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` modifier. Here is an example:
 
@@ -219,6 +219,8 @@ Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned
 
 With the pragma on, internal functions remain unlocked by default but can still use the ``@nonreentrant`` decorator. External ``view`` functions are protected by default (as before, checking the lock upon entry but only reading its state). External ``pure`` functions do not interact with the lock.
 
+Internal functions, ``__init__`` function and getters for ``constants`` and ``immutables`` can be marked ``reentrant``. Reentrant behavior is the default for these structures anyway, and this feature can be used to explicitly highlight the fact.
+
 .. note::
    All the protected functions share the same, global lock.
 
@@ -227,6 +229,9 @@ With the pragma on, internal functions remain unlocked by default but can still 
 
 .. note::
    The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
+
+.. note::
+    The ``constant`` and ``immutable`` state variable getters don't check the lock because the value of the variables can't change.
 
 
 The ``__default__`` Function
