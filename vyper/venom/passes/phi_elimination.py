@@ -27,6 +27,6 @@ class PhiEliminationPass(IRPass):
         assert srcs is not None
 
         if len(srcs) == 1:
-            src = srcs.pop()
+            src = next(iter(srcs))
             assert src.output is not None
             self.updater.store(inst, src.output)
