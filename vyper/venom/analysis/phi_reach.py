@@ -29,8 +29,6 @@ class PhiReachingAnalysis(IRAnalysis):
 
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
-        assert inst not in self.phi_to_origins  # sanity
-        self.phi_to_origins[inst] = set()
         self._handle_inst_r(inst)
 
     def _handle_inst_r(self, inst: IRInstruction) -> set[IRInstruction]:
@@ -39,6 +37,8 @@ class PhiReachingAnalysis(IRAnalysis):
                 # phi is the only place where we can get dfg cycles.
                 # break the recursion.
                 return self.phi_to_origins[inst]
+
+            self.phi_to_origins[inst] = set()
 
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
