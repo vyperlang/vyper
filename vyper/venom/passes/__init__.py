@@ -17,3 +17,4 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
+from .rvp import RangeValuePropagationPass
