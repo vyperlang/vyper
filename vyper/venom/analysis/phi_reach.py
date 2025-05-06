@@ -18,6 +18,10 @@ class PhiReachingAnalysis(IRAnalysis):
             if not change:
                 break
 
+        for phi, possible_origins in self.phi_to_origins.items():
+            # sanity check
+            assert not any(inst.opcode == "phi" for inst in possible_origins)
+
     def _compute_start(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
