@@ -22,24 +22,20 @@ class PhiReachingAnalysis(IRAnalysis):
 
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
-        visited: set[IRInstruction] = set()
-        self._handle_inst_r(inst, visited)
+        self._handle_inst_r(inst)
 
-    def _handle_inst_r(
-        self, inst: IRInstruction, visited: set[IRInstruction]
-    ) -> set[IRInstruction]:
+    def _handle_inst_r(self, inst: IRInstruction) -> set[IRInstruction]:
         if inst.opcode == "phi":
-            if inst in visited:
+            if inst in self.phi_to_origins:
                 # phi is the only place where we can get dfg cycles.
                 # break the recursion.
                 return self.phi_to_origins[inst]
-            visited.add(inst)
 
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
                 assert next_inst is not None, (inst, var)
                 self.phi_to_origins.setdefault(inst, set())
-                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst, visited)
+                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst)
             return self.phi_to_origins[inst]
 
         if inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
@@ -47,6 +43,6 @@ class PhiReachingAnalysis(IRAnalysis):
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
-            return self._handle_inst_r(next_inst, visited)
+            return self._handle_inst_r(next_inst)
 
         return set([inst])
