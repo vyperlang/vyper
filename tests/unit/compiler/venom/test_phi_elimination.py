@@ -1,7 +1,40 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import PhiEliminationPass
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
+
+
+@pytest.mark.hevm
+def test_simple_phi_elimination():
+    pre = """
+    main:
+        %1 = param
+        %cond = param
+        %2 = %1
+        jnz %cond, @then, @else
+    then:
+        jmp @else
+    else:
+        %3 = phi @main, %1, @else, %2
+        sink %3
+    """
+
+    post = """
+    main:
+        %1 = param
+        %cond = param
+        %2 = %1
+        jnz %cond, @then, @else
+    then:
+        jmp @else
+    else:
+        %3 = %1
+        sink %3
+    """
+
+    _check_pre_post(pre, post, hevm=True)
 
 
 def test_phi_elim_loop():
