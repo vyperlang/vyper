@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, StackOrder, CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -17,9 +17,15 @@ class DFTPass(IRPass):
     # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
 
+    stack_order: StackOrder
+    cfg: CFGAnalysis
+
+
     def run_pass(self) -> None:
         self.data_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
+        self.stack_order = self.analyses_cache.request_analysis(StackOrder)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
@@ -97,6 +103,16 @@ class DFTPass(IRPass):
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
 
         for inst in non_phis:
+            if inst.opcode == "jmp":
+                next_bbs = self.cfg.cfg_out(bb)
+                assert len(next_bbs) == 1
+                next_bb = next_bbs.first()
+                stack_vars = self.stack_order.bb_to_stack[next_bb]
+                for op in stack_vars:
+                    dep = self.dfg.get_producing_instruction(op)
+                    if dep is not None and dep.parent == bb:
+                        self.dda[inst].add(dep)
+                continue
             for op in inst.operands:
                 dep = self.dfg.get_producing_instruction(op)
                 if dep is not None and dep.parent == bb:
