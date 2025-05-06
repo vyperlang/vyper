@@ -20,11 +20,9 @@ class PhiEliminationPass(IRPass):
             bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _process_phi(self, inst: IRInstruction):
-        srcs = self.phi_reach.phi_to_origins.get(inst)
-        assert srcs is not None
+        srcs = self.phi_reach.phi_to_origins[inst]
 
         if len(srcs) == 1:
             src = next(iter(srcs))

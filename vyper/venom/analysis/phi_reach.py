@@ -3,6 +3,12 @@ from vyper.venom.basicblock import IRInstruction, IRVariable
 
 
 class PhiReachingAnalysis(IRAnalysis):
+    """
+    Analyze the sources of possible inputs to phi instructions.
+    Traverses the DFG through stores and phi (possibly including
+    cycles) to find the original instructions which end up being
+    inputs to phis.
+    """
     dfg: DFGAnalysis
     phi_to_origins: dict[IRInstruction, set[IRInstruction]]
 
@@ -22,6 +28,8 @@ class PhiReachingAnalysis(IRAnalysis):
 
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
+        assert inst not in self.phi_to_origins  # sanity
+        self.phi_to_origins[inst] = set()
         self._handle_inst_r(inst)
 
     def _handle_inst_r(self, inst: IRInstruction) -> set[IRInstruction]:
@@ -34,7 +42,6 @@ class PhiReachingAnalysis(IRAnalysis):
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
                 assert next_inst is not None, (inst, var)
-                self.phi_to_origins.setdefault(inst, set())
                 self.phi_to_origins[inst] |= self._handle_inst_r(next_inst)
             return self.phi_to_origins[inst]
 
