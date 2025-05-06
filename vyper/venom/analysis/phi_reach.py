@@ -32,7 +32,7 @@ class PhiReachingAnalysis(IRAnalysis):
             if inst in visited:
                 # phi is the only place where we can get dfg cycles.
                 # break the recursion.
-                return self.phi_to_origins[inst].copy()
+                return self.phi_to_origins[inst]
             visited.add(inst)
 
             for _, var in inst.phi_operands:
