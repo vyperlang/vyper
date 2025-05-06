@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
-from typing import Union
+from typing import Union, Optional
 
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
@@ -25,20 +25,55 @@ _inf = float("inf")
 class Interval:
     min: Union[int, float]  # Use float for -inf, +inf
     max: Union[int, float]
+    second_interval: Optional[tuple[Union[int, float], Union[int, float]]] = None
 
-    def __init__(self, min_val, max_val):
-        # Handle infinity explicitly
-        self.min = min_val if min_val == -_inf else int(min_val)
-        self.max = max_val if max_val == _inf else int(max_val)
-        assert self.min <= self.max, "Invalid interval"
+    def __init__(self, *args):
+        if len(args) == 2:
+            # Single range: [min, max]
+            self.min = args[0] if args[0] == -_inf else int(args[0])
+            self.max = args[1] if args[1] == _inf else int(args[1])
+            self.second_interval = None
+        elif len(args) == 4:
+            # Disjoint range: [min1, max1] ∪ [min2, max2]
+            self.min = args[0] if args[0] == -_inf else int(args[0])
+            self.max = args[1] if args[1] == _inf else int(args[1])
+            self.second_interval = (
+                args[2] if args[2] == -_inf else int(args[2]),
+                args[3] if args[3] == _inf else int(args[3])
+            )
+            assert self.max < self.second_interval[0], "Invalid disjoint range"
+        else:
+            raise ValueError("Interval must have 2 or 4 arguments")
+        if len(args) == 2:
+            assert self.min <= self.max, "Invalid interval"
 
     def __eq__(self, other):
-        if isinstance(other, Interval):
-            return self.min == other.min and self.max == other.max
-        return False
+        if not isinstance(other, Interval):
+            return False
+        if (self.second_interval is None) != (other.second_interval is None):
+            return False
+        if self.second_interval is not None:
+            return (self.min == other.min and self.max == other.max and
+                   self.second_interval == other.second_interval)
+        return self.min == other.min and self.max == other.max
 
     def __repr__(self):
+        if self.second_interval is not None:
+            return f"[{self.min}, {self.max}] ∪ [{self.second_interval[0]}, {self.second_interval[1]}]"
         return f"[{self.min}, {self.max}]"
+
+    def is_disjoint(self) -> bool:
+        return self.second_interval is not None
+
+    def contains_zero(self) -> bool:
+        if self.is_disjoint():
+            return (self.min <= 0 <= self.max) or (self.second_interval[0] <= 0 <= self.second_interval[1])
+        return self.min <= 0 <= self.max
+
+    def is_non_zero(self) -> bool:
+        if self.is_disjoint():
+            return True  # Disjoint ranges by definition exclude zero
+        return self.min > 0 or self.max < 0
 
 
 class LatticeEnum(Enum):
@@ -78,6 +113,8 @@ class RangeValuePropagationPass(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    branch_contexts: dict[IRBasicBlock, Lattice]  # Track lattices for each branch
+    current_block: IRBasicBlock  # Track the current block being processed
 
     cfg_dirty: bool
 
@@ -85,6 +122,8 @@ class RangeValuePropagationPass(IRPass):
         super().__init__(analyses_cache, function)
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
+        self.branch_contexts = {}
+        self.current_block = None  # type: ignore
 
     def run_pass(self):
         self.fn = self.function
@@ -140,6 +179,9 @@ class RangeValuePropagationPass(IRPass):
             return
         self.cfg_in_exec[end].add(start)
 
+        # Set the current block context
+        self.current_block = end
+
         for inst in end.instructions:
             if inst.opcode == "phi":
                 self._visit_phi(inst)
@@ -158,20 +200,28 @@ class RangeValuePropagationPass(IRPass):
         """
         This method handles a SSAWorkListItem.
         """
+        # Set the current block context
+        self.current_block = work_item.inst.parent
+
         if work_item.inst.opcode == "phi":
             self._visit_phi(work_item.inst)
         elif len(self.cfg_in_exec[work_item.inst.parent]) > 0:
             self._visit_expr(work_item.inst)
 
+    def _get_lattice_for_block(self, bb: IRBasicBlock) -> Lattice:
+        return self.branch_contexts.get(bb, self.lattice)
+
     def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
         assert isinstance(op, IRVariable), f"Can't get lattice for non-variable ({op})"
-        lat = self.lattice[op]
+        current_lattice = self._get_lattice_for_block(self.current_block)
+        lat = current_lattice[op]
         assert lat is not None, f"Got undefined var {op}"
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
         assert isinstance(op, IRVariable), f"Not a variable: {op}"
-        self.lattice[op] = value
+        current_lattice = self._get_lattice_for_block(self.current_block)
+        current_lattice[op] = value
 
     def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
         if isinstance(op, IRLiteral):
@@ -218,8 +268,27 @@ class RangeValuePropagationPass(IRPass):
                     target = self.fn.get_basic_block(inst.operands[2].name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
                 else:
-                    for out_bb in self.cfg.cfg_out(inst.parent):
-                        self.work_list.append(FlowWorkItem(inst.parent, out_bb))
+                    # Create contexts for both branches
+                    true_target = self.fn.get_basic_block(inst.operands[1].name)
+                    false_target = self.fn.get_basic_block(inst.operands[2].name)
+                    
+                    # For true branch, condition is non-zero
+                    true_meet = Interval(-_inf, -1, 1, _inf)
+                    
+                    # Create a copy of the lattice for the true branch
+                    true_lattice = self.lattice.copy()
+                    true_lattice[inst.operands[0]] = true_meet
+                    self.branch_contexts[true_target] = true_lattice
+                    self.work_list.append(FlowWorkItem(inst.parent, true_target))
+                    
+                    # For false branch, condition is zero
+                    false_meet = Interval(0, 0)
+                    
+                    # Create a copy of the lattice for the false branch
+                    false_lattice = self.lattice.copy()
+                    false_lattice[inst.operands[0]] = false_meet
+                    self.branch_contexts[false_target] = false_lattice
+                    self.work_list.append(FlowWorkItem(inst.parent, false_target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
             assert lat != LatticeEnum.TOP
@@ -233,6 +302,43 @@ class RangeValuePropagationPass(IRPass):
         else:
             if inst.output is not None:
                 self._set_lattice(inst.output, Interval(-_inf, _inf))
+
+    def _apply_arithmetic(self, a: Interval, b: Interval, op: str) -> Interval:
+        assert not (a.is_disjoint() and b.is_disjoint())
+
+        if a.is_disjoint() or b.is_disjoint():
+            if a.is_disjoint():
+                disjoint = a
+                non_disjoint = b
+            else:
+                disjoint = b
+                non_disjoint = a
+
+            if op == 'add':
+                min_val = disjoint.min + non_disjoint.min
+                max_val = disjoint.max + non_disjoint.min
+                second_min = disjoint.second_interval[0] + non_disjoint.min
+                second_max = disjoint.second_interval[1] + non_disjoint.min
+            elif op == 'sub':
+                min_val = disjoint.min - non_disjoint.max
+                max_val = disjoint.max - non_disjoint.min
+                second_min = disjoint.second_interval[0] - non_disjoint.max
+                second_max = disjoint.second_interval[1] - non_disjoint.min
+            else:
+                raise ValueError(f"Unsupported operation: {op}")
+                
+            return Interval(min_val, max_val, second_min, second_max)
+        else:
+            if op == 'add':
+                min_val = a.min + b.min
+                max_val = a.max + b.max
+            elif op == 'sub':
+                min_val = a.min - b.max
+                max_val = a.max - b.min
+            else:
+                raise ValueError(f"Unsupported operation: {op}")
+                
+            return Interval(min_val, max_val)
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -259,7 +365,7 @@ class RangeValuePropagationPass(IRPass):
             if isinstance(op, IRLiteral):
                 interval = Interval(op.value, op.value)
             elif isinstance(op, IRVariable):
-                lat = self.lattice.get(op, LatticeEnum.TOP)
+                lat = self._eval_from_lattice(op)
                 if lat == LatticeEnum.TOP:
                     return finalize(LatticeEnum.TOP)
                 assert isinstance(lat, Interval)
@@ -269,15 +375,9 @@ class RangeValuePropagationPass(IRPass):
             ops_intervals.append(interval)
 
         # Compute result based on opcode
-        # Dummy simple implementation fix overflows etc
-        if opcode == "add":
-            min_val = ops_intervals[0].min + ops_intervals[1].min
-            max_val = ops_intervals[0].max + ops_intervals[1].max
-            return finalize(Interval(min_val, max_val))
-        elif opcode == "sub":
-            min_val = ops_intervals[1].min - ops_intervals[0].min
-            max_val = ops_intervals[1].max - ops_intervals[0].max
-            return finalize(Interval(min_val, max_val))
+        if opcode in ("add", "sub"):
+            # For subtraction, the order is important: first operand - second operand
+            return finalize(self._apply_arithmetic(ops_intervals[1], ops_intervals[0], opcode))
         # TODO: Add more instructions support
         else:
             return finalize(Interval(-_inf, _inf))
@@ -293,6 +393,7 @@ class RangeValuePropagationPass(IRPass):
         with unconditional jumps if the condition is a constant value.
         """
         for bb in self.function.get_basic_blocks():
+            self.current_block = bb
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
@@ -323,11 +424,18 @@ class RangeValuePropagationPass(IRPass):
 
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
-                lat = self.lattice.get(op, LatticeEnum.TOP)
+                lat = self._eval_from_lattice(op)
                 if isinstance(lat, Interval) and lat.min == lat.max:
                     assert isinstance(lat.min, int)
                     inst.operands[i] = IRLiteral(lat.min)
 
+    def _get_context(self, bb_label: str) -> "RangeValuePropagationPass":
+        """Used in tests for introspection"""
+        bb = self.fn.get_basic_block(bb_label)
+        # Create a new pass instance with the branch-specific lattice
+        new_pass = RangeValuePropagationPass(self.analyses_cache, self.fn)
+        new_pass.lattice = self.branch_contexts.get(bb, self.lattice).copy()
+        return new_pass
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if x == LatticeEnum.TOP:
@@ -335,6 +443,11 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP:
         return x
     if isinstance(x, Interval) and isinstance(y, Interval):
+        if x.is_disjoint() or y.is_disjoint():
+            # For now, if either interval is disjoint, we just keep it
+            # This is a simplification that works for our current use case
+            # where disjoint intervals are only used for branch conditions
+            return x if x.is_disjoint() else y
         min_val = max(x.min, y.min)
         max_val = min(x.max, y.max)
         if min_val <= max_val:

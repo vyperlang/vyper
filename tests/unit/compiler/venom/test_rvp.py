@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
-from vyper.venom.basicblock import IRVariable
+from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes.rvp import Interval, RangeValuePropagationPass, _inf
 
 pytestmark = pytest.mark.hevm
@@ -109,12 +109,12 @@ def test_branch_range_propagation():
     assert rvp.lattice[IRVariable("%1")] == Interval(-_inf, _inf)
     assert rvp.lattice[IRVariable("%2")] == Interval(0, 0)
 
-    then_ctx = rvp.get_context("@then")
+    then_ctx = rvp._get_context("then")
     assert then_ctx.lattice[IRVariable("%1")] == Interval(-_inf, -1, 1, _inf)
     assert then_ctx.lattice[IRVariable("%2")] == Interval(0, 0)
     assert then_ctx.lattice[IRVariable("%3")] == Interval(-_inf, -1, 1, _inf)
 
-    else_ctx = rvp.get_context("@else")
+    else_ctx = rvp._get_context("else")
     assert else_ctx.lattice[IRVariable("%1")] == Interval(0, 0)
     assert else_ctx.lattice[IRVariable("%2")] == Interval(0, 0)
     assert else_ctx.lattice[IRVariable("%4")] == Interval(0, 0)
