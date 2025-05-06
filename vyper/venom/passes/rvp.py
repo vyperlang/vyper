@@ -169,10 +169,11 @@ class RangeValuePropagationPass(IRPass):
         self.lattice[op] = value
 
     def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
-        if isinstance(op, (IRLiteral, IRLabel)):
-            return op
-
-        assert isinstance(op, IRVariable), f"Not a variable: {op}"
+        if isinstance(op, IRLiteral):
+            return Interval(op.value, op.value)
+        if isinstance(op, IRLabel):
+            return Interval(-_inf, _inf)
+        assert isinstance(op, IRVariable)
         return self._lookup_from_lattice(op)
 
     def _visit_phi(self, inst: IRInstruction):
