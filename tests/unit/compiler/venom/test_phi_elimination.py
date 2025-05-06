@@ -201,6 +201,7 @@ def test_phi_elim_cannot_remove():
 
     _check_pre_post(pre, pre, hevm=False)
 
+
 def test_phi_elim_direct_loop():
     pre1 = """
     main:

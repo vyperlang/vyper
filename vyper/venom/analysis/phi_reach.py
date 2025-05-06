@@ -17,10 +17,13 @@ class PhiReachingAnalysis(IRAnalysis):
                 self._handle_phi(inst)
 
     def _handle_phi(self, inst: IRInstruction):
-        visited = set()
+        assert inst.opcode == "phi"
+        visited: set[IRInstruction] = set()
         self._handle_inst_r(inst, visited)
 
-    def _handle_inst_r(self, inst: IRInstruction, visited: set[IRInstruction]) -> set[IRInstruction]:
+    def _handle_inst_r(
+        self, inst: IRInstruction, visited: set[IRInstruction]
+    ) -> set[IRInstruction]:
         if inst.opcode == "phi":
             if inst in visited:
                 return self.phi_to_origins[inst].copy()
