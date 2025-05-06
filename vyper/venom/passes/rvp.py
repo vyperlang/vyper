@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, eval_arith
+from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS
 
 _inf = float("inf")
 
@@ -269,6 +269,7 @@ class RangeValuePropagationPass(IRPass):
             ops_intervals.append(interval)
 
         # Compute result based on opcode
+        # Dummy simple implementation fix overflows etc
         if opcode == "add":
             min_val = ops_intervals[0].min + ops_intervals[1].min
             max_val = ops_intervals[0].max + ops_intervals[1].max
