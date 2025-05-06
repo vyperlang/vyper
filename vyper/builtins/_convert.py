@@ -244,6 +244,9 @@ def _literal_decimal(expr, arg_typ, out_typ):
         val = decimal.Decimal(int(expr.value, 16))
     else:
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
+        # decimal.Decimal() can't be constructed from bytes
+        # this assert guards against a potential constructor change
+        assert not isinstance(expr.value, bytes)
         val *= DECIMAL_DIVISOR
 
     # sanity check type checker did its job
