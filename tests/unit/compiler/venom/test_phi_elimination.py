@@ -177,6 +177,7 @@ def test_phi_elim_loop_inner_phi_simple():
 
     _check_pre_post(pre, post)
 
+
 def test_phi_elim_cannot_remove():
     pre = """
     main:

@@ -35,22 +35,18 @@ class PhiReachingAnalysis(IRAnalysis):
             assert src is not None
             srcs.add(src)
 
-        # could this be achieved with store elim?
-        # pass through the assigns
-        while any(i.opcode == "store" and isinstance(i.operands[0], IRVariable) for i in srcs):
-            for src in list(srcs):
-                if src.opcode != "store":
-                    continue
-                if not isinstance(src.operands[0], IRVariable):
-                    continue
-
+        # pass through the assigns so we
+        # have only canonical source for
+        # operands (not done via store elimination
+        # since that stops at phis
+        for src in list(srcs):
+            srcs.remove(src)
+            while src.opcode == "store" and isinstance(src.operands[0], IRVariable):
                 next_var = src.operands[0]
-                srcs.remove(src)
-
                 next_src = self.dfg.get_producing_instruction(next_var)
                 assert next_src is not None
-
-                srcs.add(next_src)
+                src = next_src
+            srcs.add(src)
 
         self.phi_to_origins[inst] = srcs
 
