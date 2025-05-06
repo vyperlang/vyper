@@ -25,6 +25,19 @@ class PhiReachingAnalysis(IRAnalysis):
                     continue
                 self._starting_reach(inst)
 
+    # TOOD: maybe we want to add this as a util method to DFGAnalysis
+    def _get_store_root(self, inst: IRInstruction) -> IRInstruction:
+        # pass through the assigns so we
+        # have only canonical source for
+        # operands (not done via store elimination
+        # since that stops at phis
+        while inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
+            next_var = inst.operands[0]
+            next_inst = self.dfg.get_producing_instruction(next_var)
+            assert next_inst is not None
+            inst = next_inst
+        return inst
+
     def _starting_reach(self, inst: IRInstruction):
         assert inst.opcode == "phi"
         inputs = set(var for _, var in inst.phi_operands)
@@ -33,34 +46,19 @@ class PhiReachingAnalysis(IRAnalysis):
         for op in inputs:
             src = self.dfg.get_producing_instruction(op)
             assert src is not None
-            srcs.add(src)
-
-        # pass through the assigns so we
-        # have only canonical source for
-        # operands (not done via store elimination
-        # since that stops at phis
-        for src in list(srcs):
-            srcs.remove(src)
-            while src.opcode == "store" and isinstance(src.operands[0], IRVariable):
-                next_var = src.operands[0]
-                next_src = self.dfg.get_producing_instruction(next_var)
-                assert next_src is not None
-                src = next_src
-            srcs.add(src)
+            srcs.add(self._get_store_root(src))
 
         self.phi_to_origins[inst] = srcs
 
     def _step(self, inst: IRInstruction) -> bool:
-        srcs = self.phi_to_origins.get(inst, None)
-        assert srcs is not None
+        srcs = self.phi_to_origins[inst]
         srcs = srcs.copy()
 
         for src in srcs:
             if src.opcode != "phi":
                 continue
-            next_srcs = self.phi_to_origins.get(src)
-            assert next_srcs is not None
+            next_srcs = self.phi_to_origins[src]
             self.phi_to_origins[inst].remove(src)
-            self.phi_to_origins[inst] = self.phi_to_origins[inst].union(next_srcs)
+            self.phi_to_origins[inst] |= next_srcs
 
         return srcs != self.phi_to_origins[inst]
