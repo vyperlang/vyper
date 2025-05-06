@@ -275,8 +275,8 @@ class RangeValuePropagationPass(IRPass):
             max_val = ops_intervals[0].max + ops_intervals[1].max
             return finalize(Interval(min_val, max_val))
         elif opcode == "sub":
-            min_val = ops_intervals[0].min - ops_intervals[1].max
-            max_val = ops_intervals[0].max - ops_intervals[1].min
+            min_val = ops_intervals[1].min - ops_intervals[0].min
+            max_val = ops_intervals[1].max - ops_intervals[0].max
             return finalize(Interval(min_val, max_val))
         # TODO: Add more instructions support
         else:
