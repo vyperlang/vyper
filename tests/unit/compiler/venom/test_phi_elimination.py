@@ -1,11 +1,7 @@
-import pytest
-
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import PhiEliminationPass
 
-pytestmark = pytest.mark.hevm
-
-_check_pre_post = PrePostChecker([PhiEliminationPass])
+_check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 
 
 def test_phi_elim_loop():
