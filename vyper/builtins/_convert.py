@@ -226,7 +226,7 @@ def _literal_int(expr, arg_typ, out_typ):
     else:  # pragma: no cover
         raise CompilerPanic("unreachable")
 
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
