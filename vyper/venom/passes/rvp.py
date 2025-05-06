@@ -18,7 +18,8 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.sccp.eval import ARITHMETIC_OPS, eval_arith
 
-_inf = float('inf')
+_inf = float("inf")
+
 
 @dataclass
 class Interval:
@@ -43,8 +44,10 @@ class Interval:
 class LatticeEnum(Enum):
     TOP = 1
 
+
 LatticeItem = Union[LatticeEnum, Interval]
 Lattice = dict[IRVariable, LatticeItem]
+
 
 @dataclass
 class SSAWorkListItem:
@@ -58,6 +61,8 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
+
+
 class RangeValuePropagationPass(IRPass):
     """
     This class implements the Sparse Conditional Constant Propagation
@@ -204,40 +209,30 @@ class RangeValuePropagationPass(IRPass):
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
-
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
-                for out_bb in self.cfg.cfg_out(inst.parent):
-                    self.work_list.append(FlowWorkItem(inst.parent, out_bb))
-            else:
-                assert isinstance(lat, IRLiteral)  # sanity
-                if lat.value == 0:
-                    # jnz False branch
-                    target = self.fn.get_basic_block(inst.operands[2].name)
-                else:
-                    # jnz True branch (any nonzero condition)
+            assert lat != LatticeEnum.TOP, f"Undefined var at jnz at {inst.parent}"
+            if isinstance(lat, Interval):
+                if lat.min > 0 or lat.max < 0:  # Always true (non-zero)
                     target = self.fn.get_basic_block(inst.operands[1].name)
-                self.work_list.append(FlowWorkItem(inst.parent, target))
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                elif lat.min == 0 and lat.max == 0:  # Always false
+                    target = self.fn.get_basic_block(inst.operands[2].name)
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                else:
+                    for out_bb in self.cfg.cfg_out(inst.parent):
+                        self.work_list.append(FlowWorkItem(inst.parent, out_bb))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
-                for op in inst.operands[1:]:
-                    target = self.fn.get_basic_block(op.name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
-            elif isinstance(lat, IRLiteral):
-                raise CompilerPanic("Unimplemented djmp with literal")
-
-        elif opcode in ["param", "calldataload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
+            assert lat != LatticeEnum.TOP
+            return  # Leave as is for now
+        elif opcode in ["param", "calldataload", "mload"]:
+            assert isinstance(inst.output, IRVariable)
+            self.lattice[inst.output] = Interval(-_inf, _inf)
             self._add_ssa_work_items(inst)
-        elif opcode == "mload":
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
             if inst.output is not None:
-                self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+                self._set_lattice(inst.output, Interval(-_inf, _inf))
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -256,31 +251,35 @@ class RangeValuePropagationPass(IRPass):
             return ret
 
         opcode = inst.opcode
-        ops: list[IRLiteral] = []
+        if opcode not in ARITHMETIC_OPS:
+            return finalize(Interval(-_inf, _inf))
+
+        ops_intervals = []
         for op in inst.operands:
-            # Evaluate the operand according to the lattice
-            if isinstance(op, IRLabel):
-                return finalize(LatticeEnum.BOTTOM)
+            if isinstance(op, IRLiteral):
+                interval = Interval(op.value, op.value)
             elif isinstance(op, IRVariable):
-                eval_result = self.lattice[op]
-            else:
-                assert isinstance(op, IRLiteral)  # clarity
-                eval_result = op
+                lat = self.lattice.get(op, LatticeEnum.TOP)
+                if lat == LatticeEnum.TOP:
+                    return finalize(LatticeEnum.TOP)
+                assert isinstance(lat, Interval)
+                interval = lat
+            else:  # e.g., IRLabel
+                return finalize(Interval(-_inf, _inf))
+            ops_intervals.append(interval)
 
-            # The value from the lattice should have evaluated to BOTTOM
-            # or a literal by now.
-            # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
-            if eval_result is LatticeEnum.BOTTOM:
-                return finalize(LatticeEnum.BOTTOM)
-
-            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
-            ops.append(eval_result)
-
-        # If we haven't found BOTTOM yet, evaluate the operation
-        assert all(isinstance(op, IRLiteral) for op in ops)
-        res = IRLiteral(eval_arith(opcode, ops))
-        return finalize(res)
+        # Compute result based on opcode
+        if opcode == "add":
+            min_val = ops_intervals[0].min + ops_intervals[1].min
+            max_val = ops_intervals[0].max + ops_intervals[1].max
+            return finalize(Interval(min_val, max_val))
+        elif opcode == "sub":
+            min_val = ops_intervals[0].min - ops_intervals[1].max
+            max_val = ops_intervals[0].max - ops_intervals[1].min
+            return finalize(Interval(min_val, max_val))
+        # TODO: Add more instructions support
+        else:
+            return finalize(Interval(-_inf, _inf))
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
@@ -297,44 +296,36 @@ class RangeValuePropagationPass(IRPass):
                 self._replace_constants(inst)
 
     def _replace_constants(self, inst: IRInstruction):
-        """
-        This method replaces constant values in the instruction with
-        their actual values. It also updates the instruction opcode in
-        case of jumps and asserts as needed.
-        """
         if inst.opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
-
-            if isinstance(lat, IRLiteral):
-                if lat.value == 0:
-                    target = inst.operands[2]
-                else:
-                    target = inst.operands[1]
-                inst.opcode = "jmp"
-                inst.operands = [target]
-
-                self.cfg_dirty = True
-
+            if isinstance(lat, Interval):
+                if lat.min > 0 or lat.max < 0:  # Always true
+                    inst.opcode = "jmp"
+                    inst.operands = [inst.operands[1]]
+                    self.cfg_dirty = True
+                elif lat.min == 0 and lat.max == 0:  # Always false
+                    inst.opcode = "jmp"
+                    inst.operands = [inst.operands[2]]
+                    self.cfg_dirty = True
         elif inst.opcode in ("assert", "assert_unreachable"):
             lat = self._eval_from_lattice(inst.operands[0])
-
-            if isinstance(lat, IRLiteral):
-                if lat.value > 0:
-                    inst.make_nop()
-                else:
+            if isinstance(lat, Interval):
+                if lat.min == 0 and lat.max == 0:  # Always fails
                     raise StaticAssertionException(
-                        f"assertion found to fail at compile time ({inst.error_msg}).",
+                        f"assertion fails at compile time ({inst.error_msg}).",
                         inst.get_ast_source(),
                     )
-
+                elif lat.min > 0 or lat.max < 0:  # Always true
+                    inst.make_nop()
         elif inst.opcode == "phi":
             return
 
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
-                lat = self.lattice[op]
-                if isinstance(lat, IRLiteral):
-                    inst.operands[i] = lat
+                lat = self.lattice.get(op, LatticeEnum.TOP)
+                if isinstance(lat, Interval) and lat.min == lat.max:
+                    assert isinstance(lat.min, int)
+                    inst.operands[i] = IRLiteral(lat.min)
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
