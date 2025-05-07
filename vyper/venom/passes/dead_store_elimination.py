@@ -73,8 +73,8 @@ class DeadStoreElimination(IRPass):
 
     def _identify_dead_stores(self):
         """
-        Analyzes each basic block to find stores that are overwritten before being used
-        or have no effect on the program's behavior.
+        Analyzes each basic block to find stores that are overwritten before
+        being used or have no effect on the program's behavior.
         """
         for bb in self.cfg.dfs_pre_walk:
             if bb not in self.mem_ssa.memory_defs:
