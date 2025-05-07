@@ -3,17 +3,17 @@ import pytest
 from tests.venom_utils import parse_from_basic_block
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import StoreExpansionPass
+from vyper.venom.passes import SingleUseExpansion
 
 
-def test_store_expansion():
+def test_single_use_Expansion():
     """
     Test to was created from the example in the
     issue https://github.com/vyperlang/vyper/issues/4215
-    it issue is handled by StoreExpansionPass
+    it issue is handled by the SingleUseExpansion pass
 
     Originally it was handled by different reorder algorithm
-    which is not necessary with store expansion
+    which is not necessary with single-use expansion
     """
 
     code = """
@@ -43,6 +43,6 @@ def test_store_expansion():
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        StoreExpansionPass(ac, fn).run_pass()
+        SingleUseExpansion(ac, fn).run_pass()
 
     generate_assembly_experimental(ctx)
