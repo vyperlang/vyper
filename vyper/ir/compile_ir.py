@@ -152,10 +152,10 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
     # of the runtime code.
     # after the ctor has run but before copying runtime code to
     # memory, the layout is
-    # | <ctor memory>                    | <runtime immutable data section>
+    # | <ctor memory>       | <runtime immutable data section>
     # and after copying runtime code to memory (immediately before
     # returning the runtime code):
-    # | <ctor memory> |<- <runtime code> | <runtime immutable data section>
+    # | <runtime code>      | <runtime immutable data section>
     # since the ctor memory variables and runtime code overlap,
     # we start allocating the data section from
     # `max(ctor_mem_size, runtime_code_size)`
