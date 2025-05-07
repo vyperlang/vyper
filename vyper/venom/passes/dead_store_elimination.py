@@ -28,18 +28,17 @@ class DeadStoreElimination(IRPass):
 
     def _preprocess_never_used_stores(self):
         all_defs = OrderedSet[MemoryDef]()
+        used_defs = OrderedSet[MemoryDef]()
+        
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_defs:
                 all_defs.update(self.mem_ssa.memory_defs[bb])
-
-        used_defs = OrderedSet[MemoryDef]()
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_uses:
                 for mem_use in self.mem_ssa.memory_uses[bb]:
                     for mem_def in all_defs:
                         if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
                             used_defs.add(mem_def)
-
             for succ in self.cfg.cfg_out(bb):
                 if succ in self.mem_ssa.memory_phis:
                     phi = self.mem_ssa.memory_phis[succ]
@@ -65,19 +64,15 @@ class DeadStoreElimination(IRPass):
 
                 write_effects = inst.get_write_effects()
                 read_effects = inst.get_read_effects()
-
                 has_other_effects = write_effects & OTHER_EFFECTS or read_effects & OTHER_EFFECTS
 
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
-                        # Only add the reaching definition to live_defs
-                        # if it aliases with the use location
                         if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
                             live_defs.add(mem_use.reaching_def)
 
                 if mem_def and not mem_def.loc.is_volatile:
                     if has_other_effects:
-                        # Don't mark as dead if it has other effects
                         live_defs.add(mem_def)
                     else:
                         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
@@ -98,10 +93,8 @@ class DeadStoreElimination(IRPass):
             return self.mem_ssa.memory_defs[bb][-1]
         if bb in self.mem_ssa.memory_phis:
             return self.mem_ssa.memory_phis[bb]
-        if self.cfg.cfg_in(bb):
-            idom = self.mem_ssa.dom.immediate_dominators.get(bb)
-            return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
-        return self.mem_ssa.live_on_entry
+        idom = self.mem_ssa.dom.immediate_dominators.get(bb)
+        return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
 
     def _remove_dead_stores(self):
         """Remove identified dead stores from the IR"""
