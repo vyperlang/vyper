@@ -4,8 +4,8 @@ from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
     PUSH_OFST,
-    is_mem_sym,
     PUSHLABEL,
+    AssemblyInstruction,
     DataHeader,
     Instruction,
     Label,
@@ -128,9 +128,11 @@ def _as_asm_symbol(label: IRLabel) -> Label:
     # Lower an IRLabel to an assembly symbol
     return Label(label.value)
 
+
 def _ofst(label: str | Label, value: int) -> list[Any]:
     # resolve at compile time using magic PUSH_OFST op
     return [PUSH_OFST(label, value)]
+
 
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
@@ -177,7 +179,12 @@ class VenomCompiler:
             asm.extend([Label("ctor_exit")])
             if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
                 asm.extend(
-                    [PUSHLABEL(Label("subcode_size")), PUSHLABEL(Label("runtime_begin")), "_mem_deploy_start", "CODECOPY"]
+                    [
+                        PUSHLABEL(Label("subcode_size")),
+                        PUSHLABEL(Label("runtime_begin")),
+                        "_mem_deploy_start",
+                        "CODECOPY",
+                    ]
                 )
                 asm.extend(_ofst(Label("subcode_size"), ctx.immutables_len))  # stack: len
                 asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
@@ -397,7 +404,7 @@ class VenomCompiler:
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
     ) -> list[str]:
-        assembly: list[str | int] = []
+        assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
 
         #
@@ -548,12 +555,7 @@ class VenomCompiler:
             ), f"invoke target must be a label (is ${type(target)} ${target})"
             return_label = Label(f"label_ret_{self.label_counter}")
             assembly.extend(
-                [
-                    PUSHLABEL(return_label),
-                    PUSHLABEL(_as_asm_symbol(target)),
-                    "JUMP",
-                    return_label,
-                ]
+                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", return_label]
             )
             self.label_counter += 1
         elif opcode == "ret":

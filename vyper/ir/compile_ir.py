@@ -89,6 +89,7 @@ class PUSHLABEL:
     def __hash__(self):
         return hash(self.label)
 
+
 class PUSH_OFST:
     def __init__(self, label: Label | str, ofst: int):
         # label can be Label or (temporarily) str, until
@@ -111,6 +112,8 @@ class PUSH_OFST:
     def __hash__(self):
         return hash((self.label, self.ofst))
 
+
+AssemblyInstruction = str | int | Label | PUSHLABEL | PUSH_OFST
 
 
 def mksymbol(name=""):
@@ -597,7 +600,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
 
         # COPY the code to memory for deploy
-        o.extend([PUSHLABEL(Label("subcode_size")), PUSHLABEL(runtime_begin), "_mem_deploy_start", "CODECOPY"])
+        o.extend(
+            [
+                PUSHLABEL(Label("subcode_size")),
+                PUSHLABEL(runtime_begin),
+                "_mem_deploy_start",
+                "CODECOPY",
+            ]
+        )
 
         # calculate the len of runtime code
         o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))  # stack: len
@@ -783,9 +793,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # "djump" compiles to a raw EVM jump instruction
         jump_target = code.args[0]
-        o.extend(
-            _compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height)
-        )
+        o.extend(_compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height))
         o.append("JUMP")
         return o
     # push a literal symbol
@@ -972,7 +980,10 @@ def _merge_jumpdests(assembly):
                 new_symbol = assembly[i + 1]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
-                        if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
+                        if (
+                            isinstance(assembly[j], PUSHLABEL)
+                            and assembly[j].label == current_symbol
+                        ):
                             assembly[j].label = new_symbol
                             changed = True
             elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
@@ -1264,7 +1275,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     # and use that to calculate mem_ofst_size.
     mem_ofst_size, ctor_mem_size = None, None
     max_mem_ofst = 0
-    for i, item in enumerate(assembly):
+    for item in assembly:
         if isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
@@ -1382,8 +1393,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
-    for i, item in enumerate(assembly):
-
+    for item in assembly:
         if item in ("DEBUG",):
             continue  # skippable opcodes
 
