@@ -18,7 +18,6 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     BytesM_T,
-    BytesT,
     DArrayT,
     DecimalT,
     HashMapT,
@@ -26,6 +25,7 @@ from vyper.semantics.types import (
     InterfaceT,
     StructT,
     TupleT,
+    VyperType,
     _BytestringT,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
@@ -71,6 +71,23 @@ def is_array_like(typ):
     return ret
 
 
+class _InternalBufferT(VyperType):
+    buf_size: int
+
+    def __init__(self, buf_size):
+        assert buf_size >= 0
+        self.buf_size = ceil32(buf_size)
+
+    @property
+    def size_in_bytes(self):
+        return self.buf_size
+
+    def get_size_in(self, location: DataLocation) -> int:
+        if location != MEMORY:
+            raise CompilerPanic("internal buffer should only be used in memory!")
+        return super().get_size_in(location)
+
+
 def get_type_for_exact_size(n_bytes):
     """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
 
@@ -79,7 +96,7 @@ def get_type_for_exact_size(n_bytes):
     Returns:
       type: A type which can be passed to context.new_variable
     """
-    return BytesT(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
+    return _InternalBufferT(n_bytes)
 
 
 # propagate revert message when calls to external contracts fail
