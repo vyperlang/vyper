@@ -174,6 +174,10 @@ class IRLiteral(IROperand):
         assert isinstance(value, int), value
         super().__init__(value)
 
+    def __repr__(self) -> str:
+        if abs(self.value) < 1024:
+            return str(self.value)
+        return f"0x{self.value:x}"
 
 class IRVariable(IROperand):
     """
