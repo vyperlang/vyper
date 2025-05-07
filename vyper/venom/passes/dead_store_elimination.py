@@ -160,8 +160,6 @@ class DeadStoreElimination(IRPass):
                     for mem_def in self.mem_ssa.memory_defs[bb]
                     if mem_def.store_inst not in self.dead_stores
                 ]
-                if (
-                    self.mem_ssa.current_def.get(bb)
-                    and self.mem_ssa.current_def[bb].store_inst in self.dead_stores
-                ):
+                current_def = self.mem_ssa.current_def.get(bb)
+                if current_def is not None and current_def.store_inst in self.dead_stores:
                     self.mem_ssa.current_def[bb] = self._get_previous_def(bb)
