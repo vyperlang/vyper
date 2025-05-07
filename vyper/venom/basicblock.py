@@ -354,7 +354,9 @@ class IRInstruction:
         elif opcode == "dloadbytes":
             return FULL_MEMORY_ACCESS
         elif opcode == "dload":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
@@ -393,7 +395,7 @@ class IRInstruction:
         elif opcode == "dloadbytes":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "dload":
-            return EMPTY_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
