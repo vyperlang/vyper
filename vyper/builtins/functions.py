@@ -1054,6 +1054,18 @@ class RawCall(BuiltinFunctionT):
         data_type = get_possible_types_from_node(node.args[1]).pop()
         return [self._inputs[0][1], data_type]
 
+    # get the mutability, which is determined at a specific call site
+    def get_mutability_at_call_site(self, node: vy_ast.Call):
+        kw = {k.arg: k.value for k in node.keywords}
+
+        is_static = kw.get("is_static_call", None)
+        is_static = is_static.get_folded_value() if is_static else False
+
+        if is_static:
+            return StateMutability.VIEW
+
+        return StateMutability.NONPAYABLE
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
@@ -1589,6 +1601,14 @@ class RawCreate(_CreateBase):
         args = [ensure_in_memory(arg, context) for arg in args]
         initcode = args[0]
         ctor_args = args[1:]
+
+        if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            # value or salt could be expressions which trample the initcode
+            # buffer. cf. test_raw_create_memory_overlap
+            # note that potential_overlap is overly conservative, since it
+            # checks for the existence of calls (which are not applicable
+            # here, since `initcode` is guaranteed to be in memory).
+            initcode = create_memory_copy(initcode, context)
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)

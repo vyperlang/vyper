@@ -22,6 +22,14 @@ class InstUpdater:
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
         self.update(inst, inst.opcode, new_operands, annotation=annotation)
 
+    # move the uses of old_var to new_inst
+    def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
+        assert new_inst.output is not None
+        new_var = new_inst.output
+
+        for use in list(self.dfg.get_uses(old_var)):
+            self.update_operands(use, {old_var: new_var})
+
     def update(
         self,
         inst: IRInstruction,
@@ -69,7 +77,7 @@ class InstUpdater:
 
         return inst
 
-    def nop(self, inst: IRInstruction, annotation: str = ""):
+    def nop(self, inst: IRInstruction, ignore_uses=False, annotation: str = ""):
         inst.annotation = str(inst) + " " + annotation
         self.update(inst, "nop", [])
 

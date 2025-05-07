@@ -20,6 +20,7 @@ class DominatorTreeAnalysis(IRAnalysis):
     immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    cfg: CFGAnalysis
 
     def analyze(self):
         """
@@ -33,6 +34,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominator_frontiers = {}
 
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
         self.cfg_post_walk = list(self.cfg.dfs_post_walk)
         self.cfg_post_order = {bb: idx for idx, bb in enumerate(self.cfg_post_walk)}
 
@@ -53,11 +55,11 @@ class DominatorTreeAnalysis(IRAnalysis):
 
         return result
 
-    def dominates(self, bb1, bb2):
+    def dominates(self, dom, sub):
         """
-        Check if bb1 dominates bb2.
+        Check if `dom` dominates `sub`.
         """
-        return bb2 in self.dominators[bb1]
+        return dom in self.dominators[sub]
 
     def immediate_dominator(self, bb):
         """
@@ -82,7 +84,7 @@ class DominatorTreeAnalysis(IRAnalysis):
             for bb in basic_blocks:
                 if bb == self.entry_block:
                     continue
-                preds = bb.cfg_in
+                preds = self.cfg.cfg_in(bb)
                 if len(preds) == 0:
                     continue
                 new_dominators = OrderedSet.intersection(*[self.dominators[pred] for pred in preds])
@@ -115,8 +117,8 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
 
         for bb in self.cfg_post_walk:
-            if len(bb.cfg_in) > 1:
-                for pred in bb.cfg_in:
+            if len(in_bbs := self.cfg.cfg_in(bb)) > 1:
+                for pred in in_bbs:
                     runner = pred
                     while runner != self.immediate_dominators[bb]:
                         self.dominator_frontiers[runner].add(bb)

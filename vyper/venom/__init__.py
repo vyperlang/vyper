@@ -15,6 +15,7 @@ from vyper.venom.passes import (
     CSE,
     SCCP,
     AlgebraicOptimizationPass,
+    AssignElimination,
     BranchOptimizationPass,
     DFTPass,
     FloatAllocas,
@@ -24,12 +25,12 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    PhiEliminationPass,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
-    StoreElimination,
-    StoreExpansionPass,
+    SingleUseExpansion,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -63,13 +64,13 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     MakeSSA(ac, fn).run_pass()
     # run algebraic opts before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
     LoadElimination(ac, fn).run_pass()
 
@@ -79,7 +80,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     #     print(fn)
 
     SCCP(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -92,13 +93,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     #     print(fn)
 
     LowerDloadPass(ac, fn).run_pass()
-    # NOTE: MakeSSA is after algebraic optimization it currently produces
-    #       smaller code by adding some redundant phi nodes. This is not a
-    #       problem for us, but we need to be aware of it, and should be
-    #       removed when the dft pass is fixed to produce the smallest code
-    #       without making the code generation more expensive by running
-    #       MakeSSA again.
-    MakeSSA(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
@@ -106,11 +100,12 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    StoreElimination(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
-    StoreExpansionPass(ac, fn).run_pass()
+    SingleUseExpansion(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
         ReduceLiteralsCodesize(ac, fn).run_pass()
