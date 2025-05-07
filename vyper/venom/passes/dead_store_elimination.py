@@ -54,6 +54,7 @@ class DeadStoreElimination(IRPass):
         for block in self.cfg.dfs_pre_walk:
             mem_uses = self.mem_ssa.memory_uses.get(block, [])
             for mem_use in mem_uses:
+                # TODO: update this to use alias sets instead of may_alias
                 for mem_def in all_defs:
                     if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
                         used_defs.add(mem_def)
