@@ -27,31 +27,36 @@ class DeadStoreElimination(IRPass):
         self._remove_dead_stores()
 
     def _preprocess_never_used_stores(self):
+        all_defs = self._collect_all_defs()
+        used_defs = self._collect_used_defs(all_defs)
+        never_used_defs = all_defs - used_defs
+
+        for mem_def in never_used_defs:
+            if not mem_def.loc.is_volatile:
+                self.dead_stores.add(mem_def.store_inst)
+            
+    def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         all_defs = OrderedSet[MemoryDef]()
+        for block in self.cfg.dfs_pre_walk:
+            if block in self.mem_ssa.memory_defs:
+                all_defs.update(self.mem_ssa.memory_defs[block])
+        return all_defs
+
+    def _collect_used_defs(self, all_defs: OrderedSet[MemoryDef]) -> OrderedSet[MemoryDef]:
         used_defs = OrderedSet[MemoryDef]()
-
-        for bb in self.cfg.dfs_pre_walk:
-            if bb in self.mem_ssa.memory_defs:
-                all_defs.update(self.mem_ssa.memory_defs[bb])
-
-        for bb in self.cfg.dfs_pre_walk:
-            if bb in self.mem_ssa.memory_uses:
-                for mem_use in self.mem_ssa.memory_uses[bb]:
+        for block in self.cfg.dfs_pre_walk:
+            if block in self.mem_ssa.memory_uses:
+                for mem_use in self.mem_ssa.memory_uses[block]:
                     for mem_def in all_defs:
                         if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
                             used_defs.add(mem_def)
-            for succ in self.cfg.cfg_out(bb):
+            for succ in self.cfg.cfg_out(block):
                 if succ in self.mem_ssa.memory_phis:
                     phi = self.mem_ssa.memory_phis[succ]
                     for op_def, pred in phi.operands:
-                        if pred == bb and op_def in self.mem_ssa.memory_defs.get(bb, []):
+                        if pred == block and op_def in self.mem_ssa.memory_defs.get(block, []):
                             used_defs.add(op_def)
-
-        never_used_defs = all_defs - used_defs
-        for mem_def in never_used_defs:
-            if mem_def.loc.is_volatile:
-                continue
-            self.dead_stores.add(mem_def.store_inst)
+        return used_defs
 
     def _identify_dead_stores(self):
         for bb in self.cfg.dfs_pre_walk:
