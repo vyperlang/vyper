@@ -3,6 +3,7 @@ from typing import Any, Iterable
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
+    PUSH_OFST,
     is_mem_sym,
     PUSHLABEL,
     DataHeader,
@@ -128,12 +129,8 @@ def _as_asm_symbol(label: IRLabel) -> Label:
     return Label(label.value)
 
 def _ofst(label: str | Label, value: int) -> list[Any]:
-    if isinstance(label, str) and is_mem_sym(label):
-        pushlabel = label  # _mem_foo is still magic
-    else:
-        pushlabel = PUSHLABEL(label)
-    return [pushlabel, *PUSH(value), "ADD"]
-
+    # resolve at compile time using magic PUSH_OFST op
+    return [PUSH_OFST(label, value)]
 
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
