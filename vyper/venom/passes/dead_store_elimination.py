@@ -29,10 +29,11 @@ class DeadStoreElimination(IRPass):
     def _preprocess_never_used_stores(self):
         all_defs = OrderedSet[MemoryDef]()
         used_defs = OrderedSet[MemoryDef]()
-        
+
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_defs:
                 all_defs.update(self.mem_ssa.memory_defs[bb])
+
         for bb in self.cfg.dfs_pre_walk:
             if bb in self.mem_ssa.memory_uses:
                 for mem_use in self.mem_ssa.memory_uses[bb]:
