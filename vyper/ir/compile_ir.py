@@ -89,6 +89,29 @@ class PUSHLABEL:
     def __hash__(self):
         return hash(self.label)
 
+class PUSH_OFST:
+    def __init__(self, label: Label | str, ofst: int):
+        # label can be Label or (temporarily) str, until
+        # we clean up mem_syms.
+        assert isinstance(label, (Label, str))
+        self.label = label
+        self.ofst = ofst
+
+    def __repr__(self):
+        label = self.label
+        if isinstance(label, Label):
+            label = label.label  # str
+        return f"PUSH_OFST({label}, {self.ofst})"
+
+    def __eq__(self, other):
+        if not isinstance(other, PUSH_OFST):
+            return False
+        return self.label == other.label and self.ofst == other.ofst
+
+    def __hash__(self):
+        return hash((self.label, self.ofst))
+
+
 
 def mksymbol(name=""):
     Label._next_symbol += 1
@@ -117,8 +140,8 @@ def is_mem_sym(i):
     return isinstance(i, str) and i.startswith("_mem_")
 
 
-def is_ofst(sym):
-    return isinstance(sym, str) and sym == "_OFST"
+def is_ofst(assembly_item):
+    return isinstance(assembly_item, PUSH_OFST)
 
 
 def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
@@ -286,24 +309,23 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
     def _data_ofst_of(sym, ofst, height_):
-        # e.g. _OFST Label foo 32
+        # e.g. PUSHOFST foo 32
         assert is_symbol(sym) or is_mem_sym(sym), sym
 
-        # simple way -- reintroduce compile-time resolution later
-        ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        if isinstance(ofst.value, int):
+            # resolve at compile time using magic PUSH_OFST op
+            return [PUSH_OFST(sym, ofst.value)]
+
         if is_symbol(sym):
-            return ofst + [PUSHLABEL(sym), "ADD"]
+            pushsym = PUSHLABEL(sym)
         else:
             # magic for mem syms
-            return ofst + [sym, "ADD"]
+            assert is_mem_sym(sym)  # clarity
+            pushsym = sym
 
-        if isinstance(ofst.value, int):
-            # resolve at compile time using magic _OFST op
-            return ["_OFST", sym, ofst.value]
-        else:
-            # if we can't resolve at compile time, resolve at runtime
-            ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
-            return ofst + [sym, "ADD"]
+        # if we can't resolve at compile time, resolve at runtime
+        ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        return ofst + [pushsym, "ADD"]
 
     def _height_of(witharg):
         ret = height - withargs[witharg]
@@ -578,7 +600,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend([PUSHLABEL(Label("subcode_size")), PUSHLABEL(runtime_begin), "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))
+        o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
@@ -1257,8 +1279,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
 
-        if is_ofst(item) and is_mem_sym(assembly[i + 1]):
-            max_mem_ofst = max(assembly[i + 2], max_mem_ofst)
+        if is_ofst(item) and is_mem_sym(item.label):
+            max_mem_ofst = max(item.ofst, max_mem_ofst)
 
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
@@ -1302,10 +1324,10 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             # PUSH<n> item
             pc += mem_ofst_size + 1
         elif is_ofst(item):
-            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1]), assembly[i + 1]
-            assert isinstance(assembly[i + 2], int)
-            # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
-            # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
+            assert is_symbol(item.label) or is_mem_sym(item.label), item.label
+            assert isinstance(item.ofst, int), item
+            # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
+            # [PUSH_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             # we are in initcode
@@ -1381,10 +1403,10 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             ret.extend(bytecode)
 
         elif is_ofst(item):
-            # _OFST (LABEL foo) 32
-            # _OFST _mem_foo 32
-            ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
-            n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else SYMBOL_SIZE
+            # PUSH_OFST (LABEL foo) 32
+            # PUSH_OFST _mem_foo 32
+            ofst = symbol_map[item.label] + item.ofst
+            n = mem_ofst_size if is_mem_sym(item.label) else SYMBOL_SIZE
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             ret.extend(bytecode)
             to_skip = 2
