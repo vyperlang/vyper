@@ -1328,7 +1328,10 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             assert isinstance(item.ofst, int), item
             # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
             # [PUSH_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
-            pc -= 1
+            if is_symbol(item.label):
+                pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
+            else:
+                pc += mem_ofst_size + 1
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             # we are in initcode
             symbol_map[item[0].label] = pc
@@ -1380,11 +1383,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
-    to_skip = 0
     for i, item in enumerate(assembly):
-        if to_skip > 0:
-            to_skip -= 1
-            continue
 
         if item in ("DEBUG",):
             continue  # skippable opcodes
@@ -1399,6 +1398,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             ret.append(get_opcodes()["JUMPDEST"][0])
 
         elif is_mem_sym(item):
+            # TODO: use something like PUSH_MEM_SYM(?) for these.
             bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             ret.extend(bytecode)
 
@@ -1409,7 +1409,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             n = mem_ofst_size if is_mem_sym(item.label) else SYMBOL_SIZE
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             ret.extend(bytecode)
-            to_skip = 2
 
         elif isinstance(item, int):
             ret.append(item)
