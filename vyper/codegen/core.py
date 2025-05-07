@@ -72,11 +72,11 @@ def is_array_like(typ):
 
 
 class _InternalBufferT(VyperType):
-    buf_size: int
+    _invalid_locations = tuple(DataLocation)
 
-    def __init__(self, buf_size):
+    def __init__(self, buf_size: int):
         assert buf_size >= 0
-        self.buf_size = ceil32(buf_size)
+        self.buf_size: int = ceil32(buf_size)
 
         super().__init__(members=None)
 
@@ -84,10 +84,11 @@ class _InternalBufferT(VyperType):
     def size_in_bytes(self):
         return self.buf_size
 
-    def get_size_in(self, location: DataLocation) -> int:
-        if location != MEMORY:  # pragma: nocover
-            raise CompilerPanic("internal buffer should only be used in memory!")
-        return super().get_size_in(location)
+    def get_size_in(self, location: DataLocation) -> int:  # pragma: nocover
+        # get_size_in should only be called by semantic analysis. by the
+        # time we get to codegen, this should never be called. (if this
+        # assumption changes in the future, we can lift the restriction).
+        raise CompilerPanic("internal buffer should only be used in memory!")
 
 
 def get_type_for_exact_size(n_bytes):
