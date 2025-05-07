@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -34,6 +34,10 @@ class DeadStoreElimination(IRPass):
 
         for mem_def in never_used_defs:
             if not mem_def.loc.is_volatile:
+                inst = mem_def.store_inst
+                if self._has_uses(inst.output):
+                    continue
+                # REVIEW: maybe should not add to dead stores if there are non-memory effects
                 self.dead_stores.add(mem_def.store_inst)
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
@@ -41,6 +45,7 @@ class DeadStoreElimination(IRPass):
         Gathers all memory definitions across all basic blocks in the program.
         """
         all_defs = OrderedSet[MemoryDef]()
+        # note: traversal order does not particularly matter
         for block in self.cfg.dfs_pre_walk:
             if block in self.mem_ssa.memory_defs:
                 all_defs.update(self.mem_ssa.memory_defs[block])
@@ -96,7 +101,7 @@ class DeadStoreElimination(IRPass):
                         live_defs.add(mem_def)
                     else:
                         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                        if self._is_dead_store(mem_def, live_defs, clobbered_by):
+                        if self._is_dead_store(inst, mem_def, live_defs, clobbered_by):
                             self.dead_stores.add(inst)
 
             for inst in bb.instructions:
@@ -104,9 +109,19 @@ class DeadStoreElimination(IRPass):
                 if mem_def and mem_def in live_defs and inst in self.dead_stores:
                     self.dead_stores.remove(inst)
 
+    def _has_uses(self, var: Optional[IRVariable]):
+        return var is not None and len(self.dfg.get_uses(var)) > 0
+
     def _is_dead_store(
-        self, mem_def: MemoryDef, live_defs: set[MemoryDef], clobbered_by: Optional[MemoryAccess]
+        self,
+        inst: IRInstruction,
+        mem_def: MemoryDef,
+        live_defs: set[MemoryDef],
+        clobbered_by: Optional[MemoryAccess],
     ) -> bool:
+        if self._has_uses(inst.output):
+            return False
+
         return (
             mem_def not in live_defs
             and (clobbered_by is not None)
@@ -119,6 +134,9 @@ class DeadStoreElimination(IRPass):
         Finds the most recent memory definition that reaches a basic block,
         either from the block itself or from its dominators.
         """
+        # REVIEW - can this be the following?
+        # return self.mem_ssa._get_exit_def(bb)
+
         if bb in self.mem_ssa.memory_defs and self.mem_ssa.memory_defs[bb]:
             return self.mem_ssa.memory_defs[bb][-1]
         if bb in self.mem_ssa.memory_phis:
@@ -135,6 +153,7 @@ class DeadStoreElimination(IRPass):
             for inst in bb.instructions:
                 if inst in self.dead_stores:
                     self.updater.nop(inst, annotation="[dead store elimination]")
+            # update mem_ssa analysis
             if bb in self.mem_ssa.memory_defs:
                 self.mem_ssa.memory_defs[bb] = [
                     mem_def
