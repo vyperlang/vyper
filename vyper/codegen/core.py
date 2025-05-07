@@ -78,12 +78,14 @@ class _InternalBufferT(VyperType):
         assert buf_size >= 0
         self.buf_size = ceil32(buf_size)
 
+        super().__init__(members=None)
+
     @property
     def size_in_bytes(self):
         return self.buf_size
 
     def get_size_in(self, location: DataLocation) -> int:
-        if location != MEMORY:
+        if location != MEMORY:  # pragma: nocover
             raise CompilerPanic("internal buffer should only be used in memory!")
         return super().get_size_in(location)
 
