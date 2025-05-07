@@ -77,17 +77,21 @@ class DeadStoreElimination(IRPass):
                         live_defs.add(mem_def)
                     else:
                         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                        if (
-                            mem_def not in live_defs
-                            and clobbered_by
-                            and not clobbered_by.is_live_on_entry
-                            and not clobbered_by.is_volatile
-                        ):
+                        if self._is_dead_store(mem_def, live_defs, clobbered_by):
                             self.dead_stores.add(inst)
+
             for inst in bb.instructions:
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 if mem_def and mem_def in live_defs and inst in self.dead_stores:
                     self.dead_stores.remove(inst)
+
+    def _is_dead_store(self, mem_def: MemoryDef, live_defs: set[MemoryDef], clobbered_by: Optional[MemoryAccess]) -> bool:
+        return (
+            mem_def not in live_defs
+            and clobbered_by
+            and not clobbered_by.is_live_on_entry
+            and not clobbered_by.is_volatile
+        )
 
     def _get_previous_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
         if bb in self.mem_ssa.memory_defs and self.mem_ssa.memory_defs[bb]:
