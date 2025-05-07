@@ -27,6 +27,9 @@ class DeadStoreElimination(IRPass):
         self._remove_dead_stores()
 
     def _preprocess_never_used_stores(self):
+        """
+        Identifies and marks stores that are never used anywhere in the program.
+        """
         all_defs = self._collect_all_defs()
         used_defs = self._collect_used_defs(all_defs)
         never_used_defs = all_defs - used_defs
@@ -36,6 +39,9 @@ class DeadStoreElimination(IRPass):
                 self.dead_stores.add(mem_def.store_inst)
             
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
+        """
+        Gathers all memory definitions across all basic blocks in the program.
+        """
         all_defs = OrderedSet[MemoryDef]()
         for block in self.cfg.dfs_pre_walk:
             if block in self.mem_ssa.memory_defs:
@@ -43,6 +49,9 @@ class DeadStoreElimination(IRPass):
         return all_defs
 
     def _collect_used_defs(self, all_defs: OrderedSet[MemoryDef]) -> OrderedSet[MemoryDef]:
+        """
+        Identifies which memory definitions are actually used in the program
+        """
         used_defs = OrderedSet[MemoryDef]()
         for block in self.cfg.dfs_pre_walk:
             if block in self.mem_ssa.memory_uses:
@@ -59,6 +68,10 @@ class DeadStoreElimination(IRPass):
         return used_defs
 
     def _identify_dead_stores(self):
+        """
+        Analyzes each basic block to find stores that are overwritten before being used
+        or have no effect on the program's behavior.
+        """
         for bb in self.cfg.dfs_pre_walk:
             if bb not in self.mem_ssa.memory_defs:
                 continue
@@ -99,6 +112,10 @@ class DeadStoreElimination(IRPass):
         )
 
     def _get_previous_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
+        """
+        Finds the most recent memory definition that reaches a basic block,
+        either from the block itself or from its dominators.
+        """
         if bb in self.mem_ssa.memory_defs and self.mem_ssa.memory_defs[bb]:
             return self.mem_ssa.memory_defs[bb][-1]
         if bb in self.mem_ssa.memory_phis:
@@ -107,7 +124,10 @@ class DeadStoreElimination(IRPass):
         return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
 
     def _remove_dead_stores(self):
-        """Remove identified dead stores from the IR"""
+        """
+        Removes all identified dead stores from the IR and updates the memory SSA information
+        accordingly.
+        """
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst in self.dead_stores:
