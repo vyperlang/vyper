@@ -54,11 +54,11 @@ class DeadStoreElimination(IRPass):
         """
         used_defs = OrderedSet[MemoryDef]()
         for block in self.cfg.dfs_pre_walk:
-            if block in self.mem_ssa.memory_uses:
-                for mem_use in self.mem_ssa.memory_uses[block]:
-                    for mem_def in all_defs:
-                        if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
-                            used_defs.add(mem_def)
+            mem_uses = self.mem_ssa.memory_uses.get(block, [])
+            for mem_use in mem_uses:
+                for mem_def in all_defs:
+                    if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
+                        used_defs.add(mem_def)
             for succ in self.cfg.cfg_out(block):
                 if succ in self.mem_ssa.memory_phis:
                     phi = self.mem_ssa.memory_phis[succ]
