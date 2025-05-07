@@ -409,11 +409,10 @@ class IRInstruction:
             if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
                 return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
-        elif opcode in ("sha3", "sha3_64"):
-            size, src = self.operands[:2]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+        elif opcode == "sha3":
+            return MemoryLocation(offset=0, size=32)
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode.startswith("log"):
             size, src = self.operands[-2:]
             if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
