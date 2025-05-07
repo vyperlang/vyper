@@ -122,6 +122,8 @@ class DeadStoreElimination(IRPass):
         if self._has_uses(inst.output):
             return False
 
+        # REVIEW: seems cleaner to grab clobbered_by from self.mem_ssa
+        # instead of polluting the function signature.
         return (
             mem_def not in live_defs
             and (clobbered_by is not None)
@@ -162,4 +164,9 @@ class DeadStoreElimination(IRPass):
                 ]
                 current_def = self.mem_ssa.current_def.get(bb)
                 if current_def is not None and current_def.store_inst in self.dead_stores:
+                    # REVIEW: this does not seem consistent with how
+                    # current_def is populated in mem_ssa. in mem_ssa,
+                    # current_def can only ever refer to a MemoryDef in this
+                    # basic block, but here, it can be a MemoryPhi or the
+                    # exit def of the idom.
                     self.mem_ssa.current_def[bb] = self._get_previous_def(bb)
