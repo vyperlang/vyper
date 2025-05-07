@@ -107,9 +107,9 @@ class DeadStoreElimination(IRPass):
     def _is_dead_store(
         self, mem_def: MemoryDef, live_defs: set[MemoryDef], clobbered_by: Optional[MemoryAccess]
     ) -> bool:
-        return bool(
+        return (
             mem_def not in live_defs
-            and clobbered_by
+            and (clobbered_by is not None)
             and not clobbered_by.is_live_on_entry
             and not clobbered_by.is_volatile
         )
