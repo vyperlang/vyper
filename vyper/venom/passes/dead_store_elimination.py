@@ -132,21 +132,6 @@ class DeadStoreElimination(IRPass):
             and not clobbered_by.is_volatile
         )
 
-    def _get_previous_def(self, bb: IRBasicBlock) -> Optional[MemoryAccess]:
-        """
-        Finds the most recent memory definition that reaches a basic block,
-        either from the block itself or from its dominators.
-        """
-        # REVIEW - can this be the following?
-        # return self.mem_ssa._get_exit_def(bb)
-
-        if bb in self.mem_ssa.memory_defs and self.mem_ssa.memory_defs[bb]:
-            return self.mem_ssa.memory_defs[bb][-1]
-        if bb in self.mem_ssa.memory_phis:
-            return self.mem_ssa.memory_phis[bb]
-        idom = self.mem_ssa.dom.immediate_dominators.get(bb)
-        return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
-
     def _remove_dead_stores(self):
         """
         Removes all identified dead stores from the IR and updates the memory SSA information
@@ -170,4 +155,4 @@ class DeadStoreElimination(IRPass):
                     # current_def can only ever refer to a MemoryDef in this
                     # basic block, but here, it can be a MemoryPhi or the
                     # exit def of the idom.
-                    self.mem_ssa.current_def[bb] = self._get_previous_def(bb)
+                    self.mem_ssa.current_def[bb] = self.mem_ssa.get_exit_def(bb)
