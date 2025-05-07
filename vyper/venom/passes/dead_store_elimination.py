@@ -108,7 +108,7 @@ class DeadStoreElimination(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst in self.dead_stores:
-                    self.updater.nop(inst, "[dead store elimination]")
+                    self.updater.nop(inst, annotation="[dead store elimination]")
             if bb in self.mem_ssa.memory_defs:
                 self.mem_ssa.memory_defs[bb] = [
                     mem_def

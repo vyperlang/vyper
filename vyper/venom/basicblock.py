@@ -179,6 +179,7 @@ class IRLiteral(IROperand):
             return str(self.value)
         return f"0x{self.value:x}"
 
+
 class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
@@ -242,7 +243,9 @@ class MemoryLocation:
         if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
             return False
         assert self.size >= 0 and other.size >= 0, f"size is negative: {self.size} and {other.size}"
-        assert self.offset >= 0 and other.offset >= 0, f"offset is negative: {self.offset} and {other.offset}"
+        assert (
+            self.offset >= 0 and other.offset >= 0
+        ), f"offset is negative: {self.offset} and {other.offset}"
         start1, end1 = self.offset, self.offset + self.size
         start2, end2 = other.offset, other.offset + other.size
 
@@ -414,7 +417,10 @@ class IRInstruction:
                 return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
         elif opcode == "sha3":
-            return MemoryLocation(offset=0, size=32)
+            size, offset = self.operands
+            if isinstance(offset, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=offset.value, size=size.value)
+            return FULL_MEMORY_ACCESS
         elif opcode == "sha3_64":
             return MemoryLocation(offset=0, size=64)
         elif opcode.startswith("log"):

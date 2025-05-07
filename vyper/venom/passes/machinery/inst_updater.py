@@ -77,7 +77,7 @@ class InstUpdater:
 
         return inst
 
-    def nop(self, inst: IRInstruction, ignore_uses=False, annotation: str = ""):
+    def nop(self, inst: IRInstruction, annotation: str = ""):
         inst.annotation = str(inst) + " " + annotation
         self.update(inst, "nop", [])
 
