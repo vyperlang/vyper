@@ -4,10 +4,8 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.venom.effects import Effects
+from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-
-OTHER_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
 
 
 class DeadStoreElimination(IRPass):
@@ -37,7 +35,7 @@ class DeadStoreElimination(IRPass):
         for mem_def in never_used_defs:
             if not mem_def.loc.is_volatile:
                 self.dead_stores.add(mem_def.store_inst)
-            
+
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         """
         Gathers all memory definitions across all basic blocks in the program.
@@ -83,7 +81,9 @@ class DeadStoreElimination(IRPass):
 
                 write_effects = inst.get_write_effects()
                 read_effects = inst.get_read_effects()
-                has_other_effects = write_effects & OTHER_EFFECTS or read_effects & OTHER_EFFECTS
+                has_other_effects = (
+                    write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
+                )
 
                 if mem_use and mem_use.reaching_def:
                     if isinstance(mem_use.reaching_def, MemoryDef):
@@ -103,8 +103,10 @@ class DeadStoreElimination(IRPass):
                 if mem_def and mem_def in live_defs and inst in self.dead_stores:
                     self.dead_stores.remove(inst)
 
-    def _is_dead_store(self, mem_def: MemoryDef, live_defs: set[MemoryDef], clobbered_by: Optional[MemoryAccess]) -> bool:
-        return (
+    def _is_dead_store(
+        self, mem_def: MemoryDef, live_defs: set[MemoryDef], clobbered_by: Optional[MemoryAccess]
+    ) -> bool:
+        return bool(
             mem_def not in live_defs
             and clobbered_by
             and not clobbered_by.is_live_on_entry
