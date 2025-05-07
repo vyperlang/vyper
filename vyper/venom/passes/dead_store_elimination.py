@@ -40,7 +40,7 @@ class DeadStoreElimination(IRPass):
                         if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
                             used_defs.add(mem_def)
 
-            for succ in bb.cfg_out:
+            for succ in self.cfg.cfg_out(bb):
                 if succ in self.mem_ssa.memory_phis:
                     phi = self.mem_ssa.memory_phis[succ]
                     for op_def, pred in phi.operands:
@@ -98,7 +98,7 @@ class DeadStoreElimination(IRPass):
             return self.mem_ssa.memory_defs[bb][-1]
         if bb in self.mem_ssa.memory_phis:
             return self.mem_ssa.memory_phis[bb]
-        if bb.cfg_in:
+        if self.cfg.cfg_in(bb):
             idom = self.mem_ssa.dom.immediate_dominators.get(bb)
             return self.mem_ssa._get_exit_def(idom) if idom else self.mem_ssa.live_on_entry
         return self.mem_ssa.live_on_entry
