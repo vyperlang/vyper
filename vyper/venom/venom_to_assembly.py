@@ -111,7 +111,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_REVERT_POSTAMBLE = [Label("revert"), "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
