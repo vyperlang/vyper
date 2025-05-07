@@ -133,9 +133,9 @@ def is_symbol(i):
     return isinstance(i, Label)
 
 
-# basically something like a symbol which gets resolved
-# during assembly, but requires 4 bytes of space.
-# (should only happen in deploy code)
+# basically a pointer but like a symbol in that it gets resolved
+# during assembly, but requires up to 4 bytes of space.
+# (should only happen in initcode)
 def is_mem_sym(i):
     return isinstance(i, str) and i.startswith("_mem_")
 
