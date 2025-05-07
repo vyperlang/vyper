@@ -76,6 +76,7 @@ class DeadStoreElimination(IRPass):
         Analyzes each basic block to find stores that are overwritten before
         being used or have no effect on the program's behavior.
         """
+        # note: traversal order does not matter
         for bb in self.cfg.dfs_pre_walk:
             if bb not in self.mem_ssa.memory_defs:
                 continue
