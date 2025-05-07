@@ -11,6 +11,9 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
+if TYPE_CHECKING:
+    from vyper.venom.function import IRFunction
+
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(
     ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
@@ -98,9 +101,6 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
-
-if TYPE_CHECKING:
-    from vyper.venom.function import IRFunction
 
 ir_printer = ContextVar("ir_printer", default=None)
 
