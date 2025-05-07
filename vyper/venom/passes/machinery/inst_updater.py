@@ -78,8 +78,7 @@ class InstUpdater:
         return inst
 
     def nop(self, inst: IRInstruction, annotation: str = ""):
-        inst.annotation = str(inst) + " " + annotation
-        self.update(inst, "nop", [])
+        self.update(inst, "nop", [], annotation=annotation)
 
     def nop_multi(self, to_nop: Iterable[IRInstruction]):
         q = deque(to_nop)
