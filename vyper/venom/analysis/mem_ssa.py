@@ -221,7 +221,7 @@ class MemSSA(IRAnalysis):
                     phi = MemoryPhi(self.next_id, frontier)
                     # Add operands from each predecessor block
                     for pred in self.cfg.cfg_in(frontier):
-                        reaching_def = self._get_exit_def(pred)
+                        reaching_def = self.get_exit_def(pred)
                         if reaching_def:
                             phi.operands.append((reaching_def, pred))
                     self.next_id += 1
@@ -237,7 +237,7 @@ class MemSSA(IRAnalysis):
                 for use in uses:
                     use.reaching_def = self._get_reaching_def(use)
 
-    def _get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryPhiOperand]:
+    def get_exit_def(self, bb: IRBasicBlock) -> Optional[MemoryPhiOperand]:
         """
         Get the memory def (or phi) that exits a basic block.
 
@@ -259,13 +259,12 @@ class MemSSA(IRAnalysis):
         if bb in self.memory_phis:
             return self.memory_phis[bb]
 
-        if bb != self.dom.entry_block:
-            # Get reaching def from immediate dominator
-            idom = self.dom.immediate_dominators.get(bb)
-            if idom is not None:
-                return self._get_exit_def(idom)
+        if bb == self.dom.entry_block:
+            return self.live_on_entry
 
-        return self.live_on_entry
+        # Get reaching def from immediate dominator
+        idom = self.dom.immediate_dominators.get(bb)
+        return self.get_exit_def(idom) if idom else self.live_on_entry
 
     def _get_reaching_def(self, mem_access: MemoryDefOrUse) -> Optional[MemoryAccess]:
         """
@@ -292,7 +291,7 @@ class MemSSA(IRAnalysis):
 
         if self.cfg.cfg_in(bb):
             idom = self.dom.immediate_dominators.get(bb)
-            return self._get_exit_def(idom) if idom else self.live_on_entry
+            return self.get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
 
