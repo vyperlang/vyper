@@ -171,7 +171,7 @@ class VyperType:
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
 
-    def get_size_in(self, location: DataLocation):
+    def get_size_in(self, location: DataLocation) -> int:
         if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             return self.storage_size_in_words
         if location == DataLocation.MEMORY:
