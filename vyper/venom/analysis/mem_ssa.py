@@ -311,7 +311,7 @@ class MemSSA(IRAnalysis):
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation, clobbered_access: Optional[MemoryAccess]
     ) -> OrderedSet[MemoryAccess]:
         aliased_accesses = OrderedSet()
-        while current and current != clobbered_access:
+        while current:# and current != clobbered_access:
             if isinstance(current, MemoryDef) and self.memalias.may_alias(query_loc, current.loc):
                 aliased_accesses.add(current)
             elif isinstance(current, MemoryPhi):

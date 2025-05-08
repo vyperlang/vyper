@@ -24,7 +24,6 @@ class DeadStoreElimination(IRPass):
 
         self.dead_stores = OrderedSet[IRInstruction]()
         self.all_defs = self._collect_all_defs()
-        self.used_defs = self._collect_used_defs(self.all_defs)
 
         self._identify_dead_stores()
         self._remove_dead_stores()
@@ -35,6 +34,7 @@ class DeadStoreElimination(IRPass):
         being used or have no effect on the program's behavior.
         """
         live_defs = OrderedSet[MemoryDef]()
+        dead_defs = OrderedSet[MemoryDef]()
         for bb in self.function.get_basic_blocks():            
             for inst in reversed(bb.instructions):
                 mem_def = self.mem_ssa.get_memory_def(inst)
@@ -48,13 +48,17 @@ class DeadStoreElimination(IRPass):
 
                 if mem_use is not None:
                     aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
-                    live_defs.update(aliased_accesses)
+                    for aliased_access in aliased_accesses:
+                        live_defs.add(aliased_access)
 
                 if mem_def is not None:
-                    if has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
+                    clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
+                    if clobbered_by is not None:
+                        dead_defs.add(mem_def)
+                    elif has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
                         live_defs.add(mem_def)
-
-        self.live_defs = live_defs
+                        
+        self.live_defs = live_defs - dead_defs
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
@@ -93,22 +97,3 @@ class DeadStoreElimination(IRPass):
                 all_defs.update(self.mem_ssa.memory_defs[block])
         return all_defs
 
-    def _collect_used_defs(self, all_defs: OrderedSet[MemoryDef]) -> OrderedSet[MemoryDef]:
-        """
-        Identifies which memory definitions are actually used in the program
-        """
-        used_defs = OrderedSet[MemoryDef]()
-        for block in self.function.get_basic_blocks():
-            mem_uses = self.mem_ssa.memory_uses.get(block, [])
-            for mem_use in mem_uses:
-                # TODO: update this to use alias sets instead of may_alias
-                for mem_def in all_defs:
-                    if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_def.loc):
-                        used_defs.add(mem_def)
-            for succ in self.cfg.cfg_out(block):
-                if succ in self.mem_ssa.memory_phis:
-                    phi = self.mem_ssa.memory_phis[succ]
-                    for op_def, pred in phi.operands:
-                        if pred == block and op_def in self.mem_ssa.memory_defs.get(block, []):
-                            used_defs.add(op_def)
-        return used_defs
