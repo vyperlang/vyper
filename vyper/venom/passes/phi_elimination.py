@@ -51,7 +51,9 @@ class PhiEliminationPass(IRPass):
         self._handle_inst_r(inst, done, visited)
         fully_done.add(inst)
 
-    def _handle_inst_r(self, inst: IRInstruction, done: set[IRInstruction], visited: set[IRInstruction]) -> set[IRInstruction]:
+    def _handle_inst_r(
+        self, inst: IRInstruction, done: set[IRInstruction], visited: set[IRInstruction]
+    ) -> set[IRInstruction]:
         if inst.opcode == "phi":
             if inst in visited or inst in done:
                 # phi is the only place where we can get dfg cycles.
