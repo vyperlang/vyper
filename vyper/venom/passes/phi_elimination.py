@@ -46,7 +46,6 @@ class PhiEliminationPass(IRPass):
 
     def _handle_phi(self, inst: IRInstruction, fully_done: set[IRInstruction]):
         assert inst.opcode == "phi"
-        #done: set[IRInstruction] = fully_done.copy()
         visited: set[IRInstruction] = set()
         self.phi_to_origins[inst] = self._handle_inst_r(inst, visited)
         fully_done.add(inst)
