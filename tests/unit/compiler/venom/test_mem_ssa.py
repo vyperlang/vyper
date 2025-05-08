@@ -904,10 +904,10 @@ def test_print_method(create_mem_ssa):
     with mem_ssa.print_context():
         output = str(fn)
         assert "phi: 5 <- 4 from @then, 2 from @else" in output
-        assert "def: 1 (live_on_entry) MemoryDef(4)" in output
-        assert "def: 4 (1) MemoryDef(3)" in output
-        assert "def: 2 (1) MemoryDef(3)" in output
-        assert "def: 3 (1) None" in output
+        assert "def: 1 (live_on_entry) clobber: 4" in output
+        assert "def: 4 (1) clobber: 3" in output
+        assert "def: 2 (1) clobber: 3" in output
+        assert "def: 3 (1)" in output
 
 
 def test_invalid_location_type(create_mem_ssa):
