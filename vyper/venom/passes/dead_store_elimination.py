@@ -33,40 +33,53 @@ class DeadStoreElimination(IRPass):
         Analyzes each basic block to find stores that are overwritten before
         being used or have no effect on the program's behavior.
         """
-        live_defs = OrderedSet[MemoryDef]()
-        dead_defs = OrderedSet[MemoryDef]()
-        for bb in self.function.get_basic_blocks():            
-            for inst in reversed(bb.instructions):
-                mem_def = self.mem_ssa.get_memory_def(inst)
-                mem_use = self.mem_ssa.get_memory_use(inst)
+        self.live_defs = OrderedSet[MemoryDef]()
+        self.used_defs = OrderedSet[MemoryDef]()
+        self.dead_defs = OrderedSet[MemoryDef]()
 
-                write_effects = inst.get_write_effects()
-                read_effects = inst.get_read_effects()
-                has_other_effects = (
-                    write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
-                )
+        for _, mem_uses in self.mem_ssa.memory_uses.items():
+            for mem_use in mem_uses:
+                aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
+                for aliased_access in aliased_accesses:
+                    self.used_defs.add(aliased_access)
 
-                if mem_use is not None:
-                    aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
-                    for aliased_access in aliased_accesses:
-                        live_defs.add(aliased_access)
+        for mem_def in self.all_defs:
+            if self._is_dead_store(mem_def, self.live_defs):
+                self.dead_defs.add(mem_def)
 
-                if mem_def is not None:
-                    clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                    if clobbered_by is not None:
-                        dead_defs.add(mem_def)
-                    elif has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
-                        live_defs.add(mem_def)
+        # for bb in self.function.get_basic_blocks():
+        #     for inst in reversed(bb.instructions):
+        #         mem_def = self.mem_ssa.get_memory_def(inst)
+        #         mem_use = self.mem_ssa.get_memory_use(inst)
+
+        #         write_effects = inst.get_write_effects()
+        #         read_effects = inst.get_read_effects()
+        #         has_other_effects = (
+        #             write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
+        #         )
+
+        #         if mem_use is not None:
+        #             aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
+        #             for aliased_access in aliased_accesses:
+        #                 self.live_defs.add(aliased_access)
+
+        #         if mem_def is not None:
+        #             if self._is_dead_store(inst, mem_def, self.live_defs):
+        #                 self.dead_defs.add(mem_def)
+        #             elif has_other_effects or mem_def.loc.is_volatile:
+        #                 self.live_defs.add(mem_def)
+
+        
                         
-        self.live_defs = live_defs - dead_defs
+        # self.live_defs = self.used_defs - self.dead_defs
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
 
     def _is_dead_store(
-        self, inst: IRInstruction, mem_def: MemoryDef, live_defs: set[MemoryDef]
+        self, mem_def: MemoryDef, live_defs: set[MemoryDef]
     ) -> bool:
-        if self._has_uses(inst.output):
+        if self._has_uses(mem_def.store_inst.output):
             return False
 
         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
@@ -83,8 +96,7 @@ class DeadStoreElimination(IRPass):
         Removes all identified dead stores from the IR and updates the memory SSA information
         accordingly.
         """
-        dead_defs = self.all_defs - self.live_defs
-        for def_ in dead_defs:
+        for def_ in self.dead_defs:
             self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
