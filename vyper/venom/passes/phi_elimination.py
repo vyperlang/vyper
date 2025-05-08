@@ -37,7 +37,6 @@ class PhiEliminationPass(IRPass):
         self.phi_to_origins = dict()
 
         for bb in self.function.get_basic_blocks():
-            bb.ensure_well_formed()
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
@@ -45,14 +44,14 @@ class PhiEliminationPass(IRPass):
 
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
-        self._handle_inst_r(inst, inst.parent)
+        self._handle_inst_r(inst)
 
-    def _handle_inst_r(self, inst: IRInstruction, origin_bb: IRBasicBlock) -> set[IRInstruction]:
+    def _handle_inst_r(self, inst: IRInstruction) -> set[IRInstruction]:
         if inst.opcode == "phi":
             if inst in self.phi_to_origins:
                 # phi is the only place where we can get dfg cycles.
                 # break the recursion.
-                srcs = self.phi_to_origins[inst]
+                srcs = self.phi_to_origins[inst].copy()
                 if len(srcs) > 1:
                     return set([inst])
                 return srcs
@@ -62,7 +61,7 @@ class PhiEliminationPass(IRPass):
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
                 assert next_inst is not None, (inst, var)
-                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst, origin_bb)
+                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst)
 
             if len(self.phi_to_origins[inst]) > 1:
                 return set([inst])
@@ -73,6 +72,6 @@ class PhiEliminationPass(IRPass):
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
-            return self._handle_inst_r(next_inst, origin_bb)
+            return self._handle_inst_r(next_inst)
 
         return set([inst])
