@@ -1,7 +1,8 @@
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IROperand, IRVariable, IRInstruction, IRLiteral
 from vyper.utils import OrderedSet, CompilerPanic
 from vyper.venom.analysis import LivenessAnalysis
+from enum import Enum
 
 
 def swap(stack: list[IROperand], position: int):
@@ -51,13 +52,22 @@ def ops_order(stack: list[IROperand], needed: list[IROperand], next_liveness: Or
 
     return stack, added
 
+class StoreType(Enum):
+    PUSH = 1
+    SWAP = 2
+    DUP = 3
+
 class StackOrder(IRAnalysis):
     bb_to_stack: dict[IRBasicBlock, list[IROperand]]
     liveness: LivenessAnalysis
+    store_to_type: dict[IRInstruction, StoreType]
 
     def analyze(self):
-        self.bb_to_stack = dict()
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.store_to_type = dict()
+        for bb in self.function.get_basic_blocks():
+            self._handle_bb_store_types(bb)
+        self.bb_to_stack = dict()
         for bb in self.function.get_basic_blocks():
             self.bb_to_stack[bb] = self._handle_bb(bb)
 
@@ -83,5 +93,22 @@ class StackOrder(IRAnalysis):
                 stack.append(inst.output)
 
         return needed
+
+    def _handle_bb_store_types(self, bb: IRBasicBlock):
+        for i, inst in enumerate(bb.instructions):
+            if inst.opcode != "store":
+                continue
+            op = inst.operands[0] 
+            if isinstance(op, IRLiteral):
+                self.store_to_type[inst] = StoreType.PUSH
+                continue
+
+            assert isinstance(op, IRVariable)
+            next_liveness = self.liveness.live_vars_at(bb.instructions[i + 1])
+            if op in next_liveness:
+                self.store_to_type[inst] = StoreType.DUP
+            else:
+                self.store_to_type[inst] = StoreType.SWAP
+            
 
 
