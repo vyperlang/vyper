@@ -274,6 +274,48 @@ def test_dead_store_in_loop():
     _check_pre_post(pre, post, hevm=False)
 
 
+def test_dead_store_alias_across_basic_blocks_loop():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            %i = 0
+            mstore 0, %val1  ; aliased by mload 5
+            jmp @loop
+        loop:
+            %loaded2 = mload 5  ; aliased read of slot 0
+            %cond = lt %i, 5
+            jnz %cond, @body, @exit
+        body:
+            mstore 0, %val2
+            %loaded = mload 0  ; Only reads val2
+            %i = add %i, 1
+            jmp @loop
+        exit:
+            stop
+    """
+    post = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            %i = 0
+            mstore 0, %val1
+            jmp @loop
+        loop:
+            %loaded2 = mload 5
+            %cond = lt %i, 5
+            jnz %cond, @body, @exit
+        body:
+            mstore 0, %val2
+            %loaded = mload 0
+            %i = add %i, 1
+            jmp @loop
+        exit:
+            stop
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
 def test_multiple_dead_stores():
     pre = """
         _global:
