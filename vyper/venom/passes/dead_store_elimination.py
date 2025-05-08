@@ -45,8 +45,7 @@ class DeadStoreElimination(IRPass):
         Gathers all memory definitions across all basic blocks in the program.
         """
         all_defs = OrderedSet[MemoryDef]()
-        # note: traversal order does not particularly matter
-        for block in self.cfg.dfs_pre_walk:
+        for block in self.function.get_basic_blocks():
             if block in self.mem_ssa.memory_defs:
                 all_defs.update(self.mem_ssa.memory_defs[block])
         return all_defs
@@ -56,7 +55,7 @@ class DeadStoreElimination(IRPass):
         Identifies which memory definitions are actually used in the program
         """
         used_defs = OrderedSet[MemoryDef]()
-        for block in self.cfg.dfs_pre_walk:
+        for block in self.function.get_basic_blocks():
             mem_uses = self.mem_ssa.memory_uses.get(block, [])
             for mem_use in mem_uses:
                 # TODO: update this to use alias sets instead of may_alias
@@ -76,8 +75,7 @@ class DeadStoreElimination(IRPass):
         Analyzes each basic block to find stores that are overwritten before
         being used or have no effect on the program's behavior.
         """
-        # note: traversal order does not matter
-        for bb in self.cfg.dfs_pre_walk:
+        for bb in self.function.get_basic_blocks():
             if bb not in self.mem_ssa.memory_defs:
                 continue
 
