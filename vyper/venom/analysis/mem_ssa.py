@@ -415,7 +415,7 @@ class MemSSA(IRAnalysis):
                 if next_def and next_def.loc.completely_contains(def_loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
-                if mem_use and mem_use.loc.completely_contains(def_loc):
+                if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
                     return None  # Found a use that reads from our memory location
 
             worklist.extend(self.cfg.cfg_out(succ))
