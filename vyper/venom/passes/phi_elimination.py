@@ -39,14 +39,14 @@ class PhiEliminationPass(IRPass):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
-                self._handle_phi(inst)
+                self._get_phi_origins(inst)
 
-    def _handle_phi(self, inst: IRInstruction):
+    def _get_phi_origins(self, inst: IRInstruction):
         assert inst.opcode == "phi"
         visited: set[IRInstruction] = set()
-        self.phi_to_origins[inst] = self._handle_inst_r(inst, visited)
+        self.phi_to_origins[inst] = self._get_phi_origins_r(inst, visited)
 
-    def _handle_inst_r(
+    def _get_phi_origins_r(
         self, inst: IRInstruction, visited: set[IRInstruction]
     ) -> set[IRInstruction]:
         if inst.opcode == "phi":
@@ -67,7 +67,7 @@ class PhiEliminationPass(IRPass):
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
                 assert next_inst is not None, (inst, var)
-                res |= self._handle_inst_r(next_inst, visited)
+                res |= self._get_phi_origins_r(next_inst, visited)
 
             if len(res) > 1:
                 # magic ;)
@@ -79,7 +79,7 @@ class PhiEliminationPass(IRPass):
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
-            return self._handle_inst_r(next_inst, visited)
+            return self._get_phi_origins_r(next_inst, visited)
 
         # root
         return set([inst])
