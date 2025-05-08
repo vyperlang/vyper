@@ -10,6 +10,7 @@ pytestmark = pytest.mark.hevm
 
 _check_pre_post = PrePostChecker([DeadStoreElimination])
 
+
 def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
@@ -275,6 +276,29 @@ def test_dead_store_in_loop():
             stop
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_dead_store_alias_across_basic_blocks():
+    pre = """
+        _global:
+            %cond = param
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1  ; aliased by mload 5, can't be eliminated
+            jmp @next
+        next:
+            %loaded2 = mload 5  ; aliasing read of slot 0
+            jnz %cond, @then, @else
+        then:
+            mstore 0, %val2
+            %loaded = mload 0  ; Only reads val2
+            %i = add %i, 1
+            jmp @else
+        else:
+            stop
+    """
+    # no change
+    _check_no_change(pre, hevm=False)
 
 
 def test_dead_store_alias_across_basic_blocks_loop():
