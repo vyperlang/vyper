@@ -1,5 +1,5 @@
 from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 

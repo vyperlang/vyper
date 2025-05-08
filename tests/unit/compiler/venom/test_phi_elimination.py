@@ -266,6 +266,7 @@ def test_phi_elim_direct_loop():
     _check_pre_post(pre1, post)
     _check_pre_post(pre2, post)
 
+
 def test_phi_elim_two_phi_merges():
     pre = """
     main:
