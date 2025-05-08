@@ -19,6 +19,10 @@ class BranchOptimizationPass(IRPass):
     This pass optimizes branches inverting jnz instructions where appropriate
     """
 
+    cfg: CFGAnalysis
+    liveness: LivenessAnalysis
+    dfg: DFGAnalysis
+
     def _optimize_branches(self) -> None:
         fn = self.function
         for bb in fn.get_basic_blocks():
@@ -26,16 +30,17 @@ class BranchOptimizationPass(IRPass):
             if term_inst.opcode != "jnz":
                 continue
 
-            fst, snd = bb.cfg_out
+            fst, snd = self.cfg.cfg_out(bb)
 
-            fst_liveness = fst.instructions[0].liveness
-            snd_liveness = snd.instructions[0].liveness
+            fst_liveness = self.liveness.live_vars_at(fst.instructions[0])
+            snd_liveness = self.liveness.live_vars_at(snd.instructions[0])
 
             # heuristic(!) to decide if we should flip the labels or not
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
 
             cond = term_inst.operands[0]
             prev_inst = self.dfg.get_producing_instruction(cond)
+            assert prev_inst is not None
 
             # heuristic: remove the iszero and swap branches
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
@@ -45,7 +50,9 @@ class BranchOptimizationPass(IRPass):
 
             # heuristic: add an iszero and swap branches
             elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
-                new_cond = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
+                tmp = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
+                assert tmp is not None  # help mypy
+                new_cond = tmp
                 new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
                 self.updater.update(term_inst, term_inst.opcode, new_operands)
 
@@ -53,9 +60,6 @@ class BranchOptimizationPass(IRPass):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.updater = InstUpdater(self.dfg)
-
-        assert isinstance(self.dfg, DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
         self._optimize_branches()

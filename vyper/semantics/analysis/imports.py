@@ -1,12 +1,14 @@
 import contextlib
-from dataclasses import dataclass, field
+import dataclasses as dc
+from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 import vyper.builtins.interfaces
 import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
+    BUILTIN,
     ABIInput,
     CompilerInput,
     FileInput,
@@ -35,11 +37,11 @@ segregate the I/O portion of semantic analysis into its own pass.
 @dataclass
 class _ImportGraph:
     # the current path in the import graph traversal
-    _path: list[vy_ast.Module] = field(default_factory=list)
+    _path: list[vy_ast.Module] = dc.field(default_factory=list)
 
     # stack of dicts, each item in the stack is a dict keeping
     # track of imports in the current module
-    _imports: list[dict] = field(default_factory=list)
+    _imports: list[dict] = dc.field(default_factory=list)
 
     @property
     def imported_modules(self):
@@ -159,7 +161,7 @@ class ImportAnalyzer:
     def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
-        if _is_builtin(module_str):
+        if _is_builtin(level, module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
@@ -252,11 +254,13 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
         # use the resolved path given to us by the InputBundle
         pass
 
+    is_interface = file.resolved_path.suffix == ".vyi"
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=module_path.as_posix(),
         resolved_path=file.resolved_path.as_posix(),
+        is_interface=is_interface,
     )
     return ret
 
@@ -281,15 +285,15 @@ BUILTIN_MODULE_RULES = {
 
 
 # TODO: could move this to analysis/common.py or something
-def _get_builtin_prefix(module_str: str):
+def _get_builtin_prefix(module_str: str) -> Optional[str]:
     for prefix in BUILTIN_MODULE_RULES.keys():
         if module_str.startswith(prefix):
             return prefix
     return None
 
 
-def _is_builtin(module_str):
-    return _get_builtin_prefix(module_str) is not None
+def _is_builtin(level: int, module_str: str) -> bool:
+    return level == 0 and _get_builtin_prefix(module_str) is not None
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
@@ -324,6 +328,8 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
     try:
         file = input_bundle.load_file(path)
+        # set source_id to builtin sentinel value
+        file = dc.replace(file, source_id=BUILTIN)
         assert isinstance(file, FileInput)  # mypy hint
     except FileNotFoundError as e:
         hint = None
