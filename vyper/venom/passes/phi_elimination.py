@@ -70,7 +70,11 @@ class PhiEliminationPass(IRPass):
                 res |= self._get_phi_origins_r(next_inst, visited)
 
             if len(res) > 1:
-                # magic ;)
+                # if the result is already more then
+                # one origin then it is better to treat
+                # this as the source of the value
+                # so any future phi could be replaced
+                # by this (eliminates doubled merges)
                 return set([inst])
             return res
 
