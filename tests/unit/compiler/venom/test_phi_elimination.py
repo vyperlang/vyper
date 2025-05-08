@@ -37,7 +37,7 @@ def test_simple_phi_elimination():
     _check_pre_post(pre, post, hevm=True)
 
 
-def test_phi_elim_loop_tmp():
+def test_phi_elim_loop():
     pre = """
     main:
         %v = param
