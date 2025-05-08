@@ -18,9 +18,9 @@ class DeadStoreElimination(IRPass):
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
-        with self.mem_ssa.print_context():
-            print("------------------------")
-            print(self.function)
+        # with self.mem_ssa.print_context():
+        #     print("------------------------")
+        #     print(self.function)
 
         self.dead_stores = OrderedSet[IRInstruction]()
         self.all_defs = self._collect_all_defs()
@@ -44,49 +44,38 @@ class DeadStoreElimination(IRPass):
                     self.used_defs.add(aliased_access)
 
         for mem_def in self.all_defs:
-            if self._is_dead_store(mem_def, self.live_defs):
+            if self._is_dead_store(mem_def):
                 self.dead_defs.add(mem_def)
-
-        # for bb in self.function.get_basic_blocks():
-        #     for inst in reversed(bb.instructions):
-        #         mem_def = self.mem_ssa.get_memory_def(inst)
-        #         mem_use = self.mem_ssa.get_memory_use(inst)
-
-        #         write_effects = inst.get_write_effects()
-        #         read_effects = inst.get_read_effects()
-        #         has_other_effects = (
-        #             write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
-        #         )
-
-        #         if mem_use is not None:
-        #             aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
-        #             for aliased_access in aliased_accesses:
-        #                 self.live_defs.add(aliased_access)
-
-        #         if mem_def is not None:
-        #             if self._is_dead_store(inst, mem_def, self.live_defs):
-        #                 self.dead_defs.add(mem_def)
-        #             elif has_other_effects or mem_def.loc.is_volatile:
-        #                 self.live_defs.add(mem_def)
-
-        
-                        
-        # self.live_defs = self.used_defs - self.dead_defs
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
 
     def _is_dead_store(
-        self, mem_def: MemoryDef, live_defs: set[MemoryDef]
+        self, mem_def: MemoryDef
     ) -> bool:
         if self._has_uses(mem_def.store_inst.output):
             return False
+        
+        if mem_def.loc.is_volatile is True:
+            return False
+        
+        inst = mem_def.store_inst
+        write_effects = inst.get_write_effects()
+        read_effects = inst.get_read_effects()
+        has_other_effects = (
+            write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
+        )
+
+        if has_other_effects:
+            return False
+
+        if mem_def not in self.used_defs:
+            return True
 
         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
 
         return (
-            mem_def not in live_defs
-            and (clobbered_by is not None)
+            (clobbered_by is not None)
             and not clobbered_by.is_live_on_entry
             and not clobbered_by.is_volatile
         )

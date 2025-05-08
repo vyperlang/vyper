@@ -606,15 +606,4 @@ def test_call_reading_partial_mstore():
             %24 = call %22, %11, 0, 124, 36, 96, 32
             stop
     """
-    post = """
-        _global:
-            %11 = calldataload 4
-            mstore 96, 801029432
-            %20 = add 32, 96
-            mstore 128, 601
-            %22 = gas
-            %23 = add 28, 96
-            %24 = call %22, %11, 0, 124, 36, 96, 32
-            stop
-    """
-    _check_pre_post(pre, post, hevm=False)
+    _check_pre_post(pre, pre, hevm=False)
