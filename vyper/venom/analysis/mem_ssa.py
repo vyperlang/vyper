@@ -135,9 +135,6 @@ class MemSSA(IRAnalysis):
         # merge memory states
         self.memory_phis: dict[IRBasicBlock, MemoryPhi] = {}
 
-        # the current memory state at each basic block
-        self.current_def: dict[IRBasicBlock, MemoryAccess] = {}
-
         self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
         self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
@@ -175,10 +172,6 @@ class MemSSA(IRAnalysis):
 
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
-        # Initialize entry block with liveOnEntry
-        entry_block = self.dom.entry_block
-        self.current_def[entry_block] = self.live_on_entry
-
         for bb in self.cfg.dfs_pre_walk:
             self._process_block_definitions(bb)
 
@@ -207,7 +200,6 @@ class MemSSA(IRAnalysis):
                 mem_def.reaching_def = self._get_reaching_def(mem_def)
 
                 self.memory_defs.setdefault(block, []).append(mem_def)
-                self.current_def[block] = mem_def
                 self.inst_to_def[inst] = mem_def
 
     def _insert_phi_nodes(self) -> None:

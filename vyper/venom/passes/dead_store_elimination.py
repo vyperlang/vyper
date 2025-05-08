@@ -2,7 +2,7 @@ from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
+from vyper.venom.analysis.mem_ssa import MemoryDef
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -113,10 +113,7 @@ class DeadStoreElimination(IRPass):
         return var is not None and len(self.dfg.get_uses(var)) > 0
 
     def _is_dead_store(
-        self,
-        inst: IRInstruction,
-        mem_def: MemoryDef,
-        live_defs: set[MemoryDef],
+        self, inst: IRInstruction, mem_def: MemoryDef, live_defs: set[MemoryDef]
     ) -> bool:
         if self._has_uses(inst.output):
             return False
@@ -139,18 +136,3 @@ class DeadStoreElimination(IRPass):
             for inst in bb.instructions:
                 if inst in self.dead_stores:
                     self.updater.nop(inst, annotation="[dead store elimination]")
-            # update mem_ssa analysis
-            if bb in self.mem_ssa.memory_defs:
-                self.mem_ssa.memory_defs[bb] = [
-                    mem_def
-                    for mem_def in self.mem_ssa.memory_defs[bb]
-                    if mem_def.store_inst not in self.dead_stores
-                ]
-                current_def = self.mem_ssa.current_def.get(bb)
-                if current_def is not None and current_def.store_inst in self.dead_stores:
-                    # REVIEW: this does not seem consistent with how
-                    # current_def is populated in mem_ssa. in mem_ssa,
-                    # current_def can only ever refer to a MemoryDef in this
-                    # basic block, but here, it can be a MemoryPhi or the
-                    # exit def of the idom.
-                    self.mem_ssa.current_def[bb] = self.mem_ssa.get_exit_def(bb)
