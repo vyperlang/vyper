@@ -33,7 +33,7 @@ class PhiEliminationPass(IRPass):
 
     def _calculate_phi_origin(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        #self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.phi_to_origins = dict()
 
         fully_done: set[IRInstruction] = set()
@@ -54,21 +54,16 @@ class PhiEliminationPass(IRPass):
         self, inst: IRInstruction, visited: set[IRInstruction]
     ) -> set[IRInstruction]:
         if inst.opcode == "phi":
-            if inst in visited or inst in self.phi_to_origins:
-                # phi is the only place where we can get dfg cycles.
-                # break the recursion.
+            if inst in self.phi_to_origins:
+                return self.phi_to_origins[inst]
 
-                # if it is only visited we stumbled on
-                # self reference and the sources are
-                # in the other branch
-                if inst not in self.phi_to_origins:
-                    return set()
+            if inst in visited:
+                # we have hit a dfg cycle. break the recursion.
+                # if it is only visited we have found a self
+                # reference, and we won't find anything more by
+                # continuing the recursion.
+                return set()
 
-                # already computed result
-                srcs = self.phi_to_origins[inst].copy()
-                if len(srcs) > 1:
-                    return set([inst])
-                return srcs
             visited.add(inst)
 
             res: set[IRInstruction] = set()
@@ -79,6 +74,7 @@ class PhiEliminationPass(IRPass):
                 res |= self._handle_inst_r(next_inst, visited)
 
             if len(res) > 1:
+                # magic ;)
                 return set([inst])
             return res
 
@@ -89,4 +85,5 @@ class PhiEliminationPass(IRPass):
             assert next_inst is not None
             return self._handle_inst_r(next_inst, visited)
 
+        # root
         return set([inst])
