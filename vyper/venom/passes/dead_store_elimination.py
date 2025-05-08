@@ -25,17 +25,8 @@ class DeadStoreElimination(IRPass):
         self.dead_stores = OrderedSet[IRInstruction]()
         self.all_defs = self._collect_all_defs()
 
-        self._identify_dead_stores()
-        self._remove_dead_stores()
-
-    def _identify_dead_stores(self):
-        """
-        Analyzes each basic block to find stores that are overwritten before
-        being used or have no effect on the program's behavior.
-        """
-        self.live_defs = OrderedSet[MemoryDef]()
         self.used_defs = OrderedSet[MemoryDef]()
-        self.dead_defs = OrderedSet[MemoryDef]()
+        dead_defs = OrderedSet[MemoryDef]()
 
         for _, mem_uses in self.mem_ssa.memory_uses.items():
             for mem_use in mem_uses:
@@ -45,7 +36,10 @@ class DeadStoreElimination(IRPass):
 
         for mem_def in self.all_defs:
             if self._is_dead_store(mem_def):
-                self.dead_defs.add(mem_def)
+                dead_defs.add(mem_def)
+
+        for def_ in dead_defs:
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")        
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
@@ -77,15 +71,7 @@ class DeadStoreElimination(IRPass):
         return (
             clobbered_by is not None
             and not clobbered_by.is_volatile
-        )
-
-    def _remove_dead_stores(self):
-        """
-        Removes all identified dead stores from the IR and updates the memory SSA information
-        accordingly.
-        """
-        for def_ in self.dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
+        )    
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         """
