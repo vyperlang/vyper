@@ -75,8 +75,7 @@ class DeadStoreElimination(IRPass):
         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
 
         return (
-            (clobbered_by is not None)
-            and not clobbered_by.is_live_on_entry
+            clobbered_by is not None
             and not clobbered_by.is_volatile
         )
 
