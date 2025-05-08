@@ -12,13 +12,17 @@ class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
     """
-
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
+        with self.mem_ssa.print_context():
+            print("------------------------")
+            print(self.function)
+
+        self.used_defs = None
         self.dead_stores = OrderedSet[IRInstruction]()
         self._preprocess_never_used_stores()
         self._identify_dead_stores()
@@ -28,9 +32,9 @@ class DeadStoreElimination(IRPass):
         """
         Identifies and marks stores that are never used anywhere in the program.
         """
-        all_defs = self._collect_all_defs()
-        used_defs = self._collect_used_defs(all_defs)
-        never_used_defs = all_defs - used_defs
+        self.all_defs = self._collect_all_defs()
+        self.used_defs = self._collect_used_defs(self.all_defs)
+        never_used_defs = self.all_defs - self.used_defs
 
         for mem_def in never_used_defs:
             if not mem_def.loc.is_volatile:
@@ -75,11 +79,8 @@ class DeadStoreElimination(IRPass):
         Analyzes each basic block to find stores that are overwritten before
         being used or have no effect on the program's behavior.
         """
-        for bb in self.function.get_basic_blocks():
-            if bb not in self.mem_ssa.memory_defs:
-                continue
-
-            live_defs = OrderedSet[MemoryDef]()
+        live_defs = OrderedSet[MemoryDef]()
+        for bb in self.function.get_basic_blocks():            
             for inst in reversed(bb.instructions):
                 mem_def = self.mem_ssa.get_memory_def(inst)
                 mem_use = self.mem_ssa.get_memory_use(inst)
@@ -90,22 +91,22 @@ class DeadStoreElimination(IRPass):
                     write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
                 )
 
-                if mem_use and mem_use.reaching_def:
-                    if isinstance(mem_use.reaching_def, MemoryDef):
-                        if self.mem_ssa.memalias.may_alias(mem_use.loc, mem_use.reaching_def.loc):
-                            live_defs.add(mem_use.reaching_def)
+                if mem_use is not None:
+                    aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
+                    live_defs.update(aliased_accesses)
 
-                if mem_def and not mem_def.loc.is_volatile:
-                    if has_other_effects:
+                if mem_def:
+                    if has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
                         live_defs.add(mem_def)
-                    else:
-                        if self._is_dead_store(inst, mem_def, live_defs):
-                            self.dead_stores.add(inst)
 
-            for inst in bb.instructions:
-                mem_def = self.mem_ssa.get_memory_def(inst)
-                if mem_def and mem_def in live_defs and inst in self.dead_stores:
-                    self.dead_stores.remove(inst)
+                # if mem_def and not mem_def.loc.is_volatile:
+                #     if has_other_effects:
+                #         live_defs.add(mem_def)
+                #     else:
+                #         if self._is_dead_store(inst, mem_def, live_defs):
+                #             self.dead_stores.add(inst)
+
+        self.live_defs = live_defs
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
@@ -130,7 +131,6 @@ class DeadStoreElimination(IRPass):
         Removes all identified dead stores from the IR and updates the memory SSA information
         accordingly.
         """
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst in self.dead_stores:
-                    self.updater.nop(inst, annotation="[dead store elimination]")
+        dead_defs = self.all_defs - self.live_defs
+        for def_ in dead_defs:
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")

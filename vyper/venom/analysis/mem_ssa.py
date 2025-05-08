@@ -2,6 +2,7 @@ import contextlib
 import dataclasses as dc
 from typing import Optional
 
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
 from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
@@ -294,6 +295,32 @@ class MemSSA(IRAnalysis):
             if all(op[0] == op0[0] for op in phi.operands[1:]):
                 del self.memory_phis[phi.block]
 
+    def get_aliased_memory_accesses(self, access: MemoryAccess) -> OrderedSet[MemoryAccess]:
+        if access.is_live_on_entry:
+            return OrderedSet()
+
+        clobbered_access = self.get_clobbered_memory_access(access)
+
+        query_loc = access.loc
+        aliased_accesses = OrderedSet([clobbered_access])
+        aliased_accesses.update(self._walk_for_aliased_access(access, query_loc, clobbered_access))
+
+        return aliased_accesses
+
+    def _walk_for_aliased_access(
+        self, current: Optional[MemoryAccess], query_loc: MemoryLocation, clobbered_access: Optional[MemoryAccess]
+    ) -> OrderedSet[MemoryAccess]:
+        aliased_accesses = OrderedSet()
+        while current and current != clobbered_access:
+            if isinstance(current, MemoryDef) and self.memalias.may_alias(query_loc, current.loc):
+                aliased_accesses.add(current)
+            elif isinstance(current, MemoryPhi):
+                for access, _ in current.operands:
+                    aliased = self._walk_for_aliased_access(access, query_loc, clobbered_access)
+                    aliased_accesses.update(aliased)
+            current = current.reaching_def
+        return aliased_accesses
+
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
         Get the memory access that gets clobbered by the provided access.
@@ -419,7 +446,9 @@ class MemSSA(IRAnalysis):
                 if def_.inst == inst:
                     s += f"\t; def: {def_.id_str} "
                     s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
-                    s += f"{self.get_clobbering_memory_access(def_)}"
+                    clobber = self.get_clobbering_memory_access(def_)
+                    if clobber is not None:
+                        s += f"clobber: {clobber.id_str}"
 
         return s
 
