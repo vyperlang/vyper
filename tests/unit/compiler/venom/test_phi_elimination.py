@@ -37,7 +37,7 @@ def test_simple_phi_elimination():
     _check_pre_post(pre, post, hevm=True)
 
 
-def test_phi_elim_loop():
+def test_phi_elim_loop_tmp():
     pre = """
     main:
         %v = param
@@ -212,6 +212,7 @@ def test_phi_elim_cannot_remove():
     main:
         %p = param
         %rand = param
+        jmp @cond
     cond:
         %1 = phi @main, %p, @body, %3
         %cond = iszero %1
