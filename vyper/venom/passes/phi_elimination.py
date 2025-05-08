@@ -1,4 +1,4 @@
-from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -33,22 +33,18 @@ class PhiEliminationPass(IRPass):
 
     def _calculate_phi_origin(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        #self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.phi_to_origins = dict()
-
-        fully_done: set[IRInstruction] = set()
 
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
-                self._handle_phi(inst, fully_done)
+                self._handle_phi(inst)
 
-    def _handle_phi(self, inst: IRInstruction, fully_done: set[IRInstruction]):
+    def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
         visited: set[IRInstruction] = set()
         self.phi_to_origins[inst] = self._handle_inst_r(inst, visited)
-        fully_done.add(inst)
 
     def _handle_inst_r(
         self, inst: IRInstruction, visited: set[IRInstruction]
