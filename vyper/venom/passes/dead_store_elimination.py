@@ -22,27 +22,66 @@ class DeadStoreElimination(IRPass):
             print("------------------------")
             print(self.function)
 
-        self.used_defs = None
         self.dead_stores = OrderedSet[IRInstruction]()
-        self._preprocess_never_used_stores()
+        self.all_defs = self._collect_all_defs()
+        self.used_defs = self._collect_used_defs(self.all_defs)
+
         self._identify_dead_stores()
         self._remove_dead_stores()
 
-    def _preprocess_never_used_stores(self):
+    def _identify_dead_stores(self):
         """
-        Identifies and marks stores that are never used anywhere in the program.
+        Analyzes each basic block to find stores that are overwritten before
+        being used or have no effect on the program's behavior.
         """
-        self.all_defs = self._collect_all_defs()
-        self.used_defs = self._collect_used_defs(self.all_defs)
-        never_used_defs = self.all_defs - self.used_defs
+        live_defs = OrderedSet[MemoryDef]()
+        for bb in self.function.get_basic_blocks():            
+            for inst in reversed(bb.instructions):
+                mem_def = self.mem_ssa.get_memory_def(inst)
+                mem_use = self.mem_ssa.get_memory_use(inst)
 
-        for mem_def in never_used_defs:
-            if not mem_def.loc.is_volatile:
-                inst = mem_def.store_inst
-                if self._has_uses(inst.output):
-                    continue
-                # REVIEW: maybe should not add to dead stores if there are non-memory effects
-                self.dead_stores.add(mem_def.store_inst)
+                write_effects = inst.get_write_effects()
+                read_effects = inst.get_read_effects()
+                has_other_effects = (
+                    write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
+                )
+
+                if mem_use is not None:
+                    aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
+                    live_defs.update(aliased_accesses)
+
+                if mem_def is not None:
+                    if has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
+                        live_defs.add(mem_def)
+
+        self.live_defs = live_defs
+
+    def _has_uses(self, var: Optional[IRVariable]):
+        return var is not None and len(self.dfg.get_uses(var)) > 0
+
+    def _is_dead_store(
+        self, inst: IRInstruction, mem_def: MemoryDef, live_defs: set[MemoryDef]
+    ) -> bool:
+        if self._has_uses(inst.output):
+            return False
+
+        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
+
+        return (
+            mem_def not in live_defs
+            and (clobbered_by is not None)
+            and not clobbered_by.is_live_on_entry
+            and not clobbered_by.is_volatile
+        )
+
+    def _remove_dead_stores(self):
+        """
+        Removes all identified dead stores from the IR and updates the memory SSA information
+        accordingly.
+        """
+        dead_defs = self.all_defs - self.live_defs
+        for def_ in dead_defs:
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         """
@@ -73,64 +112,3 @@ class DeadStoreElimination(IRPass):
                         if pred == block and op_def in self.mem_ssa.memory_defs.get(block, []):
                             used_defs.add(op_def)
         return used_defs
-
-    def _identify_dead_stores(self):
-        """
-        Analyzes each basic block to find stores that are overwritten before
-        being used or have no effect on the program's behavior.
-        """
-        live_defs = OrderedSet[MemoryDef]()
-        for bb in self.function.get_basic_blocks():            
-            for inst in reversed(bb.instructions):
-                mem_def = self.mem_ssa.get_memory_def(inst)
-                mem_use = self.mem_ssa.get_memory_use(inst)
-
-                write_effects = inst.get_write_effects()
-                read_effects = inst.get_read_effects()
-                has_other_effects = (
-                    write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
-                )
-
-                if mem_use is not None:
-                    aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
-                    live_defs.update(aliased_accesses)
-
-                if mem_def:
-                    if has_other_effects or mem_def.loc.is_volatile or self._has_uses(inst.output):
-                        live_defs.add(mem_def)
-
-                # if mem_def and not mem_def.loc.is_volatile:
-                #     if has_other_effects:
-                #         live_defs.add(mem_def)
-                #     else:
-                #         if self._is_dead_store(inst, mem_def, live_defs):
-                #             self.dead_stores.add(inst)
-
-        self.live_defs = live_defs
-
-    def _has_uses(self, var: Optional[IRVariable]):
-        return var is not None and len(self.dfg.get_uses(var)) > 0
-
-    def _is_dead_store(
-        self, inst: IRInstruction, mem_def: MemoryDef, live_defs: set[MemoryDef]
-    ) -> bool:
-        if self._has_uses(inst.output):
-            return False
-
-        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-
-        return (
-            mem_def not in live_defs
-            and (clobbered_by is not None)
-            and not clobbered_by.is_live_on_entry
-            and not clobbered_by.is_volatile
-        )
-
-    def _remove_dead_stores(self):
-        """
-        Removes all identified dead stores from the IR and updates the memory SSA information
-        accordingly.
-        """
-        dead_defs = self.all_defs - self.live_defs
-        for def_ in dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
