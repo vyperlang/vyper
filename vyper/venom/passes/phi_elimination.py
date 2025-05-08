@@ -46,23 +46,23 @@ class PhiEliminationPass(IRPass):
 
     def _handle_phi(self, inst: IRInstruction, fully_done: set[IRInstruction]):
         assert inst.opcode == "phi"
-        done: set[IRInstruction] = fully_done.copy()
+        #done: set[IRInstruction] = fully_done.copy()
         visited: set[IRInstruction] = set()
-        self._handle_inst_r(inst, done, visited)
+        self.phi_to_origins[inst] = self._handle_inst_r(inst, visited)
         fully_done.add(inst)
 
     def _handle_inst_r(
-        self, inst: IRInstruction, done: set[IRInstruction], visited: set[IRInstruction]
+        self, inst: IRInstruction, visited: set[IRInstruction]
     ) -> set[IRInstruction]:
         if inst.opcode == "phi":
-            if inst in visited or inst in done:
+            if inst in visited or inst in self.phi_to_origins:
                 # phi is the only place where we can get dfg cycles.
                 # break the recursion.
 
                 # if it is only visited we stumbled on
                 # self reference and the sources are
                 # in the other branch
-                if inst not in done:
+                if inst not in self.phi_to_origins:
                     return set()
 
                 # already computed result
@@ -72,23 +72,22 @@ class PhiEliminationPass(IRPass):
                 return srcs
             visited.add(inst)
 
-            self.phi_to_origins[inst] = set()
+            res: set[IRInstruction] = set()
 
             for _, var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(var)
                 assert next_inst is not None, (inst, var)
-                self.phi_to_origins[inst] |= self._handle_inst_r(next_inst, done, visited)
+                res |= self._handle_inst_r(next_inst, visited)
 
-            done.add(inst)
-            if len(self.phi_to_origins[inst]) > 1:
+            if len(res) > 1:
                 return set([inst])
-            return self.phi_to_origins[inst]
+            return res
 
         if inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
             # traverse store chain
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
-            return self._handle_inst_r(next_inst, done, visited)
+            return self._handle_inst_r(next_inst, visited)
 
         return set([inst])
