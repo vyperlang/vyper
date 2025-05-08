@@ -937,7 +937,7 @@ def test_get_in_def_with_no_predecessors(create_mem_ssa):
     mem_ssa, fn, _ = create_mem_ssa(pre)
 
     block = IRBasicBlock(IRLabel("_global"), fn)
-    result = mem_ssa._get_exit_def(block)
+    result = mem_ssa.get_exit_def(block)
     assert result == mem_ssa.live_on_entry
 
 
@@ -958,7 +958,7 @@ def test_get_in_def_with_merge_block(create_mem_ssa):
     mem_ssa, fn, _ = create_mem_ssa(pre)
 
     merge_block = fn.get_basic_block("merge")
-    result = mem_ssa._get_exit_def(merge_block)
+    result = mem_ssa.get_exit_def(merge_block)
     assert result == mem_ssa.live_on_entry
 
 

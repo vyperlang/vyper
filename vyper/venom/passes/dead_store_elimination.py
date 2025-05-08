@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -101,8 +101,7 @@ class DeadStoreElimination(IRPass):
                     if has_other_effects:
                         live_defs.add(mem_def)
                     else:
-                        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-                        if self._is_dead_store(inst, mem_def, live_defs, clobbered_by):
+                        if self._is_dead_store(inst, mem_def, live_defs):
                             self.dead_stores.add(inst)
 
             for inst in bb.instructions:
@@ -118,13 +117,12 @@ class DeadStoreElimination(IRPass):
         inst: IRInstruction,
         mem_def: MemoryDef,
         live_defs: set[MemoryDef],
-        clobbered_by: Optional[MemoryAccess],
     ) -> bool:
         if self._has_uses(inst.output):
             return False
 
-        # REVIEW: seems cleaner to grab clobbered_by from self.mem_ssa
-        # instead of polluting the function signature.
+        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
+
         return (
             mem_def not in live_defs
             and (clobbered_by is not None)
