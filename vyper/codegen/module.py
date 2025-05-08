@@ -12,7 +12,6 @@ from vyper.codegen.function_definitions import (
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import Label
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
 

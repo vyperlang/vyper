@@ -4,13 +4,12 @@ from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH,
     PUSH_OFST,
-    is_mem_sym,
     PUSHLABEL,
     DataHeader,
-    Instruction,
     Label,
     RuntimeHeader,
-    mksymbol,
+    TaggedInstruction,
+    is_mem_sym,
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
@@ -117,8 +116,8 @@ _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
-        if isinstance(op, str) and not isinstance(op, Instruction):
-            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
+        if isinstance(op, str) and not isinstance(op, TaggedInstruction):
+            ret.append(TaggedInstruction(op, inst.ast_source, inst.error_msg))
         else:
             ret.append(op)
     return ret  # type: ignore
@@ -128,9 +127,11 @@ def _as_asm_symbol(label: IRLabel) -> Label:
     # Lower an IRLabel to an assembly symbol
     return Label(label.value)
 
+
 def _ofst(label: str | Label, value: int) -> list[Any]:
     # resolve at compile time using magic PUSH_OFST op
     return [PUSH_OFST(label, value)]
+
 
 # TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
@@ -152,6 +153,10 @@ class VenomCompiler:
         self.ctxs = ctxs
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
+
+    def mklabel(self, name: str) -> Label:
+        self.label_counter += 1
+        return f"{name}_{self.label_counter}"
 
     def generate_evm(self, no_optimize: bool = False) -> list[str]:
         self.visited_basicblocks = OrderedSet()
@@ -177,7 +182,12 @@ class VenomCompiler:
             asm.extend([Label("ctor_exit")])
             if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
                 asm.extend(
-                    [PUSHLABEL(Label("subcode_size")), PUSHLABEL(Label("runtime_begin")), "_mem_deploy_start", "CODECOPY"]
+                    [
+                        PUSHLABEL(Label("subcode_size")),
+                        PUSHLABEL(Label("runtime_begin")),
+                        "_mem_deploy_start",
+                        "CODECOPY",
+                    ]
                 )
                 asm.extend(_ofst(Label("subcode_size"), ctx.immutables_len))  # stack: len
                 asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
@@ -546,16 +556,10 @@ class VenomCompiler:
             assert isinstance(
                 target, IRLabel
             ), f"invoke target must be a label (is ${type(target)} ${target})"
-            return_label = Label(f"label_ret_{self.label_counter}")
+            return_label = self.mklabel("return_label")
             assembly.extend(
-                [
-                    PUSHLABEL(return_label),
-                    PUSHLABEL(_as_asm_symbol(target)),
-                    "JUMP",
-                    return_label,
-                ]
+                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", return_label]
             )
-            self.label_counter += 1
         elif opcode == "ret":
             assembly.append("JUMP")
         elif opcode == "return":
@@ -581,7 +585,7 @@ class VenomCompiler:
         elif opcode == "assert":
             assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
-            end_symbol = mksymbol("reachable")
+            end_symbol = self.mklabel("reachable")
             assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "iload":
             addr = inst.operands[0]

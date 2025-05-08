@@ -910,7 +910,7 @@ def check_assign(left, right):
 _label = 0
 
 
-# TODO might want to coalesce with Context.fresh_varname and compile_ir.mksymbol
+# TODO might want to coalesce with Context.fresh_varname
 def _freshname(name):
     global _label
     _label += 1

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import contextlib
 import copy
-import functools
 import math
 from dataclasses import dataclass
 
@@ -46,17 +46,12 @@ def PUSH_N(x, n):
     return [f"PUSH{len(o)}"] + o
 
 
-def JUMP(label: Label):
-    return [PUSHLABEL(label), "JUMP"]
-
-
-def JUMPI(label: Label):
-    return [PUSHLABEL(label), "JUMPI"]
+#####################################
+# assembly data structures and utils
+#####################################
 
 
 class Label:
-    _next_symbol: int = 0
-
     def __init__(self, label: str):
         assert isinstance(label, str)
         self.label = label
@@ -71,6 +66,22 @@ class Label:
 
     def __hash__(self):
         return hash(self.label)
+
+
+class CONST:
+    def __init__(self, name: str, value: int):
+        assert isinstance(name, str)
+        assert isinstance(value, int)
+        self.name = name
+        self.value = value
+
+    def __repr__(self):
+        return f"CONST {self.name} {self.value}"
+
+    def __eq__(self, other):
+        if not isinstance(other, CONST):
+            return False
+        return self.name == other.name and self.value == other.value
 
 
 class PUSHLABEL:
@@ -89,6 +100,8 @@ class PUSHLABEL:
     def __hash__(self):
         return hash(self.label)
 
+
+# push the result of an addition (which might be resolvable at compile-time)
 class PUSH_OFST:
     def __init__(self, label: Label | str, ofst: int):
         # label can be Label or (temporarily) str, until
@@ -111,20 +124,28 @@ class PUSH_OFST:
     def __hash__(self):
         return hash((self.label, self.ofst))
 
+class DATA_ITEM:
+    def __init__(self, item: bytes | Label):
+        self.data = item
+
+    def __repr__(self):
+        if isinstance(self.item, bytes):
+            return "DATABYTES {self.item}"
+        elif isinstance(self.item, Label):
+            return "DATALABEL {self.item.label}"
+
+def JUMP(label: Label):
+    return [PUSHLABEL(label), "JUMP"]
 
 
-def mksymbol(name=""):
-    Label._next_symbol += 1
-
-    return Label(f"{name}{Label._next_symbol}")
-
-
-def reset_symbols():
-    Label._next_symbol = 0
+def JUMPI(label: Label):
+    return [PUSHLABEL(label), "JUMPI"]
 
 
 def mkdebug(pc_debugger, ast_source):
-    i = Instruction("DEBUG", ast_source)
+    # compile debug instructions
+    # (this is dead code -- CMC 2025-05-08)
+    i = TaggedInstruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
     return [i]
 
@@ -211,48 +232,8 @@ def _rewrite_return_sequences(ir_node, label_params=None):
         _rewrite_return_sequences(t, label_params)
 
 
-def _assert_false():
-    global _revert_label
-    # use a shared failure block for common case of assert(x).
-    # in the future we might want to change the code
-    # at _sym_revert0 to: INVALID
-    return JUMPI(_revert_label)
-
-
-def _add_postambles(asm_ops):
-    to_append = []
-
-    global _revert_label
-
-    _revert_string = [_revert_label, *PUSH(0), "DUP1", "REVERT"]
-
-    if PUSHLABEL(_revert_label) in asm_ops:
-        # shared failure block
-        to_append.extend(_revert_string)
-
-    if len(to_append) > 0:
-        # insert the postambles *before* runtime code
-        # so the data section of the runtime code can't bork the postambles.
-        runtime = None
-        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], RuntimeHeader):
-            runtime = asm_ops.pop()
-
-        # for some reason there might not be a STOP at the end of asm_ops.
-        # (generally vyper programs will have it but raw IR might not).
-        asm_ops.append("STOP")
-        asm_ops.extend(to_append)
-
-        if runtime:
-            asm_ops.append(runtime)
-
-    # need to do this recursively since every sublist is basically
-    # treated as its own program (there are no global labels.)
-    for t in asm_ops:
-        if isinstance(t, list):
-            _add_postambles(t)
-
-
-class Instruction(str):
+# a string (assembly instruction) but with additional metadata from the source code
+class TaggedInstruction(str):
     def __new__(cls, sstr, *args, **kwargs):
         return super().__new__(cls, sstr)
 
@@ -263,593 +244,622 @@ class Instruction(str):
         self.ast_source = ast_source
 
 
-def apply_line_numbers(func):
-    @functools.wraps(func)
-    def apply_line_no_wrapper(*args, **kwargs):
-        code = args[0]
-        ret = func(*args, **kwargs)
-
-        new_ret = [
-            Instruction(i, code.ast_source, code.error_msg)
-            if isinstance(i, str) and not isinstance(i, Instruction)
-            else i
-            for i in ret
-        ]
-        return new_ret
-
-    return apply_line_no_wrapper
+##############################
+# IRnode to assembly
+##############################
 
 
-@apply_line_numbers
 def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
-    global _revert_label
-    _revert_label = mksymbol("revert")
-
     # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
 
-    res = _compile_to_assembly(code)
-
-    _add_postambles(res)
-
-    _relocate_segments(res)
+    res = _IRnodeLowerer().compile_to_assembly(code)
 
     if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
     return res
 
 
-# Compiles IR to assembly
-@apply_line_numbers
-def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
-    if withargs is None:
-        withargs = {}
-    if not isinstance(withargs, dict):
-        raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
+AssemblyInstruction = str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST
 
-    def _data_ofst_of(sym, ofst, height_):
+
+class _IRnodeLowerer:
+    # map from variable names to height in stack
+    withargs: dict[str, int]
+
+    # set of all existing labels
+    existing_labels: set[Label]
+
+    # break destination when inside loops
+    # continue_dest, break_dest, height
+    break_dest: tuple[Label, Label, int]
+
+    # current height in stack
+    height: int
+
+    code_instructions: list[AssemblyInstruction]
+    data_segments: list[DataSegment]
+
+    def __init__(self, symbol_counter=0):
+        self.symbol_counter = symbol_counter
+
+    def compile_to_assembly(self, code):
+        self.withargs = {}
+        self.existing_labels = set()
+        self.break_dest = None
+        self.height = 0
+
+        self.global_revert_label = None
+
+        self.data_segments = []
+        self.freeze_data_segments = False
+
+        return self._compile_r(code, height=0)
+
+    @contextlib.contextmanager
+    def modify_breakdest(self, continue_dest: Label, exit_dest: Label, height: int):
+        tmp = self.break_dest
+        try:
+            self.break_dest = continue_dest, exit_dest, height
+            yield
+        finally:
+            self.break_dest = tmp
+
+    def mksymbol(self, name: str) -> Label:
+        self.symbol_counter += 1
+
+        return Label(f"{name}_{self.symbol_counter}")
+
+    def _data_ofst_of(self, symbol: str | Label, ofst: IRnode, height) -> list[AssemblyInstruction]:
         # e.g. PUSHOFST foo 32
-        assert is_symbol(sym) or is_mem_sym(sym), sym
+        assert is_symbol(symbol) or is_mem_sym(symbol), symbol
 
         if isinstance(ofst.value, int):
             # resolve at compile time using magic PUSH_OFST op
-            return [PUSH_OFST(sym, ofst.value)]
+            return [PUSH_OFST(symbol, ofst.value)]
 
-        if is_symbol(sym):
-            pushsym = PUSHLABEL(sym)
+        if isinstance(symbol, Label):
+            pushsym = PUSHLABEL(symbol)
         else:
             # magic for mem syms
-            assert is_mem_sym(sym)  # clarity
-            pushsym = sym
+            assert is_mem_sym(symbol)  # clarity
+            pushsym = symbol
 
         # if we can't resolve at compile time, resolve at runtime
-        ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        ofst = self._compile_r(ofst, height)
         return ofst + [pushsym, "ADD"]
 
-    def _height_of(witharg):
-        ret = height - withargs[witharg]
-        if ret > 16:
-            raise Exception("With statement too deep")
+    def _compile_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
+        asm = self._step_r(code, height)
+        for i, item in enumerate(asm):
+            if isinstance(item, str) and not isinstance(item, TaggedInstruction):
+                # CMC 2025-05-08 this is O(n^2).. :'(
+                asm[i] = TaggedInstruction(item, code.ast_source, code.error_msg)
+
+        return asm
+
+    def _step_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
+        def _height_of(varname):
+            ret = height - self.withargs[varname]
+            if ret > 16:
+                raise Exception("With statement too deep")
+            return ret
+
+        if isinstance(code.value, str) and code.value.upper() in get_opcodes():
+            o = []
+            for i, c in enumerate(reversed(code.args)):
+                o.extend(self._compile_r(c, height + i))
+            o.append(code.value.upper())
+            return o
+
+        # Numbers
+        if isinstance(code.value, int):
+            if code.value < -(2**255):
+                raise Exception(f"Value too low: {code.value}")
+            elif code.value >= 2**256:
+                raise Exception(f"Value too high: {code.value}")
+
+            return PUSH(code.value % 2**256)
+
+        # Variables connected to with statements
+        if isinstance(code.value, str) and code.value in self.withargs:
+            return ["DUP" + str(_height_of(code.value))]
+
+        # Setting variables connected to with statements
+        if code.value == "set":
+            if len(code.args) != 2 or code.args[0].value not in self.withargs:
+                raise Exception("Set expects two arguments, the first being a stack variable")
+            if height - self.withargs[code.args[0].value] > 16:
+                raise Exception("With statement too deep")
+            swap_instr = "SWAP" + str(height - self.withargs[code.args[0].value])
+            return self._compile_r(code.args[1], height) + [swap_instr, "POP"]
+
+        # Pass statements
+        # TODO remove "dummy"; no longer needed
+        if code.value in ("pass", "dummy"):
+            return []
+
+        # "mload" from data section of the currently executing code
+        if code.value == "dload":
+            loc = code.args[0]
+
+            o = []
+            # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
+            o.extend(PUSH(32))
+
+            o.extend(self._data_ofst_of(Label("code_end"), loc, height))
+
+            o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
+            o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
+            return o
+
+        # batch copy from data section of the currently executing code to memory
+        # (probably should have named this dcopy but oh well)
+        if code.value == "dloadbytes":
+            dst = code.args[0]
+            src = code.args[1]
+            len_ = code.args[2]
+
+            o = []
+            o.extend(self._compile_r(len_, height))
+            o.extend(self._data_ofst_of(Label("code_end"), src, height + 1))
+            o.extend(self._compile_r(dst, height + 2))
+            o.extend(["CODECOPY"])
+            return o
+
+        # "mload" from the data section of (to-be-deployed) runtime code
+        if code.value == "iload":
+            loc = code.args[0]
+
+            o = []
+            o.extend(self._data_ofst_of("_mem_deploy_end", loc, height))
+            o.append("MLOAD")
+
+            return o
+
+        # "mstore" to the data section of (to-be-deployed) runtime code
+        if code.value == "istore":
+            loc = code.args[0]
+            val = code.args[1]
+
+            o = []
+            o.extend(self._compile_r(val, height))
+            o.extend(self._data_ofst_of("_mem_deploy_end", loc, height + 1))
+            o.append("MSTORE")
+
+            return o
+
+        # batch copy from memory to the data section of runtime code
+        if code.value == "istorebytes":
+            raise Exception("unimplemented")
+
+        # If statements (2 arguments, ie. if x: y)
+        if code.value == "if" and len(code.args) == 2:
+            o = []
+            o.extend(self._compile_r(code.args[0], height))
+            end_symbol = self.mksymbol("join")
+            o.extend(["ISZERO", *JUMPI(end_symbol)])
+            o.extend(self._compile_r(code.args[1], height))
+            o.extend([end_symbol])
+            return o
+
+        # If statements (3 arguments, ie. if x: y, else: z)
+        if code.value == "if" and len(code.args) == 3:
+            o = []
+            o.extend(self._compile_r(code.args[0], height))
+            mid_symbol = self.mksymbol("else")
+            end_symbol = self.mksymbol("join")
+            o.extend(["ISZERO", *JUMPI(mid_symbol)])
+            o.extend(self._compile(code.args[1], height))
+            o.extend([*JUMP(end_symbol), mid_symbol])
+            o.extend(self._compile(code.args[2], height))
+            o.extend([end_symbol])
+            return o
+
+        # repeat(counter_location, start, rounds, rounds_bound, body)
+        # basically a do-while loop:
+        #
+        # assert(rounds <= rounds_bound)
+        # if (rounds > 0) {
+        #   do {
+        #     body;
+        #   } while (++i != start + rounds)
+        # }
+        if code.value == "repeat":
+            o = []
+            if len(code.args) != 5:  # pragma: nocover
+                raise CompilerPanic("bad number of repeat args")
+
+            i_name = code.args[0]
+            start = code.args[1]
+            rounds = code.args[2]
+            rounds_bound = code.args[3]
+            body = code.args[4]
+
+            entry_dest = self.mksymbol("loop_start")
+            continue_dest = self.mksymbol("loop_continue")
+            exit_dest = self.mksymbol("loop_exit")
+
+            # stack: []
+            o.extend(self._compile_r(start, height))
+
+            o.extend(self._compile_r(rounds, height + 1))
+
+            # stack: i
+
+            # assert rounds <= round_bound
+            if rounds != rounds_bound:
+                # stack: i, rounds
+                o.extend(self._compile_r(rounds_bound, height + 2))
+                # stack: i, rounds, rounds_bound
+                # assert 0 <= rounds <= rounds_bound (for rounds_bound < 2**255)
+                # TODO this runtime assertion shouldn't fail for
+                # internally generated repeats.
+                o.extend(["DUP2", "GT"] + self._assert_false())
+
+                # stack: i, rounds
+                # if (0 == rounds) { goto end_dest; }
+                o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
+
+            # stack: start, rounds
+            if start.value != 0:
+                o.extend(["DUP2", "ADD"])
+
+            # stack: i, exit_i
+            o.extend(["SWAP1"])
+
+            if i_name.value in self.withargs:
+                raise CompilerPanic(f"shadowed loop variable {i_name}")
+            self.withargs[i_name.value] = height + 1
+
+            # stack: exit_i, i
+            o.extend([entry_dest])
+
+            with self.modify_breakdest(exit_dest, continue_dest, height + 2):
+                o.extend(self._compile_r(body, height + 2))
+
+            del withargs[i_name.value]
+
+            # clean up any stack items left by body
+            o.extend(["POP"] * body.valency)
+
+            # stack: exit_i, i
+            # increment i:
+            o.extend([continue_dest, "PUSH1", 1, "ADD"])
+
+            # stack: exit_i, i+1 (new_i)
+            # if (exit_i != new_i) { goto entry_dest }
+            o.extend(["DUP2", "DUP2", "XOR", *JUMPI(entry_dest)])
+            o.extend([exit_dest, "POP", "POP"])
+
+            return o
+
+        # Continue to the next iteration of the for loop
+        if code.value == "continue":
+            if not self.break_dest:
+                raise CompilerPanic("Invalid break")
+            _dest, continue_dest, _break_height = self.break_dest
+            return [*JUMP(continue_dest)]
+
+        # Break from inside a for loop
+        if code.value == "break":
+            if not self.break_dest:
+                raise CompilerPanic("Invalid break")
+            dest, _continue_dest, break_height = self.break_dest
+
+            n_local_vars = height - break_height
+            # clean up any stack items declared in the loop body
+            cleanup_local_vars = ["POP"] * n_local_vars
+            return cleanup_local_vars + [*JUMP(dest)]
+
+        # Break from inside one or more for loops prior to a return statement inside the loop
+        if code.value == "cleanup_repeat":
+            if not self.break_dest:
+                raise CompilerPanic("Invalid break")
+            # clean up local vars and internal loop vars
+            _, _, break_height = self.break_dest
+            # except don't pop label params
+            if "return_buffer" in self.withargs:
+                break_height -= 1
+            if "return_pc" in self.withargs:
+                break_height -= 1
+            return ["POP"] * break_height
+
+        # With statements
+        if code.value == "with":
+            o = []
+            o.extend(self._compile_r(code.args[1], height))
+            old = self.withargs.get(code.args[0].value, None)
+            self.withargs[code.args[0].value] = height
+            o.extend(self._compile_r(code.args[2], height + 1))
+            if code.args[2].valency:
+                o.extend(["SWAP1", "POP"])
+            else:
+                o.extend(["POP"])
+            if old is not None:
+                self.withargs[code.args[0].value] = old
+            else:
+                del self.withargs[code.args[0].value]
+            return o
+
+        # runtime statement (used to deploy runtime code)
+        elif code.value == "deploy":
+            memsize = code.args[0].value  # used later to calculate _mem_deploy_start
+            ir = code.args[1]
+            immutables_len = code.args[2].value
+            assert isinstance(memsize, int), "non-int memsize"
+            assert isinstance(immutables_len, int), "non-int immutables_len"
+
+            runtime_begin = Label("runtime_begin")
+
+            o = []
+
+            # COPY the code to memory for deploy
+            o.extend(
+                [
+                    PUSHLABEL(Label("subcode_size")),
+                    PUSHLABEL(runtime_begin),
+                    "_mem_deploy_start",
+                    "CODECOPY",
+                ]
+            )
+
+            # calculate the len of runtime code
+            o.extend(
+                self._data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height)
+            )  # stack: len
+            o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
+            o.extend(["RETURN"])
+
+            o.extend(self._create_postambles())
+
+            for data in self.data_segments:
+                o.extend(self._compile_data_segment(data))
+
+            self.freeze_data_segments = True
+
+            o.append(CONST("ctor_mem_size", memsize))
+            o.append(CONST("immutables_len", immutables_len))
+
+            runtime_assembly = _IRnodeLowerer().compile_to_assembly(ir)
+            runtime_bytecode, _ = assembly_to_evm(runtime_assembly)
+
+            o.append(runtime_begin)
+
+            o.append(DATA_ITEM(runtime_bytecode))
+
+            o.append(Label("runtime_end"))
+
+            return o
+
+        # Seq (used to piece together multiple statements)
+        if code.value == "seq":
+            o = []
+            for arg in code.args:
+                o.extend(self._compile_r(arg, height))
+                if arg.valency == 1 and arg != code.args[-1]:
+                    o.append("POP")
+            return o
+
+        # Seq without popping.
+        # unreachable keyword produces INVALID opcode
+        if code.value == "assert_unreachable":
+            o = self._compile_r(code.args[0], height)
+            end_symbol = self.mksymbol("reachable")
+            o.extend([*JUMPI(end_symbol), "INVALID", end_symbol])
+            return o
+
+        # Assert (if false, exit)
+        if code.value == "assert":
+            o = self._compile_r(code.args[0], height)
+            o.extend(["ISZERO"])
+            o.extend(self._assert_false())
+            return o
+
+        # SHA3 a single value
+        if code.value == "sha3_32":
+            # TODO: this should not be emitted anymore.
+            o = self._compile_r(code.args[0], height)
+            o.extend(
+                [
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "MSTORE",
+                    *PUSH(32),
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "SHA3",
+                ]
+            )
+            return o
+
+        # SHA3 a 64 byte value
+        if code.value == "sha3_64":
+            o = self._compile_r(code.args[0], height)
+            o.extend(self._compile_r(code.args[1], height + 1))
+            o.extend(
+                [
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
+                    "MSTORE",
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "MSTORE",
+                    *PUSH(64),
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "SHA3",
+                ]
+            )
+            return o
+
+        if code.value == "select":
+            # b ^ ((a ^ b) * cond) where cond is 1 or 0
+            # let t = a ^ b
+            cond = code.args[0]
+            a = code.args[1]
+            b = code.args[2]
+
+            o = []
+            o.extend(self._compile_r(b, height))
+            o.extend(self._compile_r(a, height + 1))
+            # stack: b a
+            o.extend(["DUP2", "XOR"])
+            # stack: b t
+            o.extend(self._compile_r(cond, height + 2))
+            # stack: b t cond
+            o.extend(["MUL", "XOR"])
+
+            # stack: b ^ (t * cond)
+            return o
+
+        # <= operator
+        if code.value == "le":
+            expanded_ir = IRnode.from_list(["iszero", ["gt", code.args[0], code.args[1]]])
+            return self._compile_r(expanded_ir, height)
+
+        # >= operator
+        if code.value == "ge":
+            expanded_ir = IRnode.from_list(["iszero", ["lt", code.args[0], code.args[1]]])
+            return self._compile_r(expanded_ir, height)
+        # <= operator
+        if code.value == "sle":
+            expanded_ir = IRnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]]])
+            return self._compile_r(expanded_ir, height)
+        # >= operator
+        if code.value == "sge":
+            expanded_ir = IRnode.from_list(["iszero", ["slt", code.args[0], code.args[1]]])
+            return self._compile_r(expanded_ir, height)
+
+        # != operator
+        if code.value == "ne":
+            expanded_ir = IRnode.from_list(["iszero", ["eq", code.args[0], code.args[1]]])
+            return self._compile_r(expanded_ir, height)
+
+        # e.g. 95 -> 96, 96 -> 96, 97 -> 128
+        if code.value == "ceil32":
+            # floor32(x) = x - x % 32 == x & 0b11..100000 == x & (~31)
+            # ceil32(x) = floor32(x + 31) == (x + 31) & (~31)
+            x = code.args[0]
+            expanded_ir = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
+            return self._compile_r(expanded_ir, height)
+
+        if code.value == "data":
+            data_node = [DataHeader(Label(code.args[0].value))]
+
+            for c in code.args[1:]:
+                if isinstance(c.value, bytes):
+                    data_node.append(DATA_ITEM(c.value))
+                elif isinstance(c, IRnode):
+                    assert c.value == "symbol"
+                    assert len(c.args) == 1
+                    assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
+                    data_node.append(DATA_ITEM(Label(c.args[0].value)))
+                else:
+                    raise ValueError(f"Invalid data: {type(c)} {c}")
+
+            self.data_segments.append(data_node)
+            return []
+
+        # jump to a symbol, and push variable # of arguments onto stack
+        if code.value == "goto":
+            o = []
+            for i, c in enumerate(reversed(code.args[1:])):
+                o.extend(self._compile_r(c, height + i))
+            o.extend([*JUMP(Label(code.args[0].value))])
+            return o
+
+        if code.value == "djump":
+            o = []
+            # "djump" compiles to a raw EVM jump instruction
+            jump_target = code.args[0]
+            o.extend(self._compile_r(jump_target, height))
+            o.append("JUMP")
+            return o
+        # push a literal symbol
+        if code.value == "symbol":
+            return [PUSHLABEL(Label(code.args[0].value))]
+
+        # set a symbol as a location.
+        if code.value == "label":
+            label_name = code.args[0].value
+            assert isinstance(label_name, str)
+
+            if label_name in self.existing_labels:
+                raise Exception(f"Label with name {label_name} already exists!")
+            else:
+                self.existing_labels.add(label_name)
+
+            if code.args[1].value != "var_list":
+                raise CodegenPanic("2nd arg to label must be var_list")
+            var_args = code.args[1].args
+
+            body = code.args[2]
+
+            # new scope
+            height = 0
+            old_withargs = self.withargs
+
+            self.withargs = {}
+
+            for arg in reversed(var_args):
+                assert isinstance(arg.value, str)  # sanity
+                self.withargs[arg.value] = height
+                height += 1
+
+            body_asm = self._compile_r(body, height)
+            # pop_scoped_vars = ["POP"] * height
+            # for now, _rewrite_return_sequences forces
+            # label params to be consumed implicitly
+            pop_scoped_vars: list = []
+
+            self.withargs = old_withargs
+
+            return [Label(label_name)] + body_asm + pop_scoped_vars
+
+        if code.value == "unique_symbol":
+            symbol = code.args[0].value
+            assert isinstance(symbol, str)
+
+            if symbol in self.existing_labels:
+                raise Exception(f"symbol {symbol} already exists!")
+            else:
+                self.existing_labels.add(symbol)
+
+            return []
+
+        if code.value == "exit_to":
+            # currently removed by _rewrite_return_sequences
+            raise CodegenPanic("exit_to not implemented yet!")
+
+        # inject debug opcode.
+        if code.value == "debugger":
+            return mkdebug(pc_debugger=False, ast_source=code.ast_source)
+
+        # inject debug opcode.
+        if code.value == "pc_debugger":
+            return mkdebug(pc_debugger=True, ast_source=code.ast_source)
+
+        raise CompilerPanic(f"invalid IRnode: {type(code)} {code}")  # pragma: no cover
+
+    def _create_postambles(self):
+        ret = []
+        # for some reason there might not be a STOP at the end of asm_ops.
+        # (generally vyper programs will have it but raw IR might not).
+        ret.append("STOP")
+
+        # common revert block
+        if self.global_revert_label is not None:
+            ret.extend([self.global_revert_label, *PUSH(0), "DUP1", "REVERT"])
+
         return ret
 
-    if existing_labels is None:
-        existing_labels = set()
-    if not isinstance(existing_labels, set):
-        raise CompilerPanic(f"must be set(), but got {type(existing_labels)}")
-
-    # Opcodes
-    if isinstance(code.value, str) and code.value.upper() in get_opcodes():
-        o = []
-        for i, c in enumerate(code.args[::-1]):
-            o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.append(code.value.upper())
-        return o
-
-    # Numbers
-    elif isinstance(code.value, int):
-        if code.value < -(2**255):
-            raise Exception(f"Value too low: {code.value}")
-        elif code.value >= 2**256:
-            raise Exception(f"Value too high: {code.value}")
-        return PUSH(code.value % 2**256)
-
-    # Variables connected to with statements
-    elif isinstance(code.value, str) and code.value in withargs:
-        return ["DUP" + str(_height_of(code.value))]
-
-    # Setting variables connected to with statements
-    elif code.value == "set":
-        if len(code.args) != 2 or code.args[0].value not in withargs:
-            raise Exception("Set expects two arguments, the first being a stack variable")
-        if height - withargs[code.args[0].value] > 16:
-            raise Exception("With statement too deep")
-        return _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height) + [
-            "SWAP" + str(height - withargs[code.args[0].value]),
-            "POP",
-        ]
-
-    # Pass statements
-    # TODO remove "dummy"; no longer needed
-    elif code.value in ("pass", "dummy"):
-        return []
-
-    # "mload" from data section of the currently executing code
-    elif code.value == "dload":
-        loc = code.args[0]
-
-        o = []
-        # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
-        o.extend(PUSH(32))
-
-        o.extend(_data_ofst_of(Label("code_end"), loc, height + 1))
-        o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
-        o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
-        return o
-
-    # batch copy from data section of the currently executing code to memory
-    # (probably should have named this dcopy but oh well)
-    elif code.value == "dloadbytes":
-        dst = code.args[0]
-        src = code.args[1]
-        len_ = code.args[2]
-
-        o = []
-        o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of(Label("code_end"), src, height + 1))
-        o.extend(_compile_to_assembly(dst, withargs, existing_labels, break_dest, height + 2))
-        o.extend(["CODECOPY"])
-        return o
-
-    # "mload" from the data section of (to-be-deployed) runtime code
-    elif code.value == "iload":
-        loc = code.args[0]
-
-        o = []
-        o.extend(_data_ofst_of("_mem_deploy_end", loc, height))
-        o.append("MLOAD")
-
-        return o
-
-    # "mstore" to the data section of (to-be-deployed) runtime code
-    elif code.value == "istore":
-        loc = code.args[0]
-        val = code.args[1]
-
-        o = []
-        o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_mem_deploy_end", loc, height + 1))
-        o.append("MSTORE")
-
-        return o
-
-    # batch copy from memory to the data section of runtime code
-    elif code.value == "istorebytes":
-        raise Exception("unimplemented")
-
-    # If statements (2 arguments, ie. if x: y)
-    elif code.value == "if" and len(code.args) == 2:
-        o = []
-        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        end_symbol = mksymbol("join")
-        o.extend(["ISZERO", *JUMPI(end_symbol)])
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol])
-        return o
-    # If statements (3 arguments, ie. if x: y, else: z)
-    elif code.value == "if" and len(code.args) == 3:
-        o = []
-        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        mid_symbol = mksymbol("else")
-        end_symbol = mksymbol("join")
-        o.extend(["ISZERO", *JUMPI(mid_symbol)])
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([*JUMP(end_symbol), mid_symbol])
-        o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol])
-        return o
-
-    # repeat(counter_location, start, rounds, rounds_bound, body)
-    # basically a do-while loop:
-    #
-    # assert(rounds <= rounds_bound)
-    # if (rounds > 0) {
-    #   do {
-    #     body;
-    #   } while (++i != start + rounds)
-    # }
-    elif code.value == "repeat":
-        o = []
-        if len(code.args) != 5:  # pragma: nocover
-            raise CompilerPanic("bad number of repeat args")
-
-        i_name = code.args[0]
-        start = code.args[1]
-        rounds = code.args[2]
-        rounds_bound = code.args[3]
-        body = code.args[4]
-
-        entry_dest, continue_dest, exit_dest = (
-            mksymbol("loop_start"),
-            mksymbol("loop_continue"),
-            mksymbol("loop_exit"),
-        )
-
-        # stack: []
-        o.extend(_compile_to_assembly(start, withargs, existing_labels, break_dest, height))
-
-        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 1))
-
-        # stack: i
-
-        # assert rounds <= round_bound
-        if rounds != rounds_bound:
-            # stack: i, rounds
-            o.extend(
-                _compile_to_assembly(
-                    rounds_bound, withargs, existing_labels, break_dest, height + 2
-                )
-            )
-            # stack: i, rounds, rounds_bound
-            # assert 0 <= rounds <= rounds_bound (for rounds_bound < 2**255)
-            # TODO this runtime assertion shouldn't fail for
-            # internally generated repeats.
-            o.extend(["DUP2", "GT"] + _assert_false())
-
-            # stack: i, rounds
-            # if (0 == rounds) { goto end_dest; }
-            o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
-
-        # stack: start, rounds
-        if start.value != 0:
-            o.extend(["DUP2", "ADD"])
-
-        # stack: i, exit_i
-        o.extend(["SWAP1"])
-
-        if i_name.value in withargs:
-            raise CompilerPanic(f"shadowed loop variable {i_name}")
-        withargs[i_name.value] = height + 1
-
-        # stack: exit_i, i
-        o.extend([entry_dest])
-        o.extend(
-            _compile_to_assembly(
-                body, withargs, existing_labels, (exit_dest, continue_dest, height + 2), height + 2
-            )
-        )
-
-        del withargs[i_name.value]
-
-        # clean up any stack items left by body
-        o.extend(["POP"] * body.valency)
-
-        # stack: exit_i, i
-        # increment i:
-        o.extend([continue_dest, "PUSH1", 1, "ADD"])
-
-        # stack: exit_i, i+1 (new_i)
-        # if (exit_i != new_i) { goto entry_dest }
-        o.extend(["DUP2", "DUP2", "XOR", *JUMPI(entry_dest)])
-        o.extend([exit_dest, "POP", "POP"])
-
-        return o
-
-    # Continue to the next iteration of the for loop
-    elif code.value == "continue":
-        if not break_dest:
-            raise CompilerPanic("Invalid break")
-        dest, continue_dest, break_height = break_dest
-        return [*JUMP(continue_dest)]
-    # Break from inside a for loop
-    elif code.value == "break":
-        if not break_dest:
-            raise CompilerPanic("Invalid break")
-        dest, continue_dest, break_height = break_dest
-
-        n_local_vars = height - break_height
-        # clean up any stack items declared in the loop body
-        cleanup_local_vars = ["POP"] * n_local_vars
-        return cleanup_local_vars + [*JUMP(dest)]
-    # Break from inside one or more for loops prior to a return statement inside the loop
-    elif code.value == "cleanup_repeat":
-        if not break_dest:
-            raise CompilerPanic("Invalid break")
-        # clean up local vars and internal loop vars
-        _, _, break_height = break_dest
-        # except don't pop label params
-        if "return_buffer" in withargs:
-            break_height -= 1
-        if "return_pc" in withargs:
-            break_height -= 1
-        return ["POP"] * break_height
-    # With statements
-    elif code.value == "with":
-        o = []
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        old = withargs.get(code.args[0].value, None)
-        withargs[code.args[0].value] = height
-        o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1)
-        )
-        if code.args[2].valency:
-            o.extend(["SWAP1", "POP"])
-        else:
-            o.extend(["POP"])
-        if old is not None:
-            withargs[code.args[0].value] = old
-        else:
-            del withargs[code.args[0].value]
-        return o
-
-    # runtime statement (used to deploy runtime code)
-    elif code.value == "deploy":
-        memsize = code.args[0].value  # used later to calculate _mem_deploy_start
-        ir = code.args[1]
-        immutables_len = code.args[2].value
-        assert isinstance(memsize, int), "non-int memsize"
-        assert isinstance(immutables_len, int), "non-int immutables_len"
-
-        runtime_begin = mksymbol("runtime_begin")
-
-        subcode = _compile_to_assembly(ir)
-
-        o = []
-
-        # COPY the code to memory for deploy
-        o.extend([PUSHLABEL(Label("subcode_size")), PUSHLABEL(runtime_begin), "_mem_deploy_start", "CODECOPY"])
-
-        # calculate the len of runtime code
-        o.extend(_data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height))  # stack: len
-        o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-        o.extend(["RETURN"])
-
-        # since the asm data structures are very primitive, to make sure
-        # assembly_to_evm is able to calculate data offsets correctly,
-        # we pass the memsize via magic opcodes to the subcode
-        subcode = [RuntimeHeader(runtime_begin, memsize, immutables_len)] + subcode
-
-        # append the runtime code after the ctor code
-        # `append(...)` call here is intentional.
-        # each sublist is essentially its own program with its
-        # own symbols.
-        # in the later step when the "ir" block compiled to EVM,
-        # symbols in subcode are resolved to position from start of
-        # runtime-code (instead of position from start of bytecode).
-        o.append(subcode)
-
-        return o
-
-    # Seq (used to piece together multiple statements)
-    elif code.value == "seq":
-        o = []
-        for arg in code.args:
-            o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            if arg.valency == 1 and arg != code.args[-1]:
-                o.append("POP")
-        return o
-    # Seq without popping.
-    # unreachable keyword produces INVALID opcode
-    elif code.value == "assert_unreachable":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        end_symbol = mksymbol("reachable")
-        o.extend([*JUMPI(end_symbol), "INVALID", end_symbol])
-        return o
-    # Assert (if false, exit)
-    elif code.value == "assert":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(["ISZERO"])
-        o.extend(_assert_false())
-        return o
-
-    # SHA3 a single value
-    elif code.value == "sha3_32":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            [
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "MSTORE",
-                *PUSH(32),
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "SHA3",
-            ]
-        )
-        return o
-    # SHA3 a 64 byte value
-    elif code.value == "sha3_64":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1)
-        )
-        o.extend(
-            [
-                *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                "MSTORE",
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "MSTORE",
-                *PUSH(64),
-                *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                "SHA3",
-            ]
-        )
-        return o
-    elif code.value == "select":
-        # b ^ ((a ^ b) * cond) where cond is 1 or 0
-        # let t = a ^ b
-        cond = code.args[0]
-        a = code.args[1]
-        b = code.args[2]
-
-        o = []
-        o.extend(_compile_to_assembly(b, withargs, existing_labels, break_dest, height))
-        o.extend(_compile_to_assembly(a, withargs, existing_labels, break_dest, height + 1))
-        # stack: b a
-        o.extend(["DUP2", "XOR"])
-        # stack: b t
-        o.extend(_compile_to_assembly(cond, withargs, existing_labels, break_dest, height + 2))
-        # stack: b t cond
-        o.extend(["MUL", "XOR"])
-
-        # stack: b ^ (t * cond)
-        return o
-
-    # <= operator
-    elif code.value == "le":
-        return _compile_to_assembly(
-            IRnode.from_list(["iszero", ["gt", code.args[0], code.args[1]]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-    # >= operator
-    elif code.value == "ge":
-        return _compile_to_assembly(
-            IRnode.from_list(["iszero", ["lt", code.args[0], code.args[1]]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-    # <= operator
-    elif code.value == "sle":
-        return _compile_to_assembly(
-            IRnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-    # >= operator
-    elif code.value == "sge":
-        return _compile_to_assembly(
-            IRnode.from_list(["iszero", ["slt", code.args[0], code.args[1]]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-    # != operator
-    elif code.value == "ne":
-        return _compile_to_assembly(
-            IRnode.from_list(["iszero", ["eq", code.args[0], code.args[1]]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-
-    # e.g. 95 -> 96, 96 -> 96, 97 -> 128
-    elif code.value == "ceil32":
-        # floor32(x) = x - x % 32 == x & 0b11..100000 == x & (~31)
-        # ceil32(x) = floor32(x + 31) == (x + 31) & (~31)
-        x = code.args[0]
-        return _compile_to_assembly(
-            IRnode.from_list(["and", ["add", x, 31], ["not", 31]]),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
-
-    elif code.value == "data":
-        data_node = [DataHeader(Label(code.args[0].value))]
-
-        for c in code.args[1:]:
-            if isinstance(c.value, int):
-                assert 0 <= c < 256, f"invalid data byte {c}"
-                data_node.append(c.value)
-            elif isinstance(c.value, bytes):
-                data_node.append(c.value)
-            elif isinstance(c, IRnode):
-                assert c.value == "symbol"
-                assert len(c.args) == 1
-                assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
-                data_node.append(Label(c.args[0].value))
-            else:
-                raise ValueError(f"Invalid data: {type(c)} {c}")
-
-        # intentionally return a sublist.
-        return [data_node]
-
-    # jump to a symbol, and push variable # of arguments onto stack
-    elif code.value == "goto":
-        o = []
-        for i, c in enumerate(reversed(code.args[1:])):
-            o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend([*JUMP(Label(code.args[0].value))])
-        return o
-    elif code.value == "djump":
-        o = []
-        # "djump" compiles to a raw EVM jump instruction
-        jump_target = code.args[0]
-        o.extend(
-            _compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height)
-        )
-        o.append("JUMP")
-        return o
-    # push a literal symbol
-    elif code.value == "symbol":
-        return [PUSHLABEL(Label(code.args[0].value))]
-    # set a symbol as a location.
-    elif code.value == "label":
-        label_name = code.args[0].value
-        assert isinstance(label_name, str)
-
-        if label_name in existing_labels:
-            raise Exception(f"Label with name {label_name} already exists!")
-        else:
-            existing_labels.add(label_name)
-
-        if code.args[1].value != "var_list":
-            raise CodegenPanic("2nd arg to label must be var_list")
-        var_args = code.args[1].args
-
-        body = code.args[2]
-
-        # new scope
-        height = 0
-        withargs = {}
-
-        for arg in reversed(var_args):
-            assert isinstance(
-                arg.value, str
-            )  # already checked for higher up but only the paranoid survive
-            withargs[arg.value] = height
-            height += 1
-
-        body_asm = _compile_to_assembly(
-            body, withargs=withargs, existing_labels=existing_labels, height=height
-        )
-        # pop_scoped_vars = ["POP"] * height
-        # for now, _rewrite_return_sequences forces
-        # label params to be consumed implicitly
-        pop_scoped_vars = []
-
-        return [Label(label_name)] + body_asm + pop_scoped_vars
-
-    elif code.value == "unique_symbol":
-        symbol = code.args[0].value
-        assert isinstance(symbol, str)
-
-        if symbol in existing_labels:
-            raise Exception(f"symbol {symbol} already exists!")
-        else:
-            existing_labels.add(symbol)
-
-        return []
-
-    elif code.value == "exit_to":
-        raise CodegenPanic("exit_to not implemented yet!")
-
-    # inject debug opcode.
-    elif code.value == "debugger":
-        return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-    # inject debug opcode.
-    elif code.value == "pc_debugger":
-        return mkdebug(pc_debugger=True, ast_source=code.ast_source)
-    else:  # pragma: no cover
-        raise ValueError(f"Weird code element: {type(code)} {code}")
+    def _assert_false(self):
+        if self.global_revert_label is None:
+            self.global_revert_label = self.mksymbol("revert")
+        # use a shared failure block for common case of assert(x).
+        return JUMPI(self.global_revert_label)
+
+
+##############################
+# assembly to evm utils
+##############################
 
 
 def getpos(node):
@@ -858,7 +868,7 @@ def getpos(node):
 
 def note_line_num(line_number_map, pc, item):
     # Record AST attached to pc
-    if isinstance(item, Instruction):
+    if isinstance(item, TaggedInstruction):
         if (ast_node := item.ast_source) is not None:
             ast_node = ast_node.get_original_node()
             if hasattr(ast_node, "node_id"):
@@ -881,6 +891,10 @@ def note_breakpoint(line_number_map, pc, item):
             line_number_map["breakpoints"].add(item.lineno + 1)
 
 
+##############################
+# assembly optimizer
+##############################
+
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
 
 
@@ -894,8 +908,7 @@ def _prune_unreachable_code(assembly):
             # find the next jumpdest or sublist
             for j in range(i + 1, len(assembly)):
                 next_is_jumpdest = j < len(assembly) and is_symbol(assembly[j])
-                next_is_list = isinstance(assembly[j], list)
-                if next_is_jumpdest or next_is_list:
+                if next_is_jumpdest:
                     break
             else:
                 # fixup an off-by-one if we made it to the end of the assembly
@@ -964,7 +977,7 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
-        #if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+        # if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
         if is_symbol(assembly[i]):
             current_symbol = assembly[i]
             if is_symbol(assembly[i + 1]):
@@ -973,7 +986,10 @@ def _merge_jumpdests(assembly):
                 new_symbol = assembly[i + 1]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
-                        if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
+                        if (
+                            isinstance(assembly[j], PUSHLABEL)
+                            and assembly[j].label == current_symbol
+                        ):
                             assembly[j].label = new_symbol
                             changed = True
             elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
@@ -1111,10 +1127,6 @@ def _stack_peephole_opts(assembly):
 
 # optimize assembly, in place
 def optimize_assembly(assembly):
-    for x in assembly:
-        if isinstance(x, list) and isinstance(x[0], RuntimeHeader):
-            optimize_assembly(x)
-
     for _ in range(1024):
         changed = False
 
@@ -1187,11 +1199,9 @@ def _length_of_data(assembly):
 @dataclass
 class RuntimeHeader:
     label: Label
-    ctor_mem_size: int
-    immutables_len: int
 
     def __repr__(self):
-        return f"<RUNTIME {self.label} mem @{self.ctor_mem_size} imms @{self.immutables_len}>"
+        return f"<RUNTIME {self.label}>"
 
 
 @dataclass
@@ -1202,27 +1212,9 @@ class DataHeader:
         return f"DATA {self.label.label}"
 
 
-def _relocate_segments(assembly):
-    # relocate all data segments to the end, otherwise data could be
-    # interpreted as PUSH instructions and mangle otherwise valid jumpdests
-    # relocate all runtime segments to the end as well
-    data_segments = []
-    non_data_segments = []
-    code_segments = []
-    for t in assembly:
-        if isinstance(t, list):
-            if isinstance(t[0], DataHeader):
-                data_segments.append(t)
-            else:
-                _relocate_segments(t)  # recurse
-                assert isinstance(t[0], RuntimeHeader)
-                code_segments.append(t)
-        else:
-            non_data_segments.append(t)
-    assembly.clear()
-    assembly.extend(non_data_segments)
-    assembly.extend(code_segments)
-    assembly.extend(data_segments)
+##############################
+# assembly to evm bytecode
+##############################
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
@@ -1264,29 +1256,21 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     # to do this, we first do a single pass to compile any runtime code
     # and use that to calculate mem_ofst_size.
     mem_ofst_size, ctor_mem_size = None, None
+
+    ## resolve constants
+    for item in assembly:
+        if isinstance(item, CONST):
+            # should this be merged into the symbol map?
+            const_map[item.name] = item.value
+
+    # find the maximum mem_ofst
     max_mem_ofst = 0
-    for i, item in enumerate(assembly):
-        if isinstance(item, list) and isinstance(item[0], RuntimeHeader):
-            assert runtime_code is None, "Multiple subcodes"
-
-            assert ctor_mem_size is None
-            ctor_mem_size = item[0].ctor_mem_size
-
-            runtime_code, runtime_map = assembly_to_evm(item[1:])
-
-            runtime_code_start, runtime_code_end = _runtime_code_offsets(
-                ctor_mem_size, len(runtime_code)
-            )
-            assert runtime_code_end - runtime_code_start == len(runtime_code)
-
+    for item in assembly:
         if is_ofst(item) and is_mem_sym(item.label):
             max_mem_ofst = max(item.ofst, max_mem_ofst)
 
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
-
-    data_section_lengths = []
-    immutables_len = None
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
@@ -1332,21 +1316,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             else:
                 pc += mem_ofst_size + 1
-        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
-            # we are in initcode
-            symbol_map[item[0].label] = pc
-            # add source map for all items in the runtime map
-            t = adjust_pc_maps(runtime_map, pc)
-            for key in line_number_map:
-                line_number_map[key].update(t[key])
-            immutables_len = item[0].immutables_len
-            pc += len(runtime_code)
-            # grab lengths of data sections from the runtime
-            for t in item:
-                if isinstance(t, list) and isinstance(t[0], DataHeader):
-                    data_section_lengths.append(_length_of_data(t))
 
-        elif isinstance(item, list) and isinstance(item[0], DataHeader):
+        elif isinstance(item, DataHeader):
             symbol_map[item[0].label] = pc
             pc += _length_of_data(item)
         else:
@@ -1356,6 +1327,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     if compiler_metadata is not None:
         # this will hold true when we are in initcode
         assert immutables_len is not None
+        immutables_len = symbol_map["immutables_len"]
         metadata = (
             compiler_metadata,
             len(runtime_code),
@@ -1374,6 +1346,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     symbol_map[Label("code_end")] = pc
     symbol_map["_mem_deploy_start"] = runtime_code_start
     symbol_map["_mem_deploy_end"] = runtime_code_end
+
     if runtime_code is not None:
         symbol_map[Label("subcode_size")] = len(runtime_code)
 
@@ -1383,8 +1356,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
-    for i, item in enumerate(assembly):
-
+    for item in assembly:
         if item in ("DEBUG",):
             continue  # skippable opcodes
 
@@ -1404,7 +1376,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         elif is_ofst(item):
             # PUSH_OFST (LABEL foo) 32
-            # PUSH_OFST _mem_foo 32
+            # PUSH_OFST (const foo) 32
             ofst = symbol_map[item.label] + item.ofst
             n = mem_ofst_size if is_mem_sym(item.label) else SYMBOL_SIZE
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
@@ -1420,10 +1392,14 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             ret.append(DUP_OFFSET + int(item[3:]))
         elif item[:4] == "SWAP":
             ret.append(SWAP_OFFSET + int(item[4:]))
-        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
-            ret.extend(runtime_code)
-        elif isinstance(item, list) and isinstance(item[0], DataHeader):
-            ret.extend(_data_to_evm(item, symbol_map))
+        elif isinstance(item, DATA_ITEM):
+            if isinstance(item.data, bytes):
+                ret.extend(item.data)
+            elif isinstance(item.data, Label):
+                symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
+                ret.extend(symbolbytes)
+            else:
+                raise CompilerPanic("Invalid data {type(item.data)}, {item.data}")
         else:  # pragma: no cover
             # unreachable
             raise ValueError(f"Weird symbol in assembly: {type(item)} {item}")
