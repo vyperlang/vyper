@@ -9,13 +9,14 @@ class PhiEliminationPass(IRPass):
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self._calculate_phi_origin()
+        self._calculate_phi_origins()
 
         for _, inst in self.dfg.outputs.copy().items():
             if inst.opcode != "phi":
                 continue
             self._process_phi(inst)
 
+        # sort phis to top of basic block
         for bb in self.function.get_basic_blocks():
             bb.ensure_well_formed()
 
@@ -31,7 +32,7 @@ class PhiEliminationPass(IRPass):
             assert src.output is not None
             self.updater.store(inst, src.output)
 
-    def _calculate_phi_origin(self):
+    def _calculate_phi_origins(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.phi_to_origins = dict()
 
@@ -42,10 +43,12 @@ class PhiEliminationPass(IRPass):
                 self._get_phi_origins(inst)
 
     def _get_phi_origins(self, inst: IRInstruction):
-        assert inst.opcode == "phi"
+        assert inst.opcode == "phi"  # sanity
         visited: set[IRInstruction] = set()
         self.phi_to_origins[inst] = self._get_phi_origins_r(inst, visited)
 
+    # traverse chains of phis and stores to get the "root" instructions
+    # for phis.
     def _get_phi_origins_r(
         self, inst: IRInstruction, visited: set[IRInstruction]
     ) -> set[IRInstruction]:
@@ -70,11 +73,16 @@ class PhiEliminationPass(IRPass):
                 res |= self._get_phi_origins_r(next_inst, visited)
 
             if len(res) > 1:
-                # if the result is already more then
-                # one origin then it is better to treat
-                # this as the source of the value
-                # so any future phi could be replaced
-                # by this (eliminates doubled merges)
+                # if this phi has more than one origin, then for future
+                # phis, it is better to treat this as a barrier in the
+                # graph traversal. for example (without basic blocks)
+                #   %a = 1
+                #   %b = 2
+                #   %c = phi %a, %b  ; has two origins
+                #   %d = %c
+                #   %e = %d
+                #   %f = phi %d, %e
+                # in this case, %f should reduce to %c.
                 return set([inst])
             return res
 
@@ -85,5 +93,5 @@ class PhiEliminationPass(IRPass):
             assert next_inst is not None
             return self._get_phi_origins_r(next_inst, visited)
 
-        # root
+        # root of the phi/store chain
         return set([inst])
