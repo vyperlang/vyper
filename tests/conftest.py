@@ -3,6 +3,7 @@ from _pytest.fixtures import FixtureRequest
 from contextlib import contextmanager
 from random import Random
 from typing import Generator
+from pathlib import Path
 
 import hypothesis
 import pytest
@@ -23,6 +24,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings, set_global_sett
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
+from tests.exports import TestExporter
 
 ############
 # PATCHING #
@@ -55,6 +57,13 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
+    )
+
+    parser.addoption(
+        "--export",
+        action="store",  # Expects a value (path)
+        default=None,  # No export by default
+        help="enable test data exporting to specified JSON file",
     )
 
 
@@ -201,12 +210,34 @@ def account_keys():
     return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
-@pytest.fixture(scope="module")
-def exporter(request):
-    if pytestconfig.getoption("export"):
-        return TestExporter(request.module)
-    return None
+@pytest.fixture(scope="session")
+def exporter(request: FixtureRequest):
+    export_path_str = request.config.getoption("export")
 
+    if export_path_str:
+        export_target_path = Path(export_path_str)
+
+        if export_target_path.is_dir():
+            output_file = export_target_path / "vyper_test_trace.json"
+        else:
+            output_file = export_target_path
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        project_root_dir = request.config.rootpath
+        test_root = (project_root_dir / "tests").resolve()
+        exporter_instance = TestExporter(output_file, test_root)
+
+        request.config.active_test_exporter = exporter_instance
+
+        yield exporter_instance
+
+        # runs after all tests in the session completed
+        exporter_instance.finalize_export()
+        delattr(request.config, 'active_test_exporter')
+    else:
+        request.config.active_test_exporter = None
+        yield None
 
 @pytest.fixture(scope="module")
 def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) -> BaseEnv:
@@ -216,7 +247,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
         block_number=1,
         evm_version=evm_version,
         account_keys=account_keys,
-        exporter=exporter,
+        #exporter=exporter,
     )
 
 
@@ -394,9 +425,9 @@ def pytest_runtest_call(item) -> Generator:
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
 
-    request = item._request
-    exporter = request.getfixturevalue("exporter")
-    exporter.set_current_item(item)
+    active_exporter = getattr(item.config, 'active_test_exporter', None)
+    if active_exporter:
+        active_exporter.set_item(item)
 
     # Isolate tests by reverting the state of the environment after each test
     env = item.funcargs.get("env")
