@@ -68,6 +68,25 @@ class Label:
         return hash(self.label)
 
 
+# this could be fused with Label, the only difference is if
+# it gets looked up from const_map or symbol_map.
+class CONSTREF:
+    def __init__(self, label: str):
+        assert isinstance(label, str)
+        self.label = label
+
+    def __repr__(self):
+        return f"CONSTREF {self.label}"
+
+    def __eq__(self, other):
+        if not isinstance(other, CONSTREF):
+            return False
+        return self.label == other.label
+
+    def __hash__(self):
+        return hash(self.label)
+
+
 class CONST:
     def __init__(self, name: str, value: int):
         assert isinstance(name, str)
@@ -103,10 +122,10 @@ class PUSHLABEL:
 
 # push the result of an addition (which might be resolvable at compile-time)
 class PUSH_OFST:
-    def __init__(self, label: Label | str, ofst: int):
+    def __init__(self, label: Label | CONSTREF, ofst: int):
         # label can be Label or (temporarily) str, until
         # we clean up mem_syms.
-        assert isinstance(label, (Label, str))
+        assert isinstance(label, (Label, CONSTREF))
         self.label = label
         self.ofst = ofst
 
@@ -124,15 +143,17 @@ class PUSH_OFST:
     def __hash__(self):
         return hash((self.label, self.ofst))
 
+
 class DATA_ITEM:
     def __init__(self, item: bytes | Label):
         self.data = item
 
     def __repr__(self):
-        if isinstance(self.item, bytes):
-            return "DATABYTES {self.item}"
-        elif isinstance(self.item, Label):
-            return "DATALABEL {self.item.label}"
+        if isinstance(self.data, bytes):
+            return f"DATABYTES {self.data.hex()}"
+        elif isinstance(self.data, Label):
+            return f"DATALABEL {self.data.label}"
+
 
 def JUMP(label: Label):
     return [PUSHLABEL(label), "JUMP"]
@@ -190,8 +211,8 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
 # Calculate the size of PUSH instruction we need to handle all
 # mem offsets in the code. For instance, if we only see mem symbols
 # up to size 256, we can use PUSH1.
-def calc_mem_ofst_size(ctor_mem_size):
-    return math.ceil(math.log(ctor_mem_size + 1, 256))
+def calc_push_size(val: int):
+    return math.ceil(math.log(val + 1, 256)) + 1
 
 
 # temporary optimization to handle stack items for return sequences
@@ -279,7 +300,7 @@ class _IRnodeLowerer:
     height: int
 
     code_instructions: list[AssemblyInstruction]
-    data_segments: list[DataSegment]
+    data_segments: list # list[DataSegment]
 
     def __init__(self, symbol_counter=0):
         self.symbol_counter = symbol_counter
@@ -295,7 +316,15 @@ class _IRnodeLowerer:
         self.data_segments = []
         self.freeze_data_segments = False
 
-        return self._compile_r(code, height=0)
+        ret = self._compile_r(code, height=0)
+
+        # append postambles before data segments
+        ret.extend(self._create_postambles())
+
+        for data in self.data_segments:
+            ret.extend(self._compile_data_segment(data))
+
+        return ret
 
     @contextlib.contextmanager
     def modify_breakdest(self, continue_dest: Label, exit_dest: Label, height: int):
@@ -311,22 +340,25 @@ class _IRnodeLowerer:
 
         return Label(f"{name}_{self.symbol_counter}")
 
-    def _data_ofst_of(self, symbol: str | Label, ofst: IRnode, height) -> list[AssemblyInstruction]:
+    def _data_ofst_of(
+        self, symbol: Label | CONSTREF, ofst: IRnode, height: int
+    ) -> list[AssemblyInstruction]:
         # e.g. PUSHOFST foo 32
-        assert is_symbol(symbol) or is_mem_sym(symbol), symbol
+        assert isinstance(symbol, (Label, CONSTREF)), symbol
 
         if isinstance(ofst.value, int):
             # resolve at compile time using magic PUSH_OFST op
             return [PUSH_OFST(symbol, ofst.value)]
 
+        # if we can't resolve at compile time, resolve at runtime
         if isinstance(symbol, Label):
             pushsym = PUSHLABEL(symbol)
         else:
             # magic for mem syms
-            assert is_mem_sym(symbol)  # clarity
-            pushsym = symbol
+            assert isinstance(symbol, CONSTREF)  # clarity
+            # we don't have a PUSHCONST instruction, use PUSH_OFST with ofst of 0
+            pushsym = PUSH_OFST(symbol, 0)
 
-        # if we can't resolve at compile time, resolve at runtime
         ofst = self._compile_r(ofst, height)
         return ofst + [pushsym, "ADD"]
 
@@ -413,7 +445,7 @@ class _IRnodeLowerer:
             loc = code.args[0]
 
             o = []
-            o.extend(self._data_ofst_of("_mem_deploy_end", loc, height))
+            o.extend(self._data_ofst_of(CONSTREF("mem_deploy_end"), loc, height))
             o.append("MLOAD")
 
             return o
@@ -425,7 +457,7 @@ class _IRnodeLowerer:
 
             o = []
             o.extend(self._compile_r(val, height))
-            o.extend(self._data_ofst_of("_mem_deploy_end", loc, height + 1))
+            o.extend(self._data_ofst_of(CONSTREF("mem_deploy_end"), loc, height + 1))
             o.append("MSTORE")
 
             return o
@@ -584,8 +616,9 @@ class _IRnodeLowerer:
             return o
 
         # runtime statement (used to deploy runtime code)
-        elif code.value == "deploy":
-            memsize = code.args[0].value  # used later to calculate _mem_deploy_start
+        if code.value == "deploy":
+            # used to calculate where to copy the runtime code to memory
+            memsize = code.args[0].value
             ir = code.args[1]
             immutables_len = code.args[2].value
             assert isinstance(memsize, int), "non-int memsize"
@@ -612,32 +645,21 @@ class _IRnodeLowerer:
                 ]
             )
 
-            # calculate the len of runtime code + immutables size
-            amount_to_return = runtime_codesize + immutables_len
-            o.extend(*PUSH(amount_to_return))  # stack: len
-            o.extend(*PUSH(mem_deploy_start))  # stack: len mem_ofst
-            o.extend(["RETURN"])
-
-            o.extend(self._create_postambles())
-
-            for data in self.data_segments:
-                o.extend(self._compile_data_segment(data))
-
-            self.freeze_data_segments = True
-
             # TODO: these two probably not needed
-            o.append(CONST("ctor_mem_size", memsize))
-            o.append(CONST("immutables_len", immutables_len))
+            # o.append(CONST("ctor_mem_size", memsize))
+            # o.append(CONST("immutables_len", immutables_len))
 
             o.append(CONST("mem_deploy_start", mem_deploy_start))
             o.append(CONST("mem_deploy_end", mem_deploy_end))
 
-            o.append(runtime_begin)
+            # calculate the len of runtime code + immutables size
+            amount_to_return = runtime_codesize + immutables_len
+            o.extend([*PUSH(amount_to_return)])  # stack: len
+            o.extend([*PUSH(mem_deploy_start)])  # stack: len mem_ofst
 
-            o.append(DATA_ITEM(runtime_bytecode))
+            o.extend(["RETURN"])
 
-            # maybe not needed
-            o.append(Label("runtime_end"))
+            self.data_segments.append([runtime_begin, DATA_ITEM(runtime_bytecode)])
 
             return o
 
@@ -857,6 +879,9 @@ class _IRnodeLowerer:
             ret.extend([self.global_revert_label, *PUSH(0), "DUP1", "REVERT"])
 
         return ret
+
+    def _compile_data_segment(self, segment: list):
+        return segment
 
     def _assert_false(self):
         if self.global_revert_label is None:
@@ -1255,12 +1280,13 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
     pc = 0
     symbol_map = {}
+    const_map = {}
 
     ## resolve constants
     for item in assembly:
         if isinstance(item, CONST):
             # should this be merged into the symbol map?
-            const_map[item.name] = item.value
+            const_map[CONSTREF(item.name)] = item.value
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
@@ -1294,18 +1320,18 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         if isinstance(item, PUSHLABEL):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
-        elif is_mem_sym(item):
-            # PUSH<n> item
-            pc += mem_ofst_size + 1
+
         elif is_ofst(item):
-            assert is_symbol(item.label) or is_mem_sym(item.label), item.label
+            assert isinstance(item.label, (Label, CONSTREF))
             assert isinstance(item.ofst, int), item
             # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
             # [PUSH_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             if is_symbol(item.label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             else:
-                pc += mem_ofst_size + 1
+                const = const_map[item.label]
+                val = const + item.ofst
+                pc += calc_push_size(val)
 
         elif isinstance(item, DataHeader):
             symbol_map[item[0].label] = pc
@@ -1314,7 +1340,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             pc += 1
 
     bytecode_suffix = b""
-    if compiler_metadata is not None:
+    if False:  # TODO: bring this back, but in generating assembly.
+        # if compiler_metadata is not None:
         # this will hold true when we are in initcode
         assert immutables_len is not None
         immutables_len = symbol_map["immutables_len"]
@@ -1344,6 +1371,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     for item in assembly:
         if item in ("DEBUG",):
             continue  # skippable opcodes
+        elif isinstance(item, CONST):
+            continue  # CONST things do not show up in bytecode
 
         elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
@@ -1362,21 +1391,20 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         elif is_ofst(item):
             # PUSH_OFST (LABEL foo) 32
             # PUSH_OFST (const foo) 32
-            ofst = symbol_map[item.label] + item.ofst
-            n = mem_ofst_size if is_mem_sym(item.label) else SYMBOL_SIZE
-            bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
+            if isinstance(item.label, Label):
+                ofst = symbol_map[item.label] + item.ofst
+                bytecode, _ = assembly_to_evm(PUSH_N(ofst, SYMBOL_SIZE))
+            else:
+                assert isinstance(item.label, CONSTREF)
+                ofst = const_map[item.label] + item.ofst
+                bytecode, _ = assembly_to_evm(PUSH(ofst))
+
             ret.extend(bytecode)
 
         elif isinstance(item, int):
             ret.append(item)
         elif isinstance(item, str) and item.upper() in get_opcodes():
             ret.append(get_opcodes()[item.upper()][0])
-        elif item[:4] == "PUSH":
-            ret.append(PUSH_OFFSET + int(item[4:]))
-        elif item[:3] == "DUP":
-            ret.append(DUP_OFFSET + int(item[3:]))
-        elif item[:4] == "SWAP":
-            ret.append(SWAP_OFFSET + int(item[4:]))
         elif isinstance(item, DATA_ITEM):
             if isinstance(item.data, bytes):
                 ret.extend(item.data)
@@ -1385,6 +1413,12 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                 ret.extend(symbolbytes)
             else:
                 raise CompilerPanic("Invalid data {type(item.data)}, {item.data}")
+        elif item[:4] == "PUSH":
+            ret.append(PUSH_OFFSET + int(item[4:]))
+        elif item[:3] == "DUP":
+            ret.append(DUP_OFFSET + int(item[3:]))
+        elif item[:4] == "SWAP":
+            ret.append(SWAP_OFFSET + int(item[4:]))
         else:  # pragma: no cover
             # unreachable
             raise ValueError(f"Weird symbol in assembly: {type(item)} {item}")
