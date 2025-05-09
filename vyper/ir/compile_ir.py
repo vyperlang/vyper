@@ -591,25 +591,31 @@ class _IRnodeLowerer:
             assert isinstance(memsize, int), "non-int memsize"
             assert isinstance(immutables_len, int), "non-int immutables_len"
 
-            runtime_begin = Label("runtime_begin")
+            runtime_assembly = _IRnodeLowerer().compile_to_assembly(ir)
 
+            runtime_bytecode, _ = assembly_to_evm(runtime_assembly)
+
+            runtime_begin = Label("runtime_begin")
             o = []
+
+            runtime_codesize = len(runtime_bytecode)
+
+            mem_deploy_start, mem_deploy_end = _runtime_code_offsets(memsize, runtime_codesize)
 
             # COPY the code to memory for deploy
             o.extend(
                 [
-                    PUSHLABEL(Label("subcode_size")),
+                    *PUSH(runtime_codesize),
                     PUSHLABEL(runtime_begin),
-                    "_mem_deploy_start",
+                    *PUSH(mem_deploy_start),
                     "CODECOPY",
                 ]
             )
 
-            # calculate the len of runtime code
-            o.extend(
-                self._data_ofst_of(Label("subcode_size"), IRnode(immutables_len), height)
-            )  # stack: len
-            o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
+            # calculate the len of runtime code + immutables size
+            amount_to_return = runtime_codesize + immutables_len
+            o.extend(*PUSH(amount_to_return))  # stack: len
+            o.extend(*PUSH(mem_deploy_start))  # stack: len mem_ofst
             o.extend(["RETURN"])
 
             o.extend(self._create_postambles())
@@ -619,16 +625,18 @@ class _IRnodeLowerer:
 
             self.freeze_data_segments = True
 
+            # TODO: these two probably not needed
             o.append(CONST("ctor_mem_size", memsize))
             o.append(CONST("immutables_len", immutables_len))
 
-            runtime_assembly = _IRnodeLowerer().compile_to_assembly(ir)
-            runtime_bytecode, _ = assembly_to_evm(runtime_assembly)
+            o.append(CONST("mem_deploy_start", mem_deploy_start))
+            o.append(CONST("mem_deploy_end", mem_deploy_end))
 
             o.append(runtime_begin)
 
             o.append(DATA_ITEM(runtime_bytecode))
 
+            # maybe not needed
             o.append(Label("runtime_end"))
 
             return o
@@ -1248,29 +1256,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     pc = 0
     symbol_map = {}
 
-    runtime_code, runtime_code_start, runtime_code_end = None, None, None
-
-    # to optimize the size of deploy code - we want to use the smallest
-    # PUSH instruction possible which can support all memory symbols
-    # (and also works with linear pass symbol resolution)
-    # to do this, we first do a single pass to compile any runtime code
-    # and use that to calculate mem_ofst_size.
-    mem_ofst_size, ctor_mem_size = None, None
-
     ## resolve constants
     for item in assembly:
         if isinstance(item, CONST):
             # should this be merged into the symbol map?
             const_map[item.name] = item.value
-
-    # find the maximum mem_ofst
-    max_mem_ofst = 0
-    for item in assembly:
-        if is_ofst(item) and is_mem_sym(item.label):
-            max_mem_ofst = max(item.ofst, max_mem_ofst)
-
-    if runtime_code_end is not None:
-        mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
@@ -1344,11 +1334,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     pc += len(bytecode_suffix)
 
     symbol_map[Label("code_end")] = pc
-    symbol_map["_mem_deploy_start"] = runtime_code_start
-    symbol_map["_mem_deploy_end"] = runtime_code_end
-
-    if runtime_code is not None:
-        symbol_map[Label("subcode_size")] = len(runtime_code)
 
     # TODO refactor into two functions, create symbol_map and assemble
 
