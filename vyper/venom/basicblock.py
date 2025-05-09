@@ -74,7 +74,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "stop",
         "invalid",
-        "invoke",
         "jmp",
         "djmp",
         "jnz",
@@ -808,6 +807,12 @@ class IRBasicBlock:
             if printer and hasattr(printer, "_post_instruction"):
                 s += printer._post_instruction(inst)
             s += "\n"
+
+        if len(self.instructions) > 30:
+            s += f"  ; {self.label}\n"
+        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
+            s += f"  ; ({self.parent.name})\n\n"
+
         return s
 
 
