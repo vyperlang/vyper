@@ -173,14 +173,18 @@ class MemSSA(IRAnalysis):
 
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
+        # First pass: process definitions and uses
         for bb in self.cfg.dfs_pre_walk:
             self._process_block_definitions(bb)
 
         # Second pass: insert phi nodes where needed
         self._insert_phi_nodes()
 
-        # Third pass: connect uses to their reaching definitions
+        # self._update_def_reaching_defs()
+
+        # Third pass: connect all memory accesses to their reaching definitions
         self._connect_uses_to_defs()
+        self._connect_defs_to_defs()
 
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
@@ -197,9 +201,6 @@ class MemSSA(IRAnalysis):
             if effect_type in inst.get_write_effects():
                 mem_def = MemoryDef(self.next_id, inst)
                 self.next_id += 1
-
-                mem_def.reaching_def = self._get_reaching_def(mem_def)
-
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.inst_to_def[inst] = mem_def
 
@@ -287,6 +288,21 @@ class MemSSA(IRAnalysis):
             return self.get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
+
+    def _update_def_reaching_defs(self):
+        for bb in self.memory_defs:
+            if bb in self.memory_phis and self.memory_defs[bb]:
+                first_def = self.memory_defs[bb][0]
+                first_idx = bb.instructions.index(first_def.inst)
+                prior_def = any(inst in self.inst_to_def for inst in bb.instructions[:first_idx])
+                if not prior_def:
+                    first_def.reaching_def = self.memory_phis[bb]
+
+    def _connect_defs_to_defs(self):
+        for bb in self.cfg.dfs_pre_walk:
+            if bb in self.memory_defs:
+                for mem_def in self.memory_defs[bb]:
+                    mem_def.reaching_def = self._get_reaching_def(mem_def)
 
     def _remove_redundant_phis(self):
         """Remove phi nodes whose arguments are all the same"""

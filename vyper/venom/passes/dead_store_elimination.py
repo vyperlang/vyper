@@ -37,9 +37,9 @@ class DeadStoreElimination(IRPass):
         for def_ in dead_defs:
             self.updater.nop(def_.store_inst, annotation="[dead store elimination]")        
 
-        with self.mem_ssa.print_context():
-            print("------------------------")
-            print(self.function)
+        # with self.mem_ssa.print_context():
+        #     print("------------------------")
+        #     print(self.function)
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
