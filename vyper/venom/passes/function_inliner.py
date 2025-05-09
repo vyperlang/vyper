@@ -141,6 +141,17 @@ class FunctionInlinerPass(IRGlobalPass):
                     inst.opcode = "store"
                     inst.operands = [inst.operands[0]]
                 elif inst.opcode == "ret":
+                    if call_site.output is not None:
+                        # only handle 1 output from invoke.. the other
+                        # is the return pc. if there are more in the future,
+                        # we need to loop, 1 store for every output.
+                        assert len(inst.operands) == 2, inst
+                        return_value = inst.operands[0]
+                        set_output_inst = IRInstruction(
+                            "store", [return_value], output=call_site.output
+                        )
+                        call_site_return.insert_instruction(set_output_inst, index=0)
+
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
