@@ -18,10 +18,6 @@ class DeadStoreElimination(IRPass):
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
 
-        # with self.mem_ssa.print_context():
-        #     print("------------------------")
-        #     print(self.function)
-
         self.dead_stores = OrderedSet[IRInstruction]()
         self.all_defs = self._collect_all_defs()
 
@@ -40,6 +36,10 @@ class DeadStoreElimination(IRPass):
 
         for def_ in dead_defs:
             self.updater.nop(def_.store_inst, annotation="[dead store elimination]")        
+
+        with self.mem_ssa.print_context():
+            print("------------------------")
+            print(self.function)
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0

@@ -607,3 +607,38 @@ def test_call_reading_partial_mstore():
             stop
     """
     _check_pre_post(pre, pre, hevm=False)
+
+
+def test_mcopy_partial():
+    pre = """
+    _global:
+      %1 = calldataload 0
+      jnz %1, @then, @else
+
+  then:
+      mcopy 64, 160, 35 ; not dead store
+      jmp @out
+  else:
+      jmp @out
+  out:
+      mstore 384, 32
+      %40 = mload 64
+      sink %40
+    """
+    post = """
+    _global:
+      %1 = calldataload 0
+      jnz %1, @then, @else
+
+  then:
+      mcopy 64, 160, 35
+      jmp @out
+  else:
+      jmp @out
+  out:
+      nop
+      %40 = mload 64
+      sink %40
+    """
+
+    _check_pre_post(pre, post, hevm=False)
