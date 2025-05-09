@@ -79,7 +79,7 @@ def generate_ir_for_internal_function(
     ir_node = IRnode.from_list(["seq", body, cleanup_routine])
 
     # add function signature to passthru metadata so that venom
-    # has more information to work with
+    # translatorhas more information to work with
     ir_node.passthrough_metadata["func_t"] = func_t
     ir_node.passthrough_metadata["context"] = context
 

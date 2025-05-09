@@ -1,0 +1,27 @@
+- Improved memory location tracking with `MemoryLocation` class
+- Added support for volatile memory locations
+- Fixed issues with memory clobbering detection
+- Refactored alias analysis to use sets for tracking aliasing relationships (was disabled for some time for testing)
+- Added comprehensive test cases for memory aliasing
+- Fixed issues with self-aliasing in alias sets
+- Added support for various memory access patterns
+- Added support for various EVM operations:
+  - `call`, `delegatecall`, `staticcall`
+  - `mstore`, `mload`, `mcopy`
+  - `calldatacopy`
+  - `return`
+- Added proper handling of memory effects
+- Added extensive test cases for:
+  - Memory aliasing
+  - Dead store elimination
+  - Memory operations
+  - Control flow
+- Improved code organization
+- Added type hints
+- Enhanced documentation
+- Fixed various bugs and edge cases
+- Improved handling of volatile memory
+- Added better support for memory phi nodes
+- Fixed issues with partial memory clobbering
+- Fixed dead store elimination edge cases
+- Fixed memory location overlap detection

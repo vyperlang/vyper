@@ -11,6 +11,9 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
+if TYPE_CHECKING:
+    from vyper.venom.function import IRFunction
+
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(
     ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
@@ -99,9 +102,6 @@ COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", 
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
-if TYPE_CHECKING:
-    from vyper.venom.function import IRFunction
-
 ir_printer = ContextVar("ir_printer", default=None)
 
 
@@ -174,6 +174,11 @@ class IRLiteral(IROperand):
         assert isinstance(value, int), value
         super().__init__(value)
 
+    def __repr__(self) -> str:
+        if abs(self.value) < 1024:
+            return str(self.value)
+        return f"0x{self.value:x}"
+
 
 class IRVariable(IROperand):
     """
@@ -237,8 +242,10 @@ class MemoryLocation:
             return self == FULL_MEMORY_ACCESS
         if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
             return False
-        assert self.size > 0 and other.size > 0
-
+        assert self.size >= 0 and other.size >= 0, f"size is negative: {self.size} and {other.size}"
+        assert (
+            self.offset >= 0 and other.offset >= 0
+        ), f"offset is negative: {self.offset} and {other.offset}"
         start1, end1 = self.offset, self.offset + self.size
         start2, end2 = other.offset, other.offset + other.size
 
@@ -347,7 +354,9 @@ class IRInstruction:
         elif opcode == "dloadbytes":
             return FULL_MEMORY_ACCESS
         elif opcode == "dload":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
@@ -386,7 +395,7 @@ class IRInstruction:
         elif opcode == "dloadbytes":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "dload":
-            return EMPTY_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
         elif opcode == "invoke":
             return FULL_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
@@ -409,11 +418,13 @@ class IRInstruction:
             if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
                 return MemoryLocation(offset=src.value, size=size.value)
             return FULL_MEMORY_ACCESS
-        elif opcode in ("sha3", "sha3_64"):
-            size, src = self.operands[:2]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
+        elif opcode == "sha3":
+            size, offset = self.operands
+            if isinstance(offset, IRLiteral) and isinstance(size, IRLiteral):
+                return MemoryLocation(offset=offset.value, size=size.value)
             return FULL_MEMORY_ACCESS
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode.startswith("log"):
             size, src = self.operands[-2:]
             if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
