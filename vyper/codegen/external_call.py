@@ -4,8 +4,10 @@ from dataclasses import dataclass
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
+    STORE,
     _freshname,
     add_ofst,
+    bytes_data_ptr,
     calculate_type_for_external_return,
     check_assign,
     check_external_call,
@@ -20,7 +22,7 @@ from vyper.codegen.core import (
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
-from vyper.semantics.types import InterfaceT, TupleT
+from vyper.semantics.types import InterfaceT, ReturnBufferT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 
@@ -83,6 +85,14 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     if return_t is None:
         return ["pass"], 0, 0
+
+    if isinstance(return_t, ReturnBufferT):
+        as_abibuf = copy.copy(buf)
+        as_abibuf.typ = return_t
+        check = ["assert", ["le", "returndatasize", return_t.length]]
+        copy_op = ["returndatacopy", bytes_data_ptr(as_abibuf), 0, "returndatasize"]
+        set_length = STORE(as_abibuf, "returndatasize")
+        return ["seq", check, copy_op, set_length, as_abibuf], None, return_t.length
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 

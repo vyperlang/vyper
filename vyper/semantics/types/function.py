@@ -32,6 +32,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.bytestrings import ReturnBufferT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -717,7 +718,8 @@ class ContractFunctionT(VyperType):
         abi_dict["inputs"] = [arg.typ.to_abi_arg(name=arg.name) for arg in self.arguments]
 
         typ = self.return_type
-        if typ is None:
+        # expose ReturnBuffer in ABI as void `()` abi type.
+        if typ is None or isinstance(typ, ReturnBufferT):
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleT) and len(typ.member_types) > 1:
             abi_dict["outputs"] = [t.to_abi_arg() for t in typ.member_types]
