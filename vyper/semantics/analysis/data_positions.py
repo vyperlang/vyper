@@ -182,6 +182,17 @@ def _allocate_with_overrides(vyper_module: vy_ast.Module, layout: StorageLayout)
     _allocate_with_overrides_r(vyper_module, layout, allocator, nonreentrant_slot, [])
 
 
+def _get_func_defs(vyper_module: vy_ast.Module):
+    funcdefs = vyper_module.get_children(vy_ast.FunctionDef)
+    for vardecl in vyper_module.get_children(vy_ast.VariableDecl):
+        if not vardecl.is_public:
+            # no getter
+            continue
+        funcdefs.append(vardecl._expanded_getter)
+
+    return funcdefs
+
+
 def _allocate_with_overrides_r(
     vyper_module: vy_ast.Module,
     layout: StorageLayout,
@@ -190,12 +201,7 @@ def _allocate_with_overrides_r(
     path: list[str],
 ):
     # Search through function definitions to find non-reentrant functions
-    funcdefs = vyper_module.get_children(vy_ast.FunctionDef)
-    for vardecl in vyper_module.get_children(vy_ast.VariableDecl):
-        if not vardecl.is_public:
-            # no getter
-            continue
-        funcdefs.append(vardecl._expanded_getter)
+    funcdefs = _get_func_defs(vyper_module)
 
     for node in funcdefs:
         fn_t = node._metadata["func_type"]
@@ -391,7 +397,8 @@ def _generate_layout_export_r(vyper_module):
             raise CompilerPanic("unreachable")
         ret[layout_key][node.target.id] = item
 
-    for fn in vyper_module.get_children(vy_ast.FunctionDef):
+    funcdefs = _get_func_defs(vyper_module)
+    for fn in funcdefs:
         fn_t = fn._metadata["func_type"]
         if not fn_t.nonreentrant:
             continue
