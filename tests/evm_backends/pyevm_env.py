@@ -21,6 +21,7 @@ from eth_utils import setup_DEBUG2_logging, to_canonical_address, to_checksum_ad
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult, LogEntry
+from tests.exports import TestExporter
 from vyper.utils import keccak256
 
 
@@ -37,8 +38,9 @@ class PyEvmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
+        exporter: TestExporter,
     ) -> None:
-        super().__init__(gas_limit, account_keys)
+        super().__init__(gas_limit, account_keys, exporter)
 
         evm_opcodes.DEFAULT_EVM_VERSION = evm_version
 

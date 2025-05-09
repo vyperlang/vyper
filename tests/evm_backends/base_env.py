@@ -8,6 +8,7 @@ from eth_utils import to_checksum_address
 
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
+from tests.exports import TestExporter
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
@@ -46,27 +47,48 @@ class BaseEnv:
 
     DEFAULT_CHAIN_ID = 1
 
-    #def __init__(self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]) -> None:
-    def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
+    def __init__(self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
-        #self.exporter = exporter
+        self.exporter = exporter
 
-    def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
-        """Deploy a contract with the given ABI and bytecode."""
+    def deploy(self, abi: list[dict], bytecode: bytes, source_code: str, value=0, *args, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
+        calldata = b''
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
-            initcode += ctor.prepare_calldata(*args, **kwargs)
+            calldata = ctor.prepare_calldata(*args, **kwargs)
+            initcode += calldata
 
         deployed_at = self._deploy(initcode, value)
         address = to_checksum_address(deployed_at)
+
+        if self.exporter:
+            try:
+                runtime_bytecode = self.get_code(address)
+            except Exception:
+                runtime_bytecode = b""
+                assert address ==  "0x0000000000000000000000000000000000000000"
+            python_ctor_args = {"args": list(args), "kwargs": kwargs}
+
+            self.exporter.trace_deployment(
+                source_code=source_code,
+                contract_abi=abi,
+                deployed_address=address,
+                initcode=initcode.hex(),
+                runtime_bytecode=runtime_bytecode.hex(),
+                calldata=calldata.hex(),
+                python_ctor_args=python_ctor_args,
+                value=value,
+            )
+
         return factory.at(self, address)
+
 
     def deploy_source(
         self,
@@ -80,7 +102,7 @@ class BaseEnv:
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
         abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
-        return self.deploy(abi, bytecode, value, *args, **kwargs)
+        return self.deploy(abi, bytecode, source_code, value,*args, **kwargs)
 
     def deploy_blueprint(
         self,

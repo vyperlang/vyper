@@ -247,7 +247,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
         block_number=1,
         evm_version=evm_version,
         account_keys=account_keys,
-        #exporter=exporter,
+        exporter=exporter,
     )
 
 

@@ -6,6 +6,7 @@ from eth_keys.datatypes import PrivateKey
 from pyrevm import EVM, BlockEnv, Env
 
 from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
+from tests.exports import TestExporter
 
 
 class RevmEnv(BaseEnv):
@@ -21,8 +22,9 @@ class RevmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
+        exporter: TestExporter,
     ) -> None:
-        super().__init__(gas_limit, account_keys)
+        super().__init__(gas_limit, account_keys, exporter)
         self._evm = EVM(
             gas_limit=gas_limit,
             tracing=tracing,
