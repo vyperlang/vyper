@@ -54,7 +54,7 @@ class BaseEnv:
 
         self.exporter = exporter
 
-    def deploy(self, abi: list[dict], bytecode: bytes, source_code: str, value=0, *args, **kwargs):
+    def deploy(self, abi: list[dict], bytecode: bytes, source_code: Optional[str]=None, value=0, *args, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
@@ -68,11 +68,10 @@ class BaseEnv:
         deployed_at = self._deploy(initcode, value)
         address = to_checksum_address(deployed_at)
 
-        if self.exporter:
-            try:
-                runtime_bytecode = self.get_code(address)
-            except Exception:
-                runtime_bytecode = b""
+        # deploy can be called from ir_compiler
+        if self.exporter and source_code:
+            runtime_bytecode = self.get_code(address)
+            if runtime_bytecode == b'':
                 assert address ==  "0x0000000000000000000000000000000000000000"
             python_ctor_args = {"args": list(args), "kwargs": kwargs}
 
@@ -102,7 +101,7 @@ class BaseEnv:
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
         abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
-        return self.deploy(abi, bytecode, source_code, value,*args, **kwargs)
+        return self.deploy(abi, bytecode, source_code=source_code, value=value,*args, **kwargs)
 
     def deploy_blueprint(
         self,
