@@ -642,3 +642,37 @@ def test_mcopy_partial():
     """
 
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_phi_placement_recursion_error():
+    pre = """
+        _global:
+            mstore 64, 32
+            jmp @4_condition
+        4_condition:  ; OUT=[7_exit, 5_body]
+            ; phi: 7 <- 1 from @_global, 2 from @5_body
+            %25 = calldataload 0
+            jnz %25, @7_exit, @5_body
+        5_body:  ; OUT=[4_condition]
+            mstore 12, 12
+            jmp @4_condition
+        7_exit:  ; OUT=[]
+            %29 = mload 96
+            sink %29
+    """
+    post = """
+        _global:
+            nop
+            jmp @4_condition
+        4_condition:  ; OUT=[7_exit, 5_body]
+            ; phi: 7 <- 1 from @_global, 2 from @5_body
+            %25 = calldataload 0
+            jnz %25, @7_exit, @5_body
+        5_body:  ; OUT=[4_condition]
+            nop
+            jmp @4_condition
+        7_exit:  ; OUT=[]
+            %29 = mload 96
+            sink %29
+    """
+    _check_pre_post(pre, post, hevm=False)

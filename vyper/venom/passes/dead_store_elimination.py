@@ -24,6 +24,10 @@ class DeadStoreElimination(IRPass):
         self.used_defs = OrderedSet[MemoryDef]()
         dead_defs = OrderedSet[MemoryDef]()
 
+        with self.mem_ssa.print_context():
+            print("------------------------")
+            print(self.function)
+
         for _, mem_uses in self.mem_ssa.memory_uses.items():
             for mem_use in mem_uses:
                 aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
@@ -37,9 +41,7 @@ class DeadStoreElimination(IRPass):
         for def_ in dead_defs:
             self.updater.nop(def_.store_inst, annotation="[dead store elimination]")        
 
-        # with self.mem_ssa.print_context():
-        #     print("------------------------")
-        #     print(self.function)
+        
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0

@@ -332,8 +332,8 @@ class MemSSA(IRAnalysis):
                 aliased_accesses.add(current)
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
-                    aliased = self._walk_for_aliased_access(access, query_loc, clobbered_access)
-                    aliased_accesses.update(aliased)
+                    if isinstance(access, MemoryDef) and self.memalias.may_alias(query_loc, access.loc):
+                        aliased_accesses.add(access)
             current = current.reaching_def
         return aliased_accesses
 
@@ -364,9 +364,9 @@ class MemSSA(IRAnalysis):
                 return current
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
-                    clobbering = self._walk_for_clobbered_access(access, query_loc)
-                    if clobbering is not None:
-                        return clobbering
+                    if isinstance(access, MemoryDef) and query_loc.completely_contains(access.loc):
+                        return access
+                return None
             current = current.reaching_def
         return None
 
