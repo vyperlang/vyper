@@ -676,20 +676,20 @@ class _IRnodeLowerer:
             if self.compiler_metadata is not None:
                 # we should issue the cbor-encoded metadata.
                 metadata = (
-                    compiler_metadata,
+                    self.compiler_metadata,
                     runtime_codesize,
                     runtime_data_segment_lengths,
                     immutables_len,
                     {"vyper": version_tuple},
                 )
-                bytecode_suffix += cbor2.dumps(metadata)
+                bytecode_suffix = cbor2.dumps(metadata)
                 # append the length of the footer, *including* the length
                 # of the length bytes themselves.
                 suffix_len = len(bytecode_suffix) + 2
                 bytecode_suffix += suffix_len.to_bytes(2, "big")
 
                 segment = [DataHeader(Label("cbor_metadata"))]
-                segment.append(bytecode_suffix)
+                segment.append(DATA_ITEM(bytecode_suffix))
                 self.data_segments.append(segment)
 
             return o
