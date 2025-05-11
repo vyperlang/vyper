@@ -668,7 +668,7 @@ class _IRnodeLowerer:
 
             o.extend(["RETURN"])
 
-            self.data_segments.append([runtime_begin, DATA_ITEM(runtime_bytecode)])
+            self.data_segments.append([DataHeader(runtime_begin), DATA_ITEM(runtime_bytecode)])
 
             return o
 
