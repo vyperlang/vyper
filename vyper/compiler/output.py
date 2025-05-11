@@ -329,24 +329,22 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 def _build_asm(asm_list):
     output_string = ""
     in_push = 0
-    for node in asm_list:
-        if isinstance(node, list):
-            output_string += "{ " + _build_asm(node) + "} "
+    for item in asm_list:
+        if isinstance(item, (compile_ir.Label, compile_ir.DataHeader)):
+            output_string += f"\n\n{item}:"
             continue
 
         if in_push > 0:
-            assert isinstance(node, int), node
-            output_string += hex(node)[2:].rjust(2, "0")
-            if in_push == 1:
-                output_string += " "
+            assert isinstance(item, int), item
+            output_string += hex(item)[2:].rjust(2, "0")
             in_push -= 1
         else:
-            output_string += str(node) + " "
+            output_string += f"\n    {item}"
 
-            if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
+            if isinstance(item, str) and item.startswith("PUSH") and item != "PUSH0":
                 assert in_push == 0
-                in_push = int(node[4:])
-                output_string += "0x"
+                in_push = int(item[4:])
+                output_string += " 0x"
 
     return output_string
 
