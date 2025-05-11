@@ -179,6 +179,7 @@ def is_symbol(i):
 # during assembly, but requires up to 4 bytes of space.
 # (should only happen in initcode)
 def is_mem_sym(i):
+    # should be dead
     return isinstance(i, str) and i.startswith("_mem_")
 
 
@@ -270,12 +271,13 @@ class TaggedInstruction(str):
 ##############################
 
 
+# external entry point to `IRnode.compile_to_assembly()`
 def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
-    # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
+    # don't mutate the ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
 
-    res = _IRnodeLowerer().compile_to_assembly(code)
+    res = _IRnodeLowerer(optimize).compile_to_assembly(code)
 
     if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
@@ -302,8 +304,12 @@ class _IRnodeLowerer:
     code_instructions: list[AssemblyInstruction]
     data_segments: list[DataSegment]
 
-    def __init__(self, symbol_counter=0):
-        self.symbol_counter = symbol_counter
+    optimize: OptimizationLevel
+
+    symbol_counter: int = 0
+
+    def __init__(self, optimize: OptimizationLevel = OptimizationLevel.GAS):
+        self.optimize = optimize
 
     def compile_to_assembly(self, code):
         self.withargs = {}
@@ -624,7 +630,10 @@ class _IRnodeLowerer:
             assert isinstance(memsize, int), "non-int memsize"
             assert isinstance(immutables_len, int), "non-int immutables_len"
 
-            runtime_assembly = _IRnodeLowerer().compile_to_assembly(ir)
+            runtime_assembly = _IRnodeLowerer(self.optimize).compile_to_assembly(ir)
+
+            if self.optimize != OptimizationLevel.NONE:
+                optimize_assembly(runtime_assembly)
 
             runtime_bytecode, _ = assembly_to_evm(runtime_assembly)
 
@@ -938,10 +947,10 @@ def _prune_unreachable_code(assembly):
     i = 0
     while i < len(assembly) - 1:
         if assembly[i] in _TERMINAL_OPS:
-            # find the next jumpdest or sublist
+            # find the next jumpdest or data section
             for j in range(i + 1, len(assembly)):
-                next_is_jumpdest = j < len(assembly) and is_symbol(assembly[j])
-                if next_is_jumpdest:
+                next_is_reachable = isinstance(assembly[j], (Label, DataHeader))
+                if next_is_reachable:
                     break
             else:
                 # fixup an off-by-one if we made it to the end of the assembly
@@ -1089,20 +1098,18 @@ def _merge_iszero(assembly):
 def _prune_unused_jumpdests(assembly):
     changed = False
 
-    used_jumpdests = OrderedSet()
+    used_jumpdests: set[Label] = set()
 
     # find all used jumpdests
-    for i in range(len(assembly)):
-        if isinstance(assembly[i], PUSHLABEL):
-            used_jumpdests.add(assembly[i].label)
-
     for item in assembly:
-        if isinstance(item, list) and isinstance(item[0], DataHeader):
+        if isinstance(item, PUSHLABEL):
+            used_jumpdests.add(item.label)
+
+        if isinstance(item, DATA_ITEM) and isinstance(item.data, Label):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
-            for t in item:
-                if is_symbol(t):
-                    used_jumpdests.add(t)
+            used_jumpdests.add(item.data)
+
 
     # delete jumpdests that aren't used
     i = 0
@@ -1369,6 +1376,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
 
         elif is_mem_sym(item):
+            raise CompilerPanic("unreachable/dead code")
             # TODO: use something like PUSH_MEM_SYM(?) for these.
             bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             ret.extend(bytecode)
