@@ -1110,7 +1110,6 @@ def _prune_unused_jumpdests(assembly):
             # used for a jumptable.
             used_jumpdests.add(item.data)
 
-
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly):
@@ -1199,7 +1198,6 @@ def adjust_pc_maps(pc_maps, ofst):
 
 
 SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
-
 
 
 # predict what length of an assembly [data] node will be in bytecode
@@ -1318,7 +1316,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         elif isinstance(item, DataHeader):
             symbol_map[item.label] = pc
-            #pc += _length_of_data(item)
+            # pc += _length_of_data(item)
         elif isinstance(item, DATA_ITEM):
             if isinstance(item.data, Label):
                 pc += SYMBOL_SIZE
@@ -1373,7 +1371,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         elif isinstance(item, Label):
             ret.append(get_opcodes()["JUMPDEST"][0])
-
 
         elif is_mem_sym(item):
             raise CompilerPanic("unreachable/dead code")
