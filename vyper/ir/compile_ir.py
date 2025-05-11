@@ -300,7 +300,7 @@ class _IRnodeLowerer:
     height: int
 
     code_instructions: list[AssemblyInstruction]
-    data_segments: list # list[DataSegment]
+    data_segments: list[DataSegment]
 
     def __init__(self, symbol_counter=0):
         self.symbol_counter = symbol_counter
@@ -483,9 +483,9 @@ class _IRnodeLowerer:
             mid_symbol = self.mksymbol("else")
             end_symbol = self.mksymbol("join")
             o.extend(["ISZERO", *JUMPI(mid_symbol)])
-            o.extend(self._compile(code.args[1], height))
+            o.extend(self._compile_r(code.args[1], height))
             o.extend([*JUMP(end_symbol), mid_symbol])
-            o.extend(self._compile(code.args[2], height))
+            o.extend(self._compile_r(code.args[2], height))
             o.extend([end_symbol])
             return o
 
@@ -551,7 +551,7 @@ class _IRnodeLowerer:
             with self.modify_breakdest(exit_dest, continue_dest, height + 2):
                 o.extend(self._compile_r(body, height + 2))
 
-            del withargs[i_name.value]
+            del self.withargs[i_name.value]
 
             # clean up any stack items left by body
             o.extend(["POP"] * body.valency)
@@ -1194,22 +1194,6 @@ def adjust_pc_maps(pc_maps, ofst):
 SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 
-def _data_to_evm(assembly, symbol_map):
-    ret = bytearray()
-    assert isinstance(assembly[0], DataHeader)
-    for item in assembly[1:]:
-        if is_symbol(item):
-            symbol = symbol_map[item].to_bytes(SYMBOL_SIZE, "big")
-            ret.extend(symbol)
-        elif isinstance(item, int):
-            ret.append(item)
-        elif isinstance(item, bytes):
-            ret.extend(item)
-        else:
-            raise ValueError(f"invalid data {type(item)} {item}")
-
-    return ret
-
 
 # predict what length of an assembly [data] node will be in bytecode
 def _length_of_data(assembly):
@@ -1227,14 +1211,6 @@ def _length_of_data(assembly):
             raise ValueError(f"invalid data {type(item)} {item}")
 
     return ret
-
-
-@dataclass
-class RuntimeHeader:
-    label: Label
-
-    def __repr__(self):
-        return f"<RUNTIME {self.label}>"
 
 
 @dataclass
@@ -1334,8 +1310,14 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                 pc += calc_push_size(val)
 
         elif isinstance(item, DataHeader):
-            symbol_map[item[0].label] = pc
-            pc += _length_of_data(item)
+            symbol_map[item.label] = pc
+            #pc += _length_of_data(item)
+        elif isinstance(item, DATA_ITEM):
+            if isinstance(item.data, Label):
+                pc += SYMBOL_SIZE
+            else:
+                assert isinstance(item.data, bytes)
+                pc += len(item.data)
         else:
             pc += 1
 
@@ -1373,6 +1355,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             continue  # skippable opcodes
         elif isinstance(item, CONST):
             continue  # CONST things do not show up in bytecode
+        elif isinstance(item, DataHeader):
+            continue  # DataHeader does not show up in bytecode
 
         elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
@@ -1382,6 +1366,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         elif isinstance(item, Label):
             ret.append(get_opcodes()["JUMPDEST"][0])
+
 
         elif is_mem_sym(item):
             # TODO: use something like PUSH_MEM_SYM(?) for these.

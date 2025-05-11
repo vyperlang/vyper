@@ -7,7 +7,6 @@ from vyper.ir.compile_ir import (
     PUSHLABEL,
     DataHeader,
     Label,
-    RuntimeHeader,
     TaggedInstruction,
     is_mem_sym,
     optimize_assembly,
