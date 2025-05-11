@@ -272,12 +272,12 @@ class TaggedInstruction(str):
 
 
 # external entry point to `IRnode.compile_to_assembly()`
-def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
+def compile_to_assembly(code, optimize=OptimizationLevel.GAS, compiler_metadata=None):
     # don't mutate the ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
 
-    res = _IRnodeLowerer(optimize).compile_to_assembly(code)
+    res = _IRnodeLowerer(optimize, compiler_metadata).compile_to_assembly(code)
 
     if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
@@ -308,8 +308,9 @@ class _IRnodeLowerer:
 
     symbol_counter: int = 0
 
-    def __init__(self, optimize: OptimizationLevel = OptimizationLevel.GAS):
+    def __init__(self, optimize: OptimizationLevel = OptimizationLevel.GAS, compiler_metadata=None):
         self.optimize = optimize
+        self.compiler_metadata=compiler_metadata
 
     def compile_to_assembly(self, code):
         self.withargs = {}
@@ -630,10 +631,12 @@ class _IRnodeLowerer:
             assert isinstance(memsize, int), "non-int memsize"
             assert isinstance(immutables_len, int), "non-int immutables_len"
 
-            runtime_assembly = _IRnodeLowerer(self.optimize).compile_to_assembly(ir)
+            runtime_assembly = _IRnodeLowerer(self.optimize, self.compiler_metadata).compile_to_assembly(ir)
 
             if self.optimize != OptimizationLevel.NONE:
                 optimize_assembly(runtime_assembly)
+
+            runtime_data_segment_lengths = get_data_segment_lengths(runtime_assembly)
 
             runtime_bytecode, _ = assembly_to_evm(runtime_assembly)
 
@@ -669,6 +672,25 @@ class _IRnodeLowerer:
             o.extend(["RETURN"])
 
             self.data_segments.append([DataHeader(runtime_begin), DATA_ITEM(runtime_bytecode)])
+
+            if self.compiler_metadata is not None:
+                # we should issue the cbor-encoded metadata.
+                metadata = (
+                    compiler_metadata,
+                    runtime_codesize,
+                    runtime_data_segment_lengths,
+                    immutables_len,
+                    {"vyper": version_tuple},
+                )
+                bytecode_suffix += cbor2.dumps(metadata)
+                # append the length of the footer, *including* the length
+                # of the length bytes themselves.
+                suffix_len = len(bytecode_suffix) + 2
+                bytecode_suffix += suffix_len.to_bytes(2, "big")
+
+                segment = [DataHeader(Label("cbor_metadata"))]
+                segment.append(bytecode_suffix)
+                self.data_segments.append(segment)
 
             return o
 
@@ -1201,17 +1223,20 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 
 # predict what length of an assembly [data] node will be in bytecode
-def _length_of_data(assembly):
-    ret = 0
-    assert isinstance(assembly[0], DataHeader)
-    for item in assembly[1:]:
-        if is_symbol(item):
-            ret += SYMBOL_SIZE
-        elif isinstance(item, int):
-            assert 0 <= item < 256, f"invalid data byte {item}"
-            ret += 1
-        elif isinstance(item, bytes):
-            ret += len(item)
+def get_data_segment_lengths(assembly):
+    ret = []
+    for item in assembly:
+        if isinstance(item, DataHeader):
+            ret.append(0)
+            continue
+        if len(ret) == 0:
+            # haven't yet seen a data header
+            continue
+        assert isinstance(item, DATA_ITEM)
+        if is_symbol(item.data):
+            ret[-1] += SYMBOL_SIZE
+        elif isinstance(item.data, bytes):
+            ret[-1] += len(item)
         else:
             raise ValueError(f"invalid data {type(item)} {item}")
 
@@ -1316,7 +1341,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
 
         elif isinstance(item, DataHeader):
             symbol_map[item.label] = pc
-            # pc += _length_of_data(item)
         elif isinstance(item, DATA_ITEM):
             if isinstance(item.data, Label):
                 pc += SYMBOL_SIZE
@@ -1325,27 +1349,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                 pc += len(item.data)
         else:
             pc += 1
-
-    bytecode_suffix = b""
-    if False:  # TODO: bring this back, but in generating assembly.
-        # if compiler_metadata is not None:
-        # this will hold true when we are in initcode
-        assert immutables_len is not None
-        immutables_len = symbol_map["immutables_len"]
-        metadata = (
-            compiler_metadata,
-            len(runtime_code),
-            data_section_lengths,
-            immutables_len,
-            {"vyper": version_tuple},
-        )
-        bytecode_suffix += cbor2.dumps(metadata)
-        # append the length of the footer, *including* the length
-        # of the length bytes themselves.
-        suffix_len = len(bytecode_suffix) + 2
-        bytecode_suffix += suffix_len.to_bytes(2, "big")
-
-    pc += len(bytecode_suffix)
 
     symbol_map[Label("code_end")] = pc
 
@@ -1412,8 +1415,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         else:  # pragma: no cover
             # unreachable
             raise ValueError(f"Weird symbol in assembly: {type(item)} {item}")
-
-    ret.extend(bytecode_suffix)
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
