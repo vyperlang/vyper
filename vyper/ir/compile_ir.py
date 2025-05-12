@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import TypeVar
 import contextlib
 import copy
-import math
 from dataclasses import dataclass
+from typing import Any, TypeVar
 
 import cbor2
 
@@ -183,7 +182,6 @@ def is_symbol(i):
     return isinstance(i, Label)
 
 
-
 def is_ofst(assembly_item):
     return isinstance(assembly_item, PUSH_OFST)
 
@@ -291,7 +289,9 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS, compiler_metadata=
     return res
 
 
-AssemblyInstruction = str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader
+AssemblyInstruction = (
+    str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader
+)
 
 
 class _IRnodeLowerer:
@@ -309,7 +309,7 @@ class _IRnodeLowerer:
     height: int
 
     code_instructions: list[AssemblyInstruction]
-    data_segments: list[DataSegment]
+    data_segments: list[AssemblyInstruction]
 
     optimize: OptimizationLevel
 
@@ -317,7 +317,7 @@ class _IRnodeLowerer:
 
     def __init__(self, optimize: OptimizationLevel = OptimizationLevel.GAS, compiler_metadata=None):
         self.optimize = optimize
-        self.compiler_metadata=compiler_metadata
+        self.compiler_metadata = compiler_metadata
 
     def compile_to_assembly(self, code):
         self.withargs = {}
@@ -556,7 +556,7 @@ class _IRnodeLowerer:
             # stack: i, exit_i
             o.extend(["SWAP1"])
 
-            if i_name.value in self.withargs: # pragma: nocover
+            if i_name.value in self.withargs:  # pragma: nocover
                 raise CompilerPanic(f"shadowed loop variable {i_name}")
             self.withargs[i_name.value] = height + 1
 
@@ -591,7 +591,7 @@ class _IRnodeLowerer:
 
         # Break from inside a for loop
         if code.value == "break":
-            if not self.break_dest: # pragma: nocover
+            if not self.break_dest:  # pragma: nocover
                 raise CompilerPanic("Invalid break")
             dest, _continue_dest, break_height = self.break_dest
 
@@ -602,7 +602,7 @@ class _IRnodeLowerer:
 
         # Break from inside one or more for loops prior to a return statement inside the loop
         if code.value == "cleanup_repeat":
-            if not self.break_dest: # pragma: nocover
+            if not self.break_dest:  # pragma: nocover
                 raise CompilerPanic("Invalid break")
             # clean up local vars and internal loop vars
             _, _, break_height = self.break_dest
@@ -639,7 +639,9 @@ class _IRnodeLowerer:
             assert isinstance(memsize, int), "non-int memsize"
             assert isinstance(immutables_len, int), "non-int immutables_len"
 
-            runtime_assembly = _IRnodeLowerer(self.optimize, self.compiler_metadata).compile_to_assembly(ir)
+            runtime_assembly = _IRnodeLowerer(
+                self.optimize, self.compiler_metadata
+            ).compile_to_assembly(ir)
 
             if self.optimize != OptimizationLevel.NONE:
                 optimize_assembly(runtime_assembly)
@@ -820,7 +822,7 @@ class _IRnodeLowerer:
                     assert len(c.args) == 1
                     assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
                     data_node.append(DATA_ITEM(Label(c.args[0].value)))
-                else: # pragma: nocover
+                else:  # pragma: nocover
                     raise ValueError(f"Invalid data: {type(c)} {c}")
 
             self.data_segments.append(data_node)
@@ -850,12 +852,12 @@ class _IRnodeLowerer:
             label_name = code.args[0].value
             assert isinstance(label_name, str)
 
-            if label_name in self.existing_labels: # pragma: nocover
+            if label_name in self.existing_labels:  # pragma: nocover
                 raise Exception(f"Label with name {label_name} already exists!")
             else:
                 self.existing_labels.add(label_name)
 
-            if code.args[1].value != "var_list": # pragma: nocover
+            if code.args[1].value != "var_list":  # pragma: nocover
                 raise CodegenPanic("2nd arg to label must be var_list")
             var_args = code.args[1].args
 
@@ -886,7 +888,7 @@ class _IRnodeLowerer:
             symbol = code.args[0].value
             assert isinstance(symbol, str)
 
-            if symbol in self.existing_labels: # pragma: nocover
+            if symbol in self.existing_labels:  # pragma: nocover
                 raise Exception(f"symbol {symbol} already exists!")
             else:
                 self.existing_labels.add(symbol)
@@ -919,7 +921,9 @@ class _IRnodeLowerer:
 
         return ret
 
-    def _compile_data_segment(self, segment: list[AssemblyInstruction]) -> list[AssemblyInstruction]:
+    def _compile_data_segment(
+        self, segment: list[AssemblyInstruction]
+    ) -> list[AssemblyInstruction]:
         return segment
 
     def _assert_false(self):
@@ -1238,7 +1242,6 @@ def get_data_segment_lengths(assembly):
     return ret
 
 
-
 ##############################
 # assembly to evm bytecode
 ##############################
@@ -1251,15 +1254,16 @@ def _compile_data_item(item: DATA_ITEM, symbol_map: dict[Label, int]) -> bytes:
         symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
         return symbolbytes
 
-    raise CompilerPanic("Invalid data {type(item.data)}, {item.data}")  # pragma: nocover
+    raise CompilerPanic(f"Invalid data {type(item.data)}, {item.data}")  # pragma: nocover
+
 
 T = TypeVar("T")
 
+
 def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
     if item in symbol_map:  # pragma: nocover
-        raise CompilerPanic(f"duplicate label: {label}")
+        raise CompilerPanic(f"duplicate label: {item}")
     symbol_map[item] = value
-
 
 
 def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[str, Any]]:
@@ -1277,7 +1281,9 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
 
 
 # resolve symbols in assembly
-def make_symbol_map(assembly: list[AssemblyInstruction]) -> tuple[dict[Label,int], dict[CONSTREF, int], dict[str, Any]]:
+def make_symbol_map(
+    assembly: list[AssemblyInstruction],
+) -> tuple[dict[Label, int], dict[CONSTREF, int], dict[str, Any]]:
     """
     Construct symbol map from assembly list
 
@@ -1378,7 +1384,11 @@ def make_symbol_map(assembly: list[AssemblyInstruction]) -> tuple[dict[Label,int
     return symbol_map, const_map, source_map
 
 
-def _assembly_to_evm(assembly: list[AssemblyInstruction], symbol_map: dict[Label, int], const_map: dict[CONSTREF, int]) -> bytes:
+def _assembly_to_evm(
+    assembly: list[AssemblyInstruction],
+    symbol_map: dict[Label, int],
+    const_map: dict[CONSTREF, int],
+) -> bytes:
     """
     Assembles assembly into EVM bytecode
 

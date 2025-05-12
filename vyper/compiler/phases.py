@@ -257,6 +257,7 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
+        metadata = None
         if not self.no_bytecode_metadata:
             metadata = bytes.fromhex(self.integrity_sum)
 
@@ -267,7 +268,9 @@ class CompilerData:
                 runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
             )
         else:
-            return generate_assembly(self.ir_nodes, self.settings.optimize, compiler_metadata=metadata)
+            return generate_assembly(
+                self.ir_nodes, self.settings.optimize, compiler_metadata=metadata
+            )
 
     @cached_property
     def assembly_runtime(self) -> list:
@@ -280,7 +283,6 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        metadata = None
         return generate_bytecode(self.assembly)
 
     @cached_property
@@ -329,7 +331,11 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = None, compiler_metadata: Optional[Any]=None) -> list:
+def generate_assembly(
+    ir_nodes: IRnode,
+    optimize: Optional[OptimizationLevel] = None,
+    compiler_metadata: Optional[Any] = None,
+) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -344,7 +350,9 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
         List of assembly instructions.
     """
     optimize = optimize or OptimizationLevel.default()
-    assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize, compiler_metadata=compiler_metadata)
+    assembly = compile_ir.compile_to_assembly(
+        ir_nodes, optimize=optimize, compiler_metadata=compiler_metadata
+    )
 
     if _find_nested_opcode(assembly, "DEBUG"):
         vyper_warn(
