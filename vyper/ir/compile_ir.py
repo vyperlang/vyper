@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TypeVar
 import contextlib
 import copy
 import math
@@ -68,6 +69,14 @@ class Label:
         return hash(self.label)
 
 
+@dataclass
+class DataHeader:
+    label: Label
+
+    def __repr__(self):
+        return f"DATA {self.label.label}"
+
+
 # this could be fused with Label, the only difference is if
 # it gets looked up from const_map or symbol_map.
 class CONSTREF:
@@ -123,8 +132,7 @@ class PUSHLABEL:
 # push the result of an addition (which might be resolvable at compile-time)
 class PUSH_OFST:
     def __init__(self, label: Label | CONSTREF, ofst: int):
-        # label can be Label or (temporarily) str, until
-        # we clean up mem_syms.
+        # label can be Label or CONSTREF
         assert isinstance(label, (Label, CONSTREF))
         self.label = label
         self.ofst = ofst
@@ -175,13 +183,6 @@ def is_symbol(i):
     return isinstance(i, Label)
 
 
-# basically a pointer but like a symbol in that it gets resolved
-# during assembly, but requires up to 4 bytes of space.
-# (should only happen in initcode)
-def is_mem_sym(i):
-    # should be dead
-    return isinstance(i, str) and i.startswith("_mem_")
-
 
 def is_ofst(assembly_item):
     return isinstance(assembly_item, PUSH_OFST)
@@ -209,11 +210,17 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
     return runtime_code_start, runtime_code_end
 
 
-# Calculate the size of PUSH instruction we need to handle all
-# mem offsets in the code. For instance, if we only see mem symbols
-# up to size 256, we can use PUSH1.
+# Calculate the size of PUSH instruction
 def calc_push_size(val: int):
-    return math.ceil(math.log(val + 1, 256)) + 1
+    # stupid implementation. this is "slow", but its correctness is
+    # obvious verify, as opposed to
+    # ```
+    # (val.bit_length() + 7) // 8
+    #    + (1
+    #         if (val > 0 or version_check(begin="shanghai"))
+    #      else 0)
+    # ```
+    return len(PUSH(val))
 
 
 # temporary optimization to handle stack items for return sequences
@@ -284,7 +291,7 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS, compiler_metadata=
     return res
 
 
-AssemblyInstruction = str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST
+AssemblyInstruction = str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader
 
 
 class _IRnodeLowerer:
@@ -381,7 +388,7 @@ class _IRnodeLowerer:
     def _step_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
         def _height_of(varname):
             ret = height - self.withargs[varname]
-            if ret > 16:
+            if ret > 16:  # pragma: nocover
                 raise Exception("With statement too deep")
             return ret
 
@@ -394,9 +401,9 @@ class _IRnodeLowerer:
 
         # Numbers
         if isinstance(code.value, int):
-            if code.value < -(2**255):
+            if code.value < -(2**255):  # pragma: nocover
                 raise Exception(f"Value too low: {code.value}")
-            elif code.value >= 2**256:
+            elif code.value >= 2**256:  # pragma: nocover
                 raise Exception(f"Value too high: {code.value}")
 
             return PUSH(code.value % 2**256)
@@ -409,6 +416,7 @@ class _IRnodeLowerer:
         if code.value == "set":
             if len(code.args) != 2 or code.args[0].value not in self.withargs:
                 raise Exception("Set expects two arguments, the first being a stack variable")
+            # TODO: use _height_of
             if height - self.withargs[code.args[0].value] > 16:
                 raise Exception("With statement too deep")
             swap_instr = "SWAP" + str(height - self.withargs[code.args[0].value])
@@ -548,7 +556,7 @@ class _IRnodeLowerer:
             # stack: i, exit_i
             o.extend(["SWAP1"])
 
-            if i_name.value in self.withargs:
+            if i_name.value in self.withargs: # pragma: nocover
                 raise CompilerPanic(f"shadowed loop variable {i_name}")
             self.withargs[i_name.value] = height + 1
 
@@ -576,14 +584,14 @@ class _IRnodeLowerer:
 
         # Continue to the next iteration of the for loop
         if code.value == "continue":
-            if not self.break_dest:
+            if not self.break_dest:  # pragma: nocover
                 raise CompilerPanic("Invalid break")
             _dest, continue_dest, _break_height = self.break_dest
             return [*JUMP(continue_dest)]
 
         # Break from inside a for loop
         if code.value == "break":
-            if not self.break_dest:
+            if not self.break_dest: # pragma: nocover
                 raise CompilerPanic("Invalid break")
             dest, _continue_dest, break_height = self.break_dest
 
@@ -594,7 +602,7 @@ class _IRnodeLowerer:
 
         # Break from inside one or more for loops prior to a return statement inside the loop
         if code.value == "cleanup_repeat":
-            if not self.break_dest:
+            if not self.break_dest: # pragma: nocover
                 raise CompilerPanic("Invalid break")
             # clean up local vars and internal loop vars
             _, _, break_height = self.break_dest
@@ -812,7 +820,7 @@ class _IRnodeLowerer:
                     assert len(c.args) == 1
                     assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
                     data_node.append(DATA_ITEM(Label(c.args[0].value)))
-                else:
+                else: # pragma: nocover
                     raise ValueError(f"Invalid data: {type(c)} {c}")
 
             self.data_segments.append(data_node)
@@ -842,12 +850,12 @@ class _IRnodeLowerer:
             label_name = code.args[0].value
             assert isinstance(label_name, str)
 
-            if label_name in self.existing_labels:
+            if label_name in self.existing_labels: # pragma: nocover
                 raise Exception(f"Label with name {label_name} already exists!")
             else:
                 self.existing_labels.add(label_name)
 
-            if code.args[1].value != "var_list":
+            if code.args[1].value != "var_list": # pragma: nocover
                 raise CodegenPanic("2nd arg to label must be var_list")
             var_args = code.args[1].args
 
@@ -878,7 +886,7 @@ class _IRnodeLowerer:
             symbol = code.args[0].value
             assert isinstance(symbol, str)
 
-            if symbol in self.existing_labels:
+            if symbol in self.existing_labels: # pragma: nocover
                 raise Exception(f"symbol {symbol} already exists!")
             else:
                 self.existing_labels.add(symbol)
@@ -911,7 +919,7 @@ class _IRnodeLowerer:
 
         return ret
 
-    def _compile_data_segment(self, segment: list):
+    def _compile_data_segment(self, segment: list[AssemblyInstruction]) -> list[AssemblyInstruction]:
         return segment
 
     def _assert_false(self):
@@ -926,6 +934,7 @@ class _IRnodeLowerer:
 ##############################
 
 
+# TODO: move this to some ast file or vyper/compiler/output.py
 def getpos(node):
     return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
@@ -1205,20 +1214,6 @@ def optimize_assembly(assembly):
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: nocover
 
 
-def adjust_pc_maps(pc_maps, ofst):
-    assert ofst >= 0
-
-    ret = {}
-    # source breakpoints, don't need to modify
-    ret["breakpoints"] = pc_maps["breakpoints"].copy()
-    ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
-    ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
-    ret["pc_raw_ast_map"] = {k + ofst: v for (k, v) in pc_maps["pc_raw_ast_map"].items()}
-    ret["error_map"] = {k + ofst: v for (k, v) in pc_maps["error_map"].items()}
-
-    return ret
-
-
 SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 
@@ -1237,18 +1232,11 @@ def get_data_segment_lengths(assembly):
             ret[-1] += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
             ret[-1] += len(item)
-        else:
+        else:  # pragma: nocover
             raise ValueError(f"invalid data {type(item)} {item}")
 
     return ret
 
-
-@dataclass
-class DataHeader:
-    label: Label
-
-    def __repr__(self):
-        return f"DATA {self.label.label}"
 
 
 ##############################
@@ -1256,50 +1244,72 @@ class DataHeader:
 ##############################
 
 
-# TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, compiler_metadata=None):
-    bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, compiler_metadata=compiler_metadata
-    )
-    return bytecode, source_maps
+def _compile_data_item(item: DATA_ITEM, symbol_map: dict[Label, int]) -> bytes:
+    if isinstance(item.data, bytes):
+        return item.data
+    if isinstance(item.data, Label):
+        symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
+        return symbolbytes
+
+    raise CompilerPanic("Invalid data {type(item.data)}, {item.data}")  # pragma: nocover
+
+T = TypeVar("T")
+
+def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
+    if item in symbol_map:  # pragma: nocover
+        raise CompilerPanic(f"duplicate label: {label}")
+    symbol_map[item] = value
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None):
+
+def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[str, Any]]:
     """
-    Assembles assembly into EVM
+    Generate bytecode and source map from assembly
 
-    assembly: list of asm instructions
-    pc_ofst: when constructing the source map, the amount to offset all
-             pcs by (no effect until we add deploy code source map)
-    compiler_metadata: any compiler metadata to add. pass `None` to indicate
-                       no metadata to be added (should always be `None` for
-                       runtime code). the value is opaque, and will be passed
-                       directly to `cbor2.dumps()`.
+    Returns:
+        bytecode: bytestring of the EVM bytecode
+        source_map: source map dict that gets output for the user
     """
-    line_number_map = {
-        "breakpoints": set(),
-        "pc_breakpoints": set(),
+    # This API might seem a bit strange, but it's backwards compatible
+    symbol_map, const_map, source_map = make_symbol_map(assembly)
+    bytecode = _assembly_to_evm(assembly, symbol_map, const_map)
+    return bytecode, source_map
+
+
+# resolve symbols in assembly
+def make_symbol_map(assembly: list[AssemblyInstruction]) -> tuple[dict[Label,int], dict[CONSTREF, int], dict[str, Any]]:
+    """
+    Construct symbol map from assembly list
+
+    Returns:
+        symbol_map: dict from labels to values
+        const_map: dict from CONSTREFs to values
+        source_map: source map dict that gets output for the user
+    """
+    source_map = {
+        "breakpoints": OrderedSet(),
+        "pc_breakpoints": OrderedSet(),
         "pc_jump_map": {0: "-"},
         "pc_raw_ast_map": {},
         "error_map": {},
     }
 
-    pc = 0
-    symbol_map = {}
-    const_map = {}
+    symbol_map: dict[Label, int] = {}
+    const_map: dict[CONSTREF, int] = {}
 
-    ## resolve constants
+    pc: int = 0
+
+    # resolve constants
     for item in assembly:
         if isinstance(item, CONST):
             # should this be merged into the symbol map?
-            const_map[CONSTREF(item.name)] = item.value
+            _add_to_symbol_map(const_map, CONSTREF(item.name), item.value)
 
-    # go through the code, resolving symbolic locations
-    # (i.e. JUMPDEST locations) to actual code locations
+    # resolve labels (i.e. JUMPDEST locations) to actual code locations,
+    # and simultaneously build the source map.
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, pc, item)
-        if item == "DEBUG":
-            continue  # skip debug
+        # add it to the source map
+        note_line_num(source_map, pc, item)
 
         # update pc_jump_map
         if item == "JUMP":
@@ -1307,24 +1317,31 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             if isinstance(last, PUSHLABEL) and last.label.label.startswith("internal"):
                 if last.label.label.endswith("cleanup"):
                     # exit an internal function
-                    line_number_map["pc_jump_map"][pc] = "o"
+                    source_map["pc_jump_map"][pc] = "o"
                 else:
                     # enter an internal function
-                    line_number_map["pc_jump_map"][pc] = "i"
+                    source_map["pc_jump_map"][pc] = "i"
             else:
                 # everything else
-                line_number_map["pc_jump_map"][pc] = "-"
+                source_map["pc_jump_map"][pc] = "-"
         elif item in ("JUMPI", "JUMPDEST"):
-            line_number_map["pc_jump_map"][pc] = "-"
+            source_map["pc_jump_map"][pc] = "-"
+
+        if item == "DEBUG":
+            continue  # "debug" opcode does not go into bytecode
+
+        if isinstance(item, CONST):
+            continue  # CONST declarations do not go into bytecode
 
         # update pc
-        if is_symbol(item):
-            if item in symbol_map:
-                raise CompilerPanic(f"duplicate {item}")
+        if isinstance(item, Label):
             # Don't increment pc as the symbol itself doesn't go into code
-            symbol_map[item] = pc
+            _add_to_symbol_map(symbol_map, item, pc)
 
-        if isinstance(item, PUSHLABEL):
+        elif isinstance(item, DataHeader):
+            _add_to_symbol_map(symbol_map, item.label, pc)
+
+        elif isinstance(item, PUSHLABEL):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
         elif is_ofst(item):
@@ -1339,21 +1356,44 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                 val = const + item.ofst
                 pc += calc_push_size(val)
 
-        elif isinstance(item, DataHeader):
-            symbol_map[item.label] = pc
         elif isinstance(item, DATA_ITEM):
             if isinstance(item.data, Label):
                 pc += SYMBOL_SIZE
             else:
                 assert isinstance(item.data, bytes)
                 pc += len(item.data)
+        elif isinstance(item, int):
+            assert 0 <= item < 256
+            pc += 1
         else:
+            assert isinstance(item, str) and item in get_opcodes(), item
             pc += 1
 
-    symbol_map[Label("code_end")] = pc
+    source_map["breakpoints"] = list(source_map["breakpoints"])
+    source_map["pc_breakpoints"] = list(source_map["pc_breakpoints"])
 
-    # TODO refactor into two functions, create symbol_map and assemble
+    # magic -- probably the assembler should actually add this label
+    _add_to_symbol_map(symbol_map, Label("code_end"), pc)
 
+    return symbol_map, const_map, source_map
+
+
+def _assembly_to_evm(assembly: list[AssemblyInstruction], symbol_map: dict[Label, int], const_map: dict[CONSTREF, int]) -> bytes:
+    """
+    Assembles assembly into EVM bytecode
+
+    assembly: list of asm instructions
+    symbol_map: dict from labels to resolved locations in the code
+    const_map: dict from constrefs to their values
+
+    TODO: move this
+    compiler_metadata: any compiler metadata to add. pass `None` to indicate
+                       no metadata to be added (should always be `None` for
+                       runtime code). the value is opaque, and will be passed
+                       directly to `cbor2.dumps()`.
+
+    Returns: bytes representing the bytecode
+    """
     ret = bytearray()
 
     # now that all symbols have been resolved, generate bytecode
@@ -1375,12 +1415,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         elif isinstance(item, Label):
             ret.append(get_opcodes()["JUMPDEST"][0])
 
-        elif is_mem_sym(item):
-            raise CompilerPanic("unreachable/dead code")
-            # TODO: use something like PUSH_MEM_SYM(?) for these.
-            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
-            ret.extend(bytecode)
-
         elif is_ofst(item):
             # PUSH_OFST (LABEL foo) 32
             # PUSH_OFST (const foo) 32
@@ -1399,13 +1433,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         elif isinstance(item, str) and item.upper() in get_opcodes():
             ret.append(get_opcodes()[item.upper()][0])
         elif isinstance(item, DATA_ITEM):
-            if isinstance(item.data, bytes):
-                ret.extend(item.data)
-            elif isinstance(item.data, Label):
-                symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
-                ret.extend(symbolbytes)
-            else:
-                raise CompilerPanic("Invalid data {type(item.data)}, {item.data}")
+            ret.extend(_compile_data_item(item, symbol_map))
         elif item[:4] == "PUSH":
             ret.append(PUSH_OFFSET + int(item[4:]))
         elif item[:3] == "DUP":
@@ -1416,6 +1444,4 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             # unreachable
             raise ValueError(f"Weird symbol in assembly: {type(item)} {item}")
 
-    line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
-    line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
-    return bytes(ret), line_number_map, symbol_map
+    return bytes(ret)
