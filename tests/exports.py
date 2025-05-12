@@ -36,27 +36,9 @@ class TestExporter:
         initcode: str,
         runtime_bytecode: str,
         calldata: str,
-        python_ctor_args: dict[str, Any],
         value: int,
     ):
         assert self._current_item is not None
-
-        def serialize_python_arg(val: Any) -> Any:
-            if isinstance(val, bytes):
-                return val.hex()
-            try:
-                json.dumps(val)
-                return val
-            except TypeError:
-                return str(val)
-
-        serialized_args = [
-            serialize_python_arg(a) for a in python_ctor_args.get("args", [])
-        ]
-        serialized_kwargs = {
-            k: serialize_python_arg(v)
-            for k, v in python_ctor_args.get("kwargs", {}).items()
-        }
 
         self._current_item["deployments"].append(
             {
@@ -66,7 +48,6 @@ class TestExporter:
                 "initcode": initcode,
                 "runtime_bytecode": runtime_bytecode,
                 "calldata": calldata,
-                "python_ctor_args": {"args": serialized_args, "kwargs": serialized_kwargs},
                 "value": value,
             }
         )
