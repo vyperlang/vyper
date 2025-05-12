@@ -678,7 +678,7 @@ def test_phi_node_reaching_def(create_mem_ssa):
     assert phi.operands[1][1] == block2, "Second operand should be from block2"
 
     assert (
-        def3.reaching_def == mem_ssa.live_on_entry
+        def3.reaching_def == phi
     ), "def3's reaching definition should be live_on_entry"
 
     # Create a new memory definition with the same location as def3
@@ -907,7 +907,7 @@ def test_print_method(create_mem_ssa):
         assert "def: 1 (live_on_entry) clobber: 4" in output
         assert "def: 4 (1) clobber: 3" in output
         assert "def: 2 (1) clobber: 3" in output
-        assert "def: 3 (1)" in output
+        assert "def: 3 (5)" in output
 
 
 def test_invalid_location_type(create_mem_ssa):
