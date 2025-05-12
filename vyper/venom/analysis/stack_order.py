@@ -5,52 +5,21 @@ from vyper.venom.analysis import LivenessAnalysis
 from enum import Enum
 
 
-def swap(stack: list[IROperand], position: int):
+def swap(stack: list[IROperand], position: int, output: IRVariable):
     if position == 0:
         return
     top = len(stack) - 1
     stack[top], stack[position] = stack[position], stack[top]
+    stack[top] = output
 
-def position(stack: list[IROperand], op: IROperand):
+def position(stack: list[IROperand], op: IROperand) -> int | None:
     top = len(stack) - 1
     for i, item in enumerate(reversed(stack)):
         pos = top - i
         if item == op:
             return pos
 
-    raise CompilerPanic("item not in the stack")
-
-def ops_order(stack: list[IROperand], needed: list[IROperand], next_liveness: OrderedSet[IRVariable]) -> tuple[list[IROperand], list[IROperand]]:
-    added: list[IROperand] = []
-    # we will have to dup these either way
-    for op in needed:
-        if op in next_liveness:
-            stack.append(op)
-    # pad stack with unknown
-    diff_count = len(needed) > len(stack)
-    if diff_count > 0:
-        stack = needed[0:diff_count] + stack
-        added = needed[0:diff_count]
-
-    for op in needed:
-        if op not in stack:
-            stack.insert(0, op)
-            added.insert(0, op)
-
-    for i, op in enumerate(needed):
-        pos = len(needed) - i - 1
-        if op in next_liveness:
-            stack.append(op)
-            swap(stack, pos)
-            continue
-        if op == stack[pos]:
-            continue
-        current_pos = position(stack, op)
-        swap(stack, current_pos)
-        swap(stack, pos)
-        
-
-    return stack, added
+    return None
 
 class StoreType(Enum):
     PUSH = 1
@@ -76,23 +45,44 @@ class StackOrder(IRAnalysis):
         needed: list[IROperand] = []
 
         for i, inst in enumerate(bb.instructions):
-            print(inst)
-            print(stack)
-            ops = inst.operands
-            if inst.is_bb_terminator:
-                next_liveness = self.liveness.out_vars(inst.parent)
+            if inst.opcode == "store":
+                self._handle_store(inst, stack, needed)
             else:
-                next_inst = inst.parent.instructions[i + 1]
-                next_liveness = self.liveness.inst_to_liveness[next_inst]
-            stack, added = ops_order(stack, ops, next_liveness)
-            print(stack)
-            needed = added + needed
-            assert stack[-len(ops):] == ops, (stack, ops)
-            stack = stack[0:(-len(ops))]
-            if inst.output is not None:
-                stack.append(inst.output)
+                ops = inst.operands
+                assert ops == stack[-len(ops)]
+
+                stack = stack[0:-len(ops)]
+
+                output = inst.output
+                if output is not None:
+                    stack.append(output)
 
         return needed
+
+    def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
+        assert inst.opcode == "store"
+        ops = inst.operands
+        assert len(ops) == 0
+        op = ops[0]
+
+        output = inst.output
+        assert output is not None
+        
+        store_type = self.store_to_type[inst]
+        if store_type == StoreType.PUSH:
+            stack.append(output)
+        elif store_type == StoreType.SWAP:
+            op_position = position(stack, op)
+            if op_position is None:
+                stack.insert(0, op)
+                needed.append(op)
+                op_position = len(stack) - 1
+            swap(stack, op_position, output)
+        elif store_type == StoreType.DUP:
+            stack.append(output)
+            if op not in stack:
+                needed.append(op)
+
 
     def _handle_bb_store_types(self, bb: IRBasicBlock):
         for i, inst in enumerate(bb.instructions):
