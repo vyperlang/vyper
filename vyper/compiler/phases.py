@@ -282,12 +282,28 @@ class CompilerData:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
-    def bytecode(self) -> bytes:
+    def _bytecode(self) -> tuple[bytes, dict[str, Any]]:
         return generate_bytecode(self.assembly)
 
+    @property
+    def bytecode(self) -> bytes:
+        return self._bytecode[0]
+
+    @property
+    def source_map(self) -> dict[str, Any]:
+        return self._bytecode[1]
+
     @cached_property
-    def bytecode_runtime(self) -> bytes:
+    def _bytecode_runtime(self) -> tuple[bytes, dict[str, Any]]:
         return generate_bytecode(self.assembly_runtime)
+
+    @property
+    def bytecode_runtime(self) -> bytes:
+        return self._bytecode_runtime[0]
+
+    @property
+    def source_map_runtime(self) -> dict[str, Any]:
+        return self._bytecode_runtime[1]
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -372,7 +388,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list) -> bytes:
+def generate_bytecode(assembly: list) -> tuple[bytes, dict[str, Any]]:
     """
     Generate bytecode from assembly instructions.
 
@@ -385,5 +401,7 @@ def generate_bytecode(assembly: list) -> bytes:
     -------
     bytes
         Final compiled bytecode.
+    dict
+        Source map
     """
-    return compile_ir.assembly_to_evm(assembly)[0]
+    return compile_ir.assembly_to_evm(assembly)

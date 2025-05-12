@@ -386,15 +386,15 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(compiler_data.assembly, compiler_metadata=None)
-    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+    bytecode = compiler_data.bytecode
+    source_map = compiler_data.source_map
+    return _build_source_map_output(compiler_data, bytecode, source_map)
 
 
 def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, compiler_metadata=None
-    )
-    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+    bytecode = compiler_data.bytecode_runtime
+    source_map = compiler_data.source_map_runtime
+    return _build_source_map_output(compiler_data, bytecode, source_map)
 
 
 # generate a solidity-style source map. this functionality is deprecated

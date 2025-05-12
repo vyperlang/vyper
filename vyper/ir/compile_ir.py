@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import copy
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 
 import cbor2
 
@@ -277,7 +277,11 @@ class TaggedInstruction(str):
 
 
 # external entry point to `IRnode.compile_to_assembly()`
-def compile_to_assembly(code: IRnode, optimize: OptimizationLevel=OptimizationLevel.GAS, compiler_metadata: Optional[Any]=None):
+def compile_to_assembly(
+    code: IRnode,
+    optimize: OptimizationLevel = OptimizationLevel.GAS,
+    compiler_metadata: Optional[Any] = None,
+):
     """
     Parameters:
         code: IRnode to compile
