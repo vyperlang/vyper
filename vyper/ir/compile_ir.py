@@ -1305,13 +1305,13 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
         source_map: source map dict that gets output for the user
     """
     # This API might seem a bit strange, but it's backwards compatible
-    symbol_map, const_map, source_map = make_symbol_map(assembly)
+    symbol_map, const_map, source_map = resolve_symbols(assembly)
     bytecode = _assembly_to_evm(assembly, symbol_map, const_map)
     return bytecode, source_map
 
 
 # resolve symbols in assembly
-def make_symbol_map(
+def resolve_symbols(
     assembly: list[AssemblyInstruction],
 ) -> tuple[dict[Label, int], dict[CONSTREF, int], dict[str, Any]]:
     """
