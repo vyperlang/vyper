@@ -8,7 +8,6 @@ from vyper.ir.compile_ir import (
     DataHeader,
     Label,
     TaggedInstruction,
-    is_mem_sym,
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
@@ -157,7 +156,7 @@ class VenomCompiler:
         self.label_counter += 1
         return f"{name}_{self.label_counter}"
 
-    def generate_evm(self, no_optimize: bool = False) -> list[str]:
+    def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 

@@ -48,7 +48,7 @@ def generate_assembly_experimental(
         functions = [runtime_code]
 
     compiler = VenomCompiler(functions)
-    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
+    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
