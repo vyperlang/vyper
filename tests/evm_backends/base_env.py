@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
@@ -47,18 +47,28 @@ class BaseEnv:
 
     DEFAULT_CHAIN_ID = 1
 
-    def __init__(self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]) -> None:
+    def __init__(
+        self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]
+    ) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
         self.exporter = exporter
 
-    def deploy(self, abi: list[dict], bytecode: bytes, *args, source_code: Optional[str]=None, value=0, **kwargs):
+    def deploy(
+        self,
+        abi: list[dict],
+        bytecode: bytes,
+        *args,
+        export_metadata: Optional[dict] = None,
+        value=0,
+        **kwargs,
+    ):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
-        calldata = b''
+        calldata = b""
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
@@ -69,13 +79,14 @@ class BaseEnv:
         address = to_checksum_address(deployed_at)
 
         # deploy can be called from ir_compiler, we don't yet trace IR
-        if self.exporter and source_code:
+        if self.exporter and "source_code" in export_metadata:
             runtime_bytecode = self.get_code(address)
-            if runtime_bytecode == b'':
-                assert address ==  "0x0000000000000000000000000000000000000000"
+            if runtime_bytecode == b"":
+                assert address == "0x0000000000000000000000000000000000000000"
 
             self.exporter.trace_deployment(
-                source_code=source_code,
+                source_code=export_metadata["source_code"],
+                annotated_ast=export_metadata["annotated_ast"],
                 contract_abi=abi,
                 deployed_address=address,
                 initcode=initcode.hex(),
@@ -85,7 +96,6 @@ class BaseEnv:
             )
 
         return factory.at(self, address)
-
 
     def deploy_source(
         self,
@@ -98,8 +108,27 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
-        return self.deploy(abi, bytecode, source_code=source_code, value=value,*args, **kwargs)
+        out = _compile(
+            source_code,
+            output_formats,
+            input_bundle=input_bundle,
+            settings=compiler_settings,
+            with_output_formats=self.exporter is not None,
+        )
+
+        abi = out["abi"]
+        bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+        export_metadata = None
+        if self.exporter:
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+            }
+
+        return self.deploy(
+            abi, bytecode, *args, export_metadata=export_metadata, value=value, **kwargs
+        )
 
     def deploy_blueprint(
         self,
@@ -243,7 +272,8 @@ def _compile(
     output_formats: Iterable[str],
     input_bundle: InputBundle = None,
     settings: Settings = None,
-) -> tuple[list[dict], bytes]:
+    with_output_formats: bool = False,
+) -> Union[tuple[list[dict], bytes], dict]:
     out = compile_code(
         source_code,
         # test that all output formats can get generated
@@ -254,4 +284,8 @@ def _compile(
     )
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
+
+    if with_output_formats:
+        return out
+
     return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))

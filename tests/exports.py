@@ -10,26 +10,25 @@ class TestExporter:
 
         self.data: dict[str, dict[str, list[Any]]] = {}
 
-        self._current_item: Optional[dict[str, list[Any]]] = None
+        self._current_test: Optional[dict[str, list[Any]]] = None
         self.output_file: Optional[Path] = None
 
-    def set_item(self, item: "pytest.Item"):
+    def set_item(self, item):
         module_file = Path(item.module.__file__).resolve()
         rel_module = module_file.relative_to(self.test_root)
 
-        self.output_file = (self.export_dir / rel_module).with_suffix(
-            rel_module.suffix + ".json"
-        )
+        self.output_file = (self.export_dir / rel_module).with_suffix(rel_module.suffix + ".json")
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
 
         test_name = item.name
         if test_name not in self.data:
             self.data[test_name] = {"deployments": [], "calls": []}
-        self._current_item = self.data[test_name]
+        self._current_test = self.data[test_name]
 
     def trace_deployment(
         self,
         source_code: str,
+        annotated_ast: dict,
         contract_abi: list[Any],
         deployed_address: str,
         initcode: str,
@@ -37,9 +36,10 @@ class TestExporter:
         calldata: str,
         value: int,
     ):
-        self._current_item["deployments"].append(
+        self._current_test["deployments"].append(
             {
                 "source_code": source_code,
+                "annotated_ast": annotated_ast,
                 "contract_abi": contract_abi,
                 "deployed_address": deployed_address,
                 "initcode": initcode,
@@ -50,20 +50,15 @@ class TestExporter:
         )
 
     def trace_call(self, output: bytes, **call_args):
-        calls_list = self._current_item["calls"]
+        calls_list = self._current_test["calls"]
 
         if "data" in call_args:
             assert isinstance(call_args["data"], bytes)
             call_args["data"] = call_args["data"].hex()
 
-        calls_list.append({
-            "output": output.hex(),
-            "call_args": call_args,
-        })
-
+        calls_list.append({"output": output.hex(), "call_args": call_args})
 
     def finalize_export(self):
-        # nothing to write if no tests ran in this module
         if not self.data or self.output_file is None:
             return
 

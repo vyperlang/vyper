@@ -1,12 +1,12 @@
 import copy
-from _pytest.fixtures import FixtureRequest
 from contextlib import contextmanager
+from pathlib import Path
 from random import Random
 from typing import Generator
-from pathlib import Path
 
 import hypothesis
 import pytest
+from _pytest.fixtures import FixtureRequest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
@@ -15,6 +15,7 @@ import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
+from tests.exports import TestExporter
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
@@ -24,7 +25,6 @@ from vyper.compiler.settings import OptimizationLevel, Settings, set_global_sett
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
-from tests.exports import TestExporter
 
 ############
 # PATCHING #
@@ -201,7 +201,7 @@ def make_input_bundle(tmp_path, make_file):
 def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
     # (note: 2**63 - 1 is max that py-evm allows)
-    return 10 ** 10
+    return 10**10
 
 
 @pytest.fixture(scope="module")
@@ -417,7 +417,7 @@ def pytest_runtest_call(item) -> Generator:
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
 
-    active_exporter = getattr(item.config, 'active_test_exporter', None)
+    active_exporter = getattr(item.config, "active_test_exporter", None)
     if active_exporter:
         active_exporter.set_item(item)
 
