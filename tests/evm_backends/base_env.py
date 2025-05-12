@@ -85,6 +85,7 @@ class BaseEnv:
             self.exporter.trace_deployment(
                 source_code=export_metadata["source_code"],
                 annotated_ast=export_metadata["annotated_ast"],
+                solc_json=export_metadata["solc_json"],
                 contract_abi=abi,
                 deployed_address=address,
                 initcode=initcode.hex(),
@@ -106,12 +107,13 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
+
         out = _compile(
             source_code,
             output_formats,
             input_bundle=input_bundle,
             settings=compiler_settings,
-            with_output_formats=self.exporter is not None,
+            with_output_formats=True,
         )
 
         abi = out["abi"]
@@ -121,6 +123,7 @@ class BaseEnv:
         if self.exporter:
             export_metadata = {
                 "source_code": source_code,
+                "solc_json": out.get("solc_json"),
                 "annotated_ast": out.get("annotated_ast_dict"),
             }
 

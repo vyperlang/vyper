@@ -29,6 +29,7 @@ class TestExporter:
         self,
         source_code: str,
         annotated_ast: dict,
+        solc_json: dict,
         contract_abi: list[Any],
         deployed_address: str,
         initcode: str,
@@ -40,6 +41,7 @@ class TestExporter:
             {
                 "source_code": source_code,
                 "annotated_ast": annotated_ast,
+                "solc_json": solc_json,
                 "contract_abi": contract_abi,
                 "deployed_address": deployed_address,
                 "initcode": initcode,
