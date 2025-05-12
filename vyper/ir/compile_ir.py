@@ -277,7 +277,18 @@ class TaggedInstruction(str):
 
 
 # external entry point to `IRnode.compile_to_assembly()`
-def compile_to_assembly(code, optimize=OptimizationLevel.GAS, compiler_metadata=None):
+def compile_to_assembly(code: IRnode, optimize: OptimizationLevel=OptimizationLevel.GAS, compiler_metadata: Optional[Any]=None):
+    """
+    Parameters:
+        code: IRnode to compile
+        optimize: Optimization level
+        compiler_metadata:
+            any compiler metadata to add as the final data segment. pass
+            `None` to indicate no metadata to be added (should always
+            be `None` for runtime code). the value is opaque, and will be
+            passed directly to `cbor2.dumps()`.
+    """
+
     # don't mutate the ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
@@ -1408,15 +1419,10 @@ def _assembly_to_evm(
     """
     Assembles assembly into EVM bytecode
 
-    assembly: list of asm instructions
-    symbol_map: dict from labels to resolved locations in the code
-    const_map: dict from constrefs to their values
-
-    TODO: move this
-    compiler_metadata: any compiler metadata to add. pass `None` to indicate
-                       no metadata to be added (should always be `None` for
-                       runtime code). the value is opaque, and will be passed
-                       directly to `cbor2.dumps()`.
+    Parameters:
+        assembly: list of asm instructions
+        symbol_map: dict from labels to resolved locations in the code
+        const_map: dict from constrefs to their values
 
     Returns: bytes representing the bytecode
     """
