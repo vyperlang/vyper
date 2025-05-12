@@ -676,3 +676,29 @@ def test_phi_placement_recursion_error():
             sink %29
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_indexed_access():
+    pre = """
+    _global:
+        mstore 64, 1
+        mstore 96, 2
+        mstore 128, 3
+        mstore 160, 4
+        mstore 192, 5
+        %13 = 0
+        jmp @condition
+    condition:
+        %13:1:1 = phi @__main_entry, %13, @6_incr, %13:2
+        %17 = xor 5, %13:1:1
+        jnz %17, @body, @exit
+    body:
+        %21 = mload %13:1:1
+        mstore 224, %21
+        %13:2 = add 1, %13:1:1
+        jmp @condition
+    exit:
+        return 256, 32
+    """
+
+    _check_pre_post(pre, pre, hevm=False)
