@@ -201,7 +201,7 @@ def make_input_bundle(tmp_path, make_file):
 def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
     # (note: 2**63 - 1 is max that py-evm allows)
-    return 10**10
+    return 10 ** 10
 
 
 @pytest.fixture(scope="module")
@@ -210,34 +210,26 @@ def account_keys():
     return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def exporter(request: FixtureRequest):
-    export_path_str = request.config.getoption("export")
-
-    if export_path_str:
-        export_target_path = Path(export_path_str)
-
-        if export_target_path.is_dir():
-            output_file = export_target_path / "vyper_test_trace.json"
-        else:
-            output_file = export_target_path
-
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-
-        project_root_dir = request.config.rootpath
-        test_root = (project_root_dir / "tests").resolve()
-        exporter_instance = TestExporter(output_file, test_root)
-
-        request.config.active_test_exporter = exporter_instance
-
-        yield exporter_instance
-
-        # runs after all tests in the session completed
-        exporter_instance.finalize_export()
-        delattr(request.config, 'active_test_exporter')
-    else:
-        request.config.active_test_exporter = None
+    export_dir_str = request.config.getoption("export")
+    if not export_dir_str:
         yield None
+        return
+
+    export_dir = Path(export_dir_str)
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    project_root = request.config.rootpath
+    test_root = (project_root / "tests").resolve()
+
+    e = TestExporter(export_dir, test_root)
+    request.config.active_test_exporter = e
+    yield e
+
+    e.finalize_export()
+    request.config.active_test_exporter = None
+
 
 @pytest.fixture(scope="module")
 def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) -> BaseEnv:

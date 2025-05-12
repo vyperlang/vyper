@@ -54,7 +54,7 @@ class BaseEnv:
 
         self.exporter = exporter
 
-    def deploy(self, abi: list[dict], bytecode: bytes, source_code: Optional[str]=None, value=0, *args, **kwargs):
+    def deploy(self, abi: list[dict], bytecode: bytes, *args, source_code: Optional[str]=None, value=0, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
