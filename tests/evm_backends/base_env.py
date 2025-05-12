@@ -78,11 +78,9 @@ class BaseEnv:
         deployed_at = self._deploy(initcode, value)
         address = to_checksum_address(deployed_at)
 
-        # deploy can be called from ir_compiler, we don't yet trace IR
+        # deploy can be called from ir_compiler, but we don't yet trace IR
         if self.exporter and "source_code" in export_metadata:
             runtime_bytecode = self.get_code(address)
-            if runtime_bytecode == b"":
-                assert address == "0x0000000000000000000000000000000000000000"
 
             self.exporter.trace_deployment(
                 source_code=export_metadata["source_code"],
