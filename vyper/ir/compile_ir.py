@@ -290,7 +290,7 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS, compiler_metadata=
 
 
 AssemblyInstruction = (
-    str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader
+    str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader | CONST
 )
 
 
@@ -298,8 +298,8 @@ class _IRnodeLowerer:
     # map from variable names to height in stack
     withargs: dict[str, int]
 
-    # set of all existing labels
-    existing_labels: set[Label]
+    # set of all existing labels in the IRnodes
+    existing_labels: set[str]
 
     # break destination when inside loops
     # continue_dest, break_dest, height
@@ -309,7 +309,7 @@ class _IRnodeLowerer:
     height: int
 
     code_instructions: list[AssemblyInstruction]
-    data_segments: list[AssemblyInstruction]
+    data_segments: list[list[AssemblyInstruction]]
 
     optimize: OptimizationLevel
 
@@ -365,6 +365,7 @@ class _IRnodeLowerer:
             return [PUSH_OFST(symbol, ofst.value)]
 
         # if we can't resolve at compile time, resolve at runtime
+        pushsym: PUSHLABEL | PUSH_OFST
         if isinstance(symbol, Label):
             pushsym = PUSHLABEL(symbol)
         else:
@@ -373,8 +374,8 @@ class _IRnodeLowerer:
             # we don't have a PUSHCONST instruction, use PUSH_OFST with ofst of 0
             pushsym = PUSH_OFST(symbol, 0)
 
-        ofst = self._compile_r(ofst, height)
-        return ofst + [pushsym, "ADD"]
+        ofst_asm = self._compile_r(ofst, height)
+        return ofst_asm + [pushsym, "ADD"]
 
     def _compile_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
         asm = self._step_r(code, height)
@@ -414,12 +415,14 @@ class _IRnodeLowerer:
 
         # Setting variables connected to with statements
         if code.value == "set":
-            if len(code.args) != 2 or code.args[0].value not in self.withargs:
+            varname = code.args[0].value
+            assert isinstance(varname, str)
+            if len(code.args) != 2 or varname not in self.withargs:
                 raise Exception("Set expects two arguments, the first being a stack variable")
             # TODO: use _height_of
-            if height - self.withargs[code.args[0].value] > 16:
+            if height - self.withargs[varname] > 16:
                 raise Exception("With statement too deep")
-            swap_instr = "SWAP" + str(height - self.withargs[code.args[0].value])
+            swap_instr = "SWAP" + str(height - self.withargs[varname])
             return self._compile_r(code.args[1], height) + [swap_instr, "POP"]
 
         # Pass statements
@@ -524,6 +527,8 @@ class _IRnodeLowerer:
             rounds_bound = code.args[3]
             body = code.args[4]
 
+            assert isinstance(i_name.value, str)  # help mypy
+
             entry_dest = self.mksymbol("loop_start")
             continue_dest = self.mksymbol("loop_continue")
             exit_dest = self.mksymbol("loop_exit")
@@ -615,19 +620,22 @@ class _IRnodeLowerer:
 
         # With statements
         if code.value == "with":
+            varname = code.args[0].value
+            assert isinstance(varname, str)
+
             o = []
             o.extend(self._compile_r(code.args[1], height))
-            old = self.withargs.get(code.args[0].value, None)
-            self.withargs[code.args[0].value] = height
+            old = self.withargs.get(varname, None)
+            self.withargs[varname] = height
             o.extend(self._compile_r(code.args[2], height + 1))
             if code.args[2].valency:
                 o.extend(["SWAP1", "POP"])
             else:
                 o.extend(["POP"])
             if old is not None:
-                self.withargs[code.args[0].value] = old
+                self.withargs[varname] = old
             else:
-                del self.withargs[code.args[0].value]
+                del self.withargs[varname]
             return o
 
         # runtime statement (used to deploy runtime code)
@@ -698,7 +706,7 @@ class _IRnodeLowerer:
                 suffix_len = len(bytecode_suffix) + 2
                 bytecode_suffix += suffix_len.to_bytes(2, "big")
 
-                segment = [DataHeader(Label("cbor_metadata"))]
+                segment: list[AssemblyInstruction] = [DataHeader(Label("cbor_metadata"))]
                 segment.append(DATA_ITEM(bytecode_suffix))
                 self.data_segments.append(segment)
 
@@ -812,20 +820,23 @@ class _IRnodeLowerer:
             return self._compile_r(expanded_ir, height)
 
         if code.value == "data":
-            data_node = [DataHeader(Label(code.args[0].value))]
+            assert isinstance(code.args[0].value, str)  # help mypy
+
+            data_header = DataHeader(Label(code.args[0].value))
+            data_items = []
 
             for c in code.args[1:]:
                 if isinstance(c.value, bytes):
-                    data_node.append(DATA_ITEM(c.value))
+                    data_items.append(DATA_ITEM(c.value))
                 elif isinstance(c, IRnode):
                     assert c.value == "symbol"
                     assert len(c.args) == 1
                     assert isinstance(c.args[0].value, str), (type(c.args[0].value), c)
-                    data_node.append(DATA_ITEM(Label(c.args[0].value)))
+                    data_items.append(DATA_ITEM(Label(c.args[0].value)))
                 else:  # pragma: nocover
                     raise ValueError(f"Invalid data: {type(c)} {c}")
 
-            self.data_segments.append(data_node)
+            self.data_segments.append([data_header, *data_items])
             return []
 
         # jump to a symbol, and push variable # of arguments onto stack
@@ -833,7 +844,9 @@ class _IRnodeLowerer:
             o = []
             for i, c in enumerate(reversed(code.args[1:])):
                 o.extend(self._compile_r(c, height + i))
-            o.extend([*JUMP(Label(code.args[0].value))])
+            target = code.args[0].value
+            assert isinstance(target, str)  # help mypy
+            o.extend([*JUMP(Label(target))])
             return o
 
         if code.value == "djump":
@@ -845,7 +858,9 @@ class _IRnodeLowerer:
             return o
         # push a literal symbol
         if code.value == "symbol":
-            return [PUSHLABEL(Label(code.args[0].value))]
+            label = code.args[0].value
+            assert isinstance(label, str)
+            return [PUSHLABEL(Label(label))]
 
         # set a symbol as a location.
         if code.value == "label":
@@ -1292,7 +1307,7 @@ def make_symbol_map(
         const_map: dict from CONSTREFs to values
         source_map: source map dict that gets output for the user
     """
-    source_map = {
+    source_map: dict[str, Any] = {
         "breakpoints": OrderedSet(),
         "pc_breakpoints": OrderedSet(),
         "pc_jump_map": {0: "-"},
@@ -1350,17 +1365,18 @@ def make_symbol_map(
         elif isinstance(item, PUSHLABEL):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
-        elif is_ofst(item):
-            assert isinstance(item.label, (Label, CONSTREF))
+        elif isinstance(item, PUSH_OFST):
             assert isinstance(item.ofst, int), item
             # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
             # [PUSH_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
-            if is_symbol(item.label):
+            if isinstance(item.label, Label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
-            else:
+            elif isinstance(item.label, CONSTREF):
                 const = const_map[item.label]
                 val = const + item.ofst
                 pc += calc_push_size(val)
+            else:  # pragma: nocover
+                raise CompilerPanic(f"invalid ofst {item.label}")
 
         elif isinstance(item, DATA_ITEM):
             if isinstance(item.data, Label):
@@ -1423,9 +1439,11 @@ def _assembly_to_evm(
             ret.extend(bytecode)
 
         elif isinstance(item, Label):
-            ret.append(get_opcodes()["JUMPDEST"][0])
+            jumpdest_opcode = get_opcodes()["JUMPDEST"][0]
+            assert jumpdest_opcode is not None  # help mypy
+            ret.append(jumpdest_opcode)
 
-        elif is_ofst(item):
+        elif isinstance(item, PUSH_OFST):
             # PUSH_OFST (LABEL foo) 32
             # PUSH_OFST (const foo) 32
             if isinstance(item.label, Label):
@@ -1441,7 +1459,10 @@ def _assembly_to_evm(
         elif isinstance(item, int):
             ret.append(item)
         elif isinstance(item, str) and item.upper() in get_opcodes():
-            ret.append(get_opcodes()[item.upper()][0])
+            opcode = get_opcodes()[item.upper()][0]
+            # TODO: fix signature of get_opcodes()
+            assert opcode is not None  # help mypy
+            ret.append(opcode)
         elif isinstance(item, DATA_ITEM):
             ret.extend(_compile_data_item(item, symbol_map))
         elif item[:4] == "PUSH":
