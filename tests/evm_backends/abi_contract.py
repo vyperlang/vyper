@@ -216,8 +216,7 @@ class ABIFunction:
         computation = self.contract.env.message_call(**call_args)
 
         if self.contract.env.exporter is not None:
-            pass
-            #self.contract.env.exporter.trace_call(output=computation, **call_args)
+            self.contract.env.exporter.trace_call(output=computation, **call_args)
 
         match self.contract.marshal_to_python(computation, self.return_type):
             case ():

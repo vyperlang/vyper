@@ -8,7 +8,6 @@ class TestExporter:
         self.export_dir: Path = export_dir
         self.test_root: Path = test_root
 
-        # {"test_name": { "deployments": [...], # later add "calls": [...] }}
         self.data: dict[str, dict[str, list[Any]]] = {}
 
         self._current_item: Optional[dict[str, list[Any]]] = None
@@ -25,7 +24,7 @@ class TestExporter:
 
         test_name = item.name
         if test_name not in self.data:
-            self.data[test_name] = {"deployments": []}
+            self.data[test_name] = {"deployments": [], "calls": []}
         self._current_item = self.data[test_name]
 
     def trace_deployment(
@@ -38,8 +37,6 @@ class TestExporter:
         calldata: str,
         value: int,
     ):
-        assert self._current_item is not None
-
         self._current_item["deployments"].append(
             {
                 "source_code": source_code,
@@ -51,6 +48,19 @@ class TestExporter:
                 "value": value,
             }
         )
+
+    def trace_call(self, output: bytes, **call_args):
+        calls_list = self._current_item["calls"]
+
+        if "data" in call_args:
+            assert isinstance(call_args["data"], bytes)
+            call_args["data"] = call_args["data"].hex()
+
+        calls_list.append({
+            "output": output.hex(),
+            "call_args": call_args,
+        })
+
 
     def finalize_export(self):
         # nothing to write if no tests ran in this module
