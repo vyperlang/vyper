@@ -56,10 +56,11 @@ def _parse_args(argv: list[str]):
             venom_source = f.read()
 
     ctx = parse_venom(venom_source)
-
+    
     check_venom_ctx(ctx)
 
-    run_passes_on(ctx, OptimizationLevel.default())
+    #run_passes_on(ctx, OptimizationLevel.default())
+    print(ctx)
     asm = generate_assembly_experimental(ctx)
     bytecode = generate_bytecode(asm, compiler_metadata=None)
     print(f"0x{bytecode.hex()}")
