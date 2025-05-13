@@ -316,14 +316,14 @@ class MemSSA(IRAnalysis):
             return OrderedSet()
 
         query_loc = access.loc
-        self.visited = OrderedSet()
+        self.visited: OrderedSet[MemoryAccess] = OrderedSet()
         aliased_accesses = self._walk_for_aliased_access(access, query_loc)
         return aliased_accesses
 
     def _walk_for_aliased_access(
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> OrderedSet[MemoryAccess]:
-        aliased_accesses = OrderedSet()
+        aliased_accesses: OrderedSet[MemoryAccess] = OrderedSet()
         while current:
             if current in self.visited:
                 break

@@ -12,6 +12,7 @@ class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
     """
+
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -35,33 +36,26 @@ class DeadStoreElimination(IRPass):
                 dead_defs.add(mem_def)
 
         for def_ in dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")        
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
 
         # with self.mem_ssa.print_context():
         #     print("------------------------")
         #     print(self.function)
 
-
-        
-
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
 
-    def _is_dead_store(
-        self, mem_def: MemoryDef
-    ) -> bool:
+    def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         if self._has_uses(mem_def.store_inst.output):
             return False
-        
+
         if mem_def.loc.is_volatile is True:
             return False
-        
+
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
-        has_other_effects = (
-            write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
-        )
+        has_other_effects = write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
 
         if has_other_effects:
             return False
@@ -71,10 +65,7 @@ class DeadStoreElimination(IRPass):
 
         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
 
-        return (
-            clobbered_by is not None
-            and not clobbered_by.is_volatile
-        )    
+        return clobbered_by is not None and not clobbered_by.is_volatile
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         """
@@ -85,4 +76,3 @@ class DeadStoreElimination(IRPass):
             if block in self.mem_ssa.memory_defs:
                 all_defs.update(self.mem_ssa.memory_defs[block])
         return all_defs
-

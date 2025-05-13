@@ -677,9 +677,7 @@ def test_phi_node_reaching_def(create_mem_ssa):
     assert phi.operands[0][1] == block1, "First operand should be from block1"
     assert phi.operands[1][1] == block2, "Second operand should be from block2"
 
-    assert (
-        def3.reaching_def == phi
-    ), "def3's reaching definition should be live_on_entry"
+    assert def3.reaching_def == phi, "def3's reaching definition should be live_on_entry"
 
     # Create a new memory definition with the same location as def3
     new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
