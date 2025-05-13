@@ -9,6 +9,12 @@ class TestExporter:
         self.test_root: Path = test_root
 
         self.data: dict[str, dict[str, list[Any]]] = {}
+        # some tests, e.g. `examples/` ones, deploy contracts in a separate fixture
+        # which gets executed before the `pytest_runtest_call` hook, and thus
+        # `set_item` wasn't yet called. we stash these "premature"
+        # deployments and then merge them as soon as `set_item` is
+        # actually called
+        self._stash: dict[str, list[Any]] = {}
 
         self._current_test: Optional[dict[str, list[Any]]] = None
         self.output_file: Optional[Path] = None
@@ -24,6 +30,23 @@ class TestExporter:
         if test_name not in self.data:
             self.data[test_name] = {"deployments": [], "calls": []}
         self._current_test = self.data[test_name]
+        self._merge_stash()
+
+    def _add_to_stash(self, k, v):
+        if k not in self._stash:
+            self._stash[k] = []
+            self._stash[k].append(v)
+        else:
+            self._stash[k].append(v)
+
+    def _merge_stash(self):
+        assert self._current_test is not None
+        for k, v in self._stash.items():
+            if k not in self._current_test:
+                self._current_test[k] = v
+                self._current_test[k] = []
+            else:
+                self._current_test[k].extend(v)
 
     def trace_deployment(
         self,
@@ -37,19 +60,22 @@ class TestExporter:
         calldata: str,
         value: int,
     ):
-        self._current_test["deployments"].append(
-            {
-                "source_code": source_code,
-                "annotated_ast": annotated_ast,
-                "solc_json": solc_json,
-                "contract_abi": contract_abi,
-                "deployed_address": deployed_address,
-                "initcode": initcode,
-                "runtime_bytecode": runtime_bytecode,
-                "calldata": calldata,
-                "value": value,
-            }
-        )
+        deployment = {
+            "source_code": source_code,
+            "annotated_ast": annotated_ast,
+            "solc_json": solc_json,
+            "contract_abi": contract_abi,
+            "deployed_address": deployed_address,
+            "initcode": initcode,
+            "runtime_bytecode": runtime_bytecode,
+            "calldata": calldata,
+            "value": value,
+        }
+
+        if self._current_test is None:
+            self._add_to_stash("deployments", deployment)
+        else:
+            self._current_test["deployments"].append(deployment)
 
     def trace_call(self, output: bytes, **call_args):
         calls_list = self._current_test["calls"]
