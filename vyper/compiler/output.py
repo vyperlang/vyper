@@ -327,7 +327,7 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 
 
 def _build_asm(asm_list):
-    output_string = ""
+    output_string = "__entry__:"
     in_push = 0
     for item in asm_list:
         if isinstance(item, (compile_ir.Label, compile_ir.DataHeader)):
