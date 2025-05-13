@@ -1,6 +1,8 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import count
+from pathlib import Path
 from typing import Iterable, Optional
 
 from eth_keys.datatypes import PrivateKey
@@ -267,14 +269,25 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
 
+_path_index = count()
+
+
+def _make_fake_path() -> Path:
+    # resolve path same as default FileInputBundle(["."]) would
+    return Path(f"mem_{next(_path_index)}.vy").resolve(strict=False)
+
+
 def _compile(
     source_code: str,
     output_formats: Iterable[str],
     input_bundle: InputBundle = None,
     settings: Settings = None,
 ) -> dict:
+    fake_path = _make_fake_path()
+
     out = compile_code(
         source_code,
+        fake_path if input_bundle is None else "<unknown>",
         # test that all output formats can get generated
         output_formats=output_formats,
         settings=settings,
