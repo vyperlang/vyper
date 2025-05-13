@@ -315,25 +315,24 @@ class MemSSA(IRAnalysis):
         if access.is_live_on_entry:
             return OrderedSet()
 
-        clobbered_access = self.get_clobbered_memory_access(access)
-
         query_loc = access.loc
-        aliased_accesses = OrderedSet([clobbered_access])
-        aliased_accesses.update(self._walk_for_aliased_access(access, query_loc, clobbered_access))
-
+        self.visited = OrderedSet()
+        aliased_accesses = self._walk_for_aliased_access(access, query_loc)
         return aliased_accesses
 
     def _walk_for_aliased_access(
-        self, current: Optional[MemoryAccess], query_loc: MemoryLocation, clobbered_access: Optional[MemoryAccess]
+        self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> OrderedSet[MemoryAccess]:
         aliased_accesses = OrderedSet()
-        while current:# and current != clobbered_access:
+        while current:
+            if current in self.visited:
+                break
+            self.visited.add(current)
             if isinstance(current, MemoryDef) and self.memalias.may_alias(query_loc, current.loc):
                 aliased_accesses.add(current)
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
-                    if isinstance(access, MemoryDef) and self.memalias.may_alias(query_loc, access.loc):
-                        aliased_accesses.add(access)
+                    aliased_accesses.update(self._walk_for_aliased_access(access, query_loc))
             current = current.reaching_def
         return aliased_accesses
 
