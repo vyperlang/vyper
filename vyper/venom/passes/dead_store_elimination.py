@@ -25,50 +25,27 @@ class DeadStoreElimination(IRPass):
         self.used_defs = OrderedSet[MemoryDef]()
         dead_defs = OrderedSet[MemoryDef]()
 
-        # with self.mem_ssa.print_context():
-        #     print("------------------------")
-        #     print(self.function)
-
-        self.live_defs = OrderedSet()
-        for use in self.mem_ssa.get_memory_uses():
-            self.live_defs.add(use.reaching_def)
-
-        processed_defs = OrderedSet()
-        worklist = OrderedSet(self.live_defs)
-
-        while len(worklist) > 0:
-            current = worklist.pop()
-            if current in processed_defs:
-                continue
-            processed_defs.add(current)
-
-            if isinstance(current, MemoryDef):
-                if self._is_dead_store(current) == True:
-                    continue
-                self.live_defs.add(current)
-                if self.mem_ssa.memalias.may_alias(current.loc, current.reaching_def.loc):
-                    worklist.add(current.reaching_def)
-            elif isinstance(current, MemoryPhi):
-                for access, _ in current.operands:
-                    worklist.add(access)
+        for _, mem_uses in self.mem_ssa.memory_uses.items():
+            for mem_use in mem_uses:
+                aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
+                for aliased_access in aliased_accesses:
+                    self.used_defs.add(aliased_access)
 
         for mem_def in self.all_defs:
-            if mem_def not in self.live_defs:
+            if self._is_dead_store(mem_def):
                 dead_defs.add(mem_def)
 
         for def_ in dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
-
-        
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")    
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
 
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
-        if self._has_uses(mem_def.store_inst.output):
-            return False
-
         if mem_def.loc.is_volatile is True:
+            return False
+        
+        if self._has_uses(mem_def.store_inst.output):
             return False
 
         inst = mem_def.store_inst
@@ -79,11 +56,12 @@ class DeadStoreElimination(IRPass):
         if has_other_effects:
             return False
 
-        return True
+        if mem_def not in self.used_defs:
+            return True
 
         clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
 
-        return clobbered_by is not None and not clobbered_by.is_volatile
+        return clobbered_by is not None
 
     def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
         """
