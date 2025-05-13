@@ -1445,6 +1445,7 @@ def _assembly_to_evm(
         elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
             label = item.label
+            # TODO: make _compile_push_instruction
             bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
             ret.extend(bytecode)
 
