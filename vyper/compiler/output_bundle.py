@@ -112,13 +112,15 @@ class OutputBundle:
                     tmp[sp] += 1
                     ok = True
 
+            # if we use a fake <unknown> path (as we do e.g. in tests)
+            # we can't construct a relative path to it
+            has_fake_path = c.path.name == "<unknown>"
             # this shouldn't happen unless a file escapes its package,
             # *or* if we have a bug
-            if not ok:
+            if not ok and not has_fake_path:
                 raise CompilerPanic(f"Invalid path: {c.resolved_path}")
 
         sps = [sp for sp, count in tmp.items() if count > 0]
-        assert len(sps) > 0
 
         return [_anonymize(safe_relpath(sp)) for sp in sps]
 

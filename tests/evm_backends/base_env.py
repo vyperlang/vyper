@@ -107,6 +107,8 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
+        if self.exporter:
+            output_formats["solc_json"] = True
 
         out = _compile(
             source_code, output_formats, input_bundle=input_bundle, settings=compiler_settings
@@ -119,8 +121,8 @@ class BaseEnv:
         if self.exporter:
             export_metadata = {
                 "source_code": source_code,
-                "solc_json": out.get("solc_json"),
                 "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
             }
 
         return self.deploy(
@@ -281,6 +283,7 @@ def _compile(
     )
 
     parse_vyper_source(source_code)  # Test grammar.
-    json.dumps(out["metadata"])  # test metadata is json serializable
+    if "metadata" in out:
+        json.dumps(out["metadata"])  # test metadata is json serializable
 
     return out
