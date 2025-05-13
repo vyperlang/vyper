@@ -272,22 +272,26 @@ class BaseEnv:
 _path_index = count()
 
 
-def _make_fake_path() -> Path:
+def _make_fake_path(base_dir: Path | None = None) -> Path:
+    name = f"unknown_{next(_path_index)}.vy"
     # resolve path same as default FileInputBundle(["."]) would
-    return Path(f"mem_{next(_path_index)}.vy").resolve(strict=False)
+    return (base_dir or Path.cwd()) / name
 
 
 def _compile(
     source_code: str,
     output_formats: Iterable[str],
-    input_bundle: InputBundle = None,
-    settings: Settings = None,
+    input_bundle: InputBundle | None = None,
+    settings: Settings | None = None,
 ) -> dict:
-    fake_path = _make_fake_path()
+    if input_bundle is None:
+        fake_path = _make_fake_path().resolve(strict=False)
+    else:
+        fake_path = _make_fake_path(Path(input_bundle.search_paths[0])).resolve(strict=False)
 
     out = compile_code(
         source_code,
-        fake_path if input_bundle is None else "<unknown>",
+        fake_path,
         # test that all output formats can get generated
         output_formats=output_formats,
         settings=settings,

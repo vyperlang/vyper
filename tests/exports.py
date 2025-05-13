@@ -61,8 +61,5 @@ class TestExporter:
         calls_list.append({"output": output.hex(), "call_args": call_args})
 
     def finalize_export(self):
-        if not self.data or self.output_file is None:
-            return
-
         with open(self.output_file, "w") as f:
             json.dump(self.data, f, indent=2)
