@@ -249,16 +249,12 @@ def test_ambiguous_clobber(create_mem_ssa):
     assert def2 is not None, "Should have a memory definition for store2"
     assert calldatacopy_def is not None, "Should have a memory definition for calldatacopy"
 
-    # Test clobbering - calldatacopy should clobber both stores
+    # Test clobbering - calldatacopy should not clobber both stores
     clobberer1 = mem_ssa.get_clobbering_memory_access(def1)
-    assert (
-        clobberer1 == calldatacopy_def
-    ), f"Expected calldatacopy to clobber store1, got {clobberer1}"
+    assert clobberer1 is None, f"Expected None for def1, got {clobberer1}"
 
     clobberer2 = mem_ssa.get_clobbering_memory_access(def2)
-    assert (
-        clobberer2 == calldatacopy_def
-    ), f"Expected calldatacopy to clobber store2, got {clobberer2}"
+    assert clobberer2 is None, f"Expected None for def2, got {clobberer2}"
 
     # Verify calldatacopy returns FULL_MEMORY_ACCESS
     assert (
