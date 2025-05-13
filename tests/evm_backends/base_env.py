@@ -283,7 +283,6 @@ def _compile(
     )
 
     parse_vyper_source(source_code)  # Test grammar.
-    if "metadata" in out:
-        json.dumps(out["metadata"])  # test metadata is json serializable
+    json.dumps(out["metadata"])  # test metadata is json serializable
 
     return out
