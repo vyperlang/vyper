@@ -708,3 +708,41 @@ def test_indexed_access():
     """
 
     _check_pre_post(pre, pre, hevm=False)
+
+
+def test_raw_call_dead_store():
+    pre = """
+    _global:
+      mstore 192, 32
+      mstore 64, 5
+      mstore 96, 0x6d6f6f7365000000000000000000000000000000000000000000000000000000
+      %10 = gas
+      %19 = call %10, 4, 0, 96, 5, 160, 7
+      jnz %19, @5_if_exit, @3_then
+
+    3_then:
+      revert 0, 0
+
+    5_if_exit:
+      %41 = calldatasize
+      calldatacopy %36, %41, %41
+      return 192, 32
+    """
+    post = """
+    _global:
+      mstore 192, 32
+      nop
+      mstore 96, 0x6d6f6f7365000000000000000000000000000000000000000000000000000000
+      %10 = gas
+      %19 = call %10, 4, 0, 96, 5, 160, 7
+      jnz %19, @5_if_exit, @3_then
+
+    3_then:
+      revert 0, 0
+
+    5_if_exit:
+      %41 = calldatasize
+      calldatacopy %36, %41, %41
+      return 192, 32
+    """
+    _check_pre_post(pre, post, hevm=False)
