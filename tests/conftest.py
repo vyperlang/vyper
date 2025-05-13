@@ -62,7 +62,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--export",
         action="store",  # Expects a value (path)
-        default=None,  # No export by default
         help="enable test data exporting to specified JSON file",
     )
 
