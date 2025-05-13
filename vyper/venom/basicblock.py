@@ -250,9 +250,14 @@ class MemoryLocation:
         start2, end2 = other.offset, other.offset + other.size
 
         return start1 <= start2 and end1 >= end2
+    
+    def clobbers(self, other: "MemoryLocation") -> bool:
+        if self == FULL_MEMORY_ACCESS or other == FULL_MEMORY_ACCESS:
+            return False
+        return self.completely_contains(other)
 
 
-FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_volatile=True)
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_volatile=False)
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
