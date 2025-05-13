@@ -95,7 +95,13 @@ def test_basic_not_dead_store():
             mstore %1, 1
             stop
     """
-    _check_pre_post(pre, pre)
+    post = """
+        _global:
+            %1 = param
+            nop
+            stop
+    """
+    _check_pre_post(pre, post)
 
 
 def test_basic_not_dead_store_with_mload():

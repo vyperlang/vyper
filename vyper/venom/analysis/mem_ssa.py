@@ -1,6 +1,6 @@
 import contextlib
 import dataclasses as dc
-from typing import Optional
+from typing import Iterable, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
@@ -170,6 +170,9 @@ class MemSSA(IRAnalysis):
 
     def get_memory_use(self, inst: IRInstruction) -> Optional[MemoryUse]:
         return self.inst_to_use.get(inst)
+    
+    def get_memory_uses(self) -> Iterable[MemoryUse]:
+        return self.inst_to_use.values()
 
     def _build_memory_ssa(self):
         """Build the memory SSA form for the function"""
