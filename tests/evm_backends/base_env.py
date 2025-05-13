@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional
 
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
@@ -109,11 +109,7 @@ class BaseEnv:
         """Compile and deploy a contract from source code."""
 
         out = _compile(
-            source_code,
-            output_formats,
-            input_bundle=input_bundle,
-            settings=compiler_settings,
-            with_output_formats=True,
+            source_code, output_formats, input_bundle=input_bundle, settings=compiler_settings
         )
 
         abi = out["abi"]
@@ -140,7 +136,8 @@ class BaseEnv:
         initcode_prefix: bytes = ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle)
+        out = _compile(source_code, output_formats, input_bundle)
+        abi, bytecode = out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -273,8 +270,7 @@ def _compile(
     output_formats: Iterable[str],
     input_bundle: InputBundle = None,
     settings: Settings = None,
-    with_output_formats: bool = False,
-) -> Union[tuple[list[dict], bytes], dict]:
+) -> dict:
     out = compile_code(
         source_code,
         # test that all output formats can get generated
@@ -283,10 +279,8 @@ def _compile(
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
+
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
 
-    if with_output_formats:
-        return out
-
-    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    return out
