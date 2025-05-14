@@ -38,6 +38,7 @@ class DeploymentOrigin(Enum):
     SOURCE = "source"
     IR = "ir"
     BLUEPRINT = "blueprint"
+    RAW_BYTECODE = "raw_bytecode"
 
     def __str__(self):
         return self.value
@@ -92,6 +93,11 @@ class BaseEnv:
 
         if self.exporter:
             runtime_bytecode = self.get_code(address)
+
+            if export_metadata is None:
+                # this can happen when `deploy` is called directly by a user
+                # as happens e.g. in `test_create_from_blueprint_bad_code_offset`
+                export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
 
             self.exporter.trace_deployment(
                 deployment_type=str(export_metadata.get("deployment_origin")),

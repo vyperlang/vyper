@@ -77,13 +77,12 @@ class TestExporter:
         target.setdefault("deployments", []).append(deployment)
 
     def trace_call(self, output: bytes, **call_args):
-        calls_list = self._current_test["calls"]
-
         if "data" in call_args:
             assert isinstance(call_args["data"], bytes)
             call_args["data"] = call_args["data"].hex()
 
-        calls_list.append({"output": output.hex(), "call_args": call_args})
+        target = self._get_target()
+        target.setdefault("calls", []).append({"output": output.hex(), "call_args": call_args})
 
     def finalize_export(self):
         with open(self.output_file, "w") as f:
