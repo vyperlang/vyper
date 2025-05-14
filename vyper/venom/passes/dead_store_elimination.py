@@ -3,10 +3,9 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef
-from vyper.venom.basicblock import IRVariable
+from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-
 
 class DeadStoreElimination(IRPass):
     """
@@ -19,20 +18,20 @@ class DeadStoreElimination(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.used_defs = OrderedSet[MemoryDef]()
 
-        all_defs = self._collect_all_defs()
-
         for _, mem_uses in self.mem_ssa.memory_uses.items():
             for mem_use in mem_uses:
                 aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
                 for aliased_access in aliased_accesses:
                     self.used_defs.add(aliased_access)
 
-        for mem_def in all_defs:
+        for mem_def in self.mem_ssa.get_memory_defs():
             if self._is_dead_store(mem_def):
                 self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
 
-    def _has_uses(self, var: Optional[IRVariable]):
-        return var is not None and len(self.dfg.get_uses(var)) > 0
+        self.analyses_cache.invalidate_analysis(MemSSA)
+
+    def _has_uses(self, inst: IRInstruction):
+        return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
 
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         if mem_def.loc.is_volatile is True:
@@ -41,7 +40,7 @@ class DeadStoreElimination(IRPass):
         if mem_def.loc.offset == -1 or mem_def.loc.size == -1:
             return False
 
-        if self._has_uses(mem_def.store_inst.output):
+        if self._has_uses(mem_def.store_inst):
             return False
 
         inst = mem_def.store_inst
@@ -59,12 +58,3 @@ class DeadStoreElimination(IRPass):
 
         return clobbered_by is not None
 
-    def _collect_all_defs(self) -> OrderedSet[MemoryDef]:
-        """
-        Gathers all memory definitions across all basic blocks in the program.
-        """
-        all_defs = OrderedSet[MemoryDef]()
-        for block in self.function.get_basic_blocks():
-            if block in self.mem_ssa.memory_defs:
-                all_defs.update(self.mem_ssa.memory_defs[block])
-        return all_defs
