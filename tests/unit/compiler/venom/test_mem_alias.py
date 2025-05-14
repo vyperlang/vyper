@@ -5,6 +5,7 @@ from vyper.venom.parser import parse_venom
 
 FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1)
 
+
 def test_may_alias_full_memory_access():
     pre = """
     function _global {

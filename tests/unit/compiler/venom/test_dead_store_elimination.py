@@ -87,6 +87,7 @@ def test_basic_dead_store():
     """
     _check_pre_post(pre, post)
 
+
 # for future implementation of better escape analysis
 # and alias analysis
 @pytest.mark.xfail
@@ -822,7 +823,7 @@ def test_new_test():
       jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
 
   "external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common":
-      %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3
+      %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3  # noqa: E501
       %57 = calldataload 4
       %58 = add 4, %57
       %60 = calldataload %58
@@ -874,6 +875,7 @@ def test_new_test():
     """
     _check_pre_post(pre, pre, hevm=False)
 
+
 # for future implementation of better escape analysis and alias analysis
 @pytest.mark.xfail
 def test_non_volatile_location_store():
@@ -891,7 +893,8 @@ def test_non_volatile_location_store():
     """
     _check_pre_post(pre, post, hevm=False)
 
-def test_volatile_location_store():
+
+def test_volatile_external_location_store():
     pre = """
     _global:
       %1 = param
@@ -907,6 +910,7 @@ def test_volatile_location_store():
       ret %2
     """
     _check_pre_post(pre, post, hevm=False)
+
 
 def test_volatile_derived_location_store():
     pre = """

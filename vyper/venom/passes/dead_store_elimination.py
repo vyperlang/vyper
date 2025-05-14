@@ -2,7 +2,7 @@ from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemoryPhi
+from vyper.venom.analysis.mem_ssa import MemoryDef
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -44,7 +44,7 @@ class DeadStoreElimination(IRPass):
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         if mem_def.loc.is_volatile is True:
             return False
-        
+
         if mem_def.loc.offset == -1 or mem_def.loc.size == -1:
             return False
 
