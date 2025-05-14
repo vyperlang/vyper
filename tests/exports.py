@@ -51,6 +51,7 @@ class TestExporter:
         runtime_bytecode: str,
         calldata: Optional[str],
         value: int,
+        deployment_succeeded=True,
         # Optional, deployment-type-specific fields:
         source_code: Optional[str] = None,
         annotated_ast: Optional[dict] = None,
@@ -71,6 +72,7 @@ class TestExporter:
             "solc_json": solc_json,
             "raw_ir": raw_ir,
             "blueprint_initcode_prefix": blueprint_initcode_prefix,
+            "deployment_succeeded": deployment_succeeded,
         }
 
         target = self._get_target()

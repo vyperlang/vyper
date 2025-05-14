@@ -88,30 +88,43 @@ class BaseEnv:
             calldata = ctor.prepare_calldata(*args, **kwargs)
             initcode += calldata
 
-        deployed_at = self._deploy(initcode, value)
+        if self.exporter:
+            if export_metadata is None:
+                export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
+
+            common_trace_kwargs = {
+                "deployment_type": str(export_metadata.get("deployment_origin")),
+                "contract_abi": abi,
+                "initcode": initcode.hex(),
+                "calldata": calldata.hex() if calldata else None,
+                "value": value,
+                "source_code": export_metadata.get("source_code"),
+                "annotated_ast": export_metadata.get("annotated_ast"),
+                "solc_json": export_metadata.get("solc_json"),
+                "raw_ir": export_metadata.get("raw_ir"),
+                "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
+            }
+
+        try:
+            deployed_at = self._deploy(initcode, value)
+        except Exception:
+            if self.exporter:
+                self.exporter.trace_deployment(
+                    deployed_address="0x0000000000000000000000000000000000000000",
+                    runtime_bytecode="",
+                    **common_trace_kwargs,
+                    deployment_succeeded=False,
+                )
+            raise
+
         address = to_checksum_address(deployed_at)
 
         if self.exporter:
             runtime_bytecode = self.get_code(address)
-
-            if export_metadata is None:
-                # this can happen when `deploy` is called directly by a user
-                # as happens e.g. in `test_create_from_blueprint_bad_code_offset`
-                export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
-
             self.exporter.trace_deployment(
-                deployment_type=str(export_metadata.get("deployment_origin")),
-                contract_abi=abi,
+                **common_trace_kwargs,
                 deployed_address=address,
-                initcode=initcode.hex(),
                 runtime_bytecode=runtime_bytecode.hex(),
-                calldata=calldata.hex() if calldata else None,
-                value=value,
-                source_code=export_metadata.get("source_code"),
-                annotated_ast=export_metadata.get("annotated_ast"),
-                solc_json=export_metadata.get("solc_json"),
-                raw_ir=export_metadata.get("raw_ir"),
-                blueprint_initcode_prefix=export_metadata.get("blueprint_initcode_prefix"),
             )
 
         return factory.at(self, address)
