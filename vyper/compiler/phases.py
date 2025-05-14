@@ -370,7 +370,7 @@ def generate_assembly(
         ir_nodes, optimize=optimize, compiler_metadata=compiler_metadata
     )
 
-    if _find_nested_opcode(assembly, "DEBUG"):
+    if "DEBUG" in assembly:
         vyper_warn(
             VyperWarning(
                 "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
@@ -378,14 +378,6 @@ def generate_assembly(
             )
         )
     return assembly
-
-
-def _find_nested_opcode(assembly, key):
-    if key in assembly:
-        return True
-    else:
-        sublists = [sub for sub in assembly if isinstance(sub, list)]
-        return any(_find_nested_opcode(x, key) for x in sublists)
 
 
 def generate_bytecode(assembly: list) -> tuple[bytes, dict[str, Any]]:
