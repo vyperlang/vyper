@@ -128,6 +128,7 @@ class BaseEnv:
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
         if self.exporter:
+            # solc_json is useful for exporting the whole input bundle (including imports)
             output_formats["solc_json"] = True
 
         out = _compile(
@@ -138,6 +139,8 @@ class BaseEnv:
         bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
         export_metadata = None
+        # note that tests where compilation fails (e.g. `syntax` tests) aren't
+        # propagated to the export yet
         if self.exporter:
             export_metadata = {
                 "source_code": source_code,

@@ -12,9 +12,9 @@ class TestExporter:
         self.data: dict[str, dict[str, list[Any]]] = {}
         # some tests, e.g. `examples/` ones, deploy contracts in a separate fixture
         # which gets executed before the `pytest_runtest_call` hook, and thus
-        # `set_item` wasn't yet called when `trace_deployment` is called.
-        # we stash these "premature" deployments and then merge
-        # them as soon as `set_item` is actually called
+        # `set_item` wasn't yet called when tracing is performed.
+        # we stash these "premature" traces and associate them
+        # with a concrete test as soon as `set_item` is actually called
         self._stash: defaultdict[str, list[Any]] = defaultdict(list)
 
         self._current_test: Optional[dict[str, list[Any]]] = None
