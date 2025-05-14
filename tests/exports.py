@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any, Optional
+from collections import defaultdict
 
 
 class TestExporter:
@@ -11,10 +12,10 @@ class TestExporter:
         self.data: dict[str, dict[str, list[Any]]] = {}
         # some tests, e.g. `examples/` ones, deploy contracts in a separate fixture
         # which gets executed before the `pytest_runtest_call` hook, and thus
-        # `set_item` wasn't yet called. we stash these "premature"
-        # deployments and then merge them as soon as `set_item` is
-        # actually called
-        self._stash: dict[str, list[Any]] = {}
+        # `set_item` wasn't yet called when `trace_deployment` is called.
+        # we stash these "premature" deployments and then merge
+        # them as soon as `set_item` is actually called
+        self._stash: defaultdict[str, list[Any]] = defaultdict(list)
 
         self._current_test: Optional[dict[str, list[Any]]] = None
         self.output_file: Optional[Path] = None
@@ -32,21 +33,14 @@ class TestExporter:
         self._current_test = self.data[test_name]
         self._merge_stash()
 
-    def _add_to_stash(self, k, v):
-        if k not in self._stash:
-            self._stash[k] = []
-            self._stash[k].append(v)
-        else:
-            self._stash[k].append(v)
+    def _get_target(self) -> dict[str, list[Any]]:
+        return self._current_test or self._stash
 
     def _merge_stash(self):
         assert self._current_test is not None
-        for k, v in self._stash.items():
-            if k not in self._current_test:
-                self._current_test[k] = v
-                self._current_test[k] = []
-            else:
-                self._current_test[k].extend(v)
+        for key, items in self._stash.items():
+            self._current_test.setdefault(key, []).extend(items)
+        self._stash.clear()
 
     def trace_deployment(
         self,
@@ -72,10 +66,8 @@ class TestExporter:
             "value": value,
         }
 
-        if self._current_test is None:
-            self._add_to_stash("deployments", deployment)
-        else:
-            self._current_test["deployments"].append(deployment)
+        target = self._get_target()
+        target.setdefault("deployments", []).append(deployment)
 
     def trace_call(self, output: bytes, **call_args):
         calls_list = self._current_test["calls"]

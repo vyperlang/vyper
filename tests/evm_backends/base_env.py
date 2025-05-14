@@ -274,8 +274,9 @@ _path_index = count()
 
 def _make_fake_path(base_dir: Path | None = None) -> Path:
     name = f"unknown_{next(_path_index)}.vy"
+    path = (base_dir or Path.cwd()) / name
     # resolve path same as default FileInputBundle(["."]) would
-    return (base_dir or Path.cwd()) / name
+    return path.resolve(strict=False)
 
 
 def _compile(
@@ -285,9 +286,9 @@ def _compile(
     settings: Settings | None = None,
 ) -> dict:
     if input_bundle is None:
-        fake_path = _make_fake_path().resolve(strict=False)
+        fake_path = _make_fake_path()
     else:
-        fake_path = _make_fake_path(Path(input_bundle.search_paths[0])).resolve(strict=False)
+        fake_path = _make_fake_path(Path(input_bundle.search_paths[0]))
 
     out = compile_code(
         source_code,
