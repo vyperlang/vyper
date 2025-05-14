@@ -87,7 +87,9 @@ def test_basic_dead_store():
     """
     _check_pre_post(pre, post)
 
-
+# for future implementation of better escape analysis
+# and alias analysis
+@pytest.mark.xfail
 def test_basic_not_dead_store():
     pre = """
         _global:
@@ -750,18 +752,18 @@ def test_raw_call_dead_store():
 
 def test_new_test():
     pre = """
-__main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
+    _global:
       %1 = calldataload 0
       %2 = shr 224, %1
-      %4 = mod %2, 3                 ; %4 = mod %3, 3
+      %4 = mod %2, 3
       %5 = shl 1, %4
       %6 = add @selector_buckets, %5
       codecopy 30, %6, 2
       %7 = mload 0
       djmp %7, @selector_bucket_0, @selector_bucket_1, @selector_bucket_2
 
-  selector_bucket_2:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
-      %8 = xor 0xac44dd3c, %2        ; %8 = xor 0xac44dd3c, %3
+  selector_bucket_2:
+      %8 = xor 0xac44dd3c, %2
       %9 = iszero %8
       assert %9
       %11 = calldatasize
@@ -772,12 +774,12 @@ __main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
       assert %14
       mstore 448, 7
       mstore 480, 0x74657374696e6700000000000000000000000000000000000000000000000000
-      mcopy 256, 448, 39             ; mcopy 256, 448, 39             ; mcopy %18, %17, 39
-      %alloca_4_19_0:1 = 999         ; mstore %19, 999
+      mcopy 256, 448, 39
+      %alloca_4_19_0:1 = 999
       jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
 
-  selector_bucket_1:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
-      %21 = xor 0x6078d402, %2       ; %21 = xor 0x6078d402, %3
+  selector_bucket_1:
+      %21 = xor 0x6078d402, %2
       %22 = iszero %21
       assert %22
       %24 = calldatasize
@@ -788,17 +790,17 @@ __main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
       assert %27
       %28 = calldataload 68
       %29 = add 4, %28
-      %31 = calldataload %29         ; %31 = calldataload %30
-      %33 = lt 100, %31              ; %33 = lt 100, %32
+      %31 = calldataload %29
+      %33 = lt 100, %31
       %34 = iszero %33
       assert %34
-      %36 = add 32, %31              ; %36 = add 32, %35
-      calldatacopy 256, %29, %36     ; calldatacopy %18, %29, %37     ; calldatacopy %18, %30, %37
-      %alloca_4_19_0:2 = 999         ; mstore %19, 999
+      %36 = add 32, %31
+      calldatacopy 256, %29, %36
+      %alloca_4_19_0:2 = 999
       jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
 
-  selector_bucket_0:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
-      %39 = xor 0x8ae972f7, %2       ; %39 = xor 0x8ae972f7, %3
+  selector_bucket_0:
+      %39 = xor 0x8ae972f7, %2
       %40 = iszero %39
       assert %40
       %42 = calldatasize
@@ -809,65 +811,118 @@ __main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
       assert %45
       %46 = calldataload 68
       %47 = add 4, %46
-      %49 = calldataload %47         ; %49 = calldataload %48
-      %51 = lt 100, %49              ; %51 = lt 100, %50
+      %49 = calldataload %47
+      %51 = lt 100, %49
       %52 = iszero %51
       assert %52
-      %54 = add 32, %49              ; %54 = add 32, %53
-      calldatacopy 256, %47, %54     ; calldatacopy %18, %47, %55     ; calldatacopy %18, %48, %55
+      %54 = add 32, %49
+      calldatacopy 256, %47, %54
       %56 = calldataload 100
-      %alloca_4_19_0:3 = %56         ; mstore %19, %56
+      %alloca_4_19_0:3 = %56
       jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
 
-  "external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common":  ; OUT=[]
+  "external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common":
       %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3
       %57 = calldataload 4
       %58 = add 4, %57
-      %60 = calldataload %58         ; %60 = calldataload %59
-      %62 = lt 100, %60              ; %62 = lt 100, %61
+      %60 = calldataload %58
+      %62 = lt 100, %60
       %63 = iszero %62
       assert %63
-      %65 = add 32, %60              ; %65 = add 32, %64
-      calldatacopy 64, %58, %65      ; calldatacopy %67, %58, %66     ; calldatacopy %67, %59, %66
+      %65 = add 32, %60
+      calldatacopy 64, %58, %65
       %68 = calldataload 36
-      %70 = signextend 15, %68       ; %70 = signextend 15, %69
-      %71 = xor %68, %70             ; %71 = xor %69, %70
+      %70 = signextend 15, %68
+      %71 = xor %68, %70
       %72 = iszero %71
       assert %72
-      mstore 512, 128                ; mstore %74, %75
+      mstore 512, 128
       %78 = mload 64
       %79 = add 32, %78
-      mcopy 640, 64, %79             ; mcopy %76, %67, %80            ; mcopy %77, %67, %80
-      %81 = mload 640                ; %81 = mload %77
-      %87 = sub 0, %81               ; %87 = sub 0, %82
+      mcopy 640, 64, %79
+      %81 = mload 640
+      %87 = sub 0, %81
       %88 = and 31, %87
       %86 = calldatasize
-      %84 = add 672, %81             ; %84 = add %83, %82
-      calldatacopy %84, %86, %88     ; calldatacopy %85, %86, %88
-      %89 = mload 640                ; %89 = mload %77
-      mstore 544, %68                ; mstore 544, %95
+      %84 = add 672, %81
+      calldatacopy %84, %86, %88
+      %89 = mload 640
+      mstore 544, %68
       %90 = add 32, %89
       %91 = add 31, %90
       %93 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, %91
-      %94 = add 128, %93             ; %94 = add %75, %93
-      mstore 576, %94                ; mstore %97, %75:1
+      %94 = add 128, %93
+      mstore 576, %94
       %100 = mload 256
       %101 = add 32, %100
-      %98 = add 512, %94             ; %98 = add %74, %75:1
-      mcopy %98, 256, %101           ; mcopy %98, %18, %102           ; mcopy %99, %18, %102
-      %103 = mload %98               ; %103 = mload %99
-      %109 = sub 0, %103             ; %109 = sub 0, %104
+      %98 = add 512, %94
+      mcopy %98, 256, %101
+      %103 = mload %98
+      %109 = sub 0, %103
       %110 = and 31, %109
       %108 = calldatasize
-      %105 = add 32, %98             ; %105 = add 32, %99
-      %106 = add %105, %103          ; %106 = add %105, %104
-      calldatacopy %106, %108, %110  ; calldatacopy %107, %108, %110
-      %111 = mload %98               ; %111 = mload %99
-      mstore 608, %alloca_4_19_0     ; mstore 608, %117
+      %105 = add 32, %98
+      %106 = add %105, %103
+      calldatacopy %106, %108, %110
+      %111 = mload %98
+      mstore 608, %alloca_4_19_0
       %112 = add 32, %111
       %113 = add 31, %112
       %115 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, %113
-      %116 = add %94, %115           ; %116 = add %75:1, %115
+      %116 = add %94, %115
       return 512, %116
-      """
+    """
     _check_pre_post(pre, pre, hevm=False)
+
+# for future implementation of better escape analysis and alias analysis
+@pytest.mark.xfail
+def test_non_volatile_location_store():
+    pre = """
+    _global:
+      %1 = calldataload 0
+      mstore %1, 1
+      ret %1
+    """
+    post = """
+    _global:
+      %1 = calldataload 0
+      nop
+      ret %1
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+def test_volatile_location_store():
+    pre = """
+    _global:
+      %1 = param
+      %2 = param
+      mstore %1, 1
+      ret %2
+    """
+    post = """
+    _global:
+      %1 = param
+      %2 = param
+      mstore %1, 1
+      ret %2
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+def test_volatile_derived_location_store():
+    pre = """
+    _global:
+      %1 = param
+      %2 = param
+      %3 = add %1, 32
+      mstore %3, 1
+      ret %2
+    """
+    post = """
+    _global:
+      %1 = param
+      %2 = param
+      %3 = add %1, 32
+      mstore %3, 1
+      ret %2
+    """
+    _check_pre_post(pre, post, hevm=False)

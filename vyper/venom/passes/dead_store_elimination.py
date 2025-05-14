@@ -44,6 +44,9 @@ class DeadStoreElimination(IRPass):
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         if mem_def.loc.is_volatile is True:
             return False
+        
+        if mem_def.loc.offset == -1 or mem_def.loc.size == -1:
+            return False
 
         if self._has_uses(mem_def.store_inst.output):
             return False
