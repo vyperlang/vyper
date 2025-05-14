@@ -746,3 +746,128 @@ def test_raw_call_dead_store():
       return 192, 32
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_new_test():
+        pre = """
+__main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
+      %1 = calldataload 0
+      %2 = shr 224, %1
+      %4 = mod %2, 3                 ; %4 = mod %3, 3
+      %5 = shl 1, %4
+      %6 = add @selector_buckets, %5
+      codecopy 30, %6, 2
+      %7 = mload 0
+      djmp %7, @selector_bucket_0, @selector_bucket_1, @selector_bucket_2
+
+  selector_bucket_2:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
+      %8 = xor 0xac44dd3c, %2        ; %8 = xor 0xac44dd3c, %3
+      %9 = iszero %8
+      assert %9
+      %11 = calldatasize
+      %12 = gt 68, %11
+      %10 = callvalue
+      %13 = or %10, %12
+      %14 = iszero %13
+      assert %14
+      mstore 448, 7
+      mstore 480, 0x74657374696e6700000000000000000000000000000000000000000000000000
+      mcopy 256, 448, 39             ; mcopy 256, 448, 39             ; mcopy %18, %17, 39
+      %alloca_4_19_0:1 = 999         ; mstore %19, 999
+      jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
+
+  selector_bucket_1:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
+      %21 = xor 0x6078d402, %2       ; %21 = xor 0x6078d402, %3
+      %22 = iszero %21
+      assert %22
+      %24 = calldatasize
+      %25 = gt 100, %24
+      %23 = callvalue
+      %26 = or %23, %25
+      %27 = iszero %26
+      assert %27
+      %28 = calldataload 68
+      %29 = add 4, %28
+      %31 = calldataload %29         ; %31 = calldataload %30
+      %33 = lt 100, %31              ; %33 = lt 100, %32
+      %34 = iszero %33
+      assert %34
+      %36 = add 32, %31              ; %36 = add 32, %35
+      calldatacopy 256, %29, %36     ; calldatacopy %18, %29, %37     ; calldatacopy %18, %30, %37
+      %alloca_4_19_0:2 = 999         ; mstore %19, 999
+      jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
+
+  selector_bucket_0:  ; OUT=["external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"]
+      %39 = xor 0x8ae972f7, %2       ; %39 = xor 0x8ae972f7, %3
+      %40 = iszero %39
+      assert %40
+      %42 = calldatasize
+      %43 = gt 132, %42
+      %41 = callvalue
+      %44 = or %41, %43
+      %45 = iszero %44
+      assert %45
+      %46 = calldataload 68
+      %47 = add 4, %46
+      %49 = calldataload %47         ; %49 = calldataload %48
+      %51 = lt 100, %49              ; %51 = lt 100, %50
+      %52 = iszero %51
+      assert %52
+      %54 = add 32, %49              ; %54 = add 32, %53
+      calldatacopy 256, %47, %54     ; calldatacopy %18, %47, %55     ; calldatacopy %18, %48, %55
+      %56 = calldataload 100
+      %alloca_4_19_0:3 = %56         ; mstore %19, %56
+      jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
+
+  "external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common":  ; OUT=[]
+      %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3
+      %57 = calldataload 4
+      %58 = add 4, %57
+      %60 = calldataload %58         ; %60 = calldataload %59
+      %62 = lt 100, %60              ; %62 = lt 100, %61
+      %63 = iszero %62
+      assert %63
+      %65 = add 32, %60              ; %65 = add 32, %64
+      calldatacopy 64, %58, %65      ; calldatacopy %67, %58, %66     ; calldatacopy %67, %59, %66
+      %68 = calldataload 36
+      %70 = signextend 15, %68       ; %70 = signextend 15, %69
+      %71 = xor %68, %70             ; %71 = xor %69, %70
+      %72 = iszero %71
+      assert %72
+      mstore 512, 128                ; mstore %74, %75
+      %78 = mload 64
+      %79 = add 32, %78
+      mcopy 640, 64, %79             ; mcopy %76, %67, %80            ; mcopy %77, %67, %80
+      %81 = mload 640                ; %81 = mload %77
+      %87 = sub 0, %81               ; %87 = sub 0, %82
+      %88 = and 31, %87
+      %86 = calldatasize
+      %84 = add 672, %81             ; %84 = add %83, %82
+      calldatacopy %84, %86, %88     ; calldatacopy %85, %86, %88
+      %89 = mload 640                ; %89 = mload %77
+      mstore 544, %68                ; mstore 544, %95
+      %90 = add 32, %89
+      %91 = add 31, %90
+      %93 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, %91
+      %94 = add 128, %93             ; %94 = add %75, %93
+      mstore 576, %94                ; mstore %97, %75:1
+      %100 = mload 256
+      %101 = add 32, %100
+      %98 = add 512, %94             ; %98 = add %74, %75:1
+      mcopy %98, 256, %101           ; mcopy %98, %18, %102           ; mcopy %99, %18, %102
+      %103 = mload %98               ; %103 = mload %99
+      %109 = sub 0, %103             ; %109 = sub 0, %104
+      %110 = and 31, %109
+      %108 = calldatasize
+      %105 = add 32, %98             ; %105 = add 32, %99
+      %106 = add %105, %103          ; %106 = add %105, %104
+      calldatacopy %106, %108, %110  ; calldatacopy %107, %108, %110
+      %111 = mload %98               ; %111 = mload %99
+      mstore 608, %alloca_4_19_0     ; mstore 608, %117
+      %112 = add 32, %111
+      %113 = add 31, %112
+      %115 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, %113
+      %116 = add %94, %115           ; %116 = add %75:1, %115
+      return 512, %116
+      """
+        _check_pre_post(pre, pre, hevm=False)
