@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, MemoryLocation
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, MemoryLocation
 
 
 def test_completely_overlaps():
@@ -21,7 +21,8 @@ def test_completely_overlaps():
     assert not loc1.completely_contains(loc6)
 
     # Test with EMPTY and FULL memory access
+    full_loc = MemoryLocation(offset=0, size=-1)
     assert not EMPTY_MEMORY_ACCESS.completely_contains(loc1)
     assert not loc1.completely_contains(EMPTY_MEMORY_ACCESS)
-    assert FULL_MEMORY_ACCESS.completely_contains(loc1)
-    assert not loc1.completely_contains(FULL_MEMORY_ACCESS)
+    assert not full_loc.completely_contains(loc1)
+    assert not loc1.completely_contains(full_loc)
