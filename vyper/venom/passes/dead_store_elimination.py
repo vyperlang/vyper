@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRVariable
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -30,7 +30,7 @@ class DeadStoreElimination(IRPass):
 
         for mem_def in all_defs:
             if self._is_dead_store(mem_def):
-                self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")            
+                self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0

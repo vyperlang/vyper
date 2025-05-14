@@ -930,3 +930,43 @@ def test_volatile_derived_location_store():
       ret %2
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_unknown_size_store():
+    pre = """
+    _global:
+      %1 = calldataload 0
+      mstore 0, 1
+      mcopy 128, 32, %1
+      %2 = mload 32
+      sink %2
+    """
+    post = """
+    _global:
+      %1 = calldataload 0
+      nop
+      mcopy 128, 32, %1
+      %2 = mload 32
+      sink %2
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_unknown_size_overwriting_store():
+    pre = """
+    _global:
+      %1 = calldataload 0
+      mstore 0, 1
+      mcopy 128, 31, %1
+      %2 = mload 32
+      sink %2
+    """
+    post = """
+    _global:
+      %1 = calldataload 0
+      mstore 0, 1
+      mcopy 128, 31, %1
+      %2 = mload 32
+      sink %2
+    """
+    _check_pre_post(pre, post, hevm=False)
