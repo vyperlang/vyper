@@ -1414,6 +1414,13 @@ def resolve_symbols(
 
     return symbol_map, const_map, source_map
 
+# helper function
+def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
+    push_mnemonic = assembly[0]
+    assert push_mnemonic.startswith("PUSH")
+    push_instr = PUSH_OFFSET + int(push_mnemonic[4:])
+    assert all(isinstance(item, int) for item in assembly[1:])
+    return bytes([push_instr, *assembly[1:]])
 
 def _assembly_to_evm(
     assembly: list[AssemblyInstruction],
@@ -1445,8 +1452,7 @@ def _assembly_to_evm(
         elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
             label = item.label
-            # TODO: make _compile_push_instruction
-            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
+            bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
             ret.extend(bytecode)
 
         elif isinstance(item, Label):
@@ -1459,11 +1465,11 @@ def _assembly_to_evm(
             # PUSH_OFST (const foo) 32
             if isinstance(item.label, Label):
                 ofst = symbol_map[item.label] + item.ofst
-                bytecode, _ = assembly_to_evm(PUSH_N(ofst, SYMBOL_SIZE))
+                bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
             else:
                 assert isinstance(item.label, CONSTREF)
                 ofst = const_map[item.label] + item.ofst
-                bytecode, _ = assembly_to_evm(PUSH(ofst))
+                bytecode = _compile_push_instruction(PUSH(ofst))
 
             ret.extend(bytecode)
 
