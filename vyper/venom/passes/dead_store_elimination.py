@@ -14,7 +14,6 @@ class DeadStoreElimination(IRPass):
     """
 
     def run_pass(self):
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
