@@ -392,7 +392,7 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions[def_idx + 1 :]:
             clobber = None
             next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.clobbers(def_loc):
+            if next_def and next_def.loc.completely_contains(def_loc):
                 clobber = next_def
 
             # for instructions that both read and write from memory,
@@ -421,16 +421,16 @@ class MemSSA(IRAnalysis):
                         # This def reaches the phi, check if phi is clobbered
                         for inst in succ.instructions:
                             next_def = self.inst_to_def.get(inst)
-                            if next_def and next_def.loc.clobbers(def_loc):
+                            if next_def and next_def.loc.completely_contains(def_loc):
                                 return next_def
                             mem_use = self.inst_to_use.get(inst)
-                            if mem_use and mem_use.loc.clobbers(def_loc):
+                            if mem_use and mem_use.loc.completely_contains(def_loc):
                                 return None  # Found a use that reads from our memory location
 
             # Check instructions in successor block
             for inst in succ.instructions:
                 next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.clobbers(def_loc):
+                if next_def and next_def.loc.completely_contains(def_loc):
                     return next_def
                 mem_use = self.inst_to_use.get(inst)
                 if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):

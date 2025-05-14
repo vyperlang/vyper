@@ -260,10 +260,6 @@ class MemoryLocation:
 
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: "MemoryLocation") -> bool:
-        # If either is EMPTY, containment is False
-        if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
-            return False
-
         # If other is empty (size 0), always contained
         if other.size == 0:
             return True
@@ -281,11 +277,6 @@ class MemoryLocation:
         start2, end2 = other.offset, other.offset + other.size
 
         return start1 <= start2 and end1 >= end2
-
-    def clobbers(self, other: "MemoryLocation") -> bool:
-        if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
-            return False
-        return self.completely_contains(other)
 
 
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
