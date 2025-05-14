@@ -1,7 +1,7 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Optional
-from collections import defaultdict
 
 
 class TestExporter:
@@ -44,26 +44,33 @@ class TestExporter:
 
     def trace_deployment(
         self,
-        source_code: str,
-        annotated_ast: dict,
-        solc_json: dict,
+        deployment_type: str,
         contract_abi: list[Any],
         deployed_address: str,
         initcode: str,
         runtime_bytecode: str,
-        calldata: str,
+        calldata: Optional[str],
         value: int,
+        # Optional, deployment-type-specific fields:
+        source_code: Optional[str] = None,
+        annotated_ast: Optional[dict] = None,
+        solc_json: Optional[dict] = None,
+        raw_ir: Optional[str] = None,
+        blueprint_initcode_prefix: Optional[str] = None,
     ):
         deployment = {
-            "source_code": source_code,
-            "annotated_ast": annotated_ast,
-            "solc_json": solc_json,
+            "deployment_type": deployment_type,
             "contract_abi": contract_abi,
             "deployed_address": deployed_address,
             "initcode": initcode,
             "runtime_bytecode": runtime_bytecode,
             "calldata": calldata,
             "value": value,
+            "source_code": source_code,
+            "annotated_ast": annotated_ast,
+            "solc_json": solc_json,
+            "raw_ir": raw_ir,
+            "blueprint_initcode_prefix": blueprint_initcode_prefix,
         }
 
         target = self._get_target()

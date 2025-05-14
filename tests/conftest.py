@@ -12,7 +12,7 @@ from hexbytes import HexBytes
 
 import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
+from tests.evm_backends.base_env import BaseEnv, DeploymentOrigin, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
 from tests.exports import TestExporter
@@ -252,8 +252,13 @@ def get_contract_from_ir(env, optimize):
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
         bytecode, _ = compile_ir.assembly_to_evm(assembly)
 
+        export_metadata = None
+        if env.exporter:
+            ir_str = str(ir)
+            export_metadata = {"raw_ir": ir_str, "deployment_origin": DeploymentOrigin.IR}
+
         abi = kwargs.pop("abi", [])
-        return env.deploy(abi, bytecode, *args, **kwargs)
+        return env.deploy(abi, bytecode, *args, export_metadata=export_metadata, **kwargs)
 
     return ir_compiler
 

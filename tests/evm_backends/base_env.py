@@ -1,6 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import Enum
 from itertools import count
 from pathlib import Path
 from typing import Iterable, Optional
@@ -31,6 +32,15 @@ class ExecutionResult:
     logs: list[LogEntry]
     gas_refunded: int
     gas_used: int
+
+
+class DeploymentOrigin(Enum):
+    SOURCE = "source"
+    IR = "ir"
+    BLUEPRINT = "blueprint"
+
+    def __str__(self):
+        return self.value
 
 
 class EvmError(Exception):
@@ -80,20 +90,22 @@ class BaseEnv:
         deployed_at = self._deploy(initcode, value)
         address = to_checksum_address(deployed_at)
 
-        # deploy can be called from ir_compiler, but we don't yet trace IR
-        if self.exporter and "source_code" in export_metadata:
+        if self.exporter:
             runtime_bytecode = self.get_code(address)
 
             self.exporter.trace_deployment(
-                source_code=export_metadata["source_code"],
-                annotated_ast=export_metadata["annotated_ast"],
-                solc_json=export_metadata["solc_json"],
+                deployment_type=str(export_metadata.get("deployment_origin")),
                 contract_abi=abi,
                 deployed_address=address,
                 initcode=initcode.hex(),
                 runtime_bytecode=runtime_bytecode.hex(),
-                calldata=calldata.hex(),
+                calldata=calldata.hex() if calldata else None,
                 value=value,
+                source_code=export_metadata.get("source_code"),
+                annotated_ast=export_metadata.get("annotated_ast"),
+                solc_json=export_metadata.get("solc_json"),
+                raw_ir=export_metadata.get("raw_ir"),
+                blueprint_initcode_prefix=export_metadata.get("blueprint_initcode_prefix"),
             )
 
         return factory.at(self, address)
@@ -125,6 +137,7 @@ class BaseEnv:
                 "source_code": source_code,
                 "annotated_ast": out.get("annotated_ast_dict"),
                 "solc_json": out.get("solc_json"),
+                "deployment_origin": DeploymentOrigin.SOURCE,
             }
 
         return self.deploy(
@@ -150,7 +163,20 @@ class BaseEnv:
         deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi: list[dict] = []  # just a constructor
-        deployer = self.deploy(deployer_abi, deploy_bytecode, *args)
+
+        export_metadata = None
+        if self.exporter:
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
+                "blueprint_initcode_prefix": initcode_prefix.hex(),
+                "deployment_origin": DeploymentOrigin.BLUEPRINT,
+            }
+
+        deployer = self.deploy(
+            deployer_abi, deploy_bytecode, *args, export_metadata=export_metadata
+        )
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
