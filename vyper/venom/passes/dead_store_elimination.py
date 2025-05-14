@@ -18,12 +18,9 @@ class DeadStoreElimination(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
-
-        self.dead_stores = OrderedSet[IRInstruction]()
-        self.all_defs = self._collect_all_defs()
-
         self.used_defs = OrderedSet[MemoryDef]()
-        dead_defs = OrderedSet[MemoryDef]()
+
+        all_defs = self._collect_all_defs()
 
         for _, mem_uses in self.mem_ssa.memory_uses.items():
             for mem_use in mem_uses:
@@ -31,12 +28,9 @@ class DeadStoreElimination(IRPass):
                 for aliased_access in aliased_accesses:
                     self.used_defs.add(aliased_access)
 
-        for mem_def in self.all_defs:
+        for mem_def in all_defs:
             if self._is_dead_store(mem_def):
-                dead_defs.add(mem_def)
-
-        for def_ in dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
+                self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")            
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
