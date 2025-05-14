@@ -173,7 +173,7 @@ class MemSSA(IRAnalysis):
 
     def get_memory_uses(self) -> Iterable[MemoryUse]:
         return self.inst_to_use.values()
-    
+
     def get_memory_defs(self) -> Iterable[MemoryDef]:
         return self.inst_to_def.values()
 

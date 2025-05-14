@@ -1,11 +1,10 @@
-from typing import Optional
-
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
+from vyper.venom.analysis import DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
 
 class DeadStoreElimination(IRPass):
     """
@@ -31,18 +30,29 @@ class DeadStoreElimination(IRPass):
         self.analyses_cache.invalidate_analysis(MemSSA)
 
     def _has_uses(self, inst: IRInstruction):
+        """
+        Checks if the instruction's output is used in the DFG.
+        """
         return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
 
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
+        """
+        Checks if the memory definition is a dead store.
+        """
+
+        # Volatile memory locations are never dead stores.
         if mem_def.loc.is_volatile is True:
             return False
 
+        # Memory locations with unknown offset or size are never dead stores.
         if mem_def.loc.offset == -1 or mem_def.loc.size == -1:
             return False
 
+        # If the instruction has uses, it is not a dead store.
         if self._has_uses(mem_def.store_inst):
             return False
 
+        # If the instruction has other effects than writing to memory, it is not a dead store.
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
@@ -51,10 +61,9 @@ class DeadStoreElimination(IRPass):
         if has_other_effects:
             return False
 
+        # If the memory definition is not used, it is a dead store.
         if mem_def not in self.used_defs:
             return True
 
-        clobbered_by = self.mem_ssa.get_clobbering_memory_access(mem_def)
-
-        return clobbered_by is not None
-
+        # If the memory definition is clobbered by another memory access, it is not a dead store.
+        return self.mem_ssa.get_clobbering_memory_access(mem_def) is not None
