@@ -338,14 +338,24 @@ class MemSSA(IRAnalysis):
             if current in visited:
                 break
             visited.add(current)
-            if isinstance(current, MemoryDef) and self.memalias.may_alias(query_loc, current.loc):
-                aliased_accesses.add(current)
+
+            # If the current node is a memory definition, check if
+            # it is aliased with the query location.
+            if isinstance(current, MemoryDef):
+                if self.memalias.may_alias(query_loc, current.loc):
+                    aliased_accesses.add(current)
+
+            # If the current node is a phi node, recursively walk
+            # the operands.
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
                     aliased_accesses.update(
                         self._walk_for_aliased_access(access, query_loc, visited)
                     )
+
+            # move up the definition chain
             current = current.reaching_def
+
         return aliased_accesses
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
