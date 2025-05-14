@@ -5,7 +5,7 @@ from typing import Iterable, Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 
 
@@ -170,7 +170,7 @@ class MemSSA(IRAnalysis):
 
     def get_memory_use(self, inst: IRInstruction) -> Optional[MemoryUse]:
         return self.inst_to_use.get(inst)
-    
+
     def get_memory_uses(self) -> Iterable[MemoryUse]:
         return self.inst_to_use.values()
 

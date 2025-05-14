@@ -36,7 +36,7 @@ class DeadStoreElimination(IRPass):
                 dead_defs.add(mem_def)
 
         for def_ in dead_defs:
-            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")    
+            self.updater.nop(def_.store_inst, annotation="[dead store elimination]")
 
     def _has_uses(self, var: Optional[IRVariable]):
         return var is not None and len(self.dfg.get_uses(var)) > 0
@@ -44,7 +44,7 @@ class DeadStoreElimination(IRPass):
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         if mem_def.loc.is_volatile is True:
             return False
-        
+
         if self._has_uses(mem_def.store_inst.output):
             return False
 

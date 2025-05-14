@@ -3,12 +3,7 @@ from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import (
-    EMPTY_MEMORY_ACCESS,
-    FULL_MEMORY_ACCESS,
-    IRInstruction,
-    MemoryLocation,
-)
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRInstruction, MemoryLocation
 
 
 class MemoryAliasAnalysis(IRAnalysis):
@@ -57,20 +52,37 @@ class MemoryAliasAnalysis(IRAnalysis):
         """
         Determine if two memory locations alias.
         """
-        if loc1 == FULL_MEMORY_ACCESS:
-            return loc2 != EMPTY_MEMORY_ACCESS
-        if loc2 == FULL_MEMORY_ACCESS:
-            return loc1 != EMPTY_MEMORY_ACCESS
-
         if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
             return False
 
-        assert loc1.size >= 0 and loc2.size >= 0
+        o1, s1 = loc1.offset, loc1.size
+        o2, s2 = loc2.offset, loc2.size
 
-        start1, end1 = loc1.offset, loc1.offset + loc1.size
-        start2, end2 = loc2.offset, loc2.offset + loc2.size
+        # All known
+        if o1 >= 0 and s1 >= 0 and o2 >= 0 and s2 >= 0:
+            end1 = o1 + s1
+            end2 = o2 + s2
+            return not (end1 <= o2 or end2 <= o1)
 
-        return not (end1 <= start2 or end2 <= start1)
+        # If either size is zero, no alias
+        if s1 == 0 or s2 == 0:
+            return False
+
+        # If both offsets are known
+        if o1 >= 0 and o2 >= 0:
+            # loc1 known size, loc2 unknown size
+            if s1 >= 0 and s2 == -1:
+                if o1 + s1 <= o2:
+                    return False
+            # loc2 known size, loc1 unknown size
+            if s2 >= 0 and s1 == -1:
+                if o2 + s2 <= o1:
+                    return False
+            # Otherwise, can't be sure
+            return True
+
+        # If offsets are unknown, can't be sure
+        return True
 
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """

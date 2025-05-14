@@ -3,7 +3,7 @@ import pytest
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef, MemoryLocation, MemoryUse
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS, IRBasicBlock, IRLabel
+from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
 
 
@@ -258,8 +258,8 @@ def test_ambiguous_clobber(create_mem_ssa):
 
     # Verify calldatacopy returns FULL_MEMORY_ACCESS
     assert (
-        calldatacopy_def.loc == FULL_MEMORY_ACCESS
-    ), f"Expected FULL_MEMORY_ACCESS for calldatacopy, got {calldatacopy_def.loc}"
+        calldatacopy_def.loc.offset == -1 and calldatacopy_def.loc.size == 32
+    ), f"Expected unknown offset and size == 32 for calldatacopy, got {calldatacopy_def.loc}"
 
 
 def test_complex_loop_clobber(create_mem_ssa):
@@ -388,14 +388,11 @@ def test_may_alias(dummy_mem_ssa):
     loc4 = MemoryLocation(offset=8, size=8)
     assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
-    # Test FULL_MEMORY_ACCESS
-    full_loc = FULL_MEMORY_ACCESS
-    assert mem_ssa.memalias.may_alias(
-        full_loc, loc1
-    ), "FULL_MEMORY_ACCESS should alias with any non-empty location"
+    full_loc = MemoryLocation(offset=0, size=-1)
+    assert mem_ssa.memalias.may_alias(full_loc, loc1), "should alias with any non-empty location"
     assert not mem_ssa.memalias.may_alias(
         full_loc, EMPTY_MEMORY_ACCESS
-    ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
+    ), "should not alias with EMPTY_MEMORY_ACCESS"
 
     # Test EMPTY_MEMORY_ACCESS
     empty_loc = EMPTY_MEMORY_ACCESS
@@ -404,7 +401,7 @@ def test_may_alias(dummy_mem_ssa):
     ), "EMPTY_MEMORY_ACCESS should not alias with any location"
     assert not mem_ssa.memalias.may_alias(
         empty_loc, full_loc
-    ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
+    ), "EMPTY_MEMORY_ACCESS should not alias"
 
     # Test zero/negative size locations
     zero_size_loc = MemoryLocation(offset=0, size=0)

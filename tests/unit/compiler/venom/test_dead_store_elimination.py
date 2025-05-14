@@ -749,7 +749,7 @@ def test_raw_call_dead_store():
 
 
 def test_new_test():
-        pre = """
+    pre = """
 __main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
       %1 = calldataload 0
       %2 = shr 224, %1
@@ -870,4 +870,4 @@ __main_entry:  ; OUT=[selector_bucket_0, selector_bucket_1, selector_bucket_2]
       %116 = add %94, %115           ; %116 = add %75:1, %115
       return 512, %116
       """
-        _check_pre_post(pre, pre, hevm=False)
+    _check_pre_post(pre, pre, hevm=False)
