@@ -381,14 +381,24 @@ class MemSSA(IRAnalysis):
         self, current: Optional[MemoryAccess], query_loc: MemoryLocation
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
-            if isinstance(current, MemoryDef) and query_loc.completely_contains(current.loc):
-                return current
+            # If the current node is a memory definition, check if
+            # it completely contains the query location.
+            if isinstance(current, MemoryDef):
+                if query_loc.completely_contains(current.loc):
+                    return current
+
+            # If the current node is a phi node, check if any of the operands
+            # completely contain the query location.
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
-                    if isinstance(access, MemoryDef) and query_loc.completely_contains(access.loc):
-                        return access
+                    if isinstance(access, MemoryDef):
+                        if query_loc.completely_contains(access.loc):
+                            return access
                 return None
+
+            # move up the definition chain
             current = current.reaching_def
+
         return None
 
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
