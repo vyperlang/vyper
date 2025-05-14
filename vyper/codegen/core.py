@@ -1053,8 +1053,11 @@ def make_setter(left, right, hi=None):
         right = unwrap_location(right)
         # TODO rethink/streamline the clamp_basetype logic
         if needs_clamp(right.typ, enc):
-            right = clamp_basetype(right)
-
+            with right.cache_when_complex("prim_val") as (b, right):
+                clamped = clamp_basetype(right)
+                ret = b.resolve(["seq", clamped, STORE(left, right)])
+                return IRnode.from_list(ret)
+        
         return STORE(left, right)
 
     # Byte arrays
