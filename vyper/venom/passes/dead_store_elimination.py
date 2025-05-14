@@ -17,12 +17,16 @@ class DeadStoreElimination(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.used_defs = OrderedSet[MemoryDef]()
 
+        # Generate the set of memory definitions that are used by
+        # going through all memory uses and adding the memory definitions
+        # that are aliasing with them
         for _, mem_uses in self.mem_ssa.memory_uses.items():
             for mem_use in mem_uses:
                 aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
                 for aliased_access in aliased_accesses:
                     self.used_defs.add(aliased_access)
 
+        # Go through all memory definitions and eliminate dead stores
         for mem_def in self.mem_ssa.get_memory_defs():
             if self._is_dead_store(mem_def):
                 self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
