@@ -318,27 +318,33 @@ class MemSSA(IRAnalysis):
                 del self.memory_phis[phi.block]
 
     def get_aliased_memory_accesses(self, access: MemoryAccess) -> OrderedSet[MemoryAccess]:
+        """
+        Get all memory accesses that are aliased with the provided access.
+        """
         if access.is_live_on_entry:
             return OrderedSet()
 
         query_loc = access.loc
-        self.visited: OrderedSet[MemoryAccess] = OrderedSet()
-        aliased_accesses = self._walk_for_aliased_access(access, query_loc)
-        return aliased_accesses
+        return self._walk_for_aliased_access(access, query_loc, OrderedSet())
 
     def _walk_for_aliased_access(
-        self, current: Optional[MemoryAccess], query_loc: MemoryLocation
+        self,
+        current: Optional[MemoryAccess],
+        query_loc: MemoryLocation,
+        visited: OrderedSet[MemoryAccess],
     ) -> OrderedSet[MemoryAccess]:
         aliased_accesses: OrderedSet[MemoryAccess] = OrderedSet()
         while current:
-            if current in self.visited:
+            if current in visited:
                 break
-            self.visited.add(current)
+            visited.add(current)
             if isinstance(current, MemoryDef) and self.memalias.may_alias(query_loc, current.loc):
                 aliased_accesses.add(current)
             elif isinstance(current, MemoryPhi):
                 for access, _ in current.operands:
-                    aliased_accesses.update(self._walk_for_aliased_access(access, query_loc))
+                    aliased_accesses.update(
+                        self._walk_for_aliased_access(access, query_loc, visited)
+                    )
             current = current.reaching_def
         return aliased_accesses
 
@@ -377,8 +383,8 @@ class MemSSA(IRAnalysis):
 
     def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
-        Return the memory access that clobbers (overwrites) this access,
-        if any. Returns None if no clobbering access is found before a use
+        Return the memory access that clobbers this access, if any.
+        Returns None if no clobbering access is found before a use
         of this access's value.
         """
         if access.is_live_on_entry:
