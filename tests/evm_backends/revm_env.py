@@ -94,27 +94,16 @@ class RevmEnv(BaseEnv):
         tx.blob_hashes = value
         self._evm.set_tx_env(tx)
 
-    def message_call(
-        self,
-        to: str,
-        sender: str | None = None,
-        data: bytes | str = b"",
-        value: int = 0,
-        gas: int | None = None,
-        gas_price: int = 0,
-        is_modifying: bool = True,
-        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
+    def _message_call_impl(
+        self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes
     ):
-        if isinstance(data, str):
-            data = bytes.fromhex(data.removeprefix("0x"))
-
         try:
             return self._evm.message_call(
                 to=to,
-                caller=sender or self.deployer,
+                caller=sender,
                 calldata=data,
                 value=value,
-                gas=self.gas_limit if gas is None else gas,
+                gas=gas,
                 gas_price=gas_price,
                 is_static=not is_modifying,
             )

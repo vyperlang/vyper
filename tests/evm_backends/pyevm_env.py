@@ -158,6 +158,30 @@ class PyEvmEnv(BaseEnv):
         self._check_computation(computation)
         return computation.output
 
+    def _message_call_impl(
+        self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes
+    ):
+        try:
+            computation = self._state.computation_class.apply_message(
+                state=self._state,
+                message=Message(
+                    to=_addr(to),
+                    sender=_addr(sender),
+                    data=data,
+                    code=self.get_code(to),
+                    value=value,
+                    gas=gas,
+                    is_static=not is_modifying,
+                ),
+                transaction_context=self._make_tx_context(sender, gas_price),
+            )
+        except VMError as e:
+            # py-evm raises when user is out-of-funds instead of returning a failed computation
+            raise EvmError(*e.args) from e
+
+        self._check_computation(computation)
+        return computation.output
+
     def _make_tx_context(self, sender, gas_price):
         context_class = self._state.transaction_context_class
         context = context_class(origin=sender, gas_price=gas_price)

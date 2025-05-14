@@ -267,7 +267,47 @@ class BaseEnv:
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
-    ) -> bytes:
+        blob_hashes: Optional[list[bytes]] = None,
+    ):
+        if isinstance(data, str):
+            data = bytes.fromhex(data.removeprefix("0x"))
+        sender = sender or self.deployer
+        gas_to_use = self.gas_limit if gas is None else gas
+
+        trace_kwargs = dict(
+            to=to,
+            sender=sender,
+            calldata=data,
+            value=value,
+            gas=gas_to_use,
+            gas_price=gas_price,
+            is_modifying=is_modifying,
+        )
+
+        try:
+            result = self._message_call_impl(
+                to, sender, data, value, gas_to_use, gas_price, is_modifying, blob_hashes
+            )
+        except Exception:
+            if self.exporter:
+                self.exporter.trace_call(output=None, call_succeeded=False, **trace_kwargs)
+            raise
+        else:
+            if self.exporter:
+                self.exporter.trace_call(output=result, call_succeeded=True, **trace_kwargs)
+            return result
+
+    def _message_call_impl(
+        self,
+        to: str,
+        sender: str,
+        data: bytes,
+        value: int,
+        gas: int,
+        gas_price: int,
+        is_modifying: bool,
+        blob_hashes: Optional[list[bytes]],
+    ):
         raise NotImplementedError  # must be implemented by subclasses
 
     def clear_transient_storage(self) -> None:
