@@ -2,7 +2,13 @@ import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryAccess, MemoryDef, MemoryLocation, MemoryPhi, MemoryUse
+from vyper.venom.analysis.mem_ssa import (
+    MemoryAccess,
+    MemoryDef,
+    MemoryLocation,
+    MemoryPhi,
+    MemoryUse,
+)
 from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
 
@@ -1035,7 +1041,7 @@ def test_get_clobbered_memory_access_uniquitously_clobbers(create_mem_ssa):
     function _global {
         entry:
             %1 = calldataload 0
-            mstore 32, 1 ; <- this gets clobbered 
+            mstore 32, 1 ; <- this gets clobbered
             jnz %1, @block1, @block2
         block1:
             mstore 32, 42 ; <- this is the clobbered
@@ -1068,12 +1074,13 @@ def test_get_clobbered_memory_access_uniquitously_clobbers(create_mem_ssa):
 
     assert mem_ssa.get_clobbered_memory_access(mem_use) == phi
 
+
 def test_get_clobbered_memory_access_uniquitously_clobbers2(create_mem_ssa):
     pre = """
     function _global {
         entry:
             %1 = calldataload 0
-            mstore 32, 1 ; <- this gets clobbered 
+            mstore 32, 1 ; <- this gets clobbered
             jnz %1, @block1, @block2
         block1:
             mstore 32, 42 ; <- this is the clobbered
@@ -1103,7 +1110,7 @@ def test_get_clobbered_memory_access_uniquitously_clobbers2(create_mem_ssa):
 
     exit_block = fn.get_basic_block("exit")
     mem_use = mem_ssa.get_memory_use(exit_block.instructions[0])
-    
+
     assert mem_ssa.get_clobbered_memory_access(mem_use) == phi
 
 

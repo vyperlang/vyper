@@ -381,7 +381,10 @@ class MemSSA(IRAnalysis):
         return clobber or self.live_on_entry
 
     def _walk_for_clobbered_access(
-        self, current: Optional[MemoryAccess], query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess]
+        self,
+        current: Optional[MemoryAccess],
+        query_loc: MemoryLocation,
+        visited: OrderedSet[MemoryAccess],
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
             if current in visited:
@@ -405,11 +408,11 @@ class MemSSA(IRAnalysis):
                     # Return the phi node if multiple operands have clobbering accesses
                     if len(clobbering_operands) > 1:
                         return current
-                
+
                 # Return the single clobbering access
                 if len(clobbering_operands) == 1:
                     return clobbering_operands[0]
-                
+
                 return None
 
             # move up the definition chain
