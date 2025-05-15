@@ -187,7 +187,7 @@ def make_byte_array_copier(dst, src):
 
     with src.cache_when_complex("src") as (b1, src):
         if src.typ.maxlen == 0 or src.value == "~empty":
-            # set dst length to zero
+            # set dst length to zero, preserving side effects of `src`.
             ret = STORE(dst, 0)
             return b1.resolve(ret)
 
@@ -826,11 +826,6 @@ def dummy_node_for_type(typ):
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
-
-    # stricter check for zeroing a byte array.
-    # TODO: these should be TypeCheckFailure instead of TypeMismatch
-    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:  # pragma: nocover
-        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")
 
 
 def _check_assign_list(left, right):
