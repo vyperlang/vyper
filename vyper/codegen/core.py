@@ -185,12 +185,12 @@ def make_byte_array_copier(dst, src):
 
     _check_assign_bytes(dst, src)
 
-    # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.value == "~empty" or src.typ.maxlen == 0:
-        # set length word to 0.
-        return STORE(dst, 0)
-
     with src.cache_when_complex("src") as (b1, src):
+        if src.typ.maxlen == 0 or src.value == "~empty":
+            # set dst length to zero
+            ret = STORE(dst, 0)
+            return b1.resolve(ret)
+
         if src.typ.maxlen <= 32 and not copy_opcode_available(dst, src):
             # if there is no batch copy opcode available,
             # it's cheaper to run two load/stores instead of copy_bytes
@@ -390,10 +390,12 @@ def copy_bytes(dst, src, length, length_bound):
 
         # correctness: do not clobber dst
         if length_bound == 0:
-            return IRnode.from_list(["seq"], annotation=annotation)
+            ret = IRnode.from_list(["seq"], annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
         # performance: if we know that length is 0, do not copy anything
         if length.value == 0:
-            return IRnode.from_list(["seq"], annotation=annotation)
+            ret = IRnode.from_list(["seq"], annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
 
         assert src.is_pointer and dst.is_pointer
 
