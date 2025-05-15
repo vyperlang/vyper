@@ -3,6 +3,7 @@ from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
@@ -482,6 +483,42 @@ def _abi_payload_from_tuple(payload: tuple[int | bytes, ...], max_sz: int) -> by
     return ret
 
 
+def _get_bytecode_and_abi(code) -> tuple[bytes, list[dict]]:
+    out = compile_code(code, output_formats=["bytecode", "abi"])
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    abi = out["abi"]
+    return bytecode, abi
+
+
+def _raw_deploy(env, code, data):
+    bytecode, abi = _get_bytecode_and_abi(code)
+    bytecode += data
+    c = env.deploy(abi, bytecode, value=0)
+    return c
+
+
+def _test_ctor_decode(env, typ, data, expected=None, should_fail=False):
+    code = f"""
+x: {typ}
+
+@external
+def get() -> {typ}:
+    return self.x
+
+@deploy
+def __init__(x: {typ}):
+    self.x = x
+"""
+    if should_fail:
+        with pytest.raises(EvmError):
+            _ = _raw_deploy(env, code, data)
+    else:
+        c = _raw_deploy(env, code, data)
+        # assert expected is not None
+        g = c.get()
+        assert c.get() == expected
+
+
 def _replicate(value: int, count: int) -> tuple[int, ...]:
     return (value,) * count
 
@@ -561,18 +598,19 @@ def f(x: Bytes[{buffer_size}]):
     env.message_call(c.address, data=data)
 
 
-def test_abi_decode_child_head_points_to_parent(tx_failed, get_contract):
+def test_abi_decode_child_head_points_to_parent(env, get_contract):
     # data isn't strictly encoded and the head for the inner array
     # skips the corresponding payload and points to other valid section of the
     # parent buffer
     buffer_size = 14 * 32
+    typ = "DynArray[DynArray[DynArray[uint256, 2], 1], 2]"
     code = f"""
 @external
-def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[DynArray[uint256, 2], 1], 2]:
+def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[DynArray[DynArray[uint256, 2], 1], 2] = _abi_decode(
+    decoded_y1: {typ} = _abi_decode(
         y,
-        DynArray[DynArray[DynArray[uint256, 2], 1], 2]
+        {typ}
     )
     return decoded_y1
     """
@@ -600,20 +638,23 @@ def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[DynArray[uint256, 2], 1], 
 
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
+    expected = [[[2, 2]], [[2, 2]]]
     res = c.run(data)
-    assert res == [[[2, 2]], [[2, 2]]]
+    assert res == expected
+    _test_ctor_decode(env, typ, data, expected)
 
 
-def test_abi_decode_nonstrict_head_oob(tx_failed, get_contract):
+def test_abi_decode_nonstrict_head_oob(env, tx_failed, get_contract):
     # data isn't strictly encoded and (non_strict_head + len(DynArray[..][2])) > parent_static_sz
     # thus decoding the data pointed to by the head would cause an OOB read
     # non_strict_head + length == parent + parent_static_sz + 1
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
+    typ = "DynArray[Bytes[32 * 3], 3]"
     code = f"""
 @external
 def run(x: Bytes[{buffer_size}]):
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[Bytes[32 * 3], 3] = _abi_decode(y,  DynArray[Bytes[32 * 3], 3])
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
@@ -645,6 +686,23 @@ def run(x: Bytes[{buffer_size}]):
 
     with tx_failed():
         c.run(data)
+
+    expected = []
+    expected.append(
+        _abi_payload_from_tuple(
+            (
+                0x00,
+                (0x03).to_bytes(31, "big") + (0x00).to_bytes(1, byteorder="big"),
+                (0x03).to_bytes(31, byteorder="big") + (0x00).to_bytes(1, byteorder="big"),
+            ),
+            96,
+        )
+    )
+    expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
+    expected.append(b"")
+
+    # ctor decoding isn't strict, thus it shouldn't fail
+    _test_ctor_decode(env, typ, data, expected, should_fail=False)
 
 
 def test_abi_decode_nonstrict_head_oob2(tx_failed, get_contract):
