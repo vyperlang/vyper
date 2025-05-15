@@ -40,6 +40,25 @@ def _fail_contract(code, opt_level, exceptions):
         compile_code(code, settings=settings)
 
 
+# tests: calldata, code, extcode
+@pytest.mark.parametrize("ad_hoc_location", ("msg.data", "self.code", "msg.sender.code"))
+def test_slice_ad_hoc_zero_length(get_contract, ad_hoc_location):
+    code = f"""
+counter: public(uint256)
+
+@external
+def test() -> Bytes[10]:
+    b: Bytes[10]= slice({ad_hoc_location}, self.side_effect(), 0)
+    return b
+
+def side_effect() -> uint256:
+    self.counter += 1
+    return 0
+    """
+    with pytest.raises(ArgumentException):
+        compile_code(code)
+
+
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
