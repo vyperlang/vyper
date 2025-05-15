@@ -11,6 +11,9 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
+if TYPE_CHECKING:
+    from vyper.venom.function import IRFunction
+
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(
     ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
@@ -99,9 +102,6 @@ COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", 
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
-if TYPE_CHECKING:
-    from vyper.venom.function import IRFunction
-
 ir_printer = ContextVar("ir_printer", default=None)
 
 
@@ -174,6 +174,11 @@ class IRLiteral(IROperand):
         assert isinstance(value, int), value
         super().__init__(value)
 
+    def __repr__(self) -> str:
+        if abs(self.value) < 1024:
+            return str(self.value)
+        return f"0x{self.value:x}"
+
 
 class IRVariable(IROperand):
     """
@@ -229,23 +234,51 @@ class MemoryLocation:
     # be locations that are accessed outside of the current function.
     is_volatile: bool = False
 
+    @staticmethod
+    def from_operands(
+        offset: IROperand | int, size: IROperand | int, is_volatile: bool = False
+    ) -> "MemoryLocation":
+        if isinstance(offset, IRLiteral):
+            _offset = offset.value
+        elif isinstance(offset, IRVariable):
+            _offset = -1
+        elif isinstance(offset, int):
+            _offset = offset
+        else:
+            raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
+
+        if isinstance(size, IRLiteral):
+            _size = size.value
+        elif isinstance(size, IRVariable):
+            _size = -1
+        elif isinstance(size, int):
+            _size = size
+        else:
+            raise CompilerPanic(f"invalid size: {size} ({type(size)})")
+
+        return MemoryLocation(_offset, _size, is_volatile)
+
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: "MemoryLocation") -> bool:
-        if self == FULL_MEMORY_ACCESS:
+        # If other is empty (size 0), always contained
+        if other.size == 0:
             return True
-        if other == FULL_MEMORY_ACCESS:
-            return self == FULL_MEMORY_ACCESS
-        if self == EMPTY_MEMORY_ACCESS or other == EMPTY_MEMORY_ACCESS:
-            return False
-        assert self.size > 0 and other.size > 0
 
+        # If self has unknown offset or size, can't guarantee containment
+        if self.offset == -1 or self.size == -1:
+            return False
+
+        # If other has unknown offset or size, can't guarantee containment
+        if other.offset == -1 or other.size == -1:
+            return False
+
+        # Both are known
         start1, end1 = self.offset, self.offset + self.size
         start2, end2 = other.offset, other.offset + other.size
 
         return start1 <= start2 and end1 >= end2
 
 
-FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1, is_volatile=True)
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
@@ -329,42 +362,32 @@ class IRInstruction:
         opcode = self.opcode
         if opcode == "mstore":
             dst = self.operands[1]
-            if isinstance(dst, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=32)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, 32)
         elif opcode == "mload":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mcopy":
             size, _, dst = self.operands
-            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size)
         elif opcode == "calldatacopy":
             size, _, dst = self.operands
-            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size)
         elif opcode == "dloadbytes":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=-1)
         elif opcode == "dload":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode == "invoke":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=-1)
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[:2]
-            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value, is_volatile=False)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size, is_volatile=False)
         elif opcode in ("codecopy", "extcodecopy"):
             size, _, dst = self.operands[:3]
-            if isinstance(size, IRLiteral) and isinstance(dst, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size)
         elif opcode == "returndatacopy":
             size, _, dst = self.operands
-            if isinstance(size, IRLiteral) and isinstance(dst, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size)
         return EMPTY_MEMORY_ACCESS
 
     def get_read_memory_location(self) -> MemoryLocation:
@@ -373,57 +396,41 @@ class IRInstruction:
         if opcode == "mstore":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mload":
-            if isinstance(self.operands[0], IRLiteral):
-                return MemoryLocation(offset=self.operands[0].value, size=32)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(self.operands[0], 32)
         elif opcode == "mcopy":
             size, src = self.operands[:2]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size)
         elif opcode == "calldatacopy":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "dloadbytes":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "dload":
-            return EMPTY_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=32)
         elif opcode == "invoke":
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation(offset=0, size=-1)
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[2:4]
-            if isinstance(dst, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=dst.value, size=size.value, is_volatile=False)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(dst, size, is_volatile=False)
         elif opcode == "return":
             size, src = self.operands
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value, is_volatile=False)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size, is_volatile=False)
         elif opcode == "create":
             size, src = self.operands[:2]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size)
         elif opcode == "create2":
             size, src = self.operands[1:3]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
-        elif opcode in ("sha3", "sha3_64"):
-            size, src = self.operands[:2]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size)
+        elif opcode == "sha3":
+            size, offset = self.operands
+            return MemoryLocation.from_operands(offset, size)
+        elif opcode == "sha3_64":
+            return MemoryLocation(offset=0, size=64)
         elif opcode.startswith("log"):
             size, src = self.operands[-2:]
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size)
         elif opcode == "revert":
             size, src = self.operands
-            if isinstance(src, IRLiteral) and isinstance(size, IRLiteral):
-                return MemoryLocation(offset=src.value, size=size.value)
-            return FULL_MEMORY_ACCESS
+            return MemoryLocation.from_operands(src, size)
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:
