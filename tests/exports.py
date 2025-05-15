@@ -1,5 +1,4 @@
 import json
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, Optional
 
@@ -9,15 +8,15 @@ class TestExporter:
         self.export_dir: Path = export_dir
         self.test_root: Path = test_root
 
-        self.data: dict[str, dict[str, list[Any]]] = {}
+        self.data: dict[str, list[dict[str, Any]]] = {}
         # some tests, e.g. `examples/` ones, deploy contracts in a separate fixture
         # which gets executed before the `pytest_runtest_call` hook, and thus
         # `set_item` wasn't yet called when tracing is performed.
         # we stash these "premature" traces and associate them
         # with a concrete test as soon as `set_item` is actually called
-        self._stash: defaultdict[str, list[Any]] = defaultdict(list)
+        self._stash: list[dict[str, Any]] = []
 
-        self._current_test: Optional[dict[str, list[Any]]] = None
+        self._current_test: Optional[list[dict[str, Any]]] = None
         self.output_file: Optional[Path] = None
 
     def set_item(self, item):
@@ -29,18 +28,19 @@ class TestExporter:
 
         test_name = item.name
         if test_name not in self.data:
-            self.data[test_name] = {"deployments": [], "calls": []}
+            self.data[test_name] = []
         self._current_test = self.data[test_name]
         self._merge_stash()
 
-    def _get_target(self) -> dict[str, list[Any]]:
-        return self._current_test or self._stash
+    def _get_target(self) -> list[dict[str, Any]]:
+        return self._current_test if self._current_test is not None else self._stash
 
     def _merge_stash(self):
+        # move any earlier traces into the real test list, preserving order
         assert self._current_test is not None
-        for key, items in self._stash.items():
-            self._current_test.setdefault(key, []).extend(items)
-        self._stash.clear()
+        if self._stash:
+            self._current_test.extend(self._stash)
+            self._stash.clear()
 
     def trace_deployment(
         self,
@@ -51,8 +51,7 @@ class TestExporter:
         runtime_bytecode: str,
         calldata: Optional[str],
         value: int,
-        deployment_succeeded=True,
-        # Optional, deployment-type-specific fields:
+        deployment_succeeded: bool = True,
         source_code: Optional[str] = None,
         annotated_ast: Optional[dict] = None,
         solc_json: Optional[dict] = None,
@@ -60,6 +59,7 @@ class TestExporter:
         blueprint_initcode_prefix: Optional[str] = None,
     ):
         deployment = {
+            "trace_type": "deployment",
             "deployment_type": deployment_type,
             "contract_abi": contract_abi,
             "deployed_address": deployed_address,
@@ -67,27 +67,23 @@ class TestExporter:
             "runtime_bytecode": runtime_bytecode,
             "calldata": calldata,
             "value": value,
+            "deployment_succeeded": deployment_succeeded,
             "source_code": source_code,
             "annotated_ast": annotated_ast,
             "solc_json": solc_json,
             "raw_ir": raw_ir,
             "blueprint_initcode_prefix": blueprint_initcode_prefix,
-            "deployment_succeeded": deployment_succeeded,
         }
-
-        target = self._get_target()
-        target.setdefault("deployments", []).append(deployment)
+        self._get_target().append(deployment)
 
     def trace_call(self, output: Optional[bytes], **call_args):
         if "calldata" in call_args:
             assert isinstance(call_args["calldata"], bytes)
             call_args["calldata"] = call_args["calldata"].hex()
+        out_hex = output.hex() if output is not None else None
 
-        target = self._get_target()
-        if output is not None:
-            output = output.hex()
-
-        target.setdefault("calls", []).append({"output": output, "call_args": call_args})
+        call = {"trace_type": "call", "output": out_hex, "call_args": call_args}
+        self._get_target().append(call)
 
     def finalize_export(self):
         with open(self.output_file, "w") as f:
