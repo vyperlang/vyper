@@ -369,18 +369,25 @@ class MemSSA(IRAnalysis):
         mstore 0, ...  ; 1
         mstore 0, ...  ; 2
         mload 0        ; 2 is clobbered by this memory access
-        ```
+
+        NOTE: This function will return a MemoryPhi if there are multiple clobbering
+        memory accesses. It is to be seen if we should change this behavior in the future
+        to return multiple clobbering memory accesses.
         """
         if access.is_live_on_entry:
             return None
 
-        clobber = self._walk_for_clobbered_access(access.reaching_def, access.loc)
+        clobber = self._walk_for_clobbered_access(access.reaching_def, access.loc, OrderedSet())
         return clobber or self.live_on_entry
 
     def _walk_for_clobbered_access(
-        self, current: Optional[MemoryAccess], query_loc: MemoryLocation
+        self, current: Optional[MemoryAccess], query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess]
     ) -> Optional[MemoryAccess]:
         while current and not current.is_live_on_entry:
+            if current in visited:
+                break
+            visited.add(current)
+
             # If the current node is a memory definition, check if
             # it completely contains the query location.
             if isinstance(current, MemoryDef):
@@ -388,12 +395,21 @@ class MemSSA(IRAnalysis):
                     return current
 
             # If the current node is a phi node, check if any of the operands
-            # completely contain the query location.
             elif isinstance(current, MemoryPhi):
+                clobbering_operands = []
                 for access, _ in current.operands:
-                    if isinstance(access, MemoryDef):
-                        if query_loc.completely_contains(access.loc):
-                            return access
+                    clobber = self._walk_for_clobbered_access(access, query_loc, visited)
+                    if clobber:
+                        clobbering_operands.append(clobber)
+
+                    # Return the phi node if multiple operands have clobbering accesses
+                    if len(clobbering_operands) > 1:
+                        return current
+                
+                # Return the single clobbering access
+                if len(clobbering_operands) == 1:
+                    return clobbering_operands[0]
+                
                 return None
 
             # move up the definition chain
