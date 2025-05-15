@@ -1,6 +1,9 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import Enum
+from itertools import count
+from pathlib import Path
 from typing import Iterable, Optional
 
 from eth_keys.datatypes import PrivateKey
@@ -8,6 +11,7 @@ from eth_utils import to_checksum_address
 
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
+from tests.exports import TestExporter
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
@@ -30,6 +34,16 @@ class ExecutionResult:
     gas_used: int
 
 
+class DeploymentOrigin(Enum):
+    SOURCE = "source"
+    IR = "ir"
+    BLUEPRINT = "blueprint"
+    RAW_BYTECODE = "raw_bytecode"
+
+    def __str__(self):
+        return self.value
+
+
 class EvmError(Exception):
     """Exception raised when a call fails."""
 
@@ -46,23 +60,73 @@ class BaseEnv:
 
     DEFAULT_CHAIN_ID = 1
 
-    def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
+    def __init__(
+        self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]
+    ) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
-    def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
-        """Deploy a contract with the given ABI and bytecode."""
+        self.exporter = exporter
+
+    def deploy(
+        self,
+        abi: list[dict],
+        bytecode: bytes,
+        *args,
+        export_metadata: Optional[dict] = None,
+        value=0,
+        **kwargs,
+    ):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
+        calldata = b""
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
-            initcode += ctor.prepare_calldata(*args, **kwargs)
+            calldata = ctor.prepare_calldata(*args, **kwargs)
+            initcode += calldata
 
-        deployed_at = self._deploy(initcode, value)
+        if self.exporter:
+            if export_metadata is None:
+                export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
+
+            common_trace_kwargs = {
+                "deployment_type": str(export_metadata.get("deployment_origin")),
+                "contract_abi": abi,
+                "initcode": initcode.hex(),
+                "calldata": calldata.hex() if calldata else None,
+                "value": value,
+                "source_code": export_metadata.get("source_code"),
+                "annotated_ast": export_metadata.get("annotated_ast"),
+                "solc_json": export_metadata.get("solc_json"),
+                "raw_ir": export_metadata.get("raw_ir"),
+                "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
+            }
+
+        try:
+            deployed_at = self._deploy(initcode, value)
+        except Exception:
+            if self.exporter:
+                self.exporter.trace_deployment(
+                    deployed_address="0x0000000000000000000000000000000000000000",
+                    runtime_bytecode="",
+                    **common_trace_kwargs,
+                    deployment_succeeded=False,
+                )
+            raise
+
         address = to_checksum_address(deployed_at)
+
+        if self.exporter:
+            runtime_bytecode = self.get_code(address)
+            self.exporter.trace_deployment(
+                **common_trace_kwargs,
+                deployed_address=address,
+                runtime_bytecode=runtime_bytecode.hex(),
+            )
+
         return factory.at(self, address)
 
     def deploy_source(
@@ -76,8 +140,31 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
-        return self.deploy(abi, bytecode, value, *args, **kwargs)
+        if self.exporter:
+            # solc_json is useful for exporting the whole input bundle (including imports)
+            output_formats["solc_json"] = True
+
+        out = _compile(
+            source_code, output_formats, input_bundle=input_bundle, settings=compiler_settings
+        )
+
+        abi = out["abi"]
+        bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+        export_metadata = None
+        # note that tests where compilation fails (e.g. `syntax` tests) aren't
+        # propagated to the export yet
+        if self.exporter:
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
+                "deployment_origin": DeploymentOrigin.SOURCE,
+            }
+
+        return self.deploy(
+            abi, bytecode, *args, export_metadata=export_metadata, value=value, **kwargs
+        )
 
     def deploy_blueprint(
         self,
@@ -88,7 +175,8 @@ class BaseEnv:
         initcode_prefix: bytes = ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle)
+        out = _compile(source_code, output_formats, input_bundle)
+        abi, bytecode = out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -97,7 +185,20 @@ class BaseEnv:
         deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi: list[dict] = []  # just a constructor
-        deployer = self.deploy(deployer_abi, deploy_bytecode, *args)
+
+        export_metadata = None
+        if self.exporter:
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
+                "blueprint_initcode_prefix": initcode_prefix.hex(),
+                "deployment_origin": DeploymentOrigin.BLUEPRINT,
+            }
+
+        deployer = self.deploy(
+            deployer_abi, deploy_bytecode, *args, export_metadata=export_metadata
+        )
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
@@ -166,7 +267,47 @@ class BaseEnv:
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
-    ) -> bytes:
+        blob_hashes: Optional[list[bytes]] = None,
+    ):
+        if isinstance(data, str):
+            data = bytes.fromhex(data.removeprefix("0x"))
+        sender = sender or self.deployer
+        gas_to_use = self.gas_limit if gas is None else gas
+
+        trace_kwargs = dict(
+            to=to,
+            sender=sender,
+            calldata=data,
+            value=value,
+            gas=gas_to_use,
+            gas_price=gas_price,
+            is_modifying=is_modifying,
+        )
+
+        try:
+            result = self._message_call_impl(
+                to, sender, data, value, gas_to_use, gas_price, is_modifying, blob_hashes
+            )
+        except Exception:
+            if self.exporter:
+                self.exporter.trace_call(output=None, call_succeeded=False, **trace_kwargs)
+            raise
+        else:
+            if self.exporter:
+                self.exporter.trace_call(output=result, call_succeeded=True, **trace_kwargs)
+            return result
+
+    def _message_call_impl(
+        self,
+        to: str,
+        sender: str,
+        data: bytes,
+        value: int,
+        gas: int,
+        gas_price: int,
+        is_modifying: bool,
+        blob_hashes: Optional[list[bytes]],
+    ):
         raise NotImplementedError  # must be implemented by subclasses
 
     def clear_transient_storage(self) -> None:
@@ -216,20 +357,38 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
 
+_path_index = count()
+
+
+def _make_fake_path(base_dir: Path | None = None) -> Path:
+    name = f"unknown_{next(_path_index)}.vy"
+    path = (base_dir or Path.cwd()) / name
+    # resolve path same as default FileInputBundle(["."]) would
+    return path.resolve(strict=False)
+
+
 def _compile(
     source_code: str,
     output_formats: Iterable[str],
-    input_bundle: InputBundle = None,
-    settings: Settings = None,
-) -> tuple[list[dict], bytes]:
+    input_bundle: InputBundle | None = None,
+    settings: Settings | None = None,
+) -> dict:
+    if input_bundle is None:
+        fake_path = _make_fake_path()
+    else:
+        fake_path = _make_fake_path(Path(input_bundle.search_paths[0]))
+
     out = compile_code(
         source_code,
+        fake_path,
         # test that all output formats can get generated
         output_formats=output_formats,
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
+
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
-    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    return out
