@@ -1036,7 +1036,7 @@ def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_uniquitously_clobbers(create_mem_ssa):
+def test_get_clobbered_memory_access_ubiquitously_clobbers(create_mem_ssa):
     pre = """
     function _global {
         entry:
@@ -1075,7 +1075,7 @@ def test_get_clobbered_memory_access_uniquitously_clobbers(create_mem_ssa):
     assert mem_ssa.get_clobbered_memory_access(mem_use) == phi
 
 
-def test_get_clobbered_memory_access_uniquitously_clobbers2(create_mem_ssa):
+def test_get_clobbered_memory_access_ubiquitously_clobbers2(create_mem_ssa):
     pre = """
     function _global {
         entry:
