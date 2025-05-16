@@ -10,6 +10,7 @@ from vyper.cli.vyper_json import (
     exc_handler_to_dict,
     get_inputs,
     get_settings,
+    VENOM_KEYS,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
@@ -395,7 +396,6 @@ def test_compile_json_with_experimental_codegen():
 
 
 def test_compile_json_without_experimental_codegen():
-    venom_keys = ["bb", "bb_runtime", "cfg", "cfg_runtime"]
     code = {
         "language": "Vyper",
         "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
@@ -404,7 +404,7 @@ def test_compile_json_without_experimental_codegen():
             "optimize": "gas",
             "venom": False,
             "search_paths": ["."],
-            "outputSelection": {"*": venom_keys},
+            "outputSelection": {"*": VENOM_KEYS},
         },
     }
 
