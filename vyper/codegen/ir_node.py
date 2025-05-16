@@ -384,6 +384,7 @@ class IRnode:
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
             and self.value.lower() not in do_not_cache
+            and not self.is_empty_intrinsic
         )
 
     # set an error message and push down to its children that don't have error_msg set
