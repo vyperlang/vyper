@@ -146,6 +146,10 @@ class Expr:
     def _make_bytelike(cls, context, typeclass, bytez):
         bytez_length = len(bytez)
         btype = typeclass(bytez_length)
+
+        if bytez_length == 0:
+            return IRnode.from_list("~empty", typ=btype, annotation=f"empty {btype}")
+
         placeholder = context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
@@ -157,6 +161,7 @@ class Expr:
                     bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
                 ]
             )
+
         return IRnode.from_list(
             ["seq"] + seq + [placeholder],
             typ=btype,
