@@ -363,6 +363,14 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
+    @property
+    def is_empty_intrinsic(self):
+        if self.value == "~empty":
+            return True
+        if self.value == "seq":
+            return len(self.args) == 1 and self.args[0].is_empty_intrinsic
+        return False
+
     # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
