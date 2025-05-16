@@ -10,6 +10,7 @@ from vyper.cli.vyper_json import (
     exc_handler_to_dict,
     get_inputs,
     get_settings,
+    VENOM_KEYS,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
@@ -376,13 +377,41 @@ def test_compile_json_with_experimental_codegen():
             "evmVersion": "cancun",
             "optimize": "gas",
             "venom": True,
-            "search_paths": [],
-            "outputSelection": {"*": ["ast"]},
+            "search_paths": ["."],
+            "outputSelection": {"*": ["ast", "bb", "bb_runtime", "cfg", "cfg_runtime"]},
+        },
+    }
+    compiled = compile_from_input_dict(code)
+    expected = compiled[0][PurePath("foo.vy")]
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen is True
+    output_json = compile_json(code)
+    assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    assert venom["bb"] == repr(expected["bb"])
+    assert venom["bb_runtime"] == repr(expected["bb_runtime"])
+    assert venom["cfg"] == expected["cfg"]
+    assert venom["cfg_runtime"] == expected["cfg_runtime"]
+
+
+def test_compile_json_without_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venom": False,
+            "search_paths": ["."],
+            "outputSelection": {"*": VENOM_KEYS},
         },
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen is True
+    assert settings.experimental_codegen is False
+    output_json = compile_json(code)
+    assert "venom" not in output_json["contracts"]["foo.vy"]["foo"]
 
 
 def test_compile_json_with_both_venom_aliases():
