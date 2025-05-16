@@ -393,6 +393,7 @@ def test_compile_json_with_experimental_codegen():
     assert venom["cfg"] == expected["cfg"]
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
 
+
 def test_compile_json_without_experimental_codegen():
     venom_keys = ["bb", "bb_runtime", "cfg", "cfg_runtime"]
     code = {
@@ -403,7 +404,7 @@ def test_compile_json_without_experimental_codegen():
             "optimize": "gas",
             "venom": False,
             "search_paths": ["."],
-            "outputSelection": {"*": venom_keys },
+            "outputSelection": {"*": venom_keys},
         },
     }
 

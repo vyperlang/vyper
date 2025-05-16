@@ -3,7 +3,7 @@ from pathlib import PurePath
 import pytest
 
 from vyper import compiler
-from vyper.cli.vyper_json import TRANSLATE_MAP, get_output_formats
+from vyper.cli.vyper_json import TRANSLATE_MAP, VENOM_KEYS, get_output_formats
 from vyper.exceptions import JSONError
 
 
@@ -38,6 +38,7 @@ def test_translate_map(output):
     else:
         assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
 
+
 @pytest.mark.parametrize("output", TRANSLATE_MAP.items())
 def test_translate_map_with_venom_flag(output):
     input_json = {
@@ -54,13 +55,13 @@ def test_star():
     }
     translate_map = set(TRANSLATE_MAP.values())
     # if the venom flag is not present
-    translate_map.remove("bb")
-    translate_map.remove("bb_runtime")
-    translate_map.remove("cfg")
-    translate_map.remove("cfg_runtime")
+    for k in VENOM_KEYS:
+        translate_map.remove(k)
+
     expected = sorted(translate_map)
     result = get_output_formats(input_json)
     assert result == {PurePath("foo.vy"): expected, PurePath("bar.vy"): expected}
+
 
 def test_star_with_venom_flag():
     input_json = {

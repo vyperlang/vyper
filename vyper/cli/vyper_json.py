@@ -40,6 +40,8 @@ TRANSLATE_MAP = {
     "cfg_runtime": "cfg_runtime",
 }
 
+VENOM_KEYS = ["bb", "bb_runtime", "cfg", "cfg_runtime"]
+
 
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
@@ -249,8 +251,10 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
-        if not input_dict["settings"].get("venom") and not input_dict["settings"].get("experimentalCodegen"):
-            for key in ["bb", "bb_runtime", "cfg", "cfg_runtime"]:
+        if not input_dict["settings"].get("venom") and not input_dict["settings"].get(
+            "experimentalCodegen"
+        ):
+            for key in VENOM_KEYS:
                 if key in outputs:
                     outputs.remove(key)
 
@@ -409,8 +413,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             if "source_map_runtime" in data:
                 evm["sourceMap"] = data["source_map_runtime"]
 
-        venom_keys = ("bb", "bb_runtime", "cfg", "cfg_runtime",)
-        if any(i in data for i in venom_keys):
+        if any(i in data for i in VENOM_KEYS):
             venom = output_contracts.setdefault("venom", {})
             if "bb" in data:
                 venom["bb"] = repr(data["bb"])
