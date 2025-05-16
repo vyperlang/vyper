@@ -45,7 +45,7 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
         #assert isinstance(op, IRVariable), f"operand must be variable got {op}"
         swap(stack, op_position)
         swap(stack, i)
-    return needed
+    return list(reversed(needed))
 
 def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
     res = []
@@ -53,7 +53,8 @@ def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[
         if a != b:
             break
         res.append(a)
-    return res
+    #print(res)
+    return list(reversed(res))
 
 class StoreType(Enum):
     PUSH = 1
@@ -134,7 +135,8 @@ class StackOrder:
             if op_position is None:
                 stack.insert(0, op)
                 needed.append(op)
-                op_position = 0
+                op_position = position(stack, op)
+                assert op_position is not None
             swap(stack, op_position, output)
         elif store_type == StoreType.DUP:
             stack.append(output)

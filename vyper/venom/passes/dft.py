@@ -6,6 +6,7 @@ from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, StackOrder, CFGA
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+from collections import deque
 
 
 class DFTPass(IRPass):
@@ -31,9 +32,22 @@ class DFTPass(IRPass):
 
         self.stack_order.calculates_store_types()
 
-        for bb in self.cfg.dfs_post_walk:
+        worklist = deque(self.cfg.dfs_post_walk)
+        last_stack_orders: dict[IRBasicBlock, list] = dict()
+
+        while len(worklist) > 0:
+            bb = worklist.popleft()
             stack_order = self.stack_order.handle_bbs(list(self.cfg.cfg_out(bb)))
+            if bb in last_stack_orders and stack_order == last_stack_orders[bb]:
+                continue
+            last_stack_orders[bb] = stack_order
             self._process_basic_block(bb, stack_order)
+            for inbb in self.cfg.cfg_in(bb):
+                worklist.append(inbb)
+
+        #for bb in self.cfg.dfs_post_walk:
+            #stack_order = self.stack_order.handle_bbs(list(self.cfg.cfg_out(bb)))
+            #self._process_basic_block(bb, stack_order)
 
         #for bb in self.function.get_basic_blocks():
             #self._process_basic_block(bb)
@@ -79,7 +93,7 @@ class DFTPass(IRPass):
             else:
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
-                if inst.opcode == "jmp":
+                if inst.is_bb_terminator:
                     ret = stack_order.index(x.output)
                 else:
                     ret = inst.operands.index(x.output)
@@ -111,7 +125,7 @@ class DFTPass(IRPass):
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
 
         for inst in non_phis:
-            if inst.opcode == "jmp":
+            if inst.is_bb_terminator:
                 for op in out_stack:
                     dep = self.dfg.get_producing_instruction(op)
                     if dep is not None and dep.parent == bb:
