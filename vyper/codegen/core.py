@@ -823,9 +823,15 @@ def dummy_node_for_type(typ):
     return IRnode("fake_node", typ=typ)
 
 
-def _check_assign_bytes(left, right):
-    if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
+def _check_assign_bytes(left, right):  # pragma: nocover
+    if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
+
+    # stricter check for zeroing a byte array.
+    # TODO: these should be TypeCheckFailure instead of TypeMismatch
+    rlen = right.typ.maxlen
+    if right.is_empty_intrinsic and rlen != 0 and rlen != left.typ.maxlen:
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")
 
 
 def _check_assign_list(left, right):
