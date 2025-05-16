@@ -191,6 +191,27 @@ def sideeffect() -> bool:
     assert c.counter() == 1
 
 
+def test_concat_zero_length_side_effects2(get_contract):
+    code = """
+counter: public(uint256)
+
+@external
+def test() -> Bytes[256]:
+    a: Bytes[256] = concat(b"" if self.sideeffect() else b"", b"")
+    return a
+
+def sideeffect() -> bool:
+    self.counter += 1
+    return True
+    """
+
+    c = get_contract(code)
+
+    assert c.counter() == 0
+    assert c.test() == b""
+    assert c.counter() == 1
+
+
 def test_small_output(get_contract):
     code = """
 @external
