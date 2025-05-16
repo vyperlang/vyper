@@ -55,7 +55,7 @@ def side_effect() -> uint256:
     self.counter += 1
     return 0
     """
-    with pytest.raises(ArgumentException):
+    with pytest.raises(ArgumentException, match="Length cannot be less than 1"):
         compile_code(code)
 
 
