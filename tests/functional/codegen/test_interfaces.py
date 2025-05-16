@@ -472,19 +472,19 @@ def returns_Bytes3() -> Bytes[3]:
     """
 
     should_not_compile = """
-import BadJSONInterface
+import JSONInterface
 @external
-def foo(x: BadJSONInterface) -> Bytes[2]:
+def foo(x: JSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_Bytes3(), 0, 2)
     """
 
     code = """
-import BadJSONInterface
+import JSONInterface
 
-foo: BadJSONInterface
+foo: JSONInterface
 
 @deploy
-def __init__(addr: BadJSONInterface):
+def __init__(addr: JSONInterface):
     self.foo = addr
 
 @external
@@ -499,30 +499,26 @@ def test_fail2() -> Bytes[2]:
     return x
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_success() -> Bytes[3]:
     return extcall self.foo.returns_Bytes3()
     """
+    json_c = get_contract(external_contract)
 
-    bad_c = get_contract(external_contract)
+    json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
+    input_bundle = make_input_bundle({"JSONInterface.json": json_interface})
 
-    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
-    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+    with pytest.raises(ArgumentException):
+        compile_code(should_not_compile, input_bundle=input_bundle)
 
-    assert_compile_failed(
-        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
-    )
-
-    c = get_contract(code, bad_c.address, input_bundle=input_bundle)
-    assert bad_c.returns_Bytes3() == b"123"
+    c = get_contract(code, json_c.address, input_bundle=input_bundle)
+    assert json_c.returns_Bytes3() == b"123"
 
     with tx_failed():
         c.test_fail1()
     with tx_failed():
         c.test_fail2()
-    with tx_failed():
-        c.test_fail3()
+
+    assert c.test_success() == json_c.returns_Bytes3() == b"123"
 
 
 def test_units_interface(env, get_contract, make_input_bundle):
