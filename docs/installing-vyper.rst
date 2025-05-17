@@ -7,8 +7,8 @@ any errors.
 
 .. note::
 
-    The easiest way to experiment with the language is to use either `Try Vyper! <https://try.vyperlang.org>`_ (maintained by the Vyper team) or the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by the Ethereum Foundation).
-    - To use Try Vyper, go to https://try.vyperlang.org and log in (requires Github login).
+    The easiest way to experiment with the language is to use either `Try Vyper! <https://vyper.online/>`_ (maintained by the Vyper team) or the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by the Ethereum Foundation).
+    - To use Try Vyper, go https://vyper.online/ and log in (requires Github login).
     - To use remix, go to https://remix.ethereum.org and activate the vyper-remix plugin in the Plugin manager.
 
 
