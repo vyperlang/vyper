@@ -614,3 +614,34 @@ def foo() -> Bytes[96]:
 
     c = get_contract(slice_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+def test_slice_empty_bytes32(get_contract):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    return slice(empty(bytes32), 0, 32)
+    """
+    c = get_contract(code)
+    assert c.bar() == b"\x00" * 32
+
+
+def test_slice_empty_Bytes32(get_contract, tx_failed):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    return slice(empty(Bytes[32]), 0, 1)
+    """
+    c = get_contract(code)
+    with tx_failed():
+        _ = c.bar()
+
+    code = """
+@external
+def bar() -> Bytes[32]:
+    length: uint256 = 0
+    return slice(empty(Bytes[32]), 0, length)
+    """
+
+    c = get_contract(code)
+    assert c.bar() == b""

@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InstantiationException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, InstantiationException, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -692,14 +692,38 @@ def foo():
 
 
 @pytest.mark.parametrize(
-    "contract",
+    "contract, exc",
     [
-        """
+        (
+            """
 @external
 def test():
     a: uint256 = empty(HashMap[uint256, uint256])[0]
-    """
+    """,
+            InstantiationException,
+        ),
+        (
+            """
+@external
+def test():
+    a: Bytes[32] = empty(Bytes[0])
+    """,
+            ArrayIndexException,
+        ),
     ],
 )
-def test_invalid_types(contract, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(contract), InstantiationException)
+def test_invalid_types(contract, exc, get_contract, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(contract), exc)
+
+
+@pytest.mark.parametrize("empty_bytes", ["x''", "b''"])
+@pytest.mark.parametrize("sz", [1] + [i for i in range(0, 5 * 32, 32) if i != 0])
+def test_empty_Bytes(get_contract, sz, empty_bytes):
+    code = f"""
+@external
+def foo() -> bool:
+    b: Bytes[{sz}] = empty(Bytes[{sz}])
+    return b == {empty_bytes}
+"""
+    c = get_contract(code)
+    assert c.foo() is True
