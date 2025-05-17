@@ -33,4 +33,4 @@ Once you are ready to deploy your contract to a public test net or the main net,
     deployer = boa.load_partial("yourFileName.vy")
     deployer.deploy()
 
-* Use the development environment provided at https://try.vyperlang.org to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with Titanoboa pre-installed, and browser signer integration as well.
+* Use the development environment provided at https://vyper.online/ to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with Titanoboa pre-installed, and browser signer integration as well.
