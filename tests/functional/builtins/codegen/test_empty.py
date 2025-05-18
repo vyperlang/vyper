@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import ArrayIndexException, InstantiationException, TypeMismatch
 
 
@@ -692,7 +693,7 @@ def foo():
 
 
 @pytest.mark.parametrize(
-    "contract, exc",
+    "code, exc",
     [
         (
             """
@@ -712,8 +713,9 @@ def test():
         ),
     ],
 )
-def test_invalid_types(contract, exc, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(contract), exc)
+def test_invalid_types(code, exc):
+    with pytest.raises(exc):
+        compile_code(code)
 
 
 @pytest.mark.parametrize("empty_bytes", ["x''", "b''"])
