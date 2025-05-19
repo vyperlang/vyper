@@ -3,10 +3,11 @@ from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
-class StoreElimination(IRPass):
+class AssignElimination(IRPass):
     """
     This pass forwards variables to their uses though `store` instructions,
-    and removes the `store` instruction.
+    and removes the `store` instruction. In the future we will probably rename
+    the `store` instruction to `"assign"`.
     """
 
     # TODO: consider renaming `store` instruction, since it is confusing

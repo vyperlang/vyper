@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import AlgebraicOptimizationPass, StoreElimination
+from vyper.venom.passes import AlgebraicOptimizationPass, AssignElimination
 
 """
 Test abstract binop+unop optimizations in algebraic optimizations pass
@@ -9,7 +9,7 @@ Test abstract binop+unop optimizations in algebraic optimizations pass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker([StoreElimination, AlgebraicOptimizationPass, StoreElimination])
+_check_pre_post = PrePostChecker([AssignElimination, AlgebraicOptimizationPass, AssignElimination])
 
 
 def test_sccp_algebraic_opt_sub_xor():
