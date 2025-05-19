@@ -386,7 +386,8 @@ class IRInstruction:
             size, _, dst = self.operands
             return MemoryLocation.from_operands(dst, size)
         elif opcode == "dloadbytes":
-            return MemoryLocation(offset=0, size=None)
+            size, _, dst = self.operands
+            return MemoryLocation.from_operands(dst, size)
         elif opcode == "dload":
             return MemoryLocation(offset=0, size=32)
         elif opcode == "sha3_64":
