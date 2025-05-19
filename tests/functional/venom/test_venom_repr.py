@@ -25,6 +25,8 @@ def test_round_trip_examples(vy_filename, debug, optimize, compiler_settings, re
     """
     Check all examples round trip
     """
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("tests n/a when venom is not enabled")
     path = f"examples/{vy_filename}"
     with open(path) as f:
         vyper_source = f.read()
@@ -55,6 +57,9 @@ def test_round_trip_sources(vyper_source, debug, optimize, compiler_settings, re
     """
     Test vyper_sources round trip
     """
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("tests n/a when venom is not enabled")
+
     vyper_source = textwrap.dedent(vyper_source)
 
     if debug and optimize == OptimizationLevel.CODESIZE:
