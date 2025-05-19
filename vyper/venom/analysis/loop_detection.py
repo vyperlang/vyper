@@ -15,7 +15,7 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
     loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     def analyze(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.loops = self._find_natural_loops(self.function.entry)
 
     # Could possibly reuse the dominator tree algorithm to find the back edges
@@ -31,7 +31,7 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
             visited.add(bb)
             stack.append(bb)
 
-            for succ in bb.cfg_out:
+            for succ in self.cfg.cfg_out(bb):
                 if succ not in visited:
                     dfs(succ)
                 elif succ in stack:
@@ -59,11 +59,12 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
                 if bb in loop:
                     continue
                 loop.add(bb)
-                for pred in bb.cfg_in:
+                for pred in self.cfg.cfg_in(bb):
                     if pred != v:
                         stack.append(pred)
 
             loop.add(v)
-            natural_loops[v.cfg_in.first()] = loop
+            first_bb = self.cfg.cfg_in(v).first()
+            natural_loops[first_bb] = loop
 
         return natural_loops
