@@ -356,7 +356,7 @@ class Slice(BuiltinFunctionT):
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32, src
+            assert is_bytes32 or src.is_empty_intrinsic, src
             src = ensure_in_memory(src, context)
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
