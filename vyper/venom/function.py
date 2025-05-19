@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import textwrap
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
@@ -192,7 +193,7 @@ class IRFunction:
 
         if not only_subgraph:
             ret.append("digraph G {{")
-        ret.append(f'subgraph "{self.name}" {{')
+        ret.append(f"subgraph {json.dumps(repr(self.name))} {{")
 
         for bb in self.get_basic_blocks():
             for out_bb in bb.out_bbs:

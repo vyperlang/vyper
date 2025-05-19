@@ -403,6 +403,45 @@ def test_compile_json_with_experimental_codegen():
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
 
 
+def test_compile_json_escapes_subgraph_label():
+    foo_code = """
+a: uint256
+b: address
+
+@internal
+def _foo(f: uint256, g: address) -> uint256:
+    self.a = f
+    self.b = g
+    return self.a
+
+
+@internal
+def _bar(f: uint256, g: address) -> uint256:
+    self._foo(f, g)
+    self._foo(f, g)
+    return self.a
+
+
+@external
+def call_foo(amount: uint256, account: address) -> uint256:
+    return self._bar(amount, account)
+    """
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": foo_code}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venom": True,
+            "search_paths": ["."],
+            "outputSelection": {"*": ["cfg_runtime"]},
+        },
+    }
+    output_json = compile_json(code)
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    assert 'subgraph "\\"internal 0 _foo(uint256,address)_runtime\\""' in venom["cfg_runtime"]
+
+
 def test_compile_json_without_experimental_codegen():
     code = {
         "language": "Vyper",
