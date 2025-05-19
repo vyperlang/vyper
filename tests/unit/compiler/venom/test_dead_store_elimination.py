@@ -617,6 +617,20 @@ def test_call_reading_partial_mstore():
     """
     _check_pre_post(pre, pre, hevm=False)
 
+def test_jnz_order():
+    pre = """
+    main:
+      %1 = calldataload 0
+      mstore 0, 100  ; not dead store
+      jnz %1, @then, @else
+    then:
+      mstore 0, 101
+      stop
+    else:
+      return 0, 32
+    """
+    _check_no_change(pre)
+
 
 def test_mcopy_partial():
     pre = """
