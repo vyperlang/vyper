@@ -411,6 +411,12 @@ class IRInstruction:
                 return MemoryLocation.from_operands(dst, 32)
             elif opcode == "sload":
                 return EMPTY_MEMORY_ACCESS
+            elif opcode in ("call", "delegatecall", "staticcall"):
+                return MemoryLocation(offset=None, size=None)
+            elif opcode == "invoke":
+                return MemoryLocation(offset=None, size=None)
+            elif opcode in ("create", "create2"):
+                return MemoryLocation(offset=None, size=None)
 
         return EMPTY_MEMORY_ACCESS
 
@@ -463,6 +469,12 @@ class IRInstruction:
                 return EMPTY_MEMORY_ACCESS
             elif opcode == "sload":
                 return MemoryLocation.from_operands(self.operands[0], 32)
+            elif opcode in ("call", "delegatecall", "staticcall"):
+                return MemoryLocation(offset=None, size=None)
+            elif opcode == "invoke":
+                return MemoryLocation(offset=None, size=None)
+            elif opcode in ("create", "create2"):
+                return MemoryLocation(offset=None, size=None)
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:

@@ -3,7 +3,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef, StorageSSA
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.effects import NON_MEMORY_EFFECTS
+from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -13,8 +13,15 @@ class DeadStoreElimination(IRPass):
     """
 
     def run_pass(self, location_type: Literal["memory", "storage"] = "memory"):
+        if location_type == "memory":
+            MemSSAType = MemSSA
+            self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
+        elif location_type == "storage":
+            MemSSAType = StorageSSA
+            self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
+
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        MemSSAType = MemSSA if location_type == "memory" else StorageSSA
+
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSAType)
 
         self.updater = InstUpdater(self.dfg)
@@ -64,7 +71,7 @@ class DeadStoreElimination(IRPass):
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
-        has_other_effects = (write_effects | read_effects) & NON_MEMORY_EFFECTS
+        has_other_effects = (write_effects | read_effects) & self.NON_RELATED_EFFECTS
 
         if has_other_effects:
             return False

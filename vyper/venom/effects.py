@@ -30,6 +30,7 @@ LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
 NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
+NON_STORAGE_EFFECTS = ~Effects.STORAGE
 
 _writes = {
     "sstore": STORAGE,
