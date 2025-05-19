@@ -312,13 +312,17 @@ class Slice(BuiltinFunctionT):
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
-        if not is_adhoc_slice:
-            if length_literal is not None:
-                if length_literal < 1:
-                    raise ArgumentException("Length cannot be less than 1", length_expr)
+        # validation
 
-                if length_literal > arg_type.length:
-                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
+        if length_literal is not None:
+            if length_literal < 1:
+                raise ArgumentException("Length cannot be less than 1", length_expr)
+
+        if not is_adhoc_slice:
+            # arg_type.length is only valid when `not is_adhoc_slice`.
+
+            if length_literal is not None and length_literal > arg_type.length:
+                raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
@@ -352,7 +356,7 @@ class Slice(BuiltinFunctionT):
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32, src
+            assert is_bytes32 or src.is_empty_intrinsic, src
             src = ensure_in_memory(src, context)
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
@@ -1050,6 +1054,18 @@ class RawCall(BuiltinFunctionT):
         data_type = get_possible_types_from_node(node.args[1]).pop()
         return [self._inputs[0][1], data_type]
 
+    # get the mutability, which is determined at a specific call site
+    def get_mutability_at_call_site(self, node: vy_ast.Call):
+        kw = {k.arg: k.value for k in node.keywords}
+
+        is_static = kw.get("is_static_call", None)
+        is_static = is_static.get_folded_value() if is_static else False
+
+        if is_static:
+            return StateMutability.VIEW
+
+        return StateMutability.NONPAYABLE
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
@@ -1585,6 +1601,14 @@ class RawCreate(_CreateBase):
         args = [ensure_in_memory(arg, context) for arg in args]
         initcode = args[0]
         ctor_args = args[1:]
+
+        if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            # value or salt could be expressions which trample the initcode
+            # buffer. cf. test_raw_create_memory_overlap
+            # note that potential_overlap is overly conservative, since it
+            # checks for the existence of calls (which are not applicable
+            # here, since `initcode` is guaranteed to be in memory).
+            initcode = create_memory_copy(initcode, context)
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
