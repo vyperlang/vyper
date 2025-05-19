@@ -719,12 +719,12 @@ def test_invalid_types(code, exc):
 
 
 @pytest.mark.parametrize("empty_bytes", ["x''", "b''"])
-@pytest.mark.parametrize("sz", [1] + [i for i in range(0, 5 * 32, 32) if i != 0])
-def test_empty_Bytes(get_contract, sz, empty_bytes):
+@pytest.mark.parametrize("size", [1] + [i for i in range(1 * 32, 5 * 32, 32)])
+def test_empty_Bytes(get_contract, size, empty_bytes):
     code = f"""
 @external
 def foo() -> bool:
-    b: Bytes[{sz}] = empty(Bytes[{sz}])
+    b: Bytes[{size}] = empty(Bytes[{size}])
     return b == {empty_bytes}
 """
     c = get_contract(code)
