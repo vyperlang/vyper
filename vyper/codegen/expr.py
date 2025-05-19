@@ -148,6 +148,7 @@ class Expr:
         btype = typeclass(bytez_length)
 
         if bytez_length == 0:
+            # optimization: handled specially by make_byte_array_copier
             return IRnode.from_list("~empty", typ=btype, annotation=f"empty {btype}")
 
         placeholder = context.new_internal_variable(btype)
