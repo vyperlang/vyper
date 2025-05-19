@@ -43,13 +43,6 @@ class DFTPass(IRPass):
             for inbb in self.cfg.cfg_in(bb):
                 worklist.append(inbb)
 
-        # for bb in self.cfg.dfs_post_walk:
-        # stack_order = self.stack_order.handle_bbs(list(self.cfg.cfg_out(bb)))
-        # self._process_basic_block(bb, stack_order)
-
-        # for bb in self.function.get_basic_blocks():
-        # self._process_basic_block(bb)
-
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_basic_block(self, bb: IRBasicBlock, stack_order: list[IROperand]) -> None:
@@ -93,13 +86,11 @@ class DFTPass(IRPass):
             else:
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
-                if inst.is_bb_terminator:
-                    if x.output in inst.operands:
-                        ret = inst.operands.index(x.output)
-                    else:
-                        ret = stack_order.index(x.output)
-                else:
+                if x.output in inst.operands:
                     ret = inst.operands.index(x.output)
+                else:
+                    assert inst.is_bb_terminator
+                    ret = stack_order.index(x.output)
             return ret
 
         # heuristic: sort by size of child dependency graph
