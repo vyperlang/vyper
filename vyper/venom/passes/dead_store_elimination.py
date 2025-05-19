@@ -60,7 +60,7 @@ class DeadStoreElimination(IRPass):
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
-        has_other_effects = write_effects & NON_MEMORY_EFFECTS or read_effects & NON_MEMORY_EFFECTS
+        has_other_effects = (write_effects | read_effects) & NON_MEMORY_EFFECTS
 
         if has_other_effects:
             return False
