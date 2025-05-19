@@ -51,7 +51,6 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
         op_position = position(stack, op)
         assert op_position is not None, f"operand is not in stack {op}, {stack}"
 
-        # assert isinstance(op, IRVariable), f"operand must be variable got {op}"
         swap(stack, op_position)
         swap(stack, i)
     return needed
@@ -63,7 +62,6 @@ def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[
         if a != b:
             break
         res.append(a)
-    # print(res)
     return res
 
 
