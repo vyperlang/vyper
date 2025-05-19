@@ -54,17 +54,17 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
         # assert isinstance(op, IRVariable), f"operand must be variable got {op}"
         swap(stack, op_position)
         swap(stack, i)
-    return list(reversed(needed))
+    return needed
 
 
 def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
     res = []
-    for a, b in zip(reversed(stack_a), reversed(stack_b)):
+    for a, b in zip(stack_a, stack_b):
         if a != b:
             break
         res.append(a)
     # print(res)
-    return list(reversed(res))
+    return res
 
 
 class StoreType(Enum):
@@ -119,7 +119,7 @@ class StackOrder:
                 if output is not None:
                     stack.append(output)
 
-        return needed
+        return list(reversed(needed))
 
     def handle_bbs(self, bbs: list[IRBasicBlock]) -> list[IROperand]:
         if len(bbs) == 0:
@@ -128,7 +128,7 @@ class StackOrder:
         for bb in bbs[1:]:
             tmp = self.handle_bb(bb)
             res = max_same_prefix(res, tmp)
-        return list(reversed(res))
+        return res
 
     def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
         assert inst.opcode == "store"

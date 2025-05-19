@@ -94,7 +94,10 @@ class DFTPass(IRPass):
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
                 if inst.is_bb_terminator:
-                    ret = stack_order.index(x.output)
+                    if x.output in inst.operands:
+                        ret = inst.operands.index(x.output)
+                    else:
+                        ret = stack_order.index(x.output)
                 else:
                     ret = inst.operands.index(x.output)
             return ret
@@ -125,16 +128,16 @@ class DFTPass(IRPass):
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
 
         for inst in non_phis:
+            for op in inst.operands:
+                dep = self.dfg.get_producing_instruction(op)
+                if dep is not None and dep.parent == bb:
+                    self.dda[inst].add(dep)
             if inst.is_bb_terminator:
                 for op in out_stack:
                     dep = self.dfg.get_producing_instruction(op)
                     if dep is not None and dep.parent == bb:
                         self.dda[inst].add(dep)
                 continue
-            for op in inst.operands:
-                dep = self.dfg.get_producing_instruction(op)
-                if dep is not None and dep.parent == bb:
-                    self.dda[inst].add(dep)
 
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
