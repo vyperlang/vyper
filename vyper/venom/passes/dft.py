@@ -81,13 +81,13 @@ class DFTPass(IRPass):
         children = list(self.dda[inst] | self.eda[inst])
 
         def cost(x: IRInstruction) -> int | float:
-            if x in self.eda[inst] or inst.flippable:
+            if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
             else:
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
                 if x.output in inst.operands:
-                    ret = inst.operands.index(x.output)
+                    ret = inst.operands.index(x.output) + len(stack_order)
                 else:
                     assert inst.is_bb_terminator
                     ret = stack_order.index(x.output)
@@ -119,16 +119,15 @@ class DFTPass(IRPass):
         last_read_effects: dict[effects.Effects, IRInstruction] = {}
 
         for inst in non_phis:
-            for op in inst.operands:
-                dep = self.dfg.get_producing_instruction(op)
-                if dep is not None and dep.parent == bb:
-                    self.dda[inst].add(dep)
             if inst.is_bb_terminator:
                 for op in out_stack:
                     dep = self.dfg.get_producing_instruction(op)
                     if dep is not None and dep.parent == bb:
                         self.dda[inst].add(dep)
-                continue
+            for op in inst.operands:
+                dep = self.dfg.get_producing_instruction(op)
+                if dep is not None and dep.parent == bb:
+                    self.dda[inst].add(dep)
 
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
