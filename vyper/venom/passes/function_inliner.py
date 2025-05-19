@@ -102,6 +102,11 @@ class FunctionInlinerPass(IRGlobalPass):
             found = set()
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
+                    # current structure of ir_node_to_venom allows
+                    # caller-provided arguments to travel into the
+                    # called function via either alloca or calloca,
+                    # depending on the size of the parameter.
+                    # this handles both cases.
                     if inst.opcode in ("alloca", "calloca"):
                         _, _, alloca_id_op = inst.operands
                         alloca_id = alloca_id_op.value
