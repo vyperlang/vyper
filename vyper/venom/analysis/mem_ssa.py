@@ -334,7 +334,7 @@ class MemSSA(IRAnalysis):
         visited: OrderedSet[MemoryAccess],
     ) -> OrderedSet[MemoryAccess]:
         aliased_accesses: OrderedSet[MemoryAccess] = OrderedSet()
-        while current:
+        while current is not None:
             if current in visited:
                 break
             visited.add(current)
@@ -386,7 +386,7 @@ class MemSSA(IRAnalysis):
         query_loc: MemoryLocation,
         visited: OrderedSet[MemoryAccess],
     ) -> Optional[MemoryAccess]:
-        while current and not current.is_live_on_entry:
+        while current is not None and not current.is_live_on_entry:
             if current in visited:
                 break
             visited.add(current)
