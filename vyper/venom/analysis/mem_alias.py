@@ -59,24 +59,24 @@ class MemoryAliasAnalysis(IRAnalysis):
         o2, s2 = loc2.offset, loc2.size
 
         # All known
-        if o1 is not None and s1 is not None and o2 is not None and s2 is not None:
-            end1 = o1 + s1
-            end2 = o2 + s2
-            return not (end1 <= o2 or end2 <= o1)
+        if loc1.is_fixed and loc2.is_fixed:
+            end1 = o1 + s1  # type: ignore
+            end2 = o2 + s2  # type: ignore
+            return not (end1 <= o2 or end2 <= o1)  # type: ignore
 
         # If either size is zero, no alias
         if s1 == 0 or s2 == 0:
             return False
 
         # If both offsets are known
-        if o1 is not None and o2 is not None:
+        if loc1.is_offset_fixed and loc2.is_offset_fixed:
             # loc1 known size, loc2 unknown size
-            if s1 is not None and s2 is None:
-                if o1 + s1 <= o2:
+            if loc1.is_size_fixed and not loc2.is_size_fixed:
+                if o1 + s1 <= o2:  # type: ignore
                     return False
             # loc2 known size, loc1 unknown size
-            if s2 is not None and s1 is None:
-                if o2 + s2 <= o1:
+            if loc2.is_size_fixed and not loc1.is_size_fixed:
+                if o2 + s2 <= o1:  # type: ignore
                     return False
             # Otherwise, can't be sure
             return True

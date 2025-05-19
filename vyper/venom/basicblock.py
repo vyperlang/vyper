@@ -234,6 +234,18 @@ class MemoryLocation:
     # be locations that are accessed outside of the current function.
     is_volatile: bool = False
 
+    @property
+    def is_offset_fixed(self) -> bool:
+        return self.offset is not None
+
+    @property
+    def is_size_fixed(self) -> bool:
+        return self.size is not None
+
+    @property
+    def is_fixed(self) -> bool:
+        return self.is_offset_fixed and self.is_size_fixed
+
     @staticmethod
     def from_operands(
         offset: IROperand | int, size: IROperand | int, is_volatile: bool = False
@@ -265,14 +277,16 @@ class MemoryLocation:
             return True
 
         # If self has unknown offset or size, can't guarantee containment
-        if self.offset is None or self.size is None:
+        if not self.is_offset_fixed or not self.is_size_fixed:
             return False
 
         # If other has unknown offset or size, can't guarantee containment
-        if other.offset is None or other.size is None:
+        if not other.is_offset_fixed or not other.is_size_fixed:
             return False
 
         # Both are known
+        assert self.offset is not None and self.size is not None
+        assert other.offset is not None and other.size is not None
         start1, end1 = self.offset, self.offset + self.size
         start2, end2 = other.offset, other.offset + other.size
 
