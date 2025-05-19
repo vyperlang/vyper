@@ -149,3 +149,43 @@ def test_stack_reorder_split():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_stack_order_join():
+    pre = """
+    main:
+        %cond = param
+        %1 = mload 1
+        %2 = mload 2
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 3
+        mstore 1000, %3a
+        jmp @join
+    else:
+        %3b = mload 3
+        mstore 2000, %3b
+        jmp @join
+    join:
+        sink %1
+    """
+
+    post = """
+    main:
+        %cond = param
+        %2 = mload 2
+        %1 = mload 1
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 3
+        mstore 1000, %3a
+        jmp @join
+    else:
+        %3b = mload 3
+        mstore 2000, %3b
+        jmp @join
+    join:
+        sink %1
+    """
+
+    _check_pre_post(pre, post)

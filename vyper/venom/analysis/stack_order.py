@@ -1,6 +1,6 @@
 from enum import Enum
 
-from vyper.venom.analysis import LivenessAnalysis, CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -11,7 +11,6 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.function import IRFunction
-from typing import Iterator
 
 
 def swap(stack: list[IROperand], position: int, output: IROperand | None = None):
