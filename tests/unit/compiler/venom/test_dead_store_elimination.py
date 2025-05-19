@@ -207,13 +207,17 @@ def test_dead_store_memory_copy():
     _check_pre_post(pre, pre)
 
 
-def test_dead_store_in_branches():
-    pre = """
+def _generate_jnz_configurations(cond, then, else_):
+    return [f"jnz {cond}, {then}, {else_}", f"jnz {cond}, {else_}, {then}"]
+
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@then", "@else"))
+def test_dead_store_in_branches(jnz):
+    pre = f"""
         _global:
             %cond = 1
             %val1 = 42
             %val2 = 24
-            jnz %cond, @then, @else
+            {jnz}
         then:
             mstore 0, %val1  ; Dead store - overwritten in merge
             jmp @merge
@@ -226,12 +230,12 @@ def test_dead_store_in_branches():
             %loaded = mload 0  ; Only reads val3
             stop
     """
-    post = """
+    post = f"""
         _global:
             %cond = 1
             %val1 = 42
             %val2 = 24
-            jnz %cond, @then, @else
+            {jnz}
         then:
             nop
             jmp @merge
@@ -247,8 +251,10 @@ def test_dead_store_in_branches():
     _check_pre_post(pre, post)
 
 
-def test_dead_store_in_loop():
-    pre = """
+
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
+def test_dead_store_in_loop(jnz):
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
@@ -257,7 +263,7 @@ def test_dead_store_in_loop():
             jmp @loop
         loop:
             %cond = lt %i, 5
-            jnz %cond, @body, @exit
+            {jnz}
         body:
             mstore 0, %val2
             %loaded = mload 0  ; Only reads val2
@@ -266,7 +272,7 @@ def test_dead_store_in_loop():
         exit:
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val1 = 42
             %val2 = 24
@@ -275,7 +281,7 @@ def test_dead_store_in_loop():
             jmp @loop
         loop:
             %cond = lt %i, 5
-            jnz %cond, @body, @exit
+            {jnz}
         body:
             mstore 0, %val2
             %loaded = mload 0
@@ -286,9 +292,79 @@ def test_dead_store_in_loop():
     """
     _check_pre_post(pre, post, hevm=False)
 
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
+def test_dead_store_in_loop2(jnz):
+    pre = f"""
+        main:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1  ; not dead store
+            jmp @loop
+        loop:
+            %i = mload 0
+            %cond = lt %i, 5
+            {jnz}
+        body:
+            mstore 0, %val2
+            %loaded = mload 0  ; Only reads val2
+            %i:2 = add %i, 1
+            mstore 0, %i:2  ; dead store - overwritten in all branches
+            jmp @main
+        exit:
+            stop
+    """
+    post = f"""
+        main:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1
+            jmp @loop
+        loop:
+            %i = mload 0
+            %cond = lt %i, 5
+            {jnz}
+        body:
+            mstore 0, %val2
+            %loaded = mload 0
+            %i:2 = add %i, 1
+            nop
+            jmp @main
+        exit:
+            stop
+    """
+    _check_pre_post(pre, post, hevm=False)
 
-def test_dead_store_alias_across_basic_blocks():
-    pre = """
+
+@pytest.mark.parametrize("jnz1", _generate_jnz_configurations("%cond", "@body", "@exit"))
+@pytest.mark.parametrize("jnz2", _generate_jnz_configurations("%cond", "@loop", "@main"))
+def test_dead_store_in_loop3(jnz1, jnz2):
+    # test an even weirder cfg cycle
+    pre = f"""
+        main:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1  ; not dead store
+            jmp @loop
+        loop:
+            %i = mload 0
+            %cond = lt %i, 5
+            {jnz1}
+        body:
+            mstore 0, %val2
+            %loaded = mload 0  ; Only reads val2
+            %i:2 = add %i, 1
+            mstore 0, %i:2  ; not dead store
+            {jnz2}
+        exit:
+            stop
+    """
+    _check_no_change(pre, hevm=False)
+
+
+
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@then", "@else"))
+def test_dead_store_alias_across_basic_blocks(jnz):
+    pre = f"""
         _global:
             %cond = param
             %val1 = 42
@@ -297,7 +373,7 @@ def test_dead_store_alias_across_basic_blocks():
             jmp @next
         next:
             %loaded2 = mload 5  ; aliasing read of slot 0
-            jnz %cond, @then, @else
+            {jnz}
         then:
             mstore 0, %val2
             %loaded = mload 0  ; Only reads val2
@@ -310,8 +386,9 @@ def test_dead_store_alias_across_basic_blocks():
     _check_no_change(pre, hevm=False)
 
 
-def test_dead_store_alias_across_basic_blocks_loop():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
+def test_dead_store_alias_across_basic_blocks_loop(jnz):
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
@@ -321,7 +398,7 @@ def test_dead_store_alias_across_basic_blocks_loop():
         loop:
             %loaded2 = mload 5  ; aliasing read of slot 0
             %cond = lt %i, 5
-            jnz %cond, @body, @exit
+            {jnz}
         body:
             mstore 0, %val2
             %loaded = mload 0  ; Only reads val2
@@ -618,7 +695,7 @@ def test_call_reading_partial_mstore():
     _check_pre_post(pre, pre, hevm=False)
 
 
-@pytest.mark.parametrize("jnz", ("jnz %1, @then, @else", "jnz %1, @else, @then"))
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
 def test_jnz_order(jnz):
     pre = f"""
     main:
@@ -634,50 +711,52 @@ def test_jnz_order(jnz):
     _check_no_change(pre)
 
 
-def test_mcopy_partial():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
+def test_mcopy_partial(jnz):
+    pre = f"""
     _global:
-      %1 = calldataload 0
-      jnz %1, @then, @else
+        %1 = calldataload 0
+        {jnz}
 
-  then:
-      mcopy 64, 160, 35 ; not dead store
-      jmp @out
-  else:
-      jmp @out
-  out:
-      mstore 384, 32
-      %40 = mload 64
-      sink %40
+    then:
+        mcopy 64, 160, 35 ; not dead store
+        jmp @out
+    else:
+        jmp @out
+    out:
+        mstore 384, 32
+        %40 = mload 64
+        sink %40
     """
-    post = """
+    post = f"""
     _global:
-      %1 = calldataload 0
-      jnz %1, @then, @else
+        %1 = calldataload 0
+        {jnz}
 
-  then:
-      mcopy 64, 160, 35
-      jmp @out
-  else:
-      jmp @out
-  out:
-      nop
-      %40 = mload 64
-      sink %40
+    then:
+        mcopy 64, 160, 35
+        jmp @out
+    else:
+        jmp @out
+    out:
+        nop
+        %40 = mload 64
+        sink %40
     """
 
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_phi_placement_recursion_error():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%25", "@exit", "@body"))
+def test_phi_placement_recursion_error(jnz):
+    pre = f"""
         _global:
             mstore 64, 32
             jmp @condition
         condition:
             ; phi: 7 <- 1 from @_global, 2 from @body
             %25 = calldataload 0
-            jnz %25, @exit, @body
+            {jnz}
         body:
             mstore 12, 12
             jmp @condition
@@ -685,14 +764,14 @@ def test_phi_placement_recursion_error():
             %29 = mload 96
             sink %29
     """
-    post = """
+    post = f"""
         _global:
             nop
             jmp @condition
         condition:
             ; phi: 7 <- 1 from @_global, 2 from @body
             %25 = calldataload 0
-            jnz %25, @exit, @body
+            {jnz}
         body:
             nop
             jmp @condition
@@ -703,8 +782,9 @@ def test_phi_placement_recursion_error():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_indexed_access():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%17", "@body", "@exit"))
+def test_indexed_access(jnz):
+    pre = f"""
     _global:
         mstore 64, 1
         mstore 96, 2
@@ -716,7 +796,7 @@ def test_indexed_access():
     condition:
         %13:1:1 = phi @__main_entry, %13, @6_incr, %13:2
         %17 = xor 5, %13:1:1
-        jnz %17, @body, @exit
+        {jnz}
     body:
         %21 = mload %13:1:1
         mstore 224, %21
@@ -726,18 +806,19 @@ def test_indexed_access():
         return 256, 32
     """
 
-    _check_pre_post(pre, pre, hevm=False)
+    _check_no_change(pre, hevm=False)
 
 
-def test_raw_call_dead_store():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%19", "@5_if_exit", "@3_then"))
+def test_raw_call_dead_store(jnz):
+    pre = f"""
     _global:
       mstore 192, 32
       mstore 64, 5
       mstore 96, 0x6d6f6f7365000000000000000000000000000000000000000000000000000000
       %10 = gas
       %19 = call %10, 4, 0, 96, 5, 160, 7
-      jnz %19, @5_if_exit, @3_then
+      {jnz}
 
     3_then:
       revert 0, 0
@@ -747,14 +828,14 @@ def test_raw_call_dead_store():
       calldatacopy %36, %41, %41
       return 192, 32
     """
-    post = """
+    post = f"""
     _global:
       mstore 192, 32
       nop
       mstore 96, 0x6d6f6f7365000000000000000000000000000000000000000000000000000000
       %10 = gas
       %19 = call %10, 4, 0, 96, 5, 160, 7
-      jnz %19, @5_if_exit, @3_then
+      {jnz}
 
     3_then:
       revert 0, 0
