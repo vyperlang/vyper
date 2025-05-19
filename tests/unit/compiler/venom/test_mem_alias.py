@@ -3,7 +3,7 @@ from vyper.venom.analysis.mem_alias import MemoryAliasAnalysis
 from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRLabel, MemoryLocation
 from vyper.venom.parser import parse_venom
 
-FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=-1)
+FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=None)
 
 
 def test_may_alias_full_memory_access():

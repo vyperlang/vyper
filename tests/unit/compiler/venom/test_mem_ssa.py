@@ -265,7 +265,7 @@ def test_ambiguous_clobber(create_mem_ssa):
 
     # Verify calldatacopy returns FULL_MEMORY_ACCESS
     assert (
-        calldatacopy_def.loc.offset == -1 and calldatacopy_def.loc.size == 32
+        calldatacopy_def.loc.offset is None and calldatacopy_def.loc.size == 32
     ), f"Expected unknown offset and size == 32 for calldatacopy, got {calldatacopy_def.loc}"
 
 
@@ -395,7 +395,7 @@ def test_may_alias(dummy_mem_ssa):
     loc4 = MemoryLocation(offset=8, size=8)
     assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
-    full_loc = MemoryLocation(offset=0, size=-1)
+    full_loc = MemoryLocation(offset=0, size=None)
     assert mem_ssa.memalias.may_alias(full_loc, loc1), "should alias with any non-empty location"
     assert not mem_ssa.memalias.may_alias(
         full_loc, EMPTY_MEMORY_ACCESS

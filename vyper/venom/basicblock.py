@@ -228,8 +228,8 @@ class IRLabel(IROperand):
 class MemoryLocation:
     """Represents a memory location that can be analyzed for aliasing"""
 
-    offset: int = 0
-    size: int = 0
+    offset: int | None = None
+    size: int | None = None
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
     is_volatile: bool = False
@@ -241,7 +241,7 @@ class MemoryLocation:
         if isinstance(offset, IRLiteral):
             _offset = offset.value
         elif isinstance(offset, IRVariable):
-            _offset = -1
+            _offset = None
         elif isinstance(offset, int):
             _offset = offset
         else:
@@ -250,7 +250,7 @@ class MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
         elif isinstance(size, IRVariable):
-            _size = -1
+            _size = None
         elif isinstance(size, int):
             _size = size
         else:
@@ -265,11 +265,11 @@ class MemoryLocation:
             return True
 
         # If self has unknown offset or size, can't guarantee containment
-        if self.offset == -1 or self.size == -1:
+        if self.offset is None or self.size is None:
             return False
 
         # If other has unknown offset or size, can't guarantee containment
-        if other.offset == -1 or other.size == -1:
+        if other.offset is None or other.size is None:
             return False
 
         # Both are known
@@ -372,13 +372,13 @@ class IRInstruction:
             size, _, dst = self.operands
             return MemoryLocation.from_operands(dst, size)
         elif opcode == "dloadbytes":
-            return MemoryLocation(offset=0, size=-1)
+            return MemoryLocation(offset=0, size=None)
         elif opcode == "dload":
             return MemoryLocation(offset=0, size=32)
         elif opcode == "sha3_64":
             return MemoryLocation(offset=0, size=64)
         elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=-1)
+            return MemoryLocation(offset=0, size=None)
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[:2]
             return MemoryLocation.from_operands(dst, size, is_volatile=False)
@@ -407,7 +407,7 @@ class IRInstruction:
         elif opcode == "dload":
             return MemoryLocation(offset=0, size=32)
         elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=-1)
+            return MemoryLocation(offset=0, size=None)
         elif opcode in ("call", "delegatecall", "staticcall"):
             size, dst = self.operands[2:4]
             return MemoryLocation.from_operands(dst, size, is_volatile=False)
