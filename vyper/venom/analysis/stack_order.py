@@ -1,10 +1,16 @@
-from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IROperand, IRVariable, IRInstruction, IRLiteral, IRLabel
-from vyper.venom.function import IRFunction
-from vyper.utils import OrderedSet, CompilerPanic
+from enum import Enum
+
 from vyper.venom.analysis import LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from enum import Enum
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
+from vyper.venom.function import IRFunction
 
 
 def swap(stack: list[IROperand], position: int, output: IROperand | None = None):
@@ -18,9 +24,11 @@ def swap(stack: list[IROperand], position: int, output: IROperand | None = None)
     if output is not None:
         stack[top] = output
 
+
 def top(stack: list[IROperand]) -> IROperand:
     top_idx = len(stack) - 1
     return stack[top_idx]
+
 
 def position(stack: list[IROperand], op: IROperand) -> int | None:
     top = len(stack) - 1
@@ -30,6 +38,7 @@ def position(stack: list[IROperand], op: IROperand) -> int | None:
             return pos
 
     return None
+
 
 def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
     needed: list[IROperand] = []
@@ -41,11 +50,12 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
         assert op in stack
         op_position = position(stack, op)
         assert op_position is not None, f"operand is not in stack {op}, {stack}"
-        
-        #assert isinstance(op, IRVariable), f"operand must be variable got {op}"
+
+        # assert isinstance(op, IRVariable), f"operand must be variable got {op}"
         swap(stack, op_position)
         swap(stack, i)
     return list(reversed(needed))
+
 
 def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
     res = []
@@ -53,13 +63,15 @@ def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[
         if a != b:
             break
         res.append(a)
-    #print(res)
+    # print(res)
     return list(reversed(res))
+
 
 class StoreType(Enum):
     PUSH = 1
     SWAP = 2
     DUP = 3
+
 
 # this wont be part of the analysis framework
 class StackOrder:
@@ -78,7 +90,7 @@ class StackOrder:
         for bb in self.function.get_basic_blocks():
             self._handle_bb_store_types(bb)
 
-    def handle_bb(self, bb: IRBasicBlock) -> list[IROperand]: 
+    def handle_bb(self, bb: IRBasicBlock) -> list[IROperand]:
         stack: list[IROperand] = []
         needed: list[IROperand] = []
 
@@ -94,12 +106,14 @@ class StackOrder:
                     ops = inst.operands
 
                 inst_needed = op_reorder(stack, ops)
-                needed.extend(inst_needed) 
+                needed.extend(inst_needed)
                 if len(ops) > 0:
-                    stack_top = list(stack[-len(ops):])
-                    assert ops == stack_top, f"the top of the stack is not correct, {ops}, {stack_top}"
+                    stack_top = list(stack[-len(ops) :])
+                    assert (
+                        ops == stack_top
+                    ), f"the top of the stack is not correct, {ops}, {stack_top}"
 
-                    stack = stack[0:-len(ops)]
+                    stack = stack[0 : -len(ops)]
 
                 output = inst.output
                 if output is not None:
@@ -116,8 +130,6 @@ class StackOrder:
             res = max_same_prefix(res, tmp)
         return list(reversed(res))
 
-
-
     def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
         assert inst.opcode == "store"
         ops = inst.operands
@@ -126,7 +138,7 @@ class StackOrder:
 
         output = inst.output
         assert output is not None
-        
+
         store_type = self.store_to_type[inst]
         if store_type == StoreType.PUSH:
             stack.append(output)
@@ -143,13 +155,12 @@ class StackOrder:
             if op not in stack:
                 needed.append(op)
 
-
     def _handle_bb_store_types(self, bb: IRBasicBlock):
         for i, inst in enumerate(bb.instructions):
             if inst.opcode != "store":
                 continue
-            op = inst.operands[0] 
-            if isinstance(op, IRLiteral):
+            op = inst.operands[0]
+            if isinstance(op, (IRLiteral, IRLabel)):
                 self.store_to_type[inst] = StoreType.PUSH
                 continue
 
@@ -159,6 +170,3 @@ class StackOrder:
                 self.store_to_type[inst] = StoreType.DUP
             else:
                 self.store_to_type[inst] = StoreType.SWAP
-            
-
-

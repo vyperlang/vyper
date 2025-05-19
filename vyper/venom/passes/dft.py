@@ -1,12 +1,11 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, StackOrder, CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrder
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
-from collections import deque
 
 
 class DFTPass(IRPass):
@@ -20,7 +19,6 @@ class DFTPass(IRPass):
 
     stack_order: StackOrder
     cfg: CFGAnalysis
-
 
     def run_pass(self) -> None:
         self.data_offspring = {}
@@ -45,12 +43,12 @@ class DFTPass(IRPass):
             for inbb in self.cfg.cfg_in(bb):
                 worklist.append(inbb)
 
-        #for bb in self.cfg.dfs_post_walk:
-            #stack_order = self.stack_order.handle_bbs(list(self.cfg.cfg_out(bb)))
-            #self._process_basic_block(bb, stack_order)
+        # for bb in self.cfg.dfs_post_walk:
+        # stack_order = self.stack_order.handle_bbs(list(self.cfg.cfg_out(bb)))
+        # self._process_basic_block(bb, stack_order)
 
-        #for bb in self.function.get_basic_blocks():
-            #self._process_basic_block(bb)
+        # for bb in self.function.get_basic_blocks():
+        # self._process_basic_block(bb)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -77,7 +75,9 @@ class DFTPass(IRPass):
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
-    def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction, stack_order: list[IROperand]):
+    def _process_instruction_r(
+        self, instructions: list[IRInstruction], inst: IRInstruction, stack_order: list[IROperand]
+    ):
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
