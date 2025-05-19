@@ -58,3 +58,56 @@ def test_stack_order_basic():
         "ADD",
         "RETURN",
     ]
+
+
+def test_stack_order_basic2():
+    pre = """
+    main:
+        %1 = mload 1
+        %2 = mload 2
+        jmp @next
+    next:
+        %3 = add 1, %1
+        %4 = add 1, %2
+        return %3, %4
+    """
+
+    post = """
+    main:
+        %1 = mload 1
+        %2 = mload 2
+        jmp @next
+    next:
+        %4 = add 1, %2
+        %3 = add 1, %1
+        return %3, %4
+    """
+
+    _check_pre_post(pre, post)
+
+    ctx = parse_from_basic_block(post)
+    for fn in ctx.get_functions():
+        ac = IRAnalysesCache(fn)
+        SingleUseExpansion(ac, fn).run_pass()
+        SimplifyCFGPass(ac, fn).run_pass()
+
+    print(ctx)
+
+    asm = VenomCompiler([ctx]).generate_evm()
+    print(asm)
+    assert asm == [
+        "PUSH1",
+        1,
+        "MLOAD",
+        "PUSH1",
+        2,
+        "MLOAD",
+        "PUSH1",
+        1,
+        "ADD",
+        "SWAP1",  # swap out the result of the first add (only necessary swap)
+        "PUSH1",
+        1,
+        "ADD",
+        "RETURN",
+    ]
