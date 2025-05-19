@@ -617,15 +617,17 @@ def test_call_reading_partial_mstore():
     """
     _check_pre_post(pre, pre, hevm=False)
 
-def test_jnz_order():
-    pre = """
+
+@pytest.mark.parametrize("jnz", ("jnz %1, @then, @else", "jnz %1, @else, @then"))
+def test_jnz_order(jnz):
+    pre = f"""
     main:
       %1 = calldataload 0
       mstore 0, 100  ; not dead store
-      jnz %1, @then, @else
+      {jnz}
     then:
       mstore 0, 101
-      stop
+      jmp @else
     else:
       return 0, 32
     """
