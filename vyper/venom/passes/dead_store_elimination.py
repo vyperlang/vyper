@@ -52,11 +52,12 @@ class DeadStoreElimination(IRPass):
         if mem_def.loc.offset == -1 or mem_def.loc.size == -1:
             return False
 
-        # If the instruction has uses, it is not a dead store.
+        # If the instruction output is used, it is not a dead store.
         if self._has_uses(mem_def.store_inst):
             return False
 
-        # If the instruction has other effects than writing to memory, it is not a dead store.
+        # If the instruction has other effects than writing to memory,
+        # it is not a dead store.
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
