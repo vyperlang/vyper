@@ -116,6 +116,12 @@ _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
+_scratch_alloca_id = 2**32
+def get_scratch_alloca_id() -> int:
+    global _scratch_alloca_id
+    _scratch_alloca_id += 1
+    return _scratch_alloca_id
+
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRContext:
@@ -265,7 +271,7 @@ def _handle_internal_func(
             # buffer size of 32 bytes.
             # TODO: we don't need to use scratch space once the legacy optimizer
             # is disabled.
-            buf = bb.append_instruction("alloca", IRLiteral(0), IRLiteral(32), IRLiteral(2**32))
+            buf = bb.append_instruction("alloca", 0, 32, get_scratch_alloca_id())
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
@@ -650,6 +656,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     param = fn.get_param_by_id(alloca._id)
+                    assert param is not None
                     bb.append_instruction("mstore", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
@@ -659,12 +666,13 @@ def _convert_ir_bb(fn, ir, symbols):
             assert alloca._callsite is not None
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
+
                 if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
                     ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 else:
                     # if we use alloca, mstores might get removed. convert
-                    # to raw pointer until memory analysis is more sound.
-                    ptr = IRLiteral(alloca.offset)
+                    # to calloca until memory analysis is more sound.
+                    ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
 
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]
