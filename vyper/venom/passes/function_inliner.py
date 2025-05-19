@@ -102,8 +102,7 @@ class FunctionInlinerPass(IRGlobalPass):
             found = set()
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
-                    #if inst.opcode in ("alloca", "calloca"):
-                    if inst.opcode == "calloca":
+                    if inst.opcode in ("alloca", "calloca"):
                         _, _, alloca_id_op = inst.operands
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)  # help mypy
