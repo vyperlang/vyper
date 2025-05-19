@@ -645,22 +645,25 @@ def bar() -> Bytes[32]:
     assert c.bar() == b"\x00" * 32
 
 
-def test_slice_empty_Bytes32(get_contract, tx_failed):
+def test_slice_empty_Bytes32_0(get_contract, tx_failed):
     code = """
 @external
-def bar() -> Bytes[32]:
-    return slice(empty(Bytes[32]), 0, 1)
+def bar(length: uint256) -> Bytes[32]:
+    # use variable length otherwise it gets optimized to
+    # StaticAssertionException
+    return slice(empty(Bytes[32]), 0, length)
     """
     c = get_contract(code)
     with tx_failed():
-        _ = c.bar()
+        _ = c.bar(1)
 
+
+def test_slice_empty_Bytes32_1(get_contract):
     code = """
 @external
 def bar() -> Bytes[32]:
     length: uint256 = 0
     return slice(empty(Bytes[32]), 0, length)
     """
-
     c = get_contract(code)
     assert c.bar() == b""
