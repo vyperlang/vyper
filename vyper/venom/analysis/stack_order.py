@@ -1,6 +1,6 @@
 from enum import Enum
 
-from vyper.venom.analysis import LivenessAnalysis
+from vyper.venom.analysis import LivenessAnalysis, CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -11,6 +11,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.function import IRFunction
+from typing import Iterator
 
 
 def swap(stack: list[IROperand], position: int, output: IROperand | None = None):
@@ -81,6 +82,8 @@ class StackOrder:
         self.analyses_cache = analyses_cache
         self.function = function
         self.store_to_type = dict()
+        self.bb_to_stack = dict()
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
 
     def calculates_store_types(self):
@@ -100,6 +103,12 @@ class StackOrder:
                     ops = [op for _, op in inst.phi_operands]
                 elif inst.is_bb_terminator:
                     ops = [op for op in inst.operands if not isinstance(op, IRLabel)]
+                    out_bbs = self.cfg.cfg_out(bb)
+                    orders = [self.bb_to_stack.get(out_bb, []) for out_bb in out_bbs]
+                    tmp = self.merge(orders)
+                    for op in reversed(tmp):
+                        if op not in ops:
+                            ops.append(op)
                 else:
                     ops = inst.operands
 
@@ -117,16 +126,21 @@ class StackOrder:
                 if output is not None:
                     stack.append(output)
 
-        return list(reversed(needed))
+        res = list(reversed(needed))
+        self.bb_to_stack[bb] = res
+        return res
+
+    def merge(self, orders: list[list[IROperand]]) -> list[IROperand]:
+        if len(orders) == 0:
+            return []
+        res: list[IROperand] = orders[0].copy()
+        for order in orders:
+            res = max_same_prefix(res, order)
+        return res
 
     def handle_bbs(self, bbs: list[IRBasicBlock]) -> list[IROperand]:
-        if len(bbs) == 0:
-            return []
-        res = self.handle_bb(bbs[0])
-        for bb in bbs[1:]:
-            tmp = self.handle_bb(bb)
-            res = max_same_prefix(res, tmp)
-        return res
+        bb_orders = [self.handle_bb(bb) for bb in bbs]
+        return self.merge(bb_orders)
 
     def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
         assert inst.opcode == "store"
