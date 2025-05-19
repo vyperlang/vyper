@@ -363,7 +363,6 @@ class MemSSA(IRAnalysis):
         Get the memory access that gets clobbered by the provided access.
         Returns None if provided the live-on-entry node, otherwise if no clobber
             is found, it will return the live-on-entry node.
-        This can be thought of as the inverse query for `get_clobbering_memory_access`.
         For example:
         ```
         mstore 0, ...  ; 1
