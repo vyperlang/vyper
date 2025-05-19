@@ -1,6 +1,6 @@
 import contextlib
 import dataclasses as dc
-from typing import Iterable, Optional
+from typing import Iterable, Literal, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
@@ -66,10 +66,12 @@ class LiveOnEntry(MemoryAccess):
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
-    def __init__(self, id: int, store_inst: IRInstruction):
+    def __init__(
+        self, id: int, store_inst: IRInstruction, location_type: Literal["memory", "storage"]
+    ):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = store_inst.get_write_memory_location()
+        self.loc = store_inst.get_write_memory_location(location_type)
 
     @property
     def inst(self):
@@ -79,10 +81,12 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(self, id: int, load_inst: IRInstruction):
+    def __init__(
+        self, id: int, load_inst: IRInstruction, location_type: Literal["memory", "storage"]
+    ):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = load_inst.get_read_memory_location()
+        self.loc = load_inst.get_read_memory_location(location_type)
 
     @property
     def inst(self):
@@ -103,7 +107,7 @@ MemoryDefOrUse = MemoryDef | MemoryUse
 MemoryPhiOperand = MemoryDef | MemoryPhi | LiveOnEntry
 
 
-class MemSSA(IRAnalysis):
+class MemSSAAbstract(IRAnalysis):
     """
     This analysis converts memory/storage operations into Memory SSA form.
     The analysis is based on LLVM's https://llvm.org/docs/MemorySSA.html.
@@ -198,14 +202,14 @@ class MemSSA(IRAnalysis):
         for inst in block.instructions:
             # Check for memory reads
             if effect_type in inst.get_read_effects():
-                mem_use = MemoryUse(self.next_id, inst)
+                mem_use = MemoryUse(self.next_id, inst, self.location_type)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
             if effect_type in inst.get_write_effects():
-                mem_def = MemoryDef(self.next_id, inst)
+                mem_def = MemoryDef(self.next_id, inst, self.location_type)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.inst_to_def[inst] = mem_def
@@ -524,3 +528,13 @@ class MemSSA(IRAnalysis):
             yield
         finally:
             ir_printer.set(None)
+
+
+class MemSSA(MemSSAAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, "memory")
+
+
+class StorageSSA(MemSSAAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, "storage")

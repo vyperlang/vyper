@@ -4,7 +4,7 @@ import json
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -371,80 +371,98 @@ class IRInstruction:
     def get_write_effects(self) -> effects.Effects:
         return effects.writes.get(self.opcode, effects.EMPTY)
 
-    def get_write_memory_location(self) -> MemoryLocation:
+    def get_write_memory_location(
+        self, location_type: Literal["memory", "storage"]
+    ) -> MemoryLocation:
         """Extract memory location info from an instruction"""
         opcode = self.opcode
-        if opcode == "mstore":
-            dst = self.operands[1]
-            return MemoryLocation.from_operands(dst, 32)
-        elif opcode == "mload":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mcopy":
-            size, _, dst = self.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "calldatacopy":
-            size, _, dst = self.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "dloadbytes":
-            return MemoryLocation(offset=0, size=None)
-        elif opcode == "dload":
-            return MemoryLocation(offset=0, size=32)
-        elif opcode == "sha3_64":
-            return MemoryLocation(offset=0, size=64)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=None)
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            size, dst = self.operands[:2]
-            return MemoryLocation.from_operands(dst, size, is_volatile=False)
-        elif opcode in ("codecopy", "extcodecopy"):
-            size, _, dst = self.operands[:3]
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "returndatacopy":
-            size, _, dst = self.operands
-            return MemoryLocation.from_operands(dst, size)
+        if location_type == "memory":
+            if opcode == "mstore":
+                dst = self.operands[1]
+                return MemoryLocation.from_operands(dst, 32)
+            elif opcode == "mload":
+                return EMPTY_MEMORY_ACCESS
+            elif opcode == "mcopy":
+                size, _, dst = self.operands
+                return MemoryLocation.from_operands(dst, size)
+            elif opcode == "calldatacopy":
+                size, _, dst = self.operands
+                return MemoryLocation.from_operands(dst, size)
+            elif opcode == "dloadbytes":
+                return MemoryLocation(offset=0, size=None)
+            elif opcode == "dload":
+                return MemoryLocation(offset=0, size=32)
+            elif opcode == "sha3_64":
+                return MemoryLocation(offset=0, size=64)
+            elif opcode == "invoke":
+                return MemoryLocation(offset=0, size=None)
+            elif opcode in ("call", "delegatecall", "staticcall"):
+                size, dst = self.operands[:2]
+                return MemoryLocation.from_operands(dst, size, is_volatile=False)
+            elif opcode in ("codecopy", "extcodecopy"):
+                size, _, dst = self.operands[:3]
+                return MemoryLocation.from_operands(dst, size)
+            elif opcode == "returndatacopy":
+                size, _, dst = self.operands
+                return MemoryLocation.from_operands(dst, size)
+        elif location_type == "storage":
+            if opcode == "sstore":
+                dst = self.operands[1]
+                return MemoryLocation.from_operands(dst, 32)
+            elif opcode == "sload":
+                return EMPTY_MEMORY_ACCESS
+
         return EMPTY_MEMORY_ACCESS
 
-    def get_read_memory_location(self) -> MemoryLocation:
+    def get_read_memory_location(
+        self, location_type: Literal["memory", "storage"]
+    ) -> MemoryLocation:
         """Extract memory location info from an instruction"""
         opcode = self.opcode
-        if opcode == "mstore":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mload":
-            return MemoryLocation.from_operands(self.operands[0], 32)
-        elif opcode == "mcopy":
-            size, src = self.operands[:2]
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "calldatacopy":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "dloadbytes":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "dload":
-            return MemoryLocation(offset=0, size=32)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=None)
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            size, dst = self.operands[2:4]
-            return MemoryLocation.from_operands(dst, size, is_volatile=False)
-        elif opcode == "return":
-            size, src = self.operands
-            return MemoryLocation.from_operands(src, size, is_volatile=False)
-        elif opcode == "create":
-            size, src = self.operands[:2]
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "create2":
-            size, src = self.operands[1:3]
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "sha3":
-            size, offset = self.operands
-            return MemoryLocation.from_operands(offset, size)
-        elif opcode == "sha3_64":
-            return MemoryLocation(offset=0, size=64)
-        elif opcode.startswith("log"):
-            size, src = self.operands[-2:]
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "revert":
-            size, src = self.operands
-            return MemoryLocation.from_operands(src, size)
+        if location_type == "memory":
+            if opcode == "mstore":
+                return EMPTY_MEMORY_ACCESS
+            elif opcode == "mload":
+                return MemoryLocation.from_operands(self.operands[0], 32)
+            elif opcode == "mcopy":
+                size, src = self.operands[:2]
+                return MemoryLocation.from_operands(src, size)
+            elif opcode == "calldatacopy":
+                return EMPTY_MEMORY_ACCESS
+            elif opcode == "dloadbytes":
+                return EMPTY_MEMORY_ACCESS
+            elif opcode == "dload":
+                return MemoryLocation(offset=0, size=32)
+            elif opcode == "invoke":
+                return MemoryLocation(offset=0, size=None)
+            elif opcode in ("call", "delegatecall", "staticcall"):
+                size, dst = self.operands[2:4]
+                return MemoryLocation.from_operands(dst, size, is_volatile=False)
+            elif opcode == "return":
+                size, src = self.operands
+                return MemoryLocation.from_operands(src, size, is_volatile=False)
+            elif opcode == "create":
+                size, src = self.operands[:2]
+                return MemoryLocation.from_operands(src, size)
+            elif opcode == "create2":
+                size, src = self.operands[1:3]
+                return MemoryLocation.from_operands(src, size)
+            elif opcode == "sha3":
+                size, offset = self.operands
+                return MemoryLocation.from_operands(offset, size)
+            elif opcode == "sha3_64":
+                return MemoryLocation(offset=0, size=64)
+            elif opcode.startswith("log"):
+                size, src = self.operands[-2:]
+                return MemoryLocation.from_operands(src, size)
+            elif opcode == "revert":
+                size, src = self.operands
+                return MemoryLocation.from_operands(src, size)
+        elif location_type == "storage":
+            if opcode == "sstore":
+                return EMPTY_MEMORY_ACCESS
+            elif opcode == "sload":
+                return MemoryLocation.from_operands(self.operands[0], 32)
         return EMPTY_MEMORY_ACCESS
 
     def get_label_operands(self) -> Iterator[IRLabel]:

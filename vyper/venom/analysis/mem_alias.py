@@ -1,17 +1,22 @@
 import dataclasses as dc
-from typing import Optional
+from typing import Literal, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRInstruction, MemoryLocation
 
 
-class MemoryAliasAnalysis(IRAnalysis):
+class MemoryAliasAnalysisAbstract(IRAnalysis):
     """
     Analyzes memory operations to determine which locations may alias.
     This helps optimize memory operations by identifying when different
     memory accesses are guaranteed not to overlap.
     """
+    location_type: Literal["memory", "storage"]
+
+    def __init__(self, analyses_cache, function, location_type: Literal["memory", "storage"]):
+        super().__init__(analyses_cache, function)
+        self.location_type = location_type
 
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -29,11 +34,11 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = inst.get_read_memory_location()
+        loc = inst.get_read_memory_location("memory")
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = inst.get_write_memory_location()
+        loc = inst.get_write_memory_location("memory")
         if loc is not None:
             self._analyze_mem_location(loc)
 
@@ -120,3 +125,11 @@ class MemoryAliasAnalysis(IRAnalysis):
                     self.alias_sets[other_loc].add(volatile_loc)
 
         return volatile_loc
+
+class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, "memory")
+
+class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, "storage")
