@@ -126,8 +126,6 @@ class MemSSAAbstract(IRAnalysis):
         if location_type not in self.VALID_LOCATION_TYPES:
             raise ValueError(f"location_type must be one of: {self.VALID_LOCATION_TYPES}")
         self.location_type = location_type
-        self.load_op = "mload" if location_type == "memory" else "sload"
-        self.store_op = "mstore" if location_type == "memory" else "sstore"
 
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
