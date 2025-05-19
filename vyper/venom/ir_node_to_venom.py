@@ -230,8 +230,8 @@ _current_context = None
 
 
 def _is_word_type(typ):
-    return typ._is_prim_word
-    # return typ.memory_bytes_required == 32
+    # we can pass it on the stack.
+    return typ.memory_bytes_required == 32
 
 
 # func_t: ContractFunctionT
