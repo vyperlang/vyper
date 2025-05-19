@@ -117,6 +117,8 @@ _callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
+
+
 def get_scratch_alloca_id() -> int:
     global _scratch_alloca_id
     _scratch_alloca_id += 1

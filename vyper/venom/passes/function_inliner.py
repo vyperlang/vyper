@@ -98,29 +98,37 @@ class FunctionInlinerPass(IRGlobalPass):
         caller_funcs = set([call_site.parent.parent for call_site in call_sites])
         # match callocas to pallocas
         for fn in caller_funcs:
-            callocas = {}
+            callocas: dict[int, IRInstruction] = {}
             found = set()
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
-                    if inst.opcode in ("alloca", "calloca"):
-                        _, _, alloca_id = inst.operands
+                    #if inst.opcode in ("alloca", "calloca"):
+                    if inst.opcode == "calloca":
+                        _, _, alloca_id_op = inst.operands
+                        alloca_id = alloca_id_op.value
+                        assert isinstance(alloca_id, int)  # help mypy
                         if alloca_id in callocas:
-                            # assert inst.opcode == "calloca"
                             # this can happen when we have a->b->c and a->c,
                             # and both b and c get inlined.
+                            calloca_inst = callocas[alloca_id]
+                            assert calloca_inst.output is not None
                             inst.opcode = "store"
-                            inst.operands = [callocas[alloca_id].output]
+                            inst.operands = [calloca_inst.output]
                         else:
                             callocas[alloca_id] = inst
 
                     if inst.opcode == "palloca":
-                        _, _, alloca_id = inst.operands
+                        _, _, alloca_id_op = inst.operands
+                        alloca_id = alloca_id_op.value
+                        assert isinstance(alloca_id, int)
                         if alloca_id not in callocas:
                             # this is our own palloca, not one that got
                             # inlined
                             continue
                         inst.opcode = "store"
-                        inst.operands = [callocas[alloca_id].output]
+                        calloca_inst = callocas[alloca_id]
+                        assert calloca_inst.output is not None  # help mypy
+                        inst.operands = [calloca_inst.output]
                         found.add(alloca_id)
 
             for bb in fn.get_basic_blocks():
