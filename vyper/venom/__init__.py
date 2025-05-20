@@ -63,13 +63,16 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
-    # run algebraic opts before mem2var to reduce some pointer arithmetic
+
+    # run constant folding before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
+    SCCP(ac, fn, remove_allocas=False).run_pass()
     AssignElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
-    SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
