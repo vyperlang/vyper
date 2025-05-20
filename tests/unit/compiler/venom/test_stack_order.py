@@ -150,6 +150,43 @@ def test_stack_order_split():
 
     _check_pre_post(pre, post)
 
+def test_stack_order_split2():
+    pre = """
+    main:
+        %1 = mload 1
+        %2 = mload 2
+        %3 = add 1, %2
+        %cond = mload 3
+        jnz %cond, @then, @else
+    then:
+        %4a = add 1, %1
+        %5a = add 1, %2
+        sink %5a, %4a
+    else:
+        %4b = add 1, %1
+        %5b = add 1, %3
+        sink %5b, %4b
+    """
+
+    post = """
+    main:
+        %2 = mload 2
+        %3 = add 1, %2
+        %1 = mload 1
+        %cond = mload 3
+        jnz %cond, @then, @else
+    then:
+        %4a = add 1, %1
+        %5a = add 1, %2
+        sink %5a, %4a
+    else:
+        %4b = add 1, %1
+        %5b = add 1, %3
+        sink %5b, %4b
+    """
+
+    _check_pre_post(pre, post)
+
 
 def test_stack_order_join():
     pre = """
