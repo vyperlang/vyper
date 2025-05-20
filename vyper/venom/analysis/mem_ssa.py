@@ -484,9 +484,12 @@ class MemSSA(IRAnalysis):
 
             if not found_clobbering_def:
                 cfg_out = self.cfg.cfg_out(bb)
-                worklist.update(cfg_out)
+                if len(cfg_out) > 0:
+                    worklist.update(cfg_out)
+                else:
+                    return False
 
-        return False
+        return True
 
     #
     # Printing context methods
