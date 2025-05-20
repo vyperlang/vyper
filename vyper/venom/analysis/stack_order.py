@@ -51,7 +51,7 @@ def _op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]
     return list(reversed(needed))
 
 
-def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
+def _max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
     res = []
     for a, b in zip(stack_a, stack_b):
         if a != b:
@@ -130,7 +130,7 @@ class StackOrder:
             return []
         res: list[IROperand] = orders[0].copy()
         for order in orders:
-            res = max_same_prefix(res, order)
+            res = _max_same_prefix(res, order)
         return res
 
     def get_prefered_stack(self, succesors: list[IRBasicBlock]) -> list[IROperand]:
