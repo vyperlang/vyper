@@ -422,79 +422,6 @@ class MemSSA(IRAnalysis):
 
         return None
 
-    def gets_clobbered(self, access: MemoryAccess) -> bool:
-        """
-        Return true if there is a memory access that clobbers this access,
-        if any.
-
-        Returns False if no clobbering access is found before a use
-        of this access's value.
-        """
-        # only defs can be clobbered by subsequent stores
-        assert isinstance(access, MemoryDef)
-
-        if access.is_live_on_entry:
-            return False
-
-        def_loc = access.loc
-        bb = access.store_inst.parent
-        def_idx = bb.instructions.index(access.store_inst)
-
-        def _may_alias(inst):
-            mem_use = self.inst_to_use.get(inst)
-            return mem_use and self.memalias.may_alias(def_loc, mem_use.loc)
-
-        def _completely_contains(inst):
-            next_def = self.inst_to_def.get(inst)
-            return next_def and next_def.loc.completely_contains(def_loc)
-
-        for inst in bb.instructions[def_idx + 1:]:
-            # for instructions that both read and write from memory,
-            # check the read first
-            if _may_alias(inst):
-                return False
-            if _completely_contains(inst):
-                return True
-
-        worklist = OrderedSet(self.cfg.cfg_out(bb))
-        visited = set()
-
-        # visit all reachable blocks using breadth-first search.
-        # if all reachable blocks have a clobbering def, we can return True.
-        # otherwise, we need to return False.
-        while len(worklist) > 0:
-            bb = worklist.pop()
-            if bb in visited:
-                continue
-            visited.add(bb)
-
-            found_clobbering_def = False
-            for inst in bb.instructions:
-                if _may_alias(inst):
-                    # Found a use that reads from our memory location.
-                    # break the search
-                    return False
-
-                if _completely_contains(inst):
-                    # found a clobbering def. stop searching in this branch
-                    # of the graph.
-                    # (continue, without adding to the worklist.)
-                    found_clobbering_def = True
-                    break
-
-            if not found_clobbering_def:
-                cfg_out = self.cfg.cfg_out(bb)
-                if len(cfg_out) > 0:
-                    # we didn't find a clobbering def in this block but
-                    # it has successors, iterate into the successors.
-                    worklist.update(cfg_out)
-                else:
-                    # we are at a terminating block and we didn't find a
-                    # clobbering def in the path to this block.
-                    return False
-
-        return True
-
     #
     # Printing context methods
     #
@@ -509,7 +436,7 @@ class MemSSA(IRAnalysis):
                 if def_.inst == inst:
                     s += f"\t; def: {def_.id_str} "
                     s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
-                    clobber = self.get_clobbering_memory_access(def_)
+                    clobber = self.get_clobbered_memory_access(def_)
                     if clobber is not None:
                         s += f"clobber: {clobber.id_str}"
 

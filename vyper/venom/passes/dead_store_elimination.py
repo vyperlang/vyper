@@ -1,8 +1,8 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, MemSSA
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef
-from vyper.venom.basicblock import IRInstruction
-from vyper.venom.effects import NON_MEMORY_EFFECTS
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.effects import MEMORY, NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -13,18 +13,10 @@ class DeadStoreElimination(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
         self.used_defs = OrderedSet[MemoryDef]()
-
-        # Generate the set of memory definitions that are used by
-        # going through all memory uses and adding the memory definitions
-        # that are aliasing with them
-        for _, mem_uses in self.mem_ssa.memory_uses.items():
-            for mem_use in mem_uses:
-                aliased_accesses = self.mem_ssa.get_aliased_memory_accesses(mem_use)
-                for aliased_access in aliased_accesses:
-                    self.used_defs.add(aliased_access)
 
         # Go through all memory definitions and eliminate dead stores
         for mem_def in self.mem_ssa.get_memory_defs():
@@ -38,6 +30,45 @@ class DeadStoreElimination(IRPass):
         Checks if the instruction's output is used in the DFG.
         """
         return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
+
+    def _is_mem_used(self, query_inst: IRInstruction) -> bool:
+        query_loc = query_inst.get_write_memory_location()
+        worklist: OrderedSet[IRBasicBlock] = OrderedSet()
+        visited: OrderedSet[IRBasicBlock] = OrderedSet()
+
+        next_inst_idx = query_inst.parent.instructions.index(query_inst) + 1
+        worklist.add(query_inst.parent)
+
+        while len(worklist) > 0:
+            bb = worklist.pop()
+
+            clobbered = False
+            for inst in bb.instructions[next_inst_idx:]:
+                is_write = inst.get_write_effects() & MEMORY
+                is_read = inst.get_read_effects() & MEMORY
+
+                if is_read:
+                    read_loc = inst.get_read_memory_location()
+                    if self.mem_ssa.memalias.may_alias(read_loc, query_loc):
+                        return True
+
+                if is_write:
+                    write_loc = inst.get_write_memory_location()
+                    if write_loc.completely_contains(query_loc):
+                        clobbered = True
+                        break
+
+            if clobbered:
+                continue
+
+            next_inst_idx = 0
+            outs = self.cfg.cfg_out(bb)
+            for out in outs:
+                if out not in visited:
+                    visited.add(out)
+                    worklist.add(out)
+
+        return False
 
     def _is_dead_store(self, mem_def: MemoryDef) -> bool:
         """
@@ -66,10 +97,6 @@ class DeadStoreElimination(IRPass):
         if has_other_effects:
             return False
 
-        # If the memory definition is not used, it is a dead store.
-        if mem_def not in self.used_defs:
-            return True
-
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
-        return self.mem_ssa.gets_clobbered(mem_def)
+        return not self._is_mem_used(mem_def.store_inst)
