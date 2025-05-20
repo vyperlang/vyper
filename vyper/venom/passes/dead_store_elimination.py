@@ -2,7 +2,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.venom.effects import MEMORY, NON_MEMORY_EFFECTS
+from vyper.venom.effects import NON_MEMORY_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -16,7 +16,6 @@ class DeadStoreElimination(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
         self.updater = InstUpdater(self.dfg)
-        self.used_defs = OrderedSet[MemoryDef]()
 
         # Go through all memory definitions and eliminate dead stores
         for mem_def in self.mem_ssa.get_memory_defs():
@@ -31,41 +30,59 @@ class DeadStoreElimination(IRPass):
         """
         return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
 
-    def _is_mem_used(self, query_inst: IRInstruction) -> bool:
-        query_loc = query_inst.get_write_memory_location()
+    def _is_memory_def_live(self, mem_def: MemoryDef) -> bool:
+        """
+        Checks if the memory definition is live by checking if it is
+        read from in any of the blocks that are reachable from the
+        memory definition's block, without being clobbered by another
+        memory access before read.
+        """
+        query_loc = mem_def.loc
         worklist: OrderedSet[IRBasicBlock] = OrderedSet()
-        visited: OrderedSet[IRBasicBlock] = OrderedSet()
+        allready_added_to_worklist: OrderedSet[IRBasicBlock] = OrderedSet()
 
-        next_inst_idx = query_inst.parent.instructions.index(query_inst) + 1
-        worklist.add(query_inst.parent)
+        next_inst_idx = mem_def.inst.parent.instructions.index(mem_def.inst) + 1
+
+        # We don't add this to the allready_added_to_worklist because
+        # we want to be able to visit it again for the instructions
+        # above the memory definition.
+        worklist.add(mem_def.inst.parent)
 
         while len(worklist) > 0:
             bb = worklist.pop()
 
             clobbered = False
             for inst in bb.instructions[next_inst_idx:]:
-                is_write = inst.get_write_effects() & MEMORY
-                is_read = inst.get_read_effects() & MEMORY
-
-                if is_read:
-                    read_loc = inst.get_read_memory_location()
+                # Check if the instruction reads from the memory location
+                # If so, the memory definition is used.
+                mem_use = self.mem_ssa.get_memory_use(inst)
+                if mem_use is not None:
+                    read_loc = mem_use.loc
                     if self.mem_ssa.memalias.may_alias(read_loc, query_loc):
                         return True
 
-                if is_write:
-                    write_loc = inst.get_write_memory_location()
+                # Check if the instruction writes to the memory location
+                # and it clobbers the memory definition. In this case,
+                # we continue to the next block already in the worklist.
+                mem_def = self.mem_ssa.get_memory_def(inst)
+                if mem_def is not None:
+                    write_loc = mem_def.loc
                     if write_loc.completely_contains(query_loc):
                         clobbered = True
                         break
 
+            # If the memory definition is clobbered, we continue to
+            # the next block already in the worklist without adding
+            # it's offsprings to the worklist.
             if clobbered:
                 continue
 
+            # Otherwise, we add the block's offsprings to the worklist.
             next_inst_idx = 0
             outs = self.cfg.cfg_out(bb)
             for out in outs:
-                if out not in visited:
-                    visited.add(out)
+                if out not in allready_added_to_worklist:
+                    allready_added_to_worklist.add(out)
                     worklist.add(out)
 
         return False
@@ -99,4 +116,4 @@ class DeadStoreElimination(IRPass):
 
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
-        return not self._is_mem_used(mem_def.store_inst)
+        return not self._is_memory_def_live(mem_def)
