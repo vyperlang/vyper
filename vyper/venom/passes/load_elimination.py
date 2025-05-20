@@ -1,9 +1,9 @@
-from collections import deque, defaultdict
+from collections import defaultdict
 from typing import Optional
-from vyper.utils import OrderedSet
 
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
-from vyper.venom.basicblock import IRLiteral, IRBasicBlock, IRInstruction
+from vyper.utils import OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -115,7 +115,7 @@ class LoadElimination(IRPass):
                 var = self.updater.add_before(bb.instructions[-1], "store", [v])
                 self._lattice[k] = var
 
-        changed = (old_lattice != self._lattice)
+        changed = old_lattice != self._lattice
         self._big_lattice[bb] = self._lattice
 
         return changed
