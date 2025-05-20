@@ -485,8 +485,12 @@ class MemSSA(IRAnalysis):
             if not found_clobbering_def:
                 cfg_out = self.cfg.cfg_out(bb)
                 if len(cfg_out) > 0:
+                    # we didn't find a clobbering def in this block but
+                    # it has successors, iterate into the successors.
                     worklist.update(cfg_out)
                 else:
+                    # we are at a terminating block and we didn't find a
+                    # clobbering def in the path to this block.
                     return False
 
         return True
