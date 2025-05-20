@@ -248,8 +248,8 @@ class MemoryLocation:
 
     @staticmethod
     def from_operands(
-        offset: IROperand | int, size: IROperand | int, is_volatile: bool = False
-    ) -> "MemoryLocation":
+        offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
+    ) -> MemoryLocation:
         if isinstance(offset, IRLiteral):
             _offset = offset.value
         elif isinstance(offset, IRVariable):
@@ -271,7 +271,7 @@ class MemoryLocation:
         return MemoryLocation(_offset, _size, is_volatile)
 
     # similar code to memmerging._Interval, but different data structure
-    def completely_contains(self, other: "MemoryLocation") -> bool:
+    def completely_contains(self, other: MemoryLocation) -> bool:
         # If other is empty (size 0), always contained
         if other.size == 0:
             return True
@@ -389,7 +389,8 @@ class IRInstruction:
                 size, _, dst = self.operands
                 return MemoryLocation.from_operands(dst, size)
             elif opcode == "dloadbytes":
-                return MemoryLocation(offset=0, size=None)
+                size, _, dst = self.operands
+                return MemoryLocation.from_operands(dst, size)
             elif opcode == "dload":
                 return MemoryLocation(offset=0, size=32)
             elif opcode == "sha3_64":

@@ -336,7 +336,7 @@ class MemSSAAbstract(IRAnalysis):
         visited: OrderedSet[MemoryAccess],
     ) -> OrderedSet[MemoryAccess]:
         aliased_accesses: OrderedSet[MemoryAccess] = OrderedSet()
-        while current:
+        while current is not None:
             if current in visited:
                 break
             visited.add(current)
@@ -365,7 +365,7 @@ class MemSSAAbstract(IRAnalysis):
         Get the memory access that gets clobbered by the provided access.
         Returns None if provided the live-on-entry node, otherwise if no clobber
             is found, it will return the live-on-entry node.
-        This can be thought of as the inverse query for `get_clobbering_memory_access`.
+
         For example:
         ```
         mstore 0, ...  ; 1
@@ -375,6 +375,8 @@ class MemSSAAbstract(IRAnalysis):
         NOTE: This function will return a MemoryPhi if there are multiple clobbering
         memory accesses. It is to be seen if we should change this behavior in the future
         to return multiple clobbering memory accesses.
+
+        NOTE: This corresponds to getClobberingMemoryAccess(!) in LLVM's MemorySSA.h
         """
         if access.is_live_on_entry:
             return None
@@ -388,7 +390,7 @@ class MemSSAAbstract(IRAnalysis):
         query_loc: MemoryLocation,
         visited: OrderedSet[MemoryAccess],
     ) -> Optional[MemoryAccess]:
-        while current and not current.is_live_on_entry:
+        while current is not None and not current.is_live_on_entry:
             if current in visited:
                 break
             visited.add(current)
@@ -422,73 +424,73 @@ class MemSSAAbstract(IRAnalysis):
 
         return None
 
-    def get_clobbering_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
+    def gets_clobbered(self, access: MemoryAccess) -> bool:
         """
-        Return the memory access that clobbers this access, if any.
+        Return true if there is a memory access that clobbers this access,
+        if any.
+
         Returns None if no clobbering access is found before a use
         of this access's value.
         """
-        if access.is_live_on_entry:
-            return None
+        # only defs can be clobbered by subsequent stores
+        assert isinstance(access, MemoryDef)
 
-        if not isinstance(access, MemoryDef):
-            return None  # Only defs can be clobbered by subsequent stores
+        if access.is_live_on_entry:
+            return False
 
         def_loc = access.loc
-        block = access.store_inst.parent
-        def_idx = block.instructions.index(access.store_inst)
+        bb = access.store_inst.parent
+        def_idx = bb.instructions.index(access.store_inst)
 
-        # Check remaining instructions in the same block
-        for inst in block.instructions[def_idx + 1 :]:
-            clobber = None
-            next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.completely_contains(def_loc):
-                clobber = next_def
+
+        for inst in bb.instructions[def_idx + 1:]:
 
             # for instructions that both read and write from memory,
             # check the read first
             mem_use = self.inst_to_use.get(inst)
-            if mem_use is not None:
-                if self.memalias.may_alias(def_loc, mem_use.loc):
-                    return None  # Found a use that reads from our memory location
-            if clobber is not None:
-                return clobber
+            if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
+                return False  # Found a use that reads from our memory location
 
-        # Traverse successors
-        worklist = list(self.cfg.cfg_out(block))
-        visited = {block}
-        while worklist:
-            succ = worklist.pop()
-            if succ in visited:
+            next_def = self.inst_to_def.get(inst)
+            if next_def and next_def.loc.completely_contains(def_loc):
+                # next_def clobbers access.
+                # continue without adding to the worklist.
+                return True
+
+        worklist = OrderedSet(self.cfg.cfg_out(bb))
+        visited = set()
+
+        while len(worklist) > 0:
+            bb = worklist.pop()
+            if bb in visited:
                 continue
-            visited.add(succ)
+            visited.add(bb)
 
-            # Check phi nodes
-            if succ in self.memory_phis:
-                phi = self.memory_phis[succ]
-                for op_def, pred in phi.operands:
-                    if pred == block and op_def == access:
-                        # This def reaches the phi, check if phi is clobbered
-                        for inst in succ.instructions:
-                            next_def = self.inst_to_def.get(inst)
-                            if next_def and next_def.loc.completely_contains(def_loc):
-                                return next_def
-                            mem_use = self.inst_to_use.get(inst)
-                            if mem_use and mem_use.loc.completely_contains(def_loc):
-                                return None  # Found a use that reads from our memory location
+            found_clobbering_access = False
+            for inst in bb.instructions:
 
-            # Check instructions in successor block
-            for inst in succ.instructions:
-                next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.completely_contains(def_loc):
-                    return next_def
+                # for instructions that both read and write from memory,
+                # check the read first
                 mem_use = self.inst_to_use.get(inst)
                 if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
-                    return None  # Found a use that reads from our memory location
+                    return False  # Found a use that reads from our memory location
 
-            worklist.extend(self.cfg.cfg_out(succ))
+                next_def = self.inst_to_def.get(inst)
+                if next_def and next_def.loc.completely_contains(def_loc):
+                    # next_def clobbers access.
+                    # continue without adding to the worklist.
+                    found_clobbering_access = True
+                    break
 
-        return None
+            if found_clobbering_access:
+                continue
+
+            # if *any* successor block does not clobber us,
+            # we return False.
+            cfg_out = self.cfg.cfg_out(bb)
+            worklist.update(cfg_out)
+
+        return True
 
     #
     # Printing context methods

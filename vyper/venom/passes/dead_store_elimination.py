@@ -82,4 +82,4 @@ class DeadStoreElimination(IRPass):
 
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
-        return self.mem_ssa.get_clobbering_memory_access(mem_def) is not None
+        return self.mem_ssa.gets_clobbered(mem_def)
