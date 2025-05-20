@@ -186,8 +186,6 @@ class MemSSA(IRAnalysis):
         # Second pass: insert phi nodes where needed
         self._insert_phi_nodes()
 
-        # self._update_def_reaching_defs()
-
         # Third pass: connect all memory accesses to their reaching definitions
         self._connect_uses_to_defs()
         self._connect_defs_to_defs()
@@ -294,15 +292,6 @@ class MemSSA(IRAnalysis):
             return self.get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
-
-    def _update_def_reaching_defs(self):
-        for bb in self.memory_defs:
-            if bb in self.memory_phis and self.memory_defs[bb]:
-                first_def = self.memory_defs[bb][0]
-                first_idx = bb.instructions.index(first_def.inst)
-                prior_def = any(inst in self.inst_to_def for inst in bb.instructions[:first_idx])
-                if not prior_def:
-                    first_def.reaching_def = self.memory_phis[bb]
 
     def _connect_defs_to_defs(self):
         for bb in self.cfg.dfs_pre_walk:
