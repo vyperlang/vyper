@@ -73,7 +73,8 @@ class InstUpdater:
         inst.opcode = opcode
         inst.operands = new_operands
 
-        inst.annotation = original_str + " " + annotation
+        if annotation:
+            inst.annotation = original_str + " " + annotation
 
         return inst
 
