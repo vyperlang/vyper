@@ -394,9 +394,12 @@ class IRInstruction:
             return MemoryLocation(offset=0, size=64)
         elif opcode == "invoke":
             return MemoryLocation(offset=0, size=None)
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            size, dst = self.operands[:2]
-            return MemoryLocation.from_operands(dst, size, is_volatile=False)
+        elif opcode == "call":
+            size, dst, _, _, _, _, _ = self.operands
+            return MemoryLocation.from_operands(dst, size)
+        elif opcode in ("delegatecall", "staticcall"):
+            size, dst, _, _, _, _ = self.operands
+            return MemoryLocation.from_operands(dst, size)
         elif opcode in ("codecopy", "extcodecopy"):
             size, _, dst = self.operands[:3]
             return MemoryLocation.from_operands(dst, size)
@@ -423,12 +426,15 @@ class IRInstruction:
             return MemoryLocation(offset=0, size=32)
         elif opcode == "invoke":
             return MemoryLocation(offset=0, size=None)
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            size, dst = self.operands[2:4]
-            return MemoryLocation.from_operands(dst, size, is_volatile=False)
+        elif opcode == "call":
+            _, _, size, dst, _, _, _ = self.operands
+            return MemoryLocation.from_operands(dst, size)
+        elif opcode in ("delegatecall", "staticcall"):
+            _, _, size, dst, _, _ = self.operands
+            return MemoryLocation.from_operands(dst, size)
         elif opcode == "return":
             size, src = self.operands
-            return MemoryLocation.from_operands(src, size, is_volatile=False)
+            return MemoryLocation.from_operands(src, size)
         elif opcode == "create":
             size, src, _value = self.operands
             return MemoryLocation.from_operands(src, size)
