@@ -43,7 +43,6 @@ class LoadElimination(IRPass):
             bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
         #print(self.function)
 
@@ -147,8 +146,7 @@ class LoadElimination(IRPass):
         self._lattice[ptr] = inst.output
 
         if existing_value is not None:
-            inst.opcode = "store"
-            inst.operands = [existing_value]
+            self.updater.store(inst, existing_value)
 
     def _handle_store(self, inst, store_opcode):
         # mstore [val, ptr]

@@ -6,7 +6,7 @@ from vyper import compile_code
 from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import StructureException, VersionException
+from vyper.exceptions import PragmaException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
 COMPILER_VERSION = "0.1.1"
@@ -48,14 +48,14 @@ invalid_versions = [
 @pytest.mark.parametrize("file_version", valid_versions)
 def test_valid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
-    validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
+    validate_version_pragma(f"{file_version}", (file_version, *SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", invalid_versions)
 def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(f"{file_version}", file_version, (SRC_LINE))
+        validate_version_pragma(f"{file_version}", (file_version, *SRC_LINE))
 
 
 def test_invalid_version_contains_file(mock_version):
@@ -103,14 +103,14 @@ prerelease_invalid_versions = [
 @pytest.mark.parametrize("file_version", prerelease_valid_versions)
 def test_prerelease_valid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
-    validate_version_pragma(file_version, file_version, (SRC_LINE))
+    validate_version_pragma(file_version, (file_version, *SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", prerelease_invalid_versions)
 def test_prerelease_invalid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(file_version, file_version, (SRC_LINE))
+        validate_version_pragma(file_version, (file_version, *SRC_LINE))
 
 
 pragma_examples = [
@@ -194,7 +194,7 @@ pragma_examples = [
 @pytest.mark.parametrize("code, pre_parse_settings, compiler_data_settings", pragma_examples)
 def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_version):
     mock_version("0.3.10")
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code)
 
     assert pre_parser.settings == pre_parse_settings
@@ -224,7 +224,7 @@ pragma_venom = [
 
 @pytest.mark.parametrize("code", pragma_venom)
 def test_parse_venom_pragma(code):
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code)
     assert pre_parser.settings.experimental_codegen is True
 
@@ -273,8 +273,8 @@ invalid_pragmas = [
 
 @pytest.mark.parametrize("code", invalid_pragmas)
 def test_invalid_pragma(code):
-    with pytest.raises(StructureException):
-        PreParser().parse(code)
+    with pytest.raises(PragmaException):
+        PreParser(is_interface=False).parse(code)
 
 
 def test_version_exception_in_import(make_input_bundle):

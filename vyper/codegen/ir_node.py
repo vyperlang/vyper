@@ -363,6 +363,14 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
+    @property
+    def is_empty_intrinsic(self):
+        if self.value == "~empty":
+            return True
+        if self.value == "seq":
+            return len(self.args) == 1 and self.args[0].is_empty_intrinsic
+        return False
+
     # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
@@ -376,6 +384,7 @@ class IRnode:
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
             and self.value.lower() not in do_not_cache
+            and not self.is_empty_intrinsic
         )
 
     # set an error message and push down to its children that don't have error_msg set

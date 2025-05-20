@@ -13,7 +13,7 @@ class FloatAllocas(IRPass):
 
     def run_pass(self):
         entry_bb = self.function.entry
-        assert entry_bb.is_terminated
+        assert entry_bb.is_terminated, entry_bb
         tmp = entry_bb.instructions.pop()
 
         for bb in self.function.get_basic_blocks():
@@ -23,7 +23,7 @@ class FloatAllocas(IRPass):
             # Extract alloca instructions
             non_alloca_instructions = []
             for inst in bb.instructions:
-                if inst.opcode in ("alloca", "palloca"):
+                if inst.opcode in ("alloca", "palloca", "calloca"):
                     # note: order of allocas impacts bytecode.
                     # TODO: investigate.
                     entry_bb.insert_instruction(inst)
