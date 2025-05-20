@@ -446,7 +446,7 @@ class MemSSA(IRAnalysis):
 
         def _is_clobbering_def(inst):
             next_def = self.inst_to_def.get(inst)
-            return next_def and next_def.loc.completely_contains(def_loc):
+            return next_def and next_def.loc.completely_contains(def_loc)
 
         for inst in bb.instructions[def_idx + 1:]:
             # for instructions that both read and write from memory,
