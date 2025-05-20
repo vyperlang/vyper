@@ -57,7 +57,7 @@ class LoadElimination(IRPass):
 
             changed = self._process_bb(bb, eff, load_opcode, store_opcode)
             if changed:
-                worklist.update(bb.cfg_out)
+                worklist.update(self.cfg.cfg_out(bb))
 
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
@@ -72,11 +72,11 @@ class LoadElimination(IRPass):
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
         # not really a lattice even though it is not really inter-basic block;
         # we may generalize in the future
-        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._lattice = {}
         old_lattice = self._big_lattice[bb].copy()
 
-        cfg_in = list(bb.cfg_in)
+        cfg_in = list(self.cfg.cfg_in(bb))
         if len(cfg_in) > 0:
             common_keys = self._big_lattice[cfg_in[0]].keys()
             for in_bb in cfg_in:
@@ -89,7 +89,7 @@ class LoadElimination(IRPass):
                     continue
 
                 phi_args = []
-                for in_bb in bb.cfg_in:
+                for in_bb in self.cfg.cfg_in(bb):
                     phi_args.append(in_bb.label)
 
                     in_values = self._big_lattice[in_bb]
