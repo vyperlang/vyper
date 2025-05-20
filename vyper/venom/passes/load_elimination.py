@@ -29,7 +29,6 @@ class LoadElimination(IRPass):
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        # TODO: request_analysis
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
