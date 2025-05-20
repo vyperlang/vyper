@@ -6,8 +6,10 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 # assing elim is there to have easier check
 _check_pre_post = PrePostChecker([SingleUseExpansion, DFTPass, AssignElimination])
 
+
 def _check_no_change(pre):
     _check_pre_post(pre, pre, hevm=False)
+
 
 def test_stack_order_basic():
     pre = """
@@ -249,3 +251,91 @@ def test_stack_order_join_unmergable_stacks():
     """
 
     _check_no_change(pre)
+
+
+def test_stack_order_phi():
+    pre = """
+    main:
+        %par = param
+        jnz %par, @then, @else
+    then:
+        %1a = add 1, %par
+        %2a = mload 10
+        mstore 1000, %2a
+        jmp @join
+    else:
+        %1b = add 2, %par
+        %2b = mload 10
+        mstore 1000, %2b
+        jmp @join
+    join:
+        %1 = phi @then, %1a, @else, %1b
+        %res = add 1, %1 ; properly use the value
+        sink %res
+    """
+
+    post = """
+    main:
+        %par = param
+        jnz %par, @then, @else
+    then:
+        %2a = mload 10
+        mstore 1000, %2a
+        %1a = add 1, %par
+        jmp @join
+    else:
+        %2b = mload 10
+        mstore 1000, %2b
+        %1b = add 2, %par
+        jmp @join
+    join:
+        %1 = phi @then, %1a, @else, %1b
+        %res = add 1, %1 ; properly use the value
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_stack_order_more_phi():
+    pre = """
+    main:
+        %par = param
+        jnz %par, @then, @else
+    then:
+        %1a = add 1, %par
+        %2a = add 2, %par
+        jmp @join
+    else:
+        %1b = add 3, %par
+        %2b = add 4, %par
+        jmp @join
+    join:
+        %2 = phi @then, %2a, @else, %2b
+        %1 = phi @then, %1a, @else, %1b
+        %res1 = add 1, %1 ; properly use the value
+        %res2 = add 1, %2 ; properly use the value
+        sink %res1, %res2
+    """
+
+    post = """
+    main:
+        %par = param
+        jnz %par, @then, @else
+    then:
+        %2a = add 2, %par
+        %1a = add 1, %par
+        jmp @join
+    else:
+        %2b = add 4, %par
+        %1b = add 3, %par
+        jmp @join
+    join:
+        %2 = phi @then, %2a, @else, %2b
+        %1 = phi @then, %1a, @else, %1b
+        %res1 = add 1, %1 ; properly use the value
+        %res2 = add 1, %2 ; properly use the value
+        sink %res2, %res1
+    """
+
+    _check_pre_post(pre, post)
