@@ -6,6 +6,8 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 # assing elim is there to have easier check
 _check_pre_post = PrePostChecker([SingleUseExpansion, DFTPass, AssignElimination])
 
+def _check_no_change(pre):
+    _check_pre_post(pre, pre, hevm=False)
 
 def test_stack_order_basic():
     pre = """
@@ -227,3 +229,23 @@ def test_stack_order_join():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_stack_order_join_unmergable_stacks():
+    pre = """
+    main:
+        %cond = param
+        %1 = mload 1
+        %2 = mload 2
+        jnz %cond, @then, @else
+    then:
+        mstore 1000, %1
+        jmp @join
+    else:
+        mstore 2000, %2
+        jmp @join
+    join:
+        sink %1
+    """
+
+    _check_no_change(pre)
