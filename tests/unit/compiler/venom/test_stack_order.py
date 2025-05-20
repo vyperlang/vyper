@@ -113,7 +113,7 @@ def test_stack_order_basic2():
     ]
 
 
-def test_stack_reorder_split():
+def test_stack_order_split():
     pre = """
     main:
         %1 = mload 1
