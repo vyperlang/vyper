@@ -125,9 +125,8 @@ class StackOrder:
                 if output is not None:
                     stack.append(output)
 
-        res = needed #list(reversed(needed))
-        self.bb_to_stack[bb] = res
-        return res
+        self.bb_to_stack[bb] = needed
+        return needed
 
     def _merge(self, orders: list[list[IROperand]]) -> list[IROperand]:
         if len(orders) == 0:

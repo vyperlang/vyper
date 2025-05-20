@@ -150,6 +150,7 @@ def test_stack_order_split():
 
     _check_pre_post(pre, post)
 
+
 def test_stack_order_split2():
     pre = """
     main:
