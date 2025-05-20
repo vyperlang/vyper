@@ -13,7 +13,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.function import IRFunction
 
 
-def swap(stack: list[IROperand], position: int, output: IROperand | None = None):
+def _swap(stack: list[IROperand], position: int, output: IROperand | None = None):
     top = len(stack) - 1
     position = top - position
     if position == top:
@@ -25,12 +25,7 @@ def swap(stack: list[IROperand], position: int, output: IROperand | None = None)
         stack[top] = output
 
 
-def top(stack: list[IROperand]) -> IROperand:
-    top_idx = len(stack) - 1
-    return stack[top_idx]
-
-
-def position(stack: list[IROperand], op: IROperand) -> int | None:
+def _position(stack: list[IROperand], op: IROperand) -> int | None:
     top = len(stack) - 1
     for i, item in enumerate(stack):
         pos = top - i
@@ -40,7 +35,7 @@ def position(stack: list[IROperand], op: IROperand) -> int | None:
     return None
 
 
-def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
+def _op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
     needed: list[IROperand] = []
     for op in reversed(ops):
         if op not in stack:
@@ -48,11 +43,11 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
             stack.insert(0, op)
     for i, op in reversed(list(enumerate(reversed(ops)))):
         assert op in stack
-        op_position = position(stack, op)
+        op_position = _position(stack, op)
         assert op_position is not None, f"operand is not in stack {op}, {stack}"
 
-        swap(stack, op_position)
-        swap(stack, i)
+        _swap(stack, op_position)
+        _swap(stack, i)
     return list(reversed(needed))
 
 
@@ -111,7 +106,7 @@ class StackOrder:
                 else:
                     ops = inst.operands
 
-                inst_needed = op_reorder(stack, ops)
+                inst_needed = _op_reorder(stack, ops)
                 needed.extend(inst_needed)
                 if len(ops) > 0:
                     stack_top = list(stack[-len(ops) :])
@@ -128,6 +123,8 @@ class StackOrder:
         self.bb_to_stack[bb] = needed
         return needed
 
+    # compute max prefix for all the orders of the
+    # succesor basicblocks
     def _merge(self, orders: list[list[IROperand]]) -> list[IROperand]:
         if len(orders) == 0:
             return []
@@ -141,7 +138,7 @@ class StackOrder:
 
         # reverse so it it is in the same order
         # as the operands for the easier handle
-        # in dft pass
+        # in dft pass (same logic as normal inst)
         return list(reversed(self._merge(bb_orders)))
 
     def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
@@ -157,18 +154,19 @@ class StackOrder:
         if store_type == StoreType.PUSH:
             stack.append(output)
         elif store_type == StoreType.SWAP:
-            op_position = position(stack, op)
+            op_position = _position(stack, op)
             if op_position is None:
                 stack.insert(0, op)
                 needed.append(op)
-                op_position = position(stack, op)
+                op_position = _position(stack, op)
                 assert op_position is not None
-            swap(stack, op_position, output)
+            _swap(stack, op_position, output)
         elif store_type == StoreType.DUP:
             stack.append(output)
             if op not in stack:
                 needed.append(op)
 
+    # compute what will store do in bytecode
     def _handle_bb_store_types(self, bb: IRBasicBlock):
         for i, inst in enumerate(bb.instructions):
             if inst.opcode != "store":
