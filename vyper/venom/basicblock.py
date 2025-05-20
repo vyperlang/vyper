@@ -430,7 +430,7 @@ class IRInstruction:
             size, src = self.operands
             return MemoryLocation.from_operands(src, size, is_volatile=False)
         elif opcode == "create":
-            size, src = self.operands[:2]
+            size, src, _value = self.operands
             return MemoryLocation.from_operands(src, size)
         elif opcode == "create2":
             size, src = self.operands[1:3]
