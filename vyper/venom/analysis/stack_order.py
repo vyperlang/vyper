@@ -53,7 +53,7 @@ def op_reorder(stack: list[IROperand], ops: list[IROperand]) -> list[IROperand]:
 
         swap(stack, op_position)
         swap(stack, i)
-    return needed
+    return list(reversed(needed))
 
 
 def max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
@@ -90,7 +90,7 @@ class StackOrder:
         for bb in self.function.get_basic_blocks():
             self._handle_bb_store_types(bb)
 
-    def handle_bb(self, bb: IRBasicBlock) -> list[IROperand]:
+    def _handle_bb(self, bb: IRBasicBlock) -> list[IROperand]:
         stack: list[IROperand] = []
         needed: list[IROperand] = []
 
@@ -104,8 +104,8 @@ class StackOrder:
                     ops = [op for op in inst.operands if not isinstance(op, IRLabel)]
                     out_bbs = self.cfg.cfg_out(bb)
                     orders = [self.bb_to_stack.get(out_bb, []) for out_bb in out_bbs]
-                    tmp = self.merge(orders)
-                    for op in reversed(tmp):
+                    tmp = self._merge(orders)
+                    for op in tmp:
                         if op not in ops:
                             ops.append(op)
                 else:
@@ -125,11 +125,11 @@ class StackOrder:
                 if output is not None:
                     stack.append(output)
 
-        res = list(reversed(needed))
+        res = needed #list(reversed(needed))
         self.bb_to_stack[bb] = res
         return res
 
-    def merge(self, orders: list[list[IROperand]]) -> list[IROperand]:
+    def _merge(self, orders: list[list[IROperand]]) -> list[IROperand]:
         if len(orders) == 0:
             return []
         res: list[IROperand] = orders[0].copy()
@@ -137,9 +137,13 @@ class StackOrder:
             res = max_same_prefix(res, order)
         return res
 
-    def handle_bbs(self, bbs: list[IRBasicBlock]) -> list[IROperand]:
-        bb_orders = [self.handle_bb(bb) for bb in bbs]
-        return self.merge(bb_orders)
+    def get_prefered_stack(self, succesors: list[IRBasicBlock]) -> list[IROperand]:
+        bb_orders = [self._handle_bb(bb) for bb in succesors]
+
+        # reverse so it it is in the same order
+        # as the operands for the easier handle
+        # in dft pass
+        return list(reversed(self._merge(bb_orders)))
 
     def _handle_store(self, inst: IRInstruction, stack: list[IROperand], needed: list[IROperand]):
         assert inst.opcode == "store"
