@@ -433,7 +433,7 @@ class IRInstruction:
             size, src, _value = self.operands
             return MemoryLocation.from_operands(src, size)
         elif opcode == "create2":
-            size, src = self.operands[1:3]
+            _salt, size, src, _value= self.operands
             return MemoryLocation.from_operands(src, size)
         elif opcode == "sha3":
             size, offset = self.operands
