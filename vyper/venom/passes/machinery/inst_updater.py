@@ -38,7 +38,6 @@ class InstUpdater:
         new_output: Optional[IRVariable] = None,
         annotation: str = "",
     ) -> IRInstruction:
-        assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
 
