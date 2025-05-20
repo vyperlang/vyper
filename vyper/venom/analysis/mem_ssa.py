@@ -440,20 +440,20 @@ class MemSSA(IRAnalysis):
         bb = access.store_inst.parent
         def_idx = bb.instructions.index(access.store_inst)
 
-        def _is_possible_use(inst):
+        def _may_alias(inst):
             mem_use = self.inst_to_use.get(inst)
             return mem_use and self.memalias.may_alias(def_loc, mem_use.loc)
 
-        def _is_clobbering_def(inst):
+        def _completely_contains(inst):
             next_def = self.inst_to_def.get(inst)
             return next_def and next_def.loc.completely_contains(def_loc)
 
         for inst in bb.instructions[def_idx + 1:]:
             # for instructions that both read and write from memory,
             # check the read first
-            if _is_possible_use(inst):
+            if _may_alias(inst):
                 return False
-            if _is_clobbering_def(inst):
+            if _completely_contains(inst):
                 return True
 
         worklist = OrderedSet(self.cfg.cfg_out(bb))
@@ -470,12 +470,12 @@ class MemSSA(IRAnalysis):
 
             found_clobbering_def = False
             for inst in bb.instructions:
-                if _is_possible_use(inst):
+                if _may_alias(inst):
                     # Found a use that reads from our memory location.
                     # break the search
                     return False
 
-                if _is_clobbering_def(inst):
+                if _completely_contains(inst):
                     # found a clobbering def. stop searching in this branch
                     # of the graph.
                     # (continue, without adding to the worklist.)
