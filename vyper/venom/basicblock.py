@@ -440,7 +440,7 @@ class IRInstruction:
             return MemoryLocation.from_operands(offset, size)
         elif opcode == "sha3_64":
             return MemoryLocation(offset=0, size=64)
-        elif opcode.startswith("log"):
+        elif opcode == "log":
             size, src = self.operands[-2:]
             return MemoryLocation.from_operands(src, size)
         elif opcode == "revert":
