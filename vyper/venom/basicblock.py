@@ -413,7 +413,7 @@ class IRInstruction:
         elif opcode == "mload":
             return MemoryLocation.from_operands(self.operands[0], 32)
         elif opcode == "mcopy":
-            size, src = self.operands[:2]
+            size, src, _ = self.operands
             return MemoryLocation.from_operands(src, size)
         elif opcode == "calldatacopy":
             return EMPTY_MEMORY_ACCESS
