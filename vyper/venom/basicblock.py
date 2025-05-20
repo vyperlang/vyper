@@ -438,6 +438,8 @@ class IRInstruction:
         elif opcode == "sha3":
             size, offset = self.operands
             return MemoryLocation.from_operands(offset, size)
+        elif opcode == "sha3_32":
+            raise CompilerPanic("invalid opcode")  # should be unused
         elif opcode == "sha3_64":
             return MemoryLocation(offset=0, size=64)
         elif opcode == "log":
