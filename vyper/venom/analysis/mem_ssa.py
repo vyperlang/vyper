@@ -427,7 +427,7 @@ class MemSSA(IRAnalysis):
         Return true if there is a memory access that clobbers this access,
         if any.
 
-        Returns None if no clobbering access is found before a use
+        Returns False if no clobbering access is found before a use
         of this access's value.
         """
         # only defs can be clobbered by subsequent stores
@@ -440,55 +440,53 @@ class MemSSA(IRAnalysis):
         bb = access.store_inst.parent
         def_idx = bb.instructions.index(access.store_inst)
 
+        def _is_possible_use(inst):
+            mem_use = self.inst_to_use.get(inst)
+            return mem_use and self.memalias.may_alias(def_loc, mem_use.loc)
+
+        def _is_clobbering_def(inst):
+            next_def = self.inst_to_def.get(inst)
+            return next_def and next_def.loc.completely_contains(def_loc)
 
         for inst in bb.instructions[def_idx + 1:]:
-
             # for instructions that both read and write from memory,
             # check the read first
-            mem_use = self.inst_to_use.get(inst)
-            if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
-                return False  # Found a use that reads from our memory location
-
-            next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.completely_contains(def_loc):
-                # next_def clobbers access.
-                # continue without adding to the worklist.
+            if _is_possible_use(inst):
+                return False
+            if _is_clobbering_def(inst):
                 return True
 
         worklist = OrderedSet(self.cfg.cfg_out(bb))
         visited = set()
 
+        # visit all reachable blocks using breadth-first search.
+        # if all reachable blocks have a clobbering def, we can return True.
+        # otherwise, we need to return False.
         while len(worklist) > 0:
             bb = worklist.pop()
             if bb in visited:
                 continue
             visited.add(bb)
 
-            found_clobbering_access = False
+            found_clobbering_def = False
             for inst in bb.instructions:
+                if _is_possible_use(inst):
+                    # Found a use that reads from our memory location.
+                    # break the search
+                    return False
 
-                # for instructions that both read and write from memory,
-                # check the read first
-                mem_use = self.inst_to_use.get(inst)
-                if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
-                    return False  # Found a use that reads from our memory location
-
-                next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.completely_contains(def_loc):
-                    # next_def clobbers access.
-                    # continue without adding to the worklist.
-                    found_clobbering_access = True
+                if _is_clobbering_def(inst):
+                    # found a clobbering def. stop searching in this branch
+                    # of the graph.
+                    # (continue, without adding to the worklist.)
+                    found_clobbering_def = True
                     break
 
-            if found_clobbering_access:
-                continue
+            if not found_clobbering_def:
+                cfg_out = self.cfg.cfg_out(bb)
+                worklist.update(cfg_out)
 
-            # if *any* successor block does not clobber us,
-            # we return False.
-            cfg_out = self.cfg.cfg_out(bb)
-            worklist.update(cfg_out)
-
-        return True
+        return False
 
     #
     # Printing context methods
