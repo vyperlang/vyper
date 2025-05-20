@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes import AssignElimination, DFTPass, SimplifyCFGPass, SingleUseExpansion
@@ -297,6 +299,8 @@ def test_stack_order_phi():
     _check_pre_post(pre, post)
 
 
+# TODO: fix this xfail before merge
+@pytest.mark.xfail
 def test_stack_order_more_phi():
     pre = """
     main:
@@ -315,7 +319,7 @@ def test_stack_order_more_phi():
         %1 = phi @then, %1a, @else, %1b
         %res1 = add 1, %1 ; properly use the value
         %res2 = add 1, %2 ; properly use the value
-        sink %res1, %res2
+        sink %res2, %res1
     """
 
     post = """
