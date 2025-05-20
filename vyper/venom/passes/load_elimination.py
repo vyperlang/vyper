@@ -44,12 +44,12 @@ class LoadElimination(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-        #print(self.function)
-
     def _run(self, eff, load_opcode, store_opcode):
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+
         self._big_lattice = defaultdict(dict)
 
-        # seed with dfs pre walk
+        # seed with dfs post walk
         worklist = OrderedSet(self.cfg.dfs_post_walk)
 
         while len(worklist) > 0:
@@ -61,7 +61,6 @@ class LoadElimination(IRPass):
 
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
-        return op1 == op2
 
     def get_literal(self, op):
         op = self.dfg._traverse_store_chain(op)
@@ -70,9 +69,6 @@ class LoadElimination(IRPass):
         return None
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
-        # not really a lattice even though it is not really inter-basic block;
-        # we may generalize in the future
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self._lattice = {}
         old_lattice = self._big_lattice[bb].copy()
 
@@ -101,13 +97,7 @@ class LoadElimination(IRPass):
                     phi_out = self.updater.add_before(bb.instructions[0], "store", [phi_args[1]])
                 else:
                     phi_out = self.updater.add_before(bb.instructions[0], "phi", phi_args)
-                #print("INSERT PHI", phi_inst)
                 self._lattice[k] = phi_out
-
-        #print("(pre)", old_lattice)
-        #print(f"\n\nENTER {load_opcode} starting lattice", self._lattice)
-        #print(bb)
-        #self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -127,11 +117,6 @@ class LoadElimination(IRPass):
 
         changed = (old_lattice != self._lattice)
         self._big_lattice[bb] = self._lattice
-        #print(bb)
-        #print(f"ENTER {load_opcode} ending lattice", self._lattice)
-        #print("CHANGED", changed)
-
-        #self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         return changed
 
@@ -159,9 +144,9 @@ class LoadElimination(IRPass):
             self._lattice = {ptr: val}
             return
 
-        # we found a redundant store, eliminate it
         existing_val = self._lattice.get(known_ptr)
-        #print("EQUIVALENT", val, existing_val, self.equivalent(val, existing_val))
+
+        # we found a redundant store, eliminate it
         if self.equivalent(val, existing_val):
             self.updater.nop(inst)
             return
