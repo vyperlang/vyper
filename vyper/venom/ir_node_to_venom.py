@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import functools
 import re
 from collections import defaultdict
-from typing import Optional
+from typing import Any, Optional
 
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
+from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -18,6 +21,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 ENABLE_NEW_CALL_CONV = True
+MAX_STACK_ARGS = 6
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -171,6 +175,38 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
     bb.append_instruction("store", size, ret=ret_size)
 
 
+@functools.lru_cache(maxsize=1024)
+def _func_args_dict(func_t) -> dict[str, Any]:
+    return {arg.name: arg for arg in func_t.arguments}
+
+
+# func_t: ContractFunctionT
+@functools.lru_cache(maxsize=1024)
+def _pass_via_stack(func_t, argname: str) -> bool:
+    if not ENABLE_NEW_CALL_CONV:
+        return False
+
+    arguments = _func_args_dict(func_t)
+    if not _is_word_type(arguments[argname].typ):
+        return False
+
+    stack_items = 0
+    returns_word = _returns_word(func_t)
+    if returns_word:
+        stack_items += 1
+
+    for arg in arguments.values():
+        if not _is_word_type(arg.typ):
+            continue
+        if stack_items > MAX_STACK_ARGS:
+            return False
+        if arg.name == argname:
+            return True
+        stack_items += 1
+
+    raise CompilerPanic("unreachable")  # pragma: nocover
+
+
 def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
     global _callsites
     setup_ir = ir.args[1]
@@ -206,7 +242,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     callsite_args = _callsites[callsite]
     if ENABLE_NEW_CALL_CONV:
         for alloca in callsite_args:
-            if not _is_word_type(alloca.typ):
+            if not _pass_via_stack(func_t, alloca.name):
                 continue
             ptr = _alloca_table[alloca._id]
             stack_arg = bb.append_instruction("mload", ptr)
@@ -286,13 +322,14 @@ def _handle_internal_func(
         if func_t.return_type is not None and not _returns_word(func_t):
             stack_index += 1
         for arg in func_t.arguments:
-            var = context.lookup_var(arg.name)
-            if not _is_word_type(var.typ):
+            if not _pass_via_stack(func_t, arg.name):
                 continue
 
             param = bb.append_instruction("param")
             bb.instructions[-1].annotation = arg.name
             assert param is not None  # help mypy
+
+            var = context.lookup_var(arg.name)
 
             venom_arg = IRParameter(
                 name=var.name,
@@ -656,7 +693,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 bb = fn.get_basic_block()
                 ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
-                if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
+                if ENABLE_NEW_CALL_CONV and _pass_via_stack(_current_func_t, alloca.name):
                     param = fn.get_param_by_id(alloca._id)
                     assert param is not None
                     bb.append_instruction("mstore", param.func_var, ptr)
@@ -669,7 +706,8 @@ def _convert_ir_bb(fn, ir, symbols):
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
 
-                if ENABLE_NEW_CALL_CONV and _is_word_type(alloca.typ):
+                callsite_func = ir.passthrough_metadata["callsite_func"]
+                if ENABLE_NEW_CALL_CONV and _pass_via_stack(callsite_func, alloca.name):
                     ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 else:
                     # if we use alloca, mstores might get removed. convert
