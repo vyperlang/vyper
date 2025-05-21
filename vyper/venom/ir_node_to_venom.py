@@ -3,12 +3,11 @@ from __future__ import annotations
 import functools
 import re
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Optional
 
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -280,13 +279,13 @@ def _handle_internal_func(
 ) -> IRFunction:
     global _alloca_table, _current_func_t, _current_context
 
-    _current_func_t = ir.passthrough_metadata["func_t"]
-    _current_context = ir.passthrough_metadata["context"]
-    func_t = _current_func_t
-    context = _current_context
-
     func_t = ir.passthrough_metadata["func_t"]
+    context = ir.passthrough_metadata["context"]
     assert func_t is not None, "func_t not found in passthrough metadata"
+    assert context is not None, func_t.name
+
+    _current_func_t = func_t
+    _current_context = context
 
     funcname = ir.args[0].args[0].value
     assert isinstance(funcname, str)
