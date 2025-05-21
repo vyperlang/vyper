@@ -1,6 +1,6 @@
 import contextlib
 import dataclasses as dc
-from typing import Iterable, Literal, Optional
+from typing import Iterable, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
@@ -8,6 +8,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import (
     EMPTY_MEMORY_ACCESS,
+    LocationType,
     MemoryLocation,
     get_read_memory_location,
     get_write_memory_location,
@@ -72,7 +73,7 @@ class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
     def __init__(
-        self, id: int, store_inst: IRInstruction, location_type: Literal["memory", "storage"] = "memory"
+        self, id: int, store_inst: IRInstruction, location_type: LocationType = LocationType.MEMORY
     ):
         super().__init__(id)
         self.store_inst = store_inst
@@ -86,9 +87,7 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(
-        self, id: int, load_inst: IRInstruction, location_type: Literal["memory", "storage"]
-    ):
+    def __init__(self, id: int, load_inst: IRInstruction, location_type: LocationType):
         super().__init__(id)
         self.load_inst = load_inst
         self.loc = get_read_memory_location(load_inst, location_type)
@@ -124,14 +123,8 @@ class MemSSAAbstract(IRAnalysis):
     See https://llvm.org/docs/MemorySSA.html#design-tradeoffs.
     """
 
-    VALID_LOCATION_TYPES = {"memory", "storage"}
-
-    def __init__(
-        self, analyses_cache, function, location_type: Literal["memory", "storage"] = "memory"
-    ):
+    def __init__(self, analyses_cache, function, location_type: LocationType = LocationType.MEMORY):
         super().__init__(analyses_cache, function)
-        if location_type not in self.VALID_LOCATION_TYPES:
-            raise ValueError(f"location_type must be one of: {self.VALID_LOCATION_TYPES}")
         self.location_type = location_type
 
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
@@ -460,9 +453,9 @@ class MemSSAAbstract(IRAnalysis):
 
 class MemSSA(MemSSAAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, "memory")
+        super().__init__(analyses_cache, function, LocationType.MEMORY)
 
 
 class StorageSSA(MemSSAAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, "storage")
+        super().__init__(analyses_cache, function, LocationType.STORAGE)
