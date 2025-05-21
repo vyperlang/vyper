@@ -208,18 +208,18 @@ def test_may_alias_edge_cases():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    assert not alias._may_alias(
+    assert not alias.may_alias(
         FULL_MEMORY_ACCESS, EMPTY_MEMORY_ACCESS
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
-    assert not alias._may_alias(
+    assert not alias.may_alias(
         EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS
     ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
     loc1 = MemoryLocation(offset=0, size=32)
-    assert not alias._may_alias(
+    assert not alias.may_alias(
         EMPTY_MEMORY_ACCESS, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
-    assert not alias._may_alias(
+    assert not alias.may_alias(
         loc1, EMPTY_MEMORY_ACCESS
     ), "Regular location should not alias with EMPTY_MEMORY_ACCESS"
 
@@ -231,9 +231,9 @@ def test_may_alias_edge_cases():
 
     loc2 = MemoryLocation(offset=0, size=32)
     loc3 = MemoryLocation(offset=32, size=32)
-    assert alias.may_alias(loc2, loc3) == alias._may_alias(
+    assert alias.may_alias(loc2, loc3) == alias.may_alias(
         loc2, loc3
-    ), "may_alias should use _may_alias for locations not in alias sets"
+    ), "may_alias should use may_alias for locations not in alias sets"
 
     loc4 = MemoryLocation(offset=0, size=32)
     loc5 = MemoryLocation(offset=0, size=32)
@@ -264,11 +264,11 @@ def test_may_alias_edge_cases2():
     alias.analyze()
 
     loc1 = MemoryLocation(offset=0, size=32)
-    assert alias._may_alias(
+    assert alias.may_alias(
         FULL_MEMORY_ACCESS, loc1
     ), "FULL_MEMORY_ACCESS should alias with regular location"
 
-    assert not alias._may_alias(
+    assert not alias.may_alias(
         EMPTY_MEMORY_ACCESS, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
 
@@ -281,9 +281,9 @@ def test_may_alias_edge_cases2():
     loc2 = MemoryLocation(offset=0, size=64)
     loc3 = MemoryLocation(offset=32, size=64)
     result = alias.may_alias(loc2, loc3)
-    assert result == alias._may_alias(
+    assert result == alias.may_alias(
         loc2, loc3
-    ), "may_alias should use _may_alias for locations not in alias sets"
+    ), "may_alias should use may_alias for locations not in alias sets"
 
     loc4 = MemoryLocation(offset=0, size=32)
     loc5 = MemoryLocation(offset=0, size=32)
