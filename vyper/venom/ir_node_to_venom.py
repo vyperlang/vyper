@@ -256,7 +256,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
 
 _current_func_t = None
-_current_context = None
 
 
 def _is_word_type(typ):
@@ -277,7 +276,7 @@ def _handle_internal_func(
     does_return_data: bool,
     symbols: SymbolTable,
 ) -> IRFunction:
-    global _alloca_table, _current_func_t, _current_context
+    global _alloca_table, _current_func_t
 
     func_t = ir.passthrough_metadata["func_t"]
     context = ir.passthrough_metadata["context"]
@@ -285,7 +284,6 @@ def _handle_internal_func(
     assert context is not None, func_t.name
 
     _current_func_t = func_t
-    _current_context = context
 
     funcname = ir.args[0].args[0].value
     assert isinstance(funcname, str)
