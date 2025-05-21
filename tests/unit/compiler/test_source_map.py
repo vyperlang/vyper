@@ -145,8 +145,9 @@ def foo(i: uint256):
     raise self.bar(5%i)
 
 @pure
-def bar(i: uint256) -> String[32]:
-    return "foo foo"
+def bar(i: uint256) -> String[85]:
+    # ensure the mod doesn't get erased
+    return concat("foo foo", uint2str(i))
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "user revert with reason" in error_map.values()

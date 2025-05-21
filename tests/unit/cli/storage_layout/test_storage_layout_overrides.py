@@ -435,3 +435,21 @@ initializes: lib1
             input_bundle=input_bundle,
             storage_layout_override=override,
         )
+
+
+def test_override_with_nonreentrant_pragma(make_input_bundle):
+    code = """
+# pragma nonreentrancy on
+a: public(uint256)
+    """
+
+    if version_check(begin="cancun"):
+        override = {"a": {"type": "uint256", "n_slots": 1, "slot": 0}}
+    else:
+        override = {
+            "a": {"type": "uint256", "n_slots": 1, "slot": 0},
+            "$.nonreentrant_key": {"type": "nonreentrant lock", "n_slots": 1, "slot": 20},
+        }
+
+    # note: compile_code checks roundtrip of the override
+    compile_code(code, storage_layout_override=override)

@@ -114,7 +114,12 @@ class CFGAnalysis(IRAnalysis):
         return iter(self._dfs)
 
     def invalidate(self):
-        from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+        from vyper.venom.analysis import (
+            DFGAnalysis,
+            DominatorTreeAnalysis,
+            LivenessAnalysis,
+            ReachableAnalysis,
+        )
 
         # just in case somebody is holding onto a bad reference to this
         del self._cfg_in
@@ -127,3 +132,4 @@ class CFGAnalysis(IRAnalysis):
 
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(ReachableAnalysis)
