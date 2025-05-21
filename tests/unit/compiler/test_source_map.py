@@ -34,7 +34,7 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map(optimize, experimental_codegen, request):
+def test_jump_map(optimize, experimental_codegen):
     source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
@@ -62,7 +62,6 @@ def test_jump_map(optimize, experimental_codegen, request):
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
-            # pc map is missing these pcs for some reason
             assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
 
