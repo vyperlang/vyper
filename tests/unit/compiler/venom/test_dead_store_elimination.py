@@ -293,6 +293,21 @@ def test_dead_store_in_loop(jnz):
     _check_pre_post(pre, post, hevm=False)
 
 
+# loop with no branching
+def test_trivial_loop():
+    pre = """
+        main:
+            mstore 0, 1 ; can be eliminated
+            jmp @main
+    """
+    post = """
+        main:
+            nop
+            jmp @main
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
 @pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
 def test_dead_store_in_loop2(jnz):
     pre = f"""
