@@ -371,7 +371,11 @@ class IRnode:
     def is_empty_intrinsic(self):
         if self.value == "~empty":
             return True
-        if self.is_source_bytes_literal and isinstance(self.typ, _BytestringT) and self.typ.maxlen == 0:
+        if (
+            self.is_source_bytes_literal
+            and isinstance(self.typ, _BytestringT)
+            and self.typ.maxlen == 0
+        ):
             # special optimization case for empty `b""` literal
             return True
         if self.value == "seq":
