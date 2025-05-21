@@ -1,13 +1,16 @@
+from typing import Literal
 import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
+    MemSSAAbstract,
     MemoryAccess,
     MemoryDef,
     MemoryLocation,
     MemoryPhi,
     MemoryUse,
+    StorageSSA,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
@@ -39,11 +42,14 @@ def dummy_mem_ssa():
 def create_mem_ssa():
     """Fixture that creates a MemSSA instance from custom code."""
 
-    def _create_mem_ssa(code, location_type="memory", function_name="_global"):
+    def _create_mem_ssa(code, location_type: Literal["memory", "storage"] = "memory", function_name="_global"):
         ctx = parse_venom(code)
         fn = ctx.functions[IRLabel(function_name)]
         ac = IRAnalysesCache(fn)
-        mem_ssa = MemSSA(ac, fn, location_type=location_type)
+        if location_type == "memory":
+            mem_ssa = MemSSA(ac, fn)
+        else:
+            mem_ssa = StorageSSA(ac, fn)
         mem_ssa.analyze()
         return mem_ssa, fn, ctx
 
@@ -773,7 +779,7 @@ def test_invalid_location_type(create_mem_ssa):
     ac = IRAnalysesCache(fn)
 
     with pytest.raises(ValueError) as excinfo:
-        MemSSA(ac, fn, location_type="invalid")
+        MemSSAAbstract(ac, fn, location_type="invalid")
     assert "location_type must be one of:" in str(excinfo.value)
     assert "memory" in str(excinfo.value)
     assert "storage" in str(excinfo.value)

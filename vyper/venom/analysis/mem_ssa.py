@@ -72,7 +72,7 @@ class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
     def __init__(
-        self, id: int, store_inst: IRInstruction, location_type: Literal["memory", "storage"]
+        self, id: int, store_inst: IRInstruction, location_type: Literal["memory", "storage"] = "memory"
     ):
         super().__init__(id)
         self.store_inst = store_inst

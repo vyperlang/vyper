@@ -117,7 +117,7 @@ class MemoryLocation:
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
-def get_write_memory_location(inst, location_type: Literal["memory", "storage"]) -> MemoryLocation:
+def get_write_memory_location(inst, location_type: Literal["memory", "storage"] = "memory") -> MemoryLocation:
     """Extract memory location info from an instruction"""
     opcode = inst.opcode
     if location_type == "memory":
@@ -169,7 +169,7 @@ def get_write_memory_location(inst, location_type: Literal["memory", "storage"])
     return EMPTY_MEMORY_ACCESS
 
 
-def get_read_memory_location(inst, location_type: Literal["memory", "storage"]) -> MemoryLocation:
+def get_read_memory_location(inst, location_type: Literal["memory", "storage"] = "memory") -> MemoryLocation:
     """Extract memory location info from an instruction"""
     opcode = inst.opcode
     if location_type == "memory":
