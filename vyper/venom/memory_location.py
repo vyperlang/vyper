@@ -26,9 +26,9 @@ class MemoryLocation:
     def is_fixed(self) -> bool:
         return self.is_offset_fixed and self.is_size_fixed
 
-    @staticmethod
+    @classmethod
     def from_operands(
-        offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
+        cls, offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
     ) -> "MemoryLocation":
         if isinstance(offset, IRLiteral):
             _offset = offset.value
@@ -48,7 +48,7 @@ class MemoryLocation:
         else:
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
-        return MemoryLocation(_offset, _size, is_volatile)
+        return cls(_offset, _size, is_volatile)
 
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: "MemoryLocation") -> bool:
