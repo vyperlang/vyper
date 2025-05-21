@@ -13,15 +13,16 @@ if TYPE_CHECKING:
     from vyper.venom.context import IRContext
 
 
-@dataclass
+@dataclass(frozen=True)
 class IRParameter:
     name: str
-    index: int
-    offset: int
-    size: int
-    call_site_var: Optional[IRVariable]
-    func_var: Optional[IRVariable]
-    addr_var: Optional[IRVariable]
+    index: int  # needed?
+    offset: int  # needed?
+    size: int  # needed?
+    id_: int
+    call_site_var: Optional[IRVariable]  # needed?
+    func_var: IRVariable
+    addr_var: Optional[IRVariable]  # needed?
 
 
 class IRFunction:
@@ -136,9 +137,9 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
-    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
         for param in self.args:
-            if param.offset == offset:
+            if param.id_ == id_:
                 return param
         return None
 
