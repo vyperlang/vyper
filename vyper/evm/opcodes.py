@@ -220,8 +220,9 @@ def _mk_version_opcodes(opcodes: OpcodeMap, evm_version: str) -> OpcodeRulesetMa
         ret.update(OPCODE_OVERRIDES.get(forkname, {}))
         if evm_version == forkname:
             break
-    else:
-        raise CompilerPanic(f"bad evm version {forkname}")
+    else:  # pragma: nocover
+        # sanity check the passed evm version was valid
+        raise CompilerPanic(f"bad evm version {evm_version}")
 
     return ret
 
