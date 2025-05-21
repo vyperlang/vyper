@@ -1135,10 +1135,10 @@ def test_storage_dead_store_branch_success():
             sstore 0, 1 ; not dead as first branches succeeds
             jnz %1, @then, @else
         then:
-            ret %1
+            sink %1
         else:
             sstore 0, 2
-            ret %1
+            sink %1
     """
     post = """
         _global:
@@ -1146,10 +1146,10 @@ def test_storage_dead_store_branch_success():
             sstore 0, 1
             jnz %1, @then, @else
         then:
-            ret %1
+            sink %1
         else:
             sstore 0, 2
-            ret %1
+            sink %1
     """
     _check_storage_pre_post(pre, post)
 
@@ -1164,7 +1164,7 @@ def test_storage_dead_store_branch_revert():
             revert 0, 0
         else:
             sstore 0, 2
-            ret %1
+            sink %1
     """
     post = """
         _global:
@@ -1175,6 +1175,6 @@ def test_storage_dead_store_branch_revert():
             revert 0, 0
         else:
             sstore 0, 2
-            ret %1
+            sink %1
     """
     _check_storage_pre_post(pre, post)
