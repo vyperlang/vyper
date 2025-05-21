@@ -69,9 +69,6 @@ class DeadStoreElimination(IRPass):
                 if self.location_type == LocationType.STORAGE:
                     if inst.opcode in ("ret", "return", "stop", "exit", "sink"):
                         return True
-                    elif inst.opcode == "revert":
-                        clobbered = True
-                        break
 
                 # Check if the instruction reads from the memory location
                 # If so, the memory definition is used.
