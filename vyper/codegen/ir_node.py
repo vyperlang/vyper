@@ -371,10 +371,10 @@ class IRnode:
     def is_empty_intrinsic(self):
         if self.value == "~empty":
             return True
-        if self.value == "seq":
-            return len(self.args) == 1 and self.args[0].is_empty_intrinsic
         if self.is_source_literal and isinstance(self.typ, _BytestringT) and self.typ.maxlen == 0:
             return True
+        if self.value == "seq":
+            return len(self.args) == 1 and self.args[0].is_empty_intrinsic
         return False
 
     # the IR should be cached and/or evaluated exactly once
