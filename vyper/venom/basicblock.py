@@ -76,7 +76,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "stop",
         "invalid",
-        "invoke",
         "jmp",
         "djmp",
         "jnz",
@@ -389,7 +388,7 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode == "store":
+        if self.opcode in ("store", "palloca", "alloca", "calloca"):
             return 1
         return 2
 
@@ -680,6 +679,12 @@ class IRBasicBlock:
             if printer and hasattr(printer, "_post_instruction"):
                 s += printer._post_instruction(inst)
             s += "\n"
+
+        if len(self.instructions) > 30:
+            s += f"  ; {self.label}\n"
+        if len(self.instructions) > 30 or self.parent.num_basic_blocks > 5:
+            s += f"  ; ({self.parent.name})\n\n"
+
         return s
 
 
