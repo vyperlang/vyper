@@ -24,7 +24,7 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        from vyper.venom.basicblock import MemoryLocation
+        from vyper.venom.memory_location import MemoryLocation
 
         self.pass_objects.clear()
 
@@ -210,6 +210,7 @@ def test_dead_store_memory_copy():
 def _generate_jnz_configurations(cond, then, else_):
     return [f"jnz {cond}, {then}, {else_}", f"jnz {cond}, {else_}, {then}"]
 
+
 @pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@then", "@else"))
 def test_dead_store_in_branches(jnz):
     pre = f"""
@@ -251,7 +252,6 @@ def test_dead_store_in_branches(jnz):
     _check_pre_post(pre, post)
 
 
-
 @pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
 def test_dead_store_in_loop(jnz):
     pre = f"""
@@ -291,6 +291,22 @@ def test_dead_store_in_loop(jnz):
             stop
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+# loop with no branching
+def test_trivial_loop():
+    pre = """
+        main:
+            mstore 0, 1 ; can be eliminated
+            jmp @main
+    """
+    post = """
+        main:
+            nop
+            jmp @main
+    """
+    _check_pre_post(pre, post, hevm=False)
+
 
 @pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@body", "@exit"))
 def test_dead_store_in_loop2(jnz):
@@ -359,7 +375,6 @@ def test_dead_store_in_loop3(jnz1, jnz2):
             stop
     """
     _check_no_change(pre, hevm=False)
-
 
 
 @pytest.mark.parametrize("jnz", _generate_jnz_configurations("%cond", "@then", "@else"))

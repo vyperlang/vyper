@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, MemoryLocation
+from vyper.venom.memory_location import EMPTY_MEMORY_ACCESS, MemoryLocation
 
 
 def test_completely_overlaps():

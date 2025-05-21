@@ -38,7 +38,6 @@ class InstUpdater:
         new_output: Optional[IRVariable] = None,
         annotation: str = "",
     ) -> IRInstruction:
-        assert opcode != "phi"
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
 
@@ -73,7 +72,8 @@ class InstUpdater:
         inst.opcode = opcode
         inst.operands = new_operands
 
-        inst.annotation = original_str + " " + annotation
+        if annotation:
+            inst.annotation = original_str + " " + annotation
 
         return inst
 

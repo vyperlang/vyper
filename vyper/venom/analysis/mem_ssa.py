@@ -4,9 +4,14 @@ from typing import Iterable, Literal, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
-from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
+from vyper.venom.memory_location import (
+    EMPTY_MEMORY_ACCESS,
+    MemoryLocation,
+    get_read_memory_location,
+    get_write_memory_location,
+)
 
 
 class MemoryAccess:
@@ -71,7 +76,7 @@ class MemoryDef(MemoryAccess):
     ):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = store_inst.get_write_memory_location(location_type)
+        self.loc = get_write_memory_location(store_inst, location_type)
 
     @property
     def inst(self):
@@ -86,7 +91,7 @@ class MemoryUse(MemoryAccess):
     ):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = load_inst.get_read_memory_location(location_type)
+        self.loc = get_read_memory_location(load_inst, location_type)
 
     @property
     def inst(self):
@@ -187,8 +192,6 @@ class MemSSAAbstract(IRAnalysis):
 
         # Second pass: insert phi nodes where needed
         self._insert_phi_nodes()
-
-        # self._update_def_reaching_defs()
 
         # Third pass: connect all memory accesses to their reaching definitions
         self._connect_uses_to_defs()
@@ -296,15 +299,6 @@ class MemSSAAbstract(IRAnalysis):
             return self.get_exit_def(idom) if idom else self.live_on_entry
 
         return self.live_on_entry
-
-    def _update_def_reaching_defs(self):
-        for bb in self.memory_defs:
-            if bb in self.memory_phis and self.memory_defs[bb]:
-                first_def = self.memory_defs[bb][0]
-                first_idx = bb.instructions.index(first_def.inst)
-                prior_def = any(inst in self.inst_to_def for inst in bb.instructions[:first_idx])
-                if not prior_def:
-                    first_def.reaching_def = self.memory_phis[bb]
 
     def _connect_defs_to_defs(self):
         for bb in self.cfg.dfs_pre_walk:
@@ -424,74 +418,6 @@ class MemSSAAbstract(IRAnalysis):
 
         return None
 
-    def gets_clobbered(self, access: MemoryAccess) -> bool:
-        """
-        Return true if there is a memory access that clobbers this access,
-        if any.
-
-        Returns None if no clobbering access is found before a use
-        of this access's value.
-        """
-        # only defs can be clobbered by subsequent stores
-        assert isinstance(access, MemoryDef)
-
-        if access.is_live_on_entry:
-            return False
-
-        def_loc = access.loc
-        bb = access.store_inst.parent
-        def_idx = bb.instructions.index(access.store_inst)
-
-
-        for inst in bb.instructions[def_idx + 1:]:
-
-            # for instructions that both read and write from memory,
-            # check the read first
-            mem_use = self.inst_to_use.get(inst)
-            if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
-                return False  # Found a use that reads from our memory location
-
-            next_def = self.inst_to_def.get(inst)
-            if next_def and next_def.loc.completely_contains(def_loc):
-                # next_def clobbers access.
-                # continue without adding to the worklist.
-                return True
-
-        worklist = OrderedSet(self.cfg.cfg_out(bb))
-        visited = set()
-
-        while len(worklist) > 0:
-            bb = worklist.pop()
-            if bb in visited:
-                continue
-            visited.add(bb)
-
-            found_clobbering_access = False
-            for inst in bb.instructions:
-
-                # for instructions that both read and write from memory,
-                # check the read first
-                mem_use = self.inst_to_use.get(inst)
-                if mem_use and self.memalias.may_alias(def_loc, mem_use.loc):
-                    return False  # Found a use that reads from our memory location
-
-                next_def = self.inst_to_def.get(inst)
-                if next_def and next_def.loc.completely_contains(def_loc):
-                    # next_def clobbers access.
-                    # continue without adding to the worklist.
-                    found_clobbering_access = True
-                    break
-
-            if found_clobbering_access:
-                continue
-
-            # if *any* successor block does not clobber us,
-            # we return False.
-            cfg_out = self.cfg.cfg_out(bb)
-            worklist.update(cfg_out)
-
-        return True
-
     #
     # Printing context methods
     #
@@ -506,7 +432,7 @@ class MemSSAAbstract(IRAnalysis):
                 if def_.inst == inst:
                     s += f"\t; def: {def_.id_str} "
                     s += f"({def_.reaching_def.id_str if def_.reaching_def else None}) "
-                    clobber = self.get_clobbering_memory_access(def_)
+                    clobber = self.get_clobbered_memory_access(def_)
                     if clobber is not None:
                         s += f"clobber: {clobber.id_str}"
 
