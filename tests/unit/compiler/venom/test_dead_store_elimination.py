@@ -1110,3 +1110,67 @@ def test_storage_basic_dead_store():
             stop
     """
     _check_storage_pre_post(pre, post)
+
+
+def test_storage_basic_dead_store_clobbered():
+    pre = """
+        _global:
+            sstore 0, 1
+            sstore 0, 2
+            stop
+    """
+    post = """
+        _global:
+            nop
+            sstore 0, 2
+            stop
+    """
+    _check_storage_pre_post(pre, post)
+
+
+def test_storage_dead_store_branch_success():
+    pre = """
+        _global:
+            sstore 0, 1 ; not dead as first branches succeeds 
+            jnz %1, @then, @else
+        then:
+            ret %1
+        else:
+            sstore 0, 2
+            ret %1
+    """
+    post = """
+        _global:
+            sstore 0, 1
+            jnz %1, @then, @else
+        then:
+            ret %1
+        else:
+            sstore 0, 2
+            ret %1
+    """
+    _check_storage_pre_post(pre, post)
+
+
+def test_storage_dead_store_branch_revert():
+    pre = """
+        _global:
+            sstore 0, 1 ; dead as first branch reverts second clobbers
+            jnz %1, @then, @else
+        then:
+            revert 0, 0
+        else:
+            sstore 0, 2
+            ret %1
+    """
+    post = """
+        _global:
+            nop
+            jnz %1, @then, @else
+        then:
+            revert 0, 0
+        else:
+            sstore 0, 2
+            ret %1
+    """
+    _check_storage_pre_post(pre, post)
