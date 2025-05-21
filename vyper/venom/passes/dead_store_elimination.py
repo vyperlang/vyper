@@ -39,17 +39,21 @@ class DeadStoreElimination(IRPass):
         """
         query_loc = mem_def.loc
         worklist: OrderedSet[IRBasicBlock] = OrderedSet()
-        allready_added_to_worklist: OrderedSet[IRBasicBlock] = OrderedSet()
 
+        # blocks not to visit
+        visited: OrderedSet[IRBasicBlock] = OrderedSet()
+
+        # for the first block, we start from the instruction after mem_def.inst
         next_inst_idx = mem_def.inst.parent.instructions.index(mem_def.inst) + 1
 
-        # We don't add this to the allready_added_to_worklist because
-        # we want to be able to visit it again for the instructions
-        # above the memory definition.
+        # we don't add this to visited because in the case of a loop
+        # (bb is reachable from itself), we want to be able to visit it again
+        # starting from instruction 0.
         worklist.add(mem_def.inst.parent)
 
         while len(worklist) > 0:
             bb = worklist.pop()
+            visited.add(bb)
 
             clobbered = False
             for inst in bb.instructions[next_inst_idx:]:
@@ -73,16 +77,16 @@ class DeadStoreElimination(IRPass):
 
             # If the memory definition is clobbered, we continue to
             # the next block already in the worklist without adding
-            # it's offsprings to the worklist.
+            # its offspring to the worklist.
             if clobbered:
                 continue
 
             # Otherwise, we add the block's offsprings to the worklist.
+            # for all successor blocks, start from the 0'th instruction
             next_inst_idx = 0
             outs = self.cfg.cfg_out(bb)
             for out in outs:
-                if out not in allready_added_to_worklist:
-                    allready_added_to_worklist.add(out)
+                if out not in visited:
                     worklist.add(out)
 
         return False
