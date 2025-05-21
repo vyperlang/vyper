@@ -1,7 +1,8 @@
-from typing import Literal
+from typing import Literal, Type
+
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, StorageSSA
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemSSAAbstract, StorageSSA
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -13,6 +14,7 @@ class DeadStoreElimination(IRPass):
     """
 
     def run_pass(self, location_type: Literal["memory", "storage"] = "memory"):
+        MemSSAType: Type[MemSSAAbstract]
         if location_type == "memory":
             MemSSAType = MemSSA
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
@@ -38,26 +40,26 @@ class DeadStoreElimination(IRPass):
         """
         return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
 
-    def _is_memory_def_live(self, mem_def: MemoryDef) -> bool:
+    def _is_memory_def_live(self, query_def: MemoryDef) -> bool:
         """
         Checks if the memory definition is live by checking if it is
         read from in any of the blocks that are reachable from the
         memory definition's block, without being clobbered by another
         memory access before read.
         """
-        query_loc = mem_def.loc
+        query_loc = query_def.loc
         worklist: OrderedSet[IRBasicBlock] = OrderedSet()
 
         # blocks not to visit
         visited: OrderedSet[IRBasicBlock] = OrderedSet()
 
         # for the first block, we start from the instruction after mem_def.inst
-        next_inst_idx = mem_def.inst.parent.instructions.index(mem_def.inst) + 1
+        next_inst_idx = query_def.inst.parent.instructions.index(query_def.inst) + 1
 
         # we don't add this to visited because in the case of a loop
         # (bb is reachable from itself), we want to be able to visit it again
         # starting from instruction 0.
-        worklist.add(mem_def.inst.parent)
+        worklist.add(query_def.inst.parent)
 
         while len(worklist) > 0:
             bb = worklist.pop()

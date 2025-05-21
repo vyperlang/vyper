@@ -126,7 +126,9 @@ class MemSSAAbstract(IRAnalysis):
 
     VALID_LOCATION_TYPES = {"memory", "storage"}
 
-    def __init__(self, analyses_cache, function, location_type: str = "memory"):
+    def __init__(
+        self, analyses_cache, function, location_type: Literal["memory", "storage"] = "memory"
+    ):
         super().__init__(analyses_cache, function)
         if location_type not in self.VALID_LOCATION_TYPES:
             raise ValueError(f"location_type must be one of: {self.VALID_LOCATION_TYPES}")

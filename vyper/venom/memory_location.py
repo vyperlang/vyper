@@ -155,7 +155,7 @@ def get_write_memory_location(inst, location_type: Literal["memory", "storage"])
             return MemoryLocation.from_operands(dst, size)
     elif location_type == "storage":
         if opcode == "sstore":
-            dst = self.operands[1]
+            dst = inst.operands[1]
             return MemoryLocation.from_operands(dst, 32)
         elif opcode == "sload":
             return EMPTY_MEMORY_ACCESS
@@ -165,7 +165,7 @@ def get_write_memory_location(inst, location_type: Literal["memory", "storage"])
             return MemoryLocation(offset=None, size=None)
         elif opcode in ("create", "create2"):
             return MemoryLocation(offset=None, size=None)
-        
+
     return EMPTY_MEMORY_ACCESS
 
 
@@ -227,5 +227,5 @@ def get_read_memory_location(inst, location_type: Literal["memory", "storage"]) 
             return MemoryLocation(offset=None, size=None)
         elif opcode in ("create", "create2"):
             return MemoryLocation(offset=None, size=None)
-        
+
     return EMPTY_MEMORY_ACCESS

@@ -17,6 +17,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     This helps optimize memory operations by identifying when different
     memory accesses are guaranteed not to overlap.
     """
+
     location_type: Literal["memory", "storage"]
 
     def __init__(self, analyses_cache, function, location_type: Literal["memory", "storage"]):
@@ -95,9 +96,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
         return volatile_loc
 
+
 class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function, "memory")
+
 
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
