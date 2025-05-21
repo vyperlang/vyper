@@ -1,8 +1,9 @@
 import pytest
+from vyper.venom.memory_location import LocationType
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.analysis.mem_ssa import MemSSA
+from vyper.venom.analysis.mem_ssa import MemSSA, mem_ssa_type_factory
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
@@ -16,8 +17,16 @@ def _check_no_change(code, hevm=False):
 
 
 class VolatilePrePostChecker(PrePostChecker):
-    def __init__(self, passes: list[type], volatile_locations=None, post=None, default_hevm=True):
+    def __init__(
+        self,
+        passes: list[type],
+        volatile_locations=None,
+        location_type: LocationType = LocationType.MEMORY,
+        post=None,
+        default_hevm=True,
+    ):
         super().__init__(passes, post, default_hevm)
+        self.location_type = location_type
         if volatile_locations is None:
             self.volatile_locations = []
         else:
@@ -35,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
-            mem_ssa = ac.request_analysis(MemSSA)
+            mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.location_type))
 
             for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocation(offset=address, size=size, is_volatile=True)
@@ -63,6 +72,7 @@ class VolatilePrePostChecker(PrePostChecker):
 
         return self.pass_objects
 
+_check_storage_pre_post = VolatilePrePostChecker([DeadStoreElimination], location_type=LocationType.STORAGE)
 
 def test_basic_dead_store():
     pre = """
@@ -1082,3 +1092,27 @@ def test_unknown_size_overwriting_store():
       sink %2
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_storage_basic_dead_store():
+    pre = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1  ; Dead store - overwritten before read
+            mstore 0, 10     ; Dead store - overwritten before read
+            mstore 0, %val2
+            %loaded = mload 0  ; Only reads val2
+            stop
+    """
+    post = """
+        _global:
+            %val1 = 42
+            %val2 = 24
+            mstore 0, %val1
+            mstore 0, 10
+            mstore 0, %val2
+            %loaded = mload 0
+            stop
+    """
+    _check_storage_pre_post(pre, post)

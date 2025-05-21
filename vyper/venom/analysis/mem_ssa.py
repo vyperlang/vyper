@@ -459,3 +459,10 @@ class MemSSA(MemSSAAbstract):
 class StorageSSA(MemSSAAbstract):
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function, LocationType.STORAGE)
+
+
+def mem_ssa_type_factory(location_type: LocationType) -> type[MemSSAAbstract]:
+    if location_type == LocationType.MEMORY:
+        return MemSSA
+    elif location_type == LocationType.STORAGE:
+        return StorageSSA

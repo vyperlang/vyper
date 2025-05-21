@@ -2,7 +2,7 @@ from typing import Type
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemSSAAbstract, StorageSSA
+from vyper.venom.analysis.mem_ssa import MemoryDef, MemSSAAbstract, StorageSSA, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
 from vyper.venom.memory_location import LocationType
@@ -15,14 +15,13 @@ class DeadStoreElimination(IRPass):
     """
 
     def run_pass(self, location_type: LocationType = LocationType.MEMORY):
-        MemSSAType: Type[MemSSAAbstract]
+        MemSSAType = mem_ssa_type_factory(location_type)
         if location_type == LocationType.MEMORY:
-            MemSSAType = MemSSA
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
         elif location_type == LocationType.STORAGE:
-            MemSSAType = StorageSSA
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
 
+        self.location_type = location_type
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSAType)
