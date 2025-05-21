@@ -10,7 +10,13 @@ from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    Settings,
+    anchor_settings,
+    merge_settings,
+    should_run_legacy_optimizer,
+)
 from vyper.ir import compile_ir, optimizer
 from vyper.ir.compile_ir import reset_symbols
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
@@ -324,9 +330,11 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
 
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if settings.optimize != OptimizationLevel.NONE and not settings.experimental_codegen:
+
+    if should_run_legacy_optimizer(settings):
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
+
     return ir_nodes, ir_runtime
 
 
