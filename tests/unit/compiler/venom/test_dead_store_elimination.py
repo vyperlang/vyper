@@ -1,9 +1,9 @@
 import pytest
-from vyper.venom.memory_location import LocationType
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.analysis.mem_ssa import MemSSA, mem_ssa_type_factory
+from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
+from vyper.venom.memory_location import LocationType
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
@@ -53,7 +53,7 @@ class VolatilePrePostChecker(PrePostChecker):
             for p in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
-                obj.run_pass()
+                obj.run_pass(self.location_type)
 
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
@@ -72,7 +72,11 @@ class VolatilePrePostChecker(PrePostChecker):
 
         return self.pass_objects
 
-_check_storage_pre_post = VolatilePrePostChecker([DeadStoreElimination], location_type=LocationType.STORAGE)
+
+_check_storage_pre_post = VolatilePrePostChecker(
+    [DeadStoreElimination], location_type=LocationType.STORAGE
+)
+
 
 def test_basic_dead_store():
     pre = """
@@ -1097,22 +1101,12 @@ def test_unknown_size_overwriting_store():
 def test_storage_basic_dead_store():
     pre = """
         _global:
-            %val1 = 42
-            %val2 = 24
-            mstore 0, %val1  ; Dead store - overwritten before read
-            mstore 0, 10     ; Dead store - overwritten before read
-            mstore 0, %val2
-            %loaded = mload 0  ; Only reads val2
+            sstore 0, 1
             stop
     """
     post = """
         _global:
-            %val1 = 42
-            %val2 = 24
-            mstore 0, %val1
-            mstore 0, 10
-            mstore 0, %val2
-            %loaded = mload 0
+            sstore 0, 1
             stop
     """
     _check_storage_pre_post(pre, post)

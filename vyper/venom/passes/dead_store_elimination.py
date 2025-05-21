@@ -1,8 +1,6 @@
-from typing import Type
-
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef, MemSSAAbstract, StorageSSA, mem_ssa_type_factory
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
 from vyper.venom.memory_location import LocationType

@@ -123,6 +123,8 @@ class MemSSAAbstract(IRAnalysis):
     See https://llvm.org/docs/MemorySSA.html#design-tradeoffs.
     """
 
+    location_type: LocationType
+
     def __init__(self, analyses_cache, function, location_type: LocationType = LocationType.MEMORY):
         super().__init__(analyses_cache, function)
         self.location_type = location_type
@@ -194,7 +196,9 @@ class MemSSAAbstract(IRAnalysis):
 
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
-        effect_type = Effects.STORAGE if self.location_type == "storage" else Effects.MEMORY
+        effect_type = (
+            Effects.STORAGE if self.location_type == LocationType.STORAGE else Effects.MEMORY
+        )
         for inst in block.instructions:
             # Check for memory reads
             if effect_type in inst.get_read_effects():
