@@ -63,8 +63,9 @@ def test_jump_map(optimize, experimental_codegen, request):
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
             # pc map is missing these pcs for some reason
-            assert optimize == OptimizationLevel.NONE or experimental_codegen
-            request.node.add_marker(pytest.mark.xfail(reason="bad jump detection"))
+            assert optimize == OptimizationLevel.NONE
+            continue  # some jump is not being optimized out
+
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
