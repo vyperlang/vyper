@@ -163,7 +163,7 @@ def get_write_memory_location(
     elif location_type == LocationType.STORAGE:
         if opcode == "sstore":
             dst = inst.operands[1]
-            return MemoryLocation.from_operands(dst, 32)
+            return MemoryLocation.from_operands(dst, 1)
         elif opcode == "sload":
             return EMPTY_MEMORY_ACCESS
         elif opcode in ("call", "delegatecall", "staticcall"):
@@ -229,7 +229,7 @@ def get_read_memory_location(
         if opcode == "sstore":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "sload":
-            return MemoryLocation.from_operands(inst.operands[0], 32)
+            return MemoryLocation.from_operands(inst.operands[0], 1)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation(offset=None, size=None)
         elif opcode == "invoke":
