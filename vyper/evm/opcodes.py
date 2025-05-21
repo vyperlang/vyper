@@ -1,8 +1,8 @@
-from typing import Dict, Optional
+from typing import Iterable, Optional
 
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic
-from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
+from vyper.typing import OpcodeMap, OpcodeRulesetMap
 
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
@@ -11,7 +11,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions = ("london", "paris", "shanghai", "cancun")
+_evm_versions: Iterable[str] = ("london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 DEFAULT_EVM_VERSION = "cancun"
@@ -20,8 +20,7 @@ DEFAULT_EVM_VERSION = "cancun"
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (london, paris, shanghai, cancun)
-OPCODES: OpcodeMap = {
+BASE_OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
     "MUL": (0x02, 2, 1, 5),
@@ -75,8 +74,6 @@ OPCODES: OpcodeMap = {
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
     "BASEFEE": (0x48, 0, 1, 2),
-    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3)),
-    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
@@ -89,8 +86,6 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
-    "MCOPY": (0x5E, 3, 0, (None, None, None, 3)),
-    "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
@@ -172,8 +167,18 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, (None, None, None, 100)),
-    "TSTORE": (0x5D, 2, 0, (None, None, None, 100)),
+}
+
+# overrides for each fork
+OPCODE_OVERRIDES = {
+    "shanghai": {"PUSH0": (0x5F, 0, 1, 2)},
+    "cancun": {
+        "BLOBHASH": (0x49, 1, 1, 3),
+        "BLOBBASEFEE": (0x4A, 0, 1, 2),
+        "MCOPY": (0x5E, 3, 0, 3),
+        "TLOAD": (0x5C, 1, 1, 100),
+        "TSTORE": (0x5D, 2, 0, 100),
+    },
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
@@ -205,31 +210,28 @@ PSEUDO_OPCODES: OpcodeMap = {
     "DLOADBYTES": (None, 3, 0, 3),
 }
 
-IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+IR_OPCODES: OpcodeMap = {**BASE_OPCODES, **PSEUDO_OPCODES}
 
 
-def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
-    gas: OpcodeGasCost = value[3]
-    if isinstance(gas, int):
-        return value[:3] + (gas,)
-    if len(gas) <= idx:
-        return value[:3] + (gas[-1],)
-    if gas[idx] is None:
-        return None
-    return value[:3] + (gas[idx],)
+def _mk_version_opcodes(opcodes: OpcodeMap, evm_version: str) -> OpcodeRulesetMap:
+    ret = opcodes.copy()
+
+    for forkname in _evm_versions:
+        ret.update(OPCODE_OVERRIDES.get(forkname, {}))
+        if evm_version == forkname:
+            break
+    else:
+        raise CompilerPanic(f"bad evm version {forkname}")
+
+    return ret
 
 
-def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
-    return dict(
-        (k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None  # type: ignore
-    )
-
-
-_evm_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
+_evm_opcodes: dict[int, OpcodeRulesetMap] = {
+    i: _mk_version_opcodes(BASE_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
-_ir_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(IR_OPCODES, v) for v in EVM_VERSIONS.values()
+
+_ir_opcodes: dict[int, OpcodeRulesetMap] = {
+    i: _mk_version_opcodes(IR_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
 
 
