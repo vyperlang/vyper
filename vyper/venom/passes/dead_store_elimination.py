@@ -53,7 +53,6 @@ class DeadStoreElimination(IRPass):
 
         while len(worklist) > 0:
             bb = worklist.pop()
-            visited.add(bb)
 
             clobbered = False
             for inst in bb.instructions[next_inst_idx:]:
@@ -75,6 +74,7 @@ class DeadStoreElimination(IRPass):
                         clobbered = True
                         break
 
+
             # If the memory definition is clobbered, we continue to
             # the next block already in the worklist without adding
             # its offspring to the worklist.
@@ -87,6 +87,7 @@ class DeadStoreElimination(IRPass):
             outs = self.cfg.cfg_out(bb)
             for out in outs:
                 if out not in visited:
+                    visited.add(out)
                     worklist.add(out)
 
         return False
