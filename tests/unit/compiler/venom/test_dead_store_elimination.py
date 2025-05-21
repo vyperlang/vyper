@@ -1131,6 +1131,7 @@ def test_storage_basic_dead_store_clobbered():
 def test_storage_dead_store_branch_success():
     pre = """
         _global:
+            %1 = calldataload 0
             sstore 0, 1 ; not dead as first branches succeeds
             jnz %1, @then, @else
         then:
@@ -1141,6 +1142,7 @@ def test_storage_dead_store_branch_success():
     """
     post = """
         _global:
+            %1 = calldataload 0
             sstore 0, 1
             jnz %1, @then, @else
         then:
@@ -1155,6 +1157,7 @@ def test_storage_dead_store_branch_success():
 def test_storage_dead_store_branch_revert():
     pre = """
         _global:
+            %1 = calldataload 0
             sstore 0, 1 ; dead as first branch reverts second clobbers
             jnz %1, @then, @else
         then:
@@ -1165,6 +1168,7 @@ def test_storage_dead_store_branch_revert():
     """
     post = """
         _global:
+            %1 = calldataload 0
             nop
             jnz %1, @then, @else
         then:
