@@ -1,6 +1,7 @@
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_alias import MemoryAliasAnalysis
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRLabel, MemoryLocation
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.memory_location import EMPTY_MEMORY_ACCESS, MemoryLocation
 from vyper.venom.parser import parse_venom
 
 FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=None)

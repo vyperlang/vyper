@@ -4,9 +4,14 @@ from typing import Iterable, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
-from vyper.venom.analysis.mem_alias import MemoryLocation
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
+from vyper.venom.memory_location import (
+    EMPTY_MEMORY_ACCESS,
+    MemoryLocation,
+    get_read_memory_location,
+    get_write_memory_location,
+)
 
 
 class MemoryAccess:
@@ -69,7 +74,7 @@ class MemoryDef(MemoryAccess):
     def __init__(self, id: int, store_inst: IRInstruction):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = store_inst.get_write_memory_location()
+        self.loc = get_write_memory_location(store_inst)
 
     @property
     def inst(self):
@@ -82,7 +87,7 @@ class MemoryUse(MemoryAccess):
     def __init__(self, id: int, load_inst: IRInstruction):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = load_inst.get_read_memory_location()
+        self.loc = get_read_memory_location(load_inst)
 
     @property
     def inst(self):

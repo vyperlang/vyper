@@ -3,7 +3,13 @@ from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import EMPTY_MEMORY_ACCESS, IRInstruction, MemoryLocation
+from vyper.venom.basicblock import IRInstruction
+from vyper.venom.memory_location import (
+    EMPTY_MEMORY_ACCESS,
+    MemoryLocation,
+    get_read_memory_location,
+    get_write_memory_location,
+)
 
 
 class MemoryAliasAnalysis(IRAnalysis):
@@ -29,11 +35,11 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = inst.get_read_memory_location()
+        loc = get_read_memory_location(inst)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = inst.get_write_memory_location()
+        loc = get_write_memory_location(inst)
         if loc is not None:
             self._analyze_mem_location(loc)
 

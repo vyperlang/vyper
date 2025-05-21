@@ -24,7 +24,7 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        from vyper.venom.basicblock import MemoryLocation
+        from vyper.venom.memory_location import MemoryLocation
 
         self.pass_objects.clear()
 
