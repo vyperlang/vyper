@@ -1131,7 +1131,7 @@ def test_storage_basic_dead_store_clobbered():
 def test_storage_dead_store_branch_success():
     pre = """
         _global:
-            sstore 0, 1 ; not dead as first branches succeeds 
+            sstore 0, 1 ; not dead as first branches succeeds
             jnz %1, @then, @else
         then:
             ret %1

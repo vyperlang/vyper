@@ -1,5 +1,4 @@
 import pytest
-from passes.dead_store_elimination import LocationType
 
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
@@ -15,6 +14,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import (
     EMPTY_MEMORY_ACCESS,
+    LocationType,
     get_read_memory_location,
     get_write_memory_location,
 )
