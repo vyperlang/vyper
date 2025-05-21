@@ -561,10 +561,6 @@ class Concat(BuiltinFunctionT):
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
-                # Ignore empty strings
-                if arg.typ.maxlen == 0:
-                    continue
-
                 with arg.cache_when_complex("arg") as (b1, arg):
                     argdata = bytes_data_ptr(arg)
 
