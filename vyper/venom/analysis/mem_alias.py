@@ -1,10 +1,11 @@
 import dataclasses as dc
-from typing import Literal, Optional
+from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.memory_location import (
+    LocationType,
     MemoryLocation,
     get_read_memory_location,
     get_write_memory_location,
@@ -18,9 +19,9 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     memory accesses are guaranteed not to overlap.
     """
 
-    location_type: Literal["memory", "storage"]
+    location_type: LocationType
 
-    def __init__(self, analyses_cache, function, location_type: Literal["memory", "storage"]):
+    def __init__(self, analyses_cache, function, location_type: LocationType):
         super().__init__(analyses_cache, function)
         self.location_type = location_type
 
@@ -99,9 +100,9 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
 class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, "memory")
+        super().__init__(analyses_cache, function, LocationType.MEMORY)
 
 
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, "storage")
+        super().__init__(analyses_cache, function, LocationType.STORAGE)

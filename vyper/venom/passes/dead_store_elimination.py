@@ -1,10 +1,11 @@
-from typing import Literal, Type
+from typing import Type
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
 from vyper.venom.analysis.mem_ssa import MemoryDef, MemSSAAbstract, StorageSSA
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
+from vyper.venom.memory_location import LocationType
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -13,12 +14,12 @@ class DeadStoreElimination(IRPass):
     This pass eliminates dead stores using Memory SSA analysis.
     """
 
-    def run_pass(self, location_type: Literal["memory", "storage"] = "memory"):
+    def run_pass(self, location_type: LocationType = LocationType.MEMORY):
         MemSSAType: Type[MemSSAAbstract]
-        if location_type == "memory":
+        if location_type == LocationType.MEMORY:
             MemSSAType = MemSSA
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
-        elif location_type == "storage":
+        elif location_type == LocationType.STORAGE:
             MemSSAType = StorageSSA
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
 

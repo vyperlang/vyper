@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import Enum
 
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+
+
+class LocationType(Enum):
+    MEMORY = "memory"
+    STORAGE = "storage"
 
 
 @dataclass(frozen=True)
@@ -117,10 +122,12 @@ class MemoryLocation:
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
-def get_write_memory_location(inst, location_type: Literal["memory", "storage"] = "memory") -> MemoryLocation:
+def get_write_memory_location(
+    inst, location_type: LocationType = LocationType.MEMORY
+) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     opcode = inst.opcode
-    if location_type == "memory":
+    if location_type == LocationType.MEMORY:
         if opcode == "mstore":
             dst = inst.operands[1]
             return MemoryLocation.from_operands(dst, 32)
@@ -153,7 +160,7 @@ def get_write_memory_location(inst, location_type: Literal["memory", "storage"] 
         elif opcode == "returndatacopy":
             size, _, dst = inst.operands
             return MemoryLocation.from_operands(dst, size)
-    elif location_type == "storage":
+    elif location_type == LocationType.STORAGE:
         if opcode == "sstore":
             dst = inst.operands[1]
             return MemoryLocation.from_operands(dst, 32)
@@ -169,10 +176,12 @@ def get_write_memory_location(inst, location_type: Literal["memory", "storage"] 
     return EMPTY_MEMORY_ACCESS
 
 
-def get_read_memory_location(inst, location_type: Literal["memory", "storage"] = "memory") -> MemoryLocation:
+def get_read_memory_location(
+    inst, location_type: LocationType = LocationType.MEMORY
+) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     opcode = inst.opcode
-    if location_type == "memory":
+    if location_type == LocationType.MEMORY:
         if opcode == "mstore":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "mload":
@@ -216,7 +225,7 @@ def get_read_memory_location(inst, location_type: Literal["memory", "storage"] =
         elif opcode == "revert":
             size, src = inst.operands
             return MemoryLocation.from_operands(src, size)
-    elif location_type == "storage":
+    elif location_type == LocationType.STORAGE:
         if opcode == "sstore":
             return EMPTY_MEMORY_ACCESS
         elif opcode == "sload":

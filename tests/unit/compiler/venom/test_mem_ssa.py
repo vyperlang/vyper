@@ -1,10 +1,9 @@
-from typing import Literal
 import pytest
+from passes.dead_store_elimination import LocationType
 
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
-    MemSSAAbstract,
     MemoryAccess,
     MemoryDef,
     MemoryLocation,
@@ -42,11 +41,13 @@ def dummy_mem_ssa():
 def create_mem_ssa():
     """Fixture that creates a MemSSA instance from custom code."""
 
-    def _create_mem_ssa(code, location_type: Literal["memory", "storage"] = "memory", function_name="_global"):
+    def _create_mem_ssa(
+        code, location_type: LocationType = LocationType.MEMORY, function_name="_global"
+    ):
         ctx = parse_venom(code)
         fn = ctx.functions[IRLabel(function_name)]
         ac = IRAnalysesCache(fn)
-        if location_type == "memory":
+        if location_type == LocationType.MEMORY:
             mem_ssa = MemSSA(ac, fn)
         else:
             mem_ssa = StorageSSA(ac, fn)
@@ -766,23 +767,6 @@ def test_memory_access_str(create_mem_ssa):
     store = entry_block.instructions[0]  # mstore 0, 42
     mem_def = mem_ssa.get_memory_def(store)
     assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
-
-
-def test_invalid_location_type(create_mem_ssa):
-    pre = """
-    function _global {
-        _global:
-            stop
-    }
-    """
-    mem_ssa, fn, _ = create_mem_ssa(pre)
-    ac = IRAnalysesCache(fn)
-
-    with pytest.raises(ValueError) as excinfo:
-        MemSSAAbstract(ac, fn, location_type="invalid")
-    assert "location_type must be one of:" in str(excinfo.value)
-    assert "memory" in str(excinfo.value)
-    assert "storage" in str(excinfo.value)
 
 
 def test_get_in_def_with_no_predecessors(create_mem_ssa):

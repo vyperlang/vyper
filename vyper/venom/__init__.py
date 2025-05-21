@@ -32,7 +32,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
-from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
+from vyper.venom.passes.dead_store_elimination import DeadStoreElimination, LocationType
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -82,8 +82,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
-    DeadStoreElimination(ac, fn).run_pass(location_type="memory")
-    # DeadStoreElimination(ac, fn).run_pass(location_type="storage")
+    DeadStoreElimination(ac, fn).run_pass(location_type=LocationType.MEMORY)
+    # DeadStoreElimination(ac, fn).run_pass(location_type=LocationType.STORAGE)
     LowerDloadPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 
