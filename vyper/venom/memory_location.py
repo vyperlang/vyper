@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from vyper.exceptions import CompilerPanic
@@ -29,7 +31,7 @@ class MemoryLocation:
     @classmethod
     def from_operands(
         cls, offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
-    ) -> "MemoryLocation":
+    ) -> MemoryLocation:
         if isinstance(offset, IRLiteral):
             _offset = offset.value
         elif isinstance(offset, IRVariable):
@@ -51,7 +53,7 @@ class MemoryLocation:
         return cls(_offset, _size, is_volatile)
 
     # similar code to memmerging._Interval, but different data structure
-    def completely_contains(self, other: "MemoryLocation") -> bool:
+    def completely_contains(self, other: MemoryLocation) -> bool:
         # If other is empty (size 0), always contained
         if other.size == 0:
             return True
@@ -72,9 +74,8 @@ class MemoryLocation:
 
         return start1 <= start2 and end1 >= end2
 
-
     @staticmethod
-    def may_overlap(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+    def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations may overlap
         """

@@ -5,7 +5,6 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.memory_location import (
-    EMPTY_MEMORY_ACCESS,
     MemoryLocation,
     get_read_memory_location,
     get_write_memory_location,
@@ -53,7 +52,6 @@ class MemoryAliasAnalysis(IRAnalysis):
             if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
-
 
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
