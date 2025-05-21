@@ -139,9 +139,9 @@ class IRnode:
     func_ir: Any
     common_ir: Any
 
-    # for bytestrings, if we have `is_source_literal`, we can perform
+    # for bytestrings, if we have `is_source_bytes_literal`, we can perform
     # certain optimizations like eliding the copy.
-    is_source_literal: bool = False
+    is_source_bytes_literal: bool = False
 
     def __init__(
         self,
@@ -371,7 +371,8 @@ class IRnode:
     def is_empty_intrinsic(self):
         if self.value == "~empty":
             return True
-        if self.is_source_literal and isinstance(self.typ, _BytestringT) and self.typ.maxlen == 0:
+        if self.is_source_bytes_literal and isinstance(self.typ, _BytestringT) and self.typ.maxlen == 0:
+            # special optimization case for empty `b""` literal
             return True
         if self.value == "seq":
             return len(self.args) == 1 and self.args[0].is_empty_intrinsic

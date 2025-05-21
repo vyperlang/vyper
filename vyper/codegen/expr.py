@@ -165,7 +165,7 @@ class Expr:
             location=MEMORY,
             annotation=f"Create {btype}: {bytez}",
         )
-        ret.is_source_literal = True
+        ret.is_source_bytes_literal = True
         return ret
 
     # True, False, None constants
