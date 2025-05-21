@@ -29,7 +29,7 @@ RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-
+NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
 
 _writes = {
     "sstore": STORAGE,

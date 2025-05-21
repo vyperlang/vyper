@@ -285,6 +285,9 @@ def _handle_internal_func(
     func_t = _current_func_t
     context = _current_context
 
+    func_t = ir.passthrough_metadata["func_t"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
+
     funcname = ir.args[0].args[0].value
     assert isinstance(funcname, str)
     fn = fn.ctx.create_function(funcname)
