@@ -74,7 +74,6 @@ class DeadStoreElimination(IRPass):
                         clobbered = True
                         break
 
-
             # If the memory definition is clobbered, we continue to
             # the next block already in the worklist without adding
             # its offspring to the worklist.
