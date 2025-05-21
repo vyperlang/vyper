@@ -470,5 +470,5 @@ def mem_ssa_type_factory(location_type: LocationType) -> type[MemSSAAbstract]:
         return MemSSA
     elif location_type == LocationType.STORAGE:
         return StorageSSA
-    else: # should never happen
+    else:  # should never happen
         raise ValueError(f"Invalid location type: {location_type}")
