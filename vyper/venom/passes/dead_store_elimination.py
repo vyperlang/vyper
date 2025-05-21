@@ -67,7 +67,7 @@ class DeadStoreElimination(IRPass):
             clobbered = False
             for inst in bb.instructions[next_inst_idx:]:
                 if self.location_type == LocationType.STORAGE:
-                    if inst.opcode in ("ret", "return", "stop"):
+                    if inst.opcode in ("ret", "return", "stop", "exit"):
                         return True
                     elif inst.opcode == "revert":
                         clobbered = True
