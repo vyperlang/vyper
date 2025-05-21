@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence, Tuple, Union
+from typing import Dict, Optional, Sequence, Tuple
 
 # Parser
 ParserPosition = Tuple[int, int]
@@ -10,7 +10,7 @@ OutputFormats = Sequence[str]
 StorageLayout = Dict
 
 # Opcodes
-OpcodeGasCost = Union[int, Tuple]
+OpcodeGasCost = int
 OpcodeValue = Tuple[Optional[int], int, int, OpcodeGasCost]
 OpcodeMap = Dict[str, OpcodeValue]
 OpcodeRulesetValue = Tuple[Optional[int], int, int, int]
