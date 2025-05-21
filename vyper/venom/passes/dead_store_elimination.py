@@ -12,6 +12,8 @@ class DeadStoreElimination(IRPass):
     This pass eliminates dead stores using Memory SSA analysis.
     """
 
+    location_type: LocationType
+
     def run_pass(self, location_type: LocationType = LocationType.MEMORY):
         MemSSAType = mem_ssa_type_factory(location_type)
         if location_type == LocationType.MEMORY:
@@ -64,6 +66,13 @@ class DeadStoreElimination(IRPass):
 
             clobbered = False
             for inst in bb.instructions[next_inst_idx:]:
+                if self.location_type == LocationType.STORAGE:
+                    if inst.opcode in ("ret", "return", "stop"):
+                        return True
+                    elif inst.opcode == "revert":
+                        clobbered = True
+                        break
+
                 # Check if the instruction reads from the memory location
                 # If so, the memory definition is used.
                 mem_use = self.mem_ssa.get_memory_use(inst)
