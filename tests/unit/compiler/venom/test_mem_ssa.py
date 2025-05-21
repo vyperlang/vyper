@@ -757,35 +757,6 @@ def test_memory_access_str(create_mem_ssa):
     assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
 
 
-# def test_print_method(create_mem_ssa):
-#     code = """
-#     function test_print {
-#         entry:
-#             mstore 0, 42
-#             %cond = 1
-#             jnz %cond, @then, @else
-#         then:
-#             mstore 0, 24
-#             jmp @merge
-#         else:
-#             mstore 0, 3
-#             jmp @merge
-#         merge:
-#             mstore 0, 4
-#             stop
-#     }
-#     """
-#     mem_ssa, fn, _ = create_mem_ssa(code, function_name="test_print")
-
-#     with mem_ssa.print_context():
-#         output = str(fn)
-#         assert "phi: 5 <- 4 from @then, 2 from @else" in output
-#         assert "def: 1 (live_on_entry) clobber: 4" in output
-#         assert "def: 4 (1) clobber: 3" in output
-#         assert "def: 2 (1) clobber: 3" in output
-#         assert "def: 3 (5) clobber: 5" in output
-
-
 def test_invalid_location_type(create_mem_ssa):
     pre = """
     function _global {
