@@ -1,6 +1,7 @@
 import pytest
 
 from tests.venom_utils import parse_venom
+from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
     MemoryAccess,
@@ -12,7 +13,7 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import LocationType, get_read_location, get_write_location
+from vyper.venom.memory_location import get_read_location, get_write_location
 
 
 @pytest.fixture
@@ -36,13 +37,11 @@ def dummy_mem_ssa():
 def create_mem_ssa():
     """Fixture that creates a MemSSA instance from custom code."""
 
-    def _create_mem_ssa(
-        code, location_type: LocationType = LocationType.MEMORY, function_name="_global"
-    ):
+    def _create_mem_ssa(code, addr_space: AddrSpace = MEMORY, function_name="_global"):
         ctx = parse_venom(code)
         fn = ctx.functions[IRLabel(function_name)]
         ac = IRAnalysesCache(fn)
-        if location_type == LocationType.MEMORY:
+        if addr_space == MEMORY:
             mem_ssa = MemSSA(ac, fn)
         else:
             mem_ssa = StorageSSA(ac, fn)
@@ -562,8 +561,8 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assignment_inst = bb.instructions[0]  # %1 = 42
 
     # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst, LocationType.MEMORY) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst, LocationType.MEMORY) is MemoryLocation.EMPTY
+    assert get_read_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
+    assert get_write_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
 
     assert mem_ssa.memalias.alias_sets is not None
 
@@ -608,7 +607,7 @@ def test_phi_node_reaching_def(create_mem_ssa):
     assert def3.reaching_def == phi, "def3's reaching definition should be live_on_entry"
 
     # Create a new memory definition with the same location as def3
-    new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
+    new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
     new_def.loc = def3.loc
 
@@ -727,7 +726,7 @@ def test_storage_ssa(create_mem_ssa):
             stop
     }
     """
-    mem_ssa, fn, _ = create_mem_ssa(pre, location_type="storage")
+    mem_ssa, fn, _ = create_mem_ssa(pre, addr_space="storage")
 
     bb = fn.get_basic_block("entry")
     store_inst = bb.instructions[0]  # sstore instruction
@@ -822,7 +821,7 @@ def test_get_reaching_def_with_phi(create_mem_ssa):
     phi = mem_ssa.memory_phis[merge_block]
 
     # Create a new memory definition with the same location as the phi
-    new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0])
+    new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
 
@@ -842,7 +841,7 @@ def test_get_reaching_def_with_no_phi(create_mem_ssa):
 
     entry_block = fn.get_basic_block("entry")
 
-    new_def = MemoryDef(mem_ssa.next_id, entry_block.instructions[0])
+    new_def = MemoryDef(mem_ssa.next_id, entry_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
     new_def.loc = MemoryLocation(offset=0, size=32)
 

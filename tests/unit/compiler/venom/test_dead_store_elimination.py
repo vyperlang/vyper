@@ -1,9 +1,9 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
+from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
-from vyper.venom.memory_location import LocationType
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
@@ -21,12 +21,12 @@ class VolatilePrePostChecker(PrePostChecker):
         self,
         passes: list[type],
         volatile_locations=None,
-        location_type: LocationType = LocationType.MEMORY,
+        addr_space: AddrSpace = MEMORY,
         post=None,
         default_hevm=True,
     ):
         super().__init__(passes, post, default_hevm)
-        self.location_type = location_type
+        self.addr_space = addr_space
         if volatile_locations is None:
             self.volatile_locations = []
         else:
@@ -44,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
-            mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.location_type))
+            mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocation(offset=address, size=size, is_volatile=True)
@@ -53,7 +53,7 @@ class VolatilePrePostChecker(PrePostChecker):
             for p in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
-                obj.run_pass(self.location_type)
+                obj.run_pass(self.addr_space)
 
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
@@ -73,9 +73,7 @@ class VolatilePrePostChecker(PrePostChecker):
         return self.pass_objects
 
 
-_check_storage_pre_post = VolatilePrePostChecker(
-    [DeadStoreElimination], location_type=LocationType.STORAGE
-)
+_check_storage_pre_post = VolatilePrePostChecker([DeadStoreElimination], addr_space=STORAGE)
 
 
 def test_basic_dead_store():

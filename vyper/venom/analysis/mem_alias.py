@@ -1,15 +1,11 @@
 import dataclasses as dc
 from typing import Optional
 
+from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.memory_location import (
-    LocationType,
-    MemoryLocation,
-    get_read_location,
-    get_write_location,
-)
+from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -19,11 +15,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     memory accesses are guaranteed not to overlap.
     """
 
-    location_type: LocationType
+    addr_space: AddrSpace
 
-    def __init__(self, analyses_cache, function, location_type: LocationType):
+    def __init__(self, analyses_cache, function, addr_space: AddrSpace):
         super().__init__(analyses_cache, function)
-        self.location_type = location_type
+        self.addr_space = addr_space
 
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -41,11 +37,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.location_type)
+        loc = get_read_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.location_type)
+        loc = get_write_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
@@ -100,9 +96,9 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
 class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, LocationType.MEMORY)
+        super().__init__(analyses_cache, function, MEMORY)
 
 
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, LocationType.STORAGE)
+        super().__init__(analyses_cache, function, STORAGE)
