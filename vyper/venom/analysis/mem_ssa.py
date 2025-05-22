@@ -7,7 +7,6 @@ from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis,
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import (
-    EMPTY_MEMORY_ACCESS,
     LocationType,
     MemoryLocation,
     get_read_location,
@@ -21,7 +20,7 @@ class MemoryAccess:
     def __init__(self, id: int):
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
-        self.loc: MemoryLocation = EMPTY_MEMORY_ACCESS
+        self.loc: MemoryLocation = MemoryLocation.EMPTY
 
     @property
     def is_live_on_entry(self) -> bool:

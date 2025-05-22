@@ -22,6 +22,9 @@ class MemoryLocation:
     # be locations that are accessed outside of the current function.
     is_volatile: bool = False
 
+    # Initialize after class definition
+    EMPTY: "MemoryLocation" = None  # type: ignore
+
     @property
     def is_offset_fixed(self) -> bool:
         return self.offset is not None
@@ -85,7 +88,7 @@ class MemoryLocation:
         """
         Determine if two memory locations may overlap
         """
-        if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
+        if loc1 == MemoryLocation.EMPTY or loc2 == MemoryLocation.EMPTY:
             return False
 
         o1, s1 = loc1.offset, loc1.size
@@ -119,7 +122,7 @@ class MemoryLocation:
         return True
 
 
-EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
+MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
 def get_write_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
@@ -148,7 +151,7 @@ def _get_memory_write_location(inst) -> MemoryLocation:
         dst = inst.operands[1]
         return MemoryLocation.from_operands(dst, 32)
     elif opcode == "mload":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "mcopy":
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size)
@@ -177,7 +180,7 @@ def _get_memory_write_location(inst) -> MemoryLocation:
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size)
 
-    return EMPTY_MEMORY_ACCESS
+    return MemoryLocation.EMPTY
 
 
 def _get_storage_write_location(inst) -> MemoryLocation:
@@ -186,7 +189,7 @@ def _get_storage_write_location(inst) -> MemoryLocation:
         dst = inst.operands[1]
         return MemoryLocation.from_operands(dst, 1)
     elif opcode == "sload":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode in ("call", "delegatecall", "staticcall"):
         return MemoryLocation(offset=None, size=None)
     elif opcode == "invoke":
@@ -194,22 +197,22 @@ def _get_storage_write_location(inst) -> MemoryLocation:
     elif opcode in ("create", "create2"):
         return MemoryLocation(offset=None, size=None)
 
-    return EMPTY_MEMORY_ACCESS
+    return MemoryLocation.EMPTY
 
 
 def _get_memory_read_location(inst) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "mload":
         return MemoryLocation.from_operands(inst.operands[0], 32)
     elif opcode == "mcopy":
         size, src, _ = inst.operands
         return MemoryLocation.from_operands(src, size)
     elif opcode == "calldatacopy":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "dloadbytes":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "dload":
         return MemoryLocation(offset=0, size=32)
     elif opcode == "invoke":
@@ -243,13 +246,13 @@ def _get_memory_read_location(inst) -> MemoryLocation:
         size, src = inst.operands
         return MemoryLocation.from_operands(src, size)
 
-    return EMPTY_MEMORY_ACCESS
+    return MemoryLocation.EMPTY
 
 
 def _get_storage_read_location(inst) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "sstore":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "sload":
         return MemoryLocation.from_operands(inst.operands[0], 1)
     elif opcode in ("call", "delegatecall", "staticcall"):
@@ -259,4 +262,4 @@ def _get_storage_read_location(inst) -> MemoryLocation:
     elif opcode in ("create", "create2"):
         return MemoryLocation(offset=None, size=None)
 
-    return EMPTY_MEMORY_ACCESS
+    return MemoryLocation.EMPTY
