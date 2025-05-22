@@ -37,6 +37,7 @@ def test_combined_json_keys(chdir_tmp_path, make_file):
         "method_identifiers",
         "userdoc",
         "devdoc",
+        "settings_dict",
     }
     compile_data = compile_files(["bar.vy"], ["combined_json"])
 
