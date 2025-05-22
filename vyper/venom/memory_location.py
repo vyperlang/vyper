@@ -186,10 +186,6 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     elif opcode == "mcopy":
         size, src, _ = inst.operands
         return MemoryLocation.from_operands(src, size)
-    elif opcode == "calldatacopy":
-        return MemoryLocation.EMPTY
-    elif opcode == "dloadbytes":
-        return MemoryLocation.EMPTY
     elif opcode == "dload":
         return MemoryLocation(offset=0, size=32)
     elif opcode == "invoke":
