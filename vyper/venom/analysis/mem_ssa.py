@@ -5,7 +5,12 @@ from typing import Iterable, Optional
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis
-from vyper.venom.analysis.mem_alias import MemoryAliasAnalysisAbstract, mem_alias_type_factory
+from vyper.venom.analysis.mem_alias import (
+    MemoryAliasAnalysis,
+    MemoryAliasAnalysisAbstract,
+    StorageAliasAnalysis,
+    TransientAliasAnalysis,
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
@@ -117,10 +122,10 @@ class MemSSAAbstract(IRAnalysis):
     """
 
     addr_space: AddrSpace
+    mem_alias_type: type[MemoryAliasAnalysisAbstract]
 
-    def __init__(self, analyses_cache, function, addr_space: AddrSpace):
+    def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
-        self.addr_space = addr_space
 
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
@@ -142,9 +147,7 @@ class MemSSAAbstract(IRAnalysis):
         self.dom: DominatorTreeAnalysis = self.analyses_cache.request_analysis(
             DominatorTreeAnalysis
         )
-        self.memalias: MemoryAliasAnalysisAbstract = self.analyses_cache.request_analysis(
-            mem_alias_type_factory(self.addr_space)
-        )
+        self.memalias = self.analyses_cache.request_analysis(self.mem_alias_type)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -446,18 +449,18 @@ class MemSSAAbstract(IRAnalysis):
 
 
 class MemSSA(MemSSAAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, MEMORY)
+    addr_space = MEMORY
+    mem_alias_type = MemoryAliasAnalysis
 
 
 class StorageSSA(MemSSAAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, STORAGE)
+    addr_space = STORAGE
+    mem_alias_type = StorageAliasAnalysis
 
 
 class TransientSSA(MemSSAAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, TRANSIENT)
+    addr_space = TRANSIENT
+    mem_alias_type = TransientAliasAnalysis
 
 
 def mem_ssa_type_factory(addr_space: AddrSpace) -> type[MemSSAAbstract]:

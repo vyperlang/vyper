@@ -17,10 +17,6 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
     addr_space: AddrSpace
 
-    def __init__(self, analyses_cache, function, addr_space: AddrSpace):
-        super().__init__(analyses_cache, function)
-        self.addr_space = addr_space
-
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -95,18 +91,15 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
 
 class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, MEMORY)
+    addr_space = MEMORY
 
 
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, STORAGE)
+    addr_space = STORAGE
 
 
 class TransientAliasAnalysis(MemoryAliasAnalysisAbstract):
-    def __init__(self, analyses_cache, function):
-        super().__init__(analyses_cache, function, TRANSIENT)
+    addr_space = TRANSIENT
 
 
 def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbstract]:
@@ -116,5 +109,5 @@ def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbs
         return StorageAliasAnalysis
     elif addr_space == TRANSIENT:
         return TransientAliasAnalysis
-    else:
+    else:  # pragma: nocover
         raise ValueError(f"Invalid address space: {addr_space}")
