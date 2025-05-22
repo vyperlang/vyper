@@ -100,6 +100,8 @@ class MemoryLocation:
             # If offsets are unknown, can't be sure
             return True
 
+        # guaranteed now that o1 and o2 are not None
+
         # All known
         if s1 is not None and s2 is not None:
             end1 = o1 + s1
