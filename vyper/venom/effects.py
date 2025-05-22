@@ -29,7 +29,7 @@ RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-
+NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
 
 _writes = {
     "sstore": STORAGE,
@@ -84,11 +84,11 @@ reads = _reads.copy()
 writes = _writes.copy()
 
 for k, v in reads.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         if k not in writes:
             writes[k] = EMPTY
         writes[k] |= MSIZE
 
 for k, v in writes.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         writes[k] |= MSIZE

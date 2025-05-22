@@ -40,6 +40,25 @@ def _fail_contract(code, opt_level, exceptions):
         compile_code(code, settings=settings)
 
 
+# tests: calldata, code, extcode
+@pytest.mark.parametrize("ad_hoc_location", ("msg.data", "self.code", "msg.sender.code"))
+def test_slice_ad_hoc_zero_length(get_contract, ad_hoc_location):
+    code = f"""
+counter: public(uint256)
+
+@external
+def test() -> Bytes[10]:
+    b: Bytes[10]= slice({ad_hoc_location}, self.side_effect(), 0)
+    return b
+
+def side_effect() -> uint256:
+    self.counter += 1
+    return 0
+    """
+    with pytest.raises(ArgumentException, match="Length cannot be less than 1"):
+        compile_code(code)
+
+
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
@@ -614,3 +633,37 @@ def foo() -> Bytes[96]:
 
     c = get_contract(slice_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+def test_slice_empty_bytes32(get_contract):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    return slice(empty(bytes32), 0, 32)
+    """
+    c = get_contract(code)
+    assert c.bar() == b"\x00" * 32
+
+
+def test_slice_empty_Bytes32_0(get_contract, tx_failed):
+    code = """
+@external
+def bar(length: uint256) -> Bytes[32]:
+    # use variable length otherwise it gets optimized to
+    # StaticAssertionException
+    return slice(empty(Bytes[32]), 0, length)
+    """
+    c = get_contract(code)
+    with tx_failed():
+        _ = c.bar(1)
+
+
+def test_slice_empty_Bytes32_1(get_contract):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    length: uint256 = 0
+    return slice(empty(Bytes[32]), 0, length)
+    """
+    c = get_contract(code)
+    assert c.bar() == b""

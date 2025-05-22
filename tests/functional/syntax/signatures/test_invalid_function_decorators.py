@@ -22,6 +22,26 @@ def nonreentrant_foo() -> uint256:
 def nonreentrant_foo() -> uint256:
     return 1
     """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@external
+@nonreentrant
+@reentrant
+def foo() -> uint256:
+    return 1
+    """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@external
+@reentrant
+@nonreentrant
+def foo() -> uint256:
+    return 1
+    """,
         StructureException,
     ),
     (
