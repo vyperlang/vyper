@@ -7,8 +7,8 @@ from vyper.venom.basicblock import IRInstruction
 from vyper.venom.memory_location import (
     LocationType,
     MemoryLocation,
-    get_read_memory_location,
-    get_write_memory_location,
+    get_read_location,
+    get_write_location,
 )
 
 
@@ -41,11 +41,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_memory_location(inst, self.location_type)
+        loc = get_read_location(inst, self.location_type)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_memory_location(inst, self.location_type)
+        loc = get_write_location(inst, self.location_type)
         if loc is not None:
             self._analyze_mem_location(loc)
 

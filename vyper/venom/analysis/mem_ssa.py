@@ -10,8 +10,8 @@ from vyper.venom.memory_location import (
     EMPTY_MEMORY_ACCESS,
     LocationType,
     MemoryLocation,
-    get_read_memory_location,
-    get_write_memory_location,
+    get_read_location,
+    get_write_location,
 )
 
 
@@ -77,7 +77,7 @@ class MemoryDef(MemoryAccess):
     ):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = get_write_memory_location(store_inst, location_type)
+        self.loc = get_write_location(store_inst, location_type)
 
     @property
     def inst(self):
@@ -90,7 +90,7 @@ class MemoryUse(MemoryAccess):
     def __init__(self, id: int, load_inst: IRInstruction, location_type: LocationType):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = get_read_memory_location(load_inst, location_type)
+        self.loc = get_read_location(load_inst, location_type)
 
     @property
     def inst(self):

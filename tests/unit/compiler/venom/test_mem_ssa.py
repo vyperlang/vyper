@@ -15,8 +15,8 @@ from vyper.venom.effects import Effects
 from vyper.venom.memory_location import (
     EMPTY_MEMORY_ACCESS,
     LocationType,
-    get_read_memory_location,
-    get_write_memory_location,
+    get_read_location,
+    get_write_location,
 )
 
 
@@ -567,8 +567,8 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assignment_inst = bb.instructions[0]  # %1 = 42
 
     # Verify that the instruction doesn't have memory operations
-    assert get_read_memory_location(assignment_inst) is EMPTY_MEMORY_ACCESS
-    assert get_write_memory_location(assignment_inst) is EMPTY_MEMORY_ACCESS
+    assert get_read_location(assignment_inst) is EMPTY_MEMORY_ACCESS
+    assert get_write_location(assignment_inst) is EMPTY_MEMORY_ACCESS
 
     assert mem_ssa.memalias.alias_sets is not None
 

@@ -122,119 +122,141 @@ class MemoryLocation:
 EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
 
 
-def get_write_memory_location(
-    inst, location_type: LocationType = LocationType.MEMORY
-) -> MemoryLocation:
+def get_write_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
     """Extract memory location info from an instruction"""
-    opcode = inst.opcode
     if location_type == LocationType.MEMORY:
-        if opcode == "mstore":
-            dst = inst.operands[1]
-            return MemoryLocation.from_operands(dst, 32)
-        elif opcode == "mload":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mcopy":
-            size, _, dst = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "calldatacopy":
-            size, _, dst = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "dloadbytes":
-            size, _, dst = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "dload":
-            return MemoryLocation(offset=0, size=32)
-        elif opcode == "sha3_64":
-            return MemoryLocation(offset=0, size=64)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=None)
-        elif opcode == "call":
-            size, dst, _, _, _, _, _ = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode in ("delegatecall", "staticcall"):
-            size, dst, _, _, _, _ = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode in ("codecopy", "extcodecopy"):
-            size, _, dst = inst.operands[:3]
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "returndatacopy":
-            size, _, dst = inst.operands
-            return MemoryLocation.from_operands(dst, size)
+        return _get_memory_write_location(inst)
     elif location_type == LocationType.STORAGE:
-        if opcode == "sstore":
-            dst = inst.operands[1]
-            return MemoryLocation.from_operands(dst, 1)
-        elif opcode == "sload":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            return MemoryLocation(offset=None, size=None)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=None, size=None)
-        elif opcode in ("create", "create2"):
-            return MemoryLocation(offset=None, size=None)
+        return _get_storage_write_location(inst)
+    else:
+        raise CompilerPanic(f"Invalid location type: {location_type}")
+
+
+def get_read_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
+    """Extract memory location info from an instruction"""
+    if location_type == LocationType.MEMORY:
+        return _get_memory_read_location(inst)
+    elif location_type == LocationType.STORAGE:
+        return _get_storage_read_location(inst)
+    else:
+        raise CompilerPanic(f"Invalid location type: {location_type}")
+
+
+def _get_memory_write_location(inst) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return MemoryLocation.from_operands(dst, 32)
+    elif opcode == "mload":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode == "mcopy":
+        size, _, dst = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "calldatacopy":
+        size, _, dst = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "dloadbytes":
+        size, _, dst = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "dload":
+        return MemoryLocation(offset=0, size=32)
+    elif opcode == "sha3_64":
+        return MemoryLocation(offset=0, size=64)
+    elif opcode == "invoke":
+        return MemoryLocation(offset=0, size=None)
+    elif opcode == "call":
+        size, dst, _, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode in ("delegatecall", "staticcall"):
+        size, dst, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode in ("codecopy", "extcodecopy"):
+        size, _, dst = inst.operands[:3]
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "returndatacopy":
+        size, _, dst = inst.operands
+        return MemoryLocation.from_operands(dst, size)
 
     return EMPTY_MEMORY_ACCESS
 
 
-def get_read_memory_location(
-    inst, location_type: LocationType = LocationType.MEMORY
-) -> MemoryLocation:
-    """Extract memory location info from an instruction"""
+def _get_storage_write_location(inst) -> MemoryLocation:
     opcode = inst.opcode
-    if location_type == LocationType.MEMORY:
-        if opcode == "mstore":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "mload":
-            return MemoryLocation.from_operands(inst.operands[0], 32)
-        elif opcode == "mcopy":
-            size, src, _ = inst.operands
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "calldatacopy":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "dloadbytes":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "dload":
-            return MemoryLocation(offset=0, size=32)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=0, size=None)
-        elif opcode == "call":
-            _, _, size, dst, _, _, _ = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode in ("delegatecall", "staticcall"):
-            _, _, size, dst, _, _ = inst.operands
-            return MemoryLocation.from_operands(dst, size)
-        elif opcode == "return":
-            size, src = inst.operands
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "create":
-            size, src, _value = inst.operands
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "create2":
-            _salt, size, src, _value = inst.operands
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "sha3":
-            size, offset = inst.operands
-            return MemoryLocation.from_operands(offset, size)
-        elif opcode == "sha3_32":
-            raise CompilerPanic("invalid opcode")  # should be unused
-        elif opcode == "sha3_64":
-            return MemoryLocation(offset=0, size=64)
-        elif opcode == "log":
-            size, src = inst.operands[-2:]
-            return MemoryLocation.from_operands(src, size)
-        elif opcode == "revert":
-            size, src = inst.operands
-            return MemoryLocation.from_operands(src, size)
-    elif location_type == LocationType.STORAGE:
-        if opcode == "sstore":
-            return EMPTY_MEMORY_ACCESS
-        elif opcode == "sload":
-            return MemoryLocation.from_operands(inst.operands[0], 1)
-        elif opcode in ("call", "delegatecall", "staticcall"):
-            return MemoryLocation(offset=None, size=None)
-        elif opcode == "invoke":
-            return MemoryLocation(offset=None, size=None)
-        elif opcode in ("create", "create2"):
-            return MemoryLocation(offset=None, size=None)
+    if opcode == "sstore":
+        dst = inst.operands[1]
+        return MemoryLocation.from_operands(dst, 1)
+    elif opcode == "sload":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode in ("call", "delegatecall", "staticcall"):
+        return MemoryLocation(offset=None, size=None)
+    elif opcode == "invoke":
+        return MemoryLocation(offset=None, size=None)
+    elif opcode in ("create", "create2"):
+        return MemoryLocation(offset=None, size=None)
+
+    return EMPTY_MEMORY_ACCESS
+
+
+def _get_memory_read_location(inst) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode == "mload":
+        return MemoryLocation.from_operands(inst.operands[0], 32)
+    elif opcode == "mcopy":
+        size, src, _ = inst.operands
+        return MemoryLocation.from_operands(src, size)
+    elif opcode == "calldatacopy":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode == "dloadbytes":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode == "dload":
+        return MemoryLocation(offset=0, size=32)
+    elif opcode == "invoke":
+        return MemoryLocation(offset=0, size=None)
+    elif opcode == "call":
+        _, _, size, dst, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode in ("delegatecall", "staticcall"):
+        _, _, size, dst, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "return":
+        size, src = inst.operands
+        return MemoryLocation.from_operands(src, size)
+    elif opcode == "create":
+        size, src, _value = inst.operands
+        return MemoryLocation.from_operands(src, size)
+    elif opcode == "create2":
+        _salt, size, src, _value = inst.operands
+        return MemoryLocation.from_operands(src, size)
+    elif opcode == "sha3":
+        size, offset = inst.operands
+        return MemoryLocation.from_operands(offset, size)
+    elif opcode == "sha3_32":
+        raise CompilerPanic("invalid opcode")  # should be unused
+    elif opcode == "sha3_64":
+        return MemoryLocation(offset=0, size=64)
+    elif opcode == "log":
+        size, src = inst.operands[-2:]
+        return MemoryLocation.from_operands(src, size)
+    elif opcode == "revert":
+        size, src = inst.operands
+        return MemoryLocation.from_operands(src, size)
+
+    return EMPTY_MEMORY_ACCESS
+
+
+def _get_storage_read_location(inst) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == "sstore":
+        return EMPTY_MEMORY_ACCESS
+    elif opcode == "sload":
+        return MemoryLocation.from_operands(inst.operands[0], 1)
+    elif opcode in ("call", "delegatecall", "staticcall"):
+        return MemoryLocation(offset=None, size=None)
+    elif opcode == "invoke":
+        return MemoryLocation(offset=None, size=None)
+    elif opcode in ("create", "create2"):
+        return MemoryLocation(offset=None, size=None)
 
     return EMPTY_MEMORY_ACCESS
