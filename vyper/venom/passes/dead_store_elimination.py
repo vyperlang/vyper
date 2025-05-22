@@ -11,9 +11,6 @@ class DeadStoreElimination(IRPass):
     """
     This pass eliminates dead stores using Memory SSA analysis.
     """
-
-    location_type: LocationType
-
     def run_pass(self, location_type: LocationType = LocationType.MEMORY):
         MemSSAType = mem_ssa_type_factory(location_type)
         if location_type == LocationType.MEMORY:
@@ -21,7 +18,6 @@ class DeadStoreElimination(IRPass):
         elif location_type == LocationType.STORAGE:
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
 
-        self.location_type = location_type
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSAType)

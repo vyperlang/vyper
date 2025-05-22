@@ -79,9 +79,10 @@ _reads = {
     "sha3_64": MEMORY,
     "msize": MSIZE,
 
-    # the instructions below commit changes to storage
-    # and therefore can have storage effects on future 
-    # contract invocations.
+    # The instructions below commit changes to storage
+    # and therefore can have storage effects in the future 
+    # (current data read by future contract invocations). 
+    # We model that as a virtual read here.
     "return": MEMORY | STORAGE, 
     "stop": STORAGE,
     "exit": STORAGE,
