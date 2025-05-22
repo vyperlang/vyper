@@ -209,7 +209,7 @@ def account_keys():
     return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def exporter(request: FixtureRequest):
     export_dir_str = request.config.getoption("export")
     if not export_dir_str:
@@ -408,6 +408,17 @@ def tx_failed(env):
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return fn
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef, request):
+    exporter = getattr(request.config, "active_test_exporter", None)
+    if not exporter:
+        yield
+        return
+
+    exporter.set_item(fixturedef)
+    exporter.append_fixture(fixturedef.argname)
 
 
 @pytest.hookimpl(hookwrapper=True)

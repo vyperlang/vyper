@@ -1,46 +1,65 @@
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
+
+from pytest import FixtureDef, Item
+
+
+@dataclass
+class TracedItem:
+    name: str  # like test_concat or fixture_fixturename
+    deps: list[str]
+    traces: list[dict[str, Any]]
 
 
 class TestExporter:
     def __init__(self, export_dir: Path, test_root: Path):
         self.export_dir: Path = export_dir
         self.test_root: Path = test_root
-
-        self.data: dict[str, list[dict[str, Any]]] = {}
-        # some tests, e.g. `examples/` ones, deploy contracts in a separate fixture
-        # which gets executed before the `pytest_runtest_call` hook, and thus
-        # `set_item` wasn't yet called when tracing is performed.
-        # we stash these "premature" traces and associate them
-        # with a concrete test as soon as `set_item` is actually called
-        self._stash: list[dict[str, Any]] = []
-
-        self._current_test: Optional[list[dict[str, Any]]] = None
+        self.data: dict[Path, TracedItem] = {}
+        self._current_item: Optional[TracedItem] = None
+        self._executed_fixtures: list[str] = []
         self.output_file: Optional[Path] = None
 
-    def set_item(self, item):
-        module_file = Path(item.module.__file__).resolve()
+    def append_fixture(self, fixture):
+        # some fixtures don't have traces (e.g. `tx_failed`)
+        # append only if it has traces
+        if self._current_item.traces:
+            self._executed_fixtures.append(fixture)
+
+    def _resolve_dependencies(self, item: Union[FixtureDef, Item]):
+        deps = item.fixturenames if isinstance(item, FixtureDef) else item.argnames
+        deps_with_traces = []
+        # traverse in the order in which the fixtures got executed
+        for f in self._executed_fixtures:
+            # some executed fixtures might be dependencies only of nodes higher
+            # in the dependency graph, so we need a check
+            if f in deps:
+                # TODO we need a fully qualified name here
+                deps_with_traces.append(f)
+
+        self._current_item.deps = deps_with_traces
+
+    def set_item(self, item: Union[FixtureDef, Item]):
+        if isinstance(item, Item):
+            module_file = Path(item.module.__file__).resolve()
+        else:
+            assert isinstance(item, FixtureDef)
+            fixture_function = item.func
+            f = fixture_function.__module__.__file__
+            module_file = Path(f).resolve()
+
         rel_module = module_file.relative_to(self.test_root)
 
-        self.output_file = (self.export_dir / rel_module).with_suffix(rel_module.suffix + ".json")
-        self.output_file.parent.mkdir(parents=True, exist_ok=True)
+        item_name = item.name if isinstance(item, Item) else item.argname
+        key = self.export_dir / rel_module / item_name
 
-        test_name = item.name
-        if test_name not in self.data:
-            self.data[test_name] = []
-        self._current_test = self.data[test_name]
-        self._merge_stash()
+        if key not in self.data:
+            self.data[key] = TracedItem(item.name, [], [])
 
-    def _get_target(self) -> list[dict[str, Any]]:
-        return self._current_test if self._current_test is not None else self._stash
-
-    def _merge_stash(self):
-        # move any earlier traces into the real test list, preserving order
-        assert self._current_test is not None
-        if self._stash:
-            self._current_test.extend(self._stash)
-            self._stash.clear()
+        self._current_item = self.data[key]
+        self._resolve_dependencies(item)
 
     def trace_deployment(
         self,
@@ -74,7 +93,7 @@ class TestExporter:
             "raw_ir": raw_ir,
             "blueprint_initcode_prefix": blueprint_initcode_prefix,
         }
-        self._get_target().append(deployment)
+        self._current_item.traces.append(deployment)
 
     def trace_call(self, output: Optional[bytes], **call_args):
         if "calldata" in call_args:
@@ -83,7 +102,7 @@ class TestExporter:
         out_hex = output.hex() if output is not None else None
 
         call = {"trace_type": "call", "output": out_hex, "call_args": call_args}
-        self._get_target().append(call)
+        self._current_item.traces.append(call)
 
     def finalize_export(self):
         with open(self.output_file, "w") as f:
