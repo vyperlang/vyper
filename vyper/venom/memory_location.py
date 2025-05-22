@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
@@ -18,8 +19,8 @@ class MemoryLocation:
     is_volatile: bool = False
 
     # Initialize after class definition
-    EMPTY: "MemoryLocation" = None  # type: ignore
-    UNDEFINED: "MemoryLocation" = None  # type: ignore
+    EMPTY: ClassVar[MemoryLocation]
+    UNDEFINED: ClassVar[MemoryLocation]
 
     @property
     def is_offset_fixed(self) -> bool:
