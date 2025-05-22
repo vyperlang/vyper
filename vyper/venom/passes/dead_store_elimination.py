@@ -13,7 +13,7 @@ class DeadStoreElimination(IRPass):
     """
 
     def run_pass(self, /, addr_space: AddrSpace):
-        MemSSAType = mem_ssa_type_factory(addr_space)
+        mem_ssa_type = mem_ssa_type_factory(addr_space)
         if addr_space == MEMORY:
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
         elif addr_space == STORAGE:
@@ -23,7 +23,7 @@ class DeadStoreElimination(IRPass):
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.mem_ssa = self.analyses_cache.request_analysis(MemSSAType)
+        self.mem_ssa = self.analyses_cache.request_analysis(mem_ssa_type)
         self.updater = InstUpdater(self.dfg)
 
         # Go through all memory definitions and eliminate dead stores
@@ -31,7 +31,7 @@ class DeadStoreElimination(IRPass):
             if self._is_dead_store(mem_def):
                 self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
 
-        self.analyses_cache.invalidate_analysis(MemSSAType)
+        self.analyses_cache.invalidate_analysis(mem_ssa_type)
 
     def _has_uses(self, inst: IRInstruction):
         """
