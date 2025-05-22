@@ -12,7 +12,7 @@ class DeadStoreElimination(IRPass):
     This pass eliminates dead stores using Memory SSA analysis.
     """
 
-    def run_pass(self, addr_space: AddrSpace = MEMORY):
+    def run_pass(self, /, addr_space: AddrSpace):
         MemSSAType = mem_ssa_type_factory(addr_space)
         if addr_space == MEMORY:
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS

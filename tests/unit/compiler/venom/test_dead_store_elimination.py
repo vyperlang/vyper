@@ -9,12 +9,6 @@ from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker([DeadStoreElimination])
-
-
-def _check_no_change(code, hevm=False):
-    return _check_pre_post(code, code, hevm=hevm)
-
 
 class VolatilePrePostChecker(PrePostChecker):
     def __init__(
@@ -71,6 +65,13 @@ class VolatilePrePostChecker(PrePostChecker):
             hevm_check_venom(pre, post)
 
         return self.pass_objects
+
+
+_check_pre_post = VolatilePrePostChecker([DeadStoreElimination])
+
+
+def _check_no_change(code, hevm=False):
+    return _check_pre_post(code, code, hevm=hevm)
 
 
 _check_storage_pre_post = VolatilePrePostChecker([DeadStoreElimination], addr_space=STORAGE)
