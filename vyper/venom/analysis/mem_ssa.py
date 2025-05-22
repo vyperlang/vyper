@@ -195,19 +195,16 @@ class MemSSAAbstract(IRAnalysis):
 
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
-        effect_type = (
-            Effects.STORAGE if self.location_type == LocationType.STORAGE else Effects.MEMORY
-        )
         for inst in block.instructions:
             # Check for memory reads
-            if effect_type in inst.get_read_effects():
+            if get_read_location(inst, self.location_type) != MemoryLocation.EMPTY:
                 mem_use = MemoryUse(self.next_id, inst, self.location_type)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            if effect_type in inst.get_write_effects():
+            if get_write_location(inst, self.location_type) != MemoryLocation.EMPTY:
                 mem_def = MemoryDef(self.next_id, inst, self.location_type)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
