@@ -1,7 +1,7 @@
 import dataclasses as dc
 from typing import Optional
 
-from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
@@ -102,3 +102,19 @@ class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function, STORAGE)
+
+
+class TransientAliasAnalysis(MemoryAliasAnalysisAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, TRANSIENT)
+
+
+def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbstract]:
+    if addr_space == MEMORY:
+        return MemoryAliasAnalysis
+    elif addr_space == STORAGE:
+        return StorageAliasAnalysis
+    elif addr_space == TRANSIENT:
+        return TransientAliasAnalysis
+    else:
+        raise ValueError(f"Invalid address space: {addr_space}")

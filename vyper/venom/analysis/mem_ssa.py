@@ -4,7 +4,8 @@ from typing import Iterable, Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis
+from vyper.venom.analysis.mem_alias import MemoryAliasAnalysisAbstract, mem_alias_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
@@ -141,8 +142,8 @@ class MemSSAAbstract(IRAnalysis):
         self.dom: DominatorTreeAnalysis = self.analyses_cache.request_analysis(
             DominatorTreeAnalysis
         )
-        self.memalias: MemoryAliasAnalysis = self.analyses_cache.request_analysis(
-            MemoryAliasAnalysis
+        self.memalias: MemoryAliasAnalysisAbstract = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(self.addr_space)
         )
 
         # Build initial memory SSA form
