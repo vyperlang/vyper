@@ -74,9 +74,6 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-_check_storage_pre_post = VolatilePrePostChecker([DeadStoreElimination], addr_space=STORAGE)
-
-
 def test_basic_dead_store():
     pre = """
         _global:
