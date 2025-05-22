@@ -271,7 +271,7 @@ def _get_storage_read_location(inst) -> MemoryLocation:
     elif opcode in ("return", "stop", "exit", "sink"):
         # these opcodes terminate execution and commit to (persistent)
         # storage, resulting in storage writes escaping our control.
-        # return `MemoryLocation.UNDEFINED` represents "future" reads
+        # returning `MemoryLocation.UNDEFINED` represents "future" reads
         # which could happen in the next program invocation.
         return MemoryLocation.UNDEFINED
     elif opcode == "ret":
