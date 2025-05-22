@@ -273,11 +273,13 @@ def _get_storage_read_location(inst) -> MemoryLocation:
         # storage, resulting in storage writes escaping our control.
         # returning `MemoryLocation.UNDEFINED` represents "future" reads
         # which could happen in the next program invocation.
+        # this case makes the code in DSE simpler.
         return MemoryLocation.UNDEFINED
     elif opcode == "ret":
         # `ret` escapes our control and returns execution to the
         # caller function. to be conservative, we model these as
         # "future" reads which could happen in the caller.
+        # this case makes the code in DSE simpler.
         return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
