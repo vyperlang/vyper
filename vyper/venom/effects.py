@@ -78,16 +78,7 @@ _reads = {
     "sha3": MEMORY,
     "sha3_64": MEMORY,
     "msize": MSIZE,
-
-    # The instructions below commit changes to storage
-    # and therefore can have storage effects in the future 
-    # (current data read by future contract invocations). 
-    # We model that as a virtual read here.
-    "return": MEMORY | STORAGE, 
-    "stop": STORAGE,
-    "exit": STORAGE,
-    "sink": STORAGE,
-    "ret": STORAGE,
+    "return": MEMORY,
 }
 
 reads = _reads.copy()
