@@ -122,7 +122,6 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "shr": _wrap_binop(_evm_shr),
     "shl": _wrap_binop(_evm_shl),
     "sar": _wrap_signed_binop(_evm_sar),
-    "store": _wrap_unop(lambda ops: ops[0].value),
 }
 
 
