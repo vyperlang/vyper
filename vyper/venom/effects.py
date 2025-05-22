@@ -75,10 +75,18 @@ _reads = {
     "selfdestruct": BALANCE,  # may modify code, but after the transaction
     "log": MEMORY,
     "revert": MEMORY,
-    "return": MEMORY,
     "sha3": MEMORY,
     "sha3_64": MEMORY,
     "msize": MSIZE,
+
+    # the instructions below commit changes to storage
+    # and therefore can have storage effects on future 
+    # contract invocations.
+    "return": MEMORY | STORAGE, 
+    "stop": STORAGE,
+    "exit": STORAGE,
+    "sink": STORAGE,
+    "ret": STORAGE,
 }
 
 reads = _reads.copy()

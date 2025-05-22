@@ -268,5 +268,7 @@ def _get_storage_read_location(inst) -> MemoryLocation:
         return MemoryLocation.UNDEFINED
     elif opcode in ("create", "create2"):
         return MemoryLocation.UNDEFINED
+    elif opcode in ("ret", "return", "stop", "exit", "sink"):
+        return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
