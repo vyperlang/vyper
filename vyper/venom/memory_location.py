@@ -109,7 +109,7 @@ class MemoryLocation:
             return not (end1 <= o2 or end2 <= o1)
 
         # loc1 known size, loc2 unknown size
-        if s2 is None:
+        if s1 is not None:
             # end of loc1 is bounded by start of loc2
             if o1 + s1 <= o2:
                 return False
@@ -117,7 +117,7 @@ class MemoryLocation:
             return True
 
         # loc2 known size, loc1 unknown size
-        if s1 is None:
+        if s2 is not None:
             # end of loc2 is bounded by start of loc1
             if o2 + s2 <= o1:
                 return False
@@ -125,7 +125,7 @@ class MemoryLocation:
             # Otherwise, can't be sure
             return True
 
-        raise CompilerPanic("unreachable")  # pragma: nocover
+        return True
 
 
 MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
