@@ -58,7 +58,9 @@ class SCCP(IRPass):
 
     cfg_dirty: bool
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True):
+    def __init__(
+        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
+    ):
         super().__init__(analyses_cache, function)
         self.remove_allocas = remove_allocas
 
@@ -178,7 +180,7 @@ class SCCP(IRPass):
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
 
-        store_opcodes = ("store",)
+        store_opcodes: tuple[str, ...] = ("store",)
         if self.remove_allocas:
             store_opcodes += ("alloca", "palloca", "calloca")
 
