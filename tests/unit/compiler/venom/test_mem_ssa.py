@@ -13,7 +13,6 @@ from vyper.venom.analysis.mem_ssa import (
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import (
-    EMPTY_MEMORY_ACCESS,
     LocationType,
     get_read_location,
     get_write_location,
@@ -342,11 +341,11 @@ def test_may_alias(dummy_mem_ssa):
     full_loc = MemoryLocation(offset=0, size=None)
     assert mem_ssa.memalias.may_alias(full_loc, loc1), "should alias with any non-empty location"
     assert not mem_ssa.memalias.may_alias(
-        full_loc, EMPTY_MEMORY_ACCESS
+        full_loc, MemoryLocation.EMPTY
     ), "should not alias with EMPTY_MEMORY_ACCESS"
 
     # Test EMPTY_MEMORY_ACCESS
-    empty_loc = EMPTY_MEMORY_ACCESS
+    empty_loc = MemoryLocation.EMPTY
     assert not mem_ssa.memalias.may_alias(
         empty_loc, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with any location"
@@ -567,8 +566,8 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assignment_inst = bb.instructions[0]  # %1 = 42
 
     # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst) is EMPTY_MEMORY_ACCESS
-    assert get_write_location(assignment_inst) is EMPTY_MEMORY_ACCESS
+    assert get_read_location(assignment_inst) is MemoryLocation.EMPTY
+    assert get_write_location(assignment_inst) is MemoryLocation.EMPTY
 
     assert mem_ssa.memalias.alias_sets is not None
 

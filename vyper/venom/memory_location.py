@@ -89,9 +89,6 @@ class MemoryLocation:
         """
         Determine if two memory locations may overlap
         """
-        if loc1 == MemoryLocation.EMPTY or loc2 == MemoryLocation.EMPTY:
-            return False
-
         o1, s1 = loc1.offset, loc1.size
         o2, s2 = loc2.offset, loc2.size
 
@@ -100,20 +97,20 @@ class MemoryLocation:
             return False
 
         # All known
-        if loc1.is_fixed and loc2.is_fixed:
-            end1 = o1 + s1  # type: ignore
-            end2 = o2 + s2  # type: ignore
-            return not (end1 <= o2 or end2 <= o1)  # type: ignore
+        if o1 is not None and s1 is not None and o2 is not None and s2 is not None:
+            end1 = o1 + s1
+            end2 = o2 + s2
+            return not (end1 <= o2 or end2 <= o1)
 
         # If both offsets are known
-        if loc1.is_offset_fixed and loc2.is_offset_fixed:
+        if o1 is not None and o2 is not None:
             # loc1 known size, loc2 unknown size
-            if loc1.is_size_fixed and not loc2.is_size_fixed:
-                if o1 + s1 <= o2:  # type: ignore
+            if s1 is not None and s2 is None:
+                if o1 + s1 <= o2:
                     return False
             # loc2 known size, loc1 unknown size
-            if loc2.is_size_fixed and not loc1.is_size_fixed:
-                if o2 + s2 <= o1:  # type: ignore
+            if s2 is not None and s1 is None:
+                if o2 + s2 <= o1:
                     return False
 
             # Otherwise, can't be sure
