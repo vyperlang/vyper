@@ -562,8 +562,8 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assignment_inst = bb.instructions[0]  # %1 = 42
 
     # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst) is MemoryLocation.EMPTY
+    assert get_read_location(assignment_inst, LocationType.MEMORY) is MemoryLocation.EMPTY
+    assert get_write_location(assignment_inst, LocationType.MEMORY) is MemoryLocation.EMPTY
 
     assert mem_ssa.memalias.alias_sets is not None
 

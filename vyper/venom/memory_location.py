@@ -132,7 +132,7 @@ MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
 MemoryLocation.UNDEFINED = MemoryLocation(offset=None, size=None)
 
 
-def get_write_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
+def get_write_location(inst, location_type: LocationType) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if location_type == LocationType.MEMORY:
         return _get_memory_write_location(inst)
@@ -142,7 +142,7 @@ def get_write_location(inst, location_type: LocationType = LocationType.MEMORY) 
         raise CompilerPanic(f"Invalid location type: {location_type}")
 
 
-def get_read_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
+def get_read_location(inst, location_type: LocationType) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if location_type == LocationType.MEMORY:
         return _get_memory_read_location(inst)
