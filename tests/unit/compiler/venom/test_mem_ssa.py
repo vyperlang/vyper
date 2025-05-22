@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import parse_venom
-from vyper.evm.address_space import MEMORY, AddrSpace
+from vyper.evm.address_space import MEMORY, AddrSpace, STORAGE
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
     MemoryAccess,
@@ -33,25 +33,25 @@ def dummy_mem_ssa():
     return mem_ssa, fn, ctx
 
 
-@pytest.fixture
-def create_mem_ssa():
+def _create_mem_ssa(code, addr_space: AddrSpace, function_name="_global"):
     """Fixture that creates a MemSSA instance from custom code."""
+    ctx = parse_venom(code)
+    fn = ctx.functions[IRLabel(function_name)]
+    ac = IRAnalysesCache(fn)
+    if addr_space == MEMORY:
+        mem_ssa = MemSSA(ac, fn)
+    else:
+        mem_ssa = StorageSSA(ac, fn)
+    mem_ssa.analyze()
+    return mem_ssa, fn, ctx
 
-    def _create_mem_ssa(code, addr_space: AddrSpace = MEMORY, function_name="_global"):
-        ctx = parse_venom(code)
-        fn = ctx.functions[IRLabel(function_name)]
-        ac = IRAnalysesCache(fn)
-        if addr_space == MEMORY:
-            mem_ssa = MemSSA(ac, fn)
-        else:
-            mem_ssa = StorageSSA(ac, fn)
-        mem_ssa.analyze()
-        return mem_ssa, fn, ctx
+def create_mem_ssa(code, function_name="_global"):
+    return _create_mem_ssa(code, addr_space=MEMORY, function_name=function_name)
 
-    return _create_mem_ssa
+def create_storage_ssa(code, function_name="_global"):
+    return _create_mem_ssa(code, addr_space=STORAGE, function_name=function_name)
 
-
-def test_basic_clobber(create_mem_ssa):
+def test_basic_clobber():
     pre = """
     function _global {
         _global:
@@ -76,7 +76,7 @@ def test_basic_clobber(create_mem_ssa):
     assert clobbered.inst.parent == fn.entry
 
 
-def test_no_clobber_different_locations(create_mem_ssa):
+def test_no_clobber_different_locations():
     pre = """
     function _global {
         _global:
@@ -94,7 +94,7 @@ def test_no_clobber_different_locations(create_mem_ssa):
     assert clobbered.is_live_on_entry  # Should return live_on_entry since no clobber found
 
 
-def test_phi_node_clobber(create_mem_ssa):
+def test_phi_node_clobber():
     pre = """
     function _global {
         entry:
@@ -135,7 +135,7 @@ def test_phi_node_clobber(create_mem_ssa):
     assert block2_def.inst.operands[0].value == "%val2"
 
 
-def test_partially_overlapping_clobber(create_mem_ssa):
+def test_partially_overlapping_clobber():
     pre = """
     function _global {
         _global:
@@ -173,7 +173,7 @@ def test_partially_overlapping_clobber(create_mem_ssa):
     ), "Partially overlapping locations should alias"
 
 
-def test_ambiguous_clobber(create_mem_ssa):
+def test_ambiguous_clobber():
     pre = """
     function _global {
     _global:
@@ -207,7 +207,7 @@ def test_ambiguous_clobber(create_mem_ssa):
     ), f"Expected unknown offset and size == 32 for calldatacopy, got {calldatacopy_def.loc}"
 
 
-def test_complex_loop_clobber(create_mem_ssa):
+def test_complex_loop_clobber():
     pre = """
     function _global {
         entry:
@@ -288,7 +288,7 @@ def test_complex_loop_clobber(create_mem_ssa):
     assert different_loc_store.inst.operands[0].value == "%val_a2"
 
 
-def test_simple_def_chain(create_mem_ssa):
+def test_simple_def_chain():
     code = """
     function _global {
         entry:
@@ -379,7 +379,7 @@ def test_may_alias(dummy_mem_ssa):
     ), "Adjacent but non-overlapping locations should not alias"
 
 
-def test_basic_def_use_assignment(create_mem_ssa):
+def test_basic_def_use_assignment():
     pre = """
     function _global {
         _global:
@@ -420,7 +420,7 @@ def test_basic_def_use_assignment(create_mem_ssa):
     assert def2.reaching_def == def1
 
 
-def test_read_write_memory_clobbering(create_mem_ssa):
+def test_read_write_memory_clobbering():
     pre = """
     function _global {
         entry:
@@ -464,7 +464,7 @@ def test_read_write_memory_clobbering(create_mem_ssa):
     assert use2.reaching_def == call_def
 
 
-def test_read_write_memory_clobbering_partial(create_mem_ssa):
+def test_read_write_memory_clobbering_partial():
     pre = """
     function _global {
         entry:
@@ -510,7 +510,7 @@ def test_read_write_memory_clobbering_partial(create_mem_ssa):
     assert use2.reaching_def == call_def
 
 
-def test_mark_volatile(create_mem_ssa):
+def test_mark_volatile():
     pre = """
     function _global {
         _global:
@@ -545,7 +545,7 @@ def test_mark_volatile(create_mem_ssa):
     assert mem_ssa.memalias.may_alias(volatile_store_loc, volatile_load_loc)
 
 
-def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
+def test_analyze_instruction_with_no_memory_ops():
     pre = """
     function _global {
         _global:
@@ -567,7 +567,7 @@ def test_analyze_instruction_with_no_memory_ops(create_mem_ssa):
     assert mem_ssa.memalias.alias_sets is not None
 
 
-def test_phi_node_reaching_def(create_mem_ssa):
+def test_phi_node_reaching_def():
     pre = """
     function _global {
         entry:
@@ -633,7 +633,7 @@ def test_memory_access_properties():
     assert regular_access != "not_a_memory_access"
 
 
-def test_mark_location_volatile(create_mem_ssa):
+def test_mark_location_volatile():
     pre = """
     function _global {
         entry:
@@ -655,7 +655,7 @@ def test_mark_location_volatile(create_mem_ssa):
     assert not def2.loc.is_volatile
 
 
-def test_remove_redundant_phis(create_mem_ssa):
+def test_remove_redundant_phis():
     pre = """
     function _global {
         entry:
@@ -690,7 +690,7 @@ def test_remove_redundant_phis(create_mem_ssa):
     assert merge_block not in mem_ssa.memory_phis
 
 
-def test_print_context(create_mem_ssa):
+def test_print_context():
     pre = """
     function _global {
         entry:
@@ -717,7 +717,7 @@ def test_print_context(create_mem_ssa):
         assert pre_block == ""  # No phi nodes in entry block
 
 
-def test_storage_ssa(create_mem_ssa):
+def test_storage_ssa():
     pre = """
     function _global {
         entry:
@@ -726,7 +726,7 @@ def test_storage_ssa(create_mem_ssa):
             stop
     }
     """
-    mem_ssa, fn, _ = create_mem_ssa(pre, addr_space="storage")
+    mem_ssa, fn, _ = create_storage_ssa(pre)
 
     bb = fn.get_basic_block("entry")
     store_inst = bb.instructions[0]  # sstore instruction
@@ -746,7 +746,7 @@ def test_storage_ssa(create_mem_ssa):
     assert load_use.reaching_def == store_def
 
 
-def test_memory_access_str(create_mem_ssa):
+def test_memory_access_str():
     pre = """
     function _global {
         entry:
@@ -763,7 +763,7 @@ def test_memory_access_str(create_mem_ssa):
     assert str(mem_def) == f"MemoryDef({mem_def.id_str})"
 
 
-def test_get_in_def_with_no_predecessors(create_mem_ssa):
+def test_get_in_def_with_no_predecessors():
     pre = """
     function _global {
         entry:
@@ -777,7 +777,7 @@ def test_get_in_def_with_no_predecessors(create_mem_ssa):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_in_def_with_merge_block(create_mem_ssa):
+def test_get_in_def_with_merge_block():
     pre = """
     function _global {
         entry:
@@ -798,7 +798,7 @@ def test_get_in_def_with_merge_block(create_mem_ssa):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_reaching_def_with_phi(create_mem_ssa):
+def test_get_reaching_def_with_phi():
     pre = """
     function _global {
         entry:
@@ -829,7 +829,7 @@ def test_get_reaching_def_with_phi(create_mem_ssa):
     assert result == phi
 
 
-def test_get_reaching_def_with_no_phi(create_mem_ssa):
+def test_get_reaching_def_with_no_phi():
     pre = """
     function _global {
         entry:
@@ -849,7 +849,7 @@ def test_get_reaching_def_with_no_phi(create_mem_ssa):
     assert result == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
+def test_get_clobbered_memory_access_with_phi():
     pre = """
     function _global {
         entry:
@@ -874,7 +874,7 @@ def test_get_clobbered_memory_access_with_phi(create_mem_ssa):
     assert mem_ssa.get_clobbered_memory_access(phi) == mem_ssa.live_on_entry
 
 
-def test_get_clobbered_memory_access_ubiquitously_clobbers(create_mem_ssa):
+def test_get_clobbered_memory_access_ubiquitously_clobbers():
     pre = """
     function _global {
         entry:
@@ -913,7 +913,7 @@ def test_get_clobbered_memory_access_ubiquitously_clobbers(create_mem_ssa):
     assert mem_ssa.get_clobbered_memory_access(mem_use) == phi
 
 
-def test_get_clobbered_memory_access_ubiquitously_clobbers2(create_mem_ssa):
+def test_get_clobbered_memory_access_ubiquitously_clobbers2():
     pre = """
     function _global {
         entry:
@@ -959,7 +959,7 @@ def test_get_clobbered_memory_access_with_live_on_entry(dummy_mem_ssa):
     assert result is None
 
 
-def test_post_instruction_with_no_memory_ops(create_mem_ssa):
+def test_post_instruction_with_no_memory_ops():
     pre = """
     function _global {
         entry:
@@ -976,7 +976,7 @@ def test_post_instruction_with_no_memory_ops(create_mem_ssa):
     assert result == ""
 
 
-def test_post_instruction_with_memory_use(create_mem_ssa):
+def test_post_instruction_with_memory_use():
     pre = """
     function _global {
         entry:
@@ -993,7 +993,7 @@ def test_post_instruction_with_memory_use(create_mem_ssa):
     assert "use:" in result
 
 
-def test_post_instruction_with_memory_def(create_mem_ssa):
+def test_post_instruction_with_memory_def():
     pre = """
     function _global {
         entry:
@@ -1010,7 +1010,7 @@ def test_post_instruction_with_memory_def(create_mem_ssa):
     assert "def:" in result
 
 
-def test_pre_block_with_phi(create_mem_ssa):
+def test_pre_block_with_phi():
     pre = """
     function _global {
         entry:
@@ -1035,7 +1035,7 @@ def test_pre_block_with_phi(create_mem_ssa):
     assert "phi:" in result
 
 
-def test_pre_block_without_phi(create_mem_ssa):
+def test_pre_block_without_phi():
     pre = """
     function _global {
         entry:
