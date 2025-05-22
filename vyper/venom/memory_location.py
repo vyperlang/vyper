@@ -24,6 +24,7 @@ class MemoryLocation:
 
     # Initialize after class definition
     EMPTY: "MemoryLocation" = None  # type: ignore
+    UNDEFINED: "MemoryLocation" = None  # type: ignore
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -122,7 +123,8 @@ class MemoryLocation:
         return True
 
 
-MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0, is_volatile=False)
+MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
+MemoryLocation.UNDEFINED = MemoryLocation(offset=None, size=None)
 
 
 def get_write_location(inst, location_type: LocationType = LocationType.MEMORY) -> MemoryLocation:
@@ -191,11 +193,11 @@ def _get_storage_write_location(inst) -> MemoryLocation:
     elif opcode == "sload":
         return MemoryLocation.EMPTY
     elif opcode in ("call", "delegatecall", "staticcall"):
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
     elif opcode == "invoke":
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
     elif opcode in ("create", "create2"):
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
 
@@ -256,10 +258,10 @@ def _get_storage_read_location(inst) -> MemoryLocation:
     elif opcode == "sload":
         return MemoryLocation.from_operands(inst.operands[0], 1)
     elif opcode in ("call", "delegatecall", "staticcall"):
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
     elif opcode == "invoke":
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
     elif opcode in ("create", "create2"):
-        return MemoryLocation(offset=None, size=None)
+        return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
