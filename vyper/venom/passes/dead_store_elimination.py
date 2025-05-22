@@ -1,9 +1,9 @@
-from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS
+from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -18,6 +18,8 @@ class DeadStoreElimination(IRPass):
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
         elif addr_space == STORAGE:
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
+        elif addr_space == TRANSIENT:
+            self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)

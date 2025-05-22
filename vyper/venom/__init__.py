@@ -5,7 +5,7 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.address_space import MEMORY, STORAGE
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
@@ -85,6 +85,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     MemMergePass(ac, fn).run_pass()
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
+    DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 

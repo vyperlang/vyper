@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -131,8 +131,8 @@ def get_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if addr_space == MEMORY:
         return _get_memory_write_location(inst)
-    elif addr_space == STORAGE:
-        return _get_storage_write_location(inst)
+    elif addr_space in (STORAGE, TRANSIENT):
+        return _get_storage_write_location(inst, addr_space)
     else:
         raise CompilerPanic(f"Invalid location type: {addr_space}")
 
@@ -141,8 +141,8 @@ def get_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if addr_space == MEMORY:
         return _get_memory_read_location(inst)
-    elif addr_space == STORAGE:
-        return _get_storage_read_location(inst)
+    elif addr_space in (STORAGE, TRANSIENT):
+        return _get_storage_read_location(inst, addr_space)
     else:
         raise CompilerPanic(f"Invalid location type: {addr_space}")
 
@@ -181,23 +181,6 @@ def _get_memory_write_location(inst) -> MemoryLocation:
     elif opcode == "returndatacopy":
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size)
-
-    return MemoryLocation.EMPTY
-
-
-def _get_storage_write_location(inst) -> MemoryLocation:
-    opcode = inst.opcode
-    if opcode == "sstore":
-        dst = inst.operands[1]
-        return MemoryLocation.from_operands(dst, STORAGE.word_scale)
-    elif opcode == "sload":
-        return MemoryLocation.EMPTY
-    elif opcode in ("call", "delegatecall", "staticcall"):
-        return MemoryLocation.UNDEFINED
-    elif opcode == "invoke":
-        return MemoryLocation.UNDEFINED
-    elif opcode in ("create", "create2"):
-        return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
 
@@ -251,12 +234,29 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     return MemoryLocation.EMPTY
 
 
-def _get_storage_read_location(inst) -> MemoryLocation:
+def _get_storage_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
     opcode = inst.opcode
-    if opcode == "sstore":
+    if opcode == addr_space.store_op:
+        dst = inst.operands[1]
+        return MemoryLocation.from_operands(dst, addr_space.word_scale)
+    elif opcode == addr_space.load_op:
         return MemoryLocation.EMPTY
-    elif opcode == "sload":
-        return MemoryLocation.from_operands(inst.operands[0], STORAGE.word_scale)
+    elif opcode in ("call", "delegatecall", "staticcall"):
+        return MemoryLocation.UNDEFINED
+    elif opcode == "invoke":
+        return MemoryLocation.UNDEFINED
+    elif opcode in ("create", "create2"):
+        return MemoryLocation.UNDEFINED
+
+    return MemoryLocation.EMPTY
+
+
+def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == addr_space.store_op:
+        return MemoryLocation.EMPTY
+    elif opcode == addr_space.load_op:
+        return MemoryLocation.from_operands(inst.operands[0], addr_space.word_scale)
     elif opcode in ("call", "delegatecall", "staticcall"):
         return MemoryLocation.UNDEFINED
     elif opcode == "invoke":

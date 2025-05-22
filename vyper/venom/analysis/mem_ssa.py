@@ -2,7 +2,7 @@ import contextlib
 import dataclasses as dc
 from typing import Iterable, Optional
 
-from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
@@ -454,10 +454,17 @@ class StorageSSA(MemSSAAbstract):
         super().__init__(analyses_cache, function, STORAGE)
 
 
+class TransientSSA(MemSSAAbstract):
+    def __init__(self, analyses_cache, function):
+        super().__init__(analyses_cache, function, TRANSIENT)
+
+
 def mem_ssa_type_factory(addr_space: AddrSpace) -> type[MemSSAAbstract]:
     if addr_space == MEMORY:
         return MemSSA
     elif addr_space == STORAGE:
         return StorageSSA
+    elif addr_space == TRANSIENT:
+        return TransientSSA
     else:  # should never happen
         raise ValueError(f"Invalid location type: {addr_space}")
