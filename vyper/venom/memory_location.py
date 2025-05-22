@@ -96,28 +96,34 @@ class MemoryLocation:
         if s1 == 0 or s2 == 0:
             return False
 
+        if o1 is None or o2 is None:
+            # If offsets are unknown, can't be sure
+            return True
+
         # All known
-        if o1 is not None and s1 is not None and o2 is not None and s2 is not None:
+        if s1 is not None and s2 is not None:
             end1 = o1 + s1
             end2 = o2 + s2
             return not (end1 <= o2 or end2 <= o1)
 
-        # If both offsets are known
-        if o1 is not None and o2 is not None:
-            # loc1 known size, loc2 unknown size
-            if s1 is not None and s2 is None:
-                if o1 + s1 <= o2:
-                    return False
-            # loc2 known size, loc1 unknown size
-            if s2 is not None and s1 is None:
-                if o2 + s2 <= o1:
-                    return False
+        # loc1 known size, loc2 unknown size
+        if s2 is None:
+            # end of loc1 is bounded by start of loc2
+            if o1 + s1 <= o2:
+                return False
+            # Otherwise, can't be sure
+            return True
+
+        # loc2 known size, loc1 unknown size
+        if s1 is None:
+            # end of loc2 is bounded by start of loc1
+            if o2 + s2 <= o1:
+                return False
 
             # Otherwise, can't be sure
             return True
 
-        # If offsets are unknown, can't be sure
-        return True
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
 
 MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
