@@ -123,7 +123,6 @@ class MemMergePass(IRPass):
         for copy in copies:
             copy.insts.sort(key=bb.instructions.index)
 
-            pin_inst = None
             inst = copy.insts[-1]
             if copy.length != 32 or load_opcode == "dload":
                 ops: list[IROperand] = [
@@ -135,10 +134,7 @@ class MemMergePass(IRPass):
             elif inst.opcode == "mstore":
                 # we already have a load which is the val for this mstore;
                 # leave it in place.
-                var, _ = inst.operands
-                assert isinstance(var, IRVariable)  # help mypy
-                pin_inst = self.dfg.get_producing_instruction(var)
-                assert pin_inst is not None  # help mypy
+                pass
 
             else:
                 # we are converting an mcopy into an mload+mstore (mload+mstore
@@ -151,16 +147,7 @@ class MemMergePass(IRPass):
 
             for inst in copy.insts[:-1]:
                 if inst.opcode == load_opcode:
-                    if inst is pin_inst:
-                        continue
-
-                    # if the load is used by any instructions besides the ones
-                    # we are removing, we can't delete it. (in the future this
-                    # may be handled by "remove unused effects" pass).
-                    assert isinstance(inst.output, IRVariable)  # help mypy
-                    uses = self.dfg.get_uses(inst.output)
-                    if not all(use in copy.insts for use in uses):
-                        continue
+                    continue
 
                 to_nop.append(inst)
 

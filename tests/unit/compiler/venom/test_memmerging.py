@@ -253,6 +253,8 @@ def test_memmerging_partial_msize():
 
     post = """
     _global:
+        %1 = mload 0   ; was not removed due to presence of msize
+        %2 = mload 32  ; was not removed due to presence of msize
         %3 = mload 64
         mcopy 1000, 0, 64
         %4 = msize
