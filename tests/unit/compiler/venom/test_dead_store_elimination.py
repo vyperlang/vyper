@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
-from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.passes import DeadStoreElimination
@@ -1097,83 +1097,96 @@ def test_unknown_size_overwriting_store():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_storage_basic_dead_store():
-    pre = """
-        _global:
-            sstore 0, 1
-            stop
-    """
-    post = """
-        _global:
-            sstore 0, 1
-            stop
-    """
-    _check_storage_pre_post(pre, post)
+_persistent_address_spaces = (STORAGE, TRANSIENT)
 
 
-def test_storage_basic_dead_store_clobbered():
-    pre = """
+def _check_pre_post_generic(pre, post, addr_space):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
+
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_basic_dead_store(addr_space):
+    pre = f"""
         _global:
-            sstore 0, 1
-            sstore 0, 2
+            {addr_space.store_op} 0, 1
             stop
     """
-    post = """
+    post = f"""
+        _global:
+            {addr_space.store_op} 0, 1
+            stop
+    """
+    _check_pre_post_generic(pre, post, addr_space)
+
+
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_basic_dead_store_clobbered(addr_space):
+    pre = f"""
+        _global:
+            {addr_space.store_op} 0, 1
+            {addr_space.store_op} 0, 2
+            stop
+    """
+    post = f"""
         _global:
             nop
-            sstore 0, 2
+            {addr_space.store_op} 0, 2
             stop
     """
-    _check_storage_pre_post(pre, post)
+    _check_pre_post_generic(pre, post, addr_space)
 
 
-def test_storage_dead_store_branch_success():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_dead_store_branch_success(jnz, addr_space):
+    pre = f"""
         _global:
             %1 = calldataload 0
-            sstore 0, 1 ; not dead as first branches succeeds
-            jnz %1, @then, @else
+            {addr_space.store_op} 0, 1 ; not dead as first branches succeeds
+            {jnz}
         then:
             sink %1
         else:
-            sstore 0, 2
+            {addr_space.store_op} 0, 2
             sink %1
     """
-    post = """
+    post = f"""
         _global:
             %1 = calldataload 0
-            sstore 0, 1
-            jnz %1, @then, @else
+            {addr_space.store_op} 0, 1
+            {jnz}
         then:
             sink %1
         else:
-            sstore 0, 2
+            {addr_space.store_op} 0, 2
             sink %1
     """
-    _check_storage_pre_post(pre, post)
+    _check_pre_post_generic(pre, post, addr_space)
 
 
-def test_storage_dead_store_branch_revert():
-    pre = """
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_dead_store_branch_revert(jnz, addr_space):
+    pre = f"""
         _global:
             %1 = calldataload 0
-            sstore 0, 1 ; dead as first branch reverts second clobbers
-            jnz %1, @then, @else
+            {addr_space.store_op} 0, 1 ; dead as first branch reverts second clobbers
+            {jnz}
         then:
             revert 0, 0
         else:
-            sstore 0, 2
+            {addr_space.store_op} 0, 2
             sink %1
     """
-    post = """
+    post = f"""
         _global:
             %1 = calldataload 0
             nop
-            jnz %1, @then, @else
+            {jnz}
         then:
             revert 0, 0
         else:
-            sstore 0, 2
+            {addr_space.store_op} 0, 2
             sink %1
     """
-    _check_storage_pre_post(pre, post)
+    _check_pre_post_generic(pre, post, addr_space)

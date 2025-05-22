@@ -1,7 +1,7 @@
 import pytest
 
 from tests.venom_utils import parse_venom
-from vyper.evm.address_space import MEMORY, AddrSpace, STORAGE
+from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
     MemoryAccess,
@@ -45,11 +45,14 @@ def _create_mem_ssa(code, addr_space: AddrSpace, function_name="_global"):
     mem_ssa.analyze()
     return mem_ssa, fn, ctx
 
+
 def create_mem_ssa(code, function_name="_global"):
     return _create_mem_ssa(code, addr_space=MEMORY, function_name=function_name)
 
+
 def create_storage_ssa(code, function_name="_global"):
     return _create_mem_ssa(code, addr_space=STORAGE, function_name=function_name)
+
 
 def test_basic_clobber():
     pre = """
