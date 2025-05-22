@@ -268,7 +268,16 @@ def _get_storage_read_location(inst) -> MemoryLocation:
         return MemoryLocation.UNDEFINED
     elif opcode in ("create", "create2"):
         return MemoryLocation.UNDEFINED
-    elif opcode in ("ret", "return", "stop", "exit", "sink"):
+    elif opcode in ("return", "stop", "exit", "sink"):
+        # these opcodes terminate execution and commit to (persistent)
+        # storage, resulting in storage writes escaping our control.
+        # return `MemoryLocation.UNDEFINED` represents "future" reads
+        # which could happen in the next program invocation.
+        return MemoryLocation.UNDEFINED
+    elif opcode == "ret":
+        # `ret` escapes our control and returns execution to the
+        # caller function. to be conservative, we model these as
+        # "future" reads which could happen in the caller.
         return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
