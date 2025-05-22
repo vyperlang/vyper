@@ -144,7 +144,7 @@ def get_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
         return _get_memory_read_location(inst)
     elif addr_space in (STORAGE, TRANSIENT):
         return _get_storage_read_location(inst, addr_space)
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Invalid location type: {addr_space}")
 
 
@@ -155,19 +155,13 @@ def _get_memory_write_location(inst) -> MemoryLocation:
         return MemoryLocation.from_operands(dst, MEMORY.word_scale)
     elif opcode == "mload":
         return MemoryLocation.EMPTY
-    elif opcode == "mcopy":
-        size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "calldatacopy":
-        size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "dloadbytes":
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size)
     elif opcode == "dload":
-        return MemoryLocation(offset=0, size=MEMORY.word_scale)
+        return MemoryLocation(offset=0, size=32)
     elif opcode == "sha3_64":
-        return MemoryLocation(offset=0, size=MEMORY.word_scale * 2)
+        return MemoryLocation(offset=0, size=64)
     elif opcode == "invoke":
         return MemoryLocation(offset=0, size=None)
     elif opcode == "call":
@@ -176,11 +170,8 @@ def _get_memory_write_location(inst) -> MemoryLocation:
     elif opcode in ("delegatecall", "staticcall"):
         size, dst, _, _, _, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
-    elif opcode in ("codecopy", "extcodecopy"):
-        size, _, dst = inst.operands[:3]
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "returndatacopy":
-        size, _, dst = inst.operands
+    elif opcode == "extcodecopy":
+        size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
 
     return MemoryLocation.EMPTY
@@ -200,7 +191,7 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     elif opcode == "dloadbytes":
         return MemoryLocation.EMPTY
     elif opcode == "dload":
-        return MemoryLocation(offset=0, size=MEMORY.word_scale)
+        return MemoryLocation(offset=0, size=32)
     elif opcode == "invoke":
         return MemoryLocation(offset=0, size=None)
     elif opcode == "call":
@@ -224,7 +215,7 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     elif opcode == "sha3_32":
         raise CompilerPanic("invalid opcode")  # should be unused
     elif opcode == "sha3_64":
-        return MemoryLocation(offset=0, size=MEMORY.word_scale * 2)
+        return MemoryLocation(offset=0, size=64)
     elif opcode == "log":
         size, src = inst.operands[-2:]
         return MemoryLocation.from_operands(src, size)
