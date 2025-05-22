@@ -44,7 +44,7 @@ class MemoryLocation:
             _offset = None
         elif isinstance(offset, int):
             _offset = offset
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
         if isinstance(size, IRLiteral):
@@ -53,7 +53,7 @@ class MemoryLocation:
             _size = None
         elif isinstance(size, int):
             _size = size
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
         return cls(_offset, _size, is_volatile)
