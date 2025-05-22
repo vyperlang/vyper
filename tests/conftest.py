@@ -418,6 +418,9 @@ def pytest_fixture_setup(fixturedef, request):
         return
 
     exporter.set_item(fixturedef)
+
+    yield
+
     exporter.append_fixture(fixturedef.argname)
 
 
