@@ -421,7 +421,7 @@ def pytest_fixture_setup(fixturedef, request):
 
     yield
 
-    exporter.append_fixture(fixturedef.argname)
+    exporter.finalize_item(fixturedef)
 
 
 @pytest.hookimpl(hookwrapper=True)

@@ -21,14 +21,7 @@ class TestExporter:
         # module_path -> all traced items in the module
         self.data: dict[Path, list[TracedItem]] = {}
         self._current_module: Optional[Path] = None
-        self._executed_fixtures: list[str] = []
-
-    def append_fixture(self, fixture_name: str):
-        # some fixtures don't have traces (e.g. `tx_failed`)
-        # append only if it has traces
-        if self.current_item.traces:
-            if fixture_name not in self._executed_fixtures:
-                self._executed_fixtures.append(fixture_name)
+        self._executed_fixtures: list[Path] = []
 
     def _resolve_dependencies(self, node: Union[FixtureDef, Item]):
         deps = node.argnames if isinstance(node, FixtureDef) else node.fixturenames
@@ -37,9 +30,8 @@ class TestExporter:
         for f in self._executed_fixtures:
             # some executed fixtures might be dependencies only of nodes higher
             # in the dependency graph, so we need a check
-            if f in deps:
-                # TODO we need a fully qualified name here
-                deps_with_traces.append(f)
+            if f.name in deps:
+                deps_with_traces.append(str(f))
 
         self.current_item.deps = deps_with_traces
 
@@ -55,6 +47,7 @@ class TestExporter:
         if isinstance(node, Item):
             module_path = Path(node.module.__file__).resolve()
         else:
+            # TODO hacky, can we retrieve the path more conveniently?
             func = node.func
             module_obj = sys.modules[func.__module__]
             module_path = Path(module_obj.__file__).resolve()
@@ -63,13 +56,27 @@ class TestExporter:
 
         path = self.export_dir / rel_module
 
+        item_name = node.name if isinstance(node, Item) else node.argname
         if path not in self.data:
-            item_name = node.name if isinstance(node, Item) else node.argname
             # TODO we probably need to number the item names if they're fixtures
             self.data[path] = [TracedItem(item_name, [], [])]
+        else:
+            self.data[path].append(TracedItem(item_name, [], []))
 
         self._current_module = path
         self._resolve_dependencies(node)
+        if isinstance(node, Item):
+            # TODO maybe rename to finalize fixture?
+            # a test item is the last item in the dependency graph, we should clear
+            self._executed_fixtures.clear()
+
+    def finalize_item(self, node: Union[FixtureDef, Item]):
+        # normal test items currently don't need any finalization
+        assert isinstance(node, FixtureDef)
+        fixture_path = self._current_module / node.argname
+        if self.current_item.traces:
+            if fixture_path not in self._executed_fixtures:
+                self._executed_fixtures.append(fixture_path)
 
     def trace_deployment(
         self,
