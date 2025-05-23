@@ -411,13 +411,15 @@ def tx_failed(env):
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_fixture_setup(fixturedef, request):
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
     exporter = getattr(request.config, "active_test_exporter", None)
     if not exporter:
         yield
         return
 
-    exporter.set_item(fixturedef)
+    # if cache is empty it means the fixture will execute
+    will_execute = fixturedef.cached_result is None
+    exporter.set_item(fixturedef, will_execute)
 
     yield
 
