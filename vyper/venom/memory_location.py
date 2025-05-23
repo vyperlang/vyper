@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -15,6 +17,10 @@ class MemoryLocation:
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
     is_volatile: bool = False
+
+    # Initialize after class definition
+    EMPTY: ClassVar[MemoryLocation]
+    UNDEFINED: ClassVar[MemoryLocation]
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -38,7 +44,7 @@ class MemoryLocation:
             _offset = None
         elif isinstance(offset, int):
             _offset = offset
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
         if isinstance(size, IRLiteral):
@@ -47,7 +53,7 @@ class MemoryLocation:
             _size = None
         elif isinstance(size, int):
             _size = size
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
         return cls(_offset, _size, is_volatile)
@@ -79,9 +85,6 @@ class MemoryLocation:
         """
         Determine if two memory locations may overlap
         """
-        if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
-            return False
-
         o1, s1 = loc1.offset, loc1.size
         o2, s2 = loc2.offset, loc2.size
 
@@ -89,48 +92,70 @@ class MemoryLocation:
         if s1 == 0 or s2 == 0:
             return False
 
-        # All known
-        if loc1.is_fixed and loc2.is_fixed:
-            end1 = o1 + s1  # type: ignore
-            end2 = o2 + s2  # type: ignore
-            return not (end1 <= o2 or end2 <= o1)  # type: ignore
+        if o1 is None or o2 is None:
+            # If offsets are unknown, can't be sure
+            return True
 
-        # If both offsets are known
-        if loc1.is_offset_fixed and loc2.is_offset_fixed:
-            # loc1 known size, loc2 unknown size
-            if loc1.is_size_fixed and not loc2.is_size_fixed:
-                if o1 + s1 <= o2:  # type: ignore
-                    return False
-            # loc2 known size, loc1 unknown size
-            if loc2.is_size_fixed and not loc1.is_size_fixed:
-                if o2 + s2 <= o1:  # type: ignore
-                    return False
+        # guaranteed now that o1 and o2 are not None
+
+        # All known
+        if s1 is not None and s2 is not None:
+            end1 = o1 + s1
+            end2 = o2 + s2
+            return not (end1 <= o2 or end2 <= o1)
+
+        # loc1 known size, loc2 unknown size
+        if s1 is not None:
+            # end of loc1 is bounded by start of loc2
+            if o1 + s1 <= o2:
+                return False
+            # Otherwise, can't be sure
+            return True
+
+        # loc2 known size, loc1 unknown size
+        if s2 is not None:
+            # end of loc2 is bounded by start of loc1
+            if o2 + s2 <= o1:
+                return False
 
             # Otherwise, can't be sure
             return True
 
-        # If offsets are unknown, can't be sure
         return True
 
 
-EMPTY_MEMORY_ACCESS = MemoryLocation(offset=0, size=0, is_volatile=False)
+MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
+MemoryLocation.UNDEFINED = MemoryLocation(offset=None, size=None)
 
 
-def get_write_memory_location(inst) -> MemoryLocation:
+def get_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
     """Extract memory location info from an instruction"""
+    if addr_space == MEMORY:
+        return _get_memory_write_location(inst)
+    elif addr_space in (STORAGE, TRANSIENT):
+        return _get_storage_write_location(inst, addr_space)
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Invalid location type: {addr_space}")
+
+
+def get_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+    """Extract memory location info from an instruction"""
+    if addr_space == MEMORY:
+        return _get_memory_read_location(inst)
+    elif addr_space in (STORAGE, TRANSIENT):
+        return _get_storage_read_location(inst, addr_space)
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Invalid location type: {addr_space}")
+
+
+def _get_memory_write_location(inst) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
-        return MemoryLocation.from_operands(dst, 32)
+        return MemoryLocation.from_operands(dst, MEMORY.word_scale)
     elif opcode == "mload":
-        return EMPTY_MEMORY_ACCESS
-    elif opcode == "mcopy":
-        size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "calldatacopy":
-        size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "dloadbytes":
+        return MemoryLocation.EMPTY
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size)
     elif opcode == "dload":
@@ -145,29 +170,22 @@ def get_write_memory_location(inst) -> MemoryLocation:
     elif opcode in ("delegatecall", "staticcall"):
         size, dst, _, _, _, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
-    elif opcode in ("codecopy", "extcodecopy"):
-        size, _, dst = inst.operands[:3]
+    elif opcode == "extcodecopy":
+        size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
-    elif opcode == "returndatacopy":
-        size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    return EMPTY_MEMORY_ACCESS
+
+    return MemoryLocation.EMPTY
 
 
-def get_read_memory_location(inst) -> MemoryLocation:
-    """Extract memory location info from an instruction"""
+def _get_memory_read_location(inst) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
-        return EMPTY_MEMORY_ACCESS
+        return MemoryLocation.EMPTY
     elif opcode == "mload":
-        return MemoryLocation.from_operands(inst.operands[0], 32)
+        return MemoryLocation.from_operands(inst.operands[0], MEMORY.word_scale)
     elif opcode == "mcopy":
         size, src, _ = inst.operands
         return MemoryLocation.from_operands(src, size)
-    elif opcode == "calldatacopy":
-        return EMPTY_MEMORY_ACCESS
-    elif opcode == "dloadbytes":
-        return EMPTY_MEMORY_ACCESS
     elif opcode == "dload":
         return MemoryLocation(offset=0, size=32)
     elif opcode == "invoke":
@@ -200,4 +218,51 @@ def get_read_memory_location(inst) -> MemoryLocation:
     elif opcode == "revert":
         size, src = inst.operands
         return MemoryLocation.from_operands(src, size)
-    return EMPTY_MEMORY_ACCESS
+
+    return MemoryLocation.EMPTY
+
+
+def _get_storage_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == addr_space.store_op:
+        dst = inst.operands[1]
+        return MemoryLocation.from_operands(dst, addr_space.word_scale)
+    elif opcode == addr_space.load_op:
+        return MemoryLocation.EMPTY
+    elif opcode in ("call", "delegatecall", "staticcall"):
+        return MemoryLocation.UNDEFINED
+    elif opcode == "invoke":
+        return MemoryLocation.UNDEFINED
+    elif opcode in ("create", "create2"):
+        return MemoryLocation.UNDEFINED
+
+    return MemoryLocation.EMPTY
+
+
+def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+    opcode = inst.opcode
+    if opcode == addr_space.store_op:
+        return MemoryLocation.EMPTY
+    elif opcode == addr_space.load_op:
+        return MemoryLocation.from_operands(inst.operands[0], addr_space.word_scale)
+    elif opcode in ("call", "delegatecall", "staticcall"):
+        return MemoryLocation.UNDEFINED
+    elif opcode == "invoke":
+        return MemoryLocation.UNDEFINED
+    elif opcode in ("create", "create2"):
+        return MemoryLocation.UNDEFINED
+    elif opcode in ("return", "stop", "exit", "sink"):
+        # these opcodes terminate execution and commit to (persistent)
+        # storage, resulting in storage writes escaping our control.
+        # returning `MemoryLocation.UNDEFINED` represents "future" reads
+        # which could happen in the next program invocation.
+        # while not a "true" read, this case makes the code in DSE simpler.
+        return MemoryLocation.UNDEFINED
+    elif opcode == "ret":
+        # `ret` escapes our control and returns execution to the
+        # caller function. to be conservative, we model these as
+        # "future" reads which could happen in the caller.
+        # while not a "true" read, this case makes the code in DSE simpler.
+        return MemoryLocation.UNDEFINED
+
+    return MemoryLocation.EMPTY
