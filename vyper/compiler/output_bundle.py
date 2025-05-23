@@ -53,11 +53,7 @@ class OutputBundle:
         import_analysis = self.compiler_data.resolved_imports
         all_modules = import_analysis.seen
 
-        inputs: list[CompilerInput] = []
-        for module_ast in all_modules:
-            compiler_input = import_analysis.compiler_input(module_ast)
-            if compiler_input is not None:
-                inputs.append(compiler_input)
+        inputs: list[CompilerInput] = import_analysis.compiler_inputs
 
         # file input for the top level module; it's not in
         # import_analysis._compiler_inputs

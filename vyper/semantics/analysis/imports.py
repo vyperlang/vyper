@@ -83,7 +83,7 @@ class ImportAnalyzer:
 
         # keep around compiler inputs so when we construct the output
         # bundle, we have access to the compiler input for each module
-        self._compiler_inputs: dict[vy_ast.Module, CompilerInput] = {}
+        self._compiler_inputs: list[CompilerInput] = []
 
         self._integrity_sum = None
 
@@ -94,8 +94,9 @@ class ImportAnalyzer:
         self._resolve_imports_r(module_ast)
         self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
 
-    def compiler_input(self, module_ast: vy_ast.Module) -> Optional[CompilerInput]:
-        return self._compiler_inputs.get(module_ast)
+    @property
+    def compiler_inputs(self) -> list[CompilerInput]:
+        return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -159,7 +160,7 @@ class ImportAnalyzer:
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        self._compiler_inputs[ast] = compiler_input
+        self._compiler_inputs.append(compiler_input)
         node._metadata["import_info"] = ImportInfo(
             alias, qualified_module_name, compiler_input, ast
         )
