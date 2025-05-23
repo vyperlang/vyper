@@ -11,6 +11,8 @@ import traceback
 import warnings
 from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
+from Crypto.Hash import keccak
+
 from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
@@ -67,13 +69,17 @@ class OrderedSet(Generic[_T]):
     def remove(self, item: _T) -> None:
         del self._data[item]
 
-    def drop(self, item: _T):
+    def discard(self, item: _T):
         # friendly version of remove
         self._data.pop(item, None)
 
+    # consider renaming to "discardmany"
     def dropmany(self, iterable):
         for item in iterable:
             self._data.pop(item, None)
+
+    def clear(self):
+        self._data.clear()
 
     def difference(self, other):
         ret = self.copy()
@@ -216,14 +222,8 @@ class DecimalContextOverride(decimal.Context):
 decimal.setcontext(DecimalContextOverride(prec=78))
 
 
-try:
-    from Crypto.Hash import keccak  # type: ignore
-
-    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
-except ImportError:
-    import sha3 as _sha3
-
-    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+def keccak256(x):
+    return keccak.new(digest_bits=256, data=x).digest()
 
 
 @functools.lru_cache(maxsize=512)
@@ -491,7 +491,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6

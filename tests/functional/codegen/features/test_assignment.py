@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
@@ -103,36 +104,6 @@ def test_augassign_oob(get_contract, tx_failed, source):
     "source",
     [
         """
-a: public(DynArray[uint256, 2])
-
-interface Foo:
-    def foo() -> uint256: view
-
-@external
-def foo() -> uint256:
-    return self.a[1]
-
-@external
-def entry() -> DynArray[uint256, 2]:
-    self.a = [1, 1]
-    # panics due to staticcall
-    self.a[1] += staticcall Foo(self).foo()
-    return self.a
-    """
-    ],
-)
-@pytest.mark.xfail(strict=True, raises=CodegenPanic)
-def test_augassign_rhs_references_lhs(get_contract, tx_failed, source):
-    # xfail here (with panic):
-    c = get_contract(source)
-
-    assert c.entry() == [1, 2]
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
 @external
 def entry() -> DynArray[uint256, 2]:
     a: DynArray[uint256, 2] = [1, 1]
@@ -161,11 +132,127 @@ def entry() -> DynArray[uint256, 2]:
     self.a[1] += self.read()
     return self.a
     """,
+        """
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
+    a: DynArray[uint256, 2] = [1, 1]
+    a[1] += extcall Foo(self).foo()
+    return a
+    """,
+        """
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+def get_foo() -> uint256:
+    return extcall Foo(self).foo()
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
+    a: DynArray[uint256, 2] = [1, 1]
+    # extcall hidden inside internal function
+    a[1] += self.get_foo()
+    return a
+    """,
+        """
+a: public(DynArray[uint256, 2])
+
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    self.a[1] += staticcall Foo(self).foo()
+    return self.a
+    """,
     ],
 )
 def test_augassign_rhs_references_lhs2(get_contract, source):
     c = get_contract(source)
     assert c.entry() == [1, 2]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_augassign_rhs_references_lhs_transient(get_contract):
+    source = """
+x: transient(DynArray[uint256, 2])
+
+def read() -> uint256:
+    return self.x[0]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # test augassign with state read hidden behind function call
+    self.x[0] += self.read()
+    # augassign with direct state read
+    self.x[1] += self.x[0]
+    return self.x
+    """
+    c = get_contract(source)
+
+    assert c.entry() == [2, 3]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+x: transient(DynArray[uint256, 2])
+
+def write() -> uint256:
+    return self.x.pop()
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # hide state write behind function call
+    self.x[1] += self.write()
+    return self.x
+    """,
+        """
+x: transient(DynArray[uint256, 2])
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # direct state write
+    self.x[1] += self.x.pop()
+    return self.x
+    """,
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source):
+    if not version_check(begin="cancun"):
+        # no transient available before cancun
+        pytest.skip()
+
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.entry()
 
 
 @pytest.mark.parametrize(

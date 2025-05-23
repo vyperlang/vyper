@@ -21,7 +21,7 @@ class DFTPass(IRPass):
         self.data_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
 
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)

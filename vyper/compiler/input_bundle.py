@@ -15,6 +15,9 @@ PathLike = Path | PurePath
 if TYPE_CHECKING:
     from zipfile import ZipFile
 
+# hacky sentinel to indicate that a file came from InputBundle for builtins
+BUILTIN = -2
+
 
 @dataclass(frozen=True)
 class CompilerInput:
@@ -31,6 +34,10 @@ class CompilerInput:
     @cached_property
     def sha256sum(self):
         return sha256sum(self.contents)
+
+    @property
+    def from_builtin(self):
+        return self.source_id == BUILTIN
 
 
 @dataclass(frozen=True)
