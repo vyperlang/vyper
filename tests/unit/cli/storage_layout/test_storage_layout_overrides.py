@@ -485,4 +485,4 @@ a: public(uint256)
         }
 
     # note: compile_code checks roundtrip of the override
-    compile_code(code, storage_layout_override=override)
+    compile_code(code, storage_layout_override=json_input(override))
