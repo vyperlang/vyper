@@ -212,6 +212,7 @@ def test_phi_elim_cannot_remove():
     main:
         %p = param
         %rand = param
+        jmp @cond
     cond:
         %1 = phi @main, %p, @body, %3
         %cond = iszero %1
@@ -264,3 +265,57 @@ def test_phi_elim_direct_loop():
 
     _check_pre_post(pre1, post)
     _check_pre_post(pre2, post)
+
+
+def test_phi_elim_two_phi_merges():
+    pre = """
+    main:
+        %cond = param
+        %cond2 = param
+        jnz %cond, @1_then, @2_then
+    1_then:
+        %1 = 100
+        jmp @3_join
+    2_then:
+        %2 = 101
+        jmp @3_join
+    3_join:
+        %3 = phi @1_then, %1, @2_then, %2
+        jnz %cond2, @4_then, @5_then
+    4_then:
+        %4 = %3
+        jmp @6_join
+    5_then:
+        %5 = %3
+        jmp @6_join
+    6_join:
+        %6 = phi @4_then, %4, @5_then, %5  ; should be reduced to %3!
+        sink %6
+    """
+
+    post = """
+    main:
+        %cond = param
+        %cond2 = param
+        jnz %cond, @1_then, @2_then
+    1_then:
+        %1 = 100
+        jmp @3_join
+    2_then:
+        %2 = 101
+        jmp @3_join
+    3_join:
+        %3 = phi @1_then, %1, @2_then, %2
+        jnz %cond2, @4_then, @5_then
+    4_then:
+        %4 = %3
+        jmp @6_join
+    5_then:
+        %5 = %3
+        jmp @6_join
+    6_join:
+        %6 = %3
+        sink %6
+    """
+
+    _check_pre_post(pre, post, hevm=True)
