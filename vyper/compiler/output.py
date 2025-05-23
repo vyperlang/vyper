@@ -1,6 +1,7 @@
 import base64
 from collections import deque
 from pathlib import PurePath
+from typing import Iterable
 
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
@@ -17,15 +18,7 @@ from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
-def build_ast_dict(compiler_data: CompilerData) -> dict:
-    ast_dict = {
-        "contract_name": str(compiler_data.contract_path),
-        "ast": ast_to_dict(compiler_data.vyper_module),
-    }
-    return ast_dict
-
-
-def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Module]:
     import_analysis = compiler_data.resolved_imports
 
     # get all reachable imports including recursion
@@ -35,6 +28,21 @@ def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
         # assumption is violated in the future
         imported_modules.remove(compiler_data.vyper_module)
 
+    return imported_modules
+
+
+def build_ast_dict(compiler_data: CompilerData) -> dict:
+    imported_modules = _get_reachable_imports(compiler_data)
+    ast_dict = {
+        "contract_name": str(compiler_data.contract_path),
+        "ast": ast_to_dict(compiler_data.vyper_module),
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
+    }
+    return ast_dict
+
+
+def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    imported_modules = _get_reachable_imports(compiler_data)
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
