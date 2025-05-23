@@ -117,7 +117,8 @@ class TestExporter:
             return
 
         # record it so later nodes see the latest fixture instantiation
-        self._executed_fixtures.append(str(bucket / unique))
+        json_bucket = bucket.with_suffix(".json")
+        self._executed_fixtures.append(str(json_bucket / unique))
 
     def _resolve_deps(self, node: Union[FixtureDef, Item]):
         wanted = set(node.fixturenames if isinstance(node, Item) else node.argnames)
