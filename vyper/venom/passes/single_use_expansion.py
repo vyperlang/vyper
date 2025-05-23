@@ -20,6 +20,7 @@ class SingleUseExpansion(IRPass):
     """
 
     def run_pass(self):
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
@@ -39,7 +40,17 @@ class SingleUseExpansion(IRPass):
                 if inst.opcode == "log" and j == 0:
                     continue
 
-                if isinstance(op, (IRVariable, IRLiteral)):
+                if isinstance(op, IRVariable):
+                    uses = self.dfg.get_uses(op)
+                    if len(uses) == 1 and len([x for x in inst.operands if x == op]) == 1:
+                        continue
+                    var = self.function.get_next_variable()
+                    to_insert = IRInstruction("store", [op], var)
+                    bb.insert_instruction(to_insert, index=i)
+                    inst.operands[j] = var
+                    i += 1
+
+                if isinstance(op, IRLiteral):
                     var = self.function.get_next_variable()
                     to_insert = IRInstruction("store", [op], var)
                     bb.insert_instruction(to_insert, index=i)
