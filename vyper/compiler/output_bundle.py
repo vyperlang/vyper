@@ -51,9 +51,8 @@ class OutputBundle:
     @cached_property
     def compiler_inputs(self) -> dict[str, CompilerInput]:
         import_analysis = self.compiler_data.resolved_imports
-        all_modules = import_analysis.seen
 
-        inputs: list[CompilerInput] = import_analysis.compiler_inputs
+        inputs: list[CompilerInput] = import_analysis.compiler_inputs.copy()
 
         # file input for the top level module; it's not in
         # import_analysis._compiler_inputs
