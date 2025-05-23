@@ -74,17 +74,20 @@ class _ImportGraph:
 
 
 class ImportAnalyzer:
+    seen: OrderedSet[vy_ast.Module]
+    _compiler_inputs: list[CompilerInput]
+
     def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
         self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: OrderedSet[vy_ast.Module] = OrderedSet()
+        self.seen = OrderedSet()
 
         # keep around compiler inputs so when we construct the output
         # bundle, we have access to the compiler input for each module
-        self._compiler_inputs: list[CompilerInput] = []
+        self._compiler_inputs = []
 
         self._integrity_sum = None
 

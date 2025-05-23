@@ -6,7 +6,6 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import CompilerInput
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -19,7 +18,7 @@ from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
-def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[CompilerInput]:
+def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Module]:
     import_analysis = compiler_data.resolved_imports
 
     # get all reachable imports including recursion
