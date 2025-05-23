@@ -15,12 +15,21 @@ def _base_name(unique: str) -> str:
     return unique
 
 
-def _bucket_path_for(node: Union[FixtureDef, Item], test_root: Path, export_root: Path) -> Path:
+def _bucket_path_for(
+    node: Union[FixtureDef, Item], test_root: Path, export_root: Path
+) -> Optional[Path]:
     if isinstance(node, Item):
         mod_file = Path(node.module.__file__).resolve()
     else:  # FixtureDef
         mod_file = Path(sys.modules[node.func.__module__].__file__).resolve()
-    return export_root / mod_file.relative_to(test_root)
+
+    # built-in fixtures can live outside test root
+    try:
+        rel = mod_file.relative_to(test_root)
+    except ValueError:
+        return None  # external fixture
+
+    return export_root / rel
 
 
 @dataclass
@@ -52,15 +61,19 @@ class TestExporter:
         bucket = self.data[self._current_bucket]
         return bucket[-1]
 
-    def set_item(self, node: Union[FixtureDef, Item], will_execute: bool = True):
+    def set_item(self, node: Union[FixtureDef, Item], will_execute: bool = True) -> bool:
         bucket = _bucket_path_for(node, self.test_root, self.export_dir)
+
+        if bucket is None:
+            return False
+
         lst = self.data.setdefault(bucket, [])
         self._current_bucket = bucket
 
         if isinstance(node, Item):
             lst.append(TracedItem(node.name, [], []))
             self._resolve_deps(node)
-            return
+            return True
 
         base = node.argname
         key = (bucket, base)
@@ -80,6 +93,7 @@ class TestExporter:
         # already ran - guaranteed by pytest)
         if will_execute:
             self._resolve_deps(node)
+        return True
 
     def finalize_item(self, node: Union[FixtureDef, Item]):
         # test items currently don't need any finalization
