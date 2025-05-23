@@ -1,8 +1,7 @@
 import contextlib
-import json
-from dataclasses import asdict, dataclass, field
 import dataclasses as dc
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
@@ -11,7 +10,6 @@ import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     BUILTIN,
-    ABIInput,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,

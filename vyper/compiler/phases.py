@@ -9,8 +9,6 @@ from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
-from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import (
     OptimizationLevel,
     Settings,
