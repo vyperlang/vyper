@@ -265,6 +265,7 @@ class CompilerData:
         runtime_bytecode = self.bytecode_runtime
         runtime_data_segment_lengths = get_data_segment_lengths(runtime_asm)
 
+        # TODO: inject the data segments and constants into venom_ctx.
         venom_ctx = generate_ir(self.ir_nodes, self.settings)
 
     @cached_property
