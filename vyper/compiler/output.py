@@ -11,9 +11,7 @@ from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
-from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
-from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
@@ -28,32 +26,19 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
-    module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    # get all reachable imports including recursion
-    imported_module_infos = module_t.reachable_imports
-    unique_modules: dict[str, vy_ast.Module] = {}
-    for info in imported_module_infos:
-        if isinstance(info.typ, InterfaceT):
-            ast = info.typ.decl_node
-            if ast is None:  # json abi
-                continue
-        else:
-            assert isinstance(info.typ, ModuleInfo)
-            ast = info.typ.module_t._module
+    import_analysis = compiler_data.resolved_imports
 
-        assert isinstance(ast, vy_ast.Module)  # help mypy
-        # use resolved_path for uniqueness, since Module objects can actually
-        # come from multiple InputBundles (particularly builtin interfaces),
-        # so source_id is not guaranteed to be unique.
-        if ast.resolved_path in unique_modules:
-            # sanity check -- objects must be identical
-            assert unique_modules[ast.resolved_path] is ast
-        unique_modules[ast.resolved_path] = ast
+    # get all reachable imports including recursion
+    imported_modules = import_analysis.seen.copy()
+    if compiler_data.vyper_module in imported_modules:
+        # this shouldn't actually happen, but remove in case our
+        # assumption is violated in the future
+        imported_modules.remove(compiler_data.vyper_module)
 
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
-        "imports": [ast_to_dict(ast) for ast in unique_modules.values()],
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
     }
     return annotated_ast_dict
 
