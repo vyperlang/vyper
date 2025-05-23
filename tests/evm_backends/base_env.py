@@ -93,6 +93,7 @@ class BaseEnv:
                 export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
 
             common_trace_kwargs = {
+                "deployer": self.deployer,
                 "deployment_type": str(export_metadata.get("deployment_origin")),
                 "contract_abi": abi,
                 "initcode": initcode.hex(),
