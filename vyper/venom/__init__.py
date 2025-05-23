@@ -52,6 +52,38 @@ def generate_assembly_experimental(
     compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
+def _run_stable_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
+    # Run passes on Venom IR
+
+    FloatAllocas(ac, fn).run_pass()
+
+    # required to fix dom tree
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+
+    # run algebraic opts before mem2var to reduce some pointer arithmetic
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass()
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+
+    SCCP(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    AssignElimination(ac, fn).run_pass()
+    RevertToAssert(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    LowerDloadPass(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    BranchOptimizationPass(ac, fn).run_pass()
+
+    SingleUseExpansion(ac, fn).run_pass()
+
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
@@ -122,7 +154,8 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         ir_analyses[fn] = IRAnalysesCache(fn)
 
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize, ir_analyses[fn])
+        #_run_passes(fn, optimize, ir_analyses[fn])
+        _run_stable_passes(fn, optimize, ir_analyses[fn])
 
 
 def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
