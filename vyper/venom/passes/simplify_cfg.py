@@ -83,9 +83,21 @@ class SimplifyCFGPass(IRPass):
         self._collapse_chained_blocks_r(entry)
 
     def _replace_label(self, original_label: IRLabel, replacement_label: IRLabel):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                inst.replace_operands({original_label: replacement_label})
+        to_delete = set()
+        for inst in self._uses_labels:
+            # deleted instruction
+            if not self.function.has_basic_block(inst.parent.label.value):
+                to_delete.add(inst)
+                continue
+            # no more labels, delete from index
+            if not any(isinstance(op, IRLabel) for op in inst.operands):
+                to_delete.add(inst)
+                continue
+
+            inst.replace_operands({original_label: replacement_label})
+
+        for inst in to_delete:
+            self._uses_labels.remove(inst)
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
@@ -136,9 +148,19 @@ class SimplifyCFGPass(IRPass):
         if needs_sort:
             bb.instructions.sort(key=lambda inst: inst.opcode != "phi")
 
+    def _index_label_uses(self):
+        # for performance, index the instructions which use IRLabel as operand
+        self._uses_labels = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if any(isinstance(op, IRLabel) for op in inst.operands):
+                    self._uses_labels.add(inst)
+
     def run_pass(self):
         fn = self.function
         entry = fn.entry
+
+        self._index_label_uses()
 
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         changes = self.remove_unreachable_blocks()
