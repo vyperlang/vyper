@@ -1,23 +1,26 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.analysis.mem_ssa import MemSSA
+from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker([DeadStoreElimination])
-
-
-def _check_no_change(code, hevm=False):
-    return _check_pre_post(code, code, hevm=hevm)
-
 
 class VolatilePrePostChecker(PrePostChecker):
-    def __init__(self, passes: list[type], volatile_locations=None, post=None, default_hevm=True):
+    def __init__(
+        self,
+        passes: list[type],
+        volatile_locations=None,
+        addr_space: AddrSpace = MEMORY,
+        post=None,
+        default_hevm=True,
+    ):
         super().__init__(passes, post, default_hevm)
+        self.addr_space = addr_space
         if volatile_locations is None:
             self.volatile_locations = []
         else:
@@ -35,7 +38,7 @@ class VolatilePrePostChecker(PrePostChecker):
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
-            mem_ssa = ac.request_analysis(MemSSA)
+            mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocation(offset=address, size=size, is_volatile=True)
@@ -44,7 +47,7 @@ class VolatilePrePostChecker(PrePostChecker):
             for p in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
-                obj.run_pass()
+                obj.run_pass(self.addr_space)
 
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
@@ -62,6 +65,13 @@ class VolatilePrePostChecker(PrePostChecker):
             hevm_check_venom(pre, post)
 
         return self.pass_objects
+
+
+_check_pre_post = VolatilePrePostChecker([DeadStoreElimination])
+
+
+def _check_no_change(code, hevm=False):
+    return _check_pre_post(code, code, hevm=hevm)
 
 
 def test_basic_dead_store():
@@ -1082,3 +1092,98 @@ def test_unknown_size_overwriting_store():
       sink %2
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+_persistent_address_spaces = (STORAGE, TRANSIENT)
+
+
+def _check_pre_post_generic(pre, post, addr_space):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
+
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_basic_dead_store(addr_space):
+    pre = f"""
+        _global:
+            {addr_space.store_op} 0, 1
+            stop
+    """
+    post = f"""
+        _global:
+            {addr_space.store_op} 0, 1
+            stop
+    """
+    _check_pre_post_generic(pre, post, addr_space)
+
+
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_basic_dead_store_clobbered(addr_space):
+    pre = f"""
+        _global:
+            {addr_space.store_op} 0, 1
+            {addr_space.store_op} 0, 2
+            stop
+    """
+    post = f"""
+        _global:
+            nop
+            {addr_space.store_op} 0, 2
+            stop
+    """
+    _check_pre_post_generic(pre, post, addr_space)
+
+
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_dead_store_branch_success(jnz, addr_space):
+    pre = f"""
+        _global:
+            %1 = calldataload 0
+            {addr_space.store_op} 0, 1 ; not dead as first branches succeeds
+            {jnz}
+        then:
+            sink %1
+        else:
+            {addr_space.store_op} 0, 2
+            sink %1
+    """
+    post = f"""
+        _global:
+            %1 = calldataload 0
+            {addr_space.store_op} 0, 1
+            {jnz}
+        then:
+            sink %1
+        else:
+            {addr_space.store_op} 0, 2
+            sink %1
+    """
+    _check_pre_post_generic(pre, post, addr_space)
+
+
+@pytest.mark.parametrize("jnz", _generate_jnz_configurations("%1", "@then", "@else"))
+@pytest.mark.parametrize("addr_space", _persistent_address_spaces)
+def test_storage_dead_store_branch_revert(jnz, addr_space):
+    pre = f"""
+        _global:
+            %1 = calldataload 0
+            {addr_space.store_op} 0, 1 ; dead as first branch reverts second clobbers
+            {jnz}
+        then:
+            revert 0, 0
+        else:
+            {addr_space.store_op} 0, 2
+            sink %1
+    """
+    post = f"""
+        _global:
+            %1 = calldataload 0
+            nop
+            {jnz}
+        then:
+            revert 0, 0
+        else:
+            {addr_space.store_op} 0, 2
+            sink %1
+    """
+    _check_pre_post_generic(pre, post, addr_space)
