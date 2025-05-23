@@ -53,6 +53,7 @@ class OutputBundle:
         import_analysis = self.compiler_data.resolved_imports
 
         inputs: list[CompilerInput] = import_analysis.compiler_inputs.copy()
+        inputs = [inp for inp in inputs if not inp.from_builtin]
 
         # file input for the top level module; it's not in
         # import_analysis._compiler_inputs
