@@ -6,18 +6,16 @@ from typing import Any, Optional, Union
 
 from pytest import FixtureDef, Item
 
-
-# TODO what if the fixture as numeric suffix from user-code?
-# we should use some specifc separator
-def base_name(unique: str) -> str:
-    # strip the numeric suffix we add when we re-instantiate: c2  ->  c
-    i = len(unique)
-    while i and unique[i - 1].isdigit():
-        i -= 1
-    return unique[:i]
+SEP = "__"
 
 
-def bucket_path_for(node: Union[FixtureDef, Item], test_root: Path, export_root: Path) -> Path:
+def _base_name(unique: str) -> str:
+    if SEP in unique:
+        return unique.rsplit(SEP, 1)[0]
+    return unique
+
+
+def _bucket_path_for(node: Union[FixtureDef, Item], test_root: Path, export_root: Path) -> Path:
     if isinstance(node, Item):
         mod_file = Path(node.module.__file__).resolve()
     else:  # FixtureDef
@@ -55,7 +53,7 @@ class TestExporter:
         return bucket[-1]
 
     def set_item(self, node: Union[FixtureDef, Item], will_execute: bool = True):
-        bucket = bucket_path_for(node, self.test_root, self.export_dir)
+        bucket = _bucket_path_for(node, self.test_root, self.export_dir)
         lst = self.data.setdefault(bucket, [])
         self._current_bucket = bucket
 
@@ -70,7 +68,7 @@ class TestExporter:
         if will_execute:
             cnt = self._counts.get(key, 0) + 1
             self._counts[key] = cnt
-            unique = base if cnt == 1 else f"{base}{cnt}"
+            unique = base if cnt == 1 else f"{base}{SEP}{cnt}"
             lst.append(TracedItem(unique, [], []))
             self._last_unique[key] = unique
         else:  # fixture was cached from some previous run
@@ -111,7 +109,7 @@ class TestExporter:
         # walk the executed list backwards – first match for every base wins
         # alternatively we could clear the fixtures, but this approach seems easier
         for ref in reversed(self._executed_fixtures):
-            base = base_name(Path(ref).name)
+            base = _base_name(Path(ref).name)
             if base in wanted:
                 deps.append(ref)
                 wanted.remove(base)
