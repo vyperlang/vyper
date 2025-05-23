@@ -25,7 +25,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
-from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.venom import generate_assembly_experimental, generate_venom
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -255,11 +255,17 @@ class CompilerData:
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
-    def venom_functions(self):
-        deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings)
-        runtime_venom = generate_ir(runtime_ir, self.settings)
-        return deploy_venom, runtime_venom
+    def venom_runtime(self):
+        runtime_venom = generate_ir(self.ir_runtime, self.settings)
+        return runtime_venom
+
+    @cached_property
+    def venom_deploytime(self):
+        runtime_asm = self.assembly_runtime
+        runtime_bytecode = self.bytecode_runtime
+        runtime_data_segment_lengths = get_data_segment_lengths(runtime_asm)
+
+        venom_ctx = generate_ir(self.ir_nodes, self.settings)
 
     @cached_property
     def assembly(self) -> list:
@@ -268,10 +274,9 @@ class CompilerData:
             metadata = bytes.fromhex(self.integrity_sum)
 
         if self.settings.experimental_codegen:
-            deploy_code, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
+                self.venom_deploytime, optimize=self.settings.optimize
             )
         else:
             return generate_assembly(
@@ -281,9 +286,8 @@ class CompilerData:
     @cached_property
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
-            _, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
-            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
+            return generate_assembly_experimental(self.venom_runtime, optimize=self.settings.optimize)
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
