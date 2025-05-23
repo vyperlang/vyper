@@ -48,22 +48,17 @@ class FileInput(CompilerInput):
 
 
 @dataclass(frozen=True, unsafe_hash=True)
-class ABIInput(CompilerInput):
+class JSONInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    abi: Any = field(hash=False)  # something that json.load() returns
+    data: Any = field(hash=False)  # something that json.load() returns
 
-
-def try_parse_abi(file_input: FileInput) -> CompilerInput:
-    try:
+    @classmethod
+    def from_file_input(cls, file_input: FileInput) -> "JSONInput":
         s = json.loads(file_input.source_code)
-        if isinstance(s, dict) and "abi" in s:
-            s = s["abi"]
-        return ABIInput(**asdict(file_input), abi=s)
-    except (ValueError, TypeError):
-        return file_input
+        return cls(**asdict(file_input), data=s)
 
 
 class _NotFound(Exception):
@@ -112,7 +107,7 @@ class InputBundle:
 
         return self._source_ids[resolved_path]
 
-    def load_file(self, path: PathLike | str) -> CompilerInput:
+    def load_file(self, path: PathLike | str) -> FileInput:
         # search path precedence
         tried = []
         if isinstance(path, str):
@@ -137,12 +132,11 @@ class InputBundle:
                 f"{formatted_search_paths}"
             )
 
-        # try to parse from json, so that return types are consistent
-        # across FilesystemInputBundle and JSONInputBundle.
-        if isinstance(res, FileInput):
-            res = try_parse_abi(res)
-
         return res
+
+    def load_json_file(self, path: PathLike | str) -> JSONInput:
+        file_input = self.load_file(path)
+        return JSONInput.from_file_input(file_input)
 
     # temporarily add something to the search path (within the
     # scope of the context manager) with highest precedence.
@@ -235,7 +229,7 @@ class JSONInputBundle(InputBundle):
             return FileInput(source_id, original_path, resolved_path, value["content"])
 
         if "abi" in value:
-            return ABIInput(
+            return JSONInput(
                 source_id, original_path, resolved_path, json.dumps(value), value["abi"]
             )
 
