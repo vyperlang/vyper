@@ -37,6 +37,7 @@ class TracedItem:
     name: str
     deps: list[str]
     traces: list[dict[str, Any]]
+    item_type: str
 
 
 class TestExporter:
@@ -71,9 +72,11 @@ class TestExporter:
         self._current_bucket = bucket
 
         if isinstance(node, Item):
-            lst.append(TracedItem(node.name, [], []))
+            lst.append(TracedItem(node.name, [], [], "test"))
             self._resolve_deps(node)
             return True
+
+        assert isinstance(node, FixtureDef)
 
         base = node.argname
         key = (bucket, base)
@@ -82,7 +85,7 @@ class TestExporter:
             cnt = self._counts.get(key, 0) + 1
             self._counts[key] = cnt
             unique = base if cnt == 1 else f"{base}{SEP}{cnt}"
-            lst.append(TracedItem(unique, [], []))
+            lst.append(TracedItem(unique, [], [], "fixture"))
             self._last_unique[key] = unique
         else:  # fixture was cached from some previous run
             unique = self._last_unique[key]
@@ -149,9 +152,14 @@ class TestExporter:
         )
 
     def finalize_export(self):
-        for bucket, traced_items in self.data.items():
-            json_path = bucket.with_suffix(".json")
-            json_path.parent.mkdir(parents=True, exist_ok=True)
+        for bucket_path, items in self.data.items():
+            out = bucket_path.with_suffix(".json")
+            out.parent.mkdir(parents=True, exist_ok=True)
 
-            with json_path.open("w", encoding="utf-8") as fp:
-                json.dump([ti.__dict__ for ti in traced_items], fp, indent=2, sort_keys=True)
+            by_name = {
+                ti.name: {"deps": ti.deps, "traces": ti.traces, "item_type": ti.item_type}
+                for ti in items
+            }
+
+            with out.open("w", encoding="utf-8") as fp:
+                json.dump(by_name, fp, indent=2, sort_keys=True)
