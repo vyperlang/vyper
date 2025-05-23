@@ -62,6 +62,7 @@ def test_jump_map(optimize, experimental_codegen):
         if pc not in pos_map:
             assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
+
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
@@ -96,7 +97,7 @@ def test_pos_map_offsets():
             )
 
 
-def test_error_map():
+def test_error_map(experimental_codegen):
     code = """
 foo: uint256
 
@@ -106,7 +107,12 @@ def update_foo():
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "safeadd" in error_map.values()
-    assert "fallback function" in error_map.values()
+
+    if experimental_codegen:
+        # fallback function gets turned into an assertion
+        pass
+    else:
+        assert "fallback function" in error_map.values()
 
 
 def test_error_map_with_user_error():
@@ -137,8 +143,9 @@ def foo(i: uint256):
     raise self.bar(5%i)
 
 @pure
-def bar(i: uint256) -> String[32]:
-    return "foo foo"
+def bar(i: uint256) -> String[85]:
+    # ensure the mod doesn't get erased
+    return concat("foo foo", uint2str(i))
     """
     error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "user revert with reason" in error_map.values()

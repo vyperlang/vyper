@@ -11,7 +11,6 @@ from vyper.compiler.input_bundle import CompilerInput, ZipInputBundle, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.analysis.imports import _is_builtin
 from vyper.typing import StorageLayout
 from vyper.utils import get_long_version, safe_relpath
 
@@ -56,7 +55,7 @@ class OutputBundle:
     @cached_property
     def compiler_inputs(self) -> dict[str, CompilerInput]:
         inputs: list[CompilerInput] = [
-            t.compiler_input for t in self._imports if not _is_builtin(t.qualified_module_name)
+            t.compiler_input for t in self._imports if not t.compiler_input.from_builtin
         ]
         inputs.append(self.compiler_data.file_input)
 

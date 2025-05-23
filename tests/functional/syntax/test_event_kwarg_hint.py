@@ -41,3 +41,20 @@ def foo():
 
     assert len(w) == 1, [s.message for s in w]
     assert str(w[0].message).startswith(expected)
+
+
+def test_no_arg_no_hint():
+    # test that logging events with 0 args does not emit a warning
+    code = """
+event MyLog:
+    pass
+
+@external
+def foo():
+    log MyLog()
+    """
+
+    with warnings.catch_warnings(record=True) as w:
+        assert compile_code(code) is not None
+
+    assert len(w) == 0
