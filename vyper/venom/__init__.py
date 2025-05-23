@@ -52,7 +52,28 @@ def generate_assembly_experimental(
     compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)
 
-def _run_stable_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
+# base passes that are run at -Onone. basically just well-formedness passes.
+def _run_base_passes(fn: IRFunction, ac: IRAnalysesCache):
+    FloatAllocas(ac, fn).run_pass()
+
+    # required to fix dom tree
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    MakeSSA(ac, fn).run_pass()
+    #AssignElimination(ac, fn).run_pass()
+    # mem2var makes a huge improvement, but it's not a "base" pass
+    #Mem2Var(ac, fn).run_pass()
+    #MakeSSA(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()  # required otherwise we run out of stack
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    #AssignElimination(ac, fn).run_pass()
+    LowerDloadPass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()  # required otherwise we run out of stack
+    # well formedness
+    SingleUseExpansion(ac, fn).run_pass()
+
+def _run_stable_passes(fn: IRFunction, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
 
     FloatAllocas(ac, fn).run_pass()
@@ -155,7 +176,10 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
 
     for fn in ctx.functions.values():
         #_run_passes(fn, optimize, ir_analyses[fn])
-        _run_stable_passes(fn, optimize, ir_analyses[fn])
+        if optimize == OptimizationLevel.NONE:
+            _run_base_passes(fn, ir_analyses[fn])
+        else:
+            _run_stable_passes(fn, ir_analyses[fn])
 
 
 def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
