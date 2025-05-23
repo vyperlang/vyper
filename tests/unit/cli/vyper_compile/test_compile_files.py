@@ -1,5 +1,4 @@
 import contextlib
-from vyper.exceptions import TypeMismatch
 import json
 import sys
 import warnings
@@ -15,6 +14,7 @@ from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
+from vyper.exceptions import TypeMismatch
 from vyper.utils import sha256sum
 
 TAMPERED_INTEGRITY_SUM = sha256sum("tampered integrity sum")
@@ -567,7 +567,7 @@ b: uint256
 def foo() -> uint256:
     return lib.foo()
     """
-    library_file = make_file("lib.vy", library_source)
+    _ = make_file("lib.vy", library_source)
     contract_file = make_file("main.vy", contract_source)
 
     with warnings.catch_warnings(record=True) as w:
