@@ -9,9 +9,9 @@ from pytest import FixtureDef, Item
 
 @dataclass
 class TracedItem:
-    name: str  # like test_concat or fixture_fixturename
-    deps: list[str]
-    traces: list[dict[str, Any]]
+    name: str  # unique test/fixture  name in its module bucket (“c”, “c2”, … or “test_foo”)
+    deps: list[str]  # path + “/name” of items this one depends on
+    traces: list[dict[str, Any]]  # call/deployment traces
 
 
 class TestExporter:
@@ -38,7 +38,6 @@ class TestExporter:
     @property
     def current_item(self) -> TracedItem:
         assert self._current_module is not None, "set_item() not called yet"
-        print(f"_current_module: {self._current_module}")
         bucket = self.data[self._current_module]
         assert bucket, "internal error: empty bucket"
         return bucket[-1]
@@ -78,48 +77,19 @@ class TestExporter:
             if fixture_path not in self._executed_fixtures:
                 self._executed_fixtures.append(fixture_path)
 
-    def trace_deployment(
-        self,
-        deployment_type: str,
-        contract_abi: list[Any],
-        deployed_address: str,
-        initcode: str,
-        runtime_bytecode: str,
-        calldata: Optional[str],
-        value: int,
-        deployment_succeeded: bool = True,
-        source_code: Optional[str] = None,
-        annotated_ast: Optional[dict] = None,
-        solc_json: Optional[dict] = None,
-        raw_ir: Optional[str] = None,
-        blueprint_initcode_prefix: Optional[str] = None,
-    ):
-        deployment = {
-            "trace_type": "deployment",
-            "deployment_type": deployment_type,
-            "contract_abi": contract_abi,
-            "deployed_address": deployed_address,
-            "initcode": initcode,
-            "runtime_bytecode": runtime_bytecode,
-            "calldata": calldata,
-            "value": value,
-            "deployment_succeeded": deployment_succeeded,
-            "source_code": source_code,
-            "annotated_ast": annotated_ast,
-            "solc_json": solc_json,
-            "raw_ir": raw_ir,
-            "blueprint_initcode_prefix": blueprint_initcode_prefix,
-        }
-        self.current_item.traces.append(deployment)
+    def trace_deployment(self, **kw):
+        self.current_item.traces.append({"trace_type": "deployment", **kw})
 
     def trace_call(self, output: Optional[bytes], **call_args):
         if "calldata" in call_args:
-            assert isinstance(call_args["calldata"], bytes)
             call_args["calldata"] = call_args["calldata"].hex()
-        out_hex = output.hex() if output is not None else None
-
-        call = {"trace_type": "call", "output": out_hex, "call_args": call_args}
-        self.current_item.traces.append(call)
+        self.current_item.traces.append(
+            {
+                "trace_type": "call",
+                "output": None if output is None else output.hex(),
+                "call_args": call_args,
+            }
+        )
 
     def finalize_export(self):
         for module_path, traced_items in self.data.items():
