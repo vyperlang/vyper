@@ -1384,10 +1384,11 @@ def resolve_symbols(
 
         # update pc
         if isinstance(item, Label):
-            # Don't increment pc as the symbol itself doesn't go into code
             _add_to_symbol_map(symbol_map, item, pc)
+            pc += 1  # jumpdest
 
         elif isinstance(item, DataHeader):
+            # Don't increment pc as the symbol itself doesn't go into code
             _add_to_symbol_map(symbol_map, item.label, pc)
 
         elif isinstance(item, PUSHLABEL):
