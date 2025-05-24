@@ -4,9 +4,11 @@ from typing import Any, Iterable
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
+    DATA_ITEM,
     PUSH,
     PUSH_OFST,
     PUSHLABEL,
+    AssemblyInstruction,
     DataHeader,
     Label,
     TaggedInstruction,
@@ -128,7 +130,7 @@ def _as_asm_symbol(label: IRLabel) -> Label:
     return Label(label.value)
 
 
-def _ofst(label: str | Label, value: int) -> list[Any]:
+def _ofst(label: Label, value: int) -> list[Any]:
     # resolve at compile time using magic PUSH_OFST op
     return [PUSH_OFST(label, value)]
 
@@ -156,14 +158,13 @@ class VenomCompiler:
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
-        return f"{name}_{self.label_counter}"
+        return Label(f"{name}_{self.label_counter}")
 
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
-        asm: list[Any] = []
-        top_asm = asm
+        asm: list[AssemblyInstruction] = []
 
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
@@ -178,48 +179,27 @@ class VenomCompiler:
 
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
-            # TODO make this property on IRFunction
-            asm.extend([Label("ctor_exit")])
-            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
-                asm.extend(
-                    [
-                        PUSHLABEL(Label("subcode_size")),
-                        PUSHLABEL(Label("runtime_begin")),
-                        "_mem_deploy_start",
-                        "CODECOPY",
-                    ]
-                )
-                asm.extend(_ofst(Label("subcode_size"), ctx.immutables_len))  # stack: len
-                asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-                asm.extend(["RETURN"])
-                asm.extend(_REVERT_POSTAMBLE)
-                runtime_asm = [
-                    RuntimeHeader(Label("runtime_begin"), ctx.ctor_mem_size, ctx.immutables_len)
-                ]
-                asm.append(runtime_asm)
-                asm = runtime_asm
-            else:
-                asm.extend(_REVERT_POSTAMBLE)
+            asm.extend(_REVERT_POSTAMBLE)
 
             # Append data segment
             for data_section in ctx.data_segment:
                 label = data_section.label
-                asm_data_section: list[Any] = []
+                asm_data_section: list[AssemblyInstruction] = []
                 asm_data_section.append(DataHeader(_as_asm_symbol(label)))
                 for item in data_section.data_items:
                     data = item.data
                     if isinstance(data, IRLabel):
-                        asm_data_section.append(_as_asm_symbol(data))
+                        asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
                     else:
                         assert isinstance(data, bytes)
-                        asm_data_section.append(data)
+                        asm_data_section.append(DATA_ITEM(data))
 
-                asm.append(asm_data_section)
+                asm.extend(asm_data_section)
 
         if no_optimize is False:
-            optimize_assembly(top_asm)
+            optimize_assembly(asm)
 
-        return top_asm
+        return asm
 
     def _stack_reorder(
         self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
@@ -407,7 +387,7 @@ class VenomCompiler:
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
     ) -> list[str]:
-        assembly: list[str | int] = []
+        assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
 
         #
@@ -564,8 +544,6 @@ class VenomCompiler:
             assembly.append("JUMP")
         elif opcode == "return":
             assembly.append("RETURN")
-        elif opcode == "exit":
-            assembly.extend([PUSHLABEL(Label("ctor_exit")), "JUMP"])
         elif opcode == "phi":
             pass
         elif opcode == "sha3":

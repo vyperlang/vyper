@@ -166,19 +166,19 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[0]
+    return compiler_data.venom_deploytime
 
 
 def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[1]
+    return compiler_data.venom_runtime
 
 
 def build_cfg_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[0].as_graph()
+    return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[1].as_graph()
+    return compiler_data.venom_runtime.as_graph()
 
 
 def build_ir_output(compiler_data: CompilerData) -> IRnode:

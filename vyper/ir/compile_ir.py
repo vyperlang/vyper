@@ -113,7 +113,7 @@ class CONST:
 
 class PUSHLABEL:
     def __init__(self, label: Label):
-        assert isinstance(label, Label)
+        assert isinstance(label, Label), label
         self.label = label
 
     def __repr__(self):
@@ -184,6 +184,28 @@ def is_symbol(i):
 
 def is_ofst(assembly_item):
     return isinstance(assembly_item, PUSH_OFST)
+
+
+def generate_cbor_metadata(
+    compiler_metadata: Any,
+    runtime_codesize: int,
+    runtime_data_segment_lengths: list[int],
+    immutables_len: int,
+) -> bytes:
+    metadata = (
+        compiler_metadata,
+        runtime_codesize,
+        runtime_data_segment_lengths,
+        immutables_len,
+        {"vyper": version_tuple},
+    )
+    ret = cbor2.dumps(metadata)
+    # append the length of the footer, *including* the length
+    # of the length bytes themselves.
+    suffix_len = len(ret) + 2
+    ret += suffix_len.to_bytes(2, "big")
+
+    return ret
 
 
 def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
@@ -304,6 +326,8 @@ def compile_to_assembly(
     return res
 
 
+# TODO: move all these assembly data structures to own module, like
+# vyper.evm.assembly
 AssemblyInstruction = (
     str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader | CONST
 )
@@ -690,11 +714,6 @@ class _IRnodeLowerer:
                 ]
             )
 
-            # TODO: these two probably not needed
-            # o.append(CONST("ctor_mem_size", memsize))
-            # o.append(CONST("immutables_len", immutables_len))
-
-            o.append(CONST("mem_deploy_start", mem_deploy_start))
             o.append(CONST("mem_deploy_end", mem_deploy_end))
 
             # calculate the len of runtime code + immutables size
@@ -708,18 +727,12 @@ class _IRnodeLowerer:
 
             if self.compiler_metadata is not None:
                 # we should issue the cbor-encoded metadata.
-                metadata = (
+                bytecode_suffix = generate_cbor_metadata(
                     self.compiler_metadata,
                     runtime_codesize,
                     runtime_data_segment_lengths,
                     immutables_len,
-                    {"vyper": version_tuple},
                 )
-                bytecode_suffix = cbor2.dumps(metadata)
-                # append the length of the footer, *including* the length
-                # of the length bytes themselves.
-                suffix_len = len(bytecode_suffix) + 2
-                bytecode_suffix += suffix_len.to_bytes(2, "big")
 
                 segment: list[AssemblyInstruction] = [DataHeader(Label("cbor_metadata"))]
                 segment.append(DATA_ITEM(bytecode_suffix))
@@ -1252,7 +1265,7 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 
 # predict what length of an assembly [data] node will be in bytecode
-def get_data_segment_lengths(assembly):
+def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
     ret = []
     for item in assembly:
         if isinstance(item, DataHeader):
@@ -1265,7 +1278,7 @@ def get_data_segment_lengths(assembly):
         if is_symbol(item.data):
             ret[-1] += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
-            ret[-1] += len(item)
+            ret[-1] += len(item.data)
         else:  # pragma: nocover
             raise ValueError(f"invalid data {type(item)} {item}")
 
@@ -1414,13 +1427,19 @@ def resolve_symbols(
 
     return symbol_map, const_map, source_map
 
+
 # helper function
 def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
     push_mnemonic = assembly[0]
-    assert push_mnemonic.startswith("PUSH")
+    assert isinstance(push_mnemonic, str) and push_mnemonic.startswith("PUSH")
     push_instr = PUSH_OFFSET + int(push_mnemonic[4:])
-    assert all(isinstance(item, int) for item in assembly[1:])
-    return bytes([push_instr, *assembly[1:]])
+    ret = [push_instr]
+
+    for item in assembly[1:]:
+        assert isinstance(item, int)
+        ret.append(item)
+    return bytes(ret)
+
 
 def _assembly_to_evm(
     assembly: list[AssemblyInstruction],

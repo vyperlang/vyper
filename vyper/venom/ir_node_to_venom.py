@@ -8,6 +8,7 @@ from typing import Optional
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
+from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -95,7 +96,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "assert",
         "assert_unreachable",
-        "exit",
         "calldatacopy",
         "mcopy",
         "extcodecopy",
@@ -129,7 +129,7 @@ def get_scratch_alloca_id() -> int:
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode) -> IRContext:
+def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
     global _alloca_table, _callsites
@@ -140,7 +140,8 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    _convert_ir_bb(fn, ir, {})
+    symbols = symbols or {}
+    _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
@@ -410,9 +411,19 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctx.ctor_mem_size = ir.args[0].value
-        ctx.immutables_len = ir.args[2].value
-        fn.get_basic_block().append_instruction("exit")
+        ctor_mem_size = ir.args[0].value
+        immutables_len = ir.args[2].value
+        runtime_codesize = symbols["runtime_codesize"].value
+        assert immutables_len == symbols["immutables_len"].value  # sanity
+
+        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
+        bb = fn.get_basic_block()
+
+        bb.append_instruction(
+            "codecopy", mem_deploy_start, IRLabel("runtime_begin"), runtime_codesize
+        )
+        amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
+        bb.append_instruction("return", mem_deploy_start, amount_to_return)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:

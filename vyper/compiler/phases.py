@@ -256,17 +256,24 @@ class CompilerData:
 
     @cached_property
     def venom_runtime(self):
-        runtime_venom = generate_ir(self.ir_runtime, self.settings)
+        runtime_venom = generate_venom(self.ir_runtime, self.settings)
         return runtime_venom
 
     @cached_property
     def venom_deploytime(self):
-        runtime_asm = self.assembly_runtime
-        runtime_bytecode = self.bytecode_runtime
-        runtime_data_segment_lengths = get_data_segment_lengths(runtime_asm)
+        data_sections = {"runtime_begin": self.bytecode_runtime}
+        if self.bytecode_metadata is not None:
+            data_sections["cbor_metadata"] = self.bytecode_metadata
 
-        # TODO: inject the data segments and constants into venom_ctx.
-        venom_ctx = generate_ir(self.ir_nodes, self.settings)
+        constants = {
+            "runtime_codesize": len(self.bytecode_runtime),
+            "immutables_len": self.compilation_target._metadata["type"].immutable_section_bytes,
+        }
+
+        venom_ctx = generate_venom(
+            self.ir_nodes, self.settings, constants=constants, data_sections=data_sections
+        )
+        return venom_ctx
 
     @cached_property
     def assembly(self) -> list:
@@ -285,10 +292,28 @@ class CompilerData:
             )
 
     @cached_property
+    def bytecode_metadata(self) -> Optional[bytes]:
+        if self.no_bytecode_metadata:
+            return None
+
+        runtime_asm = self.assembly_runtime
+        runtime_data_segment_lengths = compile_ir.get_data_segment_lengths(runtime_asm)
+
+        immutables_len = self.compilation_target._metadata["type"].immutable_section_bytes
+        runtime_codesize = len(self.bytecode_runtime)
+
+        metadata = self.integrity_sum
+        return compile_ir.generate_cbor_metadata(
+            metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
+        )
+
+    @cached_property
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
             assert self.settings.optimize is not None  # mypy hint
-            return generate_assembly_experimental(self.venom_runtime, optimize=self.settings.optimize)
+            return generate_assembly_experimental(
+                self.venom_runtime, optimize=self.settings.optimize
+            )
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 

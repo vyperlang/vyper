@@ -7,8 +7,10 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
+from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -43,10 +45,10 @@ def generate_assembly_experimental(
     runtime_code: IRContext,
     deploy_code: Optional[IRContext] = None,
     optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
-) -> list[str]:
+) -> list[AssemblyInstruction]:
     # note: VenomCompiler is sensitive to the order of these!
     if deploy_code is not None:
-        functions = [deploy_code, runtime_code]
+        functions = [deploy_code]
     else:
         functions = [runtime_code]
 
@@ -126,9 +128,22 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         _run_passes(fn, optimize, ir_analyses[fn])
 
 
-def generate_venom(ir: IRnode, settings: Settings) -> IRContext:
+def generate_venom(
+    ir: IRnode,
+    settings: Settings,
+    constants: dict[str, int] = None,
+    data_sections: dict[str, bytes] = None,
+) -> IRContext:
     # Convert "old" IR to "new" IR
-    ctx = ir_node_to_venom(ir)
+    starting_symbols = None
+    if constants is not None:
+        starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
+    ctx = ir_node_to_venom(ir, starting_symbols)
+
+    data_sections = data_sections or {}
+    for section_name, data in data_sections.items():
+        ctx.append_data_section(IRLabel(section_name))
+        ctx.append_data_item(data)
 
     optimize = settings.optimize
     assert optimize is not None  # help mypy
