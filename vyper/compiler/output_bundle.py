@@ -49,14 +49,14 @@ class OutputBundle:
         return self.compiler_data.compilation_target._metadata["type"]
 
     @cached_property
-    def _imports(self):
-        return self.compilation_target.reachable_imports
-
-    @cached_property
     def compiler_inputs(self) -> dict[str, CompilerInput]:
-        inputs: list[CompilerInput] = [
-            t.compiler_input for t in self._imports if not t.compiler_input.from_builtin
-        ]
+        import_analysis = self.compiler_data.resolved_imports
+
+        inputs: list[CompilerInput] = import_analysis.compiler_inputs.copy()
+        inputs = [inp for inp in inputs if not inp.from_builtin]
+
+        # file input for the top level module; it's not in
+        # import_analysis._compiler_inputs
         inputs.append(self.compiler_data.file_input)
 
         sources = {}

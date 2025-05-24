@@ -39,6 +39,10 @@ class CompilerInput:
     def from_builtin(self):
         return self.source_id == BUILTIN
 
+    # fast hash which doesn't require looking at the contents
+    def __hash__(self):
+        return hash((self.source_id, self.path, self.resolved_path))
+
 
 @dataclass(frozen=True)
 class FileInput(CompilerInput):

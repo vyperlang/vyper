@@ -1,6 +1,7 @@
 import base64
 from collections import deque
 from pathlib import PurePath
+from typing import Iterable
 
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
@@ -11,49 +12,41 @@ from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
-from vyper.semantics.analysis.base import ModuleInfo
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
-from vyper.semantics.types.module import InterfaceT
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
+def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Module]:
+    import_analysis = compiler_data.resolved_imports
+
+    # get all reachable imports including recursion
+    # (NOTE: does not include imported json interfaces.)
+    imported_modules = list(import_analysis.compiler_inputs.values())
+    imported_modules = [mod for mod in imported_modules if isinstance(mod, vy_ast.Module)]
+    if import_analysis.toplevel_module in imported_modules:
+        imported_modules.remove(import_analysis.toplevel_module)
+
+    return imported_modules
+
+
 def build_ast_dict(compiler_data: CompilerData) -> dict:
+    imported_modules = _get_reachable_imports(compiler_data)
     ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.vyper_module),
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
     }
     return ast_dict
 
 
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
-    module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    # get all reachable imports including recursion
-    imported_module_infos = module_t.reachable_imports
-    unique_modules: dict[str, vy_ast.Module] = {}
-    for info in imported_module_infos:
-        if isinstance(info.typ, InterfaceT):
-            ast = info.typ.decl_node
-            if ast is None:  # json abi
-                continue
-        else:
-            assert isinstance(info.typ, ModuleInfo)
-            ast = info.typ.module_t._module
-
-        assert isinstance(ast, vy_ast.Module)  # help mypy
-        # use resolved_path for uniqueness, since Module objects can actually
-        # come from multiple InputBundles (particularly builtin interfaces),
-        # so source_id is not guaranteed to be unique.
-        if ast.resolved_path in unique_modules:
-            # sanity check -- objects must be identical
-            assert unique_modules[ast.resolved_path] is ast
-        unique_modules[ast.resolved_path] = ast
-
+    imported_modules = _get_reachable_imports(compiler_data)
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
-        "imports": [ast_to_dict(ast) for ast in unique_modules.values()],
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
     }
     return annotated_ast_dict
 
