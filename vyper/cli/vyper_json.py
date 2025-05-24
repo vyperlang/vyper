@@ -34,7 +34,13 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
+    "bb": "bb",
+    "bb_runtime": "bb_runtime",
+    "cfg": "cfg",
+    "cfg_runtime": "cfg_runtime",
 }
+
+VENOM_KEYS = ["bb", "bb_runtime", "cfg", "cfg_runtime"]
 
 
 def _parse_cli_args():
@@ -245,6 +251,12 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
+        if not input_dict["settings"].get("venom") and not input_dict["settings"].get(
+            "experimentalCodegen"
+        ):
+            for key in VENOM_KEYS:
+                if key in outputs:
+                    outputs.remove(key)
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
@@ -400,6 +412,17 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map_runtime" in data:
                 evm["sourceMap"] = data["source_map_runtime"]
+
+        if any(i in data for i in VENOM_KEYS):
+            venom = output_contracts.setdefault("venom", {})
+            if "bb" in data:
+                venom["bb"] = repr(data["bb"])
+            if "bb_runtime" in data:
+                venom["bb_runtime"] = repr(data["bb_runtime"])
+            if "cfg" in data:
+                venom["cfg"] = data["cfg"]
+            if "cfg_runtime" in data:
+                venom["cfg_runtime"] = data["cfg_runtime"]
 
     return output_dict
 
