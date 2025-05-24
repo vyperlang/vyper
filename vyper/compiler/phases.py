@@ -302,7 +302,7 @@ class CompilerData:
         immutables_len = self.compilation_target._metadata["type"].immutable_section_bytes
         runtime_codesize = len(self.bytecode_runtime)
 
-        metadata = self.integrity_sum
+        metadata = bytes.fromhex(self.integrity_sum)
         return compile_ir.generate_cbor_metadata(
             metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
         )

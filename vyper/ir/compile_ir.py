@@ -764,21 +764,6 @@ class _IRnodeLowerer:
             o.extend(self._assert_false())
             return o
 
-        # SHA3 a single value
-        if code.value == "sha3_32":
-            # TODO: this should not be emitted anymore.
-            o = self._compile_r(code.args[0], height)
-            o.extend(
-                [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "MSTORE",
-                    *PUSH(32),
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "SHA3",
-                ]
-            )
-            return o
-
         # SHA3 a 64 byte value
         if code.value == "sha3_64":
             o = self._compile_r(code.args[0], height)
