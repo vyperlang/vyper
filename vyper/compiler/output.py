@@ -23,8 +23,10 @@ def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Modul
 
     # get all reachable imports including recursion
     # (NOTE: does not include imported json interfaces.)
-    imported_modules = import_analysis.seen.copy()
-    imported_modules.remove(import_analysis.toplevel_module)
+    imported_modules = list(import_analysis.compiler_inputs.values())
+    imported_modules = [mod for mod in imported_modules if isinstance(mod, vy_ast.Module)]
+    if import_analysis.toplevel_module in imported_modules:
+        imported_modules.remove(import_analysis.toplevel_module)
 
     return imported_modules
 

@@ -75,7 +75,8 @@ class _ImportGraph:
 
 class ImportAnalyzer:
     seen: OrderedSet[vy_ast.Module]
-    _compiler_inputs: list[CompilerInput]
+    _compiler_inputs: dict[CompilerInput, vy_ast.Module]
+    toplevel_module: vy_ast.Module
 
     def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
@@ -87,7 +88,7 @@ class ImportAnalyzer:
 
         # keep around compiler inputs so when we construct the output
         # bundle, we have access to the compiler input for each module
-        self._compiler_inputs = []
+        self._compiler_inputs = {}
 
         self._integrity_sum = None
 
@@ -99,7 +100,7 @@ class ImportAnalyzer:
         self._integrity_sum = self._calculate_integrity_sum_r(self.toplevel_module)
 
     @property
-    def compiler_inputs(self) -> list[CompilerInput]:
+    def compiler_inputs(self) -> dict[CompilerInput, vy_ast.Module]:
         return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
@@ -164,7 +165,7 @@ class ImportAnalyzer:
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        self._compiler_inputs.append(compiler_input)
+        self._compiler_inputs[compiler_input] = ast
         node._metadata["import_info"] = ImportInfo(
             alias, qualified_module_name, compiler_input, ast
         )
