@@ -417,13 +417,16 @@ def _convert_ir_bb(fn, ir, symbols):
         assert immutables_len == symbols["immutables_len"].value  # sanity
 
         mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
+
+        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
+
         bb = fn.get_basic_block()
 
         bb.append_instruction(
-            "codecopy", mem_deploy_start, IRLabel("runtime_begin"), runtime_codesize
+            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
         )
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", mem_deploy_start, amount_to_return)
+        bb.append_instruction("return", amount_to_return, mem_deploy_start)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:

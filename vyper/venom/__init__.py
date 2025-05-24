@@ -42,17 +42,9 @@ DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 
 def generate_assembly_experimental(
-    runtime_code: IRContext,
-    deploy_code: Optional[IRContext] = None,
-    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
+    venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
-    # note: VenomCompiler is sensitive to the order of these!
-    if deploy_code is not None:
-        functions = [deploy_code]
-    else:
-        functions = [runtime_code]
-
-    compiler = VenomCompiler(functions)
+    compiler = VenomCompiler(venom_ctx)
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
@@ -135,15 +127,17 @@ def generate_venom(
     data_sections: dict[str, bytes] = None,
 ) -> IRContext:
     # Convert "old" IR to "new" IR
-    starting_symbols = None
-    if constants is not None:
-        starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
+    constants = constants or {}
+    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
+
+    for constname, value in constants.items():
+        ctx.add_constant(constname, value)
 
     optimize = settings.optimize
     assert optimize is not None  # help mypy

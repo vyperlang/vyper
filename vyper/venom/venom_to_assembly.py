@@ -151,8 +151,9 @@ class VenomCompiler:
     dfg: DFGAnalysis
     cfg: CFGAnalysis
 
-    def __init__(self, ctxs: list[IRContext]):
-        self.ctxs = ctxs
+    def __init__(self, ctx: IRContext):
+        # TODO: maybe just accept a single IRContext
+        self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
 
@@ -166,35 +167,34 @@ class VenomCompiler:
 
         asm: list[AssemblyInstruction] = []
 
-        for ctx in self.ctxs:
-            for fn in ctx.functions.values():
-                ac = IRAnalysesCache(fn)
+        for fn in self.ctx.functions.values():
+            ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
-                self.liveness = ac.request_analysis(LivenessAnalysis)
-                self.dfg = ac.request_analysis(DFGAnalysis)
-                self.cfg = ac.request_analysis(CFGAnalysis)
+            NormalizationPass(ac, fn).run_pass()
+            self.liveness = ac.request_analysis(LivenessAnalysis)
+            self.dfg = ac.request_analysis(DFGAnalysis)
+            self.cfg = ac.request_analysis(CFGAnalysis)
 
-                assert self.cfg.is_normalized(), "Non-normalized CFG!"
+            assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
-            asm.extend(_REVERT_POSTAMBLE)
+        asm.extend(_REVERT_POSTAMBLE)
 
-            # Append data segment
-            for data_section in ctx.data_segment:
-                label = data_section.label
-                asm_data_section: list[AssemblyInstruction] = []
-                asm_data_section.append(DataHeader(_as_asm_symbol(label)))
-                for item in data_section.data_items:
-                    data = item.data
-                    if isinstance(data, IRLabel):
-                        asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
-                    else:
-                        assert isinstance(data, bytes)
-                        asm_data_section.append(DATA_ITEM(data))
+        # Append data segment
+        for data_section in self.ctx.data_segment:
+            label = data_section.label
+            asm_data_section: list[AssemblyInstruction] = []
+            asm_data_section.append(DataHeader(_as_asm_symbol(label)))
+            for item in data_section.data_items:
+                data = item.data
+                if isinstance(data, IRLabel):
+                    asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
+                else:
+                    assert isinstance(data, bytes)
+                    asm_data_section.append(DATA_ITEM(data))
 
-                asm.extend(asm_data_section)
+            asm.extend(asm_data_section)
 
         if no_optimize is False:
             optimize_assembly(asm)
@@ -567,17 +567,21 @@ class VenomCompiler:
             assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "iload":
             addr = inst.operands[0]
+            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
             if isinstance(addr, IRLiteral):
-                assembly.extend(_ofst("_mem_deploy_end", addr.value))
+                ptr = mem_deploy_end + addr.value
+                assembly.extend(PUSH(ptr))
             else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
+                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
             assembly.append("MLOAD")
         elif opcode == "istore":
             addr = inst.operands[1]
+            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
             if isinstance(addr, IRLiteral):
-                assembly.extend(_ofst("_mem_deploy_end", addr.value))
+                ptr = mem_deploy_end + addr.value
+                assembly.extend(PUSH(ptr))
             else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
+                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
             assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
