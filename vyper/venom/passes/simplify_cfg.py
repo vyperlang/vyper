@@ -83,6 +83,7 @@ class SimplifyCFGPass(IRPass):
         self._collapse_chained_blocks_r(entry)
 
     def _schedule_label_replacement(self, original_label: IRLabel, replacement_label: IRLabel):
+        assert original_label not in self.label_map
         self.label_map[original_label] = replacement_label
 
     def _replace_all_labels(self):
