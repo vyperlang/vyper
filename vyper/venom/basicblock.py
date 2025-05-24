@@ -37,7 +37,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "returndatacopy",
         "codecopy",
         "dloadbytes",
-        "dload",  # is this volatile?
         "return",
         "ret",
         "sink",
