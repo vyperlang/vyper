@@ -477,7 +477,7 @@ class _IRnodeLowerer:
             # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
             o.extend(PUSH(32))
 
-            o.extend(self._data_ofst_of(Label("code_end"), loc, height))
+            o.extend(self._data_ofst_of(Label("code_end"), loc, height + 1))
 
             o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
             o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
