@@ -354,6 +354,10 @@ def _build_node_identifier(ast_node):
     return (ast_node.module_node.source_id, ast_node.node_id)
 
 
+def _getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+
+
 def _build_source_map_output(compiler_data, bytecode, pc_maps):
     """
     Generate source map output in various formats. Note that integrations
@@ -374,7 +378,7 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
         # tag it with source id
         ast_map[0] = compiler_data.annotated_vyper_module
 
-    pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
+    pc_pos_map = {k: _getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
     compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
     out["pc_pos_map_compressed"] = compressed_map

@@ -966,11 +966,6 @@ class _IRnodeLowerer:
 ##############################
 
 
-# TODO: move this to some ast file or vyper/compiler/output.py
-def getpos(node):
-    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
-
-
 def note_line_num(line_number_map, pc, item):
     # Record AST attached to pc
     if isinstance(item, TaggedInstruction):
