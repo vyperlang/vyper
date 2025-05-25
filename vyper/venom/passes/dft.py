@@ -105,15 +105,25 @@ class DFTPass(IRPass):
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
 
-            for write_effect in write_effects:
-                if write_effect in last_read_effects:
-                    self.eda[inst].add(last_read_effects[write_effect])
-                last_write_effects[write_effect] = inst
+            for effect in read_effects:
+                # Read depends on last write to the same effect
+                if effect in last_write_effects and last_write_effects[effect] != inst:
+                    self.eda[inst].add(last_write_effects[effect])
 
+            for effect in write_effects:
+                # Write depends on last read to the same effect
+                if effect in last_read_effects and last_read_effects[effect] != inst:
+                    self.eda[inst].add(last_read_effects[effect])
+
+                # Write depends on last write to the same effect
+                if effect in last_write_effects and last_write_effects[effect] != inst:
+                    self.eda[inst].add(last_write_effects[effect])
+
+            # Update the last read/write effect trackers
             for read_effect in read_effects:
-                if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
-                    self.eda[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
+            for write_effect in write_effects:
+                last_write_effects[write_effect] = inst
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
