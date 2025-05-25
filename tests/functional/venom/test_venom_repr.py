@@ -104,7 +104,7 @@ def _helper1(vyper_source, optimize):
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx)
-    generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm)
 
 
 def _helper2(vyper_source, optimize, compiler_settings):
@@ -126,7 +126,7 @@ def _helper2(vyper_source, optimize, compiler_settings):
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx, optimize=optimize)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
+    bytecode = generate_bytecode(asm)
 
     out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
     assert "0x" + bytecode.hex() == out["bytecode_runtime"]
