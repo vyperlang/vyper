@@ -42,11 +42,24 @@ class DominatorTreeAnalysis(IRAnalysis):
         self._compute_idoms()
         self._compute_df()
 
-    def dominates(self, bb1, bb2):
+    def get_all_dominated_blocks(self, bb: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+        result: OrderedSet[IRBasicBlock] = OrderedSet()
+
+        def visit(block):
+            for dominated_block in self.dominated.get(block, OrderedSet()):
+                if dominated_block not in result:
+                    result.add(dominated_block)
+                    visit(dominated_block)
+
+        visit(bb)
+
+        return result
+
+    def dominates(self, dom, sub):
         """
-        Check if bb1 dominates bb2.
+        Check if `dom` dominates `sub`.
         """
-        return bb2 in self.dominators[bb1]
+        return dom in self.dominators[sub]
 
     def immediate_dominator(self, bb):
         """
