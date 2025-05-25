@@ -59,31 +59,37 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
     return compiler_data.natspec.userdoc
 
 
-def build_solc_json(compiler_data: CompilerData) -> str:
-    # request bytecode to ensure the input compiles through all the
-    # compilation passes, emit warnings if there are any issues
-    # (this allows use cases like sending a bug reproduction while
-    # still alerting the user in the common case that they didn't
-    # mean to have a bug)
+def _request_bytecode_for_bundle(compiler_data: CompilerData, pretty_output_type: str) -> None:
+    """
+    request bytecode to ensure the input compiles through all the
+    compilation passes, emit warnings if there are any issues
+    (this allows use cases like sending a bug reproduction while
+    still alerting the user in the common case that they didn't
+    mean to have a bug). called for its side effects.
+
+    params:
+        compiler_data: CompilerData
+        pretty_output_type: str, human readable type of the output
+    """
+    # must be able to parse + resolve imports
+    _ = compiler_data.resolved_imports
     try:
         _ = compiler_data.bytecode
     except VyperException as e:
-        vyper_warn(
-            f"Exceptions encountered during code generation (but producing output anyway): {e}"
-        )
+        msg = "Exceptions encountered during code generation"
+        msg += f" (but producing {pretty_output_type} anyway): {e}"
+        vyper_warn(msg)
+
+
+def build_solc_json(compiler_data: CompilerData) -> str:
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="output")
     writer = SolcJSONWriter(compiler_data)
     writer.write()
     return writer.output()
 
 
 def build_archive(compiler_data: CompilerData) -> bytes:
-    # ditto
-    try:
-        _ = compiler_data.bytecode
-    except VyperException as e:
-        vyper_warn(
-            f"Exceptions encountered during code generation (but producing archive anyway): {e}"
-        )
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="archive")
     writer = VyperArchiveWriter(compiler_data)
     writer.write()
     return writer.output()
