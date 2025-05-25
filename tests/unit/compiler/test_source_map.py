@@ -153,7 +153,7 @@ def bar(i: uint256) -> String[85]:
     # ensure the mod doesn't get erased
     return concat("foo foo", uint2str(i))
     """
-    compiler_output= compile_code(code, output_formats=["source_map_runtime"])
+    compiler_output = compile_code(code, output_formats=["source_map_runtime"])
     error_map = compiler_output["source_map_runtime"]["error_map"]
     assert "user revert with reason" in error_map.values()
     assert "safemod" in error_map.values()
