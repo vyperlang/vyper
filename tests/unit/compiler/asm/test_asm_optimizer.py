@@ -3,7 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.ir.compile_ir import _merge_jumpdests
+from vyper.ir.compile_ir import Label, _merge_jumpdests
 
 codes = [
     """
@@ -82,18 +82,18 @@ def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
     # get the labels
-    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
-    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
+    initcode_asm = [s for s in c.assembly if isinstance(s, Label)]
+    runtime_asm = [s for s in c.assembly_runtime if isinstance(s, Label)]
 
     ctor_only = "ctor_only()"
     runtime_only = "runtime_only()"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert any(ctor_only in instr for instr in initcode_asm)
-    assert all(runtime_only not in instr for instr in initcode_asm)
+    assert any(ctor_only in item.label for item in initcode_asm)
+    assert all(runtime_only not in item.label for item in initcode_asm)
 
-    assert any(runtime_only in instr for instr in runtime_asm)
-    assert all(ctor_only not in instr for instr in runtime_asm)
+    assert any(runtime_only in item.label for item in runtime_asm)
+    assert all(ctor_only not in item.label for item in runtime_asm)
 
 
 def test_library_code_eliminator(make_input_bundle, experimental_codegen):
