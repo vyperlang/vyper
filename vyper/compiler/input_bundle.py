@@ -54,6 +54,7 @@ class FileInput(CompilerInput):
         # don't use dataclass provided implementation
         return super().__hash__()
 
+
 @dataclass(frozen=True)
 class JSONInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
@@ -70,7 +71,6 @@ class JSONInput(CompilerInput):
     def __hash__(self):
         # don't use dataclass provided implementation
         return super().__hash__()
-
 
 
 class _NotFound(Exception):
