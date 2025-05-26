@@ -177,7 +177,7 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
 # func_t: ContractFunctionT
 @functools.lru_cache(maxsize=1024)
 def _pass_via_stack(func_t) -> dict[str, bool]:
-    # returns a dict which returns True if a given argument (referered to
+    # returns a dict which returns True if a given argument (referred to
     # by name) should be passed via the stack
     if not ENABLE_NEW_CALL_CONV:
         return {arg.name: False for arg in func_t.arguments}
