@@ -61,7 +61,7 @@ class ABIInput(CompilerInput):
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    abi: Any = field(hash=False)  # something that json.load() returns
+    abi: Any = field()  # something that json.load() returns
 
     def __hash__(self):
         # don't use dataclass provided implementation
