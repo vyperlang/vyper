@@ -37,7 +37,7 @@ class SimplifyCFGPass(IRPass):
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
 
-        self._replace_label(b.label, next_bb.label)
+        self._schedule_label_replacement(b.label, next_bb.label)
 
         # Update CFG
         self.cfg.remove_cfg_out(a, b)
@@ -82,10 +82,14 @@ class SimplifyCFGPass(IRPass):
         self.visited = OrderedSet()
         self._collapse_chained_blocks_r(entry)
 
-    def _replace_label(self, original_label: IRLabel, replacement_label: IRLabel):
+    def _schedule_label_replacement(self, original_label: IRLabel, replacement_label: IRLabel):
+        assert original_label not in self.label_map
+        self.label_map[original_label] = replacement_label
+
+    def _replace_all_labels(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                inst.replace_operands({original_label: replacement_label})
+                inst.replace_operands(self.label_map)
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
@@ -146,7 +150,9 @@ class SimplifyCFGPass(IRPass):
             self.cfg = self.analyses_cache.force_analysis(CFGAnalysis)
 
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
+            self.label_map = {}
             self._collapse_chained_blocks(entry)
+            self._replace_all_labels()
             self.cfg = self.analyses_cache.force_analysis(CFGAnalysis)
             if self.remove_unreachable_blocks() == 0:
                 break

@@ -1,8 +1,9 @@
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, MemSSA
-from vyper.venom.analysis.mem_ssa import MemoryDef
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.venom.effects import NON_MEMORY_EFFECTS
+from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -11,10 +12,18 @@ class DeadStoreElimination(IRPass):
     This pass eliminates dead stores using Memory SSA analysis.
     """
 
-    def run_pass(self):
+    def run_pass(self, /, addr_space: AddrSpace):
+        mem_ssa_type = mem_ssa_type_factory(addr_space)
+        if addr_space == MEMORY:
+            self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
+        elif addr_space == STORAGE:
+            self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
+        elif addr_space == TRANSIENT:
+            self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
+
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
+        self.mem_ssa = self.analyses_cache.request_analysis(mem_ssa_type)
         self.updater = InstUpdater(self.dfg)
 
         # Go through all memory definitions and eliminate dead stores
@@ -22,7 +31,7 @@ class DeadStoreElimination(IRPass):
             if self._is_dead_store(mem_def):
                 self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
 
-        self.analyses_cache.invalidate_analysis(MemSSA)
+        self.analyses_cache.invalidate_analysis(mem_ssa_type)
 
     def _has_uses(self, inst: IRInstruction):
         """
@@ -30,26 +39,26 @@ class DeadStoreElimination(IRPass):
         """
         return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
 
-    def _is_memory_def_live(self, mem_def: MemoryDef) -> bool:
+    def _is_memory_def_live(self, query_def: MemoryDef) -> bool:
         """
         Checks if the memory definition is live by checking if it is
         read from in any of the blocks that are reachable from the
         memory definition's block, without being clobbered by another
         memory access before read.
         """
-        query_loc = mem_def.loc
+        query_loc = query_def.loc
         worklist: OrderedSet[IRBasicBlock] = OrderedSet()
 
         # blocks not to visit
         visited: OrderedSet[IRBasicBlock] = OrderedSet()
 
         # for the first block, we start from the instruction after mem_def.inst
-        next_inst_idx = mem_def.inst.parent.instructions.index(mem_def.inst) + 1
+        next_inst_idx = query_def.inst.parent.instructions.index(query_def.inst) + 1
 
         # we don't add this to visited because in the case of a loop
         # (bb is reachable from itself), we want to be able to visit it again
         # starting from instruction 0.
-        worklist.add(mem_def.inst.parent)
+        worklist.add(query_def.inst.parent)
 
         while len(worklist) > 0:
             bb = worklist.pop()
@@ -113,7 +122,7 @@ class DeadStoreElimination(IRPass):
         inst = mem_def.store_inst
         write_effects = inst.get_write_effects()
         read_effects = inst.get_read_effects()
-        has_other_effects = (write_effects | read_effects) & NON_MEMORY_EFFECTS
+        has_other_effects = (write_effects | read_effects) & self.NON_RELATED_EFFECTS
 
         if has_other_effects:
             return False

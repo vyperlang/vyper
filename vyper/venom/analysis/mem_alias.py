@@ -1,22 +1,21 @@
 import dataclasses as dc
 from typing import Optional
 
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.memory_location import (
-    MemoryLocation,
-    get_read_memory_location,
-    get_write_memory_location,
-)
+from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
-class MemoryAliasAnalysis(IRAnalysis):
+class MemoryAliasAnalysisAbstract(IRAnalysis):
     """
     Analyzes memory operations to determine which locations may alias.
     This helps optimize memory operations by identifying when different
     memory accesses are guaranteed not to overlap.
     """
+
+    addr_space: AddrSpace
 
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -34,11 +33,11 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_memory_location(inst)
+        loc = get_read_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_memory_location(inst)
+        loc = get_write_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
@@ -89,3 +88,26 @@ class MemoryAliasAnalysis(IRAnalysis):
                     self.alias_sets[other_loc].add(volatile_loc)
 
         return volatile_loc
+
+
+class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = MEMORY
+
+
+class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = STORAGE
+
+
+class TransientAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = TRANSIENT
+
+
+def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbstract]:
+    if addr_space == MEMORY:
+        return MemoryAliasAnalysis
+    elif addr_space == STORAGE:
+        return StorageAliasAnalysis
+    elif addr_space == TRANSIENT:
+        return TransientAliasAnalysis
+    else:  # pragma: nocover
+        raise ValueError(f"Invalid address space: {addr_space}")

@@ -25,7 +25,7 @@ from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
-    from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
+    from vyper.semantics.analysis.base import ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -443,24 +443,6 @@ class ModuleT(VyperType):
             if isinstance(module_info, InterfaceT):
                 continue
             ret[info.alias] = module_info
-        return ret
-
-    @cached_property
-    def reachable_imports(self) -> list["ImportInfo"]:
-        """
-        Return (recursively) reachable imports from this module as a list in
-        depth-first (descendants-first) order.
-        """
-        ret = []
-        for s in self.import_stmts:
-            info = s._metadata["import_info"]
-
-            # NOTE: this needs to be redone if interfaces can import other interfaces
-            if not isinstance(info.typ, InterfaceT):
-                ret.extend(info.typ.typ.reachable_imports)
-
-            ret.append(info)
-
         return ret
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
