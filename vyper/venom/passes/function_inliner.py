@@ -90,8 +90,9 @@ class FunctionInlinerPass(IRGlobalPass):
         """
         for call_site in call_sites:
             FloatAllocas(self.analyses_caches[func], func).run_pass()
-            self._inline_call_site(func, call_site)
+            return_bb = self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
+            self._fix_phi(fn, call_site.parent, return_bb)
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
@@ -144,7 +145,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> IRBasicBlock:
         """
         Inline function into call site.
         """
@@ -206,6 +207,29 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+        return call_site_return
+
+    def _fix_phi(self, fn: IRFunction, orig: IRBasicBlock, new: IRBasicBlock) -> None:
+        orig_label = orig.label
+        new_label = new.label
+
+        next_bbs = []
+        last_inst = new.instructions[-1]
+        if last_inst.opcode == "jmp":
+            next_bbs = [fn.get_basic_block(last_inst.operands[0].name)]
+        if last_inst.opcode == "jnz":
+            next_bbs = [
+                fn.get_basic_block(last_inst.operands[1].name),
+                fn.get_basic_block(last_inst.operands[2].name),
+            ]
+
+        for bb in next_bbs:
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    continue
+                for i in range(len(inst.operands)):
+                    if inst.operands[i].name == orig_label.name:
+                        inst.operands[i] = new_label
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
