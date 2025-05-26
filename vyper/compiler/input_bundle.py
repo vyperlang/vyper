@@ -50,14 +50,22 @@ class FileInput(CompilerInput):
     def source_code(self):
         return self.contents
 
+    def __hash__(self):
+        # don't use dataclass provided implementation
+        return super().__hash__()
 
-@dataclass(frozen=True, unsafe_hash=True)
+
+@dataclass(frozen=True)
 class ABIInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
     abi: Any = field(hash=False)  # something that json.load() returns
+
+    def __hash__(self):
+        # don't use dataclass provided implementation
+        return super().__hash__()
 
 
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
