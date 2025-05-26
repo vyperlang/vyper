@@ -49,7 +49,7 @@ class OutputBundle:
         return self.compiler_data.compilation_target._metadata["type"]
 
     @cached_property
-    def compiler_inputs(self) -> dict[str, CompilerInput]:
+    def source_codes(self) -> dict[str, CompilerInput]:
         # return the `CompilerInput`s for this output bundle, as a dict
         # where the keys are the anonymized paths.
         # does not include builtins.
@@ -100,7 +100,7 @@ class OutputBundle:
         # preserve order of original search paths
         tmp = {sp: 0 for sp in search_paths}
 
-        for c in self.compiler_inputs.values():
+        for c in self.source_codes.values():
             ok = False
             # recover the search path that was used for this CompilerInput.
             # note that it is not sufficient to thread the "search path that
@@ -167,7 +167,7 @@ class OutputBundleWriter:
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
         self.write_integrity(self.compiler_data.integrity_sum)
-        self.write_sources(self.bundle.compiler_inputs)
+        self.write_sources(self.bundle.source_codes)
         if self.compiler_data.storage_layout_override is not None:
             self.write_storage_layout_overrides(
                 self.bundle.compilation_target_path, self.compiler_data.storage_layout_override
