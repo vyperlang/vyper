@@ -2,16 +2,17 @@ import contextlib
 import dataclasses as dc
 from typing import Iterable, Optional
 
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis, MemoryAliasAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
-from vyper.venom.effects import Effects
-from vyper.venom.memory_location import (
-    EMPTY_MEMORY_ACCESS,
-    MemoryLocation,
-    get_read_memory_location,
-    get_write_memory_location,
+from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, IRAnalysis
+from vyper.venom.analysis.mem_alias import (
+    MemoryAliasAnalysis,
+    MemoryAliasAnalysisAbstract,
+    StorageAliasAnalysis,
+    TransientAliasAnalysis,
 )
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
+from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
 class MemoryAccess:
@@ -20,7 +21,7 @@ class MemoryAccess:
     def __init__(self, id: int):
         self.id = id
         self.reaching_def: Optional[MemoryAccess] = None
-        self.loc: MemoryLocation = EMPTY_MEMORY_ACCESS
+        self.loc: MemoryLocation = MemoryLocation.EMPTY
 
     @property
     def is_live_on_entry(self) -> bool:
@@ -71,10 +72,10 @@ class LiveOnEntry(MemoryAccess):
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
-    def __init__(self, id: int, store_inst: IRInstruction):
+    def __init__(self, id: int, store_inst: IRInstruction, addr_space: AddrSpace):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = get_write_memory_location(store_inst)
+        self.loc = get_write_location(store_inst, addr_space)
 
     @property
     def inst(self):
@@ -84,10 +85,10 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(self, id: int, load_inst: IRInstruction):
+    def __init__(self, id: int, load_inst: IRInstruction, addr_space: AddrSpace):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = get_read_memory_location(load_inst)
+        self.loc = get_read_location(load_inst, addr_space)
 
     @property
     def inst(self):
@@ -108,7 +109,7 @@ MemoryDefOrUse = MemoryDef | MemoryUse
 MemoryPhiOperand = MemoryDef | MemoryPhi | LiveOnEntry
 
 
-class MemSSA(IRAnalysis):
+class MemSSAAbstract(IRAnalysis):
     """
     This analysis converts memory/storage operations into Memory SSA form.
     The analysis is based on LLVM's https://llvm.org/docs/MemorySSA.html.
@@ -120,15 +121,11 @@ class MemSSA(IRAnalysis):
     See https://llvm.org/docs/MemorySSA.html#design-tradeoffs.
     """
 
-    VALID_LOCATION_TYPES = {"memory", "storage"}
+    addr_space: AddrSpace
+    mem_alias_type: type[MemoryAliasAnalysisAbstract]
 
-    def __init__(self, analyses_cache, function, location_type: str = "memory"):
+    def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
-        if location_type not in self.VALID_LOCATION_TYPES:
-            raise ValueError(f"location_type must be one of: {self.VALID_LOCATION_TYPES}")
-        self.location_type = location_type
-        self.load_op = "mload" if location_type == "memory" else "sload"
-        self.store_op = "mstore" if location_type == "memory" else "sstore"
 
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
@@ -150,9 +147,7 @@ class MemSSA(IRAnalysis):
         self.dom: DominatorTreeAnalysis = self.analyses_cache.request_analysis(
             DominatorTreeAnalysis
         )
-        self.memalias: MemoryAliasAnalysis = self.analyses_cache.request_analysis(
-            MemoryAliasAnalysis
-        )
+        self.memalias = self.analyses_cache.request_analysis(self.mem_alias_type)
 
         # Build initial memory SSA form
         self._build_memory_ssa()
@@ -197,18 +192,17 @@ class MemSSA(IRAnalysis):
 
     def _process_block_definitions(self, block: IRBasicBlock):
         """Process memory definitions and uses in a basic block"""
-        effect_type = Effects.STORAGE if self.location_type == "storage" else Effects.MEMORY
         for inst in block.instructions:
             # Check for memory reads
-            if effect_type in inst.get_read_effects():
-                mem_use = MemoryUse(self.next_id, inst)
+            if get_read_location(inst, self.addr_space) != MemoryLocation.EMPTY:
+                mem_use = MemoryUse(self.next_id, inst, self.addr_space)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            if effect_type in inst.get_write_effects():
-                mem_def = MemoryDef(self.next_id, inst)
+            if get_write_location(inst, self.addr_space) != MemoryLocation.EMPTY:
+                mem_def = MemoryDef(self.next_id, inst, self.addr_space)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.inst_to_def[inst] = mem_def
@@ -452,3 +446,29 @@ class MemSSA(IRAnalysis):
             yield
         finally:
             ir_printer.set(None)
+
+
+class MemSSA(MemSSAAbstract):
+    addr_space = MEMORY
+    mem_alias_type = MemoryAliasAnalysis
+
+
+class StorageSSA(MemSSAAbstract):
+    addr_space = STORAGE
+    mem_alias_type = StorageAliasAnalysis
+
+
+class TransientSSA(MemSSAAbstract):
+    addr_space = TRANSIENT
+    mem_alias_type = TransientAliasAnalysis
+
+
+def mem_ssa_type_factory(addr_space: AddrSpace) -> type[MemSSAAbstract]:
+    if addr_space == MEMORY:
+        return MemSSA
+    elif addr_space == STORAGE:
+        return StorageSSA
+    elif addr_space == TRANSIENT:
+        return TransientSSA
+    else:  # should never happen
+        raise ValueError(f"Invalid location type: {addr_space}")
