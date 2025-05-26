@@ -5,12 +5,12 @@ import pytest
 
 import vyper
 from vyper.cli.vyper_json import (
+    VENOM_KEYS,
     compile_from_input_dict,
     compile_json,
     exc_handler_to_dict,
     get_inputs,
     get_settings,
-    VENOM_KEYS,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle

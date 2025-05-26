@@ -40,7 +40,7 @@ TRANSLATE_MAP = {
     "cfg_runtime": "cfg_runtime",
 }
 
-VENOM_KEYS = ["bb", "bb_runtime", "cfg", "cfg_runtime"]
+VENOM_KEYS = ("bb", "bb_runtime", "cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -251,12 +251,12 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
-        if not input_dict["settings"].get("venom") and not input_dict["settings"].get(
-            "experimentalCodegen"
-        ):
-            for key in VENOM_KEYS:
-                if key in outputs:
-                    outputs.remove(key)
+
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False) for alias in ("venom", "experimentalCodegen")
+        )
+        if not should_output_venom:
+            outputs = [k for k in outputs if k not in VENOM_KEYS]
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
