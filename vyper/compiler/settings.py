@@ -18,6 +18,11 @@ else:
     VYPER_TRACEBACK_LIMIT = None
 
 
+VENOM_ENABLE_LEGACY_OPTIMIZER = False
+if (_venom_elo := os.environ.get("VENOM_ENABLE_LEGACY_OPTIMIZER")) is not None:
+    VENOM_ENABLE_LEGACY_OPTIMIZER = bool(int(_venom_elo))
+
+
 # TODO: use StringEnum (requires refactoring vyper.utils to avoid import cycle)
 class OptimizationLevel(Enum):
     NONE = 1
@@ -106,6 +111,15 @@ class Settings:
         if "optimize" in data:
             data["optimize"] = OptimizationLevel.from_string(data["optimize"])
         return cls(**data)
+
+
+def should_run_legacy_optimizer(settings: Settings):
+    if settings.optimize == OptimizationLevel.NONE:
+        return False
+    if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
+        return False
+
+    return True
 
 
 def merge_settings(
