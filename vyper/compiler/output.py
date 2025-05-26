@@ -35,6 +35,8 @@ def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Modul
     imported_modules = list(import_analysis.compiler_inputs.values())
     imported_modules = [mod for mod in imported_modules if isinstance(mod, vy_ast.Module)]
     if import_analysis.toplevel_module in imported_modules:
+        # this shouldn't actually happen, but remove in case our
+        # assumption is violated in the future
         imported_modules.remove(import_analysis.toplevel_module)
 
     return imported_modules
