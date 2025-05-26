@@ -1,7 +1,7 @@
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_alias import MemoryAliasAnalysis
 from vyper.venom.basicblock import IRLabel
-from vyper.venom.memory_location import EMPTY_MEMORY_ACCESS, MemoryLocation
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.parser import parse_venom
 
 FULL_MEMORY_ACCESS = MemoryLocation(offset=0, size=None)
@@ -29,10 +29,10 @@ def test_may_alias_full_memory_access():
     ), "FULL_MEMORY_ACCESS should alias with regular location"
 
     assert not alias.may_alias(
-        FULL_MEMORY_ACCESS, EMPTY_MEMORY_ACCESS
+        FULL_MEMORY_ACCESS, MemoryLocation.EMPTY
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS
+        MemoryLocation.EMPTY, FULL_MEMORY_ACCESS
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
 
     assert alias.may_alias(
@@ -41,14 +41,14 @@ def test_may_alias_full_memory_access():
 
     loc1 = MemoryLocation(offset=0, size=32)
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, loc1
+        MemoryLocation.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
     assert not alias.may_alias(
-        loc1, EMPTY_MEMORY_ACCESS
+        loc1, MemoryLocation.EMPTY
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
 
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, EMPTY_MEMORY_ACCESS
+        MemoryLocation.EMPTY, MemoryLocation.EMPTY
     ), "EMPTY_MEMORY_ACCESS should not alias with itself"
 
 
@@ -209,18 +209,18 @@ def test_may_alias_edge_cases():
     alias.analyze()
 
     assert not alias.may_alias(
-        FULL_MEMORY_ACCESS, EMPTY_MEMORY_ACCESS
+        FULL_MEMORY_ACCESS, MemoryLocation.EMPTY
     ), "FULL_MEMORY_ACCESS should not alias with EMPTY_MEMORY_ACCESS"
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, FULL_MEMORY_ACCESS
+        MemoryLocation.EMPTY, FULL_MEMORY_ACCESS
     ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
     loc1 = MemoryLocation(offset=0, size=32)
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, loc1
+        MemoryLocation.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
     assert not alias.may_alias(
-        loc1, EMPTY_MEMORY_ACCESS
+        loc1, MemoryLocation.EMPTY
     ), "Regular location should not alias with EMPTY_MEMORY_ACCESS"
 
     volatile_loc = MemoryLocation(offset=0, size=32, is_volatile=True)
@@ -269,7 +269,7 @@ def test_may_alias_edge_cases2():
     ), "FULL_MEMORY_ACCESS should alias with regular location"
 
     assert not alias.may_alias(
-        EMPTY_MEMORY_ACCESS, loc1
+        MemoryLocation.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
 
     volatile_loc = MemoryLocation(offset=0, size=32, is_volatile=True)

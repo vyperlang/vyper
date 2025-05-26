@@ -14,6 +14,7 @@ from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings
 from vyper.utils import sha256sum
 
 TAMPERED_INTEGRITY_SUM = sha256sum("tampered integrity sum")
@@ -37,11 +38,24 @@ def test_combined_json_keys(chdir_tmp_path, make_file):
         "method_identifiers",
         "userdoc",
         "devdoc",
+        "settings_dict",
     }
     compile_data = compile_files(["bar.vy"], ["combined_json"])
 
     assert set(compile_data.keys()) == {Path("bar.vy"), "version"}
     assert set(compile_data[Path("bar.vy")].keys()) == combined_keys
+
+
+def test_combined_json_settings_output(chdir_tmp_path, make_file, compiler_settings):
+    make_file("bar.vy", "")
+
+    compile_data = compile_files(["bar.vy"], ["combined_json"])
+    output_settings = compile_data[Path("bar.vy")]["settings_dict"]
+
+    # test output settings == expected settings
+    assert output_settings == compiler_settings.as_dict()
+    # test round-trip
+    assert Settings.from_dict(output_settings) == compiler_settings
 
 
 def test_invalid_root_path():
