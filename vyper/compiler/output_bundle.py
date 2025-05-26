@@ -261,8 +261,8 @@ class VyperArchiveWriter(OutputBundleWriter):
     def write_storage_layout_overrides(
         self, compilation_target_path: str, storage_layout_override: JSONInput
     ):
-        path = str(storage_layout_override.path)
-        self.archive.writestr(_anonymize(path), storage_layout_override.contents)
+        path = _anonymize(str(storage_layout_override.path))
+        self.archive.writestr(path, storage_layout_override.contents)
         self.archive.writestr(
             "MANIFEST/storage_layout.json", json.dumps({compilation_target_path: path})
         )
