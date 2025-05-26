@@ -271,9 +271,9 @@ def get_settings(input_dict: dict) -> Settings:
 
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
-        experimental_codegen = input_dict["settings"].get("venom")
-    elif input_dict["settings"].get("venom") is not None:
-        raise JSONError("both experimentalCodegen and venom cannot be set")
+        experimental_codegen = input_dict["settings"].get("venomExperimental")
+    elif input_dict["settings"].get("venomExperimental") is not None:
+        raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility

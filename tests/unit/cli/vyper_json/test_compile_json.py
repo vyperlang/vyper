@@ -375,7 +375,7 @@ def test_compile_json_with_experimental_codegen():
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
-            "venom": True,
+            "venomExperimental": True,
             "search_paths": [],
             "outputSelection": {"*": ["ast"]},
         },
@@ -393,11 +393,11 @@ def test_compile_json_with_both_venom_aliases():
             "evmVersion": "cancun",
             "optimize": "gas",
             "experimentalCodegen": False,
-            "venom": False,
+            "venomExperimental": False,
             "search_paths": [],
             "outputSelection": {"*": ["ast"]},
         },
     }
     with pytest.raises(JSONError) as e:
         get_settings(code)
-    assert e.value.args[0] == "both experimentalCodegen and venom cannot be set"
+    assert e.value.args[0] == "both experimentalCodegen and venomExperimental cannot be set"
