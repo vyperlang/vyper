@@ -1,7 +1,7 @@
 from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRBasicBlock, IRLabel
-from vyper.venom.passes import NormalizationPass
+from vyper.venom.passes import CFGNormalization
 
 
 def test_multi_entry_block_1():
@@ -37,7 +37,7 @@ def test_multi_entry_block_1():
     cfg = ac.request_analysis(CFGAnalysis)
     assert not cfg.is_normalized(), "CFG should not be normalized"
 
-    NormalizationPass(ac, fn).run_pass()
+    CFGNormalization(ac, fn).run_pass()
 
     cfg = ac.request_analysis(CFGAnalysis)
     assert cfg.is_normalized(), "CFG should be normalized"
@@ -92,7 +92,7 @@ def test_multi_entry_block_2():
     cfg = ac.request_analysis(CFGAnalysis)
     assert not cfg.is_normalized(), "CFG should not be normalized"
 
-    NormalizationPass(ac, fn).run_pass()
+    CFGNormalization(ac, fn).run_pass()
 
     cfg = ac.request_analysis(CFGAnalysis)
     assert cfg.is_normalized(), "CFG should be normalized"
@@ -137,7 +137,7 @@ def test_multi_entry_block_with_dynamic_jump():
     cfg = ac.request_analysis(CFGAnalysis)
     assert not cfg.is_normalized(), "CFG should not be normalized"
 
-    NormalizationPass(ac, fn).run_pass()
+    CFGNormalization(ac, fn).run_pass()
 
     cfg = ac.request_analysis(CFGAnalysis)
     assert cfg.is_normalized(), "CFG should be normalized"
