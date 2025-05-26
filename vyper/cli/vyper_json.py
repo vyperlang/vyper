@@ -414,7 +414,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["sourceMap"] = data["source_map_runtime"]
 
         if any(i in data for i in VENOM_KEYS):
-            venom = output_contracts.setdefault("venom", {})
+            venom = {}
             if "bb" in data:
                 venom["bb"] = repr(data["bb"])
             if "bb_runtime" in data:
@@ -423,6 +423,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 venom["cfg"] = data["cfg"]
             if "cfg_runtime" in data:
                 venom["cfg_runtime"] = data["cfg_runtime"]
+            output_contracts["venom"] = venom
 
     return output_dict
 
