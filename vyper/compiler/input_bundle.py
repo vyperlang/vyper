@@ -39,6 +39,10 @@ class CompilerInput:
     def from_builtin(self):
         return self.source_id == BUILTIN
 
+    # fast hash which doesn't require looking at the contents
+    def __hash__(self):
+        return hash((self.source_id, self.path, self.resolved_path))
+
 
 @dataclass(frozen=True)
 class FileInput(CompilerInput):
@@ -46,19 +50,27 @@ class FileInput(CompilerInput):
     def source_code(self):
         return self.contents
 
+    def __hash__(self):
+        # don't use dataclass provided implementation
+        return super().__hash__()
 
-@dataclass(frozen=True, unsafe_hash=True)
+@dataclass(frozen=True)
 class JSONInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    data: Any = field(hash=False)  # something that json.load() returns
+    data: Any = field()  # something that json.load() returns
 
     @classmethod
     def from_file_input(cls, file_input: FileInput) -> "JSONInput":
         s = json.loads(file_input.source_code)
         return cls(**asdict(file_input), data=s)
+
+    def __hash__(self):
+        # don't use dataclass provided implementation
+        return super().__hash__()
+
 
 
 class _NotFound(Exception):
