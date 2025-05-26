@@ -377,7 +377,7 @@ def test_compile_json_with_experimental_codegen():
             "optimize": "gas",
             "venom": True,
             "search_paths": ["."],
-            "outputSelection": {"*": ["ast", "bb", "bb_runtime", "cfg", "cfg_runtime"]},
+            "outputSelection": {"*": ["bb", "bb_runtime", "cfg", "cfg_runtime"]},
         },
     }
     compiled = compile_from_input_dict(code)
