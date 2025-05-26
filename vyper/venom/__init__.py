@@ -96,6 +96,7 @@ def _run_stable_passes(fn: IRFunction, ac: IRAnalysesCache) -> None:
     SimplifyCFGPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
 
