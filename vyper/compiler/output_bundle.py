@@ -60,6 +60,7 @@ class OutputBundle:
 
         # file input for the top level module; it's not in
         # import_analysis._compiler_inputs
+        assert self.compiler_data.file_input not in inputs  # sanity
         inputs.append(self.compiler_data.file_input)
 
         sources = {}
