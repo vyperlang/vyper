@@ -50,6 +50,9 @@ class OutputBundle:
 
     @cached_property
     def compiler_inputs(self) -> dict[str, CompilerInput]:
+        # return the `CompilerInput`s for this output bundle, as a dict
+        # where the keys are the anonymized paths.
+        # does not include builtins.
         import_analysis = self.compiler_data.resolved_imports
 
         inputs: list[CompilerInput] = import_analysis.compiler_inputs.copy()
