@@ -11,16 +11,16 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions = ("london", "paris", "shanghai", "cancun")
+_evm_versions = ("london", "paris", "shanghai", "cancun", "prague")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
-DEFAULT_EVM_VERSION = "cancun"
+DEFAULT_EVM_VERSION = "prague"
 
 
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (london, paris, shanghai, cancun)
+# gas cost (london, paris, shanghai, cancun, prague)
 OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
@@ -75,8 +75,8 @@ OPCODES: OpcodeMap = {
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
     "BASEFEE": (0x48, 0, 1, 2),
-    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3)),
-    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2)),
+    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3, 3)),
+    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
@@ -89,7 +89,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
-    "MCOPY": (0x5E, 3, 0, (None, None, None, 3)),
+    "MCOPY": (0x5E, 3, 0, (None, None, None, 3, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
@@ -172,8 +172,8 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, (None, None, None, 100)),
-    "TSTORE": (0x5D, 2, 0, (None, None, None, 100)),
+    "TLOAD": (0x5C, 1, 1, (None, None, None, 100, 100)),
+    "TSTORE": (0x5D, 2, 0, (None, None, None, 100, 100)),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
