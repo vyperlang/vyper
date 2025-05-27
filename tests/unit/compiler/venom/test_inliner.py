@@ -1,8 +1,9 @@
 from tests.venom_utils import parse_venom
-from vyper.venom.check_venom import check_venom_ctx
-from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass, MakeSSA
+from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.venom.check_venom import check_venom_ctx
+from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
+
 
 def test_inliner():
     pre = """
