@@ -118,6 +118,18 @@ def foo() -> uint256:
     }
 
 
+def test_import_builtin_ast():
+    code = """
+from ethereum.ercs import IERC20
+import math
+    """
+    dict_out = compiler.compile_code(code, output_formats=["annotated_ast_dict"])
+    ast_dict = dict_out["annotated_ast_dict"]
+    imports = ast_dict["imports"]
+    import_paths = [import_dict["path"] for import_dict in imports]
+    assert import_paths == ["vyper/builtins/interfaces/IERC20.vyi", "vyper/builtins/stdlib/math.vy"]
+
+
 def test_dict_to_ast():
     code = """
 @external
