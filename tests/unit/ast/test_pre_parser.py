@@ -214,7 +214,7 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
 
 pragma_venom = [
     """
-    #pragma venom
+    #pragma venom-experimental
     """,
     """
     #pragma experimental-codegen
@@ -261,12 +261,12 @@ invalid_pragmas = [
     """,
     # duplicate setting of venom
     """
-    #pragma venom
+    #pragma venom-experimental
     #pragma experimental-codegen
     """,
     """
-    #pragma venom
-    #pragma venom
+    #pragma venom-experimental
+    #pragma venom-experimental
     """,
 ]
 
