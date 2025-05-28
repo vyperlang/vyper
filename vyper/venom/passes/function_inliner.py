@@ -90,9 +90,8 @@ class FunctionInlinerPass(IRGlobalPass):
         """
         for call_site in call_sites:
             FloatAllocas(self.analyses_caches[func], func).run_pass()
-            return_bb = self._inline_call_site(func, call_site)
+            self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
-            self._fix_phi(call_site.parent, return_bb)
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
@@ -145,7 +144,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> IRBasicBlock:
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
         """
         Inline function into call site.
         """
@@ -207,7 +206,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
-        return call_site_return
+        self._fix_phi(call_site_bb, call_site_return)
 
     def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
         orig_label = orig.label
