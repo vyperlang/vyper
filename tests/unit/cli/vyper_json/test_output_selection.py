@@ -102,6 +102,14 @@ def bar():
     self.foo()
     A.foo()
     assert 1 != 12
+
+@internal
+def only_from_ctor():
+    pass
+
+@deploy
+def __init__():
+    self.only_from_ctor()
         """
 
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
@@ -115,6 +123,7 @@ def bar():
     assert "foo (0)" in function_infos
     assert "foo (1)" in function_infos
     assert "bar (2)" in function_infos
+    assert "only_from_ctor (4)" in function_infos
     # faa is unreachable, should not be in metadata or bytecode
     assert not any("faa" in key for key in function_infos.keys())
 
