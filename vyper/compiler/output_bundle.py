@@ -192,7 +192,7 @@ class SolcJSONWriter(OutputBundleWriter):
     ):
         # TODO: generalize to multiple files
         ret = {}
-        path = str(_anonymize(storage_layout_override.path))
+        path = _anonymize(str(storage_layout_override.path))
         ret[compilation_target_path] = {path: storage_layout_override.data}
         self._output["storage_layout_overrides"] = ret
 
