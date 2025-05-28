@@ -44,7 +44,7 @@ def test_translate_map(output):
 def test_translate_map_with_venom_flag(output):
     input_json = {
         "sources": {"foo.vy": ""},
-        "settings": {"venom": True, "outputSelection": {"foo.vy": [output[0]]}},
+        "settings": {"venomExperimental": True, "outputSelection": {"foo.vy": [output[0]]}},
     }
     assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
 
@@ -67,7 +67,7 @@ def test_star():
 def test_star_with_venom_flag():
     input_json = {
         "sources": {"foo.vy": "", "bar.vy": ""},
-        "settings": {"venom": True, "outputSelection": {"*": ["*"]}},
+        "settings": {"venomExperimental": True, "outputSelection": {"*": ["*"]}},
     }
     translate_map = set(TRANSLATE_MAP.values())
     expected = sorted(translate_map)

@@ -258,7 +258,8 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
         should_output_venom = any(
-            input_dict["settings"].get(alias, False) for alias in ("venomExperimental", "experimentalCodegen")
+            input_dict["settings"].get(alias, False)
+            for alias in ("venomExperimental", "experimentalCodegen")
         )
 
         if "*" in outputs:
