@@ -257,8 +257,14 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False) for alias in ("venom", "experimentalCodegen")
+        )
+
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
+            if not should_output_venom:
+                outputs = [k for k in outputs if k not in VENOM_KEYS]
         else:
             try:
                 outputs = [TRANSLATE_MAP[i] for i in outputs]
@@ -267,13 +273,10 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
 
         outputs = sorted(list(outputs))
 
-        should_output_venom = any(
-            input_dict["settings"].get(alias, False) for alias in ("venom", "experimentalCodegen")
-        )
         if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
             selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
             raise JSONError(
-                f"requested f{selected_venom_keys} but experimentalCodegen not selected!"
+                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
             )
 
         if path == "*":

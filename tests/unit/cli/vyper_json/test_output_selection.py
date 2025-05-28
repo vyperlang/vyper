@@ -34,7 +34,8 @@ def test_translate_map(output):
         "settings": {"outputSelection": {"foo.vy": [output[0]]}},
     }
     if output[0] in ["bb", "bb_runtime", "cfg", "cfg_runtime"]:
-        assert get_output_formats(input_json) == {PurePath("foo.vy"): []}
+        with pytest.raises(JSONError, match="experimentalCodegen not selected!"):
+            _ = get_output_formats(input_json)
     else:
         assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
 
