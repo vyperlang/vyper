@@ -7,11 +7,10 @@ from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
-from vyper.compiler.input_bundle import CompilerInput, _NotFound
+from vyper.compiler.input_bundle import CompilerInput, JSONInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.typing import StorageLayout
 from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
@@ -139,7 +138,7 @@ class OutputBundleWriter:
         raise NotImplementedError(f"write_sources: {self.__class__}")
 
     def write_storage_layout_overrides(
-        self, compilation_target_path: str, storage_layout_override: StorageLayout
+        self, compilation_target_path: str, storage_layout_override: JSONInput
     ):
         raise NotImplementedError(f"write_storage_layout_overrides: {self.__class__}")
 
@@ -189,11 +188,13 @@ class SolcJSONWriter(OutputBundleWriter):
         self._output["sources"].update(out)
 
     def write_storage_layout_overrides(
-        self, compilation_target_path: str, storage_layout_override: StorageLayout
+        self, compilation_target_path: str, storage_layout_override: JSONInput
     ):
-        self._output["storage_layout_overrides"] = {
-            compilation_target_path: storage_layout_override
-        }
+        # TODO: generalize to multiple files
+        ret = {}
+        path = _anonymize(str(storage_layout_override.path))
+        ret[compilation_target_path] = {path: storage_layout_override.data}
+        self._output["storage_layout_overrides"] = ret
 
     def write_search_paths(self, search_paths: list[str]):
         self._output["settings"]["search_paths"] = search_paths
@@ -258,9 +259,13 @@ class VyperArchiveWriter(OutputBundleWriter):
             self.archive.writestr(_anonymize(path), c.contents)
 
     def write_storage_layout_overrides(
-        self, compilation_target_path: str, storage_layout_override: StorageLayout
+        self, compilation_target_path: str, storage_layout_override: JSONInput
     ):
-        self.archive.writestr("MANIFEST/storage_layout.json", json.dumps(storage_layout_override))
+        path = _anonymize(str(storage_layout_override.path))
+        self.archive.writestr(path, storage_layout_override.contents)
+        self.archive.writestr(
+            "MANIFEST/storage_layout.json", json.dumps({compilation_target_path: path})
+        )
 
     def write_search_paths(self, search_paths: list[str]):
         self.archive.writestr("MANIFEST/searchpaths", "\n".join(search_paths))
