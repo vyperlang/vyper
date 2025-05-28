@@ -216,9 +216,7 @@ class FunctionInlinerPass(IRGlobalPass):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                for i in range(len(inst.operands)):
-                    if inst.operands[i].name == orig_label.name:
-                        inst.operands[i] = new_label
+                inst.replace_label_operands({orig_label: new_label})
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
