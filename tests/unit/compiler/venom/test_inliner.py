@@ -5,7 +5,14 @@ from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
 
 
-def test_inliner():
+def test_inliner_phi_invalidation():
+    """
+    Test if the spliting the basic block
+    which contains invoke does not create
+    invalid phi which would later be
+    removed by SimplifyCFGPass
+    """
+
     pre = """
     function main {
     main:
@@ -43,7 +50,5 @@ def test_inliner():
     for fn in ctx.get_functions():
         ac = IRAnalysesCache(fn)
         SimplifyCFGPass(ac, fn).run_pass()
-
-    print(ctx)
 
     check_venom_ctx(ctx)
