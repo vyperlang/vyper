@@ -227,6 +227,7 @@ def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, JSONInput]:
         )
 
         path = PurePath(path)
+        assert path not in storage_layout_overrides
         storage_layout_overrides[path] = storage_layout_input
 
     return storage_layout_overrides
