@@ -411,7 +411,7 @@ def test_compile_json_without_experimental_codegen():
             "evmVersion": "cancun",
             "optimize": "gas",
             "venomExperimental": False,
-            "search_paths": [],
+            "search_paths": ["."],
             "outputSelection": {"*": ["ast"]},
         },
     }
