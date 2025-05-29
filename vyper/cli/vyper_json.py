@@ -33,7 +33,13 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
+    "bb": "bb",
+    "bb_runtime": "bb_runtime",
+    "cfg": "cfg",
+    "cfg_runtime": "cfg_runtime",
 }
+
+VENOM_KEYS = ("bb", "bb_runtime", "cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -251,8 +257,15 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False)
+            for alias in ("venomExperimental", "experimentalCodegen")
+        )
+
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
+            if not should_output_venom:
+                outputs = [k for k in outputs if k not in VENOM_KEYS]
         else:
             try:
                 outputs = [TRANSLATE_MAP[i] for i in outputs]
@@ -260,6 +273,12 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
+
+        if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
+            selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
+            raise JSONError(
+                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
+            )
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
@@ -415,6 +434,18 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map_runtime" in data:
                 evm["sourceMap"] = data["source_map_runtime"]
+
+        if any(i in data for i in VENOM_KEYS):
+            venom = {}
+            if "bb" in data:
+                venom["bb"] = repr(data["bb"])
+            if "bb_runtime" in data:
+                venom["bb_runtime"] = repr(data["bb_runtime"])
+            if "cfg" in data:
+                venom["cfg"] = data["cfg"]
+            if "cfg_runtime" in data:
+                venom["cfg_runtime"] = data["cfg_runtime"]
+            output_contracts["venom"] = venom
 
     return output_dict
 

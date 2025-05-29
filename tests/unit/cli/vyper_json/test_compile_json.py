@@ -5,6 +5,7 @@ import pytest
 
 import vyper
 from vyper.cli.vyper_json import (
+    VENOM_KEYS,
     compile_from_input_dict,
     compile_json,
     exc_handler_to_dict,
@@ -145,15 +146,11 @@ def json_input(json_data, path):
     )
 
 
-def test_compile_json(input_json, input_bundle):
+def test_compile_json(input_json, input_bundle, experimental_codegen):
     foo_input = input_bundle.load_file("contracts/foo.vy")
     # remove venom related from output formats
     # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
-    del output_formats["bb"]
-    del output_formats["bb_runtime"]
-    del output_formats["cfg"]
-    del output_formats["cfg_runtime"]
     foo = compile_from_file_input(
         foo_input,
         output_formats=output_formats,
@@ -198,7 +195,7 @@ def test_compile_json(input_json, input_bundle):
             "ast": data["ast_dict"]["ast"],
             "annotated_ast": data["annotated_ast_dict"]["ast"],
         }
-        assert output_json["contracts"][path][contract_name] == {
+        expected = {
             "abi": data["abi"],
             "devdoc": data["devdoc"],
             "interface": data["interface"],
@@ -220,6 +217,14 @@ def test_compile_json(input_json, input_bundle):
                 "methodIdentifiers": data["method_identifiers"],
             },
         }
+        if experimental_codegen:
+            expected["venom"] = {
+                "bb": repr(data["bb"]),
+                "bb_runtime": repr(data["bb_runtime"]),
+                "cfg": data["cfg"],
+                "cfg_runtime": data["cfg_runtime"],
+            }
+        assert output_json["contracts"][path][contract_name] == expected
 
 
 def test_compilation_targets(input_json):
@@ -237,7 +242,7 @@ def test_compilation_targets(input_json):
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
 
-def test_different_outputs(input_bundle, input_json):
+def test_different_outputs(input_bundle, input_json, experimental_codegen):
     input_json["settings"]["outputSelection"] = {
         "contracts/bar.vy": "*",
         "contracts/foo.vy": ["evm.methodIdentifiers"],
@@ -252,16 +257,11 @@ def test_different_outputs(input_bundle, input_json):
 
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
-    assert sorted(bar.keys()) == [
-        "abi",
-        "devdoc",
-        "evm",
-        "interface",
-        "ir",
-        "layout",
-        "metadata",
-        "userdoc",
-    ]
+    expected_keys = ["abi", "devdoc", "evm", "interface", "ir", "layout", "metadata", "userdoc"]
+    if experimental_codegen:
+        expected_keys.append("venom")
+        expected_keys.sort()
+    assert sorted(bar.keys()) == expected_keys
 
     assert sorted(foo.keys()) == ["evm"]
 
@@ -385,13 +385,41 @@ def test_compile_json_with_experimental_codegen():
             "evmVersion": "cancun",
             "optimize": "gas",
             "venomExperimental": True,
-            "search_paths": [],
+            "search_paths": ["."],
+            "outputSelection": {"*": VENOM_KEYS},
+        },
+    }
+    compiled = compile_from_input_dict(code)
+    expected = compiled[0][PurePath("foo.vy")]
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen is True
+    output_json = compile_json(code)
+    assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    assert venom["bb"] == repr(expected["bb"])
+    assert venom["bb_runtime"] == repr(expected["bb_runtime"])
+    assert venom["cfg"] == expected["cfg"]
+    assert venom["cfg_runtime"] == expected["cfg_runtime"]
+
+
+def test_compile_json_without_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venomExperimental": False,
+            "search_paths": ["."],
             "outputSelection": {"*": ["ast"]},
         },
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen is True
+    assert settings.experimental_codegen is False
+    output_json = compile_json(code)
+    assert "venom" not in output_json["contracts"]["foo.vy"]["foo"]
 
 
 def test_compile_json_with_both_venom_aliases():
