@@ -403,7 +403,7 @@ def test_compile_json_with_experimental_codegen():
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
 
 
-def test_compile_json_escapes_subgraph_label():
+def test_compile_json_subgraph_label():
     foo_code = """
 a: uint256
 b: address
@@ -432,7 +432,7 @@ def call_foo(amount: uint256, account: address) -> uint256:
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
-            "venom": True,
+            "venomExperimental": True,
             "search_paths": ["."],
             "outputSelection": {"*": ["cfg_runtime"]},
         },
