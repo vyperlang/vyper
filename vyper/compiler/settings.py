@@ -85,7 +85,7 @@ class Settings:
         if self.optimize is not None:
             ret.append(" --optimize " + str(self.optimize))
         if self.experimental_codegen is True:
-            ret.append(" --venom")
+            ret.append(" --venom-experimental")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
         if self.debug is True:
