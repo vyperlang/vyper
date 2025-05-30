@@ -42,19 +42,18 @@ class SingleUseExpansion(IRPass):
 
                 if isinstance(op, IRVariable):
                     uses = self.dfg.get_uses(op)
+                    # it's already only used once
                     if len(uses) == 1 and len([x for x in inst.operands if x == op]) == 1:
                         continue
-                    var = self.function.get_next_variable()
-                    to_insert = IRInstruction("store", [op], var)
-                    bb.insert_instruction(to_insert, index=i)
-                    inst.operands[j] = var
-                    i += 1
 
-                if isinstance(op, IRLiteral):
-                    var = self.function.get_next_variable()
-                    to_insert = IRInstruction("store", [op], var)
-                    bb.insert_instruction(to_insert, index=i)
-                    inst.operands[j] = var
-                    i += 1
+                if not isinstance(op, (IRLiteral, IRVariable)):
+                    # IRLabels are special, e.g. in jmp instructions
+                    continue
+
+                var = self.function.get_next_variable()
+                to_insert = IRInstruction("store", [op], var)
+                bb.insert_instruction(to_insert, index=i)
+                inst.operands[j] = var
+                i += 1
 
             i += 1
