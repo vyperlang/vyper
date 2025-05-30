@@ -75,7 +75,7 @@ class IRAnalysesCache:
         if analysis is not None:
             analysis.invalidate()
 
-    def force_analysis(self, analysis_cls: Type[IRAnalysis], *args, **kwargs):
+    def force_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Force a specific analysis to be run on the IR even if it has already been run,
         and is cached.
