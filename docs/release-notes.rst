@@ -96,6 +96,7 @@ Venom improvements
 * fix[venom]: fix handling of params in ``venom_to_assembly`` (`#4587 <https://github.com/vyperlang/vyper/pull/4587>`_)
 * refactor[venom]: extract liveness and cfg data structures (`#4595 <https://github.com/vyperlang/vyper/pull/4595>`_)
 * fix[venom]: fix ``DominatorTreeAnalysis.dominates()`` (`#4615 <https://github.com/vyperlang/vyper/pull/4615>`_)
+* fix[venom]: fix callsite phis after inlining (`#4666 <https://github.com/vyperlang/vyper/pull/4666>`_)
 * refactor[venom]: rename "store"-related passes (`#4627 <https://github.com/vyperlang/vyper/pull/4627>`_)
 * feat[venom]: add phi simplification pass (`#4628 <https://github.com/vyperlang/vyper/pull/4628>`_)
 * feat[venom]: add ``calloca`` instruction (`#4376 <https://github.com/vyperlang/vyper/pull/4376>`_)
