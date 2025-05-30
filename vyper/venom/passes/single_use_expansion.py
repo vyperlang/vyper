@@ -47,7 +47,8 @@ class SingleUseExpansion(IRPass):
                         continue
 
                 if not isinstance(op, (IRLiteral, IRVariable)):
-                    # IRLabels are special, e.g. in jmp instructions
+                    # IRLabels are special in certain instructions (e.g., jmp)
+                    # skip them for now.
                     continue
 
                 var = self.function.get_next_variable()
