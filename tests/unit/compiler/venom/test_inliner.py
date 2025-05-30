@@ -52,3 +52,58 @@ def test_inliner_phi_invalidation():
         SimplifyCFGPass(ac, fn).run_pass()
 
     check_venom_ctx(ctx)
+
+
+def test_inliner_phi_invalidation_inner():
+    """
+    Test if the spliting the basic block
+    which contains invoke does not create
+    invalid phi which would later be
+    removed by SimplifyCFGPass
+    """
+
+    pre = """
+    function main {
+    main:
+        %p = param
+        jnz %p, @then, @first_join
+    then:
+        %a = add 1, %p
+        jmp @first_join
+    first_join:
+        %tmp = phi @main, %p, @then, %a
+        %1 = invoke @f, %tmp
+        %2 = 0
+        jmp @cond
+    cond:
+        %2:1 = phi @first_join, %2, @body, %2:2
+        %cond = iszero %2:1
+        jnz %cond, @body, @join
+    body:
+        %2:2 = add %2:1, 1
+        jmp @cond
+    join:
+        sink %2:1
+    }
+
+    function f {
+    main:
+        %p = param
+        %1 = add %p, 1
+        ret %1
+    }
+    """
+
+    ctx = parse_venom(pre)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    FunctionInlinerPass(ir_analyses, ctx, OptimizationLevel.CODESIZE).run_pass()
+
+    for fn in ctx.get_functions():
+        ac = IRAnalysesCache(fn)
+        SimplifyCFGPass(ac, fn).run_pass()
+
+    check_venom_ctx(ctx)
