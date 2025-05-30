@@ -35,7 +35,7 @@ class DFTPass(IRPass):
 
         while len(worklist) > 0:
             bb = worklist.popleft()
-            stack_order = self.stack_order.get_prefered_stack(list(self.cfg.cfg_out(bb)))
+            stack_order = self.stack_order.get_prefered_stack(bb, list(self.cfg.cfg_out(bb)))
             if bb in last_stack_orders and stack_order == last_stack_orders[bb]:
                 continue
             last_stack_orders[bb] = stack_order
