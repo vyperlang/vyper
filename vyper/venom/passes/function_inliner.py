@@ -209,9 +209,10 @@ class FunctionInlinerPass(IRGlobalPass):
         self._fix_phi(call_site_bb, call_site_return)
 
     def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
-        # when a function is inlined, the entry block may contain phis.
+        # when a function is inlined, the successors of the entry block
+        # may contain phis.
         # these phis need to be updated to refer to the new block
-        # which reaches the entry point for the (now-inlined) function.
+        # which is jumped to from the callsite of caller function.
         orig_label = orig.label
         new_label = new.label
 
