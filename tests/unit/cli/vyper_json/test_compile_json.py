@@ -439,7 +439,7 @@ def call_foo(amount: uint256, account: address) -> uint256:
     }
     output_json = compile_json(code)
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
-    assert 'subgraph "\\"internal 0 _foo(uint256,address)_runtime\\""' in venom["cfg_runtime"]
+    assert 'subgraph "internal 0 _foo(uint256,address)_runtime"' in venom["cfg_runtime"]
 
 
 def test_compile_json_without_experimental_codegen():
