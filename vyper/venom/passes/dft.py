@@ -1,13 +1,20 @@
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from vyper.venom.analysis.mem_ssa import MemSSA, MemSSAAbstract, MemoryDef, MemoryPhi, MemoryUse
-from vyper.venom.memory_location import MemoryLocation
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis.mem_ssa import (
+    MemoryAccess,
+    MemoryDef,
+    MemoryPhi,
+    MemoryUse,
+    MemSSA,
+    MemSSAAbstract,
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -122,8 +129,11 @@ class DFTPass(IRPass):
                 mem_use = self.mem_ssa.get_memory_use(inst)
                 mem_def = self.effective_reaching_defs.get(mem_use, None)
                 if mem_def is not None:
-                    self.eda[inst].add(mem_def.inst)      
-                elif effects.MEMORY in last_write_effects and last_write_effects[effects.MEMORY] != inst:
+                    self.eda[inst].add(mem_def.inst)
+                elif (
+                    effects.MEMORY in last_write_effects
+                    and last_write_effects[effects.MEMORY] != inst
+                ):
                     self.eda[inst].add(last_write_effects[effects.MEMORY])
                 continue
 
@@ -145,7 +155,7 @@ class DFTPass(IRPass):
             self.data_offspring[inst] |= res
 
         return self.data_offspring[inst]
-    
+
     def _calculate_effective_reaching_defs(self):
         self.effective_reaching_defs = {}
         self.defs_to_uses: Dict[MemoryDef, List[MemoryUse]] = {}
@@ -154,21 +164,26 @@ class DFTPass(IRPass):
                 continue
             if isinstance(mem_use.inst.operands[0], IRVariable):
                 continue
-            mem_def = self._walk_for_effective_reaching_def(mem_use.reaching_def, mem_use.loc, OrderedSet())
+            mem_def = self._walk_for_effective_reaching_def(
+                mem_use.reaching_def, mem_use.loc, OrderedSet()
+            )
             self.effective_reaching_defs[mem_use] = mem_def
             if mem_def not in self.defs_to_uses:
                 self.defs_to_uses[mem_def] = []
             self.defs_to_uses[mem_def].append(mem_use)
 
-        
-    def _walk_for_effective_reaching_def(self, current: MemoryUse, query_loc: MemoryLocation, visited: OrderedSet[MemoryUse]) -> MemoryUse:
+    def _walk_for_effective_reaching_def(
+        self, mem_access: MemoryAccess, query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess]
+    ) -> Optional[MemoryDef]:
+        current: Optional[MemoryAccess] = mem_access
         while current is not None:
             if current in visited:
                 break
             visited.add(current)
-            
+
             if isinstance(current, MemoryDef):
                 if self.mem_ssa.memalias.may_alias(query_loc, current.loc):
+                    assert isinstance(current, MemoryDef)
                     return current
             if isinstance(current, MemoryPhi):
                 reaching_defs = []
@@ -178,8 +193,9 @@ class DFTPass(IRPass):
                         reaching_defs.append(reaching_def)
                 if len(reaching_defs) == 1:
                     return reaching_defs[0]
+                assert isinstance(current, MemoryDef)
                 return current
-            
+
             current = current.reaching_def
 
         return MemSSAAbstract.live_on_entry
