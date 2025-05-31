@@ -22,6 +22,12 @@ v0.4.2 ("Lernaean Hydra")
 Date released: 2025-05-31
 =========================
 
+v0.4.2 includes a new ``raw_create()`` builtin which allows users to build more generic factories in Vyper. It also moves the ``sqrt()`` builtin to a pure Vyper module, involving a refactor which will allow more stdlib functionality to be written in Vyper in the future.
+
+Additionally, Venom has undergone more improvements, including a CSE elimination pass, dead-store elimination pass, as well as moving more items in the calling convention to the stack in the venom pipeline. Benchmark contracts are now typically 5% smaller.
+
+Two low severity GHSAs have been patched in this release.
+
 Breaking and notable changes
 ---------------------------------
 * feat[lang]!: move sqrt to new stdlib ``math`` module (`#4520 <https://github.com/vyperlang/vyper/pull/4520>`_)
