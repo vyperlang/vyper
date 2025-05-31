@@ -19,7 +19,7 @@ Release Notes
 v0.4.2 ("Lernaean Hydra")
 *************************
 
-Date released: 2025-05-30
+Date released: 2025-05-31
 =========================
 
 Breaking and notable changes
