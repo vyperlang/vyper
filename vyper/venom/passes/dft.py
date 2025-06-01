@@ -5,6 +5,7 @@ import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.mem_ssa import (
+    LiveOnEntry,
     MemoryAccess,
     MemoryDef,
     MemoryPhi,
@@ -125,22 +126,33 @@ class DFTPass(IRPass):
                     self.eda[inst].add(last_read_effects[write_effect])
                 last_write_effects[write_effect] = inst
 
-            if inst.opcode == "mload":
-                mem_use = self.mem_ssa.get_memory_use(inst)
-                mem_def = self.effective_reaching_defs.get(mem_use, None)
-                if mem_def is not None:
-                    self.eda[inst].add(mem_def.inst)
-                elif (
-                    effects.MEMORY in last_write_effects
-                    and last_write_effects[effects.MEMORY] != inst
-                ):
-                    self.eda[inst].add(last_write_effects[effects.MEMORY])
-                continue
-
             for read_effect in read_effects:
+                if read_effect == effects.MEMORY:
+                    self._handle_memory_effect(inst, last_write_effects, last_read_effects)
+                    continue
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
                 last_read_effects[read_effect] = inst
+
+    def _handle_memory_effect(
+        self,
+        inst: IRInstruction,
+        last_write_effects: dict[effects.Effects, IRInstruction],
+        last_read_effects: dict[effects.Effects, IRInstruction],
+    ) -> None:
+        mem_use = self.mem_ssa.get_memory_use(inst)
+        mem_def = self.effective_reaching_defs.get(mem_use, None)
+
+        if mem_def is not None and isinstance(mem_def, MemoryDef):
+            if mem_def.inst.parent == inst.parent:
+                self.eda[inst].add(mem_def.inst)                 
+        elif (
+            effects.MEMORY in last_write_effects
+            and last_write_effects[effects.MEMORY] != inst
+        ):
+            self.eda[inst].add(last_write_effects[effects.MEMORY])
+
+        last_read_effects[effects.MEMORY] = inst
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
@@ -162,8 +174,8 @@ class DFTPass(IRPass):
         for mem_use in self.mem_ssa.get_memory_uses():
             if mem_use.inst.opcode != "mload":
                 continue
-            if isinstance(mem_use.inst.operands[0], IRVariable):
-                continue
+            #if isinstance(mem_use.inst.operands[0], IRVariable):
+            #    continue
             mem_def = self._walk_for_effective_reaching_def(
                 mem_use.reaching_def, mem_use.loc, OrderedSet()
             )
@@ -174,7 +186,7 @@ class DFTPass(IRPass):
 
     def _walk_for_effective_reaching_def(
         self, mem_access: MemoryAccess, query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess]
-    ) -> Optional[MemoryDef]:
+    ) -> Optional[MemoryDef | MemoryPhi | LiveOnEntry]:
         current: Optional[MemoryAccess] = mem_access
         while current is not None:
             if current in visited:
@@ -183,8 +195,8 @@ class DFTPass(IRPass):
 
             if isinstance(current, MemoryDef):
                 if self.mem_ssa.memalias.may_alias(query_loc, current.loc):
-                    assert isinstance(current, MemoryDef)
                     return current
+
             if isinstance(current, MemoryPhi):
                 reaching_defs = []
                 for access, _ in current.operands:
@@ -193,7 +205,7 @@ class DFTPass(IRPass):
                         reaching_defs.append(reaching_def)
                 if len(reaching_defs) == 1:
                     return reaching_defs[0]
-                assert isinstance(current, MemoryDef)
+
                 return current
 
             current = current.reaching_def
