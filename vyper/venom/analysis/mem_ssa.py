@@ -60,15 +60,6 @@ class MemoryAccess:
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.id_str})"
 
-
-class LiveOnEntry(MemoryAccess):
-    """
-    For type checking purposes
-    """
-
-    pass
-
-
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
@@ -103,6 +94,15 @@ class MemoryPhi(MemoryAccess):
         self.block = block
         self.operands: list[tuple[MemoryPhiOperand, IRBasicBlock]] = []
 
+class LiveOnEntry(MemoryDef):
+    """
+    For type checking purposes
+    """
+
+    def __init__(self, id: int, addr_space: AddrSpace):
+        super().__init__(id, IRInstruction("nop", []), addr_space)
+
+
 
 # Type aliases for signatures in this module
 MemoryDefOrUse = MemoryDef | MemoryUse
@@ -123,6 +123,7 @@ class MemSSAAbstract(IRAnalysis):
 
     addr_space: AddrSpace
     mem_alias_type: type[MemoryAliasAnalysisAbstract]
+    live_on_entry: LiveOnEntry = None
 
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
@@ -130,7 +131,7 @@ class MemSSAAbstract(IRAnalysis):
         self.next_id = 1  # Start from 1 since 0 will be live_on_entry
 
         # live_on_entry node
-        self.live_on_entry = LiveOnEntry(0)
+        self.live_on_entry = LiveOnEntry(0, self.addr_space)
 
         self.memory_defs: dict[IRBasicBlock, list[MemoryDef]] = {}
         self.memory_uses: dict[IRBasicBlock, list[MemoryUse]] = {}
