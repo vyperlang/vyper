@@ -12,6 +12,8 @@ from vyper.venom.analysis.mem_ssa import (
     MemoryUse,
     MemSSA,
     MemSSAAbstract,
+    StorageSSA,
+    TransientSSA,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
@@ -36,8 +38,14 @@ class DFTPass(IRPass):
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
-        self.mem_ssa = self.analyses_cache.force_analysis(MemSSA)
-        self._calculate_effective_reaching_defs()
+        self.mem_ssa = {
+            effects.MEMORY: self.analyses_cache.force_analysis(MemSSA),
+            effects.STORAGE: self.analyses_cache.force_analysis(StorageSSA),
+            effects.TRANSIENT: self.analyses_cache.force_analysis(TransientSSA),
+        }
+        self._calculate_effective_reaching_defs(effects.MEMORY)
+        self._calculate_effective_reaching_defs(effects.STORAGE)
+        self._calculate_effective_reaching_defs(effects.TRANSIENT)
 
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
@@ -128,7 +136,13 @@ class DFTPass(IRPass):
 
             for read_effect in read_effects:
                 if read_effect == effects.MEMORY:
-                    self._handle_memory_effect(inst, last_write_effects, last_read_effects)
+                    self._handle_memory_effect(inst, effects.MEMORY, last_write_effects, last_read_effects)
+                    continue
+                if read_effect == effects.STORAGE:
+                    self._handle_memory_effect(inst, effects.STORAGE, last_write_effects, last_read_effects)
+                    continue
+                if read_effect == effects.TRANSIENT:
+                    self._handle_memory_effect(inst, effects.TRANSIENT, last_write_effects, last_read_effects)
                     continue
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
@@ -137,10 +151,11 @@ class DFTPass(IRPass):
     def _handle_memory_effect(
         self,
         inst: IRInstruction,
+        effect: effects.Effects,
         last_write_effects: dict[effects.Effects, IRInstruction],
         last_read_effects: dict[effects.Effects, IRInstruction],
     ) -> None:
-        mem_use = self.mem_ssa.get_memory_use(inst)
+        mem_use = self.mem_ssa[effect].get_memory_use(inst)
         mem_def = self.effective_reaching_defs.get(mem_use, None)
 
         if mem_def is not None and isinstance(mem_def, MemoryDef):
@@ -168,16 +183,16 @@ class DFTPass(IRPass):
 
         return self.data_offspring[inst]
 
-    def _calculate_effective_reaching_defs(self):
+    def _calculate_effective_reaching_defs(self, effect: effects.Effects):
         self.effective_reaching_defs = {}
         self.defs_to_uses: Dict[MemoryDef, List[MemoryUse]] = {}
-        for mem_use in self.mem_ssa.get_memory_uses():
+        for mem_use in self.mem_ssa[effect].get_memory_uses():
             if mem_use.inst.opcode != "mload":
                 continue
             #if isinstance(mem_use.inst.operands[0], IRVariable):
             #    continue
             mem_def = self._walk_for_effective_reaching_def(
-                mem_use.reaching_def, mem_use.loc, OrderedSet()
+                mem_use.reaching_def, mem_use.loc, OrderedSet(), effect
             )
             self.effective_reaching_defs[mem_use] = mem_def
             if mem_def not in self.defs_to_uses:
@@ -185,7 +200,7 @@ class DFTPass(IRPass):
             self.defs_to_uses[mem_def].append(mem_use)
 
     def _walk_for_effective_reaching_def(
-        self, mem_access: MemoryAccess, query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess]
+        self, mem_access: MemoryAccess, query_loc: MemoryLocation, visited: OrderedSet[MemoryAccess], effect: effects.Effects
     ) -> Optional[MemoryDef | MemoryPhi | LiveOnEntry]:
         current: Optional[MemoryAccess] = mem_access
         while current is not None:
@@ -194,13 +209,13 @@ class DFTPass(IRPass):
             visited.add(current)
 
             if isinstance(current, MemoryDef):
-                if self.mem_ssa.memalias.may_alias(query_loc, current.loc):
+                if self.mem_ssa[effect].memalias.may_alias(query_loc, current.loc):
                     return current
 
             if isinstance(current, MemoryPhi):
                 reaching_defs = []
                 for access, _ in current.operands:
-                    reaching_def = self._walk_for_effective_reaching_def(access, query_loc, visited)
+                    reaching_def = self._walk_for_effective_reaching_def(access, query_loc, visited, effect)
                     if reaching_def:
                         reaching_defs.append(reaching_def)
                 if len(reaching_defs) == 1:
