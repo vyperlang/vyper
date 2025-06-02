@@ -111,7 +111,6 @@ class InstUpdater:
         """
         Insert another instruction before the given instruction
         """
-        assert opcode != "phi"
         index = inst.parent.instructions.index(inst)
 
         var = None

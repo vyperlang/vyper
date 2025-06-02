@@ -1,6 +1,8 @@
+from collections import defaultdict
 from typing import Optional
 
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.utils import OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -26,29 +28,75 @@ class LoadElimination(IRPass):
     updater: InstUpdater
 
     def run_pass(self):
-        self.updater = InstUpdater(self.analyses_cache.request_analysis(DFGAnalysis))
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
+
+        self._run(Effects.MEMORY, "mload", "mstore")
+        self._run(Effects.TRANSIENT, "tload", "tstore")
+        self._run(Effects.STORAGE, "sload", "sstore")
+        self._run(None, "dload", None)
+        self._run(None, "calldataload", None)
 
         for bb in self.function.get_basic_blocks():
-            self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
-            self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            self._process_bb(bb, None, "dload", None)
-            self._process_bb(bb, None, "calldataload", None)
+            bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
+    def _run(self, eff, load_opcode, store_opcode):
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+
+        self._big_lattice = defaultdict(dict)
+
+        # seed with dfs post walk
+        worklist = OrderedSet(self.cfg.dfs_post_walk)
+
+        while len(worklist) > 0:
+            bb = worklist.pop()
+
+            changed = self._process_bb(bb, eff, load_opcode, store_opcode)
+            if changed:
+                worklist.update(self.cfg.cfg_out(bb))
+
     def equivalent(self, op1, op2):
-        return op1 == op2
+        return self.dfg.are_equivalent(op1, op2)
 
     def get_literal(self, op):
+        op = self.dfg._traverse_store_chain(op)
         if isinstance(op, IRLiteral):
             return op
         return None
 
     def _process_bb(self, bb, eff, load_opcode, store_opcode):
-        # not really a lattice even though it is not really inter-basic block;
-        # we may generalize in the future
         self._lattice = {}
+        old_lattice = self._big_lattice[bb].copy()
+
+        cfg_in = list(self.cfg.cfg_in(bb))
+        if len(cfg_in) > 0:
+            common_keys = self._big_lattice[cfg_in[0]].keys()
+            for in_bb in cfg_in:
+                common_keys &= self._big_lattice[in_bb].keys()
+
+            for k in common_keys:
+                # insert phi nodes and seed our lattice
+                if k in old_lattice:
+                    # already inserted the phi node, skip
+                    continue
+
+                phi_args = []
+                for in_bb in self.cfg.cfg_in(bb):
+                    phi_args.append(in_bb.label)
+
+                    in_values = self._big_lattice[in_bb]
+                    val = in_values[k]
+                    phi_args.append(val)
+
+                if len(phi_args) == 2:
+                    # fix degenerate phis
+                    phi_out = self.updater.add_before(bb.instructions[0], "store", [phi_args[1]])
+                else:
+                    phi_out = self.updater.add_before(bb.instructions[0], "phi", phi_args)
+                self._lattice[k] = phi_out
 
         for inst in bb.instructions:
             if inst.opcode == store_opcode:
@@ -59,6 +107,17 @@ class LoadElimination(IRPass):
 
             elif inst.opcode == load_opcode:
                 self._handle_load(inst)
+
+        for k, v in self._lattice.items():
+            if v != old_lattice.get(k) and isinstance(v, IRLiteral):
+                # produce variables mapping them to literals
+                var = self.updater.add_before(bb.instructions[-1], "store", [v])
+                self._lattice[k] = var
+
+        changed = old_lattice != self._lattice
+        self._big_lattice[bb] = self._lattice
+
+        return changed
 
     def _handle_load(self, inst):
         (ptr,) = inst.operands
@@ -84,8 +143,9 @@ class LoadElimination(IRPass):
             self._lattice = {ptr: val}
             return
 
-        # we found a redundant store, eliminate it
         existing_val = self._lattice.get(known_ptr)
+
+        # we found a redundant store, eliminate it
         if self.equivalent(val, existing_val):
             self.updater.nop(inst)
             return
