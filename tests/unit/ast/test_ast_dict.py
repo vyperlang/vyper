@@ -63,6 +63,7 @@ a: int128
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
+        "is_reentrant": False,
         "is_transient": False,
         "lineno": 2,
         "node_id": 1,
@@ -115,6 +116,18 @@ def foo() -> uint256:
         "end_lineno": 5,
         "lineno": 5,
     }
+
+
+def test_import_builtin_ast():
+    code = """
+from ethereum.ercs import IERC20
+import math
+    """
+    dict_out = compiler.compile_code(code, output_formats=["annotated_ast_dict"])
+    ast_dict = dict_out["annotated_ast_dict"]
+    imports = ast_dict["imports"]
+    import_paths = [import_dict["path"] for import_dict in imports]
+    assert import_paths == ["vyper/builtins/interfaces/IERC20.vyi", "vyper/builtins/stdlib/math.vy"]
 
 
 def test_dict_to_ast():
@@ -543,6 +556,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 56,
                 "target": {
@@ -565,6 +579,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 61,
                 "target": {
@@ -604,6 +619,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 69,
                 "target": {
@@ -631,6 +647,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 81,
                 "target": {
@@ -668,6 +685,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 86,
                 "target": {
@@ -700,6 +718,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 99,
                 "target": {
@@ -749,6 +768,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 107,
                 "target": {
