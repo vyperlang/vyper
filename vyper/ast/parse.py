@@ -100,6 +100,7 @@ def _parse_to_ast(
     # some python AST node instances are singletons and are reused between
     # parse() invocations. copy the python AST so that we are using fresh
     # objects.
+    # TODO: is this still necessary?
     py_ast = _deepcopy_ast(py_ast)
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
@@ -405,6 +406,19 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node = node.value
             key = (node.lineno, node.col_offset)
             node.ast_type = self._pre_parser.keyword_translations[key]
+
+        return node
+
+    def visit_BinOp(self, node):
+        self.generic_visit(node)
+
+        # overwrite operator node instances which are singletons
+        node.op = _deepcopy_ast(node.op)
+        node.op.src = node.src
+        node.op.lineno = node.lineno
+        node.op.col_offset = node.col_offset
+        node.op.end_lineno = node.end_lineno
+        node.op.end_col_offset = node.end_col_offset
 
         return node
 
