@@ -12,6 +12,42 @@ from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
 
+PYTHON_AST_SINGLETONS = (
+    # Unary Operators
+    python_ast.USub,    # -x
+    python_ast.Not,     # not x
+    python_ast.Invert,  # ~x
+
+    # Binary Operators
+    python_ast.Add,      # x + y
+    python_ast.Sub,      # x - y
+    python_ast.Mult,     # x * y
+    python_ast.Div,      # x / y
+    python_ast.FloorDiv, # x // y
+    python_ast.Mod,      # x % y
+    python_ast.Pow,      # x ** y
+    python_ast.LShift,   # x << y
+    python_ast.RShift,   # x >> y
+    python_ast.BitOr,    # x | y
+    python_ast.BitXor,   # x ^ y
+    python_ast.BitAnd,   # x & y
+
+    # Comparison Operators
+    python_ast.Eq,       # x == y
+    python_ast.NotEq,    # x != y
+    python_ast.Lt,       # x < y
+    python_ast.LtE,      # x <= y
+    python_ast.Gt,       # x > y
+    python_ast.GtE,      # x >= y
+    python_ast.In,       # x in y
+    python_ast.NotIn,    # x not in y
+
+    # Boolean Operators
+    python_ast.And,      # x and y
+    python_ast.Or,       # x or y
+)
+
+
 def parse_to_ast(
     vyper_source: str,
     source_id: int = 0,
@@ -100,7 +136,6 @@ def _parse_to_ast(
     # some python AST node instances are singletons and are reused between
     # parse() invocations. copy the python AST so that we are using fresh
     # objects.
-    # TODO: is this still necessary?
     py_ast = _deepcopy_ast(py_ast)
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
@@ -236,9 +271,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             for field in LINE_INFO_FIELDS:
                 if parent is not None:
                     val = getattr(node, field, None)
-                    # special case for USub - heisenbug when coverage is
-                    # enabled in the test suite.
-                    if val is None or isinstance(node, python_ast.USub):
+                    if val is None or isinstance(node, PYTHON_AST_SINGLETONS):
                         val = getattr(parent, field)
                     setattr(node, field, val)
                 else:
@@ -246,6 +279,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
             for child in python_ast.iter_child_nodes(node):
                 _fix(child, node)
+
+                if isinstance(child, PYTHON_AST_SINGLETONS):
+                    node.op = _deepcopy_ast(child)
 
         _fix(ast_node)
 
@@ -406,19 +442,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node = node.value
             key = (node.lineno, node.col_offset)
             node.ast_type = self._pre_parser.keyword_translations[key]
-
-        return node
-
-    def visit_BinOp(self, node):
-        self.generic_visit(node)
-
-        # overwrite operator node instances which are singletons
-        node.op = _deepcopy_ast(node.op)
-        node.op.src = node.src
-        node.op.lineno = node.lineno
-        node.op.col_offset = node.col_offset
-        node.op.end_lineno = node.end_lineno
-        node.op.end_col_offset = node.end_col_offset
 
         return node
 
