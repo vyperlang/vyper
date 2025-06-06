@@ -11,6 +11,38 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
+PYTHON_AST_SINGLETONS = (
+    # Unary Operators
+    python_ast.USub,  # -x
+    python_ast.Not,  # not x
+    python_ast.Invert,  # ~x
+    # Binary Operators
+    python_ast.Add,  # x + y
+    python_ast.Sub,  # x - y
+    python_ast.Mult,  # x * y
+    python_ast.Div,  # x / y
+    python_ast.FloorDiv,  # x // y
+    python_ast.Mod,  # x % y
+    python_ast.Pow,  # x ** y
+    python_ast.LShift,  # x << y
+    python_ast.RShift,  # x >> y
+    python_ast.BitOr,  # x | y
+    python_ast.BitXor,  # x ^ y
+    python_ast.BitAnd,  # x & y
+    # Comparison Operators
+    python_ast.Eq,  # x == y
+    python_ast.NotEq,  # x != y
+    python_ast.Lt,  # x < y
+    python_ast.LtE,  # x <= y
+    python_ast.Gt,  # x > y
+    python_ast.GtE,  # x >= y
+    python_ast.In,  # x in y
+    python_ast.NotIn,  # x not in y
+    # Boolean Operators
+    python_ast.And,  # x and y
+    python_ast.Or,  # x or y
+)
+
 
 def parse_to_ast(
     vyper_source: str,
@@ -97,11 +129,6 @@ def _parse_to_ast(
 
         raise new_e from None
 
-    # some python AST node instances are singletons and are reused between
-    # parse() invocations. copy the python AST so that we are using fresh
-    # objects.
-    py_ast = _deepcopy_ast(py_ast)
-
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
     if add_fn_node:
@@ -163,10 +190,12 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    visitor = AnnotatingVisitor(
+    singleton_visitor = SingletonVisitor()
+    singleton_visitor.start(parsed_ast)
+    annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    visitor.start(parsed_ast)
+    annotating_visitor.start(parsed_ast)
 
     return parsed_ast
 
@@ -174,6 +203,19 @@ def annotate_python_ast(
 def _deepcopy_ast(ast_node: python_ast.AST):
     # pickle roundtrip is faster than copy.deepcopy() here.
     return pickle.loads(pickle.dumps(ast_node))
+
+
+# Replace python AST node instances that are singletons, which are reused between
+# parse() invocations, with a copy so that we are using fresh objects.
+class SingletonVisitor(python_ast.NodeTransformer):
+    def start(self, node: python_ast.Module):
+        self.visit(node)
+
+    def generic_visit(self, node):
+        if isinstance(node, PYTHON_AST_SINGLETONS):
+            return _deepcopy_ast(node)
+
+        return super().generic_visit(node)
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -235,9 +277,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             for field in LINE_INFO_FIELDS:
                 if parent is not None:
                     val = getattr(node, field, None)
-                    # special case for USub - heisenbug when coverage is
-                    # enabled in the test suite.
-                    if val is None or isinstance(node, python_ast.USub):
+                    if val is None:
                         val = getattr(parent, field)
                     setattr(node, field, val)
                 else:
