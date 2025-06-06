@@ -190,12 +190,12 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    singleton = SingletonVisitor()
-    singleton.start(parsed_ast)
-    visitor = AnnotatingVisitor(
+    singleton_visitor = SingletonVisitor()
+    singleton_visitor.start(parsed_ast)
+    annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    visitor.start(parsed_ast)
+    annotating_visitor.start(parsed_ast)
 
     return parsed_ast
 
