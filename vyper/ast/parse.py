@@ -11,40 +11,39 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
-
+# these python AST node instances are singletons and are reused between
+# parse() invocations, and therefore should be copied so that we are using
+# fresh objects.
 PYTHON_AST_SINGLETONS = (
     # Unary Operators
-    python_ast.USub,    # -x
-    python_ast.Not,     # not x
+    python_ast.USub,  # -x
+    python_ast.Not,  # not x
     python_ast.Invert,  # ~x
-
     # Binary Operators
-    python_ast.Add,      # x + y
-    python_ast.Sub,      # x - y
-    python_ast.Mult,     # x * y
-    python_ast.Div,      # x / y
-    python_ast.FloorDiv, # x // y
-    python_ast.Mod,      # x % y
-    python_ast.Pow,      # x ** y
-    python_ast.LShift,   # x << y
-    python_ast.RShift,   # x >> y
-    python_ast.BitOr,    # x | y
-    python_ast.BitXor,   # x ^ y
-    python_ast.BitAnd,   # x & y
-
+    python_ast.Add,  # x + y
+    python_ast.Sub,  # x - y
+    python_ast.Mult,  # x * y
+    python_ast.Div,  # x / y
+    python_ast.FloorDiv,  # x // y
+    python_ast.Mod,  # x % y
+    python_ast.Pow,  # x ** y
+    python_ast.LShift,  # x << y
+    python_ast.RShift,  # x >> y
+    python_ast.BitOr,  # x | y
+    python_ast.BitXor,  # x ^ y
+    python_ast.BitAnd,  # x & y
     # Comparison Operators
-    python_ast.Eq,       # x == y
-    python_ast.NotEq,    # x != y
-    python_ast.Lt,       # x < y
-    python_ast.LtE,      # x <= y
-    python_ast.Gt,       # x > y
-    python_ast.GtE,      # x >= y
-    python_ast.In,       # x in y
-    python_ast.NotIn,    # x not in y
-
+    python_ast.Eq,  # x == y
+    python_ast.NotEq,  # x != y
+    python_ast.Lt,  # x < y
+    python_ast.LtE,  # x <= y
+    python_ast.Gt,  # x > y
+    python_ast.GtE,  # x >= y
+    python_ast.In,  # x in y
+    python_ast.NotIn,  # x not in y
     # Boolean Operators
-    python_ast.And,      # x and y
-    python_ast.Or,       # x or y
+    python_ast.And,  # x and y
+    python_ast.Or,  # x or y
 )
 
 
@@ -132,11 +131,6 @@ def _parse_to_ast(
                 break
 
         raise new_e from None
-
-    # some python AST node instances are singletons and are reused between
-    # parse() invocations. copy the python AST so that we are using fresh
-    # objects.
-    py_ast = _deepcopy_ast(py_ast)
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
