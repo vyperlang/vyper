@@ -66,8 +66,8 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
         LowerDloadPass(ac, fn).run_pass()
         SingleUseExpansion(ac, fn).run_pass()
 
-    compiler = VenomCompiler([ctx])
-    asm = compiler.generate_evm(no_optimize=False)
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=False)
     return assembly_to_evm(asm)[0].hex()
 
 
