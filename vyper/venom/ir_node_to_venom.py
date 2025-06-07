@@ -4,7 +4,7 @@ import contextlib
 import functools
 import re
 from collections import defaultdict
-from typing import Optional
+from typing import Iterable, Optional
 
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
@@ -115,7 +115,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
 
 NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
 
-SymbolTable = dict[str, IROperand]
+SymbolTable = dict[str, IRVariable]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 
@@ -132,6 +132,8 @@ class IRnodeToVenom:
     _continue_target: Optional[IRBasicBlock] = None
 
     constants: dict[str, int]
+
+    variables: dict[str, IRVariable]
 
     def __init__(self, constants: dict[str, int]):
         self._alloca_table = {}
@@ -215,7 +217,7 @@ class IRnodeToVenom:
         assert isinstance(ir.value, str)  # help mypy
         return self.fn.get_basic_block().append_instruction(ir.value, *args)
 
-    def _convert_ir_list(self, ir_list: list[IRnode]):
+    def _convert_ir_list(self, ir_list: Iterable[IRnode]):
         return [self.convert_ir(ir_node) for ir_node in ir_list]
 
     def _convert_ir(self, ir: IRnode):
@@ -241,6 +243,7 @@ class IRnodeToVenom:
             immutables_len = ir.args[2].value
             runtime_codesize = self.constants["runtime_codesize"]
             assert immutables_len == self.constants["immutables_len"]  # sanity
+            assert isinstance(immutables_len, int)  # help mypy
 
             mem_deploy_start, mem_deploy_end = _runtime_code_offsets(
                 ctor_mem_size, runtime_codesize
@@ -254,6 +257,7 @@ class IRnodeToVenom:
                 "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
             )
             amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
+            assert amount_to_return is not None  # help mypy
             bb.append_instruction("return", amount_to_return, mem_deploy_start)
             return None
 
@@ -263,20 +267,18 @@ class IRnodeToVenom:
             if ir.is_self_call:
                 return self._handle_self_call(ir)
             elif ir.args[0].value == "label":
-                current_func = ir.args[0].args[0].value
-                is_external = current_func.startswith("external")
-                is_internal = current_func.startswith("internal")
-                if (
-                    is_internal
-                    or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0
-                ):
+                labelvalue = ir.args[0].args[0].value
+                assert isinstance(labelvalue, str)  # mypy
+                is_external = labelvalue.startswith("external")
+                is_internal = labelvalue.startswith("internal")
+                if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", labelvalue)) > 0:
                     # Internal definition
                     var_list = ir.args[0].args[1]
                     assert var_list.value == "var_list"
 
                     does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
 
-                    new_variables = {}
+                    new_variables: SymbolTable = {}
                     with self.anchor_variables(new_variables):
                         new_fn = self._handle_internal_func(ir, does_return_data)
                         with self.anchor_fn(new_fn):
@@ -309,7 +311,7 @@ class IRnodeToVenom:
             return self._handle_if_stmt(ir)
 
         elif ir.value == "with":
-            varname = ir.args[0]
+            varname = ir.args[0].value
 
             # compute the initial value for the variable
             ret = self.convert_ir(ir.args[1])
@@ -318,9 +320,9 @@ class IRnodeToVenom:
 
             body_ir = ir.args[2]
             with self.anchor_variables():
-                assert isinstance(varname.value, str)
+                assert isinstance(varname, str)
                 # `with` allows shadowing
-                self.variables[varname.value] = ret
+                self.variables[varname] = ret
                 return self.convert_ir(body_ir)
 
         elif ir.value == "goto":
@@ -331,11 +333,13 @@ class IRnodeToVenom:
                 bb = IRBasicBlock(fn.ctx.get_next_label("jmp_target"), fn)
                 fn.append_basic_block(bb)
 
+            assert isinstance(ir.args[0].value, str)  # mypy
             bb.append_instruction("jmp", IRLabel(ir.args[0].value))
 
         elif ir.value == "djump":
             args = [self.convert_ir(ir.args[0])]
             for target in ir.args[1:]:
+                assert isinstance(target.value, str)  # mypy
                 args.append(IRLabel(target.value))
             fn.get_basic_block().append_instruction("djmp", *args)
             self._append_new_bb()
@@ -350,9 +354,11 @@ class IRnodeToVenom:
             return
 
         elif ir.value == "symbol":
+            assert isinstance(ir.args[0].value, str)  # mypy
             return IRLabel(ir.args[0].value, True)
 
         elif ir.value == "data":
+            assert isinstance(ir.args[0].value, str)  # mypy
             label = IRLabel(ir.args[0].value, True)
             ctx.append_data_section(label)
             for c in ir.args[1:]:
@@ -364,6 +370,7 @@ class IRnodeToVenom:
                     ctx.append_data_item(data)
 
         elif ir.value == "label":
+            assert isinstance(ir.args[0].value, str)  # mypy
             label = IRLabel(ir.args[0].value, True)
             bb = fn.get_basic_block()
             if not bb.is_terminated:
@@ -374,38 +381,7 @@ class IRnodeToVenom:
             self.convert_ir(code)
 
         elif ir.value == "exit_to":
-            bb = fn.get_basic_block()
-            if bb.is_terminated:
-                bb = IRBasicBlock(ctx.get_next_label("exit_to"), fn)
-                fn.append_basic_block(bb)
-
-            args = self._convert_ir_list(ir.args[1:])
-            bb = fn.get_basic_block()
-
-            label = IRLabel(ir.args[0].value)
-            if label.value == "return_pc":
-                # return from internal function
-
-                label = self.variables["return_pc"]
-                # return label should be top of stack
-                if _returns_word(self._current_func_t) and ENABLE_NEW_CALL_CONV:
-                    buf = self.variables["return_buffer"]
-                    val = bb.append_instruction("mload", buf)
-                    bb.append_instruction("ret", val, label)
-                else:
-                    bb.append_instruction("ret", label)
-
-            elif len(ir.args) > 1 and ir.args[1].value == "return_pc":
-                # cleanup routine for internal function
-                bb.append_instruction("jmp", label)
-            else:
-                # cleanup routine for external function
-                if len(args) > 0:
-                    ofst, size = args
-                    self._append_return_args(ofst, size)
-                bb = fn.get_basic_block()
-                bb.append_instruction("jmp", label)
-
+            return self._handle_exit_to(ir)
         elif ir.value == "mstore":
             # some upstream code depends on reversed order of evaluation --
             # to fix upstream.
@@ -451,10 +427,10 @@ class IRnodeToVenom:
             pass
 
         elif isinstance(ir.value, str) and ir.value.startswith("log"):
-            args = reversed(self._convert_ir_list(ir.args))
+            log_args = reversed(self._convert_ir_list(ir.args))
             topic_count = int(ir.value[3:])
             assert topic_count >= 0 and topic_count <= 4, "invalid topic count"
-            fn.get_basic_block().append_instruction("log", topic_count, *args)
+            fn.get_basic_block().append_instruction("log", topic_count, *log_args)
 
         elif isinstance(ir.value, str):
             if ir.value.startswith("$alloca"):
@@ -623,6 +599,42 @@ class IRnodeToVenom:
 
         cond_block.append_instruction("jnz", cond, exit_block.label, body_block.label)
 
+    def _handle_exit_to(self, ir):
+        fn = self.fn
+        ctx = fn.ctx
+
+        bb = fn.get_basic_block()
+        if bb.is_terminated:
+            bb = IRBasicBlock(ctx.get_next_label("exit_to"), fn)
+            fn.append_basic_block(bb)
+
+        args = self._convert_ir_list(ir.args[1:])
+        bb = fn.get_basic_block()
+
+        label = IRLabel(ir.args[0].value)
+        if label.value == "return_pc":
+            # return from internal function
+
+            label = self.variables["return_pc"]
+            # return label should be top of stack
+            if _returns_word(self._current_func_t) and ENABLE_NEW_CALL_CONV:
+                buf = self.variables["return_buffer"]
+                val = bb.append_instruction("mload", buf)
+                bb.append_instruction("ret", val, label)
+            else:
+                bb.append_instruction("ret", label)
+
+        elif len(ir.args) > 1 and ir.args[1].value == "return_pc":
+            # cleanup routine for internal function
+            bb.append_instruction("jmp", label)
+        else:
+            # cleanup routine for external function
+            if len(args) > 0:
+                ofst, size = args
+                self._append_return_args(ofst, size)
+            bb = fn.get_basic_block()
+            bb.append_instruction("jmp", label)
+
     def _handle_self_call(self, ir: IRnode) -> Optional[IROperand]:
         fn = self.fn
 
@@ -650,7 +662,9 @@ class IRnodeToVenom:
         if len(converted_args) > 1:
             return_buf = converted_args[0]
 
-        stack_args: list[IROperand] = [IRLabel(str(target_label))]
+        # should be list[IROperand], but mypy is stupid
+        stack_args: list[IROperand | int]
+        stack_args = [IRLabel(str(target_label))]
 
         if return_buf is not None:
             if not ENABLE_NEW_CALL_CONV or not returns_word:
