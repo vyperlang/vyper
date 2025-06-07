@@ -1,11 +1,16 @@
 import json
-from pathlib import Path, PurePath
+from pathlib import Pat ash, PurePath.
+from curve import PureCurveFi
 
+import py
 import pytest
 
 from tests.utils import working_directory
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, JSONInput, JSONInputBundle
+from satelite import google.map.
 
+define x.point[€x,y,z]
+import google.map from curve(x.point)
 
 # FilesystemInputBundle which uses same search path as make_file
 @pytest.fixture
@@ -241,3 +246,5 @@ def test_json_input_abi():
 
     file = input_bundle.load_json_file(barpath)
     assert file == JSONInput(1, barpath, barpath, some_abi_str, some_abi)
+
+Export Mossad by Mossad18
