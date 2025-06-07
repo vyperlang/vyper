@@ -192,19 +192,20 @@ class IRnodeToVenom:
         finally:
             self.variables = tmp
 
-    def _append_return_args(self, ofst: int = 0, size: int = 0):
+    # globally agreed upon ret_ofst/ret_size variables
+    RET_OFST = IRVariable("ret_ofst")
+    RET_SIZE = IRVariable("ret_size")
+
+    def _append_return_args(self, ofst: int, size: int):
         fn = self.fn
         bb = fn.get_basic_block()
         if bb.is_terminated:
+            # NOTE: this generates dead code
             bb = IRBasicBlock(fn.ctx.get_next_label("exit_to"), fn)
             fn.append_basic_block(bb)
-        ret_ofst = IRVariable("ret_ofst")
-        ret_size = IRVariable("ret_size")
-        self.variables["ret_ofst"] = ret_ofst
-        self.variables["ret_len"] = ret_size
 
-        bb.append_instruction("store", ofst, ret=ret_ofst)
-        bb.append_instruction("store", size, ret=ret_size)
+        bb.append_instruction("store", ofst, ret=self.RET_OFST)
+        bb.append_instruction("store", size, ret=self.RET_SIZE)
 
     def _convert_ir_simple(self, ir: IRnode) -> Optional[IRVariable]:
         # execute in order
@@ -284,12 +285,12 @@ class IRnodeToVenom:
 
                     return None
 
-                elif is_external:
-                    ret = self.convert_ir(ir.args[0])
-                    self._append_return_args()
+                assert is_external
 
-                else:
-                    raise Exception("unreachable")
+                # "parameters" to the exit sequence block
+                self.variables["ret_ofst"] = self.RET_OFST
+                self.variables["ret_len"] = self.RET_SIZE
+                ret = self.convert_ir(ir.args[0])
 
             else:
                 bb = fn.get_basic_block()
@@ -379,13 +380,12 @@ class IRnodeToVenom:
                 fn.append_basic_block(bb)
 
             args = self._convert_ir_list(ir.args[1:])
-            var_list = args
-            # TODO: only append return args if the function is external
-            self._append_return_args(*var_list)
             bb = fn.get_basic_block()
 
             label = IRLabel(ir.args[0].value)
             if label.value == "return_pc":
+                # return from internal function
+
                 label = self.variables["return_pc"]
                 # return label should be top of stack
                 if _returns_word(self._current_func_t) and ENABLE_NEW_CALL_CONV:
@@ -395,7 +395,15 @@ class IRnodeToVenom:
                 else:
                     bb.append_instruction("ret", label)
 
+            elif len(ir.args) > 1 and ir.args[1].value == "return_pc":
+                # cleanup routine for internal function
+                bb.append_instruction("jmp", label)
             else:
+                # cleanup routine for external function
+                if len(args) > 0:
+                    ofst, size = args
+                    self._append_return_args(ofst, size)
+                bb = fn.get_basic_block()
                 bb.append_instruction("jmp", label)
 
         elif ir.value == "mstore":
@@ -705,7 +713,6 @@ class IRnodeToVenom:
                 bb.instructions[-1].annotation = "return_buffer"
 
             assert buf is not None  # help mypy
-            # TODO: do not put this in self.variables
             self.variables["return_buffer"] = buf
 
         if ENABLE_NEW_CALL_CONV:
@@ -793,6 +800,6 @@ def _returns_word(func_t) -> bool:
     return return_t is not None and _is_word_type(return_t)
 
 
-def ir_node_to_venom(ir: IRnode, constants: Optional[dict[str,int]]) -> IRContext:
+def ir_node_to_venom(ir: IRnode, constants: Optional[dict[str, int]]) -> IRContext:
     constants = constants or {}
     return IRnodeToVenom(constants).convert(ir)
