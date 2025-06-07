@@ -126,15 +126,13 @@ class IRFunction:
                         continue
                     inst.operands[i] = varmap[op]
 
+    # TODO: move these to the IR builder class
     def push_source(self, ir):
-        if isinstance(ir, IRnode):
-            self._ast_source_stack.append(ir.ast_source)
-            self._error_msg_stack.append(ir.error_msg)
+        self._ast_source_stack.append(ir.ast_source)
+        self._error_msg_stack.append(ir.error_msg)
 
     def pop_source(self):
-        assert len(self._ast_source_stack) > 0, "Empty source stack"
         self._ast_source_stack.pop()
-        assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
     def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
