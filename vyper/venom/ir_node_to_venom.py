@@ -131,16 +131,20 @@ class IRnodeToVenom:
     _break_target: Optional[IRBasicBlock] = None
     _continue_target: Optional[IRBasicBlock] = None
 
-    def __init__(self):
+    constants: dict[str, int]
+
+    def __init__(self, constants: dict[str, int]):
         self._alloca_table = {}
         self._callsites = defaultdict(list)
 
-    def convert(self, ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
+        self.constants = constants
+
+    def convert(self, ir: IRnode) -> IRContext:
         ctx = IRContext()
         fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
         ctx.entry_function = fn
 
-        self.symbols = symbols or {}
+        self.variables = {}
 
         self.fn = fn
         self.convert_ir(ir)
@@ -177,13 +181,16 @@ class IRnodeToVenom:
             self.fn = tmp
 
     @contextlib.contextmanager
-    def anchor_symbols(self, new_symbols: SymbolTable):
-        tmp = self.symbols
+    def anchor_variables(self, new_variables: Optional[SymbolTable] = None):
+        if new_variables is None:
+            new_variables = self.variables.copy()
+
+        tmp = self.variables
         try:
-            self.symbols = new_symbols
+            self.variables = new_variables
             yield
         finally:
-            self.symbols = tmp
+            self.variables = tmp
 
     def _append_return_args(self, ofst: int = 0, size: int = 0):
         fn = self.fn
@@ -193,9 +200,9 @@ class IRnodeToVenom:
             fn.append_basic_block(bb)
         ret_ofst = IRVariable("ret_ofst")
         ret_size = IRVariable("ret_size")
-        # TODO: sanity checks here
-        self.symbols["ret_ofst"] = ret_ofst
-        self.symbols["ret_len"] = ret_size
+        self.variables["ret_ofst"] = ret_ofst
+        self.variables["ret_len"] = ret_size
+
         bb.append_instruction("store", ofst, ret=ret_ofst)
         bb.append_instruction("store", size, ret=ret_size)
 
@@ -231,9 +238,8 @@ class IRnodeToVenom:
         elif ir.value == "deploy":
             ctor_mem_size = ir.args[0].value
             immutables_len = ir.args[2].value
-            runtime_codesize = self.symbols["runtime_codesize"].value
-            assert isinstance(runtime_codesize, int)
-            assert immutables_len == self.symbols["immutables_len"].value  # sanity
+            runtime_codesize = self.constants["runtime_codesize"]
+            assert immutables_len == self.constants["immutables_len"]  # sanity
 
             mem_deploy_start, mem_deploy_end = _runtime_code_offsets(
                 ctor_mem_size, runtime_codesize
@@ -265,11 +271,13 @@ class IRnodeToVenom:
                     # Internal definition
                     var_list = ir.args[0].args[1]
                     assert var_list.value == "var_list"
-                    does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-                    self.symbols = {}
-                    new_fn = self._handle_internal_func(ir, does_return_data)
 
-                    with self.anchor_fn(new_fn):
+                    does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+
+                    new_fn = self._handle_internal_func(ir, does_return_data)
+                    new_variables = {}
+
+                    with self.anchor_fn(new_fn), self.anchor_variables(new_variables):
                         for ir_node in ir.args[1:]:
                             ret = self.convert_ir(ir_node)
 
@@ -278,6 +286,9 @@ class IRnodeToVenom:
                 elif is_external:
                     ret = self.convert_ir(ir.args[0])
                     self._append_return_args()
+
+                else:
+                    raise Exception("unreachable")
 
             else:
                 bb = fn.get_basic_block()
@@ -301,12 +312,13 @@ class IRnodeToVenom:
             # compute the initial value for the variable
             ret = self.convert_ir(ir.args[1])
 
-            with_symbols = self.symbols.copy()
+            variables = self.variables.copy()
             assert isinstance(varname.value, str)
-            with_symbols[varname.value] = ret
+            # `with` allows shadowing
+            variables[varname.value] = ret
 
             body_ir = ir.args[2]
-            with self.anchor_symbols(with_symbols):
+            with self.anchor_variables(variables):
                 return self.convert_ir(body_ir)
 
         elif ir.value == "goto":
@@ -328,10 +340,10 @@ class IRnodeToVenom:
             return
 
         elif ir.value == "set":
-            sym = ir.args[0].value
-            assert isinstance(sym, str)
+            varname = ir.args[0].value
+            assert isinstance(varname, str)
             arg_1 = self.convert_ir(ir.args[1])
-            venom_var = self.symbols[sym]
+            venom_var = self.variables[varname]
             fn.get_basic_block().append_instruction("store", arg_1, ret=venom_var)
             return
 
@@ -373,10 +385,10 @@ class IRnodeToVenom:
 
             label = IRLabel(ir.args[0].value)
             if label.value == "return_pc":
-                label = self.symbols["return_pc"]
+                label = self.variables["return_pc"]
                 # return label should be top of stack
                 if _returns_word(self._current_func_t) and ENABLE_NEW_CALL_CONV:
-                    buf = self.symbols["return_buffer"]
+                    buf = self.variables["return_buffer"]
                     val = bb.append_instruction("mload", buf)
                     bb.append_instruction("ret", val, label)
                 else:
@@ -482,7 +494,7 @@ class IRnodeToVenom:
                 self._callsites[alloca._callsite].append(alloca)
                 return ret
 
-            return self.symbols.get(ir.value)
+            return self.variables[ir.value]
 
         else:
             raise Exception(f"Unknown IR node: {ir}")
@@ -503,8 +515,7 @@ class IRnodeToVenom:
 
         # convert "then"
         fn.append_basic_block(then_block)
-        cond_symbols = self.symbols.copy()
-        with self.anchor_symbols(cond_symbols):
+        with self.anchor_variables():
             then_ret_val = self.convert_ir(ir.args[1])
 
         then_block_finish = fn.get_basic_block()
@@ -513,8 +524,7 @@ class IRnodeToVenom:
         fn.append_basic_block(else_block)
         else_ret_val = None
         if len(ir.args) == 3:
-            cond_symbols = self.symbols.copy()
-            with self.anchor_symbols(cond_symbols):
+            with self.anchor_variables():
                 else_ret_val = self.convert_ir(ir.args[2])
 
         else_block_finish = fn.get_basic_block()
@@ -585,8 +595,8 @@ class IRnodeToVenom:
         backup = self._break_target, self._continue_target
         self._break_target = exit_block
         self._continue_target = incr_block
-        with self.anchor_symbols(self.symbols.copy()):
-            self.symbols[sym.value] = counter_var
+        with self.anchor_variables():
+            self.variables[sym.value] = counter_var
             self.convert_ir(body)
         self._break_target, self._continue_target = backup
 
@@ -694,8 +704,8 @@ class IRnodeToVenom:
                 bb.instructions[-1].annotation = "return_buffer"
 
             assert buf is not None  # help mypy
-            # TODO: do not put this in self.symbols
-            self.symbols["return_buffer"] = buf
+            # TODO: do not put this in self.variables
+            self.variables["return_buffer"] = buf
 
         if ENABLE_NEW_CALL_CONV:
             stack_index = 0
@@ -727,7 +737,7 @@ class IRnodeToVenom:
         # return address
         return_pc = bb.append_instruction("param")
         assert return_pc is not None  # help mypy
-        self.symbols["return_pc"] = return_pc
+        self.variables["return_pc"] = return_pc
         bb.instructions[-1].annotation = "return_pc"
 
         # convert the body of the function
@@ -781,5 +791,6 @@ def _returns_word(func_t) -> bool:
     return return_t is not None and _is_word_type(return_t)
 
 
-def ir_node_to_venom(ir: IRnode, symbols: Optional[SymbolTable]) -> IRContext:
-    return IRnodeToVenom().convert(ir, symbols)
+def ir_node_to_venom(ir: IRnode, constants: Optional[dict[str,int]]) -> IRContext:
+    constants = constants or {}
+    return IRnodeToVenom(constants).convert(ir)

@@ -131,8 +131,7 @@ def generate_venom(
 ) -> IRContext:
     # Convert "old" IR to "new" IR
     constants = constants or {}
-    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
-    ctx = ir_node_to_venom(ir, starting_symbols)
+    ctx = ir_node_to_venom(ir, constants)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():
