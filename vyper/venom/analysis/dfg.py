@@ -85,7 +85,7 @@ class DFGAnalysis(IRAnalysis):
                     inputs.add(inst)
 
                 for op in res:  # type: ignore
-                    assert isinstance(op, IRVariable)
+                    assert isinstance(op, IRVariable), op
                     self._dfg_outputs[op] = inst
 
     def as_graph(self) -> str:
