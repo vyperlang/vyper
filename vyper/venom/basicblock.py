@@ -243,6 +243,8 @@ class IRInstruction:
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
+        if output is not None:
+            assert isinstance(output, IRVariable), output
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
         self.output = output

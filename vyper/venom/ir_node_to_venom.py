@@ -255,6 +255,7 @@ class IRnodeToVenom:
             amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
             bb.append_instruction("return", amount_to_return, mem_deploy_start)
             return None
+
         elif ir.value == "seq":
             if len(ir.args) == 0:
                 return None
@@ -274,14 +275,14 @@ class IRnodeToVenom:
 
                     does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
 
-                    new_fn = self._handle_internal_func(ir, does_return_data)
                     new_variables = {}
+                    with self.anchor_variables(new_variables):
+                        new_fn = self._handle_internal_func(ir, does_return_data)
+                        with self.anchor_fn(new_fn):
+                            for ir_node in ir.args[1:]:
+                                ret = self.convert_ir(ir_node)
 
-                    with self.anchor_fn(new_fn), self.anchor_variables(new_variables):
-                        for ir_node in ir.args[1:]:
-                            ret = self.convert_ir(ir_node)
-
-                    return ret
+                    return None
 
                 elif is_external:
                     ret = self.convert_ir(ir.args[0])
@@ -311,14 +312,14 @@ class IRnodeToVenom:
 
             # compute the initial value for the variable
             ret = self.convert_ir(ir.args[1])
-
-            variables = self.variables.copy()
-            assert isinstance(varname.value, str)
-            # `with` allows shadowing
-            variables[varname.value] = ret
+            # ensure it is stored in a variable
+            ret = fn.get_basic_block().append_instruction("store", ret)
 
             body_ir = ir.args[2]
-            with self.anchor_variables(variables):
+            with self.anchor_variables():
+                assert isinstance(varname.value, str)
+                # `with` allows shadowing
+                self.variables[varname.value] = ret
                 return self.convert_ir(body_ir)
 
         elif ir.value == "goto":
@@ -659,8 +660,8 @@ class IRnodeToVenom:
 
             if returns_word:
                 ret_value = bb.append_invoke_instruction(stack_args, returns=True)
-                assert ret_value is not None
-                assert isinstance(return_buf, IROperand)
+                assert ret_value is not None  # help mypy
+                assert return_buf is not None  # help mypy
                 bb.append_instruction("mstore", ret_value, return_buf)
                 return return_buf
 
@@ -740,8 +741,9 @@ class IRnodeToVenom:
         self.variables["return_pc"] = return_pc
         bb.instructions[-1].annotation = "return_pc"
 
-        # convert the body of the function
-        self.convert_ir(ir.args[0].args[2])
+        with self.anchor_fn(fn):
+            # convert the body of the function
+            self.convert_ir(ir.args[0].args[2])
 
         self._alloca_table = _saved_alloca_table
 
