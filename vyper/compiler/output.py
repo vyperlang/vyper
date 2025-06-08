@@ -224,7 +224,11 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         fn_id = fn_t._function_id
         return f"{fn_t.name} ({fn_id})"
 
-    for fn_t in module_t.exposed_functions:
+    exposed_fns = module_t.exposed_functions.copy()
+    if module_t.init_function is not None:
+        exposed_fns.append(module_t.init_function)
+
+    for fn_t in exposed_fns:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
         for rif_t in fn_t.reachable_internal_functions:
             k = _fn_identifier(rif_t)
