@@ -78,6 +78,11 @@ class _BranchBB(_BBType):
         return self.counter_addr is not None
 
 
+class SymbolicVar(IRVariable):
+    """Placeholder for a variable that will be resolved later"""
+    pass
+
+
 class MemoryFuzzer:
     """Generates random Venom IR with memory operations using IRBasicBlock API."""
 
@@ -91,6 +96,9 @@ class MemoryFuzzer:
         self.allocated_memory_slots = set()
         # track which variables are available in each block
         self.bb_available_vars = {}
+        # symbolic variable tracking
+        self.symbolic_counter = 0
+        self.symbolic_mapping = {}  # SymbolicVar -> IRVariable
 
     def get_next_variable(self) -> IRVariable:
         """Generate a new unique variable."""
@@ -98,6 +106,35 @@ class MemoryFuzzer:
         var = IRVariable(f"v{self.variable_counter}")
         self.available_vars.append(var)
         return var
+    
+    def fresh_symbolic(self) -> SymbolicVar:
+        """Create a new symbolic variable"""
+        self.symbolic_counter += 1
+        return SymbolicVar(f"%sym_{self.symbolic_counter}")
+    
+    def resolve_all_variables(self):
+        """After building all blocks, replace symbolic vars with real ones"""
+        # Map all symbolic vars to real variables
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                # Handle output
+                if inst.output and isinstance(inst.output, SymbolicVar):
+                    if inst.output not in self.symbolic_mapping:
+                        self.symbolic_mapping[inst.output] = self.get_next_variable()
+                    inst.output = self.symbolic_mapping[inst.output]
+                
+                # Handle inputs
+                new_operands = []
+                for op in inst.operands:
+                    if isinstance(op, SymbolicVar):
+                        if op not in self.symbolic_mapping:
+                            # This symbolic var was never defined as output
+                            # Create a fresh variable for it
+                            self.symbolic_mapping[op] = self.get_next_variable()
+                        new_operands.append(self.symbolic_mapping[op])
+                    else:
+                        new_operands.append(op)
+                inst.operands = new_operands
 
     def ensure_all_vars_have_values(self) -> None:
         """Ensure all available variables have values by using calldataload for unassigned ones."""
@@ -120,13 +157,13 @@ class MemoryFuzzer:
         self.bb_counter += 1
         return IRLabel(f"bb{self.bb_counter}")
 
-    def get_random_variable(self, draw, bb: IRBasicBlock) -> IRVariable:
+    def get_random_variable(self, draw, bb: IRBasicBlock) -> IRVariable | SymbolicVar:
         """Get a random available variable or create a new one."""
         available_in_bb = self.bb_available_vars.get(bb, [])
         if available_in_bb and draw(st.booleans()):
             return draw(st.sampled_from(available_in_bb))
         else:
-            return self.get_next_variable()
+            return self.fresh_symbolic()
 
     def get_memory_address(self, draw, bb: IRBasicBlock) -> IRVariable | IRLiteral:
         """Get a memory address, biased towards interesting optimizer-relevant locations."""
@@ -177,8 +214,8 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
 
     if op == "mload":
         addr = fuzzer.get_memory_address(draw, bb)
-        result_var = bb.append_instruction("mload", addr)
-        fuzzer.available_vars.append(result_var)
+        result_var = fuzzer.fresh_symbolic()
+        bb.append_instruction("mload", addr, ret=result_var)
         # add to variables available in this block
         fuzzer.bb_available_vars[bb].append(result_var)
 
@@ -202,6 +239,7 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         raise ValueError("unreachable")
 
 
+
 @st.composite
 def control_flow_graph(draw, basic_blocks):
     """
@@ -209,6 +247,7 @@ def control_flow_graph(draw, basic_blocks):
     1. All blocks are reachable from entry
     2. No infinite loops (all loops terminate within 12 iterations)
     3. Proper use of jump and branch instructions
+    4. No back edges to entry block
     """
     cfg: dict[IRBasicBlock, _BBType] = {}
 
@@ -219,6 +258,9 @@ def control_flow_graph(draw, basic_blocks):
     forward_targets = {}
     for i, bb in enumerate(basic_blocks):
         forward_targets[bb] = basic_blocks[i + 1 :]
+    
+    # All blocks except entry (to prevent back edges to entry)
+    non_entry_blocks = basic_blocks[1:]
 
     # create a spanning tree to ensure all blocks are reachable
     remaining_blocks = basic_blocks[1:]  # exclude entry block
@@ -240,7 +282,9 @@ def control_flow_graph(draw, basic_blocks):
         if draw(st.booleans()):
             cfg[source] = _JumpBB(target=target)
         else:
-            other_target = draw(st.sampled_from(basic_blocks))
+            # For branches, allow any block as the other target except entry
+            # (target is already guaranteed to be forward)
+            other_target = draw(st.sampled_from(non_entry_blocks))
             cfg[source] = _BranchBB(target1=target, target2=other_target)
 
     # classify remaining blocks that were not handled during spanning
@@ -257,8 +301,9 @@ def control_flow_graph(draw, basic_blocks):
             target = draw(st.sampled_from(forward_targets[bb]))
             cfg[bb] = _JumpBB(target=target)
         else:  # branch
-            target1 = draw(st.sampled_from(basic_blocks))
-            target2 = draw(st.sampled_from(basic_blocks))
+            # Choose targets, but never allow entry as a target
+            target1 = draw(st.sampled_from(non_entry_blocks))
+            target2 = draw(st.sampled_from(non_entry_blocks))
 
             is_back_edge1 = basic_blocks.index(target1) <= basic_blocks.index(bb)
             is_back_edge2 = basic_blocks.index(target2) <= basic_blocks.index(bb)
@@ -395,62 +440,11 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     for addr in counter_addrs:
         entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(addr))
 
-    # first pass: generate instructions for each block
+    # generate instructions for each block
     for bb in basic_blocks:
         draw(basic_block_instructions(fuzzer, bb))
     
-    # compute available variables at each block based on CFG
-    # a variable is available if it's defined in ALL paths to that block
-    bb_incoming_available = {}
-    
-    # collect variables defined in each block (already in fuzzer.bb_available_vars)
-    # and initialize incoming available sets
-    for bb in basic_blocks:
-        bb_incoming_available[bb] = set()
-    
-    # propagate available variables through CFG
-    # entry block starts with empty set
-    bb_incoming_available[basic_blocks[0]] = set()
-    
-    # iteratively propagate until fixpoint
-    changed = True
-    while changed:
-        changed = False
-        for bb in basic_blocks:
-            # find predecessors
-            preds = []
-            for pred_bb in basic_blocks:
-                pred_type = cfg[pred_bb]
-                if isinstance(pred_type, _JumpBB) and pred_type.target == bb:
-                    preds.append(pred_bb)
-                elif isinstance(pred_type, _BranchBB) and (pred_type.target1 == bb or pred_type.target2 == bb):
-                    preds.append(pred_bb)
-            
-            if preds:
-                # available vars = intersection of all predecessors' available + defined vars
-                new_available = None
-                for pred in preds:
-                    # variables available at end of predecessor = incoming + defined in pred
-                    pred_defined = set(fuzzer.bb_available_vars.get(pred, []))
-                    pred_avail = bb_incoming_available[pred] | pred_defined
-                    
-                    if new_available is None:
-                        new_available = pred_avail
-                    else:
-                        new_available = new_available & pred_avail
-                
-                if new_available != bb_incoming_available[bb]:
-                    bb_incoming_available[bb] = new_available
-                    changed = True
-    
-    # update fuzzer's bb_available_vars to include incoming variables
-    for bb in basic_blocks:
-        incoming = list(bb_incoming_available[bb])
-        existing = fuzzer.bb_available_vars.get(bb, [])
-        # incoming vars are available at the start, then vars defined in the block
-        fuzzer.bb_available_vars[bb] = incoming + existing
-    
-    # second pass: add terminators using available variables
+    # add terminators
     for bb in basic_blocks:
         bb_type = cfg[bb]
 
@@ -486,6 +480,9 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
         else:
             raise Exception()  # unreachable
 
+    # resolve all symbolic variables to real ones
+    fuzzer.resolve_all_variables()
+    
     fuzzer.ensure_all_vars_have_values()
 
     return fuzzer.ctx, fuzzer.calldata_offset
