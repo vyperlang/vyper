@@ -13,11 +13,14 @@ import hypothesis as hp
 import hypothesis.strategies as st
 import pytest
 
+from tests.evm_backends.base_env import ExecutionReverted
+from vyper.ir.compile_ir import assembly_to_evm
+from vyper.venom import SingleUseExpansion, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import DeadStoreElimination,LoadElimination, MemMergePass
+from vyper.venom.passes import DeadStoreElimination, LoadElimination, MakeSSA, MemMergePass
 
 MEMORY_OPS = ["mload", "mstore", "mcopy"]
 
@@ -36,8 +39,8 @@ PRECOMPILES = {
 }
 
 MAX_MEMORY_SIZE = 4096
-MAX_BASIC_BLOCKS = 8
-MAX_INSTRUCTIONS_PER_BLOCK = 8
+MAX_BASIC_BLOCKS = 50
+MAX_INSTRUCTIONS_PER_BLOCK = 50
 MAX_LOOP_ITERATIONS = 12
 
 
@@ -324,8 +327,14 @@ def basic_block_instructions(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> No
 
 
 @st.composite
-def venom_function_with_memory_ops(draw) -> IRContext:
-    """Generate a complete Venom IR function using IRBasicBlock API."""
+def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
+    """Generate a complete Venom IR function using IRBasicBlock API.
+
+    Returns:
+        tuple[IRContext, int]: The generated IR context and the required calldata size.
+        The calldata size includes both the initial memory seed (MAX_MEMORY_SIZE bytes)
+        and any additional calldata needed for unassigned variables.
+    """
     fuzzer = MemoryFuzzer()
 
     func_name = IRLabel("_fuzz_function", is_symbol=True)
@@ -408,7 +417,7 @@ def venom_function_with_memory_ops(draw) -> IRContext:
 
     fuzzer.ensure_all_vars_have_values()
 
-    return fuzzer.ctx
+    return fuzzer.ctx, fuzzer.calldata_offset
 
 
 class MemoryFuzzChecker:
@@ -418,16 +427,33 @@ class MemoryFuzzChecker:
         self.passes = passes
         self.post_passes = post_passes or []
 
-    def run_passes(self, ctx: IRContext) -> None:
+    def compile_to_bytecode(self, ctx: IRContext) -> bytes:
+        """Compile Venom IR context to EVM bytecode."""
+        # Need SingleUseExpansion for venom_to_assembly
+        for fn in ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            SingleUseExpansion(ac, fn).run_pass()
+
+        # Compile to assembly and then to bytecode
+        compiler = VenomCompiler([ctx])
+        asm = compiler.generate_evm(no_optimize=False)
+        bytecode, _ = assembly_to_evm(asm)
+        return bytecode
+
+    def run_passes(self, ctx: IRContext) -> IRContext:
         """
         Run optimization passes on the IR context.
 
-        This method lets exceptions bubble up so Hypothesis can handle them properly.
+        Returns the optimized context.
         """
         optimized_ctx = ctx.copy()
 
         for fn in optimized_ctx.functions.values():
             ac = IRAnalysesCache(fn)
+
+            # Convert to SSA form first if needed by the passes
+            MakeSSA(ac, fn).run_pass()
+
             for pass_class in self.passes:
                 pass_obj = pass_class(ac, fn)
                 pass_obj.run_pass()
@@ -435,6 +461,47 @@ class MemoryFuzzChecker:
             for pass_class in self.post_passes:
                 pass_obj = pass_class(ac, fn)
                 pass_obj.run_pass()
+
+        return optimized_ctx
+
+    def execute_bytecode(self, bytecode: bytes, calldata: bytes, env) -> tuple[bool, bytes]:
+        """Execute bytecode with given calldata and return success status and output."""
+        deployed_address = env._deploy(bytecode, value=0)
+
+        try:
+            result = env.message_call(to=deployed_address, data=calldata, value=0)
+            return True, result
+        except ExecutionReverted as e:
+            # return revert data if available
+            return False, e.args[0] if e.args else b""
+        except Exception:
+            # other errors like out of gas
+            return False, b""
+
+    def check_equivalence(self, ctx: IRContext, calldata: bytes, env) -> None:
+        """Check equivalence between unoptimized and optimized execution."""
+        unopt_bytecode = self.compile_to_bytecode(ctx)
+
+        opt_ctx = self.run_passes(ctx)
+        opt_bytecode = self.compile_to_bytecode(opt_ctx)
+
+        unopt_success, unopt_output = self.execute_bytecode(unopt_bytecode, calldata, env)
+        opt_success, opt_output = self.execute_bytecode(opt_bytecode, calldata, env)
+
+        assert (
+            unopt_success == opt_success
+        ), f"Execution success mismatch: unopt={unopt_success}, opt={opt_success}"
+        assert (
+            unopt_output == opt_output
+        ), f"Output mismatch: unopt={unopt_output.hex()}, opt={opt_output.hex()}"
+
+
+@st.composite
+def venom_with_calldata(draw):
+    """Generate Venom IR context with matching calldata."""
+    ctx, calldata_size = draw(venom_function_with_memory_ops())
+    calldata = draw(st.binary(min_size=calldata_size, max_size=calldata_size))
+    return ctx, calldata
 
 
 # Test with memory-related passes
@@ -452,7 +519,7 @@ class MemoryFuzzChecker:
         [LoadElimination, MemMergePass],
     ],
 )
-@hp.given(ctx=venom_function_with_memory_ops())
+@hp.given(venom_with_calldata())
 @hp.settings(
     max_examples=100,
     suppress_health_check=(
@@ -462,22 +529,23 @@ class MemoryFuzzChecker:
     ),
     deadline=None,
 )
-def test_memory_passes_fuzzing(pass_list, ctx):
+def test_memory_passes_fuzzing(pass_list, venom_data, env):
     """
     Property-based test for memory optimization passes.
 
-    Tests that memory passes do not crash on complex IR.
+    Tests that memory passes preserve semantics by comparing EVM execution results.
     """
+    ctx, calldata = venom_data
+
     hp.note(f"Testing passes: {[p.__name__ for p in pass_list]}")
 
     if hasattr(ctx, "functions") and ctx.functions:
         func = list(ctx.functions.values())[0]
         hp.note(f"Generated function with {func.num_basic_blocks} basic blocks")
-        for bb in func.get_basic_blocks():
-            hp.note(f"Block {bb.label.value}: {len(bb.instructions)} instructions")
+        hp.note(f"Calldata size: {len(calldata)} bytes")
 
     checker = MemoryFuzzChecker(pass_list)
-    checker.run_passes(ctx)
+    checker.check_equivalence(ctx, calldata, env)
 
 
 def generate_sample_ir() -> IRContext:
