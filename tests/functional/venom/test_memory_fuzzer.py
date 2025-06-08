@@ -13,12 +13,10 @@ import hypothesis.strategies as st
 import pytest
 
 from tests.hevm import hevm_check_venom_ctx
-from tests.venom_utils import PrePostChecker
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes.base_pass import IRPass
 
 # Memory operations that can be fuzzed
 MEMORY_OPS = ["mload", "mstore", "mcopy"]
@@ -40,7 +38,6 @@ PRECOMPILES = {
 MAX_MEMORY_SIZE = 4096  # Limit memory to 4096 bytes
 MAX_BASIC_BLOCKS = 8
 MAX_INSTRUCTIONS_PER_BLOCK = 8
-MAX_VARIABLES = 20
 
 
 class MemoryFuzzer:
@@ -85,13 +82,6 @@ class MemoryFuzzer:
         """Generate a new unique basic block label."""
         self.bb_counter += 1
         return IRLabel(f"bb{self.bb_counter}")
-
-    def get_random_variable(self, draw) -> IRVariable:
-        """Get a random available variable or create a new one."""
-        if self.available_vars and draw(st.booleans()):
-            return draw(st.sampled_from(self.available_vars))
-        else:
-            return self.get_next_variable()
 
     def get_memory_address(self, draw) -> IRVariable | IRLiteral:
         """Get a memory address, biased towards interesting optimizer-relevant locations."""
