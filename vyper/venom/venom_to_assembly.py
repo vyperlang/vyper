@@ -342,6 +342,8 @@ class VenomCompiler:
 
         fn = basicblock.parent
         if basicblock == fn.entry:
+            # Entry block should not have predecessors (no back edges to entry)
+            assert len(self.cfg.cfg_in(basicblock)) == 0
             self._prepare_stack_for_function(asm, fn, stack)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
