@@ -66,6 +66,7 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), bb
         assert bb.label.name not in self._basic_block_dict, bb.label
         self._basic_block_dict[bb.label.name] = bb
+        bb.parent = self  # ensure parent is updated
 
     def remove_basic_block(self, bb: IRBasicBlock):
         assert isinstance(bb, IRBasicBlock), bb
