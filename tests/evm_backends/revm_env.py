@@ -135,7 +135,7 @@ class RevmEnv(BaseEnv):
     def set_excess_blob_gas(self, value):
         self._evm.env.block.excess_blob_gas = value
 
-    def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
+    def _deploy(self, code: bytes, value: int = 0, gas: int = None) -> str:
         try:
             return self._evm.deploy(self.deployer, code, value, gas)
         except RuntimeError as e:

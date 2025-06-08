@@ -161,6 +161,7 @@ class IRFunction:
 
     def copy(self):
         new = IRFunction(self.name)
+        new.clear_basic_blocks()
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)

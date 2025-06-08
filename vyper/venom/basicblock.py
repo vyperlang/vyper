@@ -668,7 +668,11 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = f"{repr(self.label)}:  ; OUT={[bb.label for bb in self.out_bbs]}\n"
+        s = f"{repr(self.label)}:"
+        if self.is_terminated:
+            s += f"  ; OUT={[bb.label for bb in self.out_bbs]}"
+        s += "\n"
+
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:

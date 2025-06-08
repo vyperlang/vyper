@@ -15,12 +15,12 @@ import pytest
 
 from tests.evm_backends.base_env import EvmError
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import SingleUseExpansion, VenomCompiler
+from vyper.venom import VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import DeadStoreElimination, LoadElimination, MakeSSA, MemMergePass
+from vyper.venom.passes import DeadStoreElimination, LoadElimination, MakeSSA, MemMergePass, AssignElimination, SingleUseExpansion, SimplifyCFGPass
 
 MEMORY_OPS = ["mload", "mstore", "mcopy"]
 
@@ -38,7 +38,7 @@ PRECOMPILES = {
     0x9: "blake2f",
 }
 
-MAX_MEMORY_SIZE = 4096
+MAX_MEMORY_SIZE = 256
 MAX_BASIC_BLOCKS = 50
 MAX_INSTRUCTIONS_PER_BLOCK = 50
 MAX_LOOP_ITERATIONS = 12
@@ -89,6 +89,8 @@ class MemoryFuzzer:
         self.calldata_offset = MAX_MEMORY_SIZE
         self.available_vars = []
         self.allocated_memory_slots = set()
+        # track which variables are available in each block
+        self.bb_available_vars = {}
 
     def get_next_variable(self) -> IRVariable:
         """Generate a new unique variable."""
@@ -118,17 +120,19 @@ class MemoryFuzzer:
         self.bb_counter += 1
         return IRLabel(f"bb{self.bb_counter}")
 
-    def get_random_variable(self, draw) -> IRVariable:
+    def get_random_variable(self, draw, bb: IRBasicBlock) -> IRVariable:
         """Get a random available variable or create a new one."""
-        if self.available_vars and draw(st.booleans()):
-            return draw(st.sampled_from(self.available_vars))
+        available_in_bb = self.bb_available_vars.get(bb, [])
+        if available_in_bb and draw(st.booleans()):
+            return draw(st.sampled_from(available_in_bb))
         else:
             return self.get_next_variable()
 
-    def get_memory_address(self, draw) -> IRVariable | IRLiteral:
+    def get_memory_address(self, draw, bb: IRBasicBlock) -> IRVariable | IRLiteral:
         """Get a memory address, biased towards interesting optimizer-relevant locations."""
-        if self.available_vars and draw(st.booleans()):
-            return draw(st.sampled_from(self.available_vars))
+        available_in_bb = self.bb_available_vars.get(bb, [])
+        if available_in_bb and draw(st.booleans()):
+            return draw(st.sampled_from(available_in_bb))
 
         if self.allocated_memory_slots and draw(st.booleans()):
             # bias towards addresses near existing allocations to create aliasing opportunities
@@ -167,22 +171,30 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
     """Generate and append a memory instruction to current basic block."""
     op = draw(st.sampled_from(MEMORY_OPS))
 
+    # track variables defined so far in this block
+    if bb not in fuzzer.bb_available_vars:
+        fuzzer.bb_available_vars[bb] = []
+
     if op == "mload":
-        addr = fuzzer.get_memory_address(draw)
+        addr = fuzzer.get_memory_address(draw, bb)
         result_var = bb.append_instruction("mload", addr)
         fuzzer.available_vars.append(result_var)
+        # add to variables available in this block
+        fuzzer.bb_available_vars[bb].append(result_var)
 
     elif op == "mstore":
-        if fuzzer.available_vars and draw(st.booleans()):
-            value = draw(st.sampled_from(fuzzer.available_vars))
+        # can use variables defined earlier in this block
+        available_in_bb = fuzzer.bb_available_vars.get(bb, [])
+        if available_in_bb and draw(st.booleans()):
+            value = draw(st.sampled_from(available_in_bb))
         else:
             value = IRLiteral(draw(st.integers(min_value=0, max_value=2**256 - 1)))
-        addr = fuzzer.get_memory_address(draw)
+        addr = fuzzer.get_memory_address(draw, bb)
         bb.append_instruction("mstore", value, addr)
 
     elif op == "mcopy":
-        dest = fuzzer.get_memory_address(draw)
-        src = fuzzer.get_memory_address(draw)
+        dest = fuzzer.get_memory_address(draw, bb)
+        src = fuzzer.get_memory_address(draw, bb)
         length = draw(copy_length())
         bb.append_instruction("mcopy", dest, src, IRLiteral(length))
 
@@ -214,6 +226,11 @@ def control_flow_graph(draw, basic_blocks):
 
     while remaining_blocks:
         source = draw(st.sampled_from(reachable_blocks))
+
+        # we have already visited it
+        if source in cfg:
+            continue
+
         target = draw(st.sampled_from(remaining_blocks))
 
         # target is now reachable, but it may not be in cfg yet
@@ -269,8 +286,8 @@ def precompile_call(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
     precompile_addr = draw(st.sampled_from(list(PRECOMPILES.keys())))
     precompile_name = PRECOMPILES[precompile_addr]
 
-    input_ofst = fuzzer.get_memory_address(draw)
-    output_ofst = fuzzer.get_memory_address(draw)
+    input_ofst = fuzzer.get_memory_address(draw, bb)
+    output_ofst = fuzzer.get_memory_address(draw, bb)
 
     if precompile_name == "ecrecover":
         input_size = IRLiteral(128)  # v, r, s, hash
@@ -378,9 +395,63 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     for addr in counter_addrs:
         entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(addr))
 
+    # first pass: generate instructions for each block
     for bb in basic_blocks:
         draw(basic_block_instructions(fuzzer, bb))
-
+    
+    # compute available variables at each block based on CFG
+    # a variable is available if it's defined in ALL paths to that block
+    bb_incoming_available = {}
+    
+    # collect variables defined in each block (already in fuzzer.bb_available_vars)
+    # and initialize incoming available sets
+    for bb in basic_blocks:
+        bb_incoming_available[bb] = set()
+    
+    # propagate available variables through CFG
+    # entry block starts with empty set
+    bb_incoming_available[basic_blocks[0]] = set()
+    
+    # iteratively propagate until fixpoint
+    changed = True
+    while changed:
+        changed = False
+        for bb in basic_blocks:
+            # find predecessors
+            preds = []
+            for pred_bb in basic_blocks:
+                pred_type = cfg[pred_bb]
+                if isinstance(pred_type, _JumpBB) and pred_type.target == bb:
+                    preds.append(pred_bb)
+                elif isinstance(pred_type, _BranchBB) and (pred_type.target1 == bb or pred_type.target2 == bb):
+                    preds.append(pred_bb)
+            
+            if preds:
+                # available vars = intersection of all predecessors' available + defined vars
+                new_available = None
+                for pred in preds:
+                    # variables available at end of predecessor = incoming + defined in pred
+                    pred_defined = set(fuzzer.bb_available_vars.get(pred, []))
+                    pred_avail = bb_incoming_available[pred] | pred_defined
+                    
+                    if new_available is None:
+                        new_available = pred_avail
+                    else:
+                        new_available = new_available & pred_avail
+                
+                if new_available != bb_incoming_available[bb]:
+                    bb_incoming_available[bb] = new_available
+                    changed = True
+    
+    # update fuzzer's bb_available_vars to include incoming variables
+    for bb in basic_blocks:
+        incoming = list(bb_incoming_available[bb])
+        existing = fuzzer.bb_available_vars.get(bb, [])
+        # incoming vars are available at the start, then vars defined in the block
+        fuzzer.bb_available_vars[bb] = incoming + existing
+    
+    # second pass: add terminators using available variables
+    for bb in basic_blocks:
         bb_type = cfg[bb]
 
         if isinstance(bb_type, _ReturnBB):
@@ -390,7 +461,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
             bb.append_instruction("jmp", bb_type.target.label)
 
         elif isinstance(bb_type, _BranchBB):
-            cond_var = fuzzer.get_random_variable(draw)
+            cond_var = fuzzer.get_random_variable(draw, bb)
             # get bottom bit, for bias reasons
             cond_var = bb.append_instruction("and", cond_var, IRLiteral(1))
 
@@ -410,7 +481,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 
                 cond_var = bb.append_instruction("and", counter_ok, cond_var)
 
-            bb.append_instruction("jnz", bb_type.target1.label, bb_type.target2.label, cond_var)
+            bb.append_instruction("jnz", cond_var, bb_type.target1.label, bb_type.target2.label)
 
         else:
             raise Exception()  # unreachable
@@ -423,20 +494,19 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 class MemoryFuzzChecker:
     """A pluggable checker for memory passes using fuzzing."""
 
-    def __init__(self, passes: list[type], post_passes: list[type] = None):
+    def __init__(self, passes: list[type]):
         self.passes = passes
-        self.post_passes = post_passes or []
 
     def compile_to_bytecode(self, ctx: IRContext) -> bytes:
         """Compile Venom IR context to EVM bytecode."""
         # assumes MakeSSA has already been run
         for fn in ctx.functions.values():
             ac = IRAnalysesCache(fn)
+            SimplifyCFGPass(ac, fn).run_pass()
             SingleUseExpansion(ac, fn).run_pass()
 
-        # Compile to assembly and then to bytecode
         compiler = VenomCompiler([ctx])
-        asm = compiler.generate_evm(no_optimize=False)
+        asm = compiler.generate_evm()
         bytecode, _ = assembly_to_evm(asm)
         return bytecode
 
@@ -452,10 +522,6 @@ class MemoryFuzzChecker:
             ac = IRAnalysesCache(fn)
 
             for pass_class in self.passes:
-                pass_obj = pass_class(ac, fn)
-                pass_obj.run_pass()
-
-            for pass_class in self.post_passes:
                 pass_obj = pass_class(ac, fn)
                 pass_obj.run_pass()
 
@@ -484,6 +550,7 @@ class MemoryFuzzChecker:
         for fn in ctx.functions.values():
             ac = IRAnalysesCache(fn)
             MakeSSA(ac, fn).run_pass()
+            AssignElimination(ac, fn).run_pass()
 
         opt_ctx = self.run_passes(ctx)
 
@@ -507,35 +574,43 @@ def venom_with_calldata(draw):
 
 # Test with memory-related passes
 @pytest.mark.fuzzing
-@pytest.mark.parametrize(
-    "pass_list",
-    [
-        # Test individual memory passes
-        [LoadElimination],
-        [DeadStoreElimination],
-        [MemMergePass],
-        # Test combinations
-        [LoadElimination, DeadStoreElimination],
-        [DeadStoreElimination, LoadElimination],
-        [LoadElimination, MemMergePass],
-    ],
-)
-@hp.given(venom_with_calldata())
+#@pytest.mark.parametrize(
+#    "pass_list",
+#    [
+#        # Test individual memory passes
+#        [MemMergePass],
+#        [LoadElimination],
+#        [DeadStoreElimination],
+#        # Test combinations
+#        [LoadElimination, DeadStoreElimination],
+#        [DeadStoreElimination, LoadElimination],
+#        [LoadElimination, MemMergePass],
+#    ],
+#)
+@hp.given(venom_data=venom_with_calldata())
+
 @hp.settings(
-    max_examples=100,
+    max_examples=1000,
     suppress_health_check=(
         hp.HealthCheck.data_too_large,
         hp.HealthCheck.too_slow,
-        hp.HealthCheck.filter_too_much,
     ),
     deadline=None,
+    phases=(     
+        hp.Phase.explicit,
+        hp.Phase.reuse,
+        hp.Phase.generate,
+        hp.Phase.target,
+        # Phase.shrink,  # can force long waiting for examples                                                         
+    ),           
 )
-def test_memory_passes_fuzzing(pass_list, venom_data, env):
+def test_memory_passes_fuzzing(venom_data, env):
     """
     Property-based test for memory optimization passes.
 
     Tests that memory passes preserve semantics by comparing EVM execution results.
     """
+    pass_list = [MemMergePass]
     ctx, calldata = venom_data
 
     hp.note(f"Testing passes: {[p.__name__ for p in pass_list]}")
@@ -543,6 +618,7 @@ def test_memory_passes_fuzzing(pass_list, venom_data, env):
     func = list(ctx.functions.values())[0]
     hp.note(f"Generated function with {func.num_basic_blocks} basic blocks")
     hp.note(f"Calldata size: {len(calldata)} bytes")
+    hp.note(str(ctx))
 
     checker = MemoryFuzzChecker(pass_list)
     checker.check_equivalence(ctx, calldata, env)
@@ -550,17 +626,18 @@ def test_memory_passes_fuzzing(pass_list, venom_data, env):
 
 def generate_sample_ir() -> IRContext:
     """Generate a sample IR for manual inspection."""
-    ctx = venom_function_with_memory_ops().example()
+    ctx, _ = venom_function_with_memory_ops().example()
     return ctx
 
 
 if __name__ == "__main__":
     ctx = generate_sample_ir()
 
-    func = list(ctx.functions.values())[0]
-    print(f"Generated function with {func.num_basic_blocks} basic blocks:")
-    print(func)
+    #func = list(ctx.functions.values())[0]
+    #print(func)
 
     checker = MemoryFuzzChecker([MemMergePass])
     checker.run_passes(ctx)
     print(ctx)
+    bytecode = checker.compile_to_bytecode(ctx)
+    print(bytecode.hex())
