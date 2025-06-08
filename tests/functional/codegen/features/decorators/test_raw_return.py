@@ -2,6 +2,7 @@ import pytest
 from eth.codecs import abi
 
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StructureException
 from vyper.utils import method_id
 
@@ -194,8 +195,14 @@ def foo() -> Bytes[32]:
     assert res == b""
 
 
+# test raw_return from storage, transient, constant and immutable
+# calldata Bytes[..] need clamp and thus are internally coppied to memory
 @pytest.mark.parametrize("to_ret", ["self.s", "self.t", "c", "i"])
 def test_raw_return_from_location(env, get_contract, to_ret):
+    if not version_check(begin="cancun"):
+        # no transient available before cancun
+        pytest.skip()
+
     test_bytes = f"""
 s: Bytes[32]
 t: transient(Bytes[32])
