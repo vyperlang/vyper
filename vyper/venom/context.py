@@ -112,7 +112,7 @@ class IRContext:
         new_ctx.last_label = self.last_label
         new_ctx.last_variable = self.last_variable
 
-        for label, fn in self.functions.items():
+        for fn in self.functions.values():
             new_fn = fn.copy()
             new_ctx.add_function(new_fn)
 

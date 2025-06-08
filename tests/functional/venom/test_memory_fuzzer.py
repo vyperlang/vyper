@@ -383,7 +383,7 @@ def venom_function_with_memory_ops(draw) -> IRContext:
         entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(addr))
 
     # Generate content for each block
-    for i, bb in enumerate(basic_blocks):
+    for bb in basic_blocks:
         fuzzer.current_bb = bb
 
         # Generate block content
