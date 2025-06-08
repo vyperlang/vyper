@@ -844,7 +844,19 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # builtin functions
+            # builtin functions and interfaces
+            if self.function_analyzer and hasattr(func_type, "mutability"):
+                from vyper.builtins.functions import RawCall
+
+                if isinstance(func_type, RawCall):
+                    # as opposed to other functions, raw_call's mutability
+                    # depends on its arguments, so we need to determine
+                    # it at each call site.
+                    mutability = func_type.get_mutability_at_call_site(node)
+                else:
+                    mutability = func_type.mutability
+                self._check_call_mutability(mutability)  # type: ignore
+
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)

@@ -18,6 +18,11 @@ else:
     VYPER_TRACEBACK_LIMIT = None
 
 
+VENOM_ENABLE_LEGACY_OPTIMIZER = False
+if (_venom_elo := os.environ.get("VENOM_ENABLE_LEGACY_OPTIMIZER")) is not None:
+    VENOM_ENABLE_LEGACY_OPTIMIZER = bool(int(_venom_elo))
+
+
 # TODO: use StringEnum (requires refactoring vyper.utils to avoid import cycle)
 class OptimizationLevel(Enum):
     NONE = 1
@@ -54,6 +59,7 @@ class Settings:
     experimental_codegen: Optional[bool] = None
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
+    nonreentrancy_by_default: Optional[bool] = None
 
     def __post_init__(self):
         # sanity check inputs
@@ -65,6 +71,8 @@ class Settings:
             assert isinstance(self.debug, bool)
         if self.enable_decimals is not None:
             assert isinstance(self.enable_decimals, bool)
+        if self.nonreentrancy_by_default is not None:
+            assert isinstance(self.nonreentrancy_by_default, bool)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
@@ -77,7 +85,7 @@ class Settings:
         if self.optimize is not None:
             ret.append(" --optimize " + str(self.optimize))
         if self.experimental_codegen is True:
-            ret.append(" --venom")
+            ret.append(" --venom-experimental")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
         if self.debug is True:
@@ -103,6 +111,15 @@ class Settings:
         if "optimize" in data:
             data["optimize"] = OptimizationLevel.from_string(data["optimize"])
         return cls(**data)
+
+
+def should_run_legacy_optimizer(settings: Settings):
+    if settings.optimize == OptimizationLevel.NONE:
+        return False
+    if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
+        return False
+
+    return True
 
 
 def merge_settings(
