@@ -429,7 +429,7 @@ class MemoryFuzzChecker:
 
     def compile_to_bytecode(self, ctx: IRContext) -> bytes:
         """Compile Venom IR context to EVM bytecode."""
-        # Need SingleUseExpansion for venom_to_assembly
+        # assumes MakeSSA has already been run
         for fn in ctx.functions.values():
             ac = IRAnalysesCache(fn)
             SingleUseExpansion(ac, fn).run_pass()
@@ -442,7 +442,7 @@ class MemoryFuzzChecker:
 
     def run_passes(self, ctx: IRContext) -> IRContext:
         """
-        Run optimization passes on the IR context.
+        Copies the IRContext and runs optimization passes on the copy of the IR context.
 
         Returns the optimized context.
         """
@@ -450,9 +450,6 @@ class MemoryFuzzChecker:
 
         for fn in optimized_ctx.functions.values():
             ac = IRAnalysesCache(fn)
-
-            # Convert to SSA form first if needed by the passes
-            MakeSSA(ac, fn).run_pass()
 
             for pass_class in self.passes:
                 pass_obj = pass_class(ac, fn)
@@ -466,34 +463,38 @@ class MemoryFuzzChecker:
 
     def execute_bytecode(self, bytecode: bytes, calldata: bytes, env) -> tuple[bool, bytes]:
         """Execute bytecode with given calldata and return success status and output."""
-        deployed_address = env._deploy(bytecode, value=0)
+        # wrap runtime bytecode in deploy bytecode that returns it
+        bytecode_len = len(bytecode)
+        bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
+        # deploy preamble: PUSH2 len, 0, DUP2, PUSH1 0a, 0, CODECOPY, RETURN
+        deploy_preamble = bytes.fromhex("61" + bytecode_len_hex + "3d81600a3d39f3")
+        deploy_bytecode = deploy_preamble + bytecode
+
+        deployed_address = env._deploy(deploy_bytecode)
 
         try:
-            result = env.message_call(to=deployed_address, data=calldata, value=0)
+            result = env.message_call(to=deployed_address, data=calldata)
             return True, result
-        except ExecutionReverted as e:
-            # return revert data if available
-            return False, e.args[0] if e.args else b""
-        except Exception:
-            # other errors like out of gas
+        except EvmError as e:
             return False, b""
 
     def check_equivalence(self, ctx: IRContext, calldata: bytes, env) -> None:
         """Check equivalence between unoptimized and optimized execution."""
-        unopt_bytecode = self.compile_to_bytecode(ctx)
+        # run MakeSSA on the original context first
+        for fn in ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            MakeSSA(ac, fn).run_pass()
 
         opt_ctx = self.run_passes(ctx)
-        opt_bytecode = self.compile_to_bytecode(opt_ctx)
 
-        unopt_success, unopt_output = self.execute_bytecode(unopt_bytecode, calldata, env)
-        opt_success, opt_output = self.execute_bytecode(opt_bytecode, calldata, env)
+        bytecode1 = self.compile_to_bytecode(ctx)
+        bytecode2 = self.compile_to_bytecode(opt_ctx)
 
-        assert (
-            unopt_success == opt_success
-        ), f"Execution success mismatch: unopt={unopt_success}, opt={opt_success}"
-        assert (
-            unopt_output == opt_output
-        ), f"Output mismatch: unopt={unopt_output.hex()}, opt={opt_output.hex()}"
+        succ1, out1 = self.execute_bytecode(bytecode1, calldata, env)
+        succ2, out2 = self.execute_bytecode(bytecode2, calldata, env)
+
+        assert succ1 == succ2, (succ1, out1, succ2, out2)
+        assert out1 == out2, (succ1, out1, succ2, out2)
 
 
 @st.composite
@@ -539,10 +540,9 @@ def test_memory_passes_fuzzing(pass_list, venom_data, env):
 
     hp.note(f"Testing passes: {[p.__name__ for p in pass_list]}")
 
-    if hasattr(ctx, "functions") and ctx.functions:
-        func = list(ctx.functions.values())[0]
-        hp.note(f"Generated function with {func.num_basic_blocks} basic blocks")
-        hp.note(f"Calldata size: {len(calldata)} bytes")
+    func = list(ctx.functions.values())[0]
+    hp.note(f"Generated function with {func.num_basic_blocks} basic blocks")
+    hp.note(f"Calldata size: {len(calldata)} bytes")
 
     checker = MemoryFuzzChecker(pass_list)
     checker.check_equivalence(ctx, calldata, env)
