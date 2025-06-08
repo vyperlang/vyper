@@ -20,7 +20,15 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import DeadStoreElimination, LoadElimination, MakeSSA, MemMergePass, AssignElimination, SingleUseExpansion, SimplifyCFGPass
+from vyper.venom.passes import (
+    AssignElimination,
+    DeadStoreElimination,
+    LoadElimination,
+    MakeSSA,
+    MemMergePass,
+    SimplifyCFGPass,
+    SingleUseExpansion,
+)
 
 MEMORY_OPS = ["mload", "mstore", "mcopy"]
 
@@ -80,6 +88,7 @@ class _BranchBB(_BBType):
 
 class SymbolicVar(IRVariable):
     """Placeholder for a variable that will be resolved later"""
+
     pass
 
 
@@ -106,12 +115,12 @@ class MemoryFuzzer:
         var = IRVariable(f"v{self.variable_counter}")
         self.available_vars.append(var)
         return var
-    
+
     def fresh_symbolic(self) -> SymbolicVar:
         """Create a new symbolic variable"""
         self.symbolic_counter += 1
         return SymbolicVar(f"%sym_{self.symbolic_counter}")
-    
+
     def resolve_all_variables(self):
         """After building all blocks, replace symbolic vars with real ones"""
         # Map all symbolic vars to real variables
@@ -122,7 +131,7 @@ class MemoryFuzzer:
                     if inst.output not in self.symbolic_mapping:
                         self.symbolic_mapping[inst.output] = self.get_next_variable()
                     inst.output = self.symbolic_mapping[inst.output]
-                
+
                 # Handle inputs
                 new_operands = []
                 for op in inst.operands:
@@ -239,7 +248,6 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         raise ValueError("unreachable")
 
 
-
 @st.composite
 def control_flow_graph(draw, basic_blocks):
     """
@@ -258,7 +266,7 @@ def control_flow_graph(draw, basic_blocks):
     forward_targets = {}
     for i, bb in enumerate(basic_blocks):
         forward_targets[bb] = basic_blocks[i + 1 :]
-    
+
     # All blocks except entry (to prevent back edges to entry)
     non_entry_blocks = basic_blocks[1:]
 
@@ -443,7 +451,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     # generate instructions for each block
     for bb in basic_blocks:
         draw(basic_block_instructions(fuzzer, bb))
-    
+
     # add terminators
     for bb in basic_blocks:
         bb_type = cfg[bb]
@@ -482,7 +490,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 
     # resolve all symbolic variables to real ones
     fuzzer.resolve_all_variables()
-    
+
     fuzzer.ensure_all_vars_have_values()
 
     return fuzzer.ctx, fuzzer.calldata_offset
@@ -571,7 +579,7 @@ def venom_with_calldata(draw):
 
 # Test with memory-related passes
 @pytest.mark.fuzzing
-#@pytest.mark.parametrize(
+# @pytest.mark.parametrize(
 #    "pass_list",
 #    [
 #        # Test individual memory passes
@@ -583,23 +591,19 @@ def venom_with_calldata(draw):
 #        [DeadStoreElimination, LoadElimination],
 #        [LoadElimination, MemMergePass],
 #    ],
-#)
+# )
 @hp.given(venom_data=venom_with_calldata())
-
 @hp.settings(
     max_examples=1000,
-    suppress_health_check=(
-        hp.HealthCheck.data_too_large,
-        hp.HealthCheck.too_slow,
-    ),
+    suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
-    phases=(     
+    phases=(
         hp.Phase.explicit,
         hp.Phase.reuse,
         hp.Phase.generate,
         hp.Phase.target,
-        # Phase.shrink,  # can force long waiting for examples                                                         
-    ),           
+        # Phase.shrink,  # can force long waiting for examples
+    ),
 )
 def test_memory_passes_fuzzing(venom_data, env):
     """
@@ -630,8 +634,8 @@ def generate_sample_ir() -> IRContext:
 if __name__ == "__main__":
     ctx = generate_sample_ir()
 
-    #func = list(ctx.functions.values())[0]
-    #print(func)
+    # func = list(ctx.functions.values())[0]
+    # print(func)
 
     checker = MemoryFuzzChecker([MemMergePass])
     checker.run_passes(ctx)
