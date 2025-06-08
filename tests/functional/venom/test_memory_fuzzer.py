@@ -13,7 +13,7 @@ import hypothesis as hp
 import hypothesis.strategies as st
 import pytest
 
-from tests.evm_backends.base_env import ExecutionReverted
+from tests.evm_backends.base_env import EvmError
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom import SingleUseExpansion, VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
@@ -475,7 +475,7 @@ class MemoryFuzzChecker:
         try:
             result = env.message_call(to=deployed_address, data=calldata)
             return True, result
-        except EvmError as e:
+        except EvmError:
             return False, b""
 
     def check_equivalence(self, ctx: IRContext, calldata: bytes, env) -> None:
