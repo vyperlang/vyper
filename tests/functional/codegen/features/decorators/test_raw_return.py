@@ -166,3 +166,68 @@ def test() -> uint256:
 def test_interfaces_fail(bad_code, exc):
     with pytest.raises(exc):
         compile_code(bad_code)
+
+
+def test_raw_return_interface(env, get_contract, make_input_bundle):
+    # interface with @raw_return decorator
+    iface = """
+@external
+@raw_return
+def foo() -> Bytes[32]:
+    ...
+    """
+    # doesn't implement @raw_return decorator
+    main = """
+import iface
+
+implements: iface
+
+@external
+def foo() -> Bytes[32]:
+    return b''
+    """
+    input_bundle = make_input_bundle({"iface.vyi": iface})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    # does abi-decoding
+    res = c.foo()
+    assert res == b""
+
+
+@pytest.mark.parametrize("to_ret", ["self.s", "self.t", "c", "i"])
+def test_raw_return_from_location(env, get_contract, to_ret):
+    test_bytes = f"""
+s: Bytes[32]
+t: transient(Bytes[32])
+c: constant(Bytes[32]) = b'cow'
+i: immutable(Bytes[32])
+
+@deploy
+def __init__():
+    self.s = b'cow'
+    i = b'cow'
+
+@external
+@raw_return
+def get() -> Bytes[100]:
+    self.t = b'cow'
+    return {to_ret}
+    """
+
+    c = get_contract(test_bytes)
+    res = env.message_call(c.address, data=method_id("get()"))
+    assert res == b"cow"
+
+
+def test_raw_return_fallback(env, get_contract, tx_failed):
+    ret = b"a" * 32
+    test_bytes = f"""
+@external
+@raw_return
+def __default__() -> Bytes[32]:
+    return {ret}
+    """
+
+    c = get_contract(test_bytes)
+    res = env.message_call(c.address, data=method_id("get()"))
+    assert res == ret
