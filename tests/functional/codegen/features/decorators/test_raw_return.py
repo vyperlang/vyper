@@ -199,13 +199,16 @@ def foo() -> Bytes[32]:
 # calldata Bytes[..] need clamp and thus are internally coppied to memory
 @pytest.mark.parametrize("to_ret", ["self.s", "self.t", "c", "i"])
 def test_raw_return_from_location(env, get_contract, to_ret):
-    if not version_check(begin="cancun"):
+    has_transient = version_check(begin="cancun")
+    if to_ret == "self.t" and not has_transient:
         # no transient available before cancun
         pytest.skip()
 
+    t_decl = "t: transient(Bytes[32])" if has_transient else ""
+    t_assign = "self.t = b'cow'" if has_transient else ""
     test_bytes = f"""
 s: Bytes[32]
-t: transient(Bytes[32])
+{t_decl}
 c: constant(Bytes[32]) = b'cow'
 i: immutable(Bytes[32])
 
@@ -217,7 +220,7 @@ def __init__():
 @external
 @raw_return
 def get() -> Bytes[100]:
-    self.t = b'cow'
+    {t_assign}
     return {to_ret}
     """
 
