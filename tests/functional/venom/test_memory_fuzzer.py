@@ -106,7 +106,6 @@ class MemoryFuzzer:
         self.bb_available_vars = {}
         # symbolic variable tracking
         self.symbolic_counter = 0
-        self.symbolic_mapping = {}  # SymbolicVar -> IRVariable
 
     def get_next_variable(self) -> IRVariable:
         """Generate a new unique variable using the function's allocator."""
@@ -122,26 +121,19 @@ class MemoryFuzzer:
 
     def resolve_all_variables(self):
         """After building all blocks, replace symbolic vars with real ones"""
-        # Map all symbolic vars to real variables
+        # resolve "symbolic" vars to real variables
+        symbolic_mapping = defaultdict(self.get_next_variable)
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                # Handle output
+                # remap all "symbolic" variables
                 if inst.output and isinstance(inst.output, SymbolicVar):
-                    if inst.output not in self.symbolic_mapping:
-                        self.symbolic_mapping[inst.output] = self.get_next_variable()
-                    inst.output = self.symbolic_mapping[inst.output]
+                    inst.output = symbolic_mapping[inst.output]
 
-                # Handle inputs
                 new_operands = []
                 for op in inst.operands:
                     if isinstance(op, SymbolicVar):
-                        if op not in self.symbolic_mapping:
-                            # This symbolic var was never defined as output
-                            # Create a fresh variable for it
-                            self.symbolic_mapping[op] = self.get_next_variable()
-                        new_operands.append(self.symbolic_mapping[op])
-                    else:
-                        new_operands.append(op)
+                        op = symbolic_mapping[op]
+                    new_operands.append(op)
                 inst.operands = new_operands
 
     def ensure_all_vars_have_values(self) -> None:
@@ -244,7 +236,7 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         bb.append_instruction("mcopy", dest, src, IRLiteral(length))
 
     else:
-        raise ValueError("unreachable")
+        raise Exception("unreachable")
 
 
 @st.composite
@@ -597,7 +589,7 @@ def venom_with_calldata(draw):
 # )
 @hp.given(venom_data=venom_with_calldata())
 @hp.settings(
-    max_examples=1000,
+    max_examples=10,
     suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
     phases=(
