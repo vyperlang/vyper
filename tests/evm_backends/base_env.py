@@ -280,18 +280,21 @@ class BaseEnv:
             is_modifying=is_modifying,
         )
 
+        result = None
+        call_succeeded = False
+
         try:
             result = self._message_call(
                 to, sender, data, value, gas_to_use, gas_price, is_modifying, blob_hashes
             )
-        except Exception:
+            call_succeeded = True
+        finally:
             if self.exporter:
-                self.exporter.trace_call(output=None, call_succeeded=False, **trace_kwargs)
-            raise
-        else:
-            if self.exporter:
-                self.exporter.trace_call(output=result, call_succeeded=True, **trace_kwargs)
-            return result
+                self.exporter.trace_call(
+                    output=result, call_succeeded=call_succeeded, **trace_kwargs
+                )
+
+        return result
 
     def _message_call(
         self,
