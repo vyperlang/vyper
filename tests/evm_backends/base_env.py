@@ -281,7 +281,7 @@ class BaseEnv:
         )
 
         try:
-            result = self._message_call_impl(
+            result = self._message_call(
                 to, sender, data, value, gas_to_use, gas_price, is_modifying, blob_hashes
             )
         except Exception:
@@ -293,7 +293,7 @@ class BaseEnv:
                 self.exporter.trace_call(output=result, call_succeeded=True, **trace_kwargs)
             return result
 
-    def _message_call_impl(
+    def _message_call(
         self,
         to: str,
         sender: str,

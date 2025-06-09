@@ -94,9 +94,7 @@ class RevmEnv(BaseEnv):
         tx.blob_hashes = value
         self._evm.set_tx_env(tx)
 
-    def _message_call_impl(
-        self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes
-    ):
+    def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
             return self._evm.message_call(
                 to=to,

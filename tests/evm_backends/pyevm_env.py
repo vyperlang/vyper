@@ -158,9 +158,7 @@ class PyEvmEnv(BaseEnv):
         self._check_computation(computation)
         return computation.output
 
-    def _message_call_impl(
-        self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes
-    ):
+    def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
             computation = self._state.computation_class.apply_message(
                 state=self._state,
