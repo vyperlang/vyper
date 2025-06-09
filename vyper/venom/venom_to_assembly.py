@@ -279,7 +279,7 @@ class VenomCompiler:
                 self.dup_op(assembly, stack, op)
 
             # guaranteed by store expansion
-            assert op not in seen, (op, seen)
+            assert op not in seen, (op, inst)
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):

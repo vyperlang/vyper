@@ -5,7 +5,7 @@ This fuzzer generates complex control flow with memory instructions to test
 memory optimization passes. It uses the IRBasicBlock API directly and
 can be plugged with any Venom passes.
 """
-
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
 
@@ -82,7 +82,7 @@ class _BranchBB(_BBType):
     counter_addr: Optional[int] = None
 
     @property
-    def has_back_edge(self) -> bool:
+    def needs_loop_counter(self) -> bool:
         return self.counter_addr is not None
 
 
@@ -284,12 +284,19 @@ def control_flow_graph(draw, basic_blocks):
             # For branches, allow any block as the other target except entry
             # (target is already guaranteed to be forward)
             other_target = draw(st.sampled_from(non_entry_blocks))
+
+            is_back_edge = basic_blocks.index(other_target) <= basic_blocks.index(source)
+            # counter_addr = loop_counter_addr if is_back_edge else None
+
+            # if other_target is the back edge, swap so back edge is always target1
+            if is_back_edge:
+                other_target, target = target, other_target
             cfg[source] = _BranchBB(target1=target, target2=other_target)
 
     # classify remaining blocks that were not handled during spanning
     # tree construction.
-    loop_counter_addr = MAX_MEMORY_SIZE
 
+    loop_counter_addr = MAX_MEMORY_SIZE
     for bb in basic_blocks:
         if bb in cfg:
             continue
@@ -313,6 +320,11 @@ def control_flow_graph(draw, basic_blocks):
                 is_back_edge2 = False
 
             contains_back_edge = is_back_edge1 or is_back_edge2
+
+            # swap targets so target2 is always a forward edge
+            if is_back_edge2 and not is_back_edge1:
+                target1, target2 = target2, target1
+
             counter_addr = loop_counter_addr if contains_back_edge else None
 
             cfg[bb] = _BranchBB(target1=target1, target2=target2, counter_addr=counter_addr)
@@ -458,22 +470,19 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
             # get bottom bit, for bias reasons
             cond_var = bb.append_instruction("and", cond_var, IRLiteral(1))
 
-            if bb_type.has_back_edge:
+            if bb_type.needs_loop_counter:
                 loop_counter_addr = IRLiteral(bb_type.counter_addr)
 
                 counter = bb.append_instruction("mload", loop_counter_addr)
                 incr_counter = bb.append_instruction("add", counter, IRLiteral(1))
                 bb.append_instruction("mstore", incr_counter, loop_counter_addr)
 
-                # exit loop when counter >= MAX_LOOP_ITERATIONS
-                # (note we are guaranteed that second target provides forward
-                # progress)
                 max_iterations = IRLiteral(MAX_LOOP_ITERATIONS)
-                # counter < iterbound
                 counter_ok = bb.append_instruction("lt", counter, max_iterations)
 
                 cond_var = bb.append_instruction("and", counter_ok, cond_var)
 
+            # when there is a back edge, target2 is always the forward edge
             bb.append_instruction("jnz", cond_var, bb_type.target1.label, bb_type.target2.label)
 
         else:
@@ -504,6 +513,10 @@ class MemoryFuzzChecker:
             ac = IRAnalysesCache(fn)
             SimplifyCFGPass(ac, fn).run_pass()
             SingleUseExpansion(ac, fn).run_pass()
+            MakeSSA(ac, fn).run_pass()
+            fn.freshen_varnames()
+
+        hp.note(str(ctx))
 
         compiler = VenomCompiler([ctx])
         asm = compiler.generate_evm()
@@ -551,8 +564,10 @@ class MemoryFuzzChecker:
             ac = IRAnalysesCache(fn)
             MakeSSA(ac, fn).run_pass()
             AssignElimination(ac, fn).run_pass()
+        hp.note("UNOPTIMIZED: " + str(ctx))
 
         opt_ctx = self.run_passes(ctx)
+        hp.note("OPTIMIZED: " + str(opt_ctx))
 
         bytecode1 = self.compile_to_bytecode(ctx)
         bytecode2 = self.compile_to_bytecode(opt_ctx)
@@ -589,7 +604,7 @@ def venom_with_calldata(draw):
 # )
 @hp.given(venom_data=venom_with_calldata())
 @hp.settings(
-    max_examples=10,
+    max_examples=1000,
     suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
     phases=(
