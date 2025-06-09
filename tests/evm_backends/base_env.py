@@ -106,27 +106,22 @@ class BaseEnv:
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
             }
 
+        deployment_succeeded = False
+        address = "0x0000000000000000000000000000000000000000"
+
         try:
             deployed_at = self._deploy(initcode, value)
-        except Exception:
+            deployment_succeeded = True
+            address = to_checksum_address(deployed_at)
+        finally:
             if self.exporter:
+                runtime_bytecode = self.get_code(address)
                 self.exporter.trace_deployment(
-                    deployed_address="0x0000000000000000000000000000000000000000",
-                    runtime_bytecode="",
                     **common_trace_kwargs,
-                    deployment_succeeded=False,
+                    deployed_address=address,
+                    runtime_bytecode=runtime_bytecode.hex(),
+                    deployment_succeeded=deployment_succeeded,
                 )
-            raise
-
-        address = to_checksum_address(deployed_at)
-
-        if self.exporter:
-            runtime_bytecode = self.get_code(address)
-            self.exporter.trace_deployment(
-                **common_trace_kwargs,
-                deployed_address=address,
-                runtime_bytecode=runtime_bytecode.hex(),
-            )
 
         return factory.at(self, address)
 
