@@ -29,21 +29,17 @@ VENOM_GRAMMAR = """
 
     start: function* data_segment?
 
-    # Function contains lines, each line is terminated by NEWLINE or EOF
     function: "function" func_name "{" line* "}"
 
-    # A line can contain a label declaration, a statement, or be empty
+    # LALR(1): a line can contain a label declaration, a statement, or be empty
     line: label_decl NEWLINE* | statement NEWLINE* | NEWLINE
 
-    # Label declaration is IDENT or ESCAPED_STRING followed by ":"
     label_decl: (IDENT | ESCAPED_STRING) ":"
 
-    # Statements are either assignments or instructions
     statement: assignment | instruction
     assignment: VAR_IDENT "=" expr
     expr: instruction | operand
 
-    # Instructions are IDENT followed by optional operands
     instruction: IDENT operands_list?
 
     operands_list: operand ("," operand)*
@@ -53,12 +49,11 @@ VENOM_GRAMMAR = """
     CONST: SIGNED_INT | "0x" HEXDIGIT+
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
-    # Non-terminal rules for different contexts
+    # non-terminal rules for different contexts
     func_name: IDENT | ESCAPED_STRING
     label_name: IDENT | ESCAPED_STRING
     label_ref: "@" (IDENT | ESCAPED_STRING)
 
-    # Data segment rules remain the same
     data_segment: "data" "readonly" "{" data_section* "}"
     data_section: "dbsection" label_name ":" data_item+
     data_item: "db" (HEXSTR | label_ref) NEWLINE*
@@ -71,7 +66,6 @@ VENOM_GRAMMAR = """
     %ignore COMMENT
     """
 
-# Use LALR parser without contextual lexer since grammar is now unambiguous
 VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
 
 
@@ -136,32 +130,27 @@ class VenomTransformer(Transformer):
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
                 ctx.entry_function = fn
-            fn._basic_block_dict.clear()
+            fn.clear_basic_blocks()
 
-            # Process lines to reconstruct blocks
+            # reconstruct blocks
             current_block_label: Optional[str] = None
             current_block_instructions: list[IRInstruction] = []
             blocks: list[tuple[str, list[IRInstruction]]] = []
 
             for item in lines:
                 if isinstance(item, _LabelDecl):
-                    # Save previous block if exists
                     if current_block_label is not None:
                         blocks.append((current_block_label, current_block_instructions))
-                    # Start new block
                     current_block_label = item.label
                     current_block_instructions = []
                 elif isinstance(item, IRInstruction):
-                    # Add instruction to current block
                     if current_block_label is None:
                         raise ValueError("Instruction found before any label declaration")
                     current_block_instructions.append(item)
 
-            # Save last block
             if current_block_label is not None:
                 blocks.append((current_block_label, current_block_instructions))
 
-            # Create basic blocks
             for block_name, instructions in blocks:
                 bb = IRBasicBlock(IRLabel(block_name, True), fn)
                 fn.append_basic_block(bb)
@@ -177,11 +166,7 @@ class VenomTransformer(Transformer):
 
     def function(self, children) -> tuple[str, list]:
         name = children[0]
-        lines = []
-        # Filter out None values from empty lines
-        for child in children[1:]:
-            if child is not None:
-                lines.append(child)
+        lines = [line for line in children[1:] if line is not None]
         return name, lines
 
     def line(self, children) -> Optional[_LabelDecl | IRInstruction]:
@@ -211,7 +196,8 @@ class VenomTransformer(Transformer):
         item = children[0]
         if isinstance(item, IRLabel):
             return DataItem(item)
-        # Handle HEXSTR
+
+        # handle hex strings
         assert isinstance(item, str)
         assert item.startswith('x"')
         assert item.endswith('"')
@@ -233,7 +219,7 @@ class VenomTransformer(Transformer):
 
     def instruction(self, children) -> IRInstruction:
         if len(children) == 1:
-            # Just the opcode (IDENT)
+            # just the opcode (IDENT)
             opcode = str(children[0])
             operands = []
         else:
