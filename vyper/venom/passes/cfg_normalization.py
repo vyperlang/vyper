@@ -36,6 +36,34 @@ class CFGNormalization(IRPass):
         in_terminal.replace_label_operands({bb.label: split_label})
 
         split_bb = IRBasicBlock(split_label, fn)
+
+        # Find variables that need forwarding stores in the split block
+        var_replacements = {}
+        for inst in bb.instructions:
+            if inst.opcode != "phi":
+                continue
+            for i in range(0, len(inst.operands), 2):
+                if inst.operands[i] == in_bb.label:
+                    var = inst.operands[i + 1]
+                    # Check if var is defined by a phi in in_bb
+                    needs_forwarding = False
+                    for check_inst in in_bb.instructions:
+                        if check_inst.output == var and check_inst.opcode == "phi":
+                            needs_forwarding = True
+                            break
+
+                    # Also check if var is not defined in predecessor at all
+                    # This handles cases where the variable comes from a dominating block
+                    if not needs_forwarding:
+                        var_defined_in_pred = any(inst.output == var for inst in in_bb.instructions)
+                        if not var_defined_in_pred:
+                            needs_forwarding = True
+
+                    if needs_forwarding and var not in var_replacements:
+                        new_var = fn.get_next_variable()
+                        var_replacements[var] = new_var
+                        split_bb.append_instruction("store", var, ret=new_var)
+
         split_bb.append_instruction("jmp", bb.label)
         fn.append_basic_block(split_bb)
 
@@ -45,6 +73,10 @@ class CFGNormalization(IRPass):
             for i in range(0, len(inst.operands), 2):
                 if inst.operands[i] == in_bb.label:
                     inst.operands[i] = split_bb.label
+                    # Update variable reference if we created a replacement
+                    var = inst.operands[i + 1]
+                    if var in var_replacements:
+                        inst.operands[i + 1] = var_replacements[var]
 
         # Update the labels in the data segment
         for data_section in fn.ctx.data_segment:
