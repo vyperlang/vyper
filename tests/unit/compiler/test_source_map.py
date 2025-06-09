@@ -62,6 +62,7 @@ def test_jump_map(optimize, experimental_codegen):
         if pc not in pos_map:
             assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
+
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
