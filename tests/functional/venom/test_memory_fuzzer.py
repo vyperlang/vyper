@@ -98,7 +98,6 @@ class MemoryFuzzer:
     def __init__(self):
         self.ctx = IRContext()
         self.function = None
-        self.variable_counter = 0
         self.bb_counter = 0
         self.calldata_offset = MAX_MEMORY_SIZE
         self.available_vars = []
@@ -110,9 +109,9 @@ class MemoryFuzzer:
         self.symbolic_mapping = {}  # SymbolicVar -> IRVariable
 
     def get_next_variable(self) -> IRVariable:
-        """Generate a new unique variable."""
-        self.variable_counter += 1
-        var = IRVariable(f"v{self.variable_counter}")
+        """Generate a new unique variable using the function's allocator."""
+        assert self.function is not None, "Function must be set before allocating variables"
+        var = self.function.get_next_variable()
         self.available_vars.append(var)
         return var
 
@@ -492,6 +491,10 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     fuzzer.resolve_all_variables()
 
     fuzzer.ensure_all_vars_have_values()
+
+    # freshen variable names for easier debugging
+    for fn in fuzzer.ctx.functions.values():
+        fn.freshen_varnames()
 
     return fuzzer.ctx, fuzzer.calldata_offset
 
