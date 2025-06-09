@@ -59,15 +59,23 @@ The exported data is organized into JSON files that mirror the test directory st
   }
 }
 ```  
-- test items have their dependencies listed in the order in which they must be executed  
+- test items have their dependencies listed in the order in which they must be executed (note that dependencies can have further dependencies)
+- example of dependency `"tests/export/functional/examples/tokens/test_erc20.json/c_origin"`
+  - thus traces from the item `c_origin` at `test_erc20.json` must be executed first
+- traces are listed in the order in which they must be executed
 - a trace can be either a "call" or a "deployment"  
-- addresses are dumped as strings, bytes are hex encoded and dumped as strings  
+- addresses are dumped as strings, bytes are hex encoded and dumped as strings
+- `initcode` is `concat(bytecode, abi_encode(ctor_args))`
+- `calldata` is `abi_encode(ctor_args)`
+- `source_code` is the source of the compilation target, imported modules are accessible from `solc_json`
+- `deployment_type` denotes how the contract was deployed
+  - this was added because some tests deploy directly from `ir` or from directly from `bytecode`
   
 ## How it works  
   
 The test export feature provides a way to capture and export all contract deployments and function calls that occur during test execution.   
   
-The exports might not capture all side-effects which executed during the test run.  
+The exports might not capture all side-effects which executed during the test run if those aren't requested by the test author.  
   
 ### Key Components:  
   
