@@ -79,9 +79,11 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         settings.evm_version = evm_version
         return
 
-    if pragma in ("experimental-codegen", "venom"):
+    if pragma in ("experimental-codegen", "venom-experimental"):
         if settings.experimental_codegen is not None:
-            raise PragmaException("pragma experimental-codegen/venom specified twice!", *location)
+            raise PragmaException(
+                "pragma experimental-codegen/venom-experimental specified twice!", *location
+            )
         settings.experimental_codegen = True
         return
 
