@@ -236,21 +236,16 @@ class SingletonVisitor(python_ast.NodeTransformer):
 
         node = super().generic_visit(node)
 
-        def _fix(node, parent):
-            """
-            adapted from cpython Lib/ast.py. adds line/col info to ast,
-            but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-            one that python defines to have line/col info.
-            https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-            """
-            for field in LINE_INFO_FIELDS:
-                val = getattr(node, field, None)
-                if val is None:
-                    val = getattr(parent, field)
-                setattr(node, field, val)
-
+        # adapted from cpython Lib/ast.py. adds line/col info to ast,
+        # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
+        # one that python defines to have line/col info.
+        # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
         for child in python_ast.iter_child_nodes(node):
-            _fix(child, node)
+            for field in LINE_INFO_FIELDS:
+                val = getattr(child, field, None)
+                if val is None:
+                    val = getattr(node, field)
+                setattr(child, field, val)
 
         return node
 
