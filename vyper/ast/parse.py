@@ -190,7 +190,7 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    singleton_visitor = SingletonVisitor()
+    singleton_visitor = SingletonVisitor(vyper_source)
     singleton_visitor.start(parsed_ast)
     annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
@@ -208,14 +208,54 @@ def _deepcopy_ast(ast_node: python_ast.AST):
 # Replace python AST node instances that are singletons, which are reused between
 # parse() invocations, with a copy so that we are using fresh objects.
 class SingletonVisitor(python_ast.NodeTransformer):
+    _source_code: str
+
+    def __init__(self, source_code: str):
+        self._source_code = source_code
+
+    @cached_property
+    def source_lines(self):
+        return self._source_code.splitlines(keepends=True)
+
     def start(self, node: python_ast.Module):
+        assert isinstance(node, python_ast.Module)
+        node.lineno = 1
+        node.col_offset = 0
+        node.end_lineno = max(1, len(self.source_lines))
+
+        if len(self.source_lines) > 0:
+            node.end_col_offset = len(self.source_lines[-1])
+        else:
+            node.end_col_offset = 0
+
         self.visit(node)
 
     def generic_visit(self, node):
         if isinstance(node, PYTHON_AST_SINGLETONS):
-            return _deepcopy_ast(node)
+            node = _deepcopy_ast(node)
 
-        return super().generic_visit(node)
+        node = super().generic_visit(node)
+
+        def _fix(node, parent=None):
+            """
+            adapted from cpython Lib/ast.py. adds line/col info to ast,
+            but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
+            one that python defines to have line/col info.
+            https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
+            """
+            for field in LINE_INFO_FIELDS:
+                if parent is not None:
+                    val = getattr(node, field, None)
+                    if val is None:
+                        val = getattr(parent, field)
+                    setattr(node, field, val)
+                else:
+                    assert hasattr(node, field), node
+
+        for child in python_ast.iter_child_nodes(node):
+            _fix(child, node)
+
+        return node
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -253,40 +293,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return ret
 
     def start(self, node: python_ast.Module):
-        self._fix_missing_locations(node)
         self.visit(node)
-
-    def _fix_missing_locations(self, ast_node: python_ast.Module):
-        """
-        adapted from cpython Lib/ast.py. adds line/col info to ast,
-        but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-        one that python defines to have line/col info.
-        https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        """
-        assert isinstance(ast_node, python_ast.Module)
-        ast_node.lineno = 1
-        ast_node.col_offset = 0
-        ast_node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            ast_node.end_col_offset = len(self.source_lines[-1])
-        else:
-            ast_node.end_col_offset = 0
-
-        def _fix(node, parent=None):
-            for field in LINE_INFO_FIELDS:
-                if parent is not None:
-                    val = getattr(node, field, None)
-                    if val is None:
-                        val = getattr(parent, field)
-                    setattr(node, field, val)
-                else:
-                    assert hasattr(node, field), node
-
-            for child in python_ast.iter_child_nodes(node):
-                _fix(child, node)
-
-        _fix(ast_node)
 
     def generic_visit(self, node):
         """
