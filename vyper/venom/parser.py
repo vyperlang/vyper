@@ -29,10 +29,7 @@ VENOM_GRAMMAR = """
 
     start: function* data_segment?
 
-    function: "function" func_name "{" line* "}"
-
-    # LALR(1): a line can contain a label declaration, a statement, or be empty
-    line: label_decl NEWLINE* | statement NEWLINE* | NEWLINE
+    function: "function" func_name "{" (label_decl | statement)* "}"
 
     label_decl: (IDENT | ESCAPED_STRING) ":"
 
@@ -56,7 +53,7 @@ VENOM_GRAMMAR = """
 
     data_segment: "data" "readonly" "{" data_section* "}"
     data_section: "dbsection" label_name ":" data_item+
-    data_item: "db" (HEXSTR | label_ref) NEWLINE*
+    data_item: "db" (HEXSTR | label_ref)
 
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
@@ -64,6 +61,7 @@ VENOM_GRAMMAR = """
 
     %ignore WS
     %ignore COMMENT
+    %ignore NEWLINE
     """
 
 VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
@@ -126,7 +124,7 @@ class VenomTransformer(Transformer):
             ctx.data_segment = children.pop().children
 
         funcs = children
-        for fn_name, lines in funcs:
+        for fn_name, items in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
                 ctx.entry_function = fn
@@ -137,7 +135,7 @@ class VenomTransformer(Transformer):
             current_block_instructions: list[IRInstruction] = []
             blocks: list[tuple[str, list[IRInstruction]]] = []
 
-            for item in lines:
+            for item in items:
                 if isinstance(item, _LabelDecl):
                     if current_block_label is not None:
                         blocks.append((current_block_label, current_block_instructions))
@@ -166,15 +164,8 @@ class VenomTransformer(Transformer):
 
     def function(self, children) -> tuple[str, list]:
         name = children[0]
-        lines = [line for line in children[1:] if line is not None]
-        return name, lines
-
-    def line(self, children) -> Optional[_LabelDecl | IRInstruction]:
-        # A line might have just a NEWLINE (empty line) which we skip
-        if len(children) == 0 or (len(children) == 1 and children[0].type == "NEWLINE"):
-            return None
-        # Otherwise return the label_decl or statement
-        return children[0]
+        items = children[1:]  # label_decls and statements
+        return name, items
 
     def label_decl(self, children) -> _LabelDecl:
         label = _unescape(str(children[0]))
