@@ -54,11 +54,8 @@ class CFGNormalization(IRPass):
                     continue
 
                 if self._needs_forwarding_store(var, in_bb):
-                    # create a new variable (preserving SSA form) that copies the value
-                    new_var = fn.get_next_variable()
+                    new_var = split_bb.append_instruction("store", var)
                     var_replacements[var] = new_var
-                    # this creates: %new_var = %var (a copy, not a redefinition)
-                    split_bb.append_instruction("store", var, ret=new_var)
 
         split_bb.append_instruction("jmp", bb.label)
         fn.append_basic_block(split_bb)
