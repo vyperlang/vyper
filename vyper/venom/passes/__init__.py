@@ -12,6 +12,7 @@ from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
+from .memory_copy_elision import MemoryCopyElisionPass
 from .normalization import NormalizationPass
 from .phi_elimination import PhiEliminationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass

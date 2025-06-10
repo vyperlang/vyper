@@ -26,6 +26,7 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    MemoryCopyElisionPass,
     PhiEliminationPass,
     ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
@@ -87,6 +88,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
+    MemoryCopyElisionPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
