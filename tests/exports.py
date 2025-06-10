@@ -141,13 +141,14 @@ class TestExporter:
     def trace_deployment(self, **kwargs):
         self.current_item.traces.append({"trace_type": "deployment", **kwargs})
 
-    def trace_call(self, output: Optional[bytes], **call_args):
+    def trace_call(self, output: Optional[bytes], call_succeeded: bool, **call_args):
         if "calldata" in call_args:
             call_args["calldata"] = call_args["calldata"].hex()
         self.current_item.traces.append(
             {
                 "trace_type": "call",
                 "output": None if output is None else output.hex(),
+                "call_succeeded": call_succeeded,
                 "call_args": call_args,
             }
         )
