@@ -244,13 +244,10 @@ class SingletonVisitor(python_ast.NodeTransformer):
             https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
             """
             for field in LINE_INFO_FIELDS:
-                if parent is not None:
-                    val = getattr(node, field, None)
-                    if val is None:
-                        val = getattr(parent, field)
-                    setattr(node, field, val)
-                else:
-                    assert hasattr(node, field), node
+                val = getattr(node, field, None)
+                if val is None:
+                    val = getattr(parent, field)
+                setattr(node, field, val)
 
         for child in python_ast.iter_child_nodes(node):
             _fix(child, node)
