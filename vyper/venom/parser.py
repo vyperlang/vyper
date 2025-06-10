@@ -68,8 +68,8 @@ VENOM_GRAMMAR = """
 VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
 
 
-def _set_last_var(function: IRFunction) -> None:
-    for bb in function.get_basic_blocks():
+def _set_last_var(fn: IRFunction):
+    for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
             if inst.output is None:
                 continue
@@ -77,12 +77,12 @@ def _set_last_var(function: IRFunction) -> None:
             assert value.startswith("%")
             varname = value[1:]
             if varname.isdigit():
-                function.last_variable = max(function.last_variable, int(varname))
+                fn.last_variable = max(fn.last_variable, int(varname))
 
 
-def _set_last_label(ctx: IRContext) -> None:
-    for function in ctx.functions.values():
-        for bb in function.get_basic_blocks():
+def _set_last_label(ctx: IRContext):
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
             label = bb.label.value
             label_head, *_ = label.split("_", maxsplit=1)
             if label_head.isdigit():
@@ -99,20 +99,16 @@ def _unescape(s: str) -> str:
 
 
 class _TypedItem:
-    """Base class for typed items in the parse tree."""
-
     def __init__(self, children: list) -> None:
         self.children = children
 
 
 class _DataSegment(_TypedItem):
-    """Represents a data segment in the parse tree."""
-
     pass
 
 
 class _LabelDecl:
-    """Represents a label declaration in the parse tree."""
+    """Represents a block declaration in the parse tree."""
 
     def __init__(self, label: str) -> None:
         self.label = label
@@ -131,7 +127,13 @@ class VenomTransformer(Transformer):
                 ctx.entry_function = fn
             fn.clear_basic_blocks()
 
-            # reconstruct blocks
+            # reconstruct blocks from flat list of labels and instructions.
+            # the grammar parses labels and statements as a flat sequence,
+            # so we need to group instructions by their preceding label.
+            # this makes the grammar compatible with LALR(1).
+            # blocks are implicitly defined by label declarations - each
+            # label starts a new block that contains all instructions until
+            # the next label or end of function.
             current_block_label: Optional[str] = None
             current_block_instructions: list[IRInstruction] = []
             blocks: list[tuple[str, list[IRInstruction]]] = []
