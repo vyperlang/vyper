@@ -236,7 +236,7 @@ class SingletonVisitor(python_ast.NodeTransformer):
 
         node = super().generic_visit(node)
 
-        def _fix(node, parent=None):
+        def _fix(node, parent):
             """
             adapted from cpython Lib/ast.py. adds line/col info to ast,
             but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
