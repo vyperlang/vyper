@@ -50,6 +50,7 @@ asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
+settings           - Output the settings for a given build in json format
 """
 
 combined_json_outputs = [
@@ -63,6 +64,7 @@ combined_json_outputs = [
     "method_identifiers",
     "userdoc",
     "devdoc",
+    "settings_dict",
 ]
 
 
@@ -179,7 +181,7 @@ def _parse_args(argv):
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        "--venom",
+        "--venom-experimental",
         help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
@@ -343,6 +345,7 @@ def compile_files(
         "ast": "ast_dict",
         "annotated_ast": "annotated_ast_dict",
         "ir_json": "ir_dict",
+        "settings": "settings_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
@@ -382,8 +385,7 @@ def compile_files(
         storage_layout_override = None
         if storage_layout_paths:
             storage_file_path = storage_layout_paths.pop(0)
-            with open(storage_file_path) as sfh:
-                storage_layout_override = json.load(sfh)
+            storage_layout_override = input_bundle.load_json_file(storage_file_path)
 
         output = vyper.compile_from_file_input(
             file,
