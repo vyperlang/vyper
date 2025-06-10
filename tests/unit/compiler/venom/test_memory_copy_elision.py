@@ -377,3 +377,112 @@ def test_special_copy_multiple_mcopy_chain():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_inter_block_no_optimization():
+    """
+    Test that optimizations don't cross basic block boundaries.
+    Load and store in different blocks should not be optimized.
+    """
+    pre = """
+    _global:
+        %1 = mload 100
+        jmp @label1
+
+    label1:
+        mstore 100, %1     ; Even though this is redundant, it's in a different block
+        stop
+    """
+
+    # No optimization should happen - load and store are in different blocks
+    post = pre
+
+    _check_pre_post(pre, post)
+
+
+def test_mcopy_chain_across_blocks():
+    """
+    Test that mcopy chains don't merge across basic block boundaries.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        jmp @label1
+
+    label1:
+        mcopy 300, 200, 32
+        stop
+    """
+
+    # No optimization should happen - mcopies are in different blocks
+    post = pre
+
+    _check_pre_post(pre, post)
+
+
+def test_special_copy_chain_across_blocks():
+    """
+    Test that special copy + mcopy chains don't merge across basic block boundaries.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        jmp @label1
+
+    label1:
+        mcopy 200, 100, 32
+        stop
+    """
+
+    # No optimization should happen - copies are in different blocks
+    post = pre
+
+    _check_pre_post(pre, post)
+
+
+def test_conditional_branch_no_optimization():
+    """
+    Test that optimizations are conservative with conditional branches.
+    """
+    pre = """
+    _global:
+        %1 = mload 100
+        %2 = iszero %1
+        jnz %2, @label1, @label2
+
+    label1:
+        mstore 100, %1    ; Can't optimize - control flow dependent
+        stop
+
+    label2:
+        mstore 200, %1    ; Can't optimize - control flow dependent
+        stop
+    """
+
+    # No optimization should happen
+    post = pre
+
+    _check_pre_post(pre, post)
+
+
+def test_special_copy_not_merged_with_hazard():
+    """Test that special copy + mcopy chain is not merged when there's a hazard."""
+    pre = """
+    _global:
+        calldatacopy 100, 200, 32
+        %1 = mload 100
+        add %1, 1
+        mstore 100, %1
+        mcopy 200, 100, 32
+        stop
+    """
+
+    post = pre  # No change - hazard prevents optimization
+
+    _check_pre_post(pre, post)
