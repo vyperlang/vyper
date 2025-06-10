@@ -29,11 +29,13 @@ VENOM_GRAMMAR = """
 
     start: function* data_segment?
 
-    function: "function" func_name "{" (label_decl | statement)* "}"
+    function: "function" func_name "{" block_content "}"
 
-    label_decl: (IDENT | ESCAPED_STRING) ":"
+    block_content: (label_decl | statement)*
 
-    statement: assignment | instruction
+    label_decl: (IDENT | ESCAPED_STRING) ":" NEWLINE+
+
+    statement: (assignment | instruction) NEWLINE+
     assignment: VAR_IDENT "=" expr
     expr: instruction | operand
 
@@ -43,7 +45,6 @@ VENOM_GRAMMAR = """
 
     operand: VAR_IDENT | CONST | label_ref
 
-    CONST: SIGNED_INT | "0x" HEXDIGIT+
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
     # non-terminal rules for different contexts
@@ -52,16 +53,16 @@ VENOM_GRAMMAR = """
     label_ref: "@" (IDENT | ESCAPED_STRING)
 
     data_segment: "data" "readonly" "{" data_section* "}"
-    data_section: "dbsection" label_name ":" data_item+
-    data_item: "db" (HEXSTR | label_ref)
+    data_section: "dbsection" label_name ":" NEWLINE+ data_item+
+    data_item: "db" (HEXSTR | label_ref) NEWLINE+
 
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
+    CONST: SIGNED_INT | "0x" HEXDIGIT+
 
     %ignore WS
     %ignore COMMENT
-    %ignore NEWLINE
     """
 
 VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
@@ -164,14 +165,20 @@ class VenomTransformer(Transformer):
 
     def function(self, children) -> tuple[str, list]:
         name = children[0]
-        items = children[1:]  # label_decls and statements
-        return name, items
+        block_content = children[1]  # this is the block_content node
+        return name, block_content
+
+    def block_content(self, children) -> list:
+        # children contains label_decls and statements
+        return children
 
     def label_decl(self, children) -> _LabelDecl:
+        # children[0] is the label, rest are NEWLINE tokens
         label = _unescape(str(children[0]))
         return _LabelDecl(label)
 
     def statement(self, children) -> IRInstruction:
+        # children[0] is the instruction/assignment, rest are NEWLINE tokens
         return children[0]
 
     def data_segment(self, children) -> _DataSegment:
@@ -179,11 +186,12 @@ class VenomTransformer(Transformer):
 
     def data_section(self, children) -> DataSection:
         label = IRLabel(children[0], True)
-        data_items = children[1:]
-        assert all(isinstance(item, DataItem) for item in data_items)
+        # skip NEWLINE tokens and collect DataItems
+        data_items = [child for child in children[1:] if isinstance(child, DataItem)]
         return DataSection(label, data_items)
 
     def data_item(self, children) -> DataItem:
+        # children[0] is the data content, rest are NEWLINE tokens
         item = children[0]
         if isinstance(item, IRLabel):
             return DataItem(item)
