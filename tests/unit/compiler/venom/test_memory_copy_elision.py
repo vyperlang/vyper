@@ -1,9 +1,6 @@
-import pytest
-
-from tests.venom_utils import PrePostChecker, parse_venom
+from tests.venom_utils import PrePostChecker
 from vyper.evm.opcodes import version_check
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import SCCP, MemoryCopyElisionPass, RemoveUnusedVariablesPass
+from vyper.venom.passes import MemoryCopyElisionPass
 
 _check_pre_post = PrePostChecker([MemoryCopyElisionPass], default_hevm=False)
 
@@ -245,7 +242,7 @@ def test_dloadbytes_barrier():
     pre = """
     _global:
         %1 = mload 100
-        dloadbytes 200, 0, 32  ; BARRIER - writes to memory  
+        dloadbytes 200, 0, 32  ; BARRIER - writes to memory
         mstore 300, %1
         stop
     """
@@ -380,5 +377,3 @@ def test_special_copy_multiple_mcopy_chain():
         stop
     """
     _check_pre_post(pre, post)
-
-
