@@ -106,10 +106,12 @@ This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the sto
 .. code-block:: json
 
     {
-        "owner": {"type": "address", "slot": 0},
-        "minter": {"type": "address", "slot": 2},
-        "balanceOf": {"type": "HashMap[address, uint256]", "slot": 1}
+        "owner": {"type": "address", "n_slots": 1, "slot": 0},
+        "minter": {"type": "address", "n_slots": 1, "slot": 2},
+        "balanceOf": {"type": "HashMap[address, uint256]", "n_slots": 1, "slot": 1}
     }
+
+When creating a custom storage layout, you must also include ``n_slots`` for each storage variable. This tells the compiler how many 32 byte slots to allocate from the ``slot`` storage offset.
 
 For further information on generating the storage layout, see :ref:`Storage Layout <compiler-storage-layout>`.
 
