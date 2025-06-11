@@ -699,7 +699,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not check_modifiability(node.value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation(
                     "Storage variable initializer must be a literal or runtime constant"
-                    " (e.g. msg.sender)",
+                    " (e.g. msg.sender, self)",
                     node.value,
                 )
 

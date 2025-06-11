@@ -578,3 +578,49 @@ def get_chain_id() -> uint256:
 
     # Chain ID should be the default (1)
     assert c.get_chain_id() == env.DEFAULT_CHAIN_ID
+
+
+def test_self_initialization(get_contract, env):
+    """Test that self can be used as an initializer"""
+    code = """
+owner: address = self
+backup: address = self
+
+@external
+@view
+def get_owner() -> address:
+    return self.owner
+
+@external
+@view
+def get_backup() -> address:
+    return self.backup
+    """
+
+    c = get_contract(code)
+
+    # both should be set to the contract's address
+    assert c.get_owner() == c.address
+    assert c.get_backup() == c.address
+
+
+def test_self_initialization_with_override(get_contract, env):
+    """Test self initialization with constructor override"""
+    code = """
+owner: address = self
+
+@deploy
+def __init__():
+    # override with msg.sender
+    self.owner = msg.sender
+
+@external
+@view
+def get_owner() -> address:
+    return self.owner
+    """
+
+    c = get_contract(code)
+
+    # should be overridden to deployer
+    assert c.get_owner() == env.deployer

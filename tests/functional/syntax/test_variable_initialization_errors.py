@@ -34,13 +34,6 @@ x: uint256 = self.y
     """,
             StateAccessViolation,
         ),
-        (
-            """
-# Cannot use self in initializer
-x: address = self
-    """,
-            StateAccessViolation,
-        ),
     ],
 )
 def test_invalid_initializers(bad_code, exc):

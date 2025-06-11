@@ -35,6 +35,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    is_naked_self_reference,
     uses_state,
     validate_expected_type,
 )
@@ -52,7 +53,6 @@ from vyper.semantics.types import (
     HashMapT,
     IntegerT,
     SArrayT,
-    SelfT,
     StringT,
     StructT,
     TupleT,
@@ -183,17 +183,13 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
-    if (varinfo := info.var_info) is None:
-        return
-    # self is magic. we only need to check it if it is not the root of an Attribute
-    # node. (i.e. it is bare like `self`, not `self.foo`)
-    is_naked_self = isinstance(varinfo.typ, SelfT) and not isinstance(
-        node.get_ancestor(), vy_ast.Attribute
-    )
-    if is_naked_self:
+    if is_naked_self_reference(node):
         raise StateAccessViolation("not allowed to query `self` in pure functions")
 
-    if varinfo.is_state_variable() or is_naked_self:
+    if (varinfo := info.var_info) is None:
+        return
+
+    if varinfo.is_state_variable():
         raise StateAccessViolation("not allowed to query state variables in pure functions")
 
 
