@@ -54,14 +54,17 @@ class MutationResult:
     layout: dict
 
 
-VAR_NAME_COUNTER = 0
+class VarNameGenerator:
+    def __init__(self):
+        self.counter = 0
+
+    def get_var_name(self):
+        varname = "var" + str(self.counter)
+        self.counter += 1
+        return varname
 
 
-def get_var_name():
-    global VAR_NAME_COUNTER
-    varname = "var" + str(VAR_NAME_COUNTER)
-    VAR_NAME_COUNTER += 1
-    return varname
+NAME_GENERATOR = VarNameGenerator()
 
 
 @st.composite
@@ -71,7 +74,7 @@ def generate_contract_parts(draw):
     declarations = []
 
     for _ in range(num_vars):
-        name = get_var_name()
+        name = NAME_GENERATOR.get_var_name()
 
         # TODO verify that we're covering all types
         # think we're missing (atleast) Flags, Interfaces, Decimals

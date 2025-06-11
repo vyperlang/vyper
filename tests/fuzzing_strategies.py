@@ -37,18 +37,16 @@ static_leaf_ctors = [t for t in leaf_ctors if t._is_prim_word]
 dynamic_leaf_ctors = [BytesT, StringT]
 
 
-def _create_id_generator():
-    counter = 0
+class IdGenerator:
+    def __init__(self):
+        self.counter = 0
 
-    def get_next_id():
-        nonlocal counter
-        counter += 1
-        return counter
-
-    return get_next_id
+    def get_next_id(self):
+        self.counter += 1
+        return self.counter
 
 
-get_next_id = _create_id_generator()
+ID_GENERATOR = IdGenerator()
 
 
 @st.composite
@@ -115,7 +113,7 @@ def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
     if t == StructT:
         n = draw(st.integers(min_value=1, max_value=6))
         subtypes = {f"x{i}": _go(skip=[HashMapT]) for i in range(n)}
-        _id = get_next_id()
+        _id = ID_GENERATOR.get_next_id()
         name = f"MyStruct{_id}"
         typ = StructT(name, subtypes)
         source_fragments.append(typ.def_source_str())
