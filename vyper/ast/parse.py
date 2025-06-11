@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import pickle
 import tokenize
 from decimal import Decimal
@@ -212,9 +213,11 @@ def _deepcopy_ast(ast_node: python_ast.AST):
 # singleton ast nodes of the same type will be identical.
 class LocationVisitor(python_ast.NodeTransformer):
     _source_code: str
+    _parents: list[python_ast.AST]
 
     def __init__(self, source_code: str):
         self._source_code = source_code
+        self._parents = []
 
     @cached_property
     def source_lines(self):
@@ -235,20 +238,25 @@ class LocationVisitor(python_ast.NodeTransformer):
 
     def generic_visit(self, node):
         if isinstance(node, PYTHON_AST_SINGLETONS):
-            node = _deepcopy_ast(node)
-
-        node = super().generic_visit(node)
+            node = copy.copy(node)
 
         # adapted from cpython Lib/ast.py. adds line/col info to ast,
         # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
         # one that python defines to have line/col info.
         # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        for child in python_ast.iter_child_nodes(node):
-            for field in LINE_INFO_FIELDS:
-                val = getattr(child, field, None)
-                if val is None:
-                    val = getattr(node, field)
-                setattr(child, field, val)
+        for field in LINE_INFO_FIELDS:
+            val = getattr(node, field, None)
+            if val is None:
+                assert self._parents
+                parent = self._parents[-1]
+                val = getattr(parent, field)
+            setattr(node, field, val)
+
+        self._parents.append(node)
+
+        node = super().generic_visit(node)
+
+        self._parents.pop()
 
         return node
 
