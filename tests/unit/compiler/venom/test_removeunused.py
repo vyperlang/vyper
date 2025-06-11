@@ -158,7 +158,7 @@ def test_removeunused_msize_branches():
     pre = """
     function global {
         main:
-            %1 = param
+            %1 = source
             %2 = mload 10  ; looks unused, but has MSIZE effect
             jnz %1, @branch1, @branch2
         branch1:

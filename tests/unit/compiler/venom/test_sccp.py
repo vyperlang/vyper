@@ -17,7 +17,7 @@ def test_simple_case():
     """
     pre = """
     _global:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %2, %3
@@ -27,7 +27,7 @@ def test_simple_case():
 
     post = """
     _global:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 32, 64
@@ -127,7 +127,7 @@ def test_cont_jump_case():
     """
     pre = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %3, %2
@@ -142,7 +142,7 @@ def test_cont_jump_case():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 64, 32
@@ -174,7 +174,7 @@ def test_cont_phi_case():
 
     pre = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %3, %2
@@ -192,7 +192,7 @@ def test_cont_phi_case():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 64, 32

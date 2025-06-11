@@ -17,14 +17,14 @@ def test_sccp_algebraic_opt_sub_xor():
     # x ^ x -> 0
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = sub %par, %par
         %2 = xor %par, %par
         sink %1, %2
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink 0, 0
     """
 
@@ -36,7 +36,7 @@ def test_sccp_algebraic_opt_zero_sub_add_xor():
     # (this cannot be done for 0 - x)
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = sub %par, 0
         %2 = xor %par, 0
         %3 = add %par, 0
@@ -47,7 +47,7 @@ def test_sccp_algebraic_opt_zero_sub_add_xor():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         %4 = sub 0, %par
         sink %par, %par, %par, %4, %par, %par
     """
@@ -60,7 +60,7 @@ def test_sccp_algebraic_opt_sub_xor_max():
     # -1 - x -> ~x
     pre = """
     _global:
-        %par = param
+        %par = source
         %tmp = -1
         %1 = xor -1, %par
         %2 = xor %par, -1
@@ -71,7 +71,7 @@ def test_sccp_algebraic_opt_sub_xor_max():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         %1 = not %par
         %2 = not %par
         %3 = not %par
@@ -87,7 +87,7 @@ def test_sccp_algebraic_opt_shift():
     # sar is right arithmetic shift
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = shl 0, %par
         %2 = shr 0, %1
         %3 = sar 0, %2
@@ -95,7 +95,7 @@ def test_sccp_algebraic_opt_shift():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink %par, %par, %par
     """
 
@@ -107,14 +107,14 @@ def test_mul_by_zero(opcode):
     # x * 0 == 0 * x == x % 0 == 0 % x == x // 0 == 0 // x == x & 0 == 0 & x -> 0
     pre = f"""
     _global:
-        %par = param
+        %par = source
         %1 = {opcode} 0, %par
         %2 = {opcode} %par, 0
         sink %1, %2
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink 0, 0
     """
 
@@ -126,7 +126,7 @@ def test_sccp_algebraic_opt_multi_neutral_elem():
     # checks for non comutative ops
     pre = """
     _global:
-        %par = param
+        %par = source
         %1_1 = mul 1, %par
         %1_2 = mul %par, 1
         %2_1 = div 1, %par
@@ -137,7 +137,7 @@ def test_sccp_algebraic_opt_multi_neutral_elem():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         %2_1 = div 1, %par
         %3_1 = sdiv 1, %par
         sink %par, %par, %2_1, %par, %3_1, %par
@@ -150,14 +150,14 @@ def test_sccp_algebraic_opt_mod_zero():
     # x % 1 -> 0
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = mod %par, 1
         %2 = smod %par, 1
         sink %1, %2
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink 0, 0
     """
 
@@ -169,7 +169,7 @@ def test_sccp_algebraic_opt_and_max():
     max_uint256 = 2**256 - 1
     pre = f"""
     _global:
-        %par = param
+        %par = source
         %tmp = {max_uint256}
         %1 = and %par, %tmp
         %2 = and %tmp, %par
@@ -177,7 +177,7 @@ def test_sccp_algebraic_opt_and_max():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink %par, %par
     """
 
@@ -193,7 +193,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts(n):
     y = 2**n
     pre = f"""
     _global:
-        %par = param
+        %par = source
         %1 = mul %par, {y}
         %2 = mod %par, {y}
         %3 = div %par, {y}
@@ -204,7 +204,7 @@ def test_sccp_algebraic_opt_mul_div_to_shifts(n):
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         %1 = shl {n}, %par
         %2 = and {y - 1}, %par
         %3 = shr {n}, %par
@@ -222,7 +222,7 @@ def test_sccp_algebraic_opt_exp():
     # x ** 1 -> x
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = exp %par, 0
         %2 = exp 1, %par
         %3 = exp 0, %par
@@ -231,7 +231,7 @@ def test_sccp_algebraic_opt_exp():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         %3 = iszero %par
         sink 1, 1, %3, %par
     """
@@ -244,7 +244,7 @@ def test_sccp_algebraic_opt_compare_self():
     # x < x == x > x -> 0
     pre = """
     _global:
-        %par = param
+        %par = source
         %tmp = %par
         %1 = gt %tmp, %par
         %2 = sgt %tmp, %par
@@ -254,7 +254,7 @@ def test_sccp_algebraic_opt_compare_self():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink 0, 0, 0, 0
     """
 
@@ -267,7 +267,7 @@ def test_sccp_algebraic_opt_or():
     max_uint256 = 2**256 - 1
     pre = f"""
     _global:
-        %par = param
+        %par = source
         %1 = or %par, 0
         %2 = or %par, {max_uint256}
         %3 = or 0, %par
@@ -276,7 +276,7 @@ def test_sccp_algebraic_opt_or():
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         sink %par, {max_uint256}, %par, {max_uint256}
     """
 
@@ -289,7 +289,7 @@ def test_sccp_algebraic_opt_eq():
     # x == 0xFFFF..FF -> iszero(not x)
     pre = """
     global:
-        %par = param
+        %par = source
         %1 = eq %par, 0
         %2 = eq 0, %par
 
@@ -301,7 +301,7 @@ def test_sccp_algebraic_opt_eq():
     """
     post = """
     global:
-        %par = param
+        %par = source
         %1 = iszero %par
         %2 = iszero %par
         %6 = not %par
@@ -318,7 +318,7 @@ def test_sccp_algebraic_opt_boolean_or():
     some_nonzero = 123
     pre = f"""
     _global:
-        %par = param
+        %par = source
         %1 = or %par, {some_nonzero}
         %2 = or %par, {some_nonzero}
         assert %1
@@ -329,7 +329,7 @@ def test_sccp_algebraic_opt_boolean_or():
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         %2 = or {some_nonzero}, %par
         assert 1
         %4 = or {some_nonzero}, %par
@@ -344,8 +344,8 @@ def test_sccp_algebraic_opt_boolean_eq():
     # x == y -> iszero (x ^ y) if it is only used as boolean
     pre = """
     _global:
-        %par = param
-        %par2 = param
+        %par = source
+        %par2 = source
         %1 = eq %par, %par2
         %2 = eq %par, %par2
         assert %1
@@ -353,8 +353,8 @@ def test_sccp_algebraic_opt_boolean_eq():
     """
     post = """
     _global:
-        %par = param
-        %par2 = param
+        %par = source
+        %par2 = source
         %3 = xor %par, %par2
         %1 = iszero %3
         %2 = eq %par, %par2
@@ -374,7 +374,7 @@ def test_compare_never():
     max_uint256 = 2**256 - 1
     pre = f"""
     _global:
-        %par = param
+        %par = source
 
         %1 = slt %par, {min_int256}
         %2 = sgt %par, {max_int256}
@@ -385,7 +385,7 @@ def test_compare_never():
     """
     post = """
     _global:
-        %par = param
+        %par = source
         sink 0, 0, 0, 0
     """
 
@@ -397,14 +397,14 @@ def test_comparison_zero():
     # 0 < x => iszero(iszero x)
     pre = """
     _global:
-        %par = param
+        %par = source
         %1 = lt 0, %par
         %2 = gt %par, 0
         sink %1, %2
     """
     post = """
     _global:
-        %par = param
+        %par = source
         %3 = iszero %par
         %1 = iszero %3
         %4 = iszero %par
@@ -428,7 +428,7 @@ def test_comparison_almost_never():
     min_int256 = -(2**255)
     pre1 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = lt %par, 1
         %2 = gt %par, {max_uint256 - 1}
         %3 = sgt %par, {max_int256 - 1}
@@ -439,7 +439,7 @@ def test_comparison_almost_never():
     # commuted versions - produce same output
     pre2 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = gt 1, %par
         %2 = lt {max_uint256 - 1}, %par
         %3 = slt {max_int256 - 1}, %par
@@ -448,7 +448,7 @@ def test_comparison_almost_never():
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         ; lt %par, 1 => eq 0, %par => iszero %par
         %1 = iszero %par
         ; x > MAX_UINT256 - 1 => eq MAX_UINT x => iszero(not x)
@@ -477,7 +477,7 @@ def test_comparison_almost_always():
 
     pre1 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = gt %par, 0
         %2 = lt %par, {max_uint256}
         assert %2
@@ -490,7 +490,7 @@ def test_comparison_almost_always():
     # commuted versions
     pre2 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = lt 0, %par
         %2 = gt {max_uint256}, %par
         assert %2
@@ -502,7 +502,7 @@ def test_comparison_almost_always():
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         %5 = iszero %par
         %1 = iszero %5
         %9 = not %par  ; (eq -1 x) => (iszero (not x))
@@ -538,7 +538,7 @@ def test_comparison_ge_le(val):
 
     pre1 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = lt %par, {abs_val}
         %3 = gt %par, {abs_val}
         %2 = iszero %1
@@ -551,7 +551,7 @@ def test_comparison_ge_le(val):
     """
     pre2 = f"""
     _global:
-        %par = param
+        %par = source
         %1 = gt {abs_val}, %par
         %3 = lt {abs_val}, %par
         %2 = iszero %1
@@ -564,7 +564,7 @@ def test_comparison_ge_le(val):
     """
     post = f"""
     _global:
-        %par = param
+        %par = source
         %1 = lt {abs_down}, %par
         %3 = gt {abs_up}, %par
         %5 = slt {down}, %par

@@ -39,14 +39,14 @@ def test_lower_dload_var():
     """
     pre = """
     main:
-        %par = param
+        %par = source
         %d1 = dload %par
         sink %d1
     """
 
     post = """
     main:
-        %par = param
+        %par = source
         %1 = add @code_end, %par
         codecopy 0, %1, 32
         %d1 = mload 0
@@ -62,7 +62,7 @@ def test_lower_dload_dloadbytes():
     """
     pre = """
     main:
-        %par = param
+        %par = source
         dloadbytes 100, 200, 50
         dloadbytes 300, %par, 50
         stop
@@ -70,7 +70,7 @@ def test_lower_dload_dloadbytes():
 
     post = """
     main:
-        %par = param
+        %par = source
         %1 = add @code_end, 200
         codecopy 100, %1, 50
         %2 = add @code_end, %par

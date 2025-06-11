@@ -17,6 +17,7 @@ UNINTERESTING_OPCODES = frozenset(
         "store",
         "phi",
         "param",
+        "source",
         "nop",
         "returndatasize",
         "gas",

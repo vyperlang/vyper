@@ -16,7 +16,7 @@ def test_inliner_phi_invalidation():
     pre = """
     function main {
     main:
-        %p = param
+        %p = source
         %1 = invoke @f, %p
         %2 = 0
         jmp @cond
@@ -33,7 +33,7 @@ def test_inliner_phi_invalidation():
 
     function f {
     main:
-        %p = param
+        %p = source
         %1 = add %p, 1
         ret %1
     }
@@ -65,7 +65,7 @@ def test_inliner_phi_invalidation_inner():
     pre = """
     function main {
     main:
-        %p = param
+        %p = source
         jnz %p, @then, @first_join
     then:
         %a = add 1, %p
@@ -88,7 +88,7 @@ def test_inliner_phi_invalidation_inner():
 
     function f {
     main:
-        %p = param
+        %p = source
         %1 = add %p, 1
         ret %1
     }

@@ -104,13 +104,13 @@ def test_basic_dead_store():
 def test_basic_not_dead_store():
     pre = """
         _global:
-            %1 = param
+            %1 = source
             mstore %1, 1
             stop
     """
     post = """
         _global:
-            %1 = param
+            %1 = source
             nop
             stop
     """
@@ -120,7 +120,7 @@ def test_basic_not_dead_store():
 def test_basic_not_dead_store_with_mload():
     pre = """
         _global:
-            %1 = param
+            %1 = source
             mstore 0, 1
             mstore 32, 2
             %2 = mload 0
@@ -128,7 +128,7 @@ def test_basic_not_dead_store_with_mload():
     """
     post = """
         _global:
-            %1 = param
+            %1 = source
             mstore 0, 1
             nop
             %2 = mload 0
@@ -140,14 +140,14 @@ def test_basic_not_dead_store_with_mload():
 def test_basic_not_dead_store_with_return():
     pre = """
         _global:
-            %1 = param
+            %1 = source
             mstore 0, 1
             mstore 32, 2
             return 0, 32
     """
     post = """
         _global:
-            %1 = param
+            %1 = source
             mstore 0, 1
             nop
             return 0, 32
@@ -391,7 +391,7 @@ def test_dead_store_in_loop3(jnz1, jnz2):
 def test_dead_store_alias_across_basic_blocks(jnz):
     pre = f"""
         _global:
-            %cond = param
+            %cond = source
             %val1 = 42
             %val2 = 24
             mstore 0, %val1  ; aliased by mload 5, can't be eliminated
@@ -1019,15 +1019,15 @@ def test_non_volatile_location_store():
 def test_volatile_external_location_store():
     pre = """
     _global:
-      %1 = param
-      %2 = param
+      %1 = source
+      %2 = source
       mstore %1, 1
       ret %2
     """
     post = """
     _global:
-      %1 = param
-      %2 = param
+      %1 = source
+      %2 = source
       mstore %1, 1
       ret %2
     """
@@ -1037,16 +1037,16 @@ def test_volatile_external_location_store():
 def test_volatile_derived_location_store():
     pre = """
     _global:
-      %1 = param
-      %2 = param
+      %1 = source
+      %2 = source
       %3 = add %1, 32
       mstore %3, 1
       ret %2
     """
     post = """
     _global:
-      %1 = param
-      %2 = param
+      %1 = source
+      %2 = source
       %3 = add %1, 32
       mstore %3, 1
       ret %2

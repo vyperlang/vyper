@@ -28,7 +28,7 @@ def _check_no_change(pre: str, hevm: bool = True):
 def test_cse_basic():
     pre = """
     main:
-        %1 = param
+        %1 = source
         %sum1 = add %1, 10
         %mul1 = mul %sum1, 10
         %sum2 = add %1, 10
@@ -38,7 +38,7 @@ def test_cse_basic():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %sum1 = add %1, 10
         %mul1 = mul %sum1, 10
         %sum2 = %sum1
@@ -52,7 +52,7 @@ def test_cse_basic():
 def test_cse_commutative():
     pre = """
     main:
-        %1 = param
+        %1 = source
         %sum1 = add %1, 10
         %mul1 = mul %sum1, 10
         %sum2 = add 10, %1
@@ -62,7 +62,7 @@ def test_cse_commutative():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %sum1 = add %1, 10
         %mul1 = mul %sum1, 10
         %sum2 = %sum1
@@ -79,7 +79,7 @@ def test_cse_no_commutative():
     """
     pre = """
     main:
-        %1 = param
+        %1 = source
         %sum1 = sub %1, 10
         %sum2 = sub 10, %1
         sink %sum1, %sum2
@@ -94,7 +94,7 @@ def test_cse_effects_1():
     """
     pre = """
     main:
-        %par = param
+        %par = source
         %mload1 = mload 0
 
         ; barrier
@@ -117,7 +117,7 @@ def test_cse_effects_2():
     """
     pre = """
     main:
-        %par = param
+        %par = source
         %mload1 = mload 0
         %1 = add %mload1, 10
 
@@ -136,7 +136,7 @@ def test_cse_effects_2():
 
     post = """
     main:
-        %par = param
+        %par = source
         %mload1 = mload 0
         %1 = add %mload1, 10
         mstore 0, %par
@@ -248,7 +248,7 @@ def test_cse_different_branches_cannot_optimize():
     pre = f"""
     main:
         ; random condition
-        %par = param
+        %par = source
         jnz %par, @br1, @br2
     br1:
         {same(1)}
@@ -290,7 +290,7 @@ def test_cse_different_branches_can_optimize():
     pre = f"""
     main:
         ; random condition
-        %par = param
+        %par = source
         {same(0)}
         jnz @br1, @br2, %par
     br1:
@@ -308,7 +308,7 @@ def test_cse_different_branches_can_optimize():
     post = f"""
     main:
         ; random condition
-        %par = param
+        %par = source
         {same(0)}
         jnz @br1, @br2, %par
     br1:
@@ -382,7 +382,7 @@ def test_cse_loop():
 
     pre = """
     main:
-        %par = param
+        %par = source
         %data0 = mload 0
         %add0 = add 1, %par
         %mul0 = mul %add0, %data0
@@ -396,7 +396,7 @@ def test_cse_loop():
 
     post = """
     main:
-        %par = param
+        %par = source
         %data0 = mload 0
         %add0 = add 1, %par
         %mul0 = mul %add0, %data0
@@ -420,7 +420,7 @@ def test_cse_loop_cannot_substitute():
 
     pre = """
     main:
-        %par = param
+        %par = source
         %data0 = mload 0
         %add0 = add 1, %par
         %mul0 = mul %add0, %data0
@@ -539,7 +539,7 @@ def test_cse_allowed_deep_self_conflict():
 def test_cse_small_expressions():
     pre = """
     main:
-        %par = param
+        %par = source
         %1 = add 1, 2
         jnz %par, @then, @else
     then:
@@ -556,7 +556,7 @@ def test_cse_small_expressions():
 
     post = """
     main:
-        %par = param
+        %par = source
         %1 = add 1, 2
         jnz %par, @then, @else
     then:
@@ -577,8 +577,8 @@ def test_cse_small_expressions():
 def test_cse_different_params():
     pre = """
     main:
-        %p1 = param
-        %p2 = param
+        %p1 = source
+        %p2 = source
         %a1 = add %p1, %p2
         %a2 = add %p2, %p2
         sink %a1, %a2

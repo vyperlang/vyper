@@ -10,8 +10,8 @@ _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 def test_simple_phi_elimination():
     pre = """
     main:
-        %1 = param
-        %cond = param
+        %1 = source
+        %cond = source
         %2 = %1
         jnz %cond, @then, @else
     then:
@@ -23,8 +23,8 @@ def test_simple_phi_elimination():
 
     post = """
     main:
-        %1 = param
-        %cond = param
+        %1 = source
+        %cond = source
         %2 = %1
         jnz %cond, @then, @else
     then:
@@ -40,7 +40,7 @@ def test_simple_phi_elimination():
 def test_phi_elim_loop():
     pre = """
     main:
-        %v = param
+        %v = source
         jmp @loop
     loop:
         %v:2 = phi @main, %v, @loop, %v:2
@@ -49,7 +49,7 @@ def test_phi_elim_loop():
 
     post = """
     main:
-        %v = param
+        %v = source
         jmp @loop
     loop:
         %v:2 = %v
@@ -110,8 +110,8 @@ def test_phi_elim_loop2():
 def test_phi_elim_loop_inner_phi():
     pre = """
     main:
-        %1 = param
-        %rand = param
+        %1 = source
+        %rand = source
         %2 = %1
         jmp @condition
     condition:
@@ -138,8 +138,8 @@ def test_phi_elim_loop_inner_phi():
 
     post = """
     main:
-        %1 = param
-        %rand = param
+        %1 = source
+        %rand = source
         %2 = %1
         jmp @condition
     condition:
@@ -170,7 +170,7 @@ def test_phi_elim_loop_inner_phi():
 def test_phi_elim_loop_inner_phi_simple():
     pre = """
     main:
-        %p = param
+        %p = source
         jmp @loop_start
     loop_start:
         %1 = phi @main, %p, @loop_join, %4
@@ -188,7 +188,7 @@ def test_phi_elim_loop_inner_phi_simple():
 
     post = """
     main:
-        %p = param
+        %p = source
         jmp @loop_start
     loop_start:
         %1 = %p
@@ -210,8 +210,8 @@ def test_phi_elim_loop_inner_phi_simple():
 def test_phi_elim_cannot_remove():
     pre = """
     main:
-        %p = param
-        %rand = param
+        %p = source
+        %rand = source
         jmp @cond
     cond:
         %1 = phi @main, %p, @body, %3
@@ -235,7 +235,7 @@ def test_phi_elim_cannot_remove():
 def test_phi_elim_direct_loop():
     pre1 = """
     main:
-        %p = param
+        %p = source
         jmp @loop
     loop:
         %1 = phi @main, %p, @loop, %2
@@ -245,7 +245,7 @@ def test_phi_elim_direct_loop():
 
     pre2 = """
     main:
-        %p = param
+        %p = source
         jmp @loop
     loop:
         %1 = phi @main, %p, @loop, %2
@@ -255,7 +255,7 @@ def test_phi_elim_direct_loop():
 
     post = """
     main:
-        %p = param
+        %p = source
         jmp @loop
     loop:
         %1 = %p
@@ -270,8 +270,8 @@ def test_phi_elim_direct_loop():
 def test_phi_elim_two_phi_merges():
     pre = """
     main:
-        %cond = param
-        %cond2 = param
+        %cond = source
+        %cond2 = source
         jnz %cond, @1_then, @2_then
     1_then:
         %1 = 100
@@ -295,8 +295,8 @@ def test_phi_elim_two_phi_merges():
 
     post = """
     main:
-        %cond = param
-        %cond2 = param
+        %cond = source
+        %cond2 = source
         jnz %cond, @1_then, @2_then
     1_then:
         %1 = 100

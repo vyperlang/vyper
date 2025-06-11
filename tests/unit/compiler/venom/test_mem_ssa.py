@@ -142,7 +142,7 @@ def test_partially_overlapping_clobber():
     pre = """
     function _global {
         _global:
-            %1 = param
+            %1 = source
             mstore 256, 4     ; def: 3 (live_on_entry)
             mstore 288, 1007
             mstore 352, 1007
@@ -386,7 +386,7 @@ def test_basic_def_use_assignment():
     pre = """
     function _global {
         _global:
-            %1 = param
+            %1 = source
             mstore 0, 1
             mstore 32, 2
             %2 = mload 0
@@ -517,7 +517,7 @@ def test_mark_volatile():
     pre = """
     function _global {
         _global:
-            %1 = param
+            %1 = source
             mstore 0, %1
             %2 = mload 0
             stop

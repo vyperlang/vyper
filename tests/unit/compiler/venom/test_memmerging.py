@@ -194,7 +194,7 @@ def test_memmerging_imposs_unkown_place():
 
     pre = """
     _global:
-        %1 = param
+        %1 = source
         %2 = mload 0
         %3 = mload %1  ; BARRIER
         %4 = mload 32
@@ -1347,7 +1347,7 @@ def test_memzeroing_imposs():
 
     pre = """
     _global:
-        %1 = param  ; abstract location, causes barrier
+        %1 = source  ; abstract location, causes barrier
         mstore 32, 0
         mstore %1, 0
         mstore 64, 0
@@ -1437,7 +1437,7 @@ def test_merge_mstore_dload():
     """
     pre = """
     _global:
-        %par = param
+        %par = source
         %d = dload %par
         mstore 1000, 123
         mstore 1000, %d
@@ -1446,7 +1446,7 @@ def test_merge_mstore_dload():
 
     post = """
     _global:
-        %par = param
+        %par = source
         mstore 1000, 123
         dloadbytes 1000, %par, 32
         stop
@@ -1465,7 +1465,7 @@ def test_merge_mstore_dload_more_uses():
     """
     pre = """
     _global:
-        %par = param
+        %par = source
         %d = dload %par
         mstore 1000, %d
         sink %d
@@ -1473,7 +1473,7 @@ def test_merge_mstore_dload_more_uses():
 
     post = """
     _global:
-        %par = param
+        %par = source
         dloadbytes 1000, %par, 32
         %1 = mload 1000
         sink %1
@@ -1492,7 +1492,7 @@ def test_merge_mstore_dload_disallowed():
     """
     pre = """
     _global:
-        %par = param
+        %par = source
         %d1 = dload %par
         mstore %d1, 1000
         mstore 1000, %d1
