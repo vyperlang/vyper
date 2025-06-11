@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from vyper.evm.assembler.symbols import CONST, CONST_ADD, CONST_MAX, Label, CONSTREF, SymbolKey
+from vyper.evm.assembler.symbols import CONST, CONST_ADD, CONST_MAX, CONSTREF, Label, SymbolKey
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -19,13 +19,13 @@ def num_to_bytearray(x):
     return o
 
 
-
 @dataclass
 class DataHeader:
     label: Label
 
     def __repr__(self):
         return f"DATA {self.label.label}"
+
 
 class PUSHLABEL:
     def __init__(self, label: Label):

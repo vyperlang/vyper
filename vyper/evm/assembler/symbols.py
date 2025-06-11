@@ -1,4 +1,3 @@
-
 class Label:
     def __init__(self, label: str):
         assert isinstance(label, str)
@@ -32,7 +31,9 @@ class CONSTREF:
     def __hash__(self):
         return hash(self.label)
 
+
 SymbolKey = Label | CONSTREF
+
 
 class CONST:
     def __init__(self, name: str, value: int):
