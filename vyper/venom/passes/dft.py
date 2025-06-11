@@ -108,6 +108,9 @@ class DFTPass(IRPass):
             for write_effect in write_effects:
                 if write_effect in last_read_effects:
                     self.eda[inst].add(last_read_effects[write_effect])
+                # prevent reordering write-after-write for the same effect
+                if write_effect in last_write_effects:
+                    self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
 
             for read_effect in read_effects:
