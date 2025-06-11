@@ -68,54 +68,56 @@ def validate_storage_layout(layout_dict):
 def mutate_layout(draw, layout):
     # Choose mutation type: "d" = drop, "ma" = mutate address, "ms" = mutate size
     mutation_type = draw(st.sampled_from(["d", "ma", "ms"]))
-    
+
     # Select section
     if not ENABLE_TRANSIENT:
         section = layout["storage_layout"]
     else:
         section_name = draw(st.sampled_from(["storage_layout", "transient_storage_layout"]))
         if section_name not in layout or not layout[section_name]:
-            section_name = "transient_storage_layout" if section_name == "storage_layout" else "storage_layout"
+            section_name = (
+                "transient_storage_layout" if section_name == "storage_layout" else "storage_layout"
+            )
         section = layout[section_name]
-    
+
     if mutation_type == "d":
         # Drop random item
         if len(section) == 0:
             return False, layout
-        
+
         item_name = draw(st.sampled_from(list(section.keys())))
         del section[item_name]
         return True, layout
-    
+
     elif mutation_type == "ma":
         # Mutate slot address
         if len(section) < 2:
             return False, layout
-        
+
         items = list(section.keys())
         item_to_change = draw(st.sampled_from(items[:-1]))
         last_slot = section[items[-1]]["slot"]
         assert last_slot > 0
-        
-        new_slot = draw(st.integers(0, last_slot).filter(
-            lambda x: x != section[item_to_change]["slot"]
-        ))
+
+        new_slot = draw(
+            st.integers(0, last_slot).filter(lambda x: x != section[item_to_change]["slot"])
+        )
         section[item_to_change]["slot"] = new_slot
         return True, layout
-    
+
     elif mutation_type == "ms":
         # Mutate slot size
         if len(section) < 2:
             return False, layout
-        
+
         items = list(section.keys())
         item_to_change = draw(st.sampled_from(items[:-1]))
         last_slot = section[items[-1]]["slot"]
-        
+
         delta = draw(st.integers(-last_slot, last_slot).filter(lambda x: x != 0))
         section[item_to_change]["n_slots"] = section[item_to_change]["n_slots"] + delta
         return True, layout
-    
+
     else:
         raise RuntimeError("unreachable")
 

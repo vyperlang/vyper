@@ -53,7 +53,7 @@ ID_GENERATOR = IdGenerator()
 def generate_vyper_storage_var_decls(draw):
     """
     Generate random storage and transient variable declarations for Vyper contracts.
-    
+
     Returns a tuple of (type_definitions, declarations) where:
     - type_definitions: list of struct definitions needed by the variables
     - declarations: list of storage/transient variable declarations
