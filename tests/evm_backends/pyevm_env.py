@@ -21,6 +21,7 @@ from eth_utils import setup_DEBUG2_logging, to_canonical_address, to_checksum_ad
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult, LogEntry
+from tests.exports import TestExporter
 from vyper.utils import keccak256
 
 
@@ -37,8 +38,9 @@ class PyEvmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
+        exporter: TestExporter,
     ) -> None:
-        super().__init__(gas_limit, account_keys)
+        super().__init__(gas_limit, account_keys, exporter)
 
         evm_opcodes.DEFAULT_EVM_VERSION = evm_version
 
@@ -145,6 +147,28 @@ class PyEvmEnv(BaseEnv):
                     code=self.get_code(to),
                     value=value,
                     gas=self.gas_limit if gas is None else gas,
+                    is_static=not is_modifying,
+                ),
+                transaction_context=self._make_tx_context(sender, gas_price),
+            )
+        except VMError as e:
+            # py-evm raises when user is out-of-funds instead of returning a failed computation
+            raise EvmError(*e.args) from e
+
+        self._check_computation(computation)
+        return computation.output
+
+    def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
+        try:
+            computation = self._state.computation_class.apply_message(
+                state=self._state,
+                message=Message(
+                    to=_addr(to),
+                    sender=_addr(sender),
+                    data=data,
+                    code=self.get_code(to),
+                    value=value,
+                    gas=gas,
                     is_static=not is_modifying,
                 ),
                 transaction_context=self._make_tx_context(sender, gas_price),
