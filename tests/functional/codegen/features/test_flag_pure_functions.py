@@ -1,5 +1,6 @@
 def test_flag_members_in_pure_functions(get_contract):
-    """Test that flag members can be used in pure functions since they are compile-time constants"""
+    """Test that flag members can be used in pure functions since they are
+    compile-time constants"""
     code = """
 flag Action:
     BUY

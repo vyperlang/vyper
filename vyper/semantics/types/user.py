@@ -108,31 +108,6 @@ class FlagT(_UserType):
         # fallback to parent class error message
         super().validate_comparator(node)
 
-    def is_member_access(self, node: vy_ast.VyperNode) -> bool:
-        """
-        Check if this flag usage represents member access (e.g., Action.BUY)
-        which should be allowed in pure functions since flag members are compile-time constants.
-
-        Arguments
-        ---------
-        node : VyperNode
-            The AST node representing the flag type reference
-
-        Returns
-        -------
-        bool
-            True if this is a flag member access pattern, False otherwise
-        """
-        if not hasattr(node, "get_ancestor"):
-            return False
-
-        ancestor = node.get_ancestor()
-        return (
-            isinstance(ancestor, vy_ast.Attribute)
-            and hasattr(ancestor, "value")
-            and ancestor.value == node
-        )
-
     # @property
     # def signature(self):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
