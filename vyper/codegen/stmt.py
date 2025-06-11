@@ -1,5 +1,3 @@
-from typing import Optional
-
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast

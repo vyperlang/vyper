@@ -20,7 +20,7 @@ def get_x() -> uint256:
 def get_y() -> int128:
     return self.y
 
-@external  
+@external
 @view
 def get_z() -> bool:
     return self.z
@@ -71,11 +71,11 @@ Y: immutable(int128) = -100
 
 @deploy
 def __init__(override_x: uint256):
-    X = override_x  # Override X 
+    X = override_x  # Override X
     # Y keeps initialized value
 
 @external
-@view  
+@view
 def get_x() -> uint256:
     return X
 
@@ -137,16 +137,16 @@ def test_initialization_order(get_contract):
     """Test that initializations happen in declaration order"""
     code = """
 a: uint256 = 1
-b: uint256 = 2  
+b: uint256 = 2
 c: uint256 = 3
 
 @deploy
 def __init__():
     # Check they were initialized in order
     assert self.a == 1
-    assert self.b == 2  
+    assert self.b == 2
     assert self.c == 3
-    
+
     # Now override b
     self.b = 20
 
@@ -255,7 +255,7 @@ def __init__():
 def get_stored_x() -> uint256:
     return self.stored_x
 
-@external  
+@external
 @view
 def get_stored_y() -> bool:
     return self.stored_y
@@ -296,7 +296,7 @@ def __init__(override_flag: uint256):
         self.y = 222
     else:
         self.z = 333
-    
+
     # nested conditions
     if self.x > 100:
         if self.y == 200:
@@ -341,7 +341,7 @@ def __init__(iterations: uint256):
     # Initialize some array values based on counter
     for i: uint256 in range(10):
         self.values[i] = self.counter + i
-    
+
     # Conditionally modify counter in a loop
     for i: uint256 in range(10):
         if i < iterations:
@@ -380,11 +380,11 @@ def __init__(early_exit: bool):
     assert self.a == 100
     assert self.b == 200
     assert self.c == 300
-    
+
     if early_exit:
         self.a = 111
         return  # early return
-    
+
     # This code only runs if not early_exit
     self.b = 222
     self.c = 333
@@ -426,7 +426,7 @@ def __init__(adjustment: int128):
     assert self.x >= MIN_VALUE and self.x <= MAX_VALUE
     assert self.y >= MIN_VALUE and self.y <= MAX_VALUE
     assert self.z >= MIN_VALUE and self.z <= MAX_VALUE
-    
+
     # Adjust values but keep in range
     if adjustment > 0:
         new_x: uint256 = self.x + convert(adjustment, uint256)

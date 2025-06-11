@@ -1,4 +1,3 @@
-from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, make_setter, needs_clamp

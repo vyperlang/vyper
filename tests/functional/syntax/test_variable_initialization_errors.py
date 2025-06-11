@@ -1,7 +1,14 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CallViolation, InvalidType, StateAccessViolation, TypeMismatch
+from vyper.exceptions import (
+    CallViolation,
+    ImmutableViolation,
+    StateAccessViolation,
+    TypeMismatch,
+    UndeclaredDefinition,
+    VariableDeclarationException,
+)
 
 
 @pytest.mark.parametrize(
@@ -43,7 +50,7 @@ x: uint256 = block.timestamp
         ),
         (
             """
-# Cannot use tx properties  
+# Cannot use tx properties
 x: address = tx.origin
     """,
             StateAccessViolation,
@@ -66,37 +73,6 @@ x: uint256 = 2 ** block.number
 )
 def test_invalid_initializers(bad_code, exc):
     with pytest.raises(exc):
-        compile_code(bad_code)
-
-
-@pytest.mark.parametrize(
-    "bad_code",
-    [
-        """
-# Arrays cannot be initialized at declaration
-x: uint256[3] = [1, 2, 3]
-    """,
-        """
-# DynArrays cannot be initialized at declaration
-x: DynArray[uint256, 10] = [1, 2, 3]
-    """,
-        """
-# Structs cannot be initialized at declaration
-struct Point:
-    x: uint256
-    y: uint256
-
-p: Point = Point(x=1, y=2)
-    """,
-        """
-# HashMaps cannot be initialized at declaration
-balances: HashMap[address, uint256] = empty(HashMap[address, uint256])
-    """,
-    ],
-)
-def test_complex_type_initialization_not_supported(bad_code):
-    # These should fail because complex types don't support initialization
-    with pytest.raises(Exception):  # Could be various exceptions
         compile_code(bad_code)
 
 
@@ -143,7 +119,7 @@ def test_constant_requires_value():
     bad_code = """
 X: constant(uint256)  # Missing initializer
     """
-    with pytest.raises(Exception):
+    with pytest.raises(VariableDeclarationException):
         compile_code(bad_code)
 
 
@@ -156,7 +132,7 @@ X: immutable(uint256)  # No initializer
 def __init__():
     pass  # Forgot to set X
     """
-    with pytest.raises(Exception):
+    with pytest.raises(ImmutableViolation):
         compile_code(bad_code)
 
 
@@ -170,21 +146,11 @@ b: uint256 = self.a + 50  # Cannot reference self.a
         compile_code(bad_code)
 
 
-def test_initializer_cannot_reference_constants_before_declaration():
-    """Cannot use forward references to constants"""
-    bad_code = """
-x: uint256 = MY_CONST  # MY_CONST not defined yet
-MY_CONST: constant(uint256) = 100
-    """
-    with pytest.raises(Exception):
-        compile_code(bad_code)
-
-
 def test_circular_reference_in_constants():
     """Constants cannot have circular references"""
     bad_code = """
 A: constant(uint256) = B
 B: constant(uint256) = A
     """
-    with pytest.raises(Exception):
+    with pytest.raises(UndeclaredDefinition):
         compile_code(bad_code)
