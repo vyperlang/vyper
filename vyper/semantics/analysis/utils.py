@@ -191,15 +191,6 @@ class _ExprAnalyser:
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
 
-        # special case: flag member access (e.g., Action.BUY)
-        # flag members should return the flag type, not TYPE_T(flag)
-        from vyper.semantics.types.user import FlagT
-
-        if isinstance(t, TYPE_T) and isinstance(t.typedef, FlagT):
-            # validate member exists and return the flag type
-            t.get_member(name, node)  # raises if invalid member
-            return [t.typedef]
-
         def _raise_invalid_reference(name, node):
             raise InvalidReference(
                 f"'{name}' is not a storage variable, it should not be prepended with self", node
