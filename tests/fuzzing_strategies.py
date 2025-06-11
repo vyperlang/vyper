@@ -50,6 +50,38 @@ ID_GENERATOR = IdGenerator()
 
 
 @st.composite
+def generate_vyper_storage_var_decls(draw):
+    """
+    Generate random storage and transient variable declarations for Vyper contracts.
+    
+    Returns a tuple of (type_definitions, declarations) where:
+    - type_definitions: list of struct definitions needed by the variables
+    - declarations: list of storage/transient variable declarations
+    """
+    num_vars = draw(st.integers(1, 50))
+    type_definitions = []
+    declarations = []
+
+    for _ in range(num_vars):
+        name = f"var{ID_GENERATOR.get_next_id()}"
+
+        # TODO verify that we're covering all types
+        # think we're missing (atleast) Flags, Interfaces, Decimals
+        num = draw(st.integers(1, 4))
+        source_fragments, typ = draw(vyper_type(num))
+        type_definitions.extend(source_fragments)  # Struct definitions
+        probability = draw(st.floats(0, 1))
+        do_transient_decl = probability <= 0.1
+        if do_transient_decl and not isinstance(typ, HashMapT):
+            declarations.append(f"{name}: transient({str(typ)})")
+        else:
+            declarations.append(f"{name}: {str(typ)}")
+        # TODO add a function with @nonreentrant and compile w/o cancun
+
+    return type_definitions, declarations
+
+
+@st.composite
 def vyper_type(draw, nesting=3, skip=None, source_fragments=None):
     """
     generates a random VyperType and source code fragments (like struct definitions).

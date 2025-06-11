@@ -18,10 +18,9 @@ from hypothesis import Phase, given, settings
 from hypothesis import strategies as st
 
 # TODO use proper generator for storage types
-from tests.fuzzing_strategies import vyper_type
+from tests.fuzzing_strategies import generate_vyper_storage_var_decls
 from vyper.compiler import compile_code
 from vyper.exceptions import CompilerPanic, StorageLayoutException
-from vyper.semantics.types import HashMapT
 
 ENABLE_TRANSIENT = False
 
@@ -52,45 +51,6 @@ class ContractMutation:
 class MutationResult:
     success: bool
     layout: dict
-
-
-class VarNameGenerator:
-    def __init__(self):
-        self.counter = 0
-
-    def get_var_name(self):
-        varname = "var" + str(self.counter)
-        self.counter += 1
-        return varname
-
-
-NAME_GENERATOR = VarNameGenerator()
-
-
-@st.composite
-def generate_contract_parts(draw):
-    num_vars = draw(st.integers(1, 50))
-    type_definitions = []
-    declarations = []
-
-    for _ in range(num_vars):
-        name = NAME_GENERATOR.get_var_name()
-
-        # TODO verify that we're covering all types
-        # think we're missing (atleast) Flags, Interfaces, Decimals
-        num = draw(st.integers(1, 4))
-        source_fragments, typ = draw(vyper_type(num))
-        type_definitions.extend(source_fragments)  # Struct definitions
-        probability = draw(st.floats(0, 1))
-        do_transient_decl = probability <= 0.1
-        if do_transient_decl and not isinstance(typ, HashMapT):
-            declarations.append(f"{name}: transient({str(typ)})")
-        else:
-            declarations.append(f"{name}: {str(typ)}")
-        # TODO add a function with @nonreentrant and compile w/o cancun
-
-    return type_definitions, declarations
-
 
 # sanity check a storage layout
 # check that variables don't overlap and that each var starts
@@ -192,7 +152,7 @@ def mutate_layout(draw, layout):
 
 @st.composite
 def contract_strategy(draw) -> ContractParts:
-    types, declarations = draw(generate_contract_parts())
+    types, declarations = draw(generate_vyper_storage_var_decls())
     source = "\n".join(types + declarations)
     return ContractParts(types, declarations, source)
 
