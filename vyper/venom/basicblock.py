@@ -14,9 +14,7 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(
-    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
-)
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -50,7 +48,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
-        "exit",
     ]
 )
 
@@ -79,7 +76,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "djmp",
         "jnz",
         "log",
-        "exit",
         "nop",
     ]
 )
@@ -247,6 +243,8 @@ class IRInstruction:
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
+        if output is not None:
+            assert isinstance(output, IRVariable), output
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
         self.output = output
